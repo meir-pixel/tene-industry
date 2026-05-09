@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>מסך מכונה – IronBend</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#e07b39">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="IronBend">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --steel:#0a1018;--steel-mid:#111d2b;--steel-light:#1a2d42;
+    --accent:#e07b39;--accent-light:#f0954d;
+    --success:#27ae60;--danger:#e74c3c;--warning:#f39c12;
+    --text:#e8edf3;--text-dim:#6b8399;
+    --border:rgba(255,255,255,0.07);--card:rgba(255,255,255,0.04);
+    --radius:14px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+
+  .topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;height:56px;
+    display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
+  .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent-light));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+  .top-nav-links{display:flex;gap:2px;}
+  .nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);font-size:13px;font-weight:600;transition:all 0.2s;}
+  .nav-link:hover{background:rgba(255,255,255,0.06);color:var(--text);}
+  .nav-link.active{background:rgba(224,123,57,0.15);color:var(--accent);}
+  .ws-indicator{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);}
+  .ws-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0;}
+  .ws-dot.live{background:var(--success);animation:blink 2s infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  @keyframes cPulse{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}
+
+  .page{max-width:960px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px;}
+
+  /* MACHINE TABS */
+  .machine-tabs{display:flex;gap:8px;flex-wrap:wrap;}
+  .machine-tab{padding:10px 18px;border-radius:10px;border:1px solid var(--border);background:var(--card);
+    color:var(--text-dim);cursor:pointer;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;
+    transition:all 0.2s;display:flex;align-items:center;gap:7px;min-height:44px;-webkit-tap-highlight-color:transparent;}
+  .machine-tab.active{background:rgba(224,123,57,0.15);border-color:var(--accent);color:var(--accent);}
+  .machine-tab.running{border-color:rgba(224,123,57,0.5);}
+  .tab-dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;}
+  .machine-tab.running .tab-dot{background:var(--accent);animation:blink 1.5s infinite;}
+  .machine-tab.online  .tab-dot{background:var(--success);}
+  .machine-tab.error   .tab-dot{background:var(--danger);}
+
+  /* LAYOUT */
+  .main-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;}
+
+  /* COUNTER PANEL */
+  .counter-panel{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);
+    padding:28px 20px;display:flex;flex-direction:column;align-items:center;gap:14px;
+    position:relative;overflow:hidden;}
+  .counter-panel::before{content:'';position:absolute;inset:0;
+    background:radial-gradient(ellipse at center top,rgba(224,123,57,0.06) 0%,transparent 70%);pointer-events:none;}
+  .counter-label{font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
+  .counter-big{font-size:clamp(56px,15vw,110px);font-weight:900;line-height:1;color:var(--accent);
+    text-shadow:0 0 50px rgba(224,123,57,0.3);transition:all 0.3s;font-variant-numeric:tabular-nums;}
+  .counter-big.pulse{animation:cPulse 0.3s ease;}
+  .counter-unit{font-size:15px;color:var(--text-dim);font-weight:600;margin-top:-6px;}
+  .counter-target{font-size:13px;color:var(--text-dim);}
+  .counter-target strong{color:var(--text);}
+
+  .progress-ring-wrap{position:relative;width:130px;height:130px;}
+  .progress-ring{transform:rotate(-90deg);}
+  .ring-bg{fill:none;stroke:rgba(255,255,255,0.07);stroke-width:9;}
+  .ring-fill{fill:none;stroke:var(--accent);stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset 0.5s;}
+  .ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .ring-pct{font-size:24px;font-weight:900;color:var(--accent);}
+  .ring-lbl{font-size:10px;color:var(--text-dim);font-weight:600;}
+
+  .status-bar{width:100%;padding:13px 18px;border-radius:10px;text-align:center;font-size:15px;font-weight:700;
+    transition:all 0.3s;background:rgba(255,255,255,0.05);color:var(--text-dim);}
+  .status-bar.running{background:rgba(224,123,57,0.15);color:var(--accent);}
+  .status-bar.done   {background:rgba(39,174,96,0.15);color:var(--success);}
+  .status-bar.error  {background:rgba(231,76,60,0.15);color:var(--danger);}
+
+  /* SIDE */
+  .side{display:flex;flex-direction:column;gap:12px;}
+  .card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .card-title{font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;}
+  .job-num{font-size:20px;font-weight:900;color:var(--accent);margin-bottom:8px;}
+  .job-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;}
+  .job-lbl{color:var(--text-dim);font-size:11px;margin-bottom:2px;}
+
+  .action-btn{width:100%;padding:14px;border-radius:10px;border:none;font-family:'Heebo',sans-serif;
+    font-size:15px;font-weight:800;cursor:pointer;transition:all 0.2s;
+    display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;
+    -webkit-tap-highlight-color:transparent;}
+  .action-btn.start {background:linear-gradient(135deg,var(--success),#2ecc71);color:white;box-shadow:0 4px 20px rgba(39,174,96,0.3);}
+  .action-btn.finish{background:linear-gradient(135deg,var(--accent),var(--accent-light));color:white;box-shadow:0 4px 20px rgba(224,123,57,0.3);}
+  .action-btn.assign{background:rgba(46,130,220,0.2);border:1px solid rgba(46,130,220,0.4);color:#5dade2;}
+  .action-btn.cancel{background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-dim);}
+  .action-btn:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.05);}
+  .action-btn:active:not(:disabled){transform:translateY(0);}
+  .action-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+  .complete-form{display:none;flex-direction:column;gap:10px;}
+  .complete-form.show{display:flex;}
+  .waste-input{padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);
+    border-radius:8px;color:var(--text);font-family:'Heebo',sans-serif;font-size:14px;direction:rtl;min-height:44px;}
+  .waste-input:focus{outline:none;border-color:var(--accent);}
+
+  /* QUEUE */
+  .queue-list{display:flex;flex-direction:column;gap:7px;max-height:280px;overflow-y:auto;}
+  .queue-item{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;
+    padding:10px 12px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:10px;
+    min-height:52px;-webkit-tap-highlight-color:transparent;}
+  .queue-item:hover,.queue-item:active{border-color:rgba(255,255,255,0.15);}
+  .queue-item.selected{border-color:var(--accent);background:rgba(224,123,57,0.08);}
+  .queue-order{font-weight:800;color:var(--accent);font-size:13px;}
+  .queue-details{font-size:11px;color:var(--text-dim);margin-top:2px;}
+  .queue-weight{margin-right:auto;font-size:13px;font-weight:700;white-space:nowrap;}
+
+  /* MOBILE */
+  @media(max-width:640px){
+    .main-grid{grid-template-columns:1fr;}
+    .counter-panel{padding:20px 16px;gap:12px;}
+    .progress-ring-wrap{width:110px;height:110px;}
+    .page{padding:10px;gap:10px;}
+    .machine-tab{padding:9px 14px;font-size:13px;}
+  }
+</style>
+</head>
+<body data-page="machine">
+<script src="/nav.js"></script>
+
+<nav class="topnav">
+  <div class="logo"><div class="logo-icon">🔩</div><span>IronBend</span></div>
+  <div class="top-nav-links">
+    <a href="/dashboard.html" class="nav-link">📊 דשבורד</a>
+    <a href="/orders.html"    class="nav-link">📋 הזמנות</a>
+    <a href="/index.html"     class="nav-link">➕ חדשה</a>
+    <a href="/machine.html"   class="nav-link active">🔧 מכונה</a>
+  </div>
+  <div class="ws-indicator">
+    <span class="ws-dot" id="wsDot"></span>
+    <span id="wsLabel" style="font-size:12px">מתחבר...</span>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="machine-tabs" id="machineTabs">
+    <div style="color:var(--text-dim);font-size:14px">טוען...</div>
+  </div>
+
+  <div class="main-grid">
+    <div class="counter-panel">
+      <div class="counter-label">מונה ייצור – בזמן אמת</div>
+      <div class="counter-big" id="counterDisplay">0</div>
+      <div class="counter-unit">יחידות יוצרו</div>
+      <div class="progress-ring-wrap">
+        <svg class="progress-ring" width="130" height="130" viewBox="0 0 130 130">
+          <circle class="ring-bg"   cx="65" cy="65" r="54"/>
+          <circle class="ring-fill" id="progressRing" cx="65" cy="65" r="54"
+            stroke-dasharray="339.3" stroke-dashoffset="339.3"/>
+        </svg>
+        <div class="ring-text">
+          <div class="ring-pct" id="ringPct">0%</div>
+          <div class="ring-lbl">התקדמות</div>
+        </div>
+      </div>
+      <div class="counter-target" id="counterTarget">יעד: <strong>—</strong></div>
+      <div class="status-bar" id="machineStatusBar">בחר מכונה</div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <div class="card-title">עבודה פעילה</div>
+        <div id="activeJobContent">
+          <div style="color:var(--text-dim);font-size:13px;text-align:center;padding:12px 0">אין עבודה פעילה</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">פעולות</div>
+        <div id="actionButtons">
+          <button class="action-btn assign" onclick="loadQueue()">📋 בחר עבודה מהתור</button>
+        </div>
+        <div class="complete-form" id="completeForm">
+          <div style="font-size:12px;color:var(--text-dim)">כמות פסולת (אופציונלי):</div>
+          <input class="waste-input" type="number" id="wasteQty" placeholder="0" min="0">
+          <button class="action-btn finish" onclick="completeJob()">✅ סיים עבודה</button>
+          <button class="action-btn cancel" onclick="cancelComplete()">ביטול</button>
+        </div>
+      </div>
+      <div class="card" id="queueCard" style="display:none">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>תור עבודות</span>
+          <span style="color:var(--text-dim);cursor:pointer;font-size:20px;min-width:36px;text-align:center" onclick="hideQueue()">✕</span>
+        </div>
+        <div class="queue-list" id="queueList"></div>
+        <div style="margin-top:10px">
+          <button class="action-btn start" id="assignBtn" onclick="assignSelected()" disabled>הקצה למכונה ←</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let machines=[], selectedMachineId=null, currentJob=null, selectedQueueItem=null, ws, prevCounter=0;
+
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}`);
+  ws.onopen  = () => { document.getElementById('wsDot').classList.add('live'); document.getElementById('wsLabel').textContent='מחובר'; };
+  ws.onclose = () => { document.getElementById('wsDot').classList.remove('live'); document.getElementById('wsLabel').textContent='מתחבר מחדש...'; setTimeout(connectWS,3000); };
+  ws.onmessage = e => {
+    const { type, data } = JSON.parse(e.data);
+    if (type==='machines_state') { machines=data; renderTabs(); updateSelected(); }
+    if (type==='machine_update') updateMachineState(data);
+    if (type==='machine_complete') fetchMachines();
+  };
+}
+
+async function fetchMachines() {
+  try { const r=await fetch('/api/machines'); machines=await r.json(); } catch {}
+  renderTabs(); updateSelected();
+}
+
+function renderTabs() {
+  if (!machines.length) { document.getElementById('machineTabs').innerHTML='<div style="color:var(--text-dim);font-size:14px">אין מכונות</div>'; return; }
+  document.getElementById('machineTabs').innerHTML = machines.map(m => {
+    const cls = !m.connected?'':m.status==='בייצור'?'running':m.status==='תקלה'?'error':'online';
+    return `<button class="machine-tab ${cls} ${m.id===selectedMachineId?'active':''}" onclick="selectMachine(${m.id})">
+      <span class="tab-dot"></span>${m.name}
+    </button>`;
+  }).join('');
+}
+
+function selectMachine(id) { selectedMachineId=id; renderTabs(); updateSelected(); }
+
+function updateSelected() {
+  if (!selectedMachineId) return;
+  const m = machines.find(x=>x.id===selectedMachineId);
+  if (!m) return;
+  const counter = m.counter??0;
+  const counterEl = document.getElementById('counterDisplay');
+  if (counter!==prevCounter) {
+    counterEl.textContent=counter;
+    counterEl.classList.remove('pulse');
+    void counterEl.offsetWidth;
+    counterEl.classList.add('pulse');
+    prevCounter=counter;
+  }
+  const target = currentJob?.quantity??0;
+  document.getElementById('counterTarget').innerHTML=`יעד: <strong>${target||'—'}</strong>`;
+  const pct = target>0?Math.min(100,Math.round(counter/target*100)):0;
+  document.getElementById('ringPct').textContent=pct+'%';
+  document.getElementById('progressRing').style.strokeDashoffset=(339.3-pct/100*339.3).toFixed(1);
+  const bar=document.getElementById('machineStatusBar');
+  bar.textContent=m.status??'לא מחובר';
+  bar.className='status-bar '+(m.status==='בייצור'?'running':m.status?.includes('הושלם')?'done':m.status==='תקלה'?'error':'');
+  if (m.current_order_num) {
+    document.getElementById('activeJobContent').innerHTML=`<div class="job-num">${m.current_order_num}</div>
+      <div class="job-grid"><div><div class="job-lbl">סטטוס</div>${m.status??'—'}</div>
+      <div><div class="job-lbl">מונה</div><strong>${counter}</strong></div></div>`;
+    document.getElementById('actionButtons').innerHTML=`<button class="action-btn finish" onclick="showCompleteForm()">✅ סיים עבודה</button>`;
+  } else {
+    document.getElementById('activeJobContent').innerHTML='<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:12px 0">אין עבודה פעילה</div>';
+    if (!document.getElementById('completeForm').classList.contains('show')) {
+      document.getElementById('actionButtons').innerHTML='<button class="action-btn assign" onclick="loadQueue()">📋 בחר עבודה מהתור</button>';
+      document.getElementById('actionButtons').style.display='';
+    }
+  }
+}
+
+function updateMachineState(data) {
+  const idx=machines.findIndex(m=>m.id===data.id);
+  if (idx>=0) machines[idx]={...machines[idx],...data};
+  renderTabs();
+  if (data.id===selectedMachineId) updateSelected();
+}
+
+function showCompleteForm() {
+  document.getElementById('actionButtons').style.display='none';
+  document.getElementById('completeForm').classList.add('show');
+  document.getElementById('wasteQty').focus();
+}
+function cancelComplete() {
+  document.getElementById('actionButtons').style.display='';
+  document.getElementById('completeForm').classList.remove('show');
+}
+
+async function completeJob() {
+  if (!selectedMachineId) return;
+  const m=machines.find(x=>x.id===selectedMachineId);
+  const producedQty=m?.counter??Number(document.getElementById('counterDisplay').textContent);
+  const wasteQty=Number(document.getElementById('wasteQty').value)||0;
+  const r=await fetch(`/api/machines/${selectedMachineId}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({producedQty,wasteQty})});
+  const d=await r.json();
+  if (d.success) { cancelComplete(); currentJob=null; await fetchMachines(); }
+  else alert(d.error||'שגיאה');
+}
+
+async function loadQueue() {
+  document.getElementById('queueCard').style.display='block';
+  document.getElementById('queueList').innerHTML='<div style="color:var(--text-dim);font-size:13px;padding:12px">טוען...</div>';
+  try {
+    const r=await fetch('/api/orders?status=אושרה');
+    const orders=await r.json();
+    const items=[];
+    for (const o of orders) {
+      const full=await (await fetch(`/api/orders/${o.id}`)).json();
+      for (const p of full.pallets||[]) for (const item of p.items||[]) {
+        if (item.status==='ממתין') items.push({...item,orderNum:full.order_num,customerName:full.customer_name});
+      }
+    }
+    if (!items.length) { document.getElementById('queueList').innerHTML='<div style="color:var(--text-dim);font-size:13px;padding:12px">אין פריטים בתור</div>'; return; }
+    window._queueItems=items;
+    document.getElementById('queueList').innerHTML=items.map(item=>`
+      <div class="queue-item" id="qi-${item.id}" onclick="selectQueueItem(${item.id},'${item.orderNum}',${item.quantity})">
+        <div style="flex:1">
+          <div class="queue-order">${item.orderNum}</div>
+          <div class="queue-details">⌀${item.diameter} × ${item.length}מ"מ × ${item.quantity}יח' | ${item.shape_name||'ישר'}</div>
+          <div class="queue-details">${item.customerName??''}</div>
+        </div>
+        <div class="queue-weight">${(item.weight*(item.quantity||1)).toFixed(0)}ק"ג</div>
+      </div>`).join('');
+  } catch { document.getElementById('queueList').innerHTML='<div style="color:var(--danger);font-size:13px;padding:12px">שגיאה בטעינה</div>'; }
+}
+
+function selectQueueItem(itemId,orderNum,qty) {
+  document.querySelectorAll('.queue-item').forEach(el=>el.classList.remove('selected'));
+  document.getElementById(`qi-${itemId}`)?.classList.add('selected');
+  selectedQueueItem={itemId,orderNum,qty};
+  currentJob={quantity:qty};
+  document.getElementById('assignBtn').disabled=false;
+}
+
+async function assignSelected() {
+  if (!selectedQueueItem||!selectedMachineId) return;
+  const r=await fetch(`/api/machines/${selectedMachineId}/assign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemId:selectedQueueItem.itemId,orderNum:selectedQueueItem.orderNum})});
+  if ((await r.json()).success) { hideQueue(); await fetchMachines(); }
+}
+
+function hideQueue() { document.getElementById('queueCard').style.display='none'; selectedQueueItem=null; }
+
+connectWS();
+fetchMachines();
+setInterval(fetchMachines,5000);
+</script>
+</body>
+</html>

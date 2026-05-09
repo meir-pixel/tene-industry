@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>הזמנה חדשה – IronBend</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#e07b39">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="IronBend">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="/shape-editor.js"></script>
+<script src="/offline-db.js"></script>
+<script src="/nav.js" defer></script>
+<style>
+  :root {
+    --steel: #1a2332;
+    --steel-mid: #243447;
+    --steel-light: #2e4060;
+    --iron: #3d5a80;
+    --accent: #e07b39;
+    --accent-light: #f0954d;
+    --success: #2ecc71;
+    --danger: #e74c3c;
+    --warning: #f39c12;
+    --text: #e8edf3;
+    --text-dim: #8fa3b8;
+    --border: rgba(255,255,255,0.08);
+    --card: rgba(255,255,255,0.04);
+    --card-hover: rgba(255,255,255,0.07);
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Heebo', sans-serif;
+    background: var(--steel);
+    color: var(--text);
+    min-height: 100vh;
+    background-image: 
+      radial-gradient(ellipse at 20% 50%, rgba(61,90,128,0.15) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(224,123,57,0.08) 0%, transparent 50%);
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--steel-mid);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--text);
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-light));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .header-meta {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .order-num {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 16px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .order-num span { color: var(--accent); font-weight: 700; }
+
+  /* MAIN LAYOUT */
+  .main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* PROGRESS BAR */
+  .progress-bar {
+    display: flex;
+    gap: 0;
+    background: var(--steel-mid);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-step {
+    flex: 1;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 1px solid var(--border);
+    position: relative;
+  }
+  .progress-step:last-child { border-left: none; }
+  .progress-step.active {
+    background: rgba(224,123,57,0.12);
+    color: var(--accent);
+  }
+  .progress-step.done {
+    color: var(--success);
+  }
+  .step-num {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .progress-step.active .step-num { background: var(--accent); color: white; }
+  .progress-step.done .step-num { background: var(--success); color: white; }
+
+  /* SECTIONS */
+  .section {
+    background: var(--steel-mid);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.02);
+  }
+  .section-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .section-subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .section-body { padding: 24px; }
+
+  /* FORM ELEMENTS */
+  .form-grid {
+    display: grid;
+    gap: 16px;
+  }
+  .form-grid-2 { grid-template-columns: 1fr 1fr; }
+  .form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field.span-2 { grid-column: span 2; }
+  .field.span-3 { grid-column: span 3; }
+  .field.span-4 { grid-column: span 4; }
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  label .required { color: var(--accent); margin-right: 3px; }
+
+  input, select, textarea {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    transition: all 0.2s;
+    width: 100%;
+    direction: rtl;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: rgba(224,123,57,0.08);
+    box-shadow: 0 0 0 3px rgba(224,123,57,0.12);
+  }
+  input::placeholder, textarea::placeholder { color: var(--text-dim); opacity: 0.6; }
+  select option { background: var(--steel-mid); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* CUSTOMER SEARCH */
+  .customer-search-wrap { position: relative; }
+  .customer-results {
+    position: absolute;
+    top: 100%;
+    right: 0; left: 0;
+    background: var(--steel-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 4px;
+    z-index: 50;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    display: none;
+  }
+  .customer-results.show { display: block; }
+  .customer-result-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .customer-result-item:last-child { border-bottom: none; }
+  .customer-result-item:hover { background: var(--card-hover); }
+  .customer-result-name { font-weight: 600; font-size: 14px; }
+  .customer-result-phone { font-size: 12px; color: var(--text-dim); }
+  .customer-result-id { font-size: 11px; color: var(--accent); background: rgba(224,123,57,0.1); padding: 2px 8px; border-radius: 20px; }
+  .new-customer-btn {
+    padding: 12px 16px;
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(224,123,57,0.05);
+  }
+  .new-customer-btn:hover { background: rgba(224,123,57,0.1); }
+
+  /* CHANNEL SELECTOR */
+  .channel-selector {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .channel-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Heebo', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .channel-btn:hover { border-color: var(--accent); color: var(--text); }
+  .channel-btn.active { background: rgba(224,123,57,0.15); border-color: var(--accent); color: var(--accent); }
+
+  /* PRIORITY SELECTOR */
+  .priority-selector { display: flex; gap: 8px; }
+  .priority-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Heebo', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .priority-btn.regular.active { background: rgba(46,204,113,0.15); border-color: var(--success); color: var(--success); }
+  .priority-btn.urgent.active { background: rgba(231,76,60,0.15); border-color: var(--danger); color: var(--danger); }
+
+  /* PALLETS */
+  .pallets-container { display: flex; flex-direction: column; gap: 16px; }
+  .pallet-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .pallet-card:hover { border-color: rgba(255,255,255,0.15); }
+  .pallet-header {
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+  }
+  .pallet-title {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 14px;
+  }
+  .pallet-badge {
+    background: var(--iron);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pallet-weight {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .pallet-weight span { color: var(--accent); font-weight: 700; font-size: 15px; }
+  .pallet-weight.over span { color: var(--danger); }
+  .pallet-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* IRON ITEMS */
+  .iron-items-table { width: 100%; border-collapse: collapse; }
+  .iron-items-table th {
+    text-align: right;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .iron-items-table td { padding: 8px; vertical-align: middle; }
+  .iron-items-table td input, .iron-items-table td select {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .iron-row { transition: background 0.15s; }
+  .iron-row:hover td { background: rgba(255,255,255,0.02); }
+
+  .shape-preview {
+    width: 40px; height: 40px;
+    background: var(--steel-light);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+  .shape-preview:hover { border-color: var(--accent); background: rgba(224,123,57,0.1); }
+
+  .weight-cell {
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .delete-btn {
+    width: 30px; height: 30px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    transition: all 0.2s;
+  }
+  .delete-btn:hover { background: rgba(231,76,60,0.15); border-color: var(--danger); color: var(--danger); }
+
+  .add-item-btn {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 8px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Heebo', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .add-item-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(224,123,57,0.05); }
+
+  .pallet-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .max-weight-select {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim);
+  }
+  .max-weight-select select { width: auto; padding: 6px 10px; font-size: 12px; }
+
+  .add-pallet-btn {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: 2px dashed rgba(255,255,255,0.1);
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .add-pallet-btn:hover { border-color: var(--iron); color: var(--text); background: rgba(255,255,255,0.03); }
+
+  /* SUMMARY BAR */
+  .summary-bar {
+    background: var(--steel-mid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .summary-stats { display: flex; gap: 32px; }
+  .stat {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .stat-label { font-size: 11px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-value { font-size: 22px; font-weight: 800; color: var(--text); }
+  .stat-value.accent { color: var(--accent); }
+  .stat-unit { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+
+  .submit-btn {
+    padding: 14px 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-light));
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-family: 'Heebo', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(224,123,57,0.3);
+    white-space: nowrap;
+  }
+  .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(224,123,57,0.4); }
+  .submit-btn:active { transform: translateY(0); }
+
+  /* SHAPE MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--steel-mid);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 620px;
+    max-width: 95vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    transform: translateY(20px);
+    transition: transform 0.2s;
+  }
+  .modal-overlay.show .modal { transform: translateY(0); }
+  .modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-title { font-weight: 800; font-size: 16px; }
+  .modal-close {
+    width: 32px; height: 32px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-body { padding: 24px; }
+
+  .bend-filter {
+    display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .bend-filter-btn {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Heebo', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .bend-filter-btn.active { background: rgba(224,123,57,0.15); border-color: var(--accent); color: var(--accent); }
+
+  .shapes-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .shape-card {
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    text-align: center;
+  }
+  .shape-card:hover { border-color: var(--accent); background: rgba(224,123,57,0.08); }
+  .shape-card.selected { border-color: var(--accent); background: rgba(224,123,57,0.15); }
+  .shape-drawing { width: 60px; height: 50px; display: flex; align-items: center; justify-content: center; }
+  .shape-name { font-size: 11px; font-weight: 600; color: var(--text-dim); }
+  .shape-bends { font-size: 10px; color: var(--accent); }
+
+  /* SUCCESS */
+  .success-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 300;
+    display: none;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+  }
+  .success-overlay.show { display: flex; }
+  .success-box {
+    background: var(--steel-mid);
+    border: 1px solid var(--success);
+    border-radius: 20px;
+    padding: 48px;
+    text-align: center;
+    max-width: 400px;
+    box-shadow: 0 0 60px rgba(46,204,113,0.2);
+  }
+  .success-icon { font-size: 64px; margin-bottom: 16px; }
+  .success-title { font-size: 24px; font-weight: 800; color: var(--success); margin-bottom: 8px; }
+  .success-order { font-size: 32px; font-weight: 900; color: var(--accent); margin: 16px 0; }
+  .success-sub { font-size: 14px; color: var(--text-dim); margin-bottom: 24px; }
+  .new-order-btn {
+    padding: 12px 32px;
+    background: var(--success);
+    border: none; border-radius: 10px;
+    color: white; font-family: 'Heebo', sans-serif;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .new-order-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+  /* Touch targets */
+  /* Top nav */
+  .topnav { background:var(--steel-mid); border-bottom:1px solid var(--border); padding:0 20px; height:56px;
+    display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100;
+    box-shadow:0 2px 16px rgba(0,0,0,0.4); }
+  .tnav-link { padding:7px 13px; border-radius:7px; text-decoration:none; color:var(--text-dim);
+    font-size:13px; font-weight:600; transition:all 0.2s; white-space:nowrap; }
+  .tnav-link:hover { background:rgba(255,255,255,0.06); color:var(--text); }
+  .tnav-link.active { background:rgba(224,123,57,0.15); color:var(--accent); }
+  .topnav-meta { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text-dim); }
+  .nav-time { font-size:11px; }
+
+  /* Touch targets */
+  button, select, input, textarea { min-height: 44px; }
+  .delete-btn { min-height: 36px; min-width: 36px; }
+
+  @media (max-width: 768px) {
+    .form-grid-2, .form-grid-3, .form-grid-4 { grid-template-columns: 1fr; }
+    .field.span-2, .field.span-3, .field.span-4 { grid-column: span 1; }
+    .summary-stats { gap: 12px; flex-wrap: wrap; }
+    .main { padding: 12px; gap: 14px; }
+    .section-body { padding: 14px; }
+    .section-header { padding: 14px 16px; }
+    .submit-btn { padding: 14px 24px; font-size: 15px; }
+    .topnav-meta .order-num { display: none; }
+  }
+
+  @media (max-width: 480px) {
+    .topnav { padding: 0 12px; height: 52px; }
+    .topnav .logo span { display: none; }
+    /* Progress bar – scrollable */
+    .progress-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+    .progress-step { min-width: 72px; font-size: 11px; padding: 10px 8px; flex-shrink: 0; }
+    /* Form sections */
+    .main { padding: 10px; gap: 12px; }
+    .section-body { padding: 12px; }
+    /* Channel buttons */
+    .channel-selector { gap: 6px; flex-wrap: wrap; }
+    .channel-btn { padding: 8px 10px; font-size: 12px; flex: 1; min-width: 70px; justify-content: center; }
+    /* Priority */
+    .priority-selector { gap: 8px; }
+    /* Items table – horizontal scroll */
+    .pallet-body { padding: 8px; }
+    .iron-items-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .iron-items-table { min-width: 460px; }
+    .iron-items-table td input, .iron-items-table td select { padding: 6px 6px; font-size: 12px; min-height: 38px; }
+    /* Pallet header */
+    .pallet-header { flex-wrap: wrap; gap: 8px; padding: 12px; }
+    .pallet-footer { flex-direction: column; gap: 10px; padding: 10px 12px; }
+    /* Summary bar */
+    .summary-bar { flex-direction: column; gap: 12px; padding: 16px; }
+    .summary-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .stat-value { font-size: 20px; }
+    .submit-btn { width: 100%; text-align: center; justify-content: center; font-size: 16px; padding: 16px; }
+    /* Add pallet button */
+    .add-pallet-btn { padding: 14px; font-size: 13px; }
+  }
+</style>
+</head>
+<body data-page="new">
+
+<!-- NAV -->
+<nav class="topnav">
+  <div class="logo"><div class="logo-icon">🔩</div><span>IronBend</span></div>
+  <div class="top-nav-links">
+    <a href="/dashboard.html" class="tnav-link">📊 דשבורד</a>
+    <a href="/orders.html"    class="tnav-link">📋 הזמנות</a>
+    <a href="/index.html"     class="tnav-link active">➕ חדשה</a>
+    <a href="/machine.html"   class="tnav-link">🔧 מכונה</a>
+  </div>
+  <div class="topnav-meta">
+    <div class="order-num">הזמנה: <span id="orderNumDisplay">#—</span></div>
+    <div id="currentDateTime" class="nav-time"></div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- PROGRESS -->
+  <div class="progress-bar">
+    <div class="progress-step active" onclick="scrollToSection('customer-section')">
+      <div class="step-num">1</div>
+      <div>
+        <div>פרטי לקוח</div>
+      </div>
+    </div>
+    <div class="progress-step" onclick="scrollToSection('delivery-section')">
+      <div class="step-num">2</div>
+      <div>
+        <div>פרטי אספקה</div>
+      </div>
+    </div>
+    <div class="progress-step" onclick="scrollToSection('items-section')">
+      <div class="step-num">3</div>
+      <div>
+        <div>פריטי ברזל</div>
+      </div>
+    </div>
+    <div class="progress-step" onclick="scrollToSection('summary-section')">
+      <div class="step-num">4</div>
+      <div>
+        <div>סיכום ואישור</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: CUSTOMER -->
+  <div class="section" id="customer-section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(61,90,128,0.3)">👤</div>
+      <div>
+        <div class="section-title">פרטי לקוח</div>
+        <div class="section-subtitle">חפש לקוח קיים או הוסף חדש</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="form-grid form-grid-2" style="margin-bottom:16px">
+        <div class="field span-2">
+          <label>ערוץ קבלת ההזמנה</label>
+          <div class="channel-selector">
+            <button class="channel-btn active" onclick="setChannel(this,'טלפון')">📞 טלפון</button>
+            <button class="channel-btn" onclick="setChannel(this,'וואטסאפ')">💬 וואטסאפ</button>
+            <button class="channel-btn" onclick="setChannel(this,'מייל')">📧 מייל</button>
+            <button class="channel-btn" onclick="setChannel(this,'תמונה')">📷 תמונה</button>
+          </div>
+          <input type="hidden" id="orderChannel" value="טלפון">
+        </div>
+      </div>
+
+      <div class="form-grid form-grid-2">
+        <div class="field span-2">
+          <label><span class="required">*</span>שם לקוח / חיפוש</label>
+          <div class="customer-search-wrap">
+            <input type="text" id="customerSearch" placeholder="הקלד שם, טלפון או מספר לקוח..." autocomplete="off" oninput="searchCustomer(this.value)">
+            <div class="customer-results" id="customerResults"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>טלפון</label>
+          <input type="tel" id="customerPhone" placeholder="050-0000000">
+        </div>
+        <div class="field">
+          <label>מספר לקוח בפריוריטי</label>
+          <input type="text" id="customerPriorityId" placeholder="יוצר אוטומטית ללקוח חדש" style="color:var(--text-dim)">
+        </div>
+        <div class="field">
+          <label>איש קשר</label>
+          <input type="text" id="contactName" placeholder="שם איש הקשר בשטח">
+        </div>
+        <div class="field">
+          <label>טלפון איש קשר</label>
+          <input type="tel" id="contactPhone" placeholder="050-0000000">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: DELIVERY -->
+  <div class="section" id="delivery-section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(224,123,57,0.2)">🚚</div>
+      <div>
+        <div class="section-title">פרטי אספקה</div>
+        <div class="section-subtitle">מתי ולאן מספקים?</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="form-grid form-grid-2">
+        <div class="field">
+          <label><span class="required">*</span>תאריך אספקה מבוקש</label>
+          <input type="date" id="deliveryDate">
+        </div>
+        <div class="field">
+          <label>שעת אספקה מועדפת</label>
+          <select id="deliveryTime">
+            <option value="">ללא העדפה</option>
+            <option>בוקר (06:00-10:00)</option>
+            <option>אמצע היום (10:00-14:00)</option>
+            <option>אחר הצהריים (14:00-18:00)</option>
+          </select>
+        </div>
+        <div class="field span-2">
+          <label><span class="required">*</span>כתובת אתר הבנייה</label>
+          <input type="text" id="deliveryAddress" placeholder="רחוב, מספר, עיר">
+        </div>
+        <div class="field span-2">
+          <label>עדיפות הזמנה</label>
+          <div class="priority-selector">
+            <button class="priority-btn regular active" onclick="setPriority(this,'רגיל')">✓ רגיל</button>
+            <button class="priority-btn urgent" onclick="setPriority(this,'דחוף')">⚡ דחוף</button>
+          </div>
+          <input type="hidden" id="orderPriority" value="רגיל">
+        </div>
+        <div class="field span-2">
+          <label>הערות לנהג</label>
+          <textarea id="driverNotes" placeholder="הוראות כניסה לאתר, קומה, שם המנוף..."></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: ITEMS -->
+  <div class="section" id="items-section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(46,204,113,0.15)">🔩</div>
+      <div>
+        <div class="section-title">פריטי ברזל – משטחים</div>
+        <div class="section-subtitle">כל משטח נשלח בנפרד. המשקל מחושב אוטומטית.</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="pallets-container" id="palletsContainer"></div>
+      <button class="add-pallet-btn" onclick="addPallet()">
+        ➕ הוסף משטח נוסף
+      </button>
+    </div>
+  </div>
+
+  <!-- SECTION 4: NOTES -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(255,255,255,0.06)">📝</div>
+      <div>
+        <div class="section-title">הערות כלליות</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="field">
+        <label>הערות להזמנה</label>
+        <textarea id="generalNotes" placeholder="כל מידע נוסף שחשוב לדעת על ההזמנה..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY BAR -->
+  <div class="summary-bar" id="summary-section">
+    <div class="summary-stats">
+      <div class="stat">
+        <div class="stat-label">משטחים</div>
+        <div class="stat-value" id="totalPallets">1</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">פריטים</div>
+        <div class="stat-value" id="totalItems">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">משקל כולל</div>
+        <div class="stat-value accent" id="totalWeight">0 <span class="stat-unit">ק"ג</span></div>
+      </div>
+    </div>
+    <button class="submit-btn" onclick="submitOrder()">
+      שמור הזמנה ←
+    </button>
+  </div>
+
+</div>
+
+<!-- Shape editor injected by shape-editor.js -->
+
+<!-- SUCCESS -->
+<div class="success-overlay" id="successOverlay">
+  <div class="success-box">
+    <div class="success-icon">✅</div>
+    <div class="success-title">ההזמנה נשמרה!</div>
+    <div class="success-order" id="successOrderNum"></div>
+    <div class="success-sub" id="successSubText">ההזמנה נוצרה בהצלחה ונשלחה לתור הייצור</div>
+    <button class="new-order-btn" onclick="newOrder()">+ הזמנה חדשה</button>
+  </div>
+</div>
+
+<script>
+const DIAMETERS = [6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40];
+
+// ── STATE ──────────────────────────────────────────────
+let pallets = [];
+let orderCounter = 1;
+let shapeEditor = null;
+
+// ── INIT ──────────────────────────────────────────────
+function init() {
+  // Date/time
+  updateDateTime();
+  setInterval(updateDateTime, 1000);
+
+  // Order number preview (actual number assigned on save)
+  fetch('/api/dashboard').then(r=>r.json()).then(d=>{
+    const next = String(d.ordersToday !== undefined ? (d.recentOrders?.length ?? 0) + 1 : 1).padStart(3,'0');
+    document.getElementById('orderNumDisplay').textContent = `HZ-${new Date().getFullYear()}-${next}`;
+  });
+
+  // Default delivery date (tomorrow)
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  document.getElementById('deliveryDate').value = tomorrow.toISOString().split('T')[0];
+
+  // First pallet
+  addPallet();
+
+  // Shape editor
+  shapeEditor = new ShapeEditorModal(shapeSelected);
+}
+
+function updateDateTime() {
+  const now = new Date();
+  document.getElementById('currentDateTime').textContent =
+    now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ── CHANNEL ──────────────────────────────────────────────
+function setChannel(btn, value) {
+  document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('orderChannel').value = value;
+}
+
+// ── PRIORITY ──────────────────────────────────────────────
+function setPriority(btn, value) {
+  document.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('orderPriority').value = value;
+}
+
+// ── CUSTOMER SEARCH ──────────────────────────────────────────────
+let _searchTimer = null;
+function searchCustomer(query) {
+  const results = document.getElementById('customerResults');
+  if (!query || query.length < 2) { results.classList.remove('show'); return; }
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(async () => {
+    const r = await fetch(`/api/customers?q=${encodeURIComponent(query)}`);
+    const customers = await r.json();
+    let html = customers.map(c => `
+      <div class="customer-result-item" onclick='selectCustomer(${JSON.stringify(c)})'>
+        <div>
+          <div class="customer-result-name">${c.name}</div>
+          <div class="customer-result-phone">${c.phone ?? ''}</div>
+        </div>
+        ${c.priority_id ? `<div class="customer-result-id">${c.priority_id}</div>` : ''}
+      </div>
+    `).join('');
+    html += `<div class="new-customer-btn" onclick="newCustomer('${query.replace(/'/g,"\\'")}')">➕ הוסף לקוח חדש: "${query}"</div>`;
+    results.innerHTML = html;
+    results.classList.add('show');
+  }, 250);
+}
+
+function selectCustomer(c) {
+  document.getElementById('customerSearch').value = c.name;
+  document.getElementById('customerPhone').value = c.phone ?? '';
+  document.getElementById('customerPriorityId').value = c.priority_id ?? '';
+  document.getElementById('contactName').value = c.contact_name ?? '';
+  document.getElementById('contactPhone').value = c.contact_phone ?? '';
+  document.getElementById('customerResults').classList.remove('show');
+}
+
+function newCustomer(name) {
+  document.getElementById('customerSearch').value = name;
+  document.getElementById('customerPriorityId').value = 'יוצר אוטומטית';
+  document.getElementById('customerResults').classList.remove('show');
+  document.getElementById('customerPhone').focus();
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.customer-search-wrap')) {
+    document.getElementById('customerResults').classList.remove('show');
+  }
+});
+
+// ── PALLETS ──────────────────────────────────────────────
+function addPallet() {
+  const id = Date.now();
+  pallets.push({ id, items: [], maxWeight: 500 });
+  renderPallets();
+}
+
+function removePallet(id) {
+  if (pallets.length === 1) return;
+  pallets = pallets.filter(p => p.id !== id);
+  renderPallets();
+}
+
+function renderPallets() {
+  const container = document.getElementById('palletsContainer');
+  container.innerHTML = pallets.map((p, idx) => renderPalletHTML(p, idx)).join('');
+  updateSummary();
+}
+
+function renderPalletHTML(p, idx) {
+  const totalWeight = calcPalletWeight(p);
+  const isOver = totalWeight > p.maxWeight;
+  return `
+  <div class="pallet-card" id="pallet-${p.id}">
+    <div class="pallet-header">
+      <div class="pallet-title">
+        <span>📦</span>
+        <span>משטח ${idx + 1}</span>
+        <span class="pallet-badge">${p.items.length} פריטים</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div class="pallet-weight ${isOver ? 'over' : ''}">
+          משקל: <span>${totalWeight.toFixed(1)} ק"ג</span>
+          ${isOver ? ' ⚠️ חורג!' : ''}
+        </div>
+        ${pallets.length > 1 ? `<button class="delete-btn" onclick="removePallet(${p.id})" title="הסר משטח">🗑</button>` : ''}
+      </div>
+    </div>
+    <div class="pallet-body">
+      <div class="iron-items-table-wrap"><table class="iron-items-table">
+        <thead>
+          <tr>
+            <th style="width:64px">צורה</th>
+            <th>קוטר</th>
+            <th>פרימטר (מ"מ)</th>
+            <th>כמות</th>
+            <th>משקל ק"ג</th>
+            <th>הערה</th>
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="items-${p.id}">
+          ${p.items.map(item => renderItemRow(p.id, item)).join('')}
+        </tbody>
+      </table></div>
+      <button class="add-item-btn" onclick="addItem(${p.id})">➕ הוסף פריט ברזל</button>
+    </div>
+    <div class="pallet-footer">
+      <div class="max-weight-select">
+        ⚖️ משקל מקסימלי למשטח:
+        <select onchange="setMaxWeight(${p.id}, this.value)">
+          <option value="300" ${p.maxWeight==300?'selected':''}>300 ק"ג</option>
+          <option value="400" ${p.maxWeight==400?'selected':''}>400 ק"ג</option>
+          <option value="500" ${p.maxWeight==500?'selected':''}>500 ק"ג</option>
+          <option value="600" ${p.maxWeight==600?'selected':''}>600 ק"ג</option>
+          <option value="9999" ${p.maxWeight==9999?'selected':''}>ללא הגבלה</option>
+        </select>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim)">
+        נותר: <strong style="color:${calcPalletWeight(p) > p.maxWeight ? 'var(--danger)' : 'var(--success)'}">${Math.max(0, p.maxWeight - calcPalletWeight(p)).toFixed(0)} ק"ג</strong>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── ITEM ROW ──────────────────────────────────────────────
+let _shapeTarget = null;
+
+function renderItemRow(palletId, item) {
+  const w = calcItemWeight(item);
+  const sides = item.shapeSides || [];
+  const perimeter = sides.reduce((s, l) => s + Number(l), 0);
+  const { path } = sides.length ? shapeSVGPath(sides, item.shapeAngles || [], 60, 44, 6) : { path: '' };
+  const svgPreview = path
+    ? `<svg viewBox="0 0 60 44" width="60" height="44"><path d="${path}" stroke="#e07b39" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    : `<span style="font-size:20px">${item.shapeEmoji || '?'}</span>`;
+
+  return `
+  <tr class="iron-row" id="item-row-${item.id}">
+    <td>
+      <div class="shape-preview" onclick="openShapeEditor(${palletId}, '${item.id}')" title="עריכת צורה" style="width:62px;height:46px">
+        ${svgPreview}
+      </div>
+    </td>
+    <td>
+      <select onchange="updateItem(${palletId},'${item.id}','diameter',this.value)">
+        ${DIAMETERS.map(d => `<option ${item.diameter==d?'selected':''}>${d}</option>`).join('')}
+      </select>
+    </td>
+    <td style="min-width:90px">
+      <div style="font-size:12px;color:#e07b39;font-weight:700;text-align:center;cursor:pointer"
+        onclick="openShapeEditor(${palletId}, '${item.id}')">
+        ${perimeter > 0 ? perimeter.toLocaleString('he-IL') + ' מ"מ' : '<span style="color:#7a93ab">לחץ לעריכה</span>'}
+      </div>
+    </td>
+    <td>
+      <input type="number" value="${item.qty||1}" min="1" style="width:70px"
+        oninput="updateItem(${palletId},'${item.id}','qty',this.value)">
+    </td>
+    <td class="weight-cell">
+      ${w > 0 ? `<span title="${weightPerMeter(item.diameter)} ק&quot;ג/מ׳">${w.toFixed(2)}</span>` : '—'}
+    </td>
+    <td>
+      <input type="text" value="${item.note||''}" placeholder="הערה..."
+        onchange="updateItem(${palletId},'${item.id}','note',this.value)">
+    </td>
+    <td>
+      <button class="delete-btn" onclick="removeItem(${palletId},'${item.id}')">✕</button>
+    </td>
+  </tr>`;
+}
+
+function openShapeEditor(palletId, itemId) {
+  _shapeTarget = { palletId, itemId };
+  const pallet = pallets.find(p => p.id === palletId);
+  const item   = pallet?.items.find(i => i.id == itemId);
+  shapeEditor.open(item?.shapeSides?.length ? {
+    presetId: item.shapeId, sides: item.shapeSides, angles: item.shapeAngles || []
+  } : null);
+}
+
+function shapeSelected(data) {
+  if (!_shapeTarget) return;
+  const { palletId, itemId } = _shapeTarget;
+  const pallet = pallets.find(p => p.id === palletId);
+  const item   = pallet?.items.find(i => i.id == itemId);
+  if (!item) return;
+  item.shapeId     = data.presetId;
+  item.shapeName   = data.presetName;
+  item.shapeEmoji  = data.presetEmoji;
+  item.shapeSides  = data.sides;
+  item.shapeAngles = data.angles;
+  item.length      = data.sides.reduce((s, l) => s + Number(l), 0); // total perimeter
+  _shapeTarget = null;
+  renderPallets();
+}
+
+function addItem(palletId) {
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!pallet) return;
+  pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: '?', shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '' });
+  renderPallets();
+}
+
+function removeItem(palletId, itemId) {
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!pallet) return;
+  pallet.items = pallet.items.filter(i => i.id != itemId);
+  renderPallets();
+}
+
+function updateItem(palletId, itemId, field, value) {
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!pallet) return;
+  const item = pallet.items.find(i => i.id == itemId);
+  if (!item) return;
+  item[field] = ['diameter','length','qty'].includes(field) ? Number(value) : value;
+  renderPallets();
+}
+
+function setMaxWeight(palletId, value) {
+  const pallet = pallets.find(p => p.id === palletId);
+  if (pallet) { pallet.maxWeight = Number(value); renderPallets(); }
+}
+
+// ── WEIGHT CALC ──────────────────────────────────────────────
+function calcItemWeight(item) {
+  if (!item.diameter || !item.qty) return 0;
+  const sides = item.shapeSides?.length ? item.shapeSides : (item.length ? [item.length] : []);
+  const totalMm  = sides.reduce((s, l) => s + Number(l || 0), 0);
+  const kgPerM   = REBAR_WEIGHTS?.[item.diameter] ?? (item.diameter * item.diameter * 0.00617);
+  return (totalMm / 1000) * kgPerM * (item.qty || 1);
+}
+
+function calcPalletWeight(pallet) {
+  return pallet.items.reduce((sum, item) => sum + calcItemWeight(item), 0);
+}
+
+function updateSummary() {
+  const totalWeight = pallets.reduce((sum, p) => sum + calcPalletWeight(p), 0);
+  const totalItems  = pallets.reduce((sum, p) => sum + p.items.length, 0);
+  const tons = totalWeight >= 1000;
+  document.getElementById('totalPallets').textContent = pallets.length;
+  document.getElementById('totalItems').textContent   = totalItems;
+  document.getElementById('totalWeight').innerHTML    =
+    tons
+      ? `${(totalWeight/1000).toFixed(2)} <span class="stat-unit">טון</span>`
+      : `${totalWeight.toFixed(1)} <span class="stat-unit">ק"ג</span>`;
+}
+
+
+function newOrder() {
+  orderCounter++;
+  pallets = [];
+  document.getElementById('successOverlay').classList.remove('show');
+  document.getElementById('customerSearch').value = '';
+  document.getElementById('customerPhone').value = '';
+  document.getElementById('customerPriorityId').value = '';
+  document.getElementById('contactName').value = '';
+  document.getElementById('contactPhone').value = '';
+  document.getElementById('deliveryAddress').value = '';
+  document.getElementById('generalNotes').value = '';
+  document.getElementById('driverNotes').value = '';
+  const num = String(orderCounter).padStart(3, '0');
+  document.getElementById('orderNumDisplay').textContent = `#2024-${num}`;
+  addPallet();
+}
+
+function scrollToSection(id) {
+  document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── START ──────────────────────────────────────────────
+init();
+async function submitOrder() {
+  const customer = document.getElementById('customerSearch').value;
+  const address = document.getElementById('deliveryAddress').value;
+  const date = document.getElementById('deliveryDate').value;
+
+  if (!customer) { alert('נא להזין שם לקוח'); return; }
+  if (!address) { alert('נא להזין כתובת אספקה'); return; }
+  if (!date) { alert('נא להזין תאריך אספקה'); return; }
+  const hasItems = pallets.some(p => p.items.length > 0);
+  if (!hasItems) { alert('נא להוסיף לפחות פריט ברזל אחד'); return; }
+
+  const totalWeight = pallets.reduce((sum, p) => sum + calcPalletWeight(p), 0);
+
+  const payload = {
+    customer: {
+      name: document.getElementById('customerSearch').value,
+      phone: document.getElementById('customerPhone').value,
+      address: document.getElementById('deliveryAddress').value,
+      contactName: document.getElementById('contactName').value,
+      contactPhone: document.getElementById('contactPhone').value,
+    },
+    order: {
+      channel: document.getElementById('orderChannel').value,
+      deliveryDate: document.getElementById('deliveryDate').value,
+      deliveryTime: document.getElementById('deliveryTime').value,
+      deliveryAddress: document.getElementById('deliveryAddress').value,
+      priority: document.getElementById('orderPriority').value,
+      driverNotes: document.getElementById('driverNotes').value,
+      generalNotes: document.getElementById('generalNotes').value,
+      totalWeight: totalWeight,
+    },
+    pallets: pallets.map(p => ({
+      maxWeight: p.maxWeight,
+      totalWeight: calcPalletWeight(p),
+      items: p.items.map(item => ({
+        shapeId: item.shapeId,
+        shapeName: item.shapeName,
+        diameter: item.diameter,
+        length: item.length,
+        qty: item.qty,
+        weight: calcItemWeight(item),
+        note: item.note || '',
+        structElement: '',
+        structFloor: '',
+        sheetNum: '',
+      }))
+    }))
+  };
+
+  const submitBtn = document.querySelector('.submit-btn');
+  submitBtn.textContent = 'שומר...';
+  submitBtn.disabled = true;
+
+  try {
+    if (!navigator.onLine) throw new Error('offline');
+
+    const response = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+
+    if (result.success) {
+      document.getElementById('successOrderNum').textContent = result.orderNum;
+      document.getElementById('successSubText').textContent = 'ההזמנה נוצרה ונשלחה לתור הייצור';
+      document.getElementById('successOverlay').classList.add('show');
+      orderCounter++;
+    } else {
+      alert('שגיאה בשמירה – נסה שוב');
+    }
+  } catch (err) {
+    // OFFLINE – save locally
+    const localId = await OfflineDB.queueOrder(payload);
+    document.getElementById('successOrderNum').textContent = '⏳ ממתין לסנכרון';
+    document.getElementById('successSubText').textContent = 'אין חיבור – ההזמנה נשמרה במכשיר ותסונכרן אוטומטית';
+    document.getElementById('successOverlay').classList.add('show');
+    orderCounter++;
+  } finally {
+    submitBtn.textContent = 'שמור הזמנה ←';
+    submitBtn.disabled = false;
+  }
+}
+
+// PWA setup
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'order_synced') showToast(`הזמנה סונכרנה: ${e.data.orderNum}`);
+  });
+}
+window.addEventListener('online',  () => showToast('החיבור חזר – מסנכרן הזמנות...'));
+window.addEventListener('offline', () => showToast('אין חיבור – ממשיך במצב offline', true));
+
+function showToast(msg, isOffline = false) {
+  let t = document.getElementById('_toast');
+  if (!t) { t = document.createElement('div'); t.id = '_toast'; Object.assign(t.style, { position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)', padding:'12px 24px', borderRadius:'10px', fontFamily:'Heebo,sans-serif', fontWeight:'700', fontSize:'14px', zIndex:'9999', transition:'opacity 0.3s', direction:'rtl', whiteSpace:'nowrap' }); document.body.appendChild(t); }
+  t.textContent = msg;
+  t.style.background = isOffline ? '#e74c3c' : '#27ae60';
+  t.style.color = 'white'; t.style.opacity = '1';
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.style.opacity = '0', 4000);
+}
+</script>
+</body>
+</html>
