@@ -1,10 +1,18 @@
-const express = require('express');
-const cors    = require('cors');
+require('dotenv').config();
+const express  = require('express');
+const cors     = require('cors');
 const Database = require('better-sqlite3');
-const path    = require('path');
-const http    = require('http');
+const path     = require('path');
+const http     = require('http');
+const multer   = require('multer');
+const cron     = require('node-cron');
 const { WebSocketServer } = require('ws');
-const modbus  = require('./modbus');
+const modbus   = require('./modbus');
+const priority = require('./priority');
+const intake   = require('./intake');
+const ai       = require('./ai');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const app    = express();
 const server = http.createServer(app);
@@ -136,6 +144,57 @@ db.exec(`
     counter_at_scan INTEGER DEFAULT 0,
     waste_calculated INTEGER DEFAULT 0,
     scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS drivers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone TEXT,
+    active INTEGER DEFAULT 1,
+    current_lat REAL,
+    current_lng REAL,
+    last_location_update DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER,
+    driver_id INTEGER,
+    scheduled_date TEXT,
+    status TEXT DEFAULT 'ממתין',
+    departed_at DATETIME,
+    delivered_at DATETIME,
+    signature_data TEXT,
+    photo_url TEXT,
+    notes TEXT,
+    problem_type TEXT,
+    problem_notes TEXT,
+    delivery_lat REAL,
+    delivery_lng REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT,
+    level TEXT DEFAULT 'warning',
+    message TEXT,
+    order_id INTEGER,
+    machine_id INTEGER,
+    resolved INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS intake_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT,
+    raw_content TEXT,
+    parsed_data JSON,
+    order_id INTEGER,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
@@ -782,11 +841,317 @@ function tryParseJSON(val, fallback = null) {
   try { return JSON.parse(val); } catch { return fallback; }
 }
 
+// ── ALERTS ────────────────────────────────────────────────────────
+function createAlert(type, level, message, { orderId, machineId } = {}) {
+  db.prepare('INSERT INTO alerts (type,level,message,order_id,machine_id) VALUES (?,?,?,?,?)')
+    .run(type, level, message, orderId || null, machineId || null);
+  wsBroadcast('alert', { type, level, message, orderId, machineId });
+}
+
+app.get('/api/alerts', (req, res) => {
+  res.json(db.prepare('SELECT * FROM alerts WHERE resolved=0 ORDER BY created_at DESC LIMIT 50').all());
+});
+
+app.patch('/api/alerts/:id/resolve', (req, res) => {
+  db.prepare('UPDATE alerts SET resolved=1 WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── DRIVERS ───────────────────────────────────────────────────────
+app.get('/api/drivers', (req, res) => {
+  res.json(db.prepare('SELECT * FROM drivers WHERE active=1 ORDER BY name').all());
+});
+
+app.post('/api/drivers', (req, res) => {
+  const { name, phone } = req.body;
+  const r = db.prepare('INSERT INTO drivers (name,phone) VALUES (?,?)').run(name, phone);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.patch('/api/drivers/:id/location', (req, res) => {
+  const { lat, lng } = req.body;
+  db.prepare('UPDATE drivers SET current_lat=?,current_lng=?,last_location_update=? WHERE id=?')
+    .run(lat, lng, new Date().toISOString(), req.params.id);
+  wsBroadcast('driver_location', { driverId: Number(req.params.id), lat, lng });
+  res.json({ success: true });
+});
+
+// ── DELIVERIES ────────────────────────────────────────────────────
+app.get('/api/deliveries', (req, res) => {
+  const { driverId, date, status } = req.query;
+  let sql = `SELECT d.*, o.order_num, o.delivery_address, o.total_weight, o.billing_weight,
+               c.name as customer_name, c.phone as customer_phone,
+               dr.name as driver_name
+             FROM deliveries d
+             JOIN orders o ON d.order_id = o.id
+             LEFT JOIN customers c ON o.customer_id = c.id
+             LEFT JOIN drivers dr ON d.driver_id = dr.id`;
+  const where = [], params = [];
+  if (driverId) { where.push('d.driver_id=?'); params.push(driverId); }
+  if (date)     { where.push('d.scheduled_date=?'); params.push(date); }
+  if (status)   { where.push('d.status=?'); params.push(status); }
+  if (where.length) sql += ' WHERE ' + where.join(' AND ');
+  sql += ' ORDER BY d.scheduled_date, d.id';
+  const deliveries = db.prepare(sql).all(...params);
+  // Attach pallets count
+  deliveries.forEach(d => {
+    d.pallets_count = db.prepare('SELECT COUNT(*) as c FROM pallets WHERE order_id=?').get(d.order_id)?.c || 0;
+  });
+  res.json(deliveries);
+});
+
+app.post('/api/deliveries', (req, res) => {
+  const { orderId, driverId, scheduledDate } = req.body;
+  const r = db.prepare('INSERT INTO deliveries (order_id,driver_id,scheduled_date) VALUES (?,?,?)')
+    .run(orderId, driverId, scheduledDate);
+  // Update order status
+  db.prepare("UPDATE orders SET status='בתור ייצור' WHERE id=? AND status='ממתינה לאישור'").run(orderId);
+  res.json({ id: r.lastInsertRowid });
+});
+
+// Driver departs
+app.post('/api/deliveries/:id/depart', (req, res) => {
+  db.prepare("UPDATE deliveries SET status='יצא',departed_at=? WHERE id=?")
+    .run(new Date().toISOString(), req.params.id);
+  const del = db.prepare('SELECT order_id FROM deliveries WHERE id=?').get(req.params.id);
+  if (del) {
+    db.prepare("UPDATE orders SET status='בדרך ללקוח' WHERE id=?").run(del.order_id);
+    const o = db.prepare('SELECT o.*,c.phone FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?').get(del.order_id);
+    if (o?.phone) intake.notifyOrderStatus(o.phone, o.order_num, 'בדרך ללקוח').catch(() => {});
+    wsBroadcast('delivery_depart', { deliveryId: Number(req.params.id), orderId: del.order_id });
+  }
+  res.json({ success: true });
+});
+
+// Driver confirms delivery
+app.post('/api/deliveries/:id/confirm', (req, res) => {
+  const { signatureData, photoUrl, notes, lat, lng } = req.body;
+  db.prepare(`UPDATE deliveries SET status='סופק',delivered_at=?,signature_data=?,photo_url=?,notes=?,delivery_lat=?,delivery_lng=? WHERE id=?`)
+    .run(new Date().toISOString(), signatureData, photoUrl, notes, lat, lng, req.params.id);
+  const del = db.prepare('SELECT order_id FROM deliveries WHERE id=?').get(req.params.id);
+  if (del) {
+    db.prepare("UPDATE orders SET status='סופק – אושר' WHERE id=?").run(del.order_id);
+    const o = db.prepare('SELECT o.*,c.phone FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?').get(del.order_id);
+    if (o?.phone) intake.notifyOrderStatus(o.phone, o.order_num, 'סופק – אושר').catch(() => {});
+    // Sync to Priority
+    if (o?.priority_order_id) {
+      priority.updateOrderStatus(o.priority_order_id, 'סופק – אושר').catch(() => {});
+    }
+    wsBroadcast('delivery_confirm', { deliveryId: Number(req.params.id), orderId: del.order_id });
+  }
+  res.json({ success: true });
+});
+
+// Driver reports problem
+app.post('/api/deliveries/:id/problem', (req, res) => {
+  const { problemType, problemNotes } = req.body;
+  db.prepare("UPDATE deliveries SET status='בעיה',problem_type=?,problem_notes=? WHERE id=?")
+    .run(problemType, problemNotes, req.params.id);
+  const del = db.prepare('SELECT order_id FROM deliveries WHERE id=?').get(req.params.id);
+  if (del) {
+    const o = db.prepare('SELECT order_num FROM orders WHERE id=?').get(del.order_id);
+    createAlert('delivery_problem', 'danger', `בעיה באספקה ${o?.order_num}: ${problemType}`, { orderId: del.order_id });
+  }
+  res.json({ success: true });
+});
+
+// ── PRIORITY SYNC ─────────────────────────────────────────────────
+app.post('/api/priority/sync/:orderId', async (req, res) => {
+  try {
+    const order = db.prepare(`SELECT o.*,c.* FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.orderId);
+    if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
+
+    const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=?').all(order.id);
+    const items   = pallets.flatMap(p => db.prepare('SELECT * FROM items WHERE pallet_id=?').all(p.id));
+
+    const customer = { name: order.name, phone: order.phone, address: order.address, contactName: order.contact_name, contactPhone: order.contact_phone };
+    const result   = await priority.createOrder(order, customer, items);
+
+    if (result.ORDNAME) {
+      db.prepare('UPDATE orders SET priority_order_id=? WHERE id=?').run(result.ORDNAME, order.id);
+    }
+    res.json({ success: true, priorityOrderId: result.ORDNAME, mocked: result.mocked });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/priority/status', (req, res) => {
+  res.json({ configured: priority.isConfigured() });
+});
+
+// ── INTAKE – OCR ─────────────────────────────────────────────────
+app.post('/api/intake/image', upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'לא צורפה תמונה' });
+  try {
+    const ocrResult = await intake.runOCR(req.file.buffer);
+    const parsed    = intake.parseOCRText(ocrResult.fullText);
+    db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
+      .run('ocr', ocrResult.fullText.slice(0, 2000), JSON.stringify(parsed), 'pending');
+    res.json({ success: true, parsed, fullText: ocrResult.fullText });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── INTAKE – WhatsApp webhook ─────────────────────────────────────
+app.get('/api/intake/whatsapp', (req, res) => {
+  // Meta webhook verification
+  const mode      = req.query['hub.mode'];
+  const token     = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    res.send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+app.post('/api/intake/whatsapp', async (req, res) => {
+  res.sendStatus(200); // acknowledge immediately (Meta requires fast response)
+  try {
+    const body = req.body;
+    const entry = body.entry?.[0]?.changes?.[0]?.value;
+    if (!entry?.messages) return;
+
+    for (const msg of entry.messages) {
+      const fromPhone = msg.from;
+      let parsed = null;
+
+      if (msg.type === 'text') {
+        parsed = intake.parseWhatsAppMessage(msg.text.body);
+        parsed.source = 'whatsapp';
+        parsed.customerPhone = fromPhone;
+      } else if (msg.type === 'image' || msg.type === 'document') {
+        // Image/PDF - would need to download via WhatsApp API then OCR
+        // Mark for manual review
+        db.prepare('INSERT INTO intake_log (source,raw_content,status) VALUES (?,?,?)')
+          .run('whatsapp_media', `media:${msg.type} from:${fromPhone}`, 'pending_review');
+        await intake.sendWhatsApp(fromPhone, 'קיבלנו את התמונה, ניצור קשר בהקדם!');
+        continue;
+      }
+
+      if (parsed) {
+        db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
+          .run('whatsapp', msg.text?.body || '', JSON.stringify(parsed), 'pending');
+        wsBroadcast('new_intake', { source: 'whatsapp', phone: fromPhone, parsed });
+      }
+    }
+  } catch (err) {
+    console.error('[WhatsApp webhook]', err.message);
+  }
+});
+
+// ── INTAKE – Email manual trigger ─────────────────────────────────
+app.post('/api/intake/email/poll', async (req, res) => {
+  try {
+    const results = await intake.pollEmail(db);
+    res.json({ success: true, count: results.length, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/intake/log', (req, res) => {
+  res.json(db.prepare('SELECT * FROM intake_log ORDER BY created_at DESC LIMIT 50').all());
+});
+
+// ── AI PREDICTION ─────────────────────────────────────────────────
+app.post('/api/ai/predict', (req, res) => {
+  const { items } = req.body;
+  if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
+  const result = ai.predictProductionTime(items);
+  res.json(result);
+});
+
+app.get('/api/ai/predict-order/:orderId', (req, res) => {
+  const order   = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.orderId);
+  if (!order) return res.status(404).json({ error: 'לא נמצא' });
+  const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=?').all(order.id);
+  const items   = pallets.flatMap(p => db.prepare('SELECT * FROM items WHERE pallet_id=?').all(p.id));
+  const prediction   = ai.predictProductionTime(items);
+  const feasibility  = ai.checkDeliveryFeasibility(order, items);
+  res.json({ prediction, feasibility });
+});
+
+app.get('/api/ai/waste-patterns', (req, res) => {
+  res.json(ai.analyzeWastePatterns());
+});
+
+app.get('/api/ai/machine-efficiency', (req, res) => {
+  const days = Number(req.query.days || 7);
+  res.json(ai.getMachineEfficiency(days));
+});
+
+// ── REPORTS ───────────────────────────────────────────────────────
+app.get('/api/reports/summary', (req, res) => {
+  const { from, to } = req.query;
+  const fromDate = from || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+  const toDate   = to   || new Date().toISOString().split('T')[0];
+
+  res.json({
+    period: { from: fromDate, to: toDate },
+    orders: db.prepare(`
+      SELECT DATE(created_at) as date, COUNT(*) as count, SUM(total_weight) as weight
+      FROM orders WHERE DATE(created_at) BETWEEN ? AND ?
+      GROUP BY DATE(created_at) ORDER BY date
+    `).all(fromDate, toDate),
+    byStatus: db.prepare(`
+      SELECT status, COUNT(*) as count FROM orders
+      WHERE DATE(created_at) BETWEEN ? AND ? GROUP BY status
+    `).all(fromDate, toDate),
+    waste: ai.analyzeWastePatterns(),
+    machineEfficiency: ai.getMachineEfficiency(30),
+    topCustomers: db.prepare(`
+      SELECT c.name, COUNT(o.id) as order_count, SUM(o.billing_weight) as total_weight
+      FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
+      WHERE DATE(o.created_at) BETWEEN ? AND ?
+      GROUP BY o.customer_id ORDER BY total_weight DESC LIMIT 10
+    `).all(fromDate, toDate),
+  });
+});
+
+// ── BACKGROUND JOBS ───────────────────────────────────────────────
+// Check alerts every 5 minutes
+cron.schedule('*/5 * * * *', () => {
+  // Urgent orders sitting >30 min without production
+  const urgentLate = db.prepare(`
+    SELECT o.id, o.order_num FROM orders o
+    WHERE o.priority='דחוף' AND o.status NOT IN ('בייצור','הושלם – ממתין לאיסוף','בדרך ללקוח','סופק – אושר','בוטל')
+      AND JULIANDAY('now') - JULIANDAY(o.created_at) > 0.021
+      AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.order_id=o.id AND a.type='urgent_late' AND a.resolved=0)
+  `).all();
+  urgentLate.forEach(o => createAlert('urgent_late', 'danger', `הזמנה דחופה ${o.order_num} ממתינה לייצור מעל 30 דקות`, { orderId: o.id }));
+
+  // Pending approval >15 min
+  const pendingLong = db.prepare(`
+    SELECT o.id, o.order_num FROM orders o
+    WHERE o.status='ממתינה לאישור'
+      AND JULIANDAY('now') - JULIANDAY(o.created_at) > 0.01
+      AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.order_id=o.id AND a.type='pending_approval' AND a.resolved=0)
+  `).all();
+  pendingLong.forEach(o => createAlert('pending_approval', 'info', `הזמנה ${o.order_num} ממתינה לאישור מעל 15 דקות`, { orderId: o.id }));
+});
+
+// Email polling every minute if configured
+cron.schedule('* * * * *', async () => {
+  if (process.env.EMAIL_IMAP_HOST) {
+    try {
+      const results = await intake.pollEmail(db);
+      if (results.length) wsBroadcast('new_intake_email', { count: results.length });
+    } catch {}
+  }
+});
+
 // ── START ─────────────────────────────────────────────────────────
+ai.init(db);
+
 server.listen(PORT, () => {
   console.log(`✅  IronBend Server פועל על http://localhost:${PORT}`);
   console.log(`📊  Dashboard: http://localhost:${PORT}/dashboard.html`);
   console.log(`📋  Orders:    http://localhost:${PORT}/orders.html`);
   console.log(`🔧  Machine:   http://localhost:${PORT}/machine.html`);
+  console.log(`🚚  Driver:    http://localhost:${PORT}/driver.html`);
+  console.log(`📈  Reports:   http://localhost:${PORT}/reports.html`);
   console.log(`🖨️  Print:     http://localhost:${PORT}/api/orders/:id/print-cards`);
 });
