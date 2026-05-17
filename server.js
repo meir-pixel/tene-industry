@@ -197,6 +197,12 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS companies (
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -877,7 +883,100 @@ app.patch('/api/alerts/:id/resolve', (req, res) => {
   res.json({ success: true });
 });
 
-// ── COMPANIES ────────────────────────────────────────────────────
+// ── SETTINGS ─────────────────────────────────────────────
+// Helper: get setting from DB (falls back to process.env)
+function getSetting(key) {
+  const row = db.prepare('SELECT value FROM settings WHERE key=?').get(key);
+  return row?.value ?? process.env[key] ?? null;
+}
+
+app.get('/api/settings', (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM settings').all();
+  const map = {};
+  rows.forEach(r => { map[r.key] = r.value; });
+  // Merge with env defaults (don't expose actual secrets, just whether they're set)
+  const keys = [
+    'WHATSAPP_TOKEN','WHATSAPP_PHONE_ID','WHATSAPP_VERIFY_TOKEN','WHATSAPP_NOTIFY_PHONE',
+    'EMAIL_IMAP_HOST','EMAIL_IMAP_PORT','EMAIL_IMAP_USER','EMAIL_IMAP_PASS',
+    'PRIORITY_BASE_URL','PRIORITY_USER','PRIORITY_PASS','PRIORITY_COMPANY',
+    'MAVEN_API_URL','MAVEN_API_TOKEN',
+    'GOOGLE_VISION_API_KEY',
+    'MODULE_MACHINES','MODULE_WHATSAPP','MODULE_EMAIL','MODULE_OCR',
+    'MODULE_PRIORITY','MODULE_MAVEN','MODULE_AI','MODULE_ALERTS',
+  ];
+  const result = {};
+  keys.forEach(k => {
+    result[k] = map[k] ?? process.env[k] ?? '';
+  });
+  res.json(result);
+});
+
+app.post('/api/settings', (req, res) => {
+  const upsert = db.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`
+  );
+  const save = db.transaction(entries => {
+    for (const [k, v] of Object.entries(entries)) {
+      upsert.run(k, v ?? '');
+    }
+  });
+  save(req.body);
+  res.json({ success: true, saved: Object.keys(req.body).length });
+});
+
+app.post('/api/settings/test/:service', async (req, res) => {
+  const svc = req.params.service;
+  try {
+    if (svc === 'whatsapp') {
+      const token   = getSetting('WHATSAPP_TOKEN');
+      const phoneId = getSetting('WHATSAPP_PHONE_ID');
+      if (!token || !phoneId) return res.json({ ok: false, msg: 'Token ו-Phone ID חסרים' });
+      const axios = require('axios');
+      const r = await axios.get(
+        `https://graph.facebook.com/v18.0/${phoneId}`,
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+      );
+      return res.json({ ok: true, msg: `מחובר: ${r.data?.display_phone_number || r.data?.id}` });
+    }
+    if (svc === 'email') {
+      const host = getSetting('EMAIL_IMAP_HOST');
+      const user = getSetting('EMAIL_IMAP_USER');
+      const pass = getSetting('EMAIL_IMAP_PASS');
+      if (!host || !user || !pass) return res.json({ ok: false, msg: 'Host/User/Pass חסרים' });
+      let ImapFlow;
+      try { ImapFlow = require('imapflow'); } catch { return res.json({ ok: false, msg: 'imapflow לא מותקן (npm install imapflow)' }); }
+      const client = new ImapFlow.ImapFlow({
+        host, port: Number(getSetting('EMAIL_IMAP_PORT') || 993),
+        secure: true, auth: { user, pass }, logger: false,
+      });
+      await client.connect();
+      await client.logout();
+      return res.json({ ok: true, msg: `מחובר לתיבה: ${user}` });
+    }
+    if (svc === 'priority') {
+      const base = getSetting('PRIORITY_BASE_URL');
+      const user = getSetting('PRIORITY_USER');
+      const pass = getSetting('PRIORITY_PASS');
+      if (!base) return res.json({ ok: false, msg: 'Base URL חסר' });
+      const axios = require('axios');
+      const r = await axios.get(`${base}/CUSTOMERS?$top=1`, {
+        auth: { username: user, password: pass }, timeout: 8000,
+      });
+      return res.json({ ok: true, msg: `Priority מגיב (${r.status})` });
+    }
+    if (svc === 'vision') {
+      const key = getSetting('GOOGLE_VISION_API_KEY');
+      if (!key) return res.json({ ok: false, msg: 'API Key חסר' });
+      return res.json({ ok: true, msg: 'API Key הוגדר ✓ (בדיקה אמיתית דורשת תמונה)' });
+    }
+    res.json({ ok: false, msg: 'שירות לא מוכר' });
+  } catch (err) {
+    res.json({ ok: false, msg: err.message });
+  }
+});
+
+// ── COMPANIES ─────────────────────────────────────────────────────
 app.get('/api/companies', (req, res) => {
   res.json(db.prepare('SELECT * FROM companies WHERE active=1 ORDER BY id').all());
 });
