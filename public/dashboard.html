@@ -12,138 +12,234 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --steel:#0f1923; --steel-mid:#1a2637; --steel-light:#243447;
-    --iron:#2e4a6e; --accent:#e07b39; --accent-light:#f0954d;
-    --success:#27ae60; --danger:#e74c3c; --warning:#f39c12;
-    --text:#e8edf3; --text-dim:#7a93ab;
-    --border:rgba(255,255,255,0.07); --card:rgba(255,255,255,0.04);
-    --radius:14px;
-  }
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+:root {
+  --steel:#0f1923; --steel-mid:#1a2637; --steel-light:#243447; --steel-card:#1e2e40;
+  --iron:#2e4a6e; --accent:#e07b39; --accent-light:#f0954d; --accent-dim:rgba(224,123,57,0.15);
+  --success:#27ae60; --success-dim:rgba(39,174,96,0.15);
+  --danger:#e74c3c;  --danger-dim:rgba(231,76,60,0.15);
+  --warning:#f39c12; --warning-dim:rgba(243,156,18,0.15);
+  --info:#3498db;    --info-dim:rgba(52,152,219,0.15);
+  --text:#e8edf3; --text-dim:#7a93ab; --text-muted:#4a6278;
+  --border:rgba(255,255,255,0.07); --border-bright:rgba(255,255,255,0.12);
+  --card:rgba(255,255,255,0.04); --radius:14px; --radius-sm:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
 
-  /* TOP NAV */
-  .topnav{
-    background:var(--steel-mid);border-bottom:1px solid var(--border);
-    padding:0 20px;height:56px;display:flex;align-items:center;
-    justify-content:space-between;position:sticky;top:0;z-index:100;
-    box-shadow:0 2px 16px rgba(0,0,0,0.4);
-  }
-  .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
-  .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent-light));
-    border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
-  .top-nav-links{display:flex;gap:2px;}
-  .nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);
-    font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
-  .nav-link:hover{background:rgba(255,255,255,0.06);color:var(--text);}
-  .nav-link.active{background:rgba(224,123,57,0.15);color:var(--accent);}
-  .ws-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);display:inline-block;transition:background 0.3s;flex-shrink:0;}
-  .ws-dot.connected{background:var(--success);}
-  #navTime{font-size:12px;color:var(--text-dim);}
+/* NAV */
+.topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;
+  height:56px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(0,0,0,0.4);}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent-light));
+  border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.top-nav-links{display:flex;gap:2px;}
+.nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);
+  font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
+.nav-link:hover{background:rgba(255,255,255,0.06);color:var(--text);}
+.nav-link.active{background:var(--accent-dim);color:var(--accent);}
+.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);display:inline-block;transition:background 0.3s;flex-shrink:0;}
+.ws-dot.connected{background:var(--success);}
 
-  /* PAGE */
-  .page{max-width:1280px;margin:0 auto;padding:20px 16px;display:flex;flex-direction:column;gap:20px;}
+/* DAY BAR */
+.day-bar{background:linear-gradient(90deg,rgba(224,123,57,0.12) 0%,rgba(26,38,55,0) 60%);
+  border-bottom:1px solid var(--border);padding:9px 20px;
+  display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+.day-bar-date{font-weight:800;font-size:14px;color:var(--accent);}
+.day-bar-sub{font-size:12px;color:var(--text-dim);}
+.day-bar-sep{width:1px;height:16px;background:var(--border);}
+.shift-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
+  background:var(--info-dim);color:var(--info);}
+.urgent-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
+  background:var(--danger-dim);color:var(--danger);display:none;}
+.urgent-badge.show{display:inline-block;}
 
-  /* KPI GRID */
-  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
-  .kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);
-    padding:18px;display:flex;flex-direction:column;gap:6px;}
-  .kpi-icon{font-size:22px;}
-  .kpi-label{font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;}
-  .kpi-value{font-size:36px;font-weight:900;line-height:1;}
-  .kpi-sub{font-size:11px;color:var(--text-dim);}
-  .c-accent{color:var(--accent);}
-  .c-success{color:var(--success);}
-  .c-warning{color:var(--warning);}
-  .c-danger{color:var(--danger);}
+/* PAGE */
+.page{max-width:1400px;margin:0 auto;padding:18px 16px;display:flex;flex-direction:column;gap:16px;}
 
-  /* SECTION TITLE */
-  .section-title{font-size:15px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:7px;}
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;}
+.kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);
+  padding:15px 16px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden;
+  transition:border-color 0.2s;}
+.kpi-card:hover{border-color:var(--border-bright);}
+.kpi-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--text-muted);opacity:0.3;}
+.kpi-card.c-accent::after{background:var(--accent);}
+.kpi-card.c-success::after{background:var(--success);}
+.kpi-card.c-warning::after{background:var(--warning);}
+.kpi-card.c-danger::after{background:var(--danger);}
+.kpi-card.c-info::after{background:var(--info);}
+.kpi-top{display:flex;justify-content:space-between;align-items:flex-start;}
+.kpi-icon{font-size:18px;line-height:1;}
+.kpi-trend{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;}
+.trend-up{background:var(--success-dim);color:var(--success);}
+.trend-down{background:var(--danger-dim);color:var(--danger);}
+.kpi-label{font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-top:6px;}
+.kpi-value{font-size:32px;font-weight:900;line-height:1.1;}
+.kpi-sub{font-size:11px;color:var(--text-dim);margin-top:1px;}
+.kpi-bar{height:3px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden;}
+.kpi-bar-fill{height:100%;border-radius:2px;transition:width 0.6s;}
+.c-accent .kpi-bar-fill{background:var(--accent);}
+.c-success .kpi-bar-fill{background:var(--success);}
+.c-warning .kpi-bar-fill{background:var(--warning);}
+.c-danger .kpi-bar-fill{background:var(--danger);}
+.c-info .kpi-bar-fill{background:var(--info);}
+.v-accent{color:var(--accent);} .v-success{color:var(--success);}
+.v-warning{color:var(--warning);} .v-danger{color:var(--danger);}
+.v-info{color:var(--info);}
 
-  /* MACHINES */
-  .machines-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
-  .machine-card{background:var(--steel-mid);border:2px solid var(--border);border-radius:var(--radius);
-    padding:18px;position:relative;overflow:hidden;transition:border-color 0.3s;}
-  .machine-card.online {border-color:rgba(39,174,96,0.35);}
-  .machine-card.running{border-color:rgba(224,123,57,0.5);}
-  .machine-card.error  {border-color:rgba(231,76,60,0.5);}
-  .machine-card::before{content:'';position:absolute;top:0;right:0;width:4px;height:100%;background:var(--text-dim);}
-  .machine-card.online::before {background:var(--success);}
-  .machine-card.running::before{background:var(--accent);animation:pulse 1.5s infinite;}
-  .machine-card.error::before  {background:var(--danger);}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-  .machine-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
-  .machine-name{font-weight:800;font-size:14px;}
-  .machine-port{font-size:11px;color:var(--text-dim);margin-top:2px;}
-  .machine-status-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(255,255,255,0.07);color:var(--text-dim);}
-  .machine-status-badge.running{background:rgba(224,123,57,0.2);color:var(--accent);}
-  .machine-status-badge.online {background:rgba(39,174,96,0.15);color:var(--success);}
-  .machine-status-badge.error  {background:rgba(231,76,60,0.15);color:var(--danger);}
-  .machine-counter{display:flex;align-items:baseline;gap:7px;margin-bottom:10px;}
-  .counter-num{font-size:44px;font-weight:900;color:var(--accent);line-height:1;}
-  .counter-label{font-size:12px;color:var(--text-dim);font-weight:600;}
-  .machine-job{background:rgba(255,255,255,0.04);border-radius:7px;padding:10px;font-size:12px;}
-  .machine-job-label{font-size:10px;color:var(--text-dim);font-weight:700;text-transform:uppercase;margin-bottom:3px;}
-  .machine-job-value{font-weight:700;}
-  .machine-lastseen{font-size:10px;color:var(--text-dim);margin-top:10px;}
+/* MAIN GRID */
+.main-grid{display:grid;grid-template-columns:1fr 300px;gap:14px;align-items:start;}
 
-  /* ORDERS TABLE */
-  .table-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
-  .table-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  table{width:100%;border-collapse:collapse;min-width:600px;}
-  th{text-align:right;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;
-    letter-spacing:0.5px;padding:11px 14px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);}
-  td{padding:12px 14px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.03);}
-  tr:last-child td{border-bottom:none;}
-  tr:hover td{background:rgba(255,255,255,0.02);}
-  .order-num-cell{color:var(--accent);font-weight:800;}
-  .weight-cell{color:var(--accent);font-weight:700;}
-  .status-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
-  .s-wait{background:rgba(122,147,171,0.15);color:var(--text-dim);}
-  .s-prod{background:rgba(224,123,57,0.2);color:var(--accent);}
-  .s-done{background:rgba(39,174,96,0.15);color:var(--success);}
-  .btn-sm{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);
-    color:var(--text-dim);font-family:'Heebo',sans-serif;font-size:12px;font-weight:600;
-    cursor:pointer;transition:all 0.2s;text-decoration:none;white-space:nowrap;display:inline-block;}
-  .btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+/* SECTION TITLE */
+.section-title{font-size:13px;font-weight:800;color:var(--text-dim);text-transform:uppercase;
+  letter-spacing:0.6px;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+.section-title .count-pill{background:var(--accent-dim);color:var(--accent);font-size:11px;
+  font-weight:800;padding:1px 8px;border-radius:10px;}
 
-  /* ── MOBILE ── */
-  @media(max-width:640px){
-    .kpi-grid{grid-template-columns:1fr 1fr;gap:10px;}
-    .kpi-value{font-size:28px;}
-    .kpi-card{padding:14px;}
-    .machines-grid{grid-template-columns:1fr;}
-    .counter-num{font-size:36px;}
-    /* Orders table → cards */
-    .table-wrap table,
-    .table-wrap thead,
-    .table-wrap tbody,
-    .table-wrap th,
-    .table-wrap td,
-    .table-wrap tr{display:block;min-width:unset;}
-    .table-wrap thead{display:none;}
-    .table-wrap tr{
-      background:rgba(255,255,255,0.03);border:1px solid var(--border);
-      border-radius:10px;margin:10px 16px;padding:14px;
-    }
-    .table-wrap tr:hover td{background:transparent;}
-    .table-wrap td{
-      padding:5px 0;border:none;font-size:13px;
-      display:flex;justify-content:space-between;align-items:center;
-    }
-    .table-wrap td::before{
-      content:attr(data-label);color:var(--text-dim);font-size:11px;font-weight:700;
-      text-transform:uppercase;letter-spacing:0.4px;flex-shrink:0;margin-left:10px;
-    }
-    .page{padding:14px 12px;gap:16px;}
-    .section-title{font-size:14px;}
-  }
-  @media(max-width:400px){
-    .kpi-grid{grid-template-columns:1fr 1fr;}
-    .kpi-value{font-size:24px;}
-  }
+/* MACHINES */
+.machines-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+.machine-card{background:var(--steel-card);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:16px;position:relative;overflow:hidden;
+  transition:border-color 0.3s,box-shadow 0.3s;}
+.machine-card.online {border-color:rgba(39,174,96,0.3);box-shadow:0 0 0 0 rgba(39,174,96,0);}
+.machine-card.running{border-color:rgba(224,123,57,0.45);animation:card-pulse 2s infinite;}
+.machine-card.error  {border-color:rgba(231,76,60,0.5);}
+@keyframes card-pulse{0%,100%{box-shadow:0 0 0 0 rgba(224,123,57,0.1)}50%{box-shadow:0 0 12px 2px rgba(224,123,57,0.15)}}
+.machine-stripe{position:absolute;top:0;right:0;width:3px;height:100%;background:var(--text-muted);}
+.machine-card.online  .machine-stripe{background:var(--success);}
+.machine-card.running .machine-stripe{background:var(--accent);}
+.machine-card.error   .machine-stripe{background:var(--danger);}
+
+.m-row1{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+.m-name{font-weight:800;font-size:15px;}
+.m-range{font-size:10px;color:var(--text-dim);margin-top:2px;}
+.m-status-badge{padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;
+  background:rgba(255,255,255,0.06);color:var(--text-dim);}
+.m-status-badge.running{background:var(--accent-dim);color:var(--accent);}
+.m-status-badge.online {background:var(--success-dim);color:var(--success);}
+.m-status-badge.error  {background:var(--danger-dim);color:var(--danger);}
+
+.m-body{display:flex;align-items:center;gap:14px;}
+.m-ring-wrap{flex-shrink:0;}
+.m-ring-wrap svg{display:block;}
+.m-ring-bg{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:5;}
+.m-ring-fg{fill:none;stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset 0.7s;}
+.m-ring-fg.running{stroke:var(--accent);}
+.m-ring-fg.online {stroke:var(--success);}
+.m-ring-fg.error  {stroke:var(--danger);}
+.m-ring-fg.idle   {stroke:var(--text-muted);}
+.m-ring-text{font-size:11px;font-weight:900;fill:var(--text);text-anchor:middle;dominant-baseline:middle;}
+
+.m-info{flex:1;min-width:0;}
+.m-counter{font-size:38px;font-weight:900;line-height:1;color:var(--accent);}
+.m-counter-label{font-size:10px;color:var(--text-dim);font-weight:600;}
+.m-job{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;
+  padding:8px 10px;margin-top:10px;font-size:12px;}
+.m-job-label{font-size:9px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px;}
+.m-job-value{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-dia-row{display:flex;gap:8px;margin-top:8px;}
+.m-chip{padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;
+  background:rgba(255,255,255,0.04);color:var(--text-dim);border:1px solid var(--border);}
+.m-lastseen{font-size:10px;color:var(--text-muted);margin-top:6px;}
+
+/* ALERTS PANEL */
+.alerts-panel{background:var(--steel-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.alerts-header{padding:13px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.alerts-list{max-height:340px;overflow-y:auto;}
+.alerts-list::-webkit-scrollbar{width:4px;}
+.alerts-list::-webkit-scrollbar-track{background:transparent;}
+.alerts-list::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:2px;}
+.alert-item{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.03);
+  display:flex;gap:9px;align-items:flex-start;transition:background 0.15s;}
+.alert-item:hover{background:rgba(255,255,255,0.02);}
+.alert-item:last-child{border-bottom:none;}
+.alert-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.alert-dot.critical{background:var(--danger);}
+.alert-dot.warning {background:var(--warning);}
+.alert-dot.info    {background:var(--info);}
+.alert-text{font-size:12px;font-weight:600;flex:1;line-height:1.4;}
+.alert-time{font-size:10px;color:var(--text-muted);white-space:nowrap;}
+.alert-resolve{background:none;border:1px solid var(--border);border-radius:4px;
+  color:var(--text-muted);font-size:10px;padding:2px 6px;cursor:pointer;
+  font-family:'Heebo',sans-serif;transition:all 0.15s;flex-shrink:0;}
+.alert-resolve:hover{border-color:var(--success);color:var(--success);}
+.no-alerts{padding:24px 14px;text-align:center;color:var(--text-muted);font-size:13px;}
+
+/* QUICK STATS (below alerts) */
+.quick-stats{background:var(--steel-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+.qs-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;
+  border-bottom:1px solid rgba(255,255,255,0.03);}
+.qs-row:last-child{border-bottom:none;}
+.qs-label{font-size:12px;color:var(--text-dim);}
+.qs-val{font-size:13px;font-weight:700;}
+
+/* BOTTOM GRID */
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+/* TABLE CARD */
+.table-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.table-header{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;border-collapse:collapse;}
+th{text-align:right;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;
+  letter-spacing:0.5px;padding:9px 12px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);}
+td{padding:10px 12px;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.03);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,0.02);}
+.order-num{color:var(--accent);font-weight:800;}
+.weight-val{color:var(--accent);font-weight:700;}
+.status-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.s-wait{background:rgba(122,147,171,0.12);color:var(--text-dim);}
+.s-prod{background:var(--accent-dim);color:var(--accent);}
+.s-done{background:var(--success-dim);color:var(--success);}
+.s-ship{background:var(--info-dim);color:var(--info);}
+.s-pend{background:var(--warning-dim);color:var(--warning);}
+.urgent-flag{display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--danger);margin-left:5px;vertical-align:middle;}
+
+/* DELIVERY LIST */
+.delivery-list{padding:0;}
+.delivery-item{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.03);
+  display:flex;align-items:center;gap:10px;cursor:pointer;transition:background 0.15s;}
+.delivery-item:hover{background:rgba(255,255,255,0.02);}
+.delivery-item:last-child{border-bottom:none;}
+.delivery-icon{font-size:18px;flex-shrink:0;}
+.delivery-info{flex:1;min-width:0;}
+.delivery-name{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.delivery-sub{font-size:11px;color:var(--text-dim);margin-top:1px;}
+.delivery-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;}
+.d-enroute{background:var(--info-dim);color:var(--info);}
+.d-done{background:var(--success-dim);color:var(--success);}
+
+/* BTN */
+.btn-sm{padding:4px 11px;border-radius:6px;border:1px solid var(--border);background:var(--card);
+  color:var(--text-dim);font-family:'Heebo',sans-serif;font-size:11px;font-weight:600;
+  cursor:pointer;transition:all 0.2s;text-decoration:none;white-space:nowrap;display:inline-block;}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+
+/* EMPTY STATE */
+.empty-state{padding:28px 16px;text-align:center;color:var(--text-muted);font-size:13px;}
+
+/* OVERDUE */
+.overdue{color:var(--danger)!important;font-weight:700;}
+.due-today{color:var(--warning)!important;font-weight:700;}
+.due-soon{color:var(--accent)!important;}
+
+/* MOBILE */
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(3,1fr);}
+  .main-grid{grid-template-columns:1fr;}
+  .machines-grid{grid-template-columns:1fr 1fr;}
+  .bottom-grid{grid-template-columns:1fr;}
+}
+@media(max-width:600px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .machines-grid{grid-template-columns:1fr;}
+  .kpi-value{font-size:26px;}
+  .page{padding:12px 10px;gap:12px;}
+  .day-bar{padding:8px 14px;gap:12px;}
+}
 </style>
 </head>
 <body data-page="dashboard">
@@ -159,168 +255,462 @@
     <a href="/orders.html"    class="nav-link">📋 הזמנות</a>
     <a href="/index.html"     class="nav-link">➕ חדשה</a>
     <a href="/machine.html"   class="nav-link">🔧 מכונה</a>
+    <a href="/reports.html"   class="nav-link">📈 דוחות</a>
+    <a href="/driver.html"    class="nav-link">🚚 נהג</a>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <span class="ws-dot" id="wsDot"></span>
-    <span id="navTime"></span>
+    <span style="font-size:12px;color:var(--text-dim)" id="navTime"></span>
   </div>
 </nav>
 
+<div class="day-bar">
+  <span class="day-bar-date" id="dayBarDate"></span>
+  <div class="day-bar-sep"></div>
+  <span class="day-bar-sub" id="dayBarShift"></span>
+  <div class="day-bar-sep"></div>
+  <span class="shift-badge" id="shiftBadge">משמרת בוקר</span>
+  <span class="urgent-badge" id="urgentBadge">⚠️ <span id="urgentCount">0</span> הזמנות דחופות</span>
+</div>
+
 <div class="page">
 
+  <!-- KPI ROW -->
   <div class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-icon">📦</div>
+    <div class="kpi-card c-accent">
+      <div class="kpi-top"><span class="kpi-icon">📦</span><span class="kpi-trend" id="kpiOrdersTrend" style="display:none"></span></div>
       <div class="kpi-label">הזמנות היום</div>
-      <div class="kpi-value c-accent" id="kpiOrdersToday">—</div>
-      <div class="kpi-sub" id="kpiWeightToday">—</div>
+      <div class="kpi-value v-accent" id="kpiOrdersToday">—</div>
+      <div class="kpi-sub" id="kpiWeightToday">טוען...</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-icon">⚙️</div>
-      <div class="kpi-label">בייצור</div>
-      <div class="kpi-value c-warning" id="kpiInProd">—</div>
-      <div class="kpi-sub" id="kpiItemsProd">—</div>
+    <div class="kpi-card c-warning">
+      <div class="kpi-top"><span class="kpi-icon">⚙️</span></div>
+      <div class="kpi-label">בייצור כעת</div>
+      <div class="kpi-value v-warning" id="kpiInProd">—</div>
+      <div class="kpi-sub" id="kpiItemsProd">פריטים</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-icon">✅</div>
+    <div class="kpi-card c-success">
+      <div class="kpi-top"><span class="kpi-icon">✅</span></div>
       <div class="kpi-label">הושלמו היום</div>
-      <div class="kpi-value c-success" id="kpiDone">—</div>
-      <div class="kpi-sub" id="kpiItemsDone">—</div>
+      <div class="kpi-value v-success" id="kpiDone">—</div>
+      <div class="kpi-sub" id="kpiItemsDone">פריטים</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiDoneBar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi-card c-danger">
+      <div class="kpi-top"><span class="kpi-icon">🔴</span></div>
+      <div class="kpi-label">הזמנות דחופות</div>
+      <div class="kpi-value v-danger" id="kpiUrgent">—</div>
+      <div class="kpi-sub">פתוחות</div>
+    </div>
+    <div class="kpi-card c-info">
+      <div class="kpi-top"><span class="kpi-icon">📉</span></div>
+      <div class="kpi-label">פחת היום</div>
+      <div class="kpi-value v-info" id="kpiWaste">—</div>
+      <div class="kpi-sub">אחוז פחת ממוצע</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiWasteBar" style="width:0%;background:var(--info)"></div></div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon">⏳</div>
-      <div class="kpi-label">ממתינות</div>
-      <div class="kpi-value c-danger" id="kpiPending">—</div>
-      <div class="kpi-sub">לאישור</div>
+      <div class="kpi-top"><span class="kpi-icon">⏳</span></div>
+      <div class="kpi-label">ממתינות לאישור</div>
+      <div class="kpi-value" id="kpiPending">—</div>
+      <div class="kpi-sub">הזמנות חדשות</div>
     </div>
   </div>
 
-  <div>
-    <div class="section-title">🔧 מצב מכונות</div>
-    <div class="machines-grid" id="machinesGrid">
-      <div style="color:var(--text-dim);font-size:14px">טוען...</div>
+  <!-- MAIN GRID: machines + sidebar -->
+  <div class="main-grid">
+
+    <div>
+      <div class="section-title">🔧 מכונות <span class="count-pill" id="machinesOnlineCount">0/4</span></div>
+      <div class="machines-grid" id="machinesGrid">
+        <div style="color:var(--text-dim);font-size:13px;padding:20px;grid-column:1/-1">טוען...</div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;">
+
+      <!-- ALERTS -->
+      <div class="alerts-panel">
+        <div class="alerts-header">
+          <div class="section-title" style="margin:0">🔔 התראות <span class="count-pill" id="alertCountPill">0</span></div>
+          <button class="btn-sm" onclick="resolveAllAlerts()">נקה הכל</button>
+        </div>
+        <div class="alerts-list" id="alertsList">
+          <div class="no-alerts">אין התראות פעילות ✓</div>
+        </div>
+      </div>
+
+      <!-- QUICK STATS -->
+      <div class="quick-stats">
+        <div class="section-title" style="margin-bottom:8px">📊 סיכום יומי</div>
+        <div class="qs-row">
+          <span class="qs-label">משקל ייצור היום</span>
+          <span class="qs-val v-accent" id="qsWeight">—</span>
+        </div>
+        <div class="qs-row">
+          <span class="qs-label">פחת מכונה A</span>
+          <span class="qs-val" id="qsWasteA">—</span>
+        </div>
+        <div class="qs-row">
+          <span class="qs-label">פחת מכונה B</span>
+          <span class="qs-val" id="qsWasteB">—</span>
+        </div>
+        <div class="qs-row">
+          <span class="qs-label">פחת מכונה C</span>
+          <span class="qs-val" id="qsWasteC">—</span>
+        </div>
+        <div class="qs-row">
+          <span class="qs-label">פחת מכונה D</span>
+          <span class="qs-val" id="qsWasteD">—</span>
+        </div>
+      </div>
+
     </div>
   </div>
 
-  <div class="table-card">
-    <div class="table-header">
-      <div class="section-title" style="margin:0">📋 הזמנות אחרונות</div>
-      <a href="/orders.html" class="btn-sm">הכל</a>
+  <!-- BOTTOM GRID: production queue + recent orders -->
+  <div class="bottom-grid">
+
+    <!-- PRODUCTION QUEUE -->
+    <div class="table-card">
+      <div class="table-header">
+        <div class="section-title" style="margin:0">⚙️ תור ייצור <span class="count-pill" id="prodQueueCount">0</span></div>
+        <a href="/orders.html?status=בייצור" class="btn-sm">הכל</a>
+      </div>
+      <div id="prodQueueBody">
+        <div class="empty-state">אין הזמנות בייצור</div>
+      </div>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>מספר</th><th>לקוח</th><th>אספקה</th><th>משקל</th><th>סטטוס</th><th></th>
-          </tr>
-        </thead>
-        <tbody id="ordersTableBody">
-          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-dim)">טוען...</td></tr>
-        </tbody>
-      </table>
+
+    <!-- RECENT ORDERS -->
+    <div class="table-card">
+      <div class="table-header">
+        <div class="section-title" style="margin:0">📋 הזמנות אחרונות</div>
+        <a href="/orders.html" class="btn-sm">הכל</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>מספר</th><th>לקוח</th><th>אספקה</th><th>משקל</th><th>סטטוס</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody">
+            <tr><td colspan="5" class="empty-state">טוען...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
+
   </div>
 
 </div>
 
 <script>
 const WS_URL = `ws://${location.host}`;
-let ws;
+let ws, dashData = null, alertsData = [];
+const TODAY = new Date().toISOString().split('T')[0];
 
+// ── WebSocket ────────────────────────────────────────────────────────
 function connectWS() {
   ws = new WebSocket(WS_URL);
   ws.onopen  = () => document.getElementById('wsDot').classList.add('connected');
-  ws.onclose = () => { document.getElementById('wsDot').classList.remove('connected'); setTimeout(connectWS,3000); };
+  ws.onclose = () => { document.getElementById('wsDot').classList.remove('connected'); setTimeout(connectWS, 3000); };
   ws.onmessage = e => {
-    const { type, data } = JSON.parse(e.data);
-    if (type === 'machines_state') renderMachines(data);
-    if (type === 'machine_update') updateMachineTile(data);
-    if (['new_order','order_status','order_complete'].includes(type)) fetchDashboard();
+    try {
+      const { type, data } = JSON.parse(e.data);
+      if (type === 'machines_state') renderMachines(data);
+      if (type === 'machine_update') updateMachineTile(data);
+      if (type === 'alert') { fetchAlerts(); }
+      if (['new_order','order_status','order_complete'].includes(type)) fetchDashboard();
+    } catch {}
   };
 }
 
+// ── Clock & Day Bar ──────────────────────────────────────────────────
+function updateTime() {
+  const now = new Date();
+  document.getElementById('navTime').textContent = now.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('dayBarDate').textContent = now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});
+
+  const h = now.getHours();
+  let shift, shiftLabel;
+  if      (h >= 6  && h < 14) { shift = 'morning'; shiftLabel = 'משמרת בוקר 06:00–14:00'; }
+  else if (h >= 14 && h < 22) { shift = 'afternoon'; shiftLabel = 'משמרת אחר צהריים 14:00–22:00'; }
+  else                          { shift = 'night'; shiftLabel = 'משמרת לילה 22:00–06:00'; }
+
+  const badges = { morning: 'משמרת בוקר', afternoon: 'משמרת אצ', night: 'משמרת לילה' };
+  document.getElementById('shiftBadge').textContent = badges[shift];
+  document.getElementById('dayBarShift').textContent = shiftLabel;
+}
+
+// ── Fetch dashboard ──────────────────────────────────────────────────
 async function fetchDashboard() {
   try {
     const r = await fetch('/api/dashboard');
-    const d = await r.json();
-    document.getElementById('kpiOrdersToday').textContent = d.ordersToday;
-    document.getElementById('kpiWeightToday').textContent = d.totalWeightToday.toFixed(0) + ' ק"ג';
-    document.getElementById('kpiInProd').textContent      = d.inProduction;
-    document.getElementById('kpiItemsProd').textContent   = d.itemsInProduction + ' פריטים';
-    document.getElementById('kpiDone').textContent        = d.completedToday;
-    document.getElementById('kpiItemsDone').textContent   = d.itemsDone + ' פריטים';
-    document.getElementById('kpiPending').textContent     = d.pending;
-    renderMachines(d.machines);
-    renderOrdersTable(d.recentOrders);
-  } catch { /* offline – cached data shown by SW */ }
+    dashData = await r.json();
+    renderKPIs(dashData);
+    renderMachines(dashData.machines);
+    renderOrdersTable(dashData.recentOrders);
+    renderProdQueue(dashData.recentOrders);
+    renderWasteByMachine(dashData.wasteByMachine);
+  } catch { /* offline – SW cache */ }
 }
 
-function machineClass(m) {
+async function fetchAlerts() {
+  try {
+    const r = await fetch('/api/alerts');
+    alertsData = await r.json();
+    renderAlerts(alertsData);
+  } catch {}
+}
+
+// ── KPIs ─────────────────────────────────────────────────────────────
+function renderKPIs(d) {
+  document.getElementById('kpiOrdersToday').textContent = d.ordersToday;
+  document.getElementById('kpiWeightToday').textContent = (d.totalWeightToday||0).toFixed(0) + ' ק"ג';
+  document.getElementById('kpiInProd').textContent      = d.inProduction;
+  document.getElementById('kpiItemsProd').textContent   = (d.itemsInProduction||0) + ' פריטים';
+  document.getElementById('kpiDone').textContent        = d.completedToday;
+  document.getElementById('kpiItemsDone').textContent   = (d.itemsDone||0) + ' פריטים';
+  document.getElementById('kpiUrgent').textContent      = d.urgentOpen || 0;
+  document.getElementById('kpiWaste').textContent       = (d.wasteAvgPct||0) + '%';
+  document.getElementById('kpiPending').textContent     = d.pending;
+
+  // Progress bars
+  const completionPct = d.ordersToday > 0 ? Math.min(100, (d.completedToday / d.ordersToday) * 100) : 0;
+  document.getElementById('kpiDoneBar').style.width = completionPct + '%';
+  const wastePct = Math.min(100, (d.wasteAvgPct || 0) * 5); // scale: 20% waste = full bar
+  document.getElementById('kpiWasteBar').style.width = wastePct + '%';
+
+  // Urgent badge in day bar
+  const urgentBadge = document.getElementById('urgentBadge');
+  if (d.urgentOpen > 0) {
+    urgentBadge.classList.add('show');
+    document.getElementById('urgentCount').textContent = d.urgentOpen;
+  } else {
+    urgentBadge.classList.remove('show');
+  }
+
+  document.getElementById('qsWeight').textContent = (d.totalWeightToday||0).toFixed(0) + ' ק"ג';
+}
+
+function renderWasteByMachine(wasteByMachine) {
+  const byMachine = {};
+  (wasteByMachine||[]).forEach(r => { byMachine[r.machine] = r; });
+  ['A','B','C','D'].forEach(m => {
+    const el = document.getElementById('qsWaste' + m);
+    if (!el) return;
+    const r = byMachine[`מכונה ${m}`] || byMachine[m];
+    if (r && r.qty > 0) {
+      const pct = ((r.waste / r.qty) * 100).toFixed(1);
+      el.textContent = pct + '%';
+      el.style.color = pct > 10 ? 'var(--danger)' : pct > 5 ? 'var(--warning)' : 'var(--success)';
+    } else {
+      el.textContent = '—';
+      el.style.color = '';
+    }
+  });
+}
+
+// ── Machines ─────────────────────────────────────────────────────────
+function machineStateClass(m) {
   if (m.status === 'בייצור') return 'running';
   if (m.status === 'תקלה' || m.status === 'שגיאת תקשורת') return 'error';
-  if (m.connected) return 'online';
-  return '';
+  if (m.connected || m.status === 'פנוי') return 'online';
+  return 'idle';
+}
+
+function buildProgressRing(cls, counter, label) {
+  const R = 26, C = 2 * Math.PI * R;
+  // Show a slow animated fill for "running", otherwise static based on counter
+  const pct = cls === 'running' ? 0.75 : cls === 'online' ? 0.4 : 0.15;
+  const dash = C * pct;
+  const offset = C - dash;
+  return `<svg width="64" height="64" viewBox="0 0 64 64" class="m-ring-wrap">
+    <circle class="m-ring-bg" cx="32" cy="32" r="${R}"/>
+    <circle class="m-ring-fg ${cls}" cx="32" cy="32" r="${R}"
+      stroke-dasharray="${C}" stroke-dashoffset="${offset}"
+      transform="rotate(-90 32 32)"/>
+    <text class="m-ring-text" x="32" y="32" font-size="11" font-weight="900"
+      fill="${cls==='running'?'#e07b39':cls==='online'?'#27ae60':cls==='error'?'#e74c3c':'#4a6278'}">${counter}</text>
+    <text x="32" y="45" text-anchor="middle" font-size="8" fill="#4a6278" font-family="Heebo,sans-serif">${label}</text>
+  </svg>`;
 }
 
 function renderMachines(machines) {
-  if (!machines?.length) { document.getElementById('machinesGrid').innerHTML = '<div style="color:var(--text-dim)">אין מכונות</div>'; return; }
+  if (!machines?.length) {
+    document.getElementById('machinesGrid').innerHTML = '<div style="color:var(--text-dim);padding:20px;grid-column:1/-1">אין מכונות</div>';
+    return;
+  }
+  let online = 0;
   document.getElementById('machinesGrid').innerHTML = machines.map(m => {
-    const cls = machineClass(m);
+    const cls = machineStateClass(m);
+    if (cls !== 'idle') online++;
+    const ring = buildProgressRing(cls, m.counter ?? 0, 'יח\'');
     const badgeCls = cls === 'running' ? 'running' : cls === 'error' ? 'error' : cls === 'online' ? 'online' : '';
+    const lastSeenStr = m.last_seen ? new Date(m.last_seen).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}) : null;
     return `<div class="machine-card ${cls}" id="machine-${m.id}">
-      <div class="machine-header">
-        <div><div class="machine-name">${m.name}</div><div class="machine-port">${m.port??''}</div></div>
-        <div class="machine-status-badge ${badgeCls}">${m.status??'לא מחובר'}</div>
+      <div class="machine-stripe"></div>
+      <div class="m-row1">
+        <div>
+          <div class="m-name">${m.name}</div>
+          <div class="m-range">Ø${m.min_diameter}–${m.max_diameter} מ"מ</div>
+        </div>
+        <span class="m-status-badge ${badgeCls}">${m.status ?? 'לא מחובר'}</span>
       </div>
-      <div class="machine-counter">
-        <div class="counter-num">${m.counter??0}</div>
-        <div class="counter-label">יח'</div>
+      <div class="m-body">
+        ${ring}
+        <div class="m-info">
+          <div class="m-counter">${m.counter ?? 0}</div>
+          <div class="m-counter-label">יחידות היום</div>
+          ${m.current_order_num
+            ? `<div class="m-job"><div class="m-job-label">הזמנה פעילה</div><div class="m-job-value">${m.current_order_num}</div></div>`
+            : `<div class="m-job" style="color:var(--text-muted);font-size:11px">אין עבודה פעילה</div>`
+          }
+        </div>
       </div>
-      ${m.current_order_num
-        ? `<div class="machine-job"><div class="machine-job-label">הזמנה פעילה</div><div class="machine-job-value">${m.current_order_num}</div></div>`
-        : `<div class="machine-job" style="color:var(--text-dim)">אין עבודה פעילה</div>`}
-      ${m.lastSeen ? `<div class="machine-lastseen">עדכון: ${new Date(m.lastSeen).toLocaleTimeString('he-IL')}</div>` : ''}
+      ${lastSeenStr ? `<div class="m-lastseen">עדכון אחרון: ${lastSeenStr}</div>` : ''}
     </div>`;
   }).join('');
+  document.getElementById('machinesOnlineCount').textContent = `${online}/${machines.length}`;
 }
 
 function updateMachineTile(data) {
   const el = document.getElementById(`machine-${data.id}`);
-  if (!el) return;
-  const cls = machineClass(data);
+  if (!el) { fetchDashboard(); return; }
+  const cls = machineStateClass(data);
   el.className = `machine-card ${cls}`;
-  const cEl = el.querySelector('.counter-num');
-  const bEl = el.querySelector('.machine-status-badge');
+  const cEl = el.querySelector('.m-counter');
+  const bEl = el.querySelector('.m-status-badge');
   if (cEl) cEl.textContent = data.counter ?? 0;
-  if (bEl) { bEl.textContent = data.status; bEl.className = `machine-status-badge ${cls === 'running' ? 'running' : cls === 'error' ? 'error' : cls === 'online' ? 'online' : ''}`; }
+  if (bEl) {
+    bEl.textContent = data.status;
+    bEl.className = `m-status-badge ${cls === 'running' ? 'running' : cls === 'error' ? 'error' : cls === 'online' ? 'online' : ''}`;
+  }
 }
 
-function statusBadgeClass(o) {
-  if (o.status?.includes('הושלם')) return 's-done';
-  if (o.status === 'בייצור') return 's-prod';
+// ── Alerts ────────────────────────────────────────────────────────────
+function renderAlerts(alerts) {
+  const pill = document.getElementById('alertCountPill');
+  pill.textContent = alerts.length;
+  pill.style.background = alerts.length > 0 ? 'var(--danger-dim)' : 'var(--accent-dim)';
+  pill.style.color = alerts.length > 0 ? 'var(--danger)' : 'var(--accent)';
+
+  if (!alerts.length) {
+    document.getElementById('alertsList').innerHTML = '<div class="no-alerts">אין התראות פעילות ✓</div>';
+    return;
+  }
+  document.getElementById('alertsList').innerHTML = alerts.map(a => {
+    const dotCls = a.level === 'critical' ? 'critical' : a.level === 'warning' ? 'warning' : 'info';
+    const timeStr = new Date(a.created_at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="alert-item">
+      <div class="alert-dot ${dotCls}"></div>
+      <div class="alert-text">${escHtml(a.message)}</div>
+      <span class="alert-time">${timeStr}</span>
+      <button class="alert-resolve" onclick="resolveAlert(${a.id},this)">✓</button>
+    </div>`;
+  }).join('');
+}
+
+async function resolveAlert(id, btn) {
+  btn.disabled = true;
+  try {
+    await fetch(`/api/alerts/${id}/resolve`, { method: 'PATCH' });
+    await fetchAlerts();
+  } catch { btn.disabled = false; }
+}
+
+async function resolveAllAlerts() {
+  const unresolvedIds = alertsData.map(a => a.id);
+  await Promise.all(unresolvedIds.map(id => fetch(`/api/alerts/${id}/resolve`, { method: 'PATCH' })));
+  await fetchAlerts();
+}
+
+// ── Production Queue ──────────────────────────────────────────────────
+function renderProdQueue(orders) {
+  const inProd = (orders || []).filter(o =>
+    o.status === 'בייצור' || o.status === 'ממתינה לאישור' || o.status === 'בתור ייצור'
+  );
+  document.getElementById('prodQueueCount').textContent = inProd.length;
+  if (!inProd.length) {
+    document.getElementById('prodQueueBody').innerHTML = '<div class="empty-state">אין הזמנות בתור ייצור</div>';
+    return;
+  }
+  document.getElementById('prodQueueBody').innerHTML = `<table style="width:100%">
+    <thead><tr><th>מספר</th><th>לקוח</th><th>אספקה</th><th>סטטוס</th></tr></thead>
+    <tbody>${inProd.map(o => {
+      const daysLeft = daysUntilDelivery(o.delivery_date);
+      const dateCls  = daysLeft !== null ? (daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : daysLeft <= 2 ? 'due-soon' : '') : '';
+      const urgentHtml = o.priority === 'דחוף' ? '<span class="urgent-flag"></span>' : '';
+      return `<tr onclick="location.href='/orders.html?id=${o.id}'" style="cursor:pointer">
+        <td><span class="order-num">${o.order_num}</span>${urgentHtml}</td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.customer_name||'—'}</td>
+        <td class="${dateCls}">${formatDeliveryDate(o.delivery_date, daysLeft)}</td>
+        <td><span class="status-badge ${statusBadgeClass(o.status)}">${o.status}</span></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+// ── Recent Orders ─────────────────────────────────────────────────────
+function renderOrdersTable(orders) {
+  if (!orders?.length) {
+    document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="5" class="empty-state">אין הזמנות</td></tr>';
+    return;
+  }
+  document.getElementById('ordersTableBody').innerHTML = orders.map(o => {
+    const daysLeft = daysUntilDelivery(o.delivery_date);
+    const dateCls  = daysLeft !== null ? (daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : daysLeft <= 2 ? 'due-soon' : '') : '';
+    const urgentHtml = o.priority === 'דחוף' ? '<span class="urgent-flag"></span>' : '';
+    return `<tr onclick="location.href='/orders.html?id=${o.id}'" style="cursor:pointer">
+      <td><span class="order-num">${o.order_num}</span>${urgentHtml}</td>
+      <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.customer_name||'—'}</td>
+      <td class="${dateCls}">${formatDeliveryDate(o.delivery_date, daysLeft)}</td>
+      <td><span class="weight-val">${(o.total_weight||0).toFixed(0)}</span> ק"ג</td>
+      <td><span class="status-badge ${statusBadgeClass(o.status)}">${o.status}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+function statusBadgeClass(status) {
+  if (!status) return 's-wait';
+  if (status.includes('הושלם') || status.includes('סופק')) return 's-done';
+  if (status === 'בייצור') return 's-prod';
+  if (status.includes('דרך') || status.includes('נהג')) return 's-ship';
+  if (status === 'ממתינה לאישור') return 's-pend';
   return 's-wait';
 }
 
-function renderOrdersTable(orders) {
-  if (!orders?.length) { document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-dim)">אין הזמנות</td></tr>'; return; }
-  document.getElementById('ordersTableBody').innerHTML = orders.map(o => `
-    <tr onclick="location.href='/orders.html?id=${o.id}'" style="cursor:pointer">
-      <td data-label="מספר"><span class="order-num-cell">${o.order_num}</span></td>
-      <td data-label="לקוח">${o.customer_name??'—'}</td>
-      <td data-label="אספקה">${o.delivery_date??'—'}</td>
-      <td data-label="משקל" class="weight-cell">${(o.total_weight||0).toFixed(0)} ק"ג</td>
-      <td data-label="סטטוס"><span class="status-badge ${statusBadgeClass(o)}">${o.status}</span></td>
-      <td><a href="/orders.html?id=${o.id}" class="btn-sm" onclick="event.stopPropagation()">פתח</a></td>
-    </tr>`).join('');
+function daysUntilDelivery(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((d - today) / 86400000);
 }
 
-function updateTime() {
-  document.getElementById('navTime').textContent = new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+function formatDeliveryDate(dateStr, daysLeft) {
+  if (!dateStr) return '—';
+  if (daysLeft === null) return dateStr;
+  const parts = dateStr.split('-');
+  const short = `${parts[2]}/${parts[1]}`;
+  if (daysLeft < 0) return `${short} (איחור ${Math.abs(daysLeft)}י')`;
+  if (daysLeft === 0) return `${short} (היום!)`;
+  if (daysLeft === 1) return `${short} (מחר)`;
+  return short;
 }
 
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
 connectWS();
 fetchDashboard();
+fetchAlerts();
 setInterval(fetchDashboard, 15000);
+setInterval(fetchAlerts, 30000);
 setInterval(updateTime, 1000);
 updateTime();
 </script>
