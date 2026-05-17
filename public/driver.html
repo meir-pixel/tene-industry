@@ -108,7 +108,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
-<body>
+<body data-page="driver">
 
 <!-- Driver selection overlay -->
 <div class="overlay" id="driverOverlay">
@@ -415,7 +415,10 @@ function formatTime(iso) {
   return new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 }
 </script>
+<script src="/help.js"></script>
 </body>
 </html>
+
+
 
 

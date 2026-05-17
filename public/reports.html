@@ -9,13 +9,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-:root{
-  --steel:#0f1923;--steel-mid:#1a2637;--steel-light:#243447;
-  --accent:#e07b39;--accent-light:#f0954d;
-  --success:#27ae60;--danger:#e74c3c;--warning:#f39c12;
-  --text:#e8edf3;--text-dim:#7a93ab;
-  --border:rgba(255,255,255,0.07);--card:rgba(255,255,255,0.04);
-  --radius:14px;
+:root {
+  --steel:#f0f4f8; --steel-mid:#ffffff; --steel-light:#e8edf4; --steel-card:#ffffff;
+  --iron:#d0dcea; --accent:#c9621a; --accent-light:#e07b39; --accent-dim:rgba(201,98,26,0.10);
+  --success:#1a7a42; --success-dim:rgba(26,122,66,0.10);
+  --danger:#b83227;  --danger-dim:rgba(184,50,39,0.10);
+  --warning:#a86b00; --warning-dim:rgba(168,107,0,0.10);
+  --info:#1560a8;    --info-dim:rgba(21,96,168,0.10);
+  --text:#1a2533; --text-dim:#526070; --text-muted:#8fa0b0;
+  --border:rgba(0,0,0,0.09); --border-bright:rgba(0,0,0,0.15);
+  --card:rgba(0,0,0,0.02); --radius:14px; --radius-sm:8px;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
@@ -26,7 +29,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
   border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;}
 .top-nav-links{display:flex;gap:2px;}
 .nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);font-size:13px;font-weight:600;transition:all 0.2s;}
-.nav-link:hover{background:rgba(255,255,255,0.06);color:var(--text);}
+.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
 .nav-link.active{background:rgba(224,123,57,0.15);color:var(--accent);}
 
 .page{max-width:1280px;margin:0 auto;padding:20px 16px;display:flex;flex-direction:column;gap:20px;}
@@ -59,7 +62,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .data-table{width:100%;border-collapse:collapse;font-size:13px;}
 .data-table th{background:var(--steel-light);padding:10px 14px;text-align:right;font-weight:700;color:var(--text-dim);font-size:12px;}
 .data-table td{padding:10px 14px;border-bottom:1px solid var(--border);}
-.data-table tr:hover td{background:rgba(255,255,255,0.03);}
+.data-table tr:hover td{background:rgba(0,0,0,0.02);}
 .pill{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;}
 .pill-danger{background:rgba(231,76,60,0.15);color:var(--danger);}
 .pill-warning{background:rgba(243,156,18,0.15);color:var(--warning);}
@@ -83,7 +86,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
-<body>
+<body data-page="reports">
 
 <nav class="topnav">
   <div class="logo">
@@ -231,8 +234,8 @@ function renderKPIs(data) {
 const CHART_DEFAULTS = {
   plugins: { legend: { labels: { color: '#7a93ab', font: { family: 'Heebo', size: 11 } } } },
   scales: {
-    x: { ticks: { color: '#7a93ab', font: { family: 'Heebo', size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-    y: { ticks: { color: '#7a93ab', font: { family: 'Heebo', size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+    x: { ticks: { color: '#7a93ab', font: { family: 'Heebo', size: 10 } }, grid: { color: 'rgba(0,0,0,0.03)' } },
+    y: { ticks: { color: '#7a93ab', font: { family: 'Heebo', size: 10 } }, grid: { color: 'rgba(0,0,0,0.03)' } },
   },
 };
 
@@ -339,7 +342,12 @@ function exportCSV() {
   a.click(); URL.revokeObjectURL(url);
 }
 </script>
+<script src="/help.js"></script>
 </body>
 </html>
+
+
+
+
 
 

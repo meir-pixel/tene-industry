@@ -7,28 +7,29 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
-  --steel:#0f1923; --steel-mid:#1a2637; --steel-card:#1e2e40;
-  --accent:#e07b39; --accent-dim:rgba(224,123,57,0.15);
-  --success:#27ae60; --success-dim:rgba(39,174,96,0.15);
-  --danger:#e74c3c;  --danger-dim:rgba(231,76,60,0.15);
-  --warning:#f39c12; --warning-dim:rgba(243,156,18,0.15);
-  --info:#3498db;    --info-dim:rgba(52,152,219,0.15);
-  --text:#e8edf3; --text-dim:#7a93ab; --text-muted:#4a6278;
-  --border:rgba(255,255,255,0.07); --radius:14px;
+  --steel:#f0f4f8; --steel-mid:#ffffff; --steel-light:#e8edf4; --steel-card:#ffffff;
+  --iron:#d0dcea; --accent:#c9621a; --accent-light:#e07b39; --accent-dim:rgba(201,98,26,0.10);
+  --success:#1a7a42; --success-dim:rgba(26,122,66,0.10);
+  --danger:#b83227;  --danger-dim:rgba(184,50,39,0.10);
+  --warning:#a86b00; --warning-dim:rgba(168,107,0,0.10);
+  --info:#1560a8;    --info-dim:rgba(21,96,168,0.10);
+  --text:#1a2533; --text-dim:#526070; --text-muted:#8fa0b0;
+  --border:rgba(0,0,0,0.09); --border-bright:rgba(0,0,0,0.15);
+  --card:rgba(0,0,0,0.02); --radius:14px; --radius-sm:8px;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
 
 .topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;
   height:56px;display:flex;align-items:center;justify-content:space-between;
-  position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(0,0,0,0.4);}
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.08);}
 .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
 .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#f0954d);
   border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;}
 .nav-links{display:flex;gap:2px;}
 .nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);
   font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
-.nav-link:hover{background:rgba(255,255,255,0.06);color:var(--text);}
+.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
 .nav-link.active{background:var(--accent-dim);color:var(--accent);}
 
 .page{max-width:1300px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:20px;}
@@ -67,7 +68,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .companies-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;}
 .company-card{background:var(--steel-card);border:1.5px solid var(--border);border-radius:var(--radius);
   overflow:hidden;transition:border-color 0.2s;}
-.company-card:hover{border-color:rgba(255,255,255,0.15);}
+.company-card:hover{border-color:rgba(0,0,0,0.12);}
 .company-header{padding:18px 20px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);}
 .company-dot{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;
   justify-content:center;font-size:20px;font-weight:900;flex-shrink:0;color:#fff;}
@@ -134,7 +135,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
-<body>
+<body data-page="holdings">
 
 <nav class="topnav">
   <div class="logo">
@@ -234,7 +235,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;" id="compTable">
           <thead>
-            <tr style="background:rgba(255,255,255,0.02);">
+            <tr style="background:rgba(0,0,0,0.02);">
               <th style="text-align:right;padding:10px 16px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">חברה</th>
               <th style="text-align:center;padding:10px 12px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">אחזקה</th>
               <th style="text-align:center;padding:10px 12px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">הזמנות היום</th>
@@ -336,7 +337,7 @@ function render(d) {
 
   // Table
   document.getElementById('compTableBody').innerHTML = companies.map(co => `
-    <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+    <tr style="border-bottom:1px solid rgba(0,0,0,0.02);">
       <td style="padding:10px 16px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:10px;height:10px;border-radius:2px;background:${escHtml(co.color)};flex-shrink:0;"></div>
@@ -364,7 +365,7 @@ function render(d) {
 
 function companyCard(co) {
   const erpLabel = {priority:'Priority ERP',maven:'Maven הנהלת חשבונות',none:'ללא ERP',other:'ERP אחר'}[co.erp_type]||co.erp_type;
-  const erpBg    = {priority:'var(--accent-dim)',maven:'var(--info-dim)',none:'rgba(255,255,255,0.04)'}[co.erp_type]||'rgba(255,255,255,0.04)';
+  const erpBg    = {priority:'var(--accent-dim)',maven:'var(--info-dim)',none:'rgba(0,0,0,0.03)'}[co.erp_type]||'rgba(0,0,0,0.03)';
   const erpColor = {priority:'var(--accent)',maven:'var(--info)',none:'var(--text-muted)'}[co.erp_type]||'var(--text-muted)';
   return `
   <div class="company-card">
@@ -501,7 +502,12 @@ document.getElementById('companyModal').addEventListener('click', e => {
 fetchHoldings();
 setInterval(fetchHoldings, 30000);
 </script>
+<script src="/help.js"></script>
 </body>
 </html>
+
+
+
+
 
 

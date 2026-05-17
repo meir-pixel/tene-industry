@@ -13,15 +13,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
-  --steel:#0f1923; --steel-mid:#1a2637; --steel-light:#243447; --steel-card:#1e2e40;
-  --iron:#2e4a6e; --accent:#e07b39; --accent-light:#f0954d; --accent-dim:rgba(224,123,57,0.15);
-  --success:#27ae60; --success-dim:rgba(39,174,96,0.15);
-  --danger:#e74c3c;  --danger-dim:rgba(231,76,60,0.15);
-  --warning:#f39c12; --warning-dim:rgba(243,156,18,0.15);
-  --info:#3498db;    --info-dim:rgba(52,152,219,0.15);
-  --text:#e8edf3; --text-dim:#7a93ab; --text-muted:#4a6278;
-  --border:rgba(255,255,255,0.07); --border-bright:rgba(255,255,255,0.12);
-  --card:rgba(255,255,255,0.04); --radius:14px; --radius-sm:8px;
+  --steel:#f0f4f8; --steel-mid:#ffffff; --steel-light:#e8edf4; --steel-card:#ffffff;
+  --iron:#d0dcea; --accent:#c9621a; --accent-light:#e07b39; --accent-dim:rgba(201,98,26,0.10);
+  --success:#1a7a42; --success-dim:rgba(26,122,66,0.10);
+  --danger:#b83227;  --danger-dim:rgba(184,50,39,0.10);
+  --warning:#a86b00; --warning-dim:rgba(168,107,0,0.10);
+  --info:#1560a8;    --info-dim:rgba(21,96,168,0.10);
+  --text:#1a2533; --text-dim:#526070; --text-muted:#8fa0b0;
+  --border:rgba(0,0,0,0.09); --border-bright:rgba(0,0,0,0.15);
+  --card:rgba(0,0,0,0.02); --radius:14px; --radius-sm:8px;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
@@ -29,14 +29,14 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 /* NAV */
 .topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;
   height:56px;display:flex;align-items:center;justify-content:space-between;
-  position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(0,0,0,0.4);}
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.08);}
 .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
 .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent-light));
   border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
 .top-nav-links{display:flex;gap:2px;}
 .nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);
   font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
-.nav-link:hover{background:rgba(255,255,255,0.06);color:var(--text);}
+.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
 .nav-link.active{background:var(--accent-dim);color:var(--accent);}
 .ws-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);display:inline-block;transition:background 0.3s;flex-shrink:0;}
 .ws-dot.connected{background:var(--success);}
@@ -115,7 +115,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .m-name{font-weight:800;font-size:15px;}
 .m-range{font-size:10px;color:var(--text-dim);margin-top:2px;}
 .m-status-badge{padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;
-  background:rgba(255,255,255,0.06);color:var(--text-dim);}
+  background:rgba(0,0,0,0.04);color:var(--text-dim);}
 .m-status-badge.running{background:var(--accent-dim);color:var(--accent);}
 .m-status-badge.online {background:var(--success-dim);color:var(--success);}
 .m-status-badge.error  {background:var(--danger-dim);color:var(--danger);}
@@ -123,7 +123,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .m-body{display:flex;align-items:center;gap:14px;}
 .m-ring-wrap{flex-shrink:0;}
 .m-ring-wrap svg{display:block;}
-.m-ring-bg{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:5;}
+.m-ring-bg{fill:none;stroke:rgba(0,0,0,0.04);stroke-width:5;}
 .m-ring-fg{fill:none;stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset 0.7s;}
 .m-ring-fg.running{stroke:var(--accent);}
 .m-ring-fg.online {stroke:var(--success);}
@@ -134,13 +134,13 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .m-info{flex:1;min-width:0;}
 .m-counter{font-size:38px;font-weight:900;line-height:1;color:var(--accent);}
 .m-counter-label{font-size:10px;color:var(--text-dim);font-weight:600;}
-.m-job{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;
+.m-job{background:rgba(0,0,0,0.02);border:1px solid var(--border);border-radius:7px;
   padding:8px 10px;margin-top:10px;font-size:12px;}
 .m-job-label{font-size:9px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px;}
 .m-job-value{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .m-dia-row{display:flex;gap:8px;margin-top:8px;}
 .m-chip{padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;
-  background:rgba(255,255,255,0.04);color:var(--text-dim);border:1px solid var(--border);}
+  background:rgba(0,0,0,0.03);color:var(--text-dim);border:1px solid var(--border);}
 .m-lastseen{font-size:10px;color:var(--text-muted);margin-top:6px;}
 
 /* ALERTS PANEL */
@@ -150,9 +150,9 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .alerts-list::-webkit-scrollbar{width:4px;}
 .alerts-list::-webkit-scrollbar-track{background:transparent;}
 .alerts-list::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:2px;}
-.alert-item{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.03);
+.alert-item{padding:11px 14px;border-bottom:1px solid rgba(0,0,0,0.02);
   display:flex;gap:9px;align-items:flex-start;transition:background 0.15s;}
-.alert-item:hover{background:rgba(255,255,255,0.02);}
+.alert-item:hover{background:rgba(0,0,0,0.02);}
 .alert-item:last-child{border-bottom:none;}
 .alert-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px;}
 .alert-dot.critical{background:var(--danger);}
@@ -169,7 +169,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 /* QUICK STATS (below alerts) */
 .quick-stats{background:var(--steel-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
 .qs-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;
-  border-bottom:1px solid rgba(255,255,255,0.03);}
+  border-bottom:1px solid rgba(0,0,0,0.02);}
 .qs-row:last-child{border-bottom:none;}
 .qs-label{font-size:12px;color:var(--text-dim);}
 .qs-val{font-size:13px;font-weight:700;}
@@ -183,10 +183,10 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 table{width:100%;border-collapse:collapse;}
 th{text-align:right;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;
-  letter-spacing:0.5px;padding:9px 12px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);}
-td{padding:10px 12px;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.03);}
+  letter-spacing:0.5px;padding:9px 12px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.02);}
+td{padding:10px 12px;font-size:12px;border-bottom:1px solid rgba(0,0,0,0.02);}
 tr:last-child td{border-bottom:none;}
-tr:hover td{background:rgba(255,255,255,0.02);}
+tr:hover td{background:rgba(0,0,0,0.02);}
 .order-num{color:var(--accent);font-weight:800;}
 .weight-val{color:var(--accent);font-weight:700;}
 .status-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
@@ -200,9 +200,9 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 
 /* DELIVERY LIST */
 .delivery-list{padding:0;}
-.delivery-item{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.03);
+.delivery-item{padding:11px 14px;border-bottom:1px solid rgba(0,0,0,0.02);
   display:flex;align-items:center;gap:10px;cursor:pointer;transition:background 0.15s;}
-.delivery-item:hover{background:rgba(255,255,255,0.02);}
+.delivery-item:hover{background:rgba(0,0,0,0.02);}
 .delivery-item:last-child{border-bottom:none;}
 .delivery-icon{font-size:18px;flex-shrink:0;}
 .delivery-info{flex:1;min-width:0;}
@@ -716,7 +716,12 @@ setInterval(fetchAlerts, 30000);
 setInterval(updateTime, 1000);
 updateTime();
 </script>
+<script src="/help.js"></script>
 </body>
 </html>
+
+
+
+
 
 
