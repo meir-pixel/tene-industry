@@ -1,0 +1,132 @@
+/* ═══════════════════════════════════════════════════════════
+   IronBend – Light Theme (global override)
+   Included AFTER inline styles so variables are overridden.
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --steel:       #f0f3f7;
+  --steel-mid:   #ffffff;
+  --steel-card:  #ffffff;
+  --steel-light: #e8edf4;
+  --iron:        #d0dcea;
+
+  --accent:       #d4691e;
+  --accent-light: #e07b39;
+  --accent-dim:   rgba(212,105,30,0.10);
+
+  --success:     #1e8449;
+  --success-dim: rgba(30,132,73,0.10);
+  --danger:      #c0392b;
+  --danger-dim:  rgba(192,57,43,0.10);
+  --warning:     #b7770d;
+  --warning-dim: rgba(183,119,13,0.10);
+  --info:        #1a6fa8;
+  --info-dim:    rgba(26,111,168,0.10);
+
+  --text:       #1a2637;
+  --text-dim:   #5a7384;
+  --text-muted: #9aaab8;
+
+  --border:        rgba(0,0,0,0.08);
+  --border-bright: rgba(0,0,0,0.15);
+  --card:          rgba(0,0,0,0.02);
+  --radius: 14px;
+}
+
+/* ── GLOBAL ─────────────────────────────────────────────── */
+body { background: var(--steel); color: var(--text); }
+
+/* ── NAV ─────────────────────────────────────────────────── */
+.topnav {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+}
+.nav-link        { color: var(--text-dim); }
+.nav-link:hover  { background: rgba(0,0,0,0.04); color: var(--text); }
+.nav-link.active { background: var(--accent-dim); color: var(--accent); }
+
+/* ── DAY BAR ─────────────────────────────────────────────── */
+.day-bar { background: linear-gradient(90deg,rgba(212,105,30,0.06) 0%,rgba(240,243,247,0) 60%); }
+
+/* ── CARDS ───────────────────────────────────────────────── */
+.kpi-card, .machine-card, .table-card, .alerts-panel,
+.quick-stats, .pie-card, .company-card, .con-card {
+  background: #ffffff;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.05);
+  border-color: transparent;
+}
+.machine-card.running { box-shadow: 0 0 0 2px rgba(212,105,30,0.35), 0 2px 12px rgba(0,0,0,0.08); }
+.machine-card.online  { box-shadow: 0 0 0 2px rgba(30,132,73,0.25),  0 2px 8px rgba(0,0,0,0.06); }
+.machine-card.error   { box-shadow: 0 0 0 2px rgba(192,57,43,0.35),  0 2px 8px rgba(0,0,0,0.06); }
+
+/* ── TABLE ───────────────────────────────────────────────── */
+th  { background: #f8fafc; color: var(--text-dim); border-color: var(--border); }
+td  { border-color: rgba(0,0,0,0.04); }
+tr:hover td { background: #f8fafc; }
+
+/* ── ALERTS ──────────────────────────────────────────────── */
+.alerts-header { background: #f8fafc; }
+.alert-item:hover { background: #f8fafc; }
+.no-alerts { color: var(--text-muted); }
+
+/* ── MODAL ───────────────────────────────────────────────── */
+.modal {
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+.modal-bg { background: rgba(30,50,70,0.5); }
+
+/* ── INPUTS ──────────────────────────────────────────────── */
+input, select, textarea {
+  background: #f8fafc !important;
+  border-color: rgba(0,0,0,0.12) !important;
+  color: var(--text) !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent) !important;
+  background: #fff !important;
+}
+
+/* ── BUTTONS ─────────────────────────────────────────────── */
+.btn-sm, .go-btn {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.12);
+  color: var(--text-dim);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.btn-sm:hover, .go-btn:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-primary { background: var(--accent) !important; color: #fff !important; }
+
+/* ── SVG rings ────────────────────────────────────────────── */
+.m-ring-bg  { stroke: rgba(0,0,0,0.07); }
+.m-ring-text { fill: var(--text); }
+
+/* ── Machine job box ─────────────────────────────────────── */
+.m-job {
+  background: #f8fafc;
+  border-color: rgba(0,0,0,0.07);
+}
+
+/* ── Holdings hero ───────────────────────────────────────── */
+.holdings-hero {
+  background: linear-gradient(135deg, rgba(212,105,30,0.07), rgba(26,111,168,0.05));
+  border-color: rgba(0,0,0,0.06);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+}
+
+/* ── Pie card & quick stats ──────────────────────────────── */
+.qs-row  { border-color: rgba(0,0,0,0.05); }
+.ck      { border-color: rgba(0,0,0,0.06); }
+
+/* ── Section title ───────────────────────────────────────── */
+.section-title { color: var(--text-muted); }
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f0f3f7; }
+::-webkit-scrollbar-thumb { background: #c8d4de; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a8b8c8; }
