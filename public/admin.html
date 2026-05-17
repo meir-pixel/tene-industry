@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ניהול מערכת – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
+<style>
+:root {
+  --steel:#f0f4f8; --steel-mid:#ffffff; --steel-card:#ffffff;
+  --accent:#c9621a; --accent-dim:rgba(201,98,26,0.10);
+  --success:#1a7a42; --success-dim:rgba(26,122,66,0.10);
+  --danger:#b83227;  --danger-dim:rgba(184,50,39,0.10);
+  --warning:#a86b00; --warning-dim:rgba(168,107,0,0.10);
+  --info:#1560a8;    --info-dim:rgba(21,96,168,0.10);
+  --text:#1a2533; --text-dim:#526070; --text-muted:#8fa0b0;
+  --border:rgba(0,0,0,0.09); --radius:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+
+/* NAV */
+.topnav{background:#fff;border-bottom:1px solid var(--border);padding:0 20px;
+  height:56px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.07);}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;color:var(--text);}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,#c9621a,#e07b39);
+  border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.nav-links{display:flex;gap:2px;}
+.nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);
+  font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
+.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
+.nav-link.active{background:var(--accent-dim);color:var(--accent);}
+
+.page{max-width:1200px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:20px;}
+
+/* HERO */
+.admin-hero{background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+  padding:24px 28px;display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 1px 4px rgba(0,0,0,0.05);}
+.hero-left h1{font-size:20px;font-weight:900;margin-bottom:4px;}
+.hero-left p{font-size:13px;color:var(--text-dim);}
+.system-status{display:flex;align-items:center;gap:8px;padding:8px 16px;
+  border-radius:10px;border:1px solid var(--border);background:#f5f8fb;}
+.status-dot{width:10px;height:10px;border-radius:50%;}
+
+/* SECTION TITLE */
+.section-title{font-size:12px;font-weight:800;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:0.7px;margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;}
+
+/* QUICK NAV */
+.quick-nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+.qn-item{background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 14px;text-align:center;text-decoration:none;color:var(--text);
+  transition:all 0.2s;box-shadow:0 1px 4px rgba(0,0,0,0.05);display:block;}
+.qn-item:hover{border-color:var(--accent);box-shadow:0 2px 12px rgba(201,98,26,0.12);
+  transform:translateY(-1px);}
+.qn-icon{font-size:28px;margin-bottom:8px;}
+.qn-label{font-size:13px;font-weight:700;}
+.qn-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+
+/* MODULES GRID */
+.modules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+.module-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px 18px;display:flex;align-items:center;gap:14px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:box-shadow 0.2s;}
+.module-card:hover{box-shadow:0 2px 10px rgba(0,0,0,0.08);}
+.module-icon{font-size:26px;flex-shrink:0;width:44px;height:44px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;background:#f5f8fb;}
+.module-info{flex:1;min-width:0;}
+.module-name{font-size:14px;font-weight:800;}
+.module-desc{font-size:11px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
+.module-status{font-size:10px;font-weight:700;margin-top:5px;}
+.module-status.ok   {color:var(--success);}
+.module-status.warn {color:var(--warning);}
+.module-status.off  {color:var(--text-muted);}
+
+/* TOGGLE SWITCH */
+.toggle{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;
+  background:rgba(0,0,0,0.15);border-radius:24px;transition:0.2s;}
+.toggle-slider:before{content:'';position:absolute;width:18px;height:18px;
+  background:#fff;border-radius:50%;right:3px;top:3px;transition:0.2s;
+  box-shadow:0 1px 4px rgba(0,0,0,0.2);}
+.toggle input:checked + .toggle-slider{background:var(--success);}
+.toggle input:checked + .toggle-slider:before{transform:translateX(-18px);}
+.toggle input:disabled + .toggle-slider{opacity:0.4;cursor:default;}
+
+/* STATUS TABLE */
+.status-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05);}
+.status-row{display:flex;align-items:center;padding:12px 18px;border-bottom:1px solid rgba(0,0,0,0.05);gap:12px;}
+.status-row:last-child{border-bottom:none;}
+.status-row:hover{background:#f5f8fb;}
+.sr-icon{font-size:16px;width:28px;text-align:center;flex-shrink:0;}
+.sr-label{flex:1;font-size:13px;font-weight:600;}
+.sr-val{font-size:12px;color:var(--text-dim);}
+.sr-badge{font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px;}
+.badge-ok   {background:var(--success-dim);color:var(--success);}
+.badge-warn {background:var(--warning-dim);color:var(--warning);}
+.badge-off  {background:rgba(0,0,0,0.06);color:var(--text-muted);}
+.badge-err  {background:var(--danger-dim);color:var(--danger);}
+
+/* TWO COL */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+/* ENV HINT */
+.env-hint{background:#f5f8fb;border:1px solid var(--border);border-radius:10px;
+  padding:14px 18px;font-size:12px;color:var(--text-dim);line-height:1.7;}
+.env-hint code{background:rgba(0,0,0,0.06);padding:1px 6px;border-radius:4px;
+  font-family:monospace;font-size:11px;color:var(--text);}
+
+/* BTN */
+.btn-sm{padding:5px 14px;border-radius:7px;border:1px solid var(--border);background:#fff;
+  color:var(--text-dim);font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;transition:all 0.2s;text-decoration:none;display:inline-block;
+  box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn-primary:hover{background:#b05518;}
+
+@media(max-width:700px){
+  .two-col{grid-template-columns:1fr;}
+  .quick-nav{grid-template-columns:repeat(3,1fr);}
+  .admin-hero{flex-direction:column;gap:14px;}
+}
+</style>
+</head>
+<body data-page="admin">
+<script src="/nav.js"></script>
+
+<nav class="topnav">
+  <div class="logo">
+    <div class="logo-icon">⚙️</div>
+    <span>ניהול מערכת</span>
+  </div>
+  <div class="nav-links">
+    <a href="/admin.html"    class="nav-link active">⚙️ ניהול</a>
+    <a href="/holdings.html" class="nav-link">🏢 אחזקות</a>
+    <a href="/dashboard.html"class="nav-link">📊 דשבורד</a>
+    <a href="/orders.html"   class="nav-link">📋 הזמנות</a>
+    <a href="/reports.html"  class="nav-link">📈 דוחות</a>
+    <a href="/driver.html"   class="nav-link">🚚 נהג</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span style="font-size:12px;color:var(--text-dim)" id="navTime"></span>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- HERO -->
+  <div class="admin-hero">
+    <div class="hero-left">
+      <h1>⚙️ לוח ניהול מערכת</h1>
+      <p>הפעלה/כיבוי מודולים, סטטוס חיבורים, מעבר מהיר לכל עמוד</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+      <div class="system-status">
+        <div class="status-dot" id="serverDot" style="background:var(--warning)"></div>
+        <span style="font-size:13px;font-weight:700;" id="serverStatus">בודק...</span>
+      </div>
+      <span style="font-size:11px;color:var(--text-muted)" id="navTime2"></span>
+    </div>
+  </div>
+
+  <!-- QUICK NAV -->
+  <div>
+    <div class="section-title">🗂️ מעבר מהיר</div>
+    <div class="quick-nav">
+      <a href="/dashboard.html" class="qn-item">
+        <div class="qn-icon">📊</div>
+        <div class="qn-label">דשבורד</div>
+        <div class="qn-sub">מצב בזמן אמת</div>
+      </a>
+      <a href="/orders.html" class="qn-item">
+        <div class="qn-icon">📋</div>
+        <div class="qn-label">הזמנות</div>
+        <div class="qn-sub">כל ההזמנות</div>
+      </a>
+      <a href="/index.html" class="qn-item">
+        <div class="qn-icon">➕</div>
+        <div class="qn-label">הזמנה חדשה</div>
+        <div class="qn-sub">אשף 4 שלבים</div>
+      </a>
+      <a href="/machine.html" class="qn-item">
+        <div class="qn-icon">🔧</div>
+        <div class="qn-label">מכונה</div>
+        <div class="qn-sub">סריקת QR</div>
+      </a>
+      <a href="/reports.html" class="qn-item">
+        <div class="qn-icon">📈</div>
+        <div class="qn-label">דוחות BI</div>
+        <div class="qn-sub">גרפים וניתוח</div>
+      </a>
+      <a href="/driver.html" class="qn-item">
+        <div class="qn-icon">🚚</div>
+        <div class="qn-label">אפליקציית נהג</div>
+        <div class="qn-sub">PWA למובייל</div>
+      </a>
+      <a href="/holdings.html" class="qn-item">
+        <div class="qn-icon">🏢</div>
+        <div class="qn-label">אחזקות</div>
+        <div class="qn-sub">ריבוי חברות</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- MODULES -->
+  <div>
+    <div class="section-title">🔌 מודולים — הפעל / כבה</div>
+    <div class="modules-grid" id="modulesGrid">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- TWO COLUMN: status + env -->
+  <div class="two-col">
+
+    <!-- CONNECTIONS STATUS -->
+    <div>
+      <div class="section-title">📡 סטטוס חיבורים</div>
+      <div class="status-card" id="connectionsCard">
+        <div class="status-row">
+          <span class="sr-icon">⏳</span>
+          <span class="sr-label">טוען...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- DB + SERVER STATS -->
+    <div>
+      <div class="section-title">🗄️ נתוני מערכת</div>
+      <div class="status-card" id="statsCard">
+        <div class="status-row">
+          <span class="sr-icon">⏳</span>
+          <span class="sr-label">טוען...</span>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div class="section-title">📝 הגדרות .env</div>
+        <div class="env-hint" id="envHint">טוען...</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ── Modules definition ──────────────────────────────────────────────
+const MODULES = [
+  {
+    id: 'machines',
+    icon: '🔧',
+    name: 'מכונות Modbus',
+    desc: 'תקשורת עם מכונות A/B/C/D דרך Modbus RTU',
+    envRequired: [],
+    configurable: true,
+  },
+  {
+    id: 'whatsapp',
+    icon: '💬',
+    name: 'WhatsApp',
+    desc: 'שליחת עדכוני סטטוס ללקוחות + קבלת הזמנות',
+    envRequired: ['WHATSAPP_TOKEN','WHATSAPP_PHONE_ID'],
+    configurable: true,
+  },
+  {
+    id: 'email',
+    icon: '📧',
+    name: 'אימייל IMAP',
+    desc: 'קריאת הזמנות מתיבת דואר נכנס',
+    envRequired: ['EMAIL_IMAP_HOST','EMAIL_IMAP_USER','EMAIL_IMAP_PASS'],
+    configurable: true,
+  },
+  {
+    id: 'ocr',
+    icon: '📷',
+    name: 'OCR תמונות',
+    desc: 'זיהוי טקסט מתמונות/PDF דרך Google Vision',
+    envRequired: ['GOOGLE_VISION_API_KEY'],
+    configurable: true,
+  },
+  {
+    id: 'priority',
+    icon: '🏭',
+    name: 'Priority ERP',
+    desc: 'סנכרון לקוחות, הזמנות וחשבוניות',
+    envRequired: ['PRIORITY_BASE_URL','PRIORITY_USER','PRIORITY_PASS'],
+    configurable: true,
+  },
+  {
+    id: 'maven',
+    icon: '📒',
+    name: 'Maven הנהלת חשבונות',
+    desc: 'ייצוא נתונים לתוכנת Maven (הרי מדבר)',
+    envRequired: ['MAVEN_API_URL'],
+    configurable: false, // coming soon
+  },
+  {
+    id: 'ai',
+    icon: '🤖',
+    name: 'AI תחזיות',
+    desc: 'חיזוי זמן ייצור וניתוח פחת',
+    envRequired: [],
+    configurable: true,
+  },
+  {
+    id: 'alerts',
+    icon: '🔔',
+    name: 'מערכת התראות',
+    desc: 'התראות אוטומטיות: דחוף, איחור, תקלה',
+    envRequired: [],
+    configurable: true,
+  },
+];
+
+// Load saved states from localStorage
+function getState(id) {
+  const saved = localStorage.getItem('module_' + id);
+  if (saved !== null) return saved === 'true';
+  return true; // default: all on
+}
+function setState(id, val) {
+  localStorage.setItem('module_' + id, String(val));
+}
+
+function renderModules(envStatus) {
+  document.getElementById('modulesGrid').innerHTML = MODULES.map(m => {
+    const on = getState(m.id);
+    const missingEnv = m.envRequired.filter(e => !envStatus[e]);
+    const configured = missingEnv.length === 0;
+    const statusText = !m.configurable ? '🔜 בקרוב'
+      : !configured ? `⚠️ חסר: ${missingEnv.join(', ')}`
+      : on ? '✓ פעיל' : '— כבוי';
+    const statusCls = !m.configurable ? 'off'
+      : !configured ? 'warn'
+      : on ? 'ok' : 'off';
+    const disabled = !m.configurable ? 'disabled' : '';
+
+    return `<div class="module-card">
+      <div class="module-icon">${m.icon}</div>
+      <div class="module-info">
+        <div class="module-name">${m.name}</div>
+        <div class="module-desc">${m.desc}</div>
+        <div class="module-status ${statusCls}">${statusText}</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" ${on && m.configurable ? 'checked' : ''} ${disabled}
+          onchange="toggleModule('${m.id}', this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`;
+  }).join('');
+}
+
+function toggleModule(id, val) {
+  setState(id, val);
+  // Show toast
+  const m = MODULES.find(x => x.id === id);
+  window.showToast?.(`${m.name}: ${val ? 'הופעל ✓' : 'כובה'}`);
+}
+
+// ── Fetch system status ─────────────────────────────────────────────
+async function fetchStatus() {
+  try {
+    // Check server health via companies endpoint
+    const r = await fetch('/api/companies');
+    if (r.ok) {
+      document.getElementById('serverDot').style.background = '#1a7a42';
+      document.getElementById('serverStatus').textContent = 'שרת פעיל ✓';
+    }
+  } catch {
+    document.getElementById('serverDot').style.background = '#b83227';
+    document.getElementById('serverStatus').textContent = 'שרת לא מגיב';
+  }
+
+  try {
+    const [dash, companies, alerts] = await Promise.all([
+      fetch('/api/dashboard').then(r=>r.json()),
+      fetch('/api/companies').then(r=>r.json()),
+      fetch('/api/alerts').then(r=>r.json()),
+    ]);
+
+    // ENV status (based on what dashboard returns — machines connected = Modbus OK, etc.)
+    const envStatus = {
+      // We'll check machine connectivity as proxy for Modbus
+      MACHINES: (dash.machines || []).some(m => m.status !== 'לא מחובר'),
+    };
+
+    renderModules(envStatus);
+
+    // Connections card
+    const machines = dash.machines || [];
+    document.getElementById('connectionsCard').innerHTML = [
+      { icon:'🔌', label:'WebSocket', val:'פעיל', ok:true },
+      { icon:'🗄️', label:'מסד נתונים', val:'SQLite WAL', ok:true },
+      ...machines.map(m => ({
+        icon: m.status === 'בייצור' ? '🟢' : m.status === 'תקלה' ? '🔴' : '⚪',
+        label: m.name,
+        val: m.status || 'לא מחובר',
+        ok: m.status === 'בייצור' || m.status === 'פנוי',
+      })),
+      { icon:'🔔', label:'התראות פתוחות', val: alerts.length + ' התראות',
+        ok: alerts.length === 0 },
+    ].map(row => `
+      <div class="status-row">
+        <span class="sr-icon">${row.icon}</span>
+        <span class="sr-label">${row.label}</span>
+        <span class="sr-badge ${row.ok ? 'badge-ok' : 'badge-warn'}">${row.val}</span>
+      </div>`).join('');
+
+    // Stats card
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('statsCard').innerHTML = [
+      { icon:'📦', label:'הזמנות היום',     val: dash.ordersToday },
+      { icon:'⚙️',  label:'בייצור',          val: dash.inProduction },
+      { icon:'✅', label:'הושלמו היום',      val: dash.completedToday },
+      { icon:'🏢', label:'חברות פעילות',     val: companies.length },
+      { icon:'📉', label:'פחת % היום',        val: (dash.wasteAvgPct||0) + '%' },
+      { icon:'⚠️', label:'הזמנות דחופות',    val: dash.urgentOpen || 0 },
+    ].map(row => `
+      <div class="status-row">
+        <span class="sr-icon">${row.icon}</span>
+        <span class="sr-label">${row.label}</span>
+        <span class="sr-val" style="font-weight:700">${row.val}</span>
+      </div>`).join('');
+
+    // ENV hint
+    document.getElementById('envHint').innerHTML = `
+      הגדרות ב-<code>.env</code> — ערוך את הקובץ כדי לחבר שירותים חיצוניים:<br><br>
+      <code>PRIORITY_BASE_URL</code> — כתובת שרת Priority<br>
+      <code>PRIORITY_USER / PRIORITY_PASS</code> — משתמש Priority<br>
+      <code>WHATSAPP_TOKEN</code> — Meta Business API Token<br>
+      <code>WHATSAPP_PHONE_ID</code> — מזהה מספר WhatsApp<br>
+      <code>GOOGLE_VISION_API_KEY</code> — Google Cloud Vision<br>
+      <code>EMAIL_IMAP_HOST/USER/PASS</code> — תיבת דואר IMAP<br>
+      <code>MAVEN_API_URL</code> — Maven REST API (בקרוב)
+    `;
+
+  } catch(e) {
+    console.error(e);
+    renderModules({});
+  }
+}
+
+function tick() {
+  const t = new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('navTime').textContent  = t;
+  document.getElementById('navTime2').textContent = new Date().toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});
+}
+
+fetchStatus();
+setInterval(fetchStatus, 30000);
+setInterval(tick, 1000);
+tick();
+</script>
+</body>
+</html>

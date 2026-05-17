@@ -1,132 +1,180 @@
-/* ═══════════════════════════════════════════════════════════
-   IronBend – Light Theme (global override)
-   Included AFTER inline styles so variables are overridden.
-   ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   IronBend – Light Theme
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Variables ─────────────────────────────────────────── */
 :root {
-  --steel:       #f0f3f7;
-  --steel-mid:   #ffffff;
-  --steel-card:  #ffffff;
-  --steel-light: #e8edf4;
-  --iron:        #d0dcea;
-
-  --accent:       #d4691e;
-  --accent-light: #e07b39;
-  --accent-dim:   rgba(212,105,30,0.10);
-
-  --success:     #1e8449;
-  --success-dim: rgba(30,132,73,0.10);
-  --danger:      #c0392b;
-  --danger-dim:  rgba(192,57,43,0.10);
-  --warning:     #b7770d;
-  --warning-dim: rgba(183,119,13,0.10);
-  --info:        #1a6fa8;
-  --info-dim:    rgba(26,111,168,0.10);
-
-  --text:       #1a2637;
-  --text-dim:   #5a7384;
-  --text-muted: #9aaab8;
-
-  --border:        rgba(0,0,0,0.08);
-  --border-bright: rgba(0,0,0,0.15);
-  --card:          rgba(0,0,0,0.02);
-  --radius: 14px;
+  --steel:        #f0f4f8 !important;
+  --steel-mid:    #ffffff !important;
+  --steel-card:   #ffffff !important;
+  --steel-light:  #e6edf5 !important;
+  --iron:         #d0dcea !important;
+  --accent:       #c9621a !important;
+  --accent-light: #e07b39 !important;
+  --accent-dim:   rgba(201,98,26,0.10) !important;
+  --success:      #1a7a42 !important;
+  --success-dim:  rgba(26,122,66,0.10) !important;
+  --danger:       #b83227 !important;
+  --danger-dim:   rgba(184,50,39,0.10) !important;
+  --warning:      #a86b00 !important;
+  --warning-dim:  rgba(168,107,0,0.10) !important;
+  --info:         #1560a8 !important;
+  --info-dim:     rgba(21,96,168,0.10) !important;
+  --text:         #1a2533 !important;
+  --text-dim:     #526070 !important;
+  --text-muted:   #8fa0b0 !important;
+  --border:       rgba(0,0,0,0.09) !important;
+  --border-bright:rgba(0,0,0,0.16) !important;
+  --card:         rgba(0,0,0,0.02) !important;
 }
 
-/* ── GLOBAL ─────────────────────────────────────────────── */
-body { background: var(--steel); color: var(--text); }
+/* ── Base ──────────────────────────────────────────────── */
+html { background: #f0f4f8 !important; }
+body { background: #f0f4f8 !important; color: #1a2533 !important; }
 
-/* ── NAV ─────────────────────────────────────────────────── */
-.topnav {
-  background: #ffffff;
-  border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+/* ── Topnav ────────────────────────────────────────────── */
+.topnav, nav.topnav {
+  background: #ffffff !important;
+  border-bottom: 1px solid rgba(0,0,0,0.09) !important;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.07) !important;
 }
-.nav-link        { color: var(--text-dim); }
-.nav-link:hover  { background: rgba(0,0,0,0.04); color: var(--text); }
-.nav-link.active { background: var(--accent-dim); color: var(--accent); }
+.nav-link { color: #526070 !important; }
+.nav-link:hover  { background: rgba(0,0,0,0.04) !important; color: #1a2533 !important; }
+.nav-link.active { background: rgba(201,98,26,0.10) !important; color: #c9621a !important; }
 
-/* ── DAY BAR ─────────────────────────────────────────────── */
-.day-bar { background: linear-gradient(90deg,rgba(212,105,30,0.06) 0%,rgba(240,243,247,0) 60%); }
-
-/* ── CARDS ───────────────────────────────────────────────── */
-.kpi-card, .machine-card, .table-card, .alerts-panel,
-.quick-stats, .pie-card, .company-card, .con-card {
-  background: #ffffff;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.05);
-  border-color: transparent;
+/* ── Day bar ───────────────────────────────────────────── */
+.day-bar {
+  background: linear-gradient(90deg,rgba(201,98,26,0.06),transparent 60%) !important;
+  border-bottom: 1px solid rgba(0,0,0,0.07) !important;
 }
-.machine-card.running { box-shadow: 0 0 0 2px rgba(212,105,30,0.35), 0 2px 12px rgba(0,0,0,0.08); }
-.machine-card.online  { box-shadow: 0 0 0 2px rgba(30,132,73,0.25),  0 2px 8px rgba(0,0,0,0.06); }
-.machine-card.error   { box-shadow: 0 0 0 2px rgba(192,57,43,0.35),  0 2px 8px rgba(0,0,0,0.06); }
+.day-bar-sep { background: rgba(0,0,0,0.10) !important; }
 
-/* ── TABLE ───────────────────────────────────────────────── */
-th  { background: #f8fafc; color: var(--text-dim); border-color: var(--border); }
-td  { border-color: rgba(0,0,0,0.04); }
-tr:hover td { background: #f8fafc; }
-
-/* ── ALERTS ──────────────────────────────────────────────── */
-.alerts-header { background: #f8fafc; }
-.alert-item:hover { background: #f8fafc; }
-.no-alerts { color: var(--text-muted); }
-
-/* ── MODAL ───────────────────────────────────────────────── */
-.modal {
-  background: #ffffff;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+/* ── All cards ─────────────────────────────────────────── */
+.kpi-card, .machine-card, .table-card, .alerts-panel, .quick-stats,
+.pie-card, .company-card, .con-card, .card,
+[class*="-card"], [class*="card-"] {
+  background: #ffffff !important;
+  border-color: rgba(0,0,0,0.08) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04) !important;
 }
-.modal-bg { background: rgba(30,50,70,0.5); }
-
-/* ── INPUTS ──────────────────────────────────────────────── */
-input, select, textarea {
-  background: #f8fafc !important;
-  border-color: rgba(0,0,0,0.12) !important;
-  color: var(--text) !important;
+.machine-card.running {
+  border-color: rgba(201,98,26,0.40) !important;
+  box-shadow: 0 0 0 2px rgba(201,98,26,0.25), 0 2px 10px rgba(0,0,0,0.07) !important;
 }
-input:focus, select:focus, textarea:focus {
-  border-color: var(--accent) !important;
-  background: #fff !important;
+.machine-card.online {
+  border-color: rgba(26,122,66,0.30) !important;
+  box-shadow: 0 0 0 2px rgba(26,122,66,0.18), 0 2px 8px rgba(0,0,0,0.06) !important;
+}
+.machine-card.error {
+  border-color: rgba(184,50,39,0.40) !important;
+  box-shadow: 0 0 0 2px rgba(184,50,39,0.20), 0 2px 8px rgba(0,0,0,0.06) !important;
 }
 
-/* ── BUTTONS ─────────────────────────────────────────────── */
-.btn-sm, .go-btn {
-  background: #ffffff;
-  border-color: rgba(0,0,0,0.12);
-  color: var(--text-dim);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+/* ── Machine internals ─────────────────────────────────── */
+.m-ring-bg { stroke: rgba(0,0,0,0.08) !important; }
+.m-ring-text { fill: #1a2533 !important; }
+.m-status-badge { background: rgba(0,0,0,0.05) !important; color: #526070 !important; }
+.m-status-badge.running { background: rgba(201,98,26,0.12) !important; color: #c9621a !important; }
+.m-status-badge.online  { background: rgba(26,122,66,0.12) !important; color: #1a7a42 !important; }
+.m-status-badge.error   { background: rgba(184,50,39,0.12) !important; color: #b83227 !important; }
+.m-job { background: #f5f8fb !important; border-color: rgba(0,0,0,0.07) !important; }
+.m-lastseen { color: #8fa0b0 !important; }
+.machine-stripe { opacity: 0.8 !important; }
+
+/* ── Tables ────────────────────────────────────────────── */
+table { background: transparent !important; }
+thead, th { background: #f5f8fb !important; color: #526070 !important; border-color: rgba(0,0,0,0.08) !important; }
+td { border-color: rgba(0,0,0,0.05) !important; color: #1a2533 !important; }
+tr:hover td { background: #f5f8fb !important; }
+.table-header { background: #ffffff !important; border-color: rgba(0,0,0,0.08) !important; }
+
+/* ── Status badges ─────────────────────────────────────── */
+.status-badge, .s-wait { background: rgba(0,0,0,0.06) !important; color: #526070 !important; }
+.s-prod  { background: rgba(201,98,26,0.12) !important;  color: #c9621a !important; }
+.s-done  { background: rgba(26,122,66,0.12) !important;  color: #1a7a42 !important; }
+.s-ship  { background: rgba(21,96,168,0.12) !important;  color: #1560a8 !important; }
+.s-pend  { background: rgba(168,107,0,0.12) !important;  color: #a86b00 !important; }
+
+/* ── Buttons ───────────────────────────────────────────── */
+.btn-sm, .go-btn, .alert-resolve {
+  background: #ffffff !important;
+  border-color: rgba(0,0,0,0.13) !important;
+  color: #526070 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
 }
 .btn-sm:hover, .go-btn:hover {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: rgba(201,98,26,0.08) !important;
+  border-color: #c9621a !important;
+  color: #c9621a !important;
 }
-.btn-primary { background: var(--accent) !important; color: #fff !important; }
-
-/* ── SVG rings ────────────────────────────────────────────── */
-.m-ring-bg  { stroke: rgba(0,0,0,0.07); }
-.m-ring-text { fill: var(--text); }
-
-/* ── Machine job box ─────────────────────────────────────── */
-.m-job {
-  background: #f8fafc;
-  border-color: rgba(0,0,0,0.07);
+.btn-primary, .btn.btn-primary {
+  background: #c9621a !important;
+  color: #ffffff !important;
+  border-color: #c9621a !important;
 }
+.btn-primary:hover { background: #b05518 !important; }
+.btn-ghost { background: transparent !important; color: #526070 !important; }
 
-/* ── Holdings hero ───────────────────────────────────────── */
+/* ── Alerts panel ──────────────────────────────────────── */
+.alerts-header { background: #f5f8fb !important; border-color: rgba(0,0,0,0.08) !important; }
+.alert-item { border-color: rgba(0,0,0,0.05) !important; }
+.alert-item:hover { background: #f5f8fb !important; }
+.no-alerts { color: #8fa0b0 !important; }
+
+/* ── Quick stats / sections ────────────────────────────── */
+.qs-row  { border-color: rgba(0,0,0,0.05) !important; }
+.ck      { border-color: rgba(0,0,0,0.06) !important; }
+.section-title { color: #8fa0b0 !important; }
+
+/* ── Holdings page ─────────────────────────────────────── */
 .holdings-hero {
-  background: linear-gradient(135deg, rgba(212,105,30,0.07), rgba(26,111,168,0.05));
-  border-color: rgba(0,0,0,0.06);
-  box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  background: linear-gradient(135deg,rgba(201,98,26,0.06),rgba(21,96,168,0.04)) !important;
+  border-color: rgba(0,0,0,0.07) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.05) !important;
+}
+.company-header  { background: #fafbfd !important; border-color: rgba(0,0,0,0.07) !important; }
+.company-footer  { background: #fafbfd !important; border-color: rgba(0,0,0,0.07) !important; }
+.company-kpis .ck { border-color: rgba(0,0,0,0.06) !important; }
+.company-card:hover { border-color: rgba(0,0,0,0.15) !important; }
+
+/* ── Modal ─────────────────────────────────────────────── */
+.modal-bg { background: rgba(20,40,60,0.45) !important; }
+.modal {
+  background: #ffffff !important;
+  border-color: rgba(0,0,0,0.10) !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.18) !important;
+}
+.form-group input, .form-group select, .form-group textarea,
+input[type=text], input[type=number], input[type=email], input[type=tel], select, textarea {
+  background: #f5f8fb !important;
+  border-color: rgba(0,0,0,0.12) !important;
+  color: #1a2533 !important;
 }
 
-/* ── Pie card & quick stats ──────────────────────────────── */
-.qs-row  { border-color: rgba(0,0,0,0.05); }
-.ck      { border-color: rgba(0,0,0,0.06); }
+/* ── Bottom nav (mobile) ───────────────────────────────── */
+#bottom-nav {
+  background: #ffffff !important;
+  border-top: 1px solid rgba(0,0,0,0.09) !important;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.08) !important;
+}
+.bnav-item { color: #8fa0b0 !important; }
+.bnav-item.active { color: #c9621a !important; }
 
-/* ── Section title ───────────────────────────────────────── */
-.section-title { color: var(--text-muted); }
-
-/* ── Scrollbar ───────────────────────────────────────────── */
+/* ── Scrollbar ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f0f3f7; }
+::-webkit-scrollbar-track { background: #f0f4f8; }
 ::-webkit-scrollbar-thumb { background: #c8d4de; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #a8b8c8; }
+
+/* ── Report charts bg ──────────────────────────────────── */
+canvas { filter: none !important; }
+.chart-card, .report-card { background: #ffffff !important; border-color: rgba(0,0,0,0.08) !important; }
+
+/* ── KPI bar track ─────────────────────────────────────── */
+.kpi-bar { background: rgba(0,0,0,0.07) !important; }
+
+/* ── Misc text colors ──────────────────────────────────── */
+.empty-state { color: #8fa0b0 !important; }
+.overdue     { color: #b83227 !important; }
+.due-today   { color: #a86b00 !important; }
+.due-soon    { color: #c9621a !important; }
