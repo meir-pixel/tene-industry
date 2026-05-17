@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>לוח אחזקות – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --steel:#0f1923; --steel-mid:#1a2637; --steel-card:#1e2e40;
+  --accent:#e07b39; --accent-dim:rgba(224,123,57,0.15);
+  --success:#27ae60; --success-dim:rgba(39,174,96,0.15);
+  --danger:#e74c3c;  --danger-dim:rgba(231,76,60,0.15);
+  --warning:#f39c12; --warning-dim:rgba(243,156,18,0.15);
+  --info:#3498db;    --info-dim:rgba(52,152,219,0.15);
+  --text:#e8edf3; --text-dim:#7a93ab; --text-muted:#4a6278;
+  --border:rgba(255,255,255,0.07); --radius:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+
+.topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;
+  height:56px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(0,0,0,0.4);}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#f0954d);
+  border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.nav-links{display:flex;gap:2px;}
+.nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);
+  font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
+.nav-link:hover{background:rgba(255,255,255,0.06);color:var(--text);}
+.nav-link.active{background:var(--accent-dim);color:var(--accent);}
+
+.page{max-width:1300px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:20px;}
+
+/* HOLDINGS HEADER */
+.holdings-hero{background:linear-gradient(135deg,rgba(224,123,57,0.12),rgba(52,152,219,0.08));
+  border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;
+  display:flex;align-items:center;justify-content:space-between;gap:20px;}
+.hero-title{font-size:22px;font-weight:900;margin-bottom:4px;}
+.hero-sub{font-size:13px;color:var(--text-dim);}
+.hero-badge{padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;
+  background:var(--accent-dim);color:var(--accent);border:1px solid rgba(224,123,57,0.3);}
+
+/* SECTION TITLE */
+.section-title{font-size:13px;font-weight:800;color:var(--text-dim);
+  text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;}
+
+/* CONSOLIDATED ROW */
+.consolidated-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+.con-card{background:var(--steel-card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;position:relative;overflow:hidden;}
+.con-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;}
+.con-card.ca::after{background:var(--accent);}
+.con-card.cs::after{background:var(--success);}
+.con-card.cw::after{background:var(--warning);}
+.con-card.cd::after{background:var(--danger);}
+.con-card.ci::after{background:var(--info);}
+.con-icon{font-size:18px;margin-bottom:8px;}
+.con-label{font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;}
+.con-value{font-size:30px;font-weight:900;line-height:1.1;}
+.con-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.con-note{font-size:10px;color:var(--text-muted);margin-top:6px;font-style:italic;}
+
+/* COMPANY CARDS */
+.companies-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;}
+.company-card{background:var(--steel-card);border:1.5px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;transition:border-color 0.2s;}
+.company-card:hover{border-color:rgba(255,255,255,0.15);}
+.company-header{padding:18px 20px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);}
+.company-dot{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:20px;font-weight:900;flex-shrink:0;color:#fff;}
+.company-name{font-weight:800;font-size:15px;}
+.company-erp{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.ownership-pill{margin-right:auto;font-size:13px;font-weight:800;padding:4px 14px;
+  border-radius:20px;white-space:nowrap;}
+
+.company-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:0;}
+.ck{padding:14px 16px;border-left:1px solid var(--border);text-align:center;}
+.ck:first-child{border-left:none;}
+.ck-label{font-size:10px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;}
+.ck-value{font-size:22px;font-weight:900;}
+.ck-sub{font-size:10px;color:var(--text-muted);margin-top:2px;}
+
+.company-footer{padding:12px 20px;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;}
+.weighted-row{display:flex;gap:16px;flex:1;flex-wrap:wrap;}
+.wv{font-size:11px;color:var(--text-dim);}
+.wv span{font-weight:700;color:var(--text);}
+.go-btn{padding:5px 14px;border-radius:7px;border:1px solid var(--border);background:none;
+  color:var(--text-dim);font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;transition:all 0.2s;text-decoration:none;white-space:nowrap;}
+.go-btn:hover{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+
+/* OWNERSHIP CHART */
+.ownership-section{display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;}
+.pie-card{background:var(--steel-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+.pie-wrap{display:flex;justify-content:center;margin:16px 0;}
+.pie-legend{display:flex;flex-direction:column;gap:10px;}
+.legend-item{display:flex;align-items:center;gap:10px;font-size:13px;}
+.legend-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.legend-pct{margin-right:auto;font-weight:800;}
+
+/* EDIT MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;
+  display:none;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);
+  padding:28px;width:420px;max-width:95vw;}
+.modal h3{font-size:16px;font-weight:800;margin-bottom:20px;}
+.form-group{margin-bottom:14px;}
+.form-group label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);
+  text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px;}
+.form-group input, .form-group select{width:100%;background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);border-radius:8px;padding:9px 12px;
+  color:var(--text);font-family:'Heebo',sans-serif;font-size:14px;}
+.form-group input:focus, .form-group select:focus{outline:none;border-color:var(--accent);}
+.form-group input[type=color]{padding:4px;height:38px;cursor:pointer;}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+.btn{padding:8px 18px;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px;
+  font-weight:700;cursor:pointer;border:1px solid var(--border);transition:all 0.2s;}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn-primary:hover{background:var(--accent-light,#f0954d);}
+.btn-ghost{background:none;color:var(--text-dim);}
+.btn-ghost:hover{color:var(--text);}
+
+@media(max-width:700px){
+  .consolidated-grid{grid-template-columns:repeat(2,1fr);}
+  .companies-grid{grid-template-columns:1fr;}
+  .ownership-section{grid-template-columns:1fr;}
+  .holdings-hero{flex-direction:column;align-items:flex-start;}
+}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="logo">
+    <div class="logo-icon">🏢</div>
+    <span>לוח אחזקות</span>
+  </div>
+  <div class="nav-links">
+    <a href="/holdings.html"  class="nav-link active">🏢 אחזקות</a>
+    <a href="/dashboard.html" class="nav-link">📊 IronBend</a>
+    <a href="/orders.html"    class="nav-link">📋 הזמנות</a>
+    <a href="/reports.html"   class="nav-link">📈 דוחות</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span style="font-size:12px;color:var(--text-dim)" id="navTime"></span>
+    <button class="go-btn" onclick="openAddCompany()">+ חברה חדשה</button>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- HERO -->
+  <div class="holdings-hero">
+    <div>
+      <div class="hero-title">🏢 לוח אחזקות משוקלל</div>
+      <div class="hero-sub" id="heroSub">טוען נתונים...</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span class="hero-badge" id="totalCompanies">— חברות</span>
+      <span style="font-size:12px;color:var(--text-dim)" id="lastUpdated"></span>
+    </div>
+  </div>
+
+  <!-- CONSOLIDATED KPIs -->
+  <div>
+    <div class="section-title">📊 מאוחד משוקלל (לפי אחוז אחזקה)</div>
+    <div class="consolidated-grid">
+      <div class="con-card ca">
+        <div class="con-icon">📦</div>
+        <div class="con-label">הזמנות היום</div>
+        <div class="con-value" id="conOrders" style="color:var(--accent)">—</div>
+        <div class="con-sub" id="conWeight">— ק"ג</div>
+        <div class="con-note">משוקלל לפי אחזקה</div>
+      </div>
+      <div class="con-card cw">
+        <div class="con-icon">⚙️</div>
+        <div class="con-label">בייצור כעת</div>
+        <div class="con-value" id="conProd" style="color:var(--warning)">—</div>
+        <div class="con-sub">הזמנות פעילות</div>
+        <div class="con-note">משוקלל לפי אחזקה</div>
+      </div>
+      <div class="con-card cs">
+        <div class="con-icon">✅</div>
+        <div class="con-label">הושלמו היום</div>
+        <div class="con-value" id="conDone" style="color:var(--success)">—</div>
+        <div class="con-sub">הזמנות</div>
+        <div class="con-note">משוקלל לפי אחזקה</div>
+      </div>
+      <div class="con-card cd">
+        <div class="con-icon">🔴</div>
+        <div class="con-label">דחופות פתוחות</div>
+        <div class="con-value" id="conUrgent" style="color:var(--danger)">—</div>
+        <div class="con-sub">הזמנות דחופות</div>
+        <div class="con-note">משוקלל לפי אחזקה</div>
+      </div>
+      <div class="con-card ci">
+        <div class="con-icon">📄</div>
+        <div class="con-label">פעילות 30 יום</div>
+        <div class="con-value" id="conRevenue" style="color:var(--info)">—</div>
+        <div class="con-sub">ק"ג חיוב (proxy)</div>
+        <div class="con-note">משוקלל לפי אחזקה</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPANY CARDS -->
+  <div>
+    <div class="section-title">🏭 חברות באחזקה</div>
+    <div class="companies-grid" id="companiesGrid">
+      <div style="color:var(--text-dim);padding:20px;">טוען...</div>
+    </div>
+  </div>
+
+  <!-- OWNERSHIP PIE + BREAKDOWN TABLE -->
+  <div class="ownership-section">
+    <div class="pie-card">
+      <div class="section-title" style="margin-bottom:8px">🥧 חלוקת אחזקה</div>
+      <div class="pie-wrap">
+        <svg id="pieSvg" width="160" height="160" viewBox="0 0 160 160"></svg>
+      </div>
+      <div class="pie-legend" id="pieLegend"></div>
+    </div>
+
+    <div style="background:var(--steel-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+        <div class="section-title" style="margin:0">📋 השוואת ביצועי חברות</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;" id="compTable">
+          <thead>
+            <tr style="background:rgba(255,255,255,0.02);">
+              <th style="text-align:right;padding:10px 16px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">חברה</th>
+              <th style="text-align:center;padding:10px 12px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">אחזקה</th>
+              <th style="text-align:center;padding:10px 12px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">הזמנות היום</th>
+              <th style="text-align:center;padding:10px 12px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">בייצור</th>
+              <th style="text-align:center;padding:10px 12px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">ממתינות</th>
+              <th style="text-align:center;padding:10px 12px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">דחופות</th>
+              <th style="text-align:center;padding:10px 12px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);">ERP</th>
+              <th style="padding:10px 12px;border-bottom:1px solid var(--border);"></th>
+            </tr>
+          </thead>
+          <tbody id="compTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ADD/EDIT COMPANY MODAL -->
+<div class="modal-bg" id="companyModal">
+  <div class="modal">
+    <h3 id="modalTitle">➕ הוספת חברה</h3>
+    <input type="hidden" id="editCompanyId">
+    <div class="form-group">
+      <label>שם החברה</label>
+      <input type="text" id="fName" placeholder="לדוגמה: הרי מדבר תשתיות ופיתוח">
+    </div>
+    <div class="form-group">
+      <label>שם קצר (לתצוגה)</label>
+      <input type="text" id="fShortName" placeholder="הרי מדבר">
+    </div>
+    <div class="form-group">
+      <label>אחוז אחזקה (%)</label>
+      <input type="number" id="fOwnership" min="1" max="100" value="100" placeholder="100">
+    </div>
+    <div class="form-group">
+      <label>סוג ERP</label>
+      <select id="fErp">
+        <option value="none">ללא</option>
+        <option value="priority">Priority</option>
+        <option value="maven">Maven</option>
+        <option value="other">אחר</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>צבע זיהוי</label>
+      <input type="color" id="fColor" value="#e07b39">
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveCompany()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let holdingsData = null;
+
+// ── Clock ────────────────────────────────────────────────────────
+function tick() {
+  document.getElementById('navTime').textContent =
+    new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+}
+setInterval(tick, 1000); tick();
+
+// ── Fetch ─────────────────────────────────────────────────────────
+async function fetchHoldings() {
+  try {
+    const r = await fetch('/api/holdings');
+    holdingsData = await r.json();
+    render(holdingsData);
+    document.getElementById('lastUpdated').textContent =
+      'עודכן: ' + new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) { console.error(e); }
+}
+
+// ── Render ────────────────────────────────────────────────────────
+function render(d) {
+  const { companies, consolidated } = d;
+
+  // Hero
+  document.getElementById('totalCompanies').textContent = companies.length + ' חברות';
+  document.getElementById('heroSub').textContent =
+    'אחזקות: ' + companies.map(c => `${c.short_name||c.name} (${c.ownership_pct}%)`).join(' · ');
+
+  // Consolidated
+  document.getElementById('conOrders').textContent  = fmt1(consolidated.ordersToday);
+  document.getElementById('conWeight').textContent   = fmt0(consolidated.weightToday) + ' ק"ג';
+  document.getElementById('conProd').textContent     = fmt1(consolidated.inProduction);
+  document.getElementById('conDone').textContent     = fmt1(consolidated.completedToday);
+  document.getElementById('conUrgent').textContent   = fmt1(consolidated.urgentOpen);
+  document.getElementById('conRevenue').textContent  = fmt0(consolidated.revenueProxy);
+
+  // Company cards
+  document.getElementById('companiesGrid').innerHTML = companies.map(co => companyCard(co)).join('');
+
+  // Pie chart
+  renderPie(companies);
+
+  // Table
+  document.getElementById('compTableBody').innerHTML = companies.map(co => `
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+      <td style="padding:10px 16px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:10px;height:10px;border-radius:2px;background:${escHtml(co.color)};flex-shrink:0;"></div>
+          <span style="font-weight:700;font-size:13px;">${escHtml(co.short_name||co.name)}</span>
+        </div>
+      </td>
+      <td style="text-align:center;padding:10px 12px;font-weight:800;font-size:13px;color:${escHtml(co.color)}">${co.ownership_pct}%</td>
+      <td style="text-align:center;padding:10px 12px;font-size:13px;">${co.ordersToday}</td>
+      <td style="text-align:center;padding:10px 12px;font-size:13px;color:var(--warning);font-weight:700;">${co.inProduction}</td>
+      <td style="text-align:center;padding:10px 12px;font-size:13px;color:var(--text-dim);">${co.pending}</td>
+      <td style="text-align:center;padding:10px 12px;font-size:13px;color:${co.urgentOpen>0?'var(--danger)':'var(--text-dim)'};font-weight:${co.urgentOpen>0?'800':'400'};">${co.urgentOpen||0}</td>
+      <td style="text-align:center;padding:10px 12px;">
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;
+          background:${co.erp_type==='priority'?'rgba(224,123,57,0.15)':co.erp_type==='maven'?'rgba(52,152,219,0.15)':'rgba(255,255,255,0.05)'};
+          color:${co.erp_type==='priority'?'var(--accent)':co.erp_type==='maven'?'var(--info)':'var(--text-muted)'}">
+          ${co.erp_type==='priority'?'Priority':co.erp_type==='maven'?'Maven':'ללא'}
+        </span>
+      </td>
+      <td style="padding:10px 12px;">
+        <button class="go-btn" onclick="editCompany(${co.id})">עריכה</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function companyCard(co) {
+  const erpLabel = {priority:'Priority ERP',maven:'Maven הנהלת חשבונות',none:'ללא ERP',other:'ERP אחר'}[co.erp_type]||co.erp_type;
+  const erpBg    = {priority:'var(--accent-dim)',maven:'var(--info-dim)',none:'rgba(255,255,255,0.04)'}[co.erp_type]||'rgba(255,255,255,0.04)';
+  const erpColor = {priority:'var(--accent)',maven:'var(--info)',none:'var(--text-muted)'}[co.erp_type]||'var(--text-muted)';
+  return `
+  <div class="company-card">
+    <div class="company-header">
+      <div class="company-dot" style="background:${escHtml(co.color)}">
+        ${co.short_name?co.short_name[0]:'C'}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div class="company-name">${escHtml(co.name)}</div>
+        <div class="company-erp">${escHtml(erpLabel)}</div>
+      </div>
+      <div class="ownership-pill" style="background:${escHtml(co.color)}22;color:${escHtml(co.color)};border:1px solid ${escHtml(co.color)}44">
+        ${co.ownership_pct}% אחזקה
+      </div>
+    </div>
+    <div class="company-kpis">
+      <div class="ck">
+        <div class="ck-label">היום</div>
+        <div class="ck-value" style="color:${escHtml(co.color)}">${co.ordersToday}</div>
+        <div class="ck-sub">הזמנות</div>
+      </div>
+      <div class="ck">
+        <div class="ck-label">בייצור</div>
+        <div class="ck-value" style="color:var(--warning)">${co.inProduction}</div>
+        <div class="ck-sub">פעילות</div>
+      </div>
+      <div class="ck">
+        <div class="ck-label">ממתינות</div>
+        <div class="ck-value" style="color:var(--text-dim)">${co.pending}</div>
+        <div class="ck-sub">לאישור</div>
+      </div>
+    </div>
+    <div class="company-footer">
+      <div class="weighted-row">
+        <span class="wv">משוקלל: <span>${fmt1(co.weighted.ordersToday)} הזמנות</span></span>
+        <span class="wv">פחת: <span>${fmt0(co.weighted.weightToday)} ק"ג</span></span>
+        ${co.urgentOpen>0?`<span class="wv" style="color:var(--danger)">🔴 <span>${co.urgentOpen} דחופות</span></span>`:''}
+      </div>
+      <button class="go-btn" onclick="editCompany(${co.id})">✏️ עריכה</button>
+      ${co.id===1?`<a href="/dashboard.html" class="go-btn">דשבורד ←</a>`:''}
+    </div>
+  </div>`;
+}
+
+// ── Pie Chart ─────────────────────────────────────────────────────
+function renderPie(companies) {
+  const total = companies.reduce((s,c) => s + c.ownership_pct, 0) || 100;
+  const cx=80, cy=80, r=60;
+  let startAngle = -Math.PI/2;
+  let paths = '';
+  companies.forEach(co => {
+    const angle = (co.ownership_pct / 100) * 2 * Math.PI;
+    const endAngle = startAngle + angle;
+    const x1 = cx + r * Math.cos(startAngle);
+    const y1 = cy + r * Math.sin(startAngle);
+    const x2 = cx + r * Math.cos(endAngle);
+    const y2 = cy + r * Math.sin(endAngle);
+    const large = angle > Math.PI ? 1 : 0;
+    paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r},0,${large},1,${x2},${y2}Z"
+      fill="${escHtml(co.color)}" opacity="0.85"/>`;
+    startAngle = endAngle;
+  });
+  // Donut hole
+  paths += `<circle cx="${cx}" cy="${cy}" r="32" fill="var(--steel-card)"/>`;
+  paths += `<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="10" fill="var(--text-dim)" font-family="Heebo,sans-serif">אחזקות</text>`;
+  paths += `<text x="${cx}" y="${cy+10}" text-anchor="middle" font-size="12" font-weight="800" fill="var(--text)" font-family="Heebo,sans-serif">${companies.length}</text>`;
+  document.getElementById('pieSvg').innerHTML = paths;
+
+  document.getElementById('pieLegend').innerHTML = companies.map(co => `
+    <div class="legend-item">
+      <div class="legend-dot" style="background:${escHtml(co.color)}"></div>
+      <span style="font-weight:600">${escHtml(co.short_name||co.name)}</span>
+      <span class="legend-pct" style="color:${escHtml(co.color)}">${co.ownership_pct}%</span>
+    </div>
+  `).join('');
+}
+
+// ── Modal ─────────────────────────────────────────────────────────
+function openAddCompany() {
+  document.getElementById('modalTitle').textContent = '➕ הוספת חברה';
+  document.getElementById('editCompanyId').value = '';
+  document.getElementById('fName').value = '';
+  document.getElementById('fShortName').value = '';
+  document.getElementById('fOwnership').value = '100';
+  document.getElementById('fErp').value = 'none';
+  document.getElementById('fColor').value = '#3498db';
+  document.getElementById('companyModal').classList.add('open');
+}
+
+function editCompany(id) {
+  const co = holdingsData?.companies?.find(c => c.id === id);
+  if (!co) return;
+  document.getElementById('modalTitle').textContent = '✏️ עריכת חברה';
+  document.getElementById('editCompanyId').value = id;
+  document.getElementById('fName').value = co.name;
+  document.getElementById('fShortName').value = co.short_name || '';
+  document.getElementById('fOwnership').value = co.ownership_pct;
+  document.getElementById('fErp').value = co.erp_type || 'none';
+  document.getElementById('fColor').value = co.color || '#e07b39';
+  document.getElementById('companyModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('companyModal').classList.remove('open');
+}
+
+async function saveCompany() {
+  const id   = document.getElementById('editCompanyId').value;
+  const body = {
+    name:          document.getElementById('fName').value.trim(),
+    short_name:    document.getElementById('fShortName').value.trim(),
+    ownership_pct: parseFloat(document.getElementById('fOwnership').value),
+    erp_type:      document.getElementById('fErp').value,
+    color:         document.getElementById('fColor').value,
+  };
+  if (!body.name) return;
+  const url    = id ? `/api/companies/${id}` : '/api/companies';
+  const method = id ? 'PATCH' : 'POST';
+  await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  closeModal();
+  fetchHoldings();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function fmt0(n) { return Math.round(n||0).toLocaleString('he-IL'); }
+function fmt1(n) { return (n||0) % 1 === 0 ? Math.round(n||0) : (n||0).toFixed(1); }
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Close modal on background click
+document.getElementById('companyModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+fetchHoldings();
+setInterval(fetchHoldings, 30000);
+</script>
+</body>
+</html>
