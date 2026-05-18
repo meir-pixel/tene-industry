@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'ironbend-v1';
+const CACHE_VERSION = 'ironbend-v2';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const API_CACHE     = `${CACHE_VERSION}-api`;
 
@@ -51,7 +51,13 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Static: cache-first
+  // HTML pages: network-first (always get fresh content)
+  if (url.pathname.endsWith('.html') || url.pathname === '/') {
+    e.respondWith(networkFirstHTML(e.request));
+    return;
+  }
+
+  // Static assets (JS, CSS, fonts, images): cache-first
   e.respondWith(cacheFirstStatic(e.request));
 });
 
@@ -70,6 +76,21 @@ async function networkFirstAPI(request) {
     return cached ?? new Response(JSON.stringify({ offline: true, data: [] }), {
       headers: { 'Content-Type': 'application/json' }
     });
+  }
+}
+
+async function networkFirstHTML(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return caches.match('/offline.html') ?? new Response('<h1>אין חיבור</h1>', { headers: { 'Content-Type': 'text/html' } });
   }
 }
 

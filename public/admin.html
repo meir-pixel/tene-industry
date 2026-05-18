@@ -80,12 +80,13 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
 .stat-sub   { font-size:10px; color:var(--muted); margin-top:1px; }
 
 /* ── SETTINGS TABS ─────────────────────────────────────── */
-.tabs { display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:0; }
-.tab-btn { padding:9px 16px; border:none; background:none; font-family:'Heebo',sans-serif;
+.tabs { display:flex; flex-wrap:wrap; gap:4px; border-bottom:2px solid var(--border); margin-bottom:0; padding:4px 12px 0; }
+.tab-btn { padding:9px 14px; border:none; background:none; font-family:'Heebo',sans-serif;
   font-size:13px; font-weight:700; color:var(--muted); cursor:pointer;
-  border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; }
-.tab-btn:hover  { color:var(--text); }
-.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s;
+  white-space:nowrap; border-radius:6px 6px 0 0; }
+.tab-btn:hover  { color:var(--text); background:rgba(0,0,0,0.03); }
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); background:rgba(201,98,26,0.05); }
 .tab-pane { display:none; }
 .tab-pane.active { display:block; }
 
@@ -182,8 +183,8 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
   .quick-nav   { grid-template-columns:repeat(3,1fr); }
   .form-row    { grid-template-columns:1fr; }
   .status-grid { grid-template-columns:1fr 1fr; }
-  .tabs        { overflow-x:auto; }
-  .tab-btn     { white-space:nowrap; }
+  .tabs        { flex-wrap:wrap; overflow-x:visible; gap:2px; }
+  .tab-btn     { flex:1; min-width:80px; text-align:center; font-size:12px; padding:8px 8px; }
 }
 </style>
 </head>
@@ -235,7 +236,7 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
   <div>
     <div class="sec-title">הגדרות מערכת</div>
     <div class="settings-card">
-      <div class="tabs" style="padding:0 20px;background:#fafbfd;border-bottom:1px solid var(--border);">
+      <div class="tabs" style="background:#fafbfd;border-bottom:1px solid var(--border);">
         <button class="tab-btn active" onclick="showTab('modules')">🔌 מודולים</button>
         <button class="tab-btn" onclick="showTab('whatsapp')">💬 WhatsApp</button>
         <button class="tab-btn" onclick="showTab('email')">📧 מייל</button>
