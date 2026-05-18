@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מלאי חומר גלם – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--steel:#f0f4f8;--steel-mid:#ffffff;--steel-light:#e8edf4;--steel-card:#ffffff;--iron:#d0dcea;--accent:#c9621a;--accent-light:#e07b39;--accent-dim:rgba(201,98,26,0.10);--success:#1a7a42;--success-dim:rgba(26,122,66,0.10);--danger:#b83227;--danger-dim:rgba(184,50,39,0.10);--warning:#a86b00;--warning-dim:rgba(168,107,0,0.10);--info:#1560a8;--info-dim:rgba(21,96,168,0.10);--text:#1a2533;--text-dim:#526070;--text-muted:#8fa0b0;--border:rgba(0,0,0,0.09);--border-bright:rgba(0,0,0,0.15);--radius:14px;--radius-sm:8px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+.topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.08);}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#f0954d);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.nav-links{display:flex;gap:2px;}
+.nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
+.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
+.nav-link.active{background:var(--accent-dim);color:var(--accent);}
+.page{max-width:1300px;margin:0 auto;padding:24px 16px;}
+
+/* TABS */
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:24px;}
+.tab-btn{padding:10px 20px;border:none;background:none;border-radius:var(--radius-sm) var(--radius-sm) 0 0;font-family:'Heebo',sans-serif;font-weight:700;font-size:13px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;border-bottom:2px solid transparent;margin-bottom:-2px;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-dim);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* KPI ROW */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px;}
+.kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;}
+.kpi-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+.kpi-val{font-size:26px;font-weight:900;color:var(--text);}
+.kpi-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+/* TABLE */
+.card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.card-title{font-size:15px;font-weight:800;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.04);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(0,0,0,0.015);}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+.badge-ok{background:var(--success-dim);color:var(--success);}
+.badge-warn{background:var(--warning-dim);color:var(--warning);}
+.badge-danger{background:var(--danger-dim);color:var(--danger);}
+
+/* BUTTON */
+.btn{padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-light);}
+.btn-sm{padding:5px 12px;font-size:12px;}
+.btn-outline{background:transparent;border:1px solid var(--border-bright);color:var(--text-dim);}
+.btn-outline:hover{background:rgba(0,0,0,0.04);}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:480px;box-shadow:0 16px 50px rgba(0,0,0,0.25);}
+.modal h2{font-size:18px;font-weight:900;margin-bottom:20px;}
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:6px;}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:var(--accent);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+
+/* DIAMETER SUMMARY GRID */
+.diam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;padding:16px 20px;}
+.diam-card{background:var(--steel-light);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:pointer;transition:all 0.2s;}
+.diam-card:hover{border-color:var(--accent);background:var(--accent-dim);}
+.diam-card.low-stock{border-color:var(--warning);background:var(--warning-dim);}
+.diam-card.no-stock{border-color:var(--danger);background:var(--danger-dim);}
+.diam-num{font-size:20px;font-weight:900;}
+.diam-label{font-size:10px;color:var(--text-muted);margin-bottom:8px;}
+.diam-kg{font-size:15px;font-weight:800;}
+.diam-sub{font-size:11px;color:var(--text-dim);}
+
+/* PROGRESS BAR */
+.stock-bar{height:4px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden;}
+.stock-fill{height:100%;border-radius:2px;background:var(--success);}
+.stock-fill.warn{background:var(--warning);}
+.stock-fill.danger{background:var(--danger);}
+
+/* SEARCH */
+.search-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.search-row input,.search-row select{padding:8px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.search-row input{flex:1;min-width:200px;}
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <div class="logo"><div class="logo-icon">🔩</div>IronBend</div>
+  <div class="nav-links">
+    <a href="dashboard.html" class="nav-link">דשבורד</a>
+    <a href="orders.html" class="nav-link">הזמנות</a>
+    <a href="inventory.html" class="nav-link active">מלאי</a>
+    <a href="machine.html" class="nav-link">מכונות</a>
+    <a href="driver.html" class="nav-link">שינוע</a>
+    <a href="reports.html" class="nav-link">דוחות</a>
+    <a href="admin.html" class="nav-link">ניהול</a>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('summary')">סיכום מלאי</button>
+    <button class="tab-btn" onclick="showTab('batches')">אצוות / מנות</button>
+    <button class="tab-btn" onclick="showTab('suppliers')">ספקים</button>
+    <button class="tab-btn" onclick="showTab('waste')">פחת וגרוטאות</button>
+  </div>
+
+  <!-- SUMMARY TAB -->
+  <div id="tab-summary" class="tab-panel active">
+    <div class="kpi-row" id="kpiRow">
+      <div class="kpi-card"><div class="kpi-label">סה"כ מלאי</div><div class="kpi-val" id="kpiTotal">—</div><div class="kpi-sub">ק"ג זמין</div></div>
+      <div class="kpi-card"><div class="kpi-label">קוטרים במלאי</div><div class="kpi-val" id="kpiDiam">—</div><div class="kpi-sub">סוגים</div></div>
+      <div class="kpi-card"><div class="kpi-label">אצוות פעילות</div><div class="kpi-val" id="kpiBatches">—</div><div class="kpi-sub">מנות</div></div>
+      <div class="kpi-card"><div class="kpi-label">שימוש מצטבר</div><div class="kpi-val" id="kpiUsed">—</div><div class="kpi-sub">ק"ג</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📦 מלאי לפי קוטר</span>
+        <button class="btn btn-primary btn-sm" onclick="openAddBatch()">+ קבלת חומר</button>
+      </div>
+      <div class="diam-grid" id="diamGrid">טוען...</div>
+    </div>
+  </div>
+
+  <!-- BATCHES TAB -->
+  <div id="tab-batches" class="tab-panel">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📋 אצוות חומר גלם</span>
+        <div class="search-row">
+          <input type="text" id="batchSearch" placeholder="חיפוש..." oninput="filterBatches()">
+          <select id="batchDiam" onchange="filterBatches()">
+            <option value="">כל הקוטרים</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="openAddBatch()">+ קבלת חומר</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>קוטר</th><th>סוג</th><th>ספק</th><th>מס' תעודה</th><th>תאריך קבלה</th>
+          <th>התקבל (ק"ג)</th><th>בשימוש (ק"ג)</th><th>זמין (ק"ג)</th><th>מחיר/טון</th><th>מיקום</th><th>פעולות</th>
+        </tr></thead>
+        <tbody id="batchTable">טוען...</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SUPPLIERS TAB -->
+  <div id="tab-suppliers" class="tab-panel">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🏭 ספקי חומר גלם</span>
+        <button class="btn btn-primary btn-sm" onclick="openAddSupplier()">+ ספק חדש</button>
+      </div>
+      <table>
+        <thead><tr><th>שם ספק</th><th>איש קשר</th><th>טלפון</th><th>אימייל</th><th>תנאי תשלום</th><th>פעולות</th></tr></thead>
+        <tbody id="supplierTable">טוען...</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- WASTE TAB -->
+  <div id="tab-waste" class="tab-panel">
+    <div class="kpi-row" id="wasteKpi"></div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🗑️ פחת לפי קוטר</span>
+        <div class="search-row">
+          <input type="date" id="wasteFrom" onchange="loadWaste()">
+          <span>עד</span>
+          <input type="date" id="wasteTo" onchange="loadWaste()">
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>קוטר</th><th>התקבל</th><th>בשימוש</th><th>גרוטאה</th><th>% פחת</th></tr></thead>
+        <tbody id="wasteTable">טוען...</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ADD BATCH MODAL -->
+<div class="modal-overlay" id="modalBatch">
+  <div class="modal">
+    <h2 id="modalBatchTitle">📦 קבלת חומר גלם</h2>
+    <div class="form-grid">
+      <div class="form-row"><label>קוטר (מ"מ) *</label>
+        <select id="bDiameter">
+          <option value="6">Ø6</option><option value="8">Ø8</option><option value="10">Ø10</option>
+          <option value="12">Ø12</option><option value="14">Ø14</option><option value="16">Ø16</option>
+          <option value="18">Ø18</option><option value="20">Ø20</option><option value="22">Ø22</option>
+          <option value="25">Ø25</option><option value="28">Ø28</option><option value="32">Ø32</option>
+          <option value="36">Ø36</option><option value="40">Ø40</option>
+        </select>
+      </div>
+      <div class="form-row"><label>סוג חומר</label>
+        <select id="bType"><option value="coil">סלילים (coil)</option><option value="straight">ישר (straight)</option></select>
+      </div>
+      <div class="form-row"><label>ספק</label>
+        <select id="bSupplier"><option value="">— ללא ספק —</option></select>
+      </div>
+      <div class="form-row"><label>מס' תעודת משלוח</label><input id="bLot" type="text" placeholder="LOT-2026-001"></div>
+      <div class="form-row"><label>מס' תעודת מעבדה</label><input id="bCert" type="text" placeholder="CERT-xxxxx"></div>
+      <div class="form-row"><label>תקן פלדה</label>
+        <select id="bGrade"><option value="B500B">B500B</option><option value="B500C">B500C</option><option value="B500A">B500A</option><option value="other">אחר</option></select>
+      </div>
+      <div class="form-row"><label>תאריך קבלה *</label><input id="bDate" type="date"></div>
+      <div class="form-row"><label>משקל (ק"ג) *</label><input id="bWeight" type="number" step="0.1" min="0" placeholder="5000"></div>
+      <div class="form-row"><label>מחיר לטון (₪)</label><input id="bPrice" type="number" step="1" min="0" placeholder="3800"></div>
+      <div class="form-row"><label>מיקום מחסן</label><input id="bLoc" type="text" placeholder="מדף A3"></div>
+    </div>
+    <div class="form-row"><label>הערות</label><textarea id="bNotes" rows="2"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeBatchModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveBatch()">שמור קבלה</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD SUPPLIER MODAL -->
+<div class="modal-overlay" id="modalSupplier">
+  <div class="modal">
+    <h2 id="modalSupplierTitle">🏭 ספק חדש</h2>
+    <input type="hidden" id="sId">
+    <div class="form-grid">
+      <div class="form-row" style="grid-column:1/-1"><label>שם ספק *</label><input id="sName" type="text" placeholder="חברת ברזל בע&quot;מ"></div>
+      <div class="form-row"><label>איש קשר</label><input id="sContact" type="text"></div>
+      <div class="form-row"><label>טלפון</label><input id="sPhone" type="tel"></div>
+      <div class="form-row"><label>אימייל</label><input id="sEmail" type="email"></div>
+      <div class="form-row"><label>תנאי תשלום</label><input id="sTerms" type="text" placeholder="שוטף+60"></div>
+    </div>
+    <div class="form-row"><label>כתובת</label><input id="sAddress" type="text"></div>
+    <div class="form-row"><label>הערות</label><textarea id="sNotes" rows="2"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeSupplierModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveSupplier()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let suppliers = [];
+let batches   = [];
+let summary   = [];
+
+function showTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', b.onclick.toString().includes(`'${id}'`)));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  if (id === 'batches')   loadBatches();
+  if (id === 'suppliers') loadSuppliers();
+  if (id === 'waste')     loadWaste();
+}
+
+function fmt0(v) { return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:0}); }
+function fmt1(v) { return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:1}); }
+function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── SUMMARY ──────────────────────────────────────────────────────
+async function loadSummary() {
+  const r = await fetch('/api/inventory/summary').then(r=>r.json()).catch(()=>[]);
+  summary = r;
+  const totalAvail  = r.reduce((s,d)=>s+(d.available||0),0);
+  const totalUsed   = r.reduce((s,d)=>s+(d.total_used||0),0);
+  const totalBatch  = r.reduce((s,d)=>s+(d.batches||0),0);
+  document.getElementById('kpiTotal').textContent    = fmt0(totalAvail);
+  document.getElementById('kpiDiam').textContent     = r.length;
+  document.getElementById('kpiBatches').textContent  = totalBatch;
+  document.getElementById('kpiUsed').textContent     = fmt0(totalUsed);
+
+  const grid = document.getElementById('diamGrid');
+  if (!r.length) { grid.innerHTML = '<p style="padding:20px;color:var(--text-muted)">אין מלאי – הוסף קבלת חומר</p>'; return; }
+  const maxAvail = Math.max(...r.map(d=>d.available||0), 1);
+  grid.innerHTML = r.map(d => {
+    const pct = Math.min(100, Math.round((d.available||0)/maxAvail*100));
+    const cls = pct < 15 ? 'danger' : pct < 35 ? 'warn' : '';
+    const cardCls = pct < 15 ? 'no-stock' : pct < 35 ? 'low-stock' : '';
+    return `<div class="diam-card ${cardCls}" onclick="showTab('batches');setTimeout(()=>{document.getElementById('batchDiam').value='${d.diameter}';filterBatches()},100)">
+      <div class="diam-label">Ø${d.diameter} מ"מ</div>
+      <div class="diam-kg">${fmt0(d.available)} ק"ג</div>
+      <div class="diam-sub">${d.batches} אצוות · ${fmt0(d.total_received)} הוזמן</div>
+      <div class="stock-bar"><div class="stock-fill ${cls}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── BATCHES ───────────────────────────────────────────────────────
+async function loadBatches() {
+  batches = await fetch('/api/inventory').then(r=>r.json()).catch(()=>[]);
+  const opts = [...new Set(batches.map(b=>b.diameter))].sort((a,b)=>a-b)
+    .map(d=>`<option value="${d}">Ø${d}</option>`).join('');
+  document.getElementById('batchDiam').innerHTML = '<option value="">כל הקוטרים</option>' + opts;
+  renderBatches(batches);
+}
+
+function filterBatches() {
+  const q    = document.getElementById('batchSearch').value.toLowerCase();
+  const diam = document.getElementById('batchDiam').value;
+  renderBatches(batches.filter(b =>
+    (!diam || b.diameter == diam) &&
+    (!q || (b.lot_number||'').toLowerCase().includes(q) || (b.supplier_name||'').toLowerCase().includes(q) || (b.warehouse_loc||'').toLowerCase().includes(q))
+  ));
+}
+
+function renderBatches(rows) {
+  const body = document.getElementById('batchTable');
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text-muted)">אין נתונים</td></tr>'; return; }
+  body.innerHTML = rows.map(b => {
+    const avail = b.weight_available ?? (b.weight_received - b.weight_used - b.weight_scrapped);
+    const pct   = b.weight_received > 0 ? Math.round(avail/b.weight_received*100) : 0;
+    const cls   = avail < 100 ? 'badge-danger' : pct < 20 ? 'badge-warn' : 'badge-ok';
+    return `<tr>
+      <td><strong>Ø${b.diameter}</strong></td>
+      <td>${b.material_type === 'coil' ? '🔄 סלילים' : '➖ ישר'}</td>
+      <td>${escH(b.supplier_name||'—')}</td>
+      <td style="font-size:12px;color:var(--text-dim)">${escH(b.lot_number||'—')}</td>
+      <td>${b.received_date||'—'}</td>
+      <td>${fmt0(b.weight_received)}</td>
+      <td>${fmt0(b.weight_used)}</td>
+      <td><span class="badge ${cls}">${fmt0(avail)} ק"ג</span></td>
+      <td>${b.purchase_price ? '₪' + fmt0(b.purchase_price) + '/ט' : '—'}</td>
+      <td style="font-size:12px">${escH(b.warehouse_loc||'—')}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="editBatch(${b.id})">עריכה</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── SUPPLIERS ─────────────────────────────────────────────────────
+async function loadSuppliers() {
+  suppliers = await fetch('/api/suppliers').then(r=>r.json()).catch(()=>[]);
+  renderSuppliers();
+  // refresh dropdown
+  const sel = document.getElementById('bSupplier');
+  sel.innerHTML = '<option value="">— ללא ספק —</option>' + suppliers.map(s=>`<option value="${s.id}">${escH(s.name)}</option>`).join('');
+}
+
+function renderSuppliers() {
+  const body = document.getElementById('supplierTable');
+  if (!suppliers.length) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">אין ספקים</td></tr>'; return; }
+  body.innerHTML = suppliers.map(s => `<tr>
+    <td><strong>${escH(s.name)}</strong></td>
+    <td>${escH(s.contact||'—')}</td>
+    <td>${escH(s.phone||'—')}</td>
+    <td>${escH(s.email||'—')}</td>
+    <td>${escH(s.payment_terms||'—')}</td>
+    <td><button class="btn btn-sm btn-outline" onclick="editSupplier(${s.id})">עריכה</button></td>
+  </tr>`).join('');
+}
+
+// ── WASTE ─────────────────────────────────────────────────────────
+async function loadWaste() {
+  const from = document.getElementById('wasteFrom').value;
+  const to   = document.getElementById('wasteTo').value;
+  const qs   = (from?`from=${from}&`:'') + (to?`to=${to}`:'');
+  const data = await fetch('/api/waste/summary?' + qs).then(r=>r.json()).catch(()=>({}));
+  const rm   = data.rawMaterial || [];
+  const body = document.getElementById('wasteTable');
+  body.innerHTML = rm.length ? rm.map(r => `<tr>
+    <td><strong>Ø${r.diameter}</strong></td>
+    <td>${fmt0(r.total_received)} ק"ג</td>
+    <td>${fmt0(r.total_received - r.total_scrapped)} ק"ג</td>
+    <td style="color:var(--danger);font-weight:700">${fmt0(r.total_scrapped)} ק"ג</td>
+    <td>${r.scrap_pct||0}%</td>
+  </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted)">אין נתוני פחת</td></tr>';
+}
+
+// ── BATCH MODAL ───────────────────────────────────────────────────
+let editingBatchId = null;
+function openAddBatch() {
+  editingBatchId = null;
+  document.getElementById('modalBatchTitle').textContent = '📦 קבלת חומר גלם';
+  document.getElementById('bDate').value = new Date().toISOString().split('T')[0];
+  ['bDiameter','bType','bSupplier','bLot','bCert','bGrade','bWeight','bPrice','bLoc','bNotes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else el.value = '';
+  });
+  document.getElementById('bDate').value = new Date().toISOString().split('T')[0];
+  // Refresh supplier list
+  fetch('/api/suppliers').then(r=>r.json()).then(s => {
+    const sel = document.getElementById('bSupplier');
+    sel.innerHTML = '<option value="">— ללא ספק —</option>' + s.map(x=>`<option value="${x.id}">${escH(x.name)}</option>`).join('');
+  }).catch(()=>{});
+  document.getElementById('modalBatch').classList.add('open');
+}
+
+function editBatch(id) {
+  const b = batches.find(x=>x.id===id);
+  if (!b) return;
+  editingBatchId = id;
+  document.getElementById('modalBatchTitle').textContent = 'עריכת אצווה';
+  document.getElementById('bDiameter').value = b.diameter;
+  document.getElementById('bType').value = b.material_type||'coil';
+  document.getElementById('bLot').value = b.lot_number||'';
+  document.getElementById('bCert').value = b.certificate_num||'';
+  document.getElementById('bGrade').value = b.grade||'B500B';
+  document.getElementById('bDate').value = b.received_date||'';
+  document.getElementById('bWeight').value = b.weight_received||'';
+  document.getElementById('bPrice').value = b.purchase_price||'';
+  document.getElementById('bLoc').value = b.warehouse_loc||'';
+  document.getElementById('bNotes').value = b.notes||'';
+  fetch('/api/suppliers').then(r=>r.json()).then(s => {
+    const sel = document.getElementById('bSupplier');
+    sel.innerHTML = '<option value="">— ללא ספק —</option>' + s.map(x=>`<option value="${x.id}">${escH(x.name)}</option>`).join('');
+    sel.value = b.supplier_id||'';
+  });
+  document.getElementById('modalBatch').classList.add('open');
+}
+
+function closeBatchModal() { document.getElementById('modalBatch').classList.remove('open'); }
+
+async function saveBatch() {
+  const body = {
+    material_type: document.getElementById('bType').value,
+    diameter:      Number(document.getElementById('bDiameter').value),
+    supplier_id:   document.getElementById('bSupplier').value || null,
+    lot_number:    document.getElementById('bLot').value,
+    certificate_num: document.getElementById('bCert').value,
+    grade:         document.getElementById('bGrade').value,
+    received_date: document.getElementById('bDate').value,
+    weight_received: Number(document.getElementById('bWeight').value),
+    purchase_price:  Number(document.getElementById('bPrice').value)||0,
+    warehouse_loc: document.getElementById('bLoc').value,
+    notes:         document.getElementById('bNotes').value,
+  };
+  if (!body.diameter || !body.weight_received) return alert('קוטר ומשקל חובה');
+  const url = editingBatchId ? `/api/inventory/${editingBatchId}` : '/api/inventory';
+  const method = editingBatchId ? 'PATCH' : 'POST';
+  const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) return alert('שגיאה בשמירה');
+  closeBatchModal();
+  loadSummary();
+  loadBatches();
+}
+
+// ── SUPPLIER MODAL ────────────────────────────────────────────────
+function openAddSupplier() {
+  document.getElementById('modalSupplierTitle').textContent = '🏭 ספק חדש';
+  document.getElementById('sId').value = '';
+  ['sName','sContact','sPhone','sEmail','sTerms','sAddress','sNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('modalSupplier').classList.add('open');
+}
+
+function editSupplier(id) {
+  const s = suppliers.find(x=>x.id===id);
+  if (!s) return;
+  document.getElementById('modalSupplierTitle').textContent = 'עריכת ספק';
+  document.getElementById('sId').value = id;
+  document.getElementById('sName').value = s.name||'';
+  document.getElementById('sContact').value = s.contact||'';
+  document.getElementById('sPhone').value = s.phone||'';
+  document.getElementById('sEmail').value = s.email||'';
+  document.getElementById('sTerms').value = s.payment_terms||'';
+  document.getElementById('sAddress').value = s.address||'';
+  document.getElementById('sNotes').value = s.notes||'';
+  document.getElementById('modalSupplier').classList.add('open');
+}
+
+function closeSupplierModal() { document.getElementById('modalSupplier').classList.remove('open'); }
+
+async function saveSupplier() {
+  const id = document.getElementById('sId').value;
+  const body = {
+    name: document.getElementById('sName').value,
+    contact: document.getElementById('sContact').value,
+    phone: document.getElementById('sPhone').value,
+    email: document.getElementById('sEmail').value,
+    payment_terms: document.getElementById('sTerms').value,
+    address: document.getElementById('sAddress').value,
+    notes: document.getElementById('sNotes').value,
+  };
+  if (!body.name) return alert('שם ספק חובה');
+  const url = id ? `/api/suppliers/${id}` : '/api/suppliers';
+  const method = id ? 'PATCH' : 'POST';
+  const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) return alert('שגיאה בשמירה');
+  closeSupplierModal();
+  loadSuppliers();
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+// Dates for waste tab
+const today = new Date().toISOString().split('T')[0];
+const ago30  = new Date(Date.now()-30*86400000).toISOString().split('T')[0];
+document.getElementById('wasteFrom').value = ago30;
+document.getElementById('wasteTo').value   = today;
+
+loadSummary();
+loadSuppliers();
+</script>
+</body>
+</html>

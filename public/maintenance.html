@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>תחזוקה ותקלות – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--steel:#f0f4f8;--steel-mid:#ffffff;--steel-light:#e8edf4;--steel-card:#ffffff;--accent:#c9621a;--accent-light:#e07b39;--accent-dim:rgba(201,98,26,0.10);--success:#1a7a42;--success-dim:rgba(26,122,66,0.10);--danger:#b83227;--danger-dim:rgba(184,50,39,0.10);--warning:#a86b00;--warning-dim:rgba(168,107,0,0.10);--info:#1560a8;--info-dim:rgba(21,96,168,0.10);--text:#1a2533;--text-dim:#526070;--text-muted:#8fa0b0;--border:rgba(0,0,0,0.09);--border-bright:rgba(0,0,0,0.15);--radius:14px;--radius-sm:8px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+.topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.08);}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#f0954d);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.nav-links{display:flex;gap:2px;}
+.nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
+.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
+.nav-link.active{background:var(--accent-dim);color:var(--accent);}
+.page{max-width:1300px;margin:0 auto;padding:24px 16px;}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;}
+.kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;}
+.kpi-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+.kpi-val{font-size:26px;font-weight:900;}
+.kpi-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+.card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.card-title{font-size:15px;font-weight:800;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.04);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(0,0,0,0.015);}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+.badge-open{background:var(--danger-dim);color:var(--danger);}
+.badge-wip{background:var(--warning-dim);color:var(--warning);}
+.badge-done{background:var(--success-dim);color:var(--success);}
+.badge-urgent{background:var(--danger-dim);color:var(--danger);}
+.badge-high{background:var(--warning-dim);color:var(--warning);}
+.badge-normal{background:rgba(0,0,0,0.06);color:var(--text-dim);}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-light);}
+.btn-success{background:var(--success);color:#fff;}
+.btn-sm{padding:5px 12px;font-size:12px;}
+.btn-outline{background:transparent;border:1px solid var(--border-bright);color:var(--text-dim);}
+.btn-outline:hover{background:rgba(0,0,0,0.04);}
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.filters select,.filters input{padding:8px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:520px;box-shadow:0 16px 50px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto;}
+.modal h2{font-size:18px;font-weight:900;margin-bottom:20px;}
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:6px;}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:var(--accent);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+.timeline-row{display:grid;grid-template-columns:120px 1fr;gap:20px;padding:16px 20px;}
+.tl-machines{display:flex;flex-direction:column;gap:8px;}
+.machine-badge{padding:8px 12px;border-radius:var(--radius-sm);background:var(--steel-light);border:1px solid var(--border);font-weight:700;font-size:13px;cursor:pointer;transition:0.2s;}
+.machine-badge.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);}
+.machine-badge.broken{background:var(--danger-dim);color:var(--danger);border-color:var(--danger);}
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <div class="logo"><div class="logo-icon">🔩</div>IronBend</div>
+  <div class="nav-links">
+    <a href="dashboard.html" class="nav-link">דשבורד</a>
+    <a href="orders.html" class="nav-link">הזמנות</a>
+    <a href="inventory.html" class="nav-link">מלאי</a>
+    <a href="machine.html" class="nav-link">מכונות</a>
+    <a href="maintenance.html" class="nav-link active">תחזוקה</a>
+    <a href="driver.html" class="nav-link">שינוע</a>
+    <a href="reports.html" class="nav-link">דוחות</a>
+    <a href="admin.html" class="nav-link">ניהול</a>
+  </div>
+</nav>
+<div class="page">
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-label">תקלות פתוחות</div><div class="kpi-val" style="color:var(--danger)" id="kpiOpen">—</div><div class="kpi-sub">דורשות טיפול</div></div>
+    <div class="kpi-card"><div class="kpi-label">בטיפול</div><div class="kpi-val" style="color:var(--warning)" id="kpiWip">—</div><div class="kpi-sub">בתהליך</div></div>
+    <div class="kpi-card"><div class="kpi-label">סה"כ תקלות</div><div class="kpi-val" id="kpiTotal">—</div><div class="kpi-sub">מאז תחילה</div></div>
+    <div class="kpi-card"><div class="kpi-label">השבתה ממוצעת</div><div class="kpi-val" id="kpiDowntime">—</div><div class="kpi-sub">דקות לתקלה</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">🔧 יומן תחזוקה ותקלות</span>
+      <div class="filters">
+        <select id="fMachine" onchange="loadLogs()"><option value="">כל המכונות</option></select>
+        <select id="fStatus" onchange="loadLogs()">
+          <option value="">כל הסטטוסים</option>
+          <option value="פתוחה">פתוחות</option>
+          <option value="בטיפול">בטיפול</option>
+          <option value="סגורה">סגורות</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ דיווח תקלה / תחזוקה</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>מכונה</th><th>סוג</th><th>תיאור</th><th>עדיפות</th><th>סטטוס</th>
+        <th>דיווח</th><th>השבתה (דק')</th><th>עלות</th><th>פעולות</th>
+      </tr></thead>
+      <tbody id="logsTable">טוען...</tbody>
+    </table>
+  </div>
+
+  <!-- MACHINE STATUS SUMMARY -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">📊 השבתה לפי מכונה</span></div>
+    <table>
+      <thead><tr><th>מכונה</th><th>אירועים</th><th>סה"כ השבתה</th><th>ממוצע לתקלה</th></tr></thead>
+      <tbody id="byMachineTable">טוען...</tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="mainModal">
+  <div class="modal">
+    <h2 id="modalTitle">🔧 דיווח תקלה</h2>
+    <input type="hidden" id="mId">
+    <div class="form-grid">
+      <div class="form-row"><label>מכונה *</label>
+        <select id="mMachine"><option value="">בחר...</option></select>
+      </div>
+      <div class="form-row"><label>סוג</label>
+        <select id="mType">
+          <option value="breakdown">תקלה (breakdown)</option>
+          <option value="preventive">תחזוקה מונעת</option>
+          <option value="repair">תיקון</option>
+          <option value="inspection">בדיקה / פיקוח</option>
+        </select>
+      </div>
+      <div class="form-row"><label>עדיפות</label>
+        <select id="mPriority">
+          <option value="דחוף">🔴 דחוף</option>
+          <option value="גבוה">🟠 גבוה</option>
+          <option value="רגיל" selected>🟡 רגיל</option>
+          <option value="נמוך">🟢 נמוך</option>
+        </select>
+      </div>
+      <div class="form-row"><label>זמן השבתה (דקות)</label>
+        <input id="mDowntime" type="number" min="0" placeholder="0">
+      </div>
+    </div>
+    <div class="form-row"><label>תיאור התקלה *</label>
+      <textarea id="mDesc" rows="3" placeholder="תאר את הבעיה..."></textarea>
+    </div>
+    <div class="form-grid">
+      <div class="form-row"><label>סטטוס</label>
+        <select id="mStatus">
+          <option value="פתוחה">פתוחה</option>
+          <option value="בטיפול">בטיפול</option>
+          <option value="סגורה">סגורה</option>
+        </select>
+      </div>
+      <div class="form-row"><label>עלות טיפול (₪)</label>
+        <input id="mCost" type="number" min="0" step="10" placeholder="0">
+      </div>
+    </div>
+    <div class="form-row"><label>סיבת שורש</label>
+      <input id="mRoot" type="text" placeholder="מה גרם לתקלה?">
+    </div>
+    <div class="form-row"><label>פתרון שבוצע</label>
+      <textarea id="mFix" rows="2" placeholder="מה בוצע לתיקון?"></textarea>
+    </div>
+    <div class="form-row"><label>חלקים שהוחלפו</label>
+      <input id="mParts" type="text" placeholder="רשימת חלקים...">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveLog()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let logs = [], machines = [];
+
+const TYPE_LABELS = { breakdown:'🔴 תקלה', preventive:'🔵 מונעת', repair:'🟠 תיקון', inspection:'🟢 בדיקה' };
+const STATUS_CLS  = { פתוחה:'badge-open', בטיפול:'badge-wip', סגורה:'badge-done' };
+const PRIO_CLS    = { דחוף:'badge-urgent', גבוה:'badge-high', רגיל:'badge-normal', נמוך:'badge-normal' };
+
+function fmt0(v){ return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:0}); }
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function dtStr(s){ return s ? new Date(s).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
+
+async function init() {
+  machines = await fetch('/api/machines').then(r=>r.json()).catch(()=>[]);
+  const sel = document.getElementById('fMachine');
+  const mSel = document.getElementById('mMachine');
+  const opts = machines.map(m=>`<option value="${m.id}">${escH(m.label||'')} – ${escH(m.name)}</option>`).join('');
+  sel.innerHTML = '<option value="">כל המכונות</option>' + opts;
+  mSel.innerHTML = '<option value="">בחר מכונה...</option>' + opts;
+  loadStats();
+  loadLogs();
+}
+
+async function loadStats() {
+  const s = await fetch('/api/maintenance/stats').then(r=>r.json()).catch(()=>({}));
+  document.getElementById('kpiOpen').textContent = s.open||0;
+  document.getElementById('kpiWip').textContent  = 0; // calculated below
+  document.getElementById('kpiTotal').textContent = s.breakdowns||0;
+  document.getElementById('kpiDowntime').textContent = s.avgDowntime||0;
+  const tbody = document.getElementById('byMachineTable');
+  const rows = s.byMachine||[];
+  tbody.innerHTML = rows.length ? rows.map(r=>`<tr>
+    <td><strong>${escH(r.label||'')} – ${escH(r.name||'')}</strong></td>
+    <td>${r.events}</td>
+    <td>${fmt0(r.total_down||0)} דק'</td>
+    <td>${r.events ? Math.round((r.total_down||0)/r.events) : 0} דק'</td>
+  </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">אין נתונים</td></tr>';
+}
+
+async function loadLogs() {
+  const machine = document.getElementById('fMachine').value;
+  const status  = document.getElementById('fStatus').value;
+  let url = '/api/maintenance?limit=200';
+  if (machine) url += '&machine_id=' + machine;
+  if (status)  url += '&status=' + encodeURIComponent(status);
+  logs = await fetch(url).then(r=>r.json()).catch(()=>[]);
+  const wip = logs.filter(l=>l.status==='בטיפול').length;
+  document.getElementById('kpiWip').textContent = wip;
+  const tbody = document.getElementById('logsTable');
+  if (!logs.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">אין רשומות תחזוקה</td></tr>'; return; }
+  tbody.innerHTML = logs.map(l=>`<tr>
+    <td><strong>${escH(l.machine_label||'')}</strong><br><small style="color:var(--text-dim)">${escH(l.machine_name||'')}</small></td>
+    <td>${TYPE_LABELS[l.log_type]||l.log_type}</td>
+    <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(l.description)}">${escH(l.description)}</td>
+    <td><span class="badge ${PRIO_CLS[l.priority]||'badge-normal'}">${escH(l.priority)}</span></td>
+    <td><span class="badge ${STATUS_CLS[l.status]||'badge-normal'}">${escH(l.status)}</span></td>
+    <td style="font-size:12px">${dtStr(l.started_at)}</td>
+    <td>${l.downtime_min ? l.downtime_min + ' דק\'': '—'}</td>
+    <td>${l.cost ? '₪'+fmt0(l.cost) : '—'}</td>
+    <td>
+      <button class="btn btn-sm btn-outline" onclick="editLog(${l.id})">עריכה</button>
+      ${l.status!=='סגורה' ? `<button class="btn btn-sm btn-success" style="margin-right:4px" onclick="closeLog(${l.id})">סגור</button>` : ''}
+    </td>
+  </tr>`).join('');
+}
+
+let editingId = null;
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '🔧 דיווח תקלה';
+  document.getElementById('mId').value = '';
+  document.getElementById('mMachine').selectedIndex = 0;
+  document.getElementById('mType').selectedIndex = 0;
+  document.getElementById('mPriority').value = 'רגיל';
+  document.getElementById('mStatus').value = 'פתוחה';
+  ['mDesc','mRoot','mFix','mParts'].forEach(id=>document.getElementById(id).value='');
+  ['mDowntime','mCost'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mainModal').classList.add('open');
+}
+
+function editLog(id) {
+  const l = logs.find(x=>x.id===id);
+  if (!l) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'עריכת רשומה';
+  document.getElementById('mMachine').value = l.machine_id||'';
+  document.getElementById('mType').value = l.log_type||'breakdown';
+  document.getElementById('mPriority').value = l.priority||'רגיל';
+  document.getElementById('mStatus').value = l.status||'פתוחה';
+  document.getElementById('mDesc').value = l.description||'';
+  document.getElementById('mDowntime').value = l.downtime_min||'';
+  document.getElementById('mCost').value = l.cost||'';
+  document.getElementById('mRoot').value = l.root_cause||'';
+  document.getElementById('mFix').value = l.fix_notes||'';
+  document.getElementById('mParts').value = l.parts_used||'';
+  document.getElementById('mainModal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('mainModal').classList.remove('open'); }
+
+async function saveLog() {
+  const body = {
+    machine_id:   Number(document.getElementById('mMachine').value),
+    log_type:     document.getElementById('mType').value,
+    description:  document.getElementById('mDesc').value,
+    priority:     document.getElementById('mPriority').value,
+    status:       document.getElementById('mStatus').value,
+    downtime_min: Number(document.getElementById('mDowntime').value)||0,
+    cost:         Number(document.getElementById('mCost').value)||0,
+    root_cause:   document.getElementById('mRoot').value,
+    fix_notes:    document.getElementById('mFix').value,
+    parts_used:   document.getElementById('mParts').value,
+  };
+  if (!body.machine_id || !body.description) return alert('מכונה ותיאור חובה');
+  const url = editingId ? `/api/maintenance/${editingId}` : '/api/maintenance';
+  const method = editingId ? 'PATCH' : 'POST';
+  const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) return alert('שגיאה בשמירה');
+  closeModal();
+  loadStats();
+  loadLogs();
+}
+
+async function closeLog(id) {
+  const r = await fetch(`/api/maintenance/${id}`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ status:'סגורה' })
+  });
+  if (r.ok) { loadStats(); loadLogs(); }
+}
+
+init();
+</script>
+</body>
+</html>

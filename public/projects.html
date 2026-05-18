@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>פרויקטים ואתרים – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--steel:#f0f4f8;--steel-mid:#ffffff;--steel-light:#e8edf4;--accent:#c9621a;--accent-light:#e07b39;--accent-dim:rgba(201,98,26,0.10);--success:#1a7a42;--success-dim:rgba(26,122,66,0.10);--danger:#b83227;--danger-dim:rgba(184,50,39,0.10);--warning:#a86b00;--warning-dim:rgba(168,107,0,0.10);--info:#1560a8;--info-dim:rgba(21,96,168,0.10);--text:#1a2533;--text-dim:#526070;--text-muted:#8fa0b0;--border:rgba(0,0,0,0.09);--border-bright:rgba(0,0,0,0.15);--radius:14px;--radius-sm:8px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+.topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.08);}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#f0954d);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.nav-links{display:flex;gap:2px;}
+.nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
+.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
+.nav-link.active{background:var(--accent-dim);color:var(--accent);}
+.page{max-width:1300px;margin:0 auto;padding:24px 16px;}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:24px;}
+.tab-btn{padding:10px 20px;border:none;background:none;border-radius:var(--radius-sm) var(--radius-sm) 0 0;font-family:'Heebo',sans-serif;font-weight:700;font-size:13px;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-dim);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+.card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.card-title{font-size:15px;font-weight:800;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.04);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(0,0,0,0.015);}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+.badge-active{background:var(--success-dim);color:var(--success);}
+.badge-done{background:var(--info-dim);color:var(--info);}
+.badge-stop{background:var(--warning-dim);color:var(--warning);}
+.badge-cancel{background:var(--danger-dim);color:var(--danger);}
+.badge-block{background:var(--danger-dim);color:var(--danger);}
+.badge-ok{background:var(--success-dim);color:var(--success);}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-light);}
+.btn-sm{padding:5px 12px;font-size:12px;}
+.btn-outline{background:transparent;border:1px solid var(--border-bright);color:var(--text-dim);}
+.btn-outline:hover{background:rgba(0,0,0,0.04);}
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.filters select,.filters input{padding:8px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:500px;box-shadow:0 16px 50px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto;}
+.modal h2{font-size:18px;font-weight:900;margin-bottom:20px;}
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:6px;}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.form-row input:focus,.form-row select:focus{outline:none;border-color:var(--accent);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+/* CREDIT BAR */
+.credit-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px;}
+.credit-fill{height:100%;border-radius:3px;}
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <div class="logo"><div class="logo-icon">🔩</div>IronBend</div>
+  <div class="nav-links">
+    <a href="dashboard.html" class="nav-link">דשבורד</a>
+    <a href="orders.html" class="nav-link">הזמנות</a>
+    <a href="inventory.html" class="nav-link">מלאי</a>
+    <a href="projects.html" class="nav-link active">פרויקטים</a>
+    <a href="maintenance.html" class="nav-link">תחזוקה</a>
+    <a href="driver.html" class="nav-link">שינוע</a>
+    <a href="admin.html" class="nav-link">ניהול</a>
+  </div>
+</nav>
+<div class="page">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('projects')">🏗️ פרויקטים</button>
+    <button class="tab-btn" onclick="showTab('sites')">📍 אתרים</button>
+    <button class="tab-btn" onclick="showTab('credit')">💳 מסגרות אשראי</button>
+  </div>
+
+  <!-- PROJECTS -->
+  <div id="tab-projects" class="tab-panel active">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🏗️ פרויקטים</span>
+        <div class="filters">
+          <select id="fProjStatus" onchange="loadProjects()">
+            <option value="">כל הסטטוסים</option>
+            <option value="פעיל">פעיל</option>
+            <option value="הושלם">הושלם</option>
+            <option value="עצור">עצור</option>
+            <option value="ביטול">ביטול</option>
+          </select>
+          <input type="text" id="fProjSearch" placeholder="חיפוש פרויקט..." oninput="loadProjects()">
+          <button class="btn btn-primary btn-sm" onclick="openProjectModal()">+ פרויקט חדש</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>פרויקט</th><th>לקוח</th><th>מספר פרויקט</th><th>סטטוס</th>
+          <th>אתרים</th><th>הזמנות</th><th>תקציב</th><th>תאריך התחלה</th><th>פעולות</th>
+        </tr></thead>
+        <tbody id="projectTable">טוען...</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SITES -->
+  <div id="tab-sites" class="tab-panel">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📍 אתרי עבודה</span>
+        <div class="filters">
+          <input type="text" id="fSiteSearch" placeholder="חיפוש אתר..." oninput="loadSites()">
+          <button class="btn btn-primary btn-sm" onclick="openSiteModal()">+ אתר חדש</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>שם אתר</th><th>לקוח / פרויקט</th><th>כתובת</th><th>איש קשר</th><th>הערות גישה</th><th>פעולות</th>
+        </tr></thead>
+        <tbody id="siteTable">טוען...</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CREDIT -->
+  <div id="tab-credit" class="tab-panel">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">💳 מסגרות אשראי לקוחות</span>
+        <div class="filters">
+          <input type="text" id="fCreditSearch" placeholder="חיפוש לקוח..." oninput="renderCredit()">
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>לקוח</th><th>מסגרת</th><th>יתרת חוב</th><th>ניצול</th><th>תנאי תשלום</th><th>סטטוס</th><th>פעולות</th>
+        </tr></thead>
+        <tbody id="creditTable">טוען...</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- PROJECT MODAL -->
+<div class="modal-overlay" id="projModal">
+  <div class="modal">
+    <h2 id="projModalTitle">🏗️ פרויקט חדש</h2>
+    <input type="hidden" id="projId">
+    <div class="form-grid">
+      <div class="form-row" style="grid-column:1/-1"><label>שם הפרויקט *</label><input id="projName" type="text" placeholder="בניין A – תל אביב"></div>
+      <div class="form-row"><label>לקוח</label>
+        <select id="projCustomer"><option value="">— לא משויך —</option></select>
+      </div>
+      <div class="form-row"><label>מספר פרויקט</label><input id="projNum" type="text" placeholder="PROJ-2026-01"></div>
+      <div class="form-row"><label>סטטוס</label>
+        <select id="projStatus">
+          <option value="פעיל">פעיל</option>
+          <option value="הושלם">הושלם</option>
+          <option value="עצור">עצור</option>
+          <option value="ביטול">ביטול</option>
+        </select>
+      </div>
+      <div class="form-row"><label>תקציב (₪)</label><input id="projBudget" type="number" step="1000" min="0"></div>
+      <div class="form-row"><label>תאריך התחלה</label><input id="projStart" type="date"></div>
+      <div class="form-row"><label>תאריך סיום</label><input id="projEnd" type="date"></div>
+      <div class="form-row"><label>איש קשר</label><input id="projContact" type="text"></div>
+      <div class="form-row"><label>טלפון קשר</label><input id="projContactPhone" type="tel"></div>
+    </div>
+    <div class="form-row"><label>הערות</label><textarea id="projNotes" rows="2"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeProjModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveProject()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- SITE MODAL -->
+<div class="modal-overlay" id="siteModal">
+  <div class="modal">
+    <h2 id="siteModalTitle">📍 אתר חדש</h2>
+    <input type="hidden" id="siteId">
+    <div class="form-grid">
+      <div class="form-row" style="grid-column:1/-1"><label>שם האתר *</label><input id="siteName" type="text" placeholder="אתר A – קומה 3"></div>
+      <div class="form-row"><label>לקוח</label>
+        <select id="siteCustomer"><option value="">— לא משויך —</option></select>
+      </div>
+      <div class="form-row"><label>פרויקט</label>
+        <select id="siteProject"><option value="">— לא משויך —</option></select>
+      </div>
+    </div>
+    <div class="form-row"><label>כתובת</label><input id="siteAddress" type="text" placeholder="רחוב הרצל 1, תל אביב"></div>
+    <div class="form-grid">
+      <div class="form-row"><label>איש קשר</label><input id="siteContact" type="text"></div>
+      <div class="form-row"><label>טלפון קשר</label><input id="siteContactPhone" type="tel"></div>
+    </div>
+    <div class="form-row"><label>הערות גישה</label><textarea id="siteAccess" rows="2" placeholder="כניסה מהשער הצפוני..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeSiteModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveSite()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREDIT MODAL -->
+<div class="modal-overlay" id="creditModal">
+  <div class="modal">
+    <h2 id="creditModalTitle">💳 עריכת מסגרת אשראי</h2>
+    <input type="hidden" id="creditCustomerId">
+    <div class="form-row"><label>שם לקוח</label><input id="creditName" type="text" readonly style="background:var(--steel-light)"></div>
+    <div class="form-grid">
+      <div class="form-row"><label>מסגרת אשראי (₪)</label><input id="creditLimit" type="number" min="0" step="1000"></div>
+      <div class="form-row"><label>תנאי תשלום (ימים)</label><input id="creditTerms" type="number" min="0" value="30"></div>
+    </div>
+    <div class="form-row"><label>חסום?</label>
+      <select id="creditBlocked">
+        <option value="0">לא חסום</option>
+        <option value="1">חסום</option>
+      </select>
+    </div>
+    <div class="form-row"><label>סיבת חסימה</label><input id="creditBlockReason" type="text"></div>
+    <div class="form-row"><label>הערות</label><textarea id="creditNotes" rows="2"></textarea></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+    <h3 style="font-size:14px;font-weight:800;margin-bottom:12px">📥 רישום תנועה</h3>
+    <div class="form-grid">
+      <div class="form-row"><label>סוג</label>
+        <select id="txType">
+          <option value="charge">חיוב</option>
+          <option value="payment">תשלום</option>
+          <option value="credit_note">זיכוי</option>
+        </select>
+      </div>
+      <div class="form-row"><label>סכום (₪)</label><input id="txAmount" type="number" min="0" step="100" placeholder="0"></div>
+    </div>
+    <div class="form-row"><label>הסבר</label><input id="txDesc" type="text" placeholder="חשבונית 1234..."></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeCreditModal()">ביטול</button>
+      <button class="btn btn-outline" onclick="addTransaction()">+ תנועה</button>
+      <button class="btn btn-primary" onclick="saveCredit()">שמור הגדרות</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let projects=[], sites=[], credit=[], customers=[];
+
+const STATUS_CLS = { פעיל:'badge-active', הושלם:'badge-done', עצור:'badge-stop', ביטול:'badge-cancel' };
+function fmt0(v){ return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:0}); }
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showTab(id) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.textContent.includes(id==='projects'?'פרויקטים':id==='sites'?'אתרים':'אשראי')));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  if (id==='sites')   loadSites();
+  if (id==='credit')  loadCredit();
+}
+
+// ── CUSTOMERS dropdown ───────────────────────────────────────────
+async function loadCustomersDropdown() {
+  customers = await fetch('/api/customers?q=').then(r=>r.json()).catch(()=>[]);
+  const opts = '<option value="">— לא משויך —</option>' + customers.map(c=>`<option value="${c.id}">${escH(c.name)}</option>`).join('');
+  ['projCustomer','siteCustomer'].forEach(id=>{ document.getElementById(id).innerHTML = opts; });
+}
+
+// ── PROJECTS ─────────────────────────────────────────────────────
+async function loadProjects() {
+  const status = document.getElementById('fProjStatus').value;
+  const search = document.getElementById('fProjSearch').value.toLowerCase();
+  let url = '/api/projects';
+  if (status) url += '?status=' + encodeURIComponent(status);
+  projects = await fetch(url).then(r=>r.json()).catch(()=>[]);
+  if (search) projects = projects.filter(p=>(p.name||'').toLowerCase().includes(search)||(p.customer_name||'').toLowerCase().includes(search));
+  // Populate project dropdown for sites
+  const projOpts = '<option value="">— לא משויך —</option>' + projects.map(p=>`<option value="${p.id}">${escH(p.name)}</option>`).join('');
+  document.getElementById('siteProject').innerHTML = projOpts;
+  const tbody = document.getElementById('projectTable');
+  if (!projects.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">אין פרויקטים</td></tr>'; return; }
+  tbody.innerHTML = projects.map(p=>`<tr>
+    <td><strong>${escH(p.name)}</strong></td>
+    <td>${escH(p.customer_name||'—')}</td>
+    <td style="color:var(--text-dim);font-size:12px">${escH(p.project_num||'—')}</td>
+    <td><span class="badge ${STATUS_CLS[p.status]||''}">${escH(p.status)}</span></td>
+    <td style="text-align:center">${p.site_count||0}</td>
+    <td style="text-align:center">${p.order_count||0}</td>
+    <td>${p.total_budget ? '₪'+fmt0(p.total_budget) : '—'}</td>
+    <td style="font-size:12px">${p.start_date||'—'}</td>
+    <td><button class="btn btn-sm btn-outline" onclick="editProject(${p.id})">עריכה</button></td>
+  </tr>`).join('');
+}
+
+let editingProjId = null;
+function openProjectModal() {
+  editingProjId = null;
+  document.getElementById('projModalTitle').textContent = '🏗️ פרויקט חדש';
+  document.getElementById('projId').value = '';
+  ['projName','projNum','projBudget','projContact','projContactPhone','projNotes'].forEach(id=>document.getElementById(id).value='');
+  ['projStart','projEnd'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('projStatus').value = 'פעיל';
+  document.getElementById('projCustomer').value = '';
+  document.getElementById('projModal').classList.add('open');
+}
+function editProject(id) {
+  const p = projects.find(x=>x.id===id);
+  if (!p) return;
+  editingProjId = id;
+  document.getElementById('projModalTitle').textContent = 'עריכת פרויקט';
+  document.getElementById('projId').value = id;
+  document.getElementById('projName').value = p.name||'';
+  document.getElementById('projNum').value = p.project_num||'';
+  document.getElementById('projStatus').value = p.status||'פעיל';
+  document.getElementById('projBudget').value = p.total_budget||'';
+  document.getElementById('projStart').value = p.start_date||'';
+  document.getElementById('projEnd').value = p.end_date||'';
+  document.getElementById('projContact').value = p.contact_name||'';
+  document.getElementById('projContactPhone').value = p.contact_phone||'';
+  document.getElementById('projNotes').value = p.notes||'';
+  document.getElementById('projCustomer').value = p.customer_id||'';
+  document.getElementById('projModal').classList.add('open');
+}
+function closeProjModal() { document.getElementById('projModal').classList.remove('open'); }
+async function saveProject() {
+  const body = {
+    customer_id: document.getElementById('projCustomer').value || null,
+    name: document.getElementById('projName').value,
+    project_num: document.getElementById('projNum').value,
+    status: document.getElementById('projStatus').value,
+    total_budget: Number(document.getElementById('projBudget').value)||0,
+    start_date: document.getElementById('projStart').value||null,
+    end_date: document.getElementById('projEnd').value||null,
+    contact_name: document.getElementById('projContact').value,
+    contact_phone: document.getElementById('projContactPhone').value,
+    notes: document.getElementById('projNotes').value,
+  };
+  if (!body.name) return alert('שם פרויקט חובה');
+  const url = editingProjId ? `/api/projects/${editingProjId}` : '/api/projects';
+  const method = editingProjId ? 'PATCH' : 'POST';
+  const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if (!r.ok) return alert('שגיאה בשמירה');
+  closeProjModal();
+  loadProjects();
+}
+
+// ── SITES ─────────────────────────────────────────────────────────
+async function loadSites() {
+  const search = document.getElementById('fSiteSearch').value.toLowerCase();
+  sites = await fetch('/api/sites').then(r=>r.json()).catch(()=>[]);
+  if (search) sites = sites.filter(s=>(s.name||'').toLowerCase().includes(search)||(s.address||'').toLowerCase().includes(search));
+  const tbody = document.getElementById('siteTable');
+  if (!sites.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">אין אתרים</td></tr>'; return; }
+  tbody.innerHTML = sites.map(s=>`<tr>
+    <td><strong>${escH(s.name)}</strong></td>
+    <td style="font-size:12px">${s.customer_name?escH(s.customer_name):''}${s.project_name?'<br><span style="color:var(--text-muted)">'+escH(s.project_name)+'</span>':''}</td>
+    <td style="font-size:12px">${escH(s.address||'—')}</td>
+    <td style="font-size:12px">${s.contact_name?escH(s.contact_name)+(s.contact_phone?' · '+escH(s.contact_phone):''):'—'}</td>
+    <td style="font-size:12px;color:var(--text-dim)">${escH(s.access_notes||'—')}</td>
+    <td><button class="btn btn-sm btn-outline" onclick="editSite(${s.id})">עריכה</button></td>
+  </tr>`).join('');
+}
+
+let editingSiteId = null;
+function openSiteModal() {
+  editingSiteId = null;
+  document.getElementById('siteModalTitle').textContent = '📍 אתר חדש';
+  document.getElementById('siteId').value = '';
+  ['siteName','siteAddress','siteContact','siteContactPhone','siteAccess'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('siteCustomer').value = '';
+  document.getElementById('siteProject').value = '';
+  document.getElementById('siteModal').classList.add('open');
+}
+function editSite(id) {
+  const s = sites.find(x=>x.id===id);
+  if (!s) return;
+  editingSiteId = id;
+  document.getElementById('siteModalTitle').textContent = 'עריכת אתר';
+  document.getElementById('siteId').value = id;
+  document.getElementById('siteName').value = s.name||'';
+  document.getElementById('siteAddress').value = s.address||'';
+  document.getElementById('siteContact').value = s.contact_name||'';
+  document.getElementById('siteContactPhone').value = s.contact_phone||'';
+  document.getElementById('siteAccess').value = s.access_notes||'';
+  document.getElementById('siteCustomer').value = s.customer_id||'';
+  document.getElementById('siteProject').value = s.project_id||'';
+  document.getElementById('siteModal').classList.add('open');
+}
+function closeSiteModal() { document.getElementById('siteModal').classList.remove('open'); }
+async function saveSite() {
+  const body = {
+    name: document.getElementById('siteName').value,
+    address: document.getElementById('siteAddress').value,
+    customer_id: document.getElementById('siteCustomer').value||null,
+    project_id: document.getElementById('siteProject').value||null,
+    contact_name: document.getElementById('siteContact').value,
+    contact_phone: document.getElementById('siteContactPhone').value,
+    access_notes: document.getElementById('siteAccess').value,
+  };
+  if (!body.name) return alert('שם אתר חובה');
+  const url = editingSiteId ? `/api/sites/${editingSiteId}` : '/api/sites';
+  const method = editingSiteId ? 'PATCH' : 'POST';
+  const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if (!r.ok) return alert('שגיאה בשמירה');
+  closeSiteModal();
+  loadSites();
+}
+
+// ── CREDIT ────────────────────────────────────────────────────────
+async function loadCredit() {
+  credit = await fetch('/api/credit').then(r=>r.json()).catch(()=>[]);
+  renderCredit();
+}
+function renderCredit() {
+  const search = document.getElementById('fCreditSearch').value.toLowerCase();
+  let rows = credit;
+  if (search) rows = rows.filter(c=>(c.customer_name||'').toLowerCase().includes(search));
+  const tbody = document.getElementById('creditTable');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">אין נתוני אשראי – בצע הגדרה לכל לקוח</td></tr>'; return; }
+  tbody.innerHTML = rows.map(c=>{
+    const pct = c.credit_limit > 0 ? Math.min(100, Math.round(c.current_debt/c.credit_limit*100)) : 0;
+    const barColor = pct >= 90 ? 'var(--danger)' : pct >= 70 ? 'var(--warning)' : 'var(--success)';
+    return `<tr>
+      <td><strong>${escH(c.customer_name||'—')}</strong></td>
+      <td>${c.credit_limit > 0 ? '₪'+fmt0(c.credit_limit) : '<span style="color:var(--text-muted)">ללא הגבלה</span>'}</td>
+      <td style="font-weight:700;color:${c.current_debt>0?'var(--danger)':'var(--text)'}">${c.current_debt > 0 ? '₪'+fmt0(c.current_debt) : '—'}</td>
+      <td style="min-width:100px">
+        ${c.credit_limit > 0 ? `<div style="font-size:11px;margin-bottom:2px">${pct}%</div><div class="credit-bar"><div class="credit-fill" style="width:${pct}%;background:${barColor}"></div></div>` : '—'}
+      </td>
+      <td>${c.payment_terms||30} ימים</td>
+      <td><span class="badge ${c.blocked ? 'badge-block' : 'badge-ok'}">${c.blocked ? '🔒 חסום' : '✅ פעיל'}</span></td>
+      <td><button class="btn btn-sm btn-outline" onclick="openCreditModal(${c.customer_id})">עריכה</button></td>
+    </tr>`;
+  }).join('');
+}
+
+let editingCreditId = null;
+async function openCreditModal(customerId) {
+  editingCreditId = customerId;
+  const data = await fetch(`/api/credit/${customerId}`).then(r=>r.json()).catch(()=>({}));
+  document.getElementById('creditModalTitle').textContent = '💳 ' + (data.customer_name||'לקוח');
+  document.getElementById('creditCustomerId').value = customerId;
+  document.getElementById('creditName').value = data.customer_name||'';
+  document.getElementById('creditLimit').value = data.credit_limit||0;
+  document.getElementById('creditTerms').value = data.payment_terms||30;
+  document.getElementById('creditBlocked').value = data.blocked ? '1' : '0';
+  document.getElementById('creditBlockReason').value = data.block_reason||'';
+  document.getElementById('creditNotes').value = data.notes||'';
+  document.getElementById('txAmount').value = '';
+  document.getElementById('txDesc').value = '';
+  document.getElementById('creditModal').classList.add('open');
+}
+function closeCreditModal() { document.getElementById('creditModal').classList.remove('open'); }
+async function saveCredit() {
+  const body = {
+    credit_limit: Number(document.getElementById('creditLimit').value)||0,
+    payment_terms: Number(document.getElementById('creditTerms').value)||30,
+    blocked: Number(document.getElementById('creditBlocked').value),
+    block_reason: document.getElementById('creditBlockReason').value,
+    notes: document.getElementById('creditNotes').value,
+  };
+  await fetch(`/api/credit/${editingCreditId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  closeCreditModal();
+  loadCredit();
+}
+async function addTransaction() {
+  const amount = Number(document.getElementById('txAmount').value);
+  const type   = document.getElementById('txType').value;
+  const desc   = document.getElementById('txDesc').value;
+  if (!amount) return alert('נדרש סכום');
+  await fetch(`/api/credit/${editingCreditId}/transaction`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,amount,description:desc})});
+  document.getElementById('txAmount').value = '';
+  document.getElementById('txDesc').value = '';
+  alert('תנועה נרשמה!');
+  loadCredit();
+}
+
+// Also load credit for all customers button
+async function loadAllCredit() {
+  // Trigger credit account creation for all customers
+  const cs = await fetch('/api/customers?q=').then(r=>r.json()).catch(()=>[]);
+  for (const c of cs.slice(0,50)) {
+    await fetch(`/api/credit/${c.id}`).catch(()=>{});
+  }
+  loadCredit();
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+loadCustomersDropdown();
+loadProjects();
+</script>
+</body>
+</html>

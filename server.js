@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const express  = require('express');
 const cors     = require('cors');
 const Database = require('better-sqlite3');
@@ -232,6 +232,180 @@ db.exec(`
     price_list  REAL DEFAULT 0,     -- מחיר מחירון (מזדמן) לק"ג
     price_cust  REAL DEFAULT 0      -- מחיר לקוח קבוע לק"ג
   );
+
+  -- ── RAW MATERIAL INVENTORY ─────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS suppliers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    phone       TEXT,
+    contact     TEXT,
+    email       TEXT,
+    address     TEXT,
+    payment_terms TEXT,
+    notes       TEXT,
+    active      INTEGER DEFAULT 1,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS raw_material (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    material_type   TEXT DEFAULT 'coil',  -- 'coil' | 'straight'
+    diameter        INTEGER NOT NULL,
+    supplier_id     INTEGER,
+    lot_number      TEXT,
+    certificate_num TEXT,
+    grade           TEXT DEFAULT 'B500B', -- steel grade
+    received_date   TEXT,
+    weight_received REAL DEFAULT 0,       -- kg received
+    weight_used     REAL DEFAULT 0,       -- kg consumed so far
+    weight_scrapped REAL DEFAULT 0,       -- kg scrapped/waste
+    purchase_price  REAL DEFAULT 0,       -- ₪/ton
+    warehouse_loc   TEXT,                 -- e.g. "מדף A3"
+    notes           TEXT,
+    active          INTEGER DEFAULT 1,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS raw_material_usage (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    raw_material_id INTEGER,
+    order_id        INTEGER,
+    item_id         INTEGER,
+    weight_used     REAL DEFAULT 0,
+    used_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (raw_material_id) REFERENCES raw_material(id)
+  );
+
+  -- ── AUDIT LOG ──────────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,  -- 'order' | 'item' | 'customer' | 'delivery' etc.
+    entity_id   INTEGER,
+    entity_ref  TEXT,           -- e.g. order_num
+    action      TEXT NOT NULL,  -- 'status_change' | 'create' | 'update' | 'delete'
+    field_name  TEXT,           -- which field changed
+    old_value   TEXT,
+    new_value   TEXT,
+    user_id     INTEGER,
+    user_name   TEXT,
+    notes       TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- ── USERS / ROLES ─────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS users (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    username    TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL,
+    role        TEXT DEFAULT 'operator',  -- 'admin' | 'manager' | 'operator' | 'driver' | 'quality'
+    pin         TEXT,                     -- 4-digit PIN for tablet login
+    phone       TEXT,
+    active      INTEGER DEFAULT 1,
+    last_login  DATETIME,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- ── QUALITY CONTROL ────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS quality_checks (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id       INTEGER,
+    order_id      INTEGER,
+    order_num     TEXT,
+    inspector_id  INTEGER,
+    check_type    TEXT DEFAULT 'length',  -- 'length' | 'angle' | 'visual' | 'full'
+    sample_qty    INTEGER DEFAULT 1,
+    pass_qty      INTEGER DEFAULT 0,
+    fail_qty      INTEGER DEFAULT 0,
+    deviation_mm  REAL DEFAULT 0,
+    deviation_deg REAL DEFAULT 0,
+    result        TEXT DEFAULT 'pass',    -- 'pass' | 'fail' | 'conditional'
+    action_taken  TEXT,                   -- 'accepted' | 'rejected' | 'rework'
+    photo_url     TEXT,
+    notes         TEXT,
+    checked_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (item_id) REFERENCES items(id)
+  );
+
+  -- ── MAINTENANCE ────────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS maintenance_logs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    machine_id    INTEGER,
+    log_type      TEXT DEFAULT 'breakdown',  -- 'breakdown' | 'preventive' | 'repair' | 'inspection'
+    description   TEXT,
+    reported_by   INTEGER,
+    assigned_to   INTEGER,
+    status        TEXT DEFAULT 'פתוחה',  -- 'פתוחה' | 'בטיפול' | 'סגורה'
+    priority      TEXT DEFAULT 'רגיל',   -- 'דחוף' | 'גבוה' | 'רגיל' | 'נמוך'
+    downtime_min  INTEGER DEFAULT 0,      -- minutes machine was down
+    root_cause    TEXT,
+    fix_notes     TEXT,
+    parts_used    TEXT,
+    cost          REAL DEFAULT 0,
+    started_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at   DATETIME,
+    FOREIGN KEY (machine_id) REFERENCES machines(id)
+  );
+
+  -- ── PROJECTS & SITES ──────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS projects (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id   INTEGER,
+    name          TEXT NOT NULL,
+    project_num   TEXT,           -- internal project number
+    status        TEXT DEFAULT 'פעיל',   -- 'פעיל' | 'הושלם' | 'עצור' | 'ביטול'
+    start_date    TEXT,
+    end_date      TEXT,
+    total_budget  REAL DEFAULT 0,
+    contact_name  TEXT,
+    contact_phone TEXT,
+    notes         TEXT,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS sites (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id    INTEGER,
+    customer_id   INTEGER,
+    name          TEXT NOT NULL,
+    address       TEXT,
+    lat           REAL,
+    lng           REAL,
+    contact_name  TEXT,
+    contact_phone TEXT,
+    access_notes  TEXT,
+    active        INTEGER DEFAULT 1,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+  );
+
+  -- ── CREDIT ACCOUNTS ────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS credit_accounts (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id   INTEGER UNIQUE,
+    credit_limit  REAL DEFAULT 0,         -- ₪ max outstanding
+    current_debt  REAL DEFAULT 0,         -- ₪ current open balance
+    payment_terms INTEGER DEFAULT 30,     -- days (net 30, net 60 etc)
+    blocked       INTEGER DEFAULT 0,      -- 1 = blocked from new orders
+    block_reason  TEXT,
+    last_payment  TEXT,
+    notes         TEXT,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS credit_transactions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id   INTEGER,
+    order_id      INTEGER,
+    type          TEXT,   -- 'charge' | 'payment' | 'credit_note'
+    amount        REAL DEFAULT 0,
+    description   TEXT,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+  );
 `);
 
 // ── MIGRATIONS (safe column additions) ────────────────────────────
@@ -277,6 +451,14 @@ addCol('orders',     'portal_order',       'INTEGER DEFAULT 0'); // 1 = placed b
 addCol('orders',     'portal_price',       'REAL DEFAULT 0');   // calculated price in ILS
 addCol('orders',     'confirm_token',      'TEXT');             // one-time approval token
 addCol('customers',  'price_approved_at',  'TEXT');             // last time customer approved the price list
+addCol('orders',     'site_id',            'INTEGER');          // delivery site
+addCol('orders',     'project_id',         'INTEGER');          // project reference
+addCol('orders',     'locked',             'INTEGER DEFAULT 0'); // locked after shipment
+addCol('orders',     'locked_by',          'INTEGER');
+addCol('orders',     'locked_at',          'TEXT');
+addCol('items',      'qc_status',          "TEXT DEFAULT 'לא נבדק'"); // 'לא נבדק'|'עבר'|'נכשל'
+addCol('items',      'batch_id',           'INTEGER');          // raw material batch used
+addCol('items',      'total_weight',       'REAL DEFAULT 0');   // alias for weight column (compat)
 
 // ── SEED PRICE LIST ───────────────────────────────────────────────
 const plCount = db.prepare('SELECT COUNT(*) as c FROM price_list').get().c;
@@ -1780,6 +1962,310 @@ cron.schedule('* * * * *', async () => {
 });
 
 // ── START ─────────────────────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════════
+// NEW MODULES: SUPPLIERS, INVENTORY, AUDIT, USERS, QC, MAINTENANCE,
+// PROJECTS, SITES, CREDIT, WASTE
+// ══════════════════════════════════════════════════════════════════
+
+// ── SUPPLIERS
+app.get('/api/suppliers', (req, res) => {
+  res.json(db.prepare('SELECT * FROM suppliers WHERE active=1 ORDER BY name').all());
+});
+app.post('/api/suppliers', (req, res) => {
+  const { name, phone, contact, email, address, payment_terms, notes } = req.body;
+  if (!name) return res.status(400).json({ error: 'שם ספק חובה' });
+  const r = db.prepare('INSERT INTO suppliers (name,phone,contact,email,address,payment_terms,notes) VALUES (?,?,?,?,?,?,?)')
+    .run(name, phone||null, contact||null, email||null, address||null, payment_terms||null, notes||null);
+  res.json({ id: r.lastInsertRowid });
+});
+app.patch('/api/suppliers/:id', (req, res) => {
+  const f = req.body;
+  db.prepare('UPDATE suppliers SET name=COALESCE(?,name),phone=COALESCE(?,phone),contact=COALESCE(?,contact),email=COALESCE(?,email),address=COALESCE(?,address),payment_terms=COALESCE(?,payment_terms),notes=COALESCE(?,notes),active=COALESCE(?,active) WHERE id=?')
+    .run(f.name||null,f.phone||null,f.contact||null,f.email||null,f.address||null,f.payment_terms||null,f.notes||null,f.active??null,req.params.id);
+  res.json({ success: true });
+});
+
+// ── RAW MATERIAL INVENTORY
+app.get('/api/inventory', (req, res) => {
+  const { diameter, supplier_id } = req.query;
+  let sql = 'SELECT r.*,s.name as supplier_name,ROUND(r.weight_received-r.weight_used-r.weight_scrapped,2) as weight_available FROM raw_material r LEFT JOIN suppliers s ON r.supplier_id=s.id WHERE r.active=1';
+  const params = [];
+  if (diameter)    { sql += ' AND r.diameter=?';    params.push(diameter); }
+  if (supplier_id) { sql += ' AND r.supplier_id=?'; params.push(supplier_id); }
+  sql += ' ORDER BY r.received_date DESC, r.id DESC';
+  res.json(db.prepare(sql).all(...params));
+});
+app.get('/api/inventory/summary', (req, res) => {
+  res.json(db.prepare('SELECT diameter,SUM(weight_received) as total_received,SUM(weight_used) as total_used,SUM(weight_scrapped) as total_scrapped,ROUND(SUM(weight_received-weight_used-weight_scrapped),2) as available,COUNT(*) as batches FROM raw_material WHERE active=1 GROUP BY diameter ORDER BY diameter').all());
+});
+app.post('/api/inventory', (req, res) => {
+  const f = req.body;
+  if (!f.diameter || !f.weight_received) return res.status(400).json({ error: 'קוטר ומשקל חובה' });
+  const r = db.prepare('INSERT INTO raw_material (material_type,diameter,supplier_id,lot_number,certificate_num,grade,received_date,weight_received,purchase_price,warehouse_loc,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(f.material_type||'coil',f.diameter,f.supplier_id||null,f.lot_number||null,f.certificate_num||null,f.grade||'B500B',f.received_date||new Date().toISOString().split('T')[0],f.weight_received,f.purchase_price||0,f.warehouse_loc||null,f.notes||null);
+  res.json({ id: r.lastInsertRowid });
+});
+app.patch('/api/inventory/:id', (req, res) => {
+  const f = req.body;
+  db.prepare('UPDATE raw_material SET weight_used=COALESCE(?,weight_used),weight_scrapped=COALESCE(?,weight_scrapped),warehouse_loc=COALESCE(?,warehouse_loc),notes=COALESCE(?,notes),active=COALESCE(?,active) WHERE id=?')
+    .run(f.weight_used??null,f.weight_scrapped??null,f.warehouse_loc||null,f.notes||null,f.active??null,req.params.id);
+  res.json({ success: true });
+});
+
+// ── AUDIT LOG
+function auditLog(entityType,entityId,entityRef,action,fieldName,oldVal,newVal,notes,userId,userName) {
+  try {
+    db.prepare('INSERT INTO audit_log (entity_type,entity_id,entity_ref,action,field_name,old_value,new_value,notes,user_id,user_name) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(entityType,entityId||null,entityRef||null,action,fieldName||null,oldVal!=null?String(oldVal):null,newVal!=null?String(newVal):null,notes||null,userId||null,userName||null);
+  } catch(e) { console.warn('[Audit]',e.message); }
+}
+app.get('/api/audit-log', (req, res) => {
+  const { entity_type, entity_id, limit=200, offset=0 } = req.query;
+  let sql = 'SELECT * FROM audit_log WHERE 1=1';
+  const params = [];
+  if (entity_type) { sql += ' AND entity_type=?'; params.push(entity_type); }
+  if (entity_id)   { sql += ' AND entity_id=?';   params.push(entity_id); }
+  sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+  params.push(Number(limit),Number(offset));
+  res.json(db.prepare(sql).all(...params));
+});
+
+// Order status with audit
+app.patch('/api/orders/:id/status', (req, res) => {
+  const { status, userId, userName } = req.body;
+  if (!status) return res.status(400).json({ error: 'חסר סטטוס' });
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'לא נמצא' });
+  if (order.locked) return res.status(403).json({ error: 'הזמנה נעולה' });
+  const old = order.status;
+  db.prepare('UPDATE orders SET status=? WHERE id=?').run(status, order.id);
+  auditLog('order',order.id,order.order_num,'status_change','status',old,status,null,userId,userName);
+  wsBroadcast('order_status',{ id:order.id, status, orderNum:order.order_num });
+  if (order.customer_id) {
+    const c = db.prepare('SELECT phone FROM customers WHERE id=?').get(order.customer_id);
+    if (c?.phone) intake.notifyOrderStatus(c.phone,order.order_num,status).catch(()=>{});
+  }
+  res.json({ success: true });
+});
+app.patch('/api/orders/:id/lock', (req, res) => {
+  const { userId, userName } = req.body;
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'לא נמצא' });
+  db.prepare('UPDATE orders SET locked=1,locked_by=?,locked_at=? WHERE id=?').run(userId||null,new Date().toISOString(),order.id);
+  auditLog('order',order.id,order.order_num,'lock','locked','0','1','נעילה לאחר שילוח',userId,userName);
+  res.json({ success: true });
+});
+app.patch('/api/orders/:id/unlock', (req, res) => {
+  const { userId, userName } = req.body;
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'לא נמצא' });
+  db.prepare('UPDATE orders SET locked=0,locked_by=NULL,locked_at=NULL WHERE id=?').run(order.id);
+  auditLog('order',order.id,order.order_num,'unlock','locked','1','0','פתיחת נעילה',userId,userName);
+  res.json({ success: true });
+});
+
+// ── USERS / ROLES
+app.get('/api/users', (req, res) => {
+  res.json(db.prepare('SELECT id,username,display_name,role,phone,active,last_login,created_at FROM users ORDER BY role,display_name').all());
+});
+app.post('/api/users', (req, res) => {
+  const { username, display_name, role, pin, phone } = req.body;
+  if (!username||!display_name) return res.status(400).json({ error: 'שם משתמש ושם תצוגה חובה' });
+  try {
+    const r = db.prepare('INSERT INTO users (username,display_name,role,pin,phone) VALUES (?,?,?,?,?)').run(username,display_name,role||'operator',pin||null,phone||null);
+    res.json({ id: r.lastInsertRowid });
+  } catch(e) {
+    if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'שם משתמש קיים' });
+    throw e;
+  }
+});
+app.patch('/api/users/:id', (req, res) => {
+  const f = req.body;
+  db.prepare('UPDATE users SET display_name=COALESCE(?,display_name),role=COALESCE(?,role),pin=COALESCE(?,pin),phone=COALESCE(?,phone),active=COALESCE(?,active) WHERE id=?')
+    .run(f.display_name||null,f.role||null,f.pin||null,f.phone||null,f.active??null,req.params.id);
+  res.json({ success: true });
+});
+app.post('/api/users/login', (req, res) => {
+  const { pin } = req.body;
+  if (!pin) return res.status(400).json({ error: 'חסר PIN' });
+  const user = db.prepare('SELECT id,username,display_name,role FROM users WHERE pin=? AND active=1').get(pin);
+  if (!user) return res.status(401).json({ error: 'PIN שגוי' });
+  db.prepare('UPDATE users SET last_login=? WHERE id=?').run(new Date().toISOString(),user.id);
+  res.json(user);
+});
+
+// ── QUALITY CONTROL
+app.get('/api/quality', (req, res) => {
+  const { order_id, item_id, result, limit=100 } = req.query;
+  let sql = 'SELECT q.*,u.display_name as inspector_name FROM quality_checks q LEFT JOIN users u ON q.inspector_id=u.id WHERE 1=1';
+  const params = [];
+  if (order_id) { sql+=' AND q.order_id=?'; params.push(order_id); }
+  if (item_id)  { sql+=' AND q.item_id=?';  params.push(item_id); }
+  if (result)   { sql+=' AND q.result=?';   params.push(result); }
+  sql+=' ORDER BY q.checked_at DESC LIMIT ?'; params.push(Number(limit));
+  res.json(db.prepare(sql).all(...params));
+});
+app.post('/api/quality', (req, res) => {
+  const f = req.body;
+  if (!f.item_id) return res.status(400).json({ error: 'item_id חובה' });
+  const r = db.prepare('INSERT INTO quality_checks (item_id,order_id,order_num,inspector_id,check_type,sample_qty,pass_qty,fail_qty,deviation_mm,deviation_deg,result,action_taken,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(f.item_id,f.order_id||null,f.order_num||null,f.inspector_id||null,f.check_type||'length',f.sample_qty||1,f.pass_qty||0,f.fail_qty||0,f.deviation_mm||0,f.deviation_deg||0,f.result||'pass',f.action_taken||null,f.notes||null);
+  db.prepare('UPDATE items SET qc_status=? WHERE id=?').run(f.result==='pass'?'עבר':'נכשל',f.item_id);
+  res.json({ id: r.lastInsertRowid });
+});
+app.get('/api/quality/stats', (req, res) => {
+  res.json({
+    total:   db.prepare('SELECT COUNT(*) as c FROM quality_checks').get().c,
+    passed:  db.prepare("SELECT COUNT(*) as c FROM quality_checks WHERE result='pass'").get().c,
+    failed:  db.prepare("SELECT COUNT(*) as c FROM quality_checks WHERE result='fail'").get().c,
+    byType:  db.prepare('SELECT check_type,COUNT(*) as c,AVG(deviation_mm) as avg_dev FROM quality_checks GROUP BY check_type').all(),
+  });
+});
+
+// ── MAINTENANCE
+app.get('/api/maintenance', (req, res) => {
+  const { machine_id, status, limit=100 } = req.query;
+  let sql = 'SELECT m.*,mc.name as machine_name,mc.label as machine_label,u.display_name as reported_by_name,u2.display_name as assigned_to_name FROM maintenance_logs m LEFT JOIN machines mc ON m.machine_id=mc.id LEFT JOIN users u ON m.reported_by=u.id LEFT JOIN users u2 ON m.assigned_to=u2.id WHERE 1=1';
+  const params = [];
+  if (machine_id) { sql+=' AND m.machine_id=?'; params.push(machine_id); }
+  if (status)     { sql+=' AND m.status=?';     params.push(status); }
+  sql+=' ORDER BY m.started_at DESC LIMIT ?'; params.push(Number(limit));
+  res.json(db.prepare(sql).all(...params));
+});
+app.post('/api/maintenance', (req, res) => {
+  const f = req.body;
+  if (!f.machine_id||!f.description) return res.status(400).json({ error: 'מכונה ותיאור חובה' });
+  if (f.log_type==='breakdown') {
+    db.prepare("UPDATE machines SET status='תקלה' WHERE id=?").run(f.machine_id);
+    wsBroadcast('machine_update',{ machineId:f.machine_id, status:'תקלה' });
+  }
+  const r = db.prepare('INSERT INTO maintenance_logs (machine_id,log_type,description,reported_by,priority,parts_used,cost) VALUES (?,?,?,?,?,?,?)')
+    .run(f.machine_id,f.log_type||'breakdown',f.description,f.reported_by||null,f.priority||'רגיל',f.parts_used||null,f.cost||0);
+  res.json({ id: r.lastInsertRowid });
+});
+app.patch('/api/maintenance/:id', (req, res) => {
+  const f = req.body;
+  const log = db.prepare('SELECT * FROM maintenance_logs WHERE id=?').get(req.params.id);
+  if (!log) return res.status(404).json({ error: 'לא נמצא' });
+  const resolvedAt = f.status==='סגורה' ? new Date().toISOString() : null;
+  db.prepare('UPDATE maintenance_logs SET status=COALESCE(?,status),assigned_to=COALESCE(?,assigned_to),downtime_min=COALESCE(?,downtime_min),root_cause=COALESCE(?,root_cause),fix_notes=COALESCE(?,fix_notes),parts_used=COALESCE(?,parts_used),cost=COALESCE(?,cost),resolved_at=COALESCE(?,resolved_at) WHERE id=?')
+    .run(f.status||null,f.assigned_to||null,f.downtime_min||null,f.root_cause||null,f.fix_notes||null,f.parts_used||null,f.cost||null,resolvedAt,req.params.id);
+  if (f.status==='סגורה'&&log.log_type==='breakdown') db.prepare("UPDATE machines SET status='מחובר' WHERE id=?").run(log.machine_id);
+  res.json({ success: true });
+});
+app.get('/api/maintenance/stats', (req, res) => {
+  res.json({
+    open:        db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE status!='סגורה'").get().c,
+    breakdowns:  db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE log_type='breakdown'").get().c,
+    avgDowntime: db.prepare('SELECT ROUND(AVG(downtime_min),0) as avg FROM maintenance_logs WHERE downtime_min>0').get().avg||0,
+    byMachine:   db.prepare('SELECT mc.label,mc.name,COUNT(*) as events,SUM(m.downtime_min) as total_down FROM maintenance_logs m LEFT JOIN machines mc ON m.machine_id=mc.id GROUP BY m.machine_id ORDER BY total_down DESC').all(),
+  });
+});
+
+// ── PROJECTS & SITES
+app.get('/api/projects', (req, res) => {
+  const { customer_id, status } = req.query;
+  let sql = 'SELECT p.*,c.name as customer_name,COUNT(DISTINCT s.id) as site_count,COUNT(DISTINCT o.id) as order_count FROM projects p LEFT JOIN customers c ON p.customer_id=c.id LEFT JOIN sites s ON s.project_id=p.id LEFT JOIN orders o ON o.project_id=p.id WHERE 1=1';
+  const params = [];
+  if (customer_id) { sql+=' AND p.customer_id=?'; params.push(customer_id); }
+  if (status)      { sql+=' AND p.status=?';      params.push(status); }
+  sql+=' GROUP BY p.id ORDER BY p.created_at DESC';
+  res.json(db.prepare(sql).all(...params));
+});
+app.get('/api/projects/:id', (req, res) => {
+  const p = db.prepare('SELECT p.*,c.name as customer_name FROM projects p LEFT JOIN customers c ON p.customer_id=c.id WHERE p.id=?').get(req.params.id);
+  if (!p) return res.status(404).json({ error: 'לא נמצא' });
+  p.sites  = db.prepare('SELECT * FROM sites WHERE project_id=? ORDER BY name').all(p.id);
+  p.orders = db.prepare('SELECT id,order_num,status,total_weight,created_at FROM orders WHERE project_id=? ORDER BY created_at DESC').all(p.id);
+  res.json(p);
+});
+app.post('/api/projects', (req, res) => {
+  const f = req.body;
+  if (!f.name) return res.status(400).json({ error: 'שם פרויקט חובה' });
+  const r = db.prepare('INSERT INTO projects (customer_id,name,project_num,status,start_date,end_date,total_budget,contact_name,contact_phone,notes) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(f.customer_id||null,f.name,f.project_num||null,f.status||'פעיל',f.start_date||null,f.end_date||null,f.total_budget||0,f.contact_name||null,f.contact_phone||null,f.notes||null);
+  res.json({ id: r.lastInsertRowid });
+});
+app.patch('/api/projects/:id', (req, res) => {
+  const f = req.body;
+  db.prepare('UPDATE projects SET name=COALESCE(?,name),project_num=COALESCE(?,project_num),status=COALESCE(?,status),start_date=COALESCE(?,start_date),end_date=COALESCE(?,end_date),total_budget=COALESCE(?,total_budget),contact_name=COALESCE(?,contact_name),contact_phone=COALESCE(?,contact_phone),notes=COALESCE(?,notes) WHERE id=?')
+    .run(f.name||null,f.project_num||null,f.status||null,f.start_date||null,f.end_date||null,f.total_budget||null,f.contact_name||null,f.contact_phone||null,f.notes||null,req.params.id);
+  res.json({ success: true });
+});
+
+app.get('/api/sites', (req, res) => {
+  const { project_id, customer_id } = req.query;
+  let sql = 'SELECT s.*,p.name as project_name,c.name as customer_name FROM sites s LEFT JOIN projects p ON s.project_id=p.id LEFT JOIN customers c ON s.customer_id=c.id WHERE s.active=1';
+  const params = [];
+  if (project_id)  { sql+=' AND s.project_id=?';  params.push(project_id); }
+  if (customer_id) { sql+=' AND s.customer_id=?'; params.push(customer_id); }
+  sql+=' ORDER BY s.name';
+  res.json(db.prepare(sql).all(...params));
+});
+app.post('/api/sites', (req, res) => {
+  const f = req.body;
+  if (!f.name) return res.status(400).json({ error: 'שם אתר חובה' });
+  const r = db.prepare('INSERT INTO sites (project_id,customer_id,name,address,lat,lng,contact_name,contact_phone,access_notes) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(f.project_id||null,f.customer_id||null,f.name,f.address||null,f.lat||null,f.lng||null,f.contact_name||null,f.contact_phone||null,f.access_notes||null);
+  res.json({ id: r.lastInsertRowid });
+});
+app.patch('/api/sites/:id', (req, res) => {
+  const f = req.body;
+  db.prepare('UPDATE sites SET name=COALESCE(?,name),address=COALESCE(?,address),lat=COALESCE(?,lat),lng=COALESCE(?,lng),contact_name=COALESCE(?,contact_name),contact_phone=COALESCE(?,contact_phone),access_notes=COALESCE(?,access_notes),active=COALESCE(?,active) WHERE id=?')
+    .run(f.name||null,f.address||null,f.lat||null,f.lng||null,f.contact_name||null,f.contact_phone||null,f.access_notes||null,f.active??null,req.params.id);
+  res.json({ success: true });
+});
+
+// ── CREDIT ACCOUNTS
+app.get('/api/credit', (req, res) => {
+  res.json(db.prepare('SELECT ca.*,c.name as customer_name,c.phone as customer_phone FROM credit_accounts ca LEFT JOIN customers c ON ca.customer_id=c.id ORDER BY ca.blocked DESC,ca.current_debt DESC').all());
+});
+app.get('/api/credit/:customerId', (req, res) => {
+  db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id,credit_limit) VALUES (?,0)').run(req.params.customerId);
+  const acc = db.prepare('SELECT ca.*,c.name as customer_name FROM credit_accounts ca LEFT JOIN customers c ON ca.customer_id=c.id WHERE ca.customer_id=?').get(req.params.customerId);
+  acc.transactions = db.prepare('SELECT * FROM credit_transactions WHERE customer_id=? ORDER BY created_at DESC LIMIT 50').all(req.params.customerId);
+  res.json(acc);
+});
+app.patch('/api/credit/:customerId', (req, res) => {
+  const f = req.body;
+  db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id) VALUES (?)').run(req.params.customerId);
+  db.prepare('UPDATE credit_accounts SET credit_limit=COALESCE(?,credit_limit),payment_terms=COALESCE(?,payment_terms),blocked=COALESCE(?,blocked),block_reason=COALESCE(?,block_reason),notes=COALESCE(?,notes),updated_at=CURRENT_TIMESTAMP WHERE customer_id=?')
+    .run(f.credit_limit??null,f.payment_terms||null,f.blocked??null,f.block_reason||null,f.notes||null,req.params.customerId);
+  res.json({ success: true });
+});
+app.post('/api/credit/:customerId/transaction', (req, res) => {
+  const { type, amount, order_id, description } = req.body;
+  if (!type||!amount) return res.status(400).json({ error: 'סוג וסכום חובה' });
+  db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id) VALUES (?)').run(req.params.customerId);
+  const r = db.prepare('INSERT INTO credit_transactions (customer_id,order_id,type,amount,description) VALUES (?,?,?,?,?)').run(req.params.customerId,order_id||null,type,amount,description||null);
+  const delta = (type==='payment'||type==='credit_note') ? -Math.abs(amount) : Math.abs(amount);
+  db.prepare('UPDATE credit_accounts SET current_debt=ROUND(current_debt+?,2),updated_at=CURRENT_TIMESTAMP WHERE customer_id=?').run(delta,req.params.customerId);
+  const acc = db.prepare('SELECT * FROM credit_accounts WHERE customer_id=?').get(req.params.customerId);
+  if (acc&&acc.credit_limit>0&&acc.current_debt>acc.credit_limit) {
+    db.prepare("UPDATE credit_accounts SET blocked=1,block_reason='חריגה ממסגרת אשראי' WHERE customer_id=?").run(req.params.customerId);
+  }
+  res.json({ id: r.lastInsertRowid });
+});
+// Block status from credit endpoint
+app.get('/api/credit/:customerId/status', (req, res) => {
+  const acc = db.prepare('SELECT blocked,block_reason,credit_limit,current_debt FROM credit_accounts WHERE customer_id=?').get(req.params.customerId);
+  res.json(acc || { blocked: 0, credit_limit: 0, current_debt: 0 });
+});
+
+// ── WASTE SUMMARY
+app.get('/api/waste/summary', (req, res) => {
+  const { from, to } = req.query;
+  const fromDate = from || new Date(Date.now()-30*86400000).toISOString().split('T')[0];
+  const toDate   = to   || new Date().toISOString().split('T')[0];
+  res.json({
+    period: { from:fromDate, to:toDate },
+    byDiameter: db.prepare('SELECT i.diameter,SUM(i.quantity) as items_produced,SUM(i.weight) as net_weight,SUM(i.actual_waste) as actual_waste_g,ROUND(AVG(CAST(i.actual_waste AS REAL)/NULLIF(i.total_length_mm,0)*100),2) as waste_pct FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 GROUP BY i.diameter ORDER BY i.diameter').all(fromDate,toDate),
+    topWaste: db.prepare('SELECT o.order_num,i.diameter,i.actual_waste,i.weight,i.shape_name FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 ORDER BY i.actual_waste DESC LIMIT 20').all(fromDate,toDate),
+    rawMaterial: db.prepare('SELECT diameter,SUM(weight_scrapped) as total_scrapped,SUM(weight_received) as total_received,ROUND(100.0*SUM(weight_scrapped)/NULLIF(SUM(weight_received),0),1) as scrap_pct FROM raw_material GROUP BY diameter ORDER BY diameter').all(),
+  });
+});
+
 ai.init(db);
 
 server.listen(PORT, () => {

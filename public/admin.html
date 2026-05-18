@@ -245,6 +245,8 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <button class="tab-btn" onclick="showTab('machines')">🔧 מכונות</button>
         <button class="tab-btn" onclick="showTab('drivers')">🚚 נהגים</button>
         <button class="tab-btn" onclick="showTab('pricelist');loadPriceList()">💰 מחירון</button>
+        <button class="tab-btn" onclick="showTab('users');loadUsers()">👥 משתמשים</button>
+        <button class="tab-btn" onclick="showTab('auditlog');loadAuditLog()">📋 לוג שינויים</button>
       </div>
 
       <!-- TAB: MODULES -->
@@ -481,6 +483,92 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         </div>
       </div>
 
+      <!-- TAB: USERS / ROLES -->
+      <div id="tab-users" class="tab-pane" style="padding:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div>
+            <div style="font-size:16px;font-weight:900">👥 משתמשים ותפקידים</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">כניסה ב-PIN לטאבלט · שליטה בהרשאות</div>
+          </div>
+          <button class="btn btn-primary" onclick="openAddUser()">+ משתמש חדש</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:2px solid var(--border)">
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">שם</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">משתמש</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">תפקיד</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">PIN</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">טלפון</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">פעיל</th>
+            <th style="padding:8px 12px"></th>
+          </tr></thead>
+          <tbody id="usersTableBody"></tbody>
+        </table>
+        <!-- Add/Edit User inline form -->
+        <div id="userFormWrapper" style="display:none;margin-top:16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
+          <div style="font-weight:800;margin-bottom:12px" id="userFormTitle">משתמש חדש</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">שם תצוגה *</label>
+              <input id="uDisplayName" type="text" placeholder="ישראל ישראלי" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif"></div>
+            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">שם משתמש *</label>
+              <input id="uUsername" type="text" placeholder="israel" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif"></div>
+            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">תפקיד</label>
+              <select id="uRole" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif">
+                <option value="admin">מנהל מערכת</option>
+                <option value="manager">מנהל</option>
+                <option value="operator" selected>מפעיל</option>
+                <option value="driver">נהג</option>
+                <option value="quality">בקרת איכות</option>
+              </select></div>
+            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">PIN (4 ספרות)</label>
+              <input id="uPin" type="text" maxlength="4" pattern="[0-9]{4}" placeholder="1234" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif"></div>
+            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">טלפון</label>
+              <input id="uPhone" type="tel" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif"></div>
+          </div>
+          <input type="hidden" id="uId">
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+            <button class="btn btn-outline" onclick="document.getElementById('userFormWrapper').style.display='none'">ביטול</button>
+            <button class="btn btn-primary" onclick="saveUser()">💾 שמור</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: AUDIT LOG -->
+      <div id="tab-auditlog" class="tab-pane" style="padding:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-size:16px;font-weight:900">📋 לוג שינויים (Audit Log)</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">כל שינוי סטטוס, עדכון ופעולה במערכת</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="auditEntityType" onchange="loadAuditLog()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'Heebo',sans-serif">
+              <option value="">כל הסוגים</option>
+              <option value="order">הזמנות</option>
+              <option value="item">פריטים</option>
+              <option value="customer">לקוחות</option>
+              <option value="machine">מכונות</option>
+              <option value="user">משתמשים</option>
+            </select>
+            <button class="btn btn-outline" onclick="loadAuditLog()">רענן</button>
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:2px solid var(--border)">
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">תאריך</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">סוג</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">ישות</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">פעולה</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">לפני</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">אחרי</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">משתמש</th>
+          </tr></thead>
+          <tbody id="auditTableBody"></tbody>
+        </table>
+        <div id="auditLoadMore" style="text-align:center;padding:12px;display:none">
+          <button class="btn btn-outline" onclick="loadAuditLog(true)">טען עוד...</button>
+        </div>
+      </div>
+
     </div><!-- end settings-card -->
   </div>
 
@@ -528,6 +616,15 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
 </div>
 
 <div id="toast"></div>
+
+<!-- ── USERS TAB PANEL ────────────────────────────────────────── -->
+<script id="usersTabHtml" type="text/html">
+<!-- injected below -->
+</script>
+
+<!-- ── AUDIT LOG TAB PANEL ───────────────────────────────────── -->
+<script id="auditTabHtml" type="text/html">
+</script>
 
 <script>
 let savedSettings = {};
@@ -1028,6 +1125,105 @@ async function copyCustomerLink(id, btn) {
 }
 
 // (price list loaded via onclick on the tab button)
+
+// ── USERS ─────────────────────────────────────────────────────────
+let usersData = [];
+const ROLE_LABELS = { admin:'👑 מנהל מערכת', manager:'🏭 מנהל', operator:'🔧 מפעיל', driver:'🚚 נהג', quality:'🔍 איכות' };
+
+async function loadUsers() {
+  usersData = await fetch('/api/users').then(r=>r.json()).catch(()=>[]);
+  const tbody = document.getElementById('usersTableBody');
+  if (!usersData.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">אין משתמשים – הוסף ראשון</td></tr>'; return; }
+  tbody.innerHTML = usersData.map(u=>`<tr style="border-bottom:1px solid var(--border)">
+    <td style="padding:10px 12px;font-weight:700">${escHtml(u.display_name)}</td>
+    <td style="padding:10px 12px;font-size:12px;color:var(--muted)">${escHtml(u.username)}</td>
+    <td style="padding:10px 12px"><span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:rgba(201,98,26,0.1);color:var(--accent)">${ROLE_LABELS[u.role]||u.role}</span></td>
+    <td style="padding:10px 12px;font-family:monospace;letter-spacing:2px">${u.pin ? '••••' : '—'}</td>
+    <td style="padding:10px 12px;font-size:12px">${escHtml(u.phone||'—')}</td>
+    <td style="padding:10px 12px"><span style="color:${u.active?'var(--success)':'var(--muted)'};font-weight:700">${u.active?'✅':'❌'}</span></td>
+    <td style="padding:10px 12px;display:flex;gap:6px">
+      <button onclick="editUser(${u.id})" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;font-family:'Heebo',sans-serif;background:transparent">עריכה</button>
+      <button onclick="toggleUser(${u.id},${u.active?0:1})" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;font-family:'Heebo',sans-serif;background:transparent">${u.active?'השבת':'הפעל'}</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openAddUser() {
+  document.getElementById('userFormTitle').textContent = 'משתמש חדש';
+  document.getElementById('uId').value = '';
+  document.getElementById('uDisplayName').value = '';
+  document.getElementById('uUsername').value = '';
+  document.getElementById('uPin').value = '';
+  document.getElementById('uPhone').value = '';
+  document.getElementById('uRole').value = 'operator';
+  document.getElementById('userFormWrapper').style.display = 'block';
+}
+function editUser(id) {
+  const u = usersData.find(x=>x.id===id);
+  if (!u) return;
+  document.getElementById('userFormTitle').textContent = 'עריכת משתמש';
+  document.getElementById('uId').value = id;
+  document.getElementById('uDisplayName').value = u.display_name||'';
+  document.getElementById('uUsername').value = u.username||'';
+  document.getElementById('uPin').value = '';
+  document.getElementById('uPhone').value = u.phone||'';
+  document.getElementById('uRole').value = u.role||'operator';
+  document.getElementById('userFormWrapper').style.display = 'block';
+}
+async function saveUser() {
+  const id = document.getElementById('uId').value;
+  const body = {
+    username:     document.getElementById('uUsername').value,
+    display_name: document.getElementById('uDisplayName').value,
+    role:         document.getElementById('uRole').value,
+    phone:        document.getElementById('uPhone').value,
+  };
+  const pin = document.getElementById('uPin').value;
+  if (pin) body.pin = pin;
+  if (!body.username || !body.display_name) return alert('שם משתמש ושם תצוגה חובה');
+  const url = id ? `/api/users/${id}` : '/api/users';
+  const method = id ? 'PATCH' : 'POST';
+  const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); return alert(e.error||'שגיאה'); }
+  document.getElementById('userFormWrapper').style.display = 'none';
+  loadUsers();
+  toast('✓ משתמש נשמר');
+}
+async function toggleUser(id, active) {
+  await fetch(`/api/users/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active }) });
+  loadUsers();
+}
+
+// ── AUDIT LOG ─────────────────────────────────────────────────────
+let auditOffset = 0;
+async function loadAuditLog(append) {
+  if (!append) auditOffset = 0;
+  const entityType = document.getElementById('auditEntityType').value;
+  let url = `/api/audit-log?limit=100&offset=${auditOffset}`;
+  if (entityType) url += '&entity_type=' + encodeURIComponent(entityType);
+  const rows = await fetch(url).then(r=>r.json()).catch(()=>[]);
+  const tbody = document.getElementById('auditTableBody');
+  const ACTION_LABELS = { status_change:'שינוי סטטוס', create:'יצירה', update:'עדכון', delete:'מחיקה', lock:'נעילה', unlock:'פתיחת נעילה', qc_check:'בדיקת איכות', maintenance:'תחזוקה' };
+  const renderRow = r => {
+    const dt = r.created_at ? new Date(r.created_at).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;font-size:12px;color:var(--muted)">${dt}</td>
+      <td style="padding:8px 12px;font-size:12px">${escHtml(r.entity_type)}</td>
+      <td style="padding:8px 12px;font-size:12px;font-weight:700">${escHtml(r.entity_ref||r.entity_id||'—')}</td>
+      <td style="padding:8px 12px;font-size:12px">${ACTION_LABELS[r.action]||escHtml(r.action)}</td>
+      <td style="padding:8px 12px;font-size:12px;color:var(--danger)">${escHtml(r.old_value||'—')}</td>
+      <td style="padding:8px 12px;font-size:12px;color:var(--success)">${escHtml(r.new_value||'—')}</td>
+      <td style="padding:8px 12px;font-size:12px;color:var(--muted)">${escHtml(r.user_name||'—')}</td>
+    </tr>`;
+  };
+  if (!append) {
+    tbody.innerHTML = rows.length ? rows.map(renderRow).join('') : '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">אין שינויים רשומים עדיין</td></tr>';
+  } else {
+    tbody.insertAdjacentHTML('beforeend', rows.map(renderRow).join(''));
+  }
+  auditOffset += rows.length;
+  document.getElementById('auditLoadMore').style.display = rows.length === 100 ? 'block' : 'none';
+}
 </script>
 <script src="/help.js"></script>
 </body>

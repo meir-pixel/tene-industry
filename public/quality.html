@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בקרת איכות – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--steel:#f0f4f8;--steel-mid:#ffffff;--steel-light:#e8edf4;--accent:#c9621a;--accent-light:#e07b39;--accent-dim:rgba(201,98,26,0.10);--success:#1a7a42;--success-dim:rgba(26,122,66,0.10);--danger:#b83227;--danger-dim:rgba(184,50,39,0.10);--warning:#a86b00;--warning-dim:rgba(168,107,0,0.10);--info:#1560a8;--info-dim:rgba(21,96,168,0.10);--text:#1a2533;--text-dim:#526070;--text-muted:#8fa0b0;--border:rgba(0,0,0,0.09);--border-bright:rgba(0,0,0,0.15);--radius:14px;--radius-sm:8px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+.topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.08);}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#f0954d);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.nav-links{display:flex;gap:2px;}
+.nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
+.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
+.nav-link.active{background:var(--accent-dim);color:var(--accent);}
+.page{max-width:1300px;margin:0 auto;padding:24px 16px;}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;}
+.kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;}
+.kpi-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+.kpi-val{font-size:26px;font-weight:900;}
+.kpi-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+.card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.card-title{font-size:15px;font-weight:800;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.04);}
+tr:last-child td{border-bottom:none;}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge-pass{background:var(--success-dim);color:var(--success);}
+.badge-fail{background:var(--danger-dim);color:var(--danger);}
+.badge-cond{background:var(--warning-dim);color:var(--warning);}
+.btn{padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-light);}
+.btn-sm{padding:5px 12px;font-size:12px;}
+.btn-outline{background:transparent;border:1px solid var(--border-bright);color:var(--text-dim);}
+.btn-outline:hover{background:rgba(0,0,0,0.04);}
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.filters select,.filters input{padding:8px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:500px;box-shadow:0 16px 50px rgba(0,0,0,0.25);}
+.modal h2{font-size:18px;font-weight:900;margin-bottom:20px;}
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:6px;}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.form-row input:focus,.form-row select:focus{outline:none;border-color:var(--accent);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+/* pass rate bar */
+.rate-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:6px;}
+.rate-fill{height:100%;border-radius:4px;}
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <div class="logo"><div class="logo-icon">🔩</div>IronBend</div>
+  <div class="nav-links">
+    <a href="dashboard.html" class="nav-link">דשבורד</a>
+    <a href="orders.html" class="nav-link">הזמנות</a>
+    <a href="inventory.html" class="nav-link">מלאי</a>
+    <a href="machine.html" class="nav-link">מכונות</a>
+    <a href="maintenance.html" class="nav-link">תחזוקה</a>
+    <a href="quality.html" class="nav-link active">איכות</a>
+    <a href="driver.html" class="nav-link">שינוע</a>
+    <a href="reports.html" class="nav-link">דוחות</a>
+    <a href="admin.html" class="nav-link">ניהול</a>
+  </div>
+</nav>
+<div class="page">
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">סה"כ בדיקות</div>
+      <div class="kpi-val" id="kpiTotal">—</div>
+      <div class="kpi-sub">מאז תחילה</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">עברו ✅</div>
+      <div class="kpi-val" style="color:var(--success)" id="kpiPass">—</div>
+      <div class="kpi-sub">בדיקות עובר</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">נכשלו ❌</div>
+      <div class="kpi-val" style="color:var(--danger)" id="kpiFail">—</div>
+      <div class="kpi-sub">בדיקות נכשל</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">אחוז עובר</div>
+      <div class="kpi-val" id="kpiRate">—</div>
+      <div class="kpi-sub">pass rate</div>
+      <div class="rate-bar"><div class="rate-fill" id="rateBar" style="background:var(--success);width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">🔍 יומן בקרת איכות</span>
+      <div class="filters">
+        <select id="fResult" onchange="loadChecks()">
+          <option value="">כל התוצאות</option>
+          <option value="pass">עבר ✅</option>
+          <option value="fail">נכשל ❌</option>
+          <option value="conditional">מותנה ⚠️</option>
+        </select>
+        <input type="text" id="fOrder" placeholder="מס' הזמנה..." style="width:160px" oninput="loadChecks()">
+        <button class="btn btn-primary btn-sm" onclick="openQCModal()">+ בדיקת איכות</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>הזמנה</th><th>פריט</th><th>סוג בדיקה</th><th>תוצאה</th><th>דגימה</th>
+        <th>סטייה אורך (מ"מ)</th><th>סטייה זווית (°)</th><th>פעולה</th><th>בודק</th><th>תאריך</th>
+      </tr></thead>
+      <tbody id="qcTable">טוען...</tbody>
+    </table>
+  </div>
+</div>
+
+<!-- QC MODAL -->
+<div class="modal-overlay" id="qcModal">
+  <div class="modal">
+    <h2>🔍 רישום בדיקת איכות</h2>
+    <div class="form-grid">
+      <div class="form-row"><label>מס' הזמנה</label><input id="qOrderNum" type="text" placeholder="HZ-2026-001"></div>
+      <div class="form-row"><label>מזהה פריט (item_id)</label><input id="qItemId" type="number" min="1" placeholder="123"></div>
+      <div class="form-row"><label>סוג בדיקה</label>
+        <select id="qType">
+          <option value="length">אורך</option>
+          <option value="angle">זווית</option>
+          <option value="visual">ויזואלי</option>
+          <option value="full">בדיקה מלאה</option>
+        </select>
+      </div>
+      <div class="form-row"><label>גודל דגימה</label><input id="qSample" type="number" min="1" value="5"></div>
+      <div class="form-row"><label>עברו בדיקה</label><input id="qPass" type="number" min="0" value="5"></div>
+      <div class="form-row"><label>נכשלו</label><input id="qFail" type="number" min="0" value="0"></div>
+      <div class="form-row"><label>סטייה אורך (מ"מ)</label><input id="qDevMm" type="number" step="0.1" value="0"></div>
+      <div class="form-row"><label>סטייה זווית (°)</label><input id="qDevDeg" type="number" step="0.5" value="0"></div>
+    </div>
+    <div class="form-row"><label>תוצאה</label>
+      <select id="qResult">
+        <option value="pass">✅ עבר</option>
+        <option value="fail">❌ נכשל</option>
+        <option value="conditional">⚠️ מותנה</option>
+      </select>
+    </div>
+    <div class="form-row"><label>פעולה שננקטה</label>
+      <select id="qAction">
+        <option value="accepted">התקבל</option>
+        <option value="rejected">נדחה</option>
+        <option value="rework">חזרה לייצור</option>
+      </select>
+    </div>
+    <div class="form-row"><label>הערות</label><textarea id="qNotes" rows="2"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeQCModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveQC()">שמור בדיקה</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let checks = [];
+const RESULT_CLS = { pass:'badge-pass', fail:'badge-fail', conditional:'badge-cond' };
+const RESULT_LBL = { pass:'✅ עבר', fail:'❌ נכשל', conditional:'⚠️ מותנה' };
+const TYPE_LBL   = { length:'אורך', angle:'זווית', visual:'ויזואלי', full:'מלאה' };
+function dtStr(s){ return s ? new Date(s).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadStats() {
+  const s = await fetch('/api/quality/stats').then(r=>r.json()).catch(()=>({}));
+  document.getElementById('kpiTotal').textContent = s.total||0;
+  document.getElementById('kpiPass').textContent  = s.passed||0;
+  document.getElementById('kpiFail').textContent  = s.failed||0;
+  const rate = s.total > 0 ? Math.round((s.passed||0)/s.total*100) : 0;
+  document.getElementById('kpiRate').textContent  = rate + '%';
+  document.getElementById('rateBar').style.width  = rate + '%';
+  document.getElementById('rateBar').style.background = rate >= 90 ? 'var(--success)' : rate >= 70 ? 'var(--warning)' : 'var(--danger)';
+}
+
+async function loadChecks() {
+  const result = document.getElementById('fResult').value;
+  const order  = document.getElementById('fOrder').value.trim();
+  let url = '/api/quality?limit=200';
+  if (result) url += '&result=' + encodeURIComponent(result);
+  checks = await fetch(url).then(r=>r.json()).catch(()=>[]);
+  if (order) checks = checks.filter(c=>(c.order_num||'').toLowerCase().includes(order.toLowerCase()));
+  const tbody = document.getElementById('qcTable');
+  if (!checks.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted)">אין בדיקות איכות</td></tr>'; return; }
+  tbody.innerHTML = checks.map(c=>`<tr>
+    <td>${escH(c.order_num||'—')}</td>
+    <td style="color:var(--text-dim)">#${c.item_id}</td>
+    <td>${TYPE_LBL[c.check_type]||c.check_type}</td>
+    <td><span class="badge ${RESULT_CLS[c.result]||''}">${RESULT_LBL[c.result]||c.result}</span></td>
+    <td>${c.sample_qty||0} / <span style="color:var(--success)">${c.pass_qty||0}</span> / <span style="color:var(--danger)">${c.fail_qty||0}</span></td>
+    <td>${(c.deviation_mm||0) !== 0 ? '<span style="color:var(--warning)">' + c.deviation_mm + '</span>' : '—'}</td>
+    <td>${(c.deviation_deg||0) !== 0 ? '<span style="color:var(--warning)">' + c.deviation_deg + '</span>' : '—'}</td>
+    <td style="font-size:12px">${escH(c.action_taken||'—')}</td>
+    <td style="font-size:12px">${escH(c.inspector_name||'—')}</td>
+    <td style="font-size:12px">${dtStr(c.checked_at)}</td>
+  </tr>`).join('');
+}
+
+function openQCModal() {
+  ['qOrderNum','qNotes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('qItemId').value='';
+  document.getElementById('qSample').value='5';
+  document.getElementById('qPass').value='5';
+  document.getElementById('qFail').value='0';
+  document.getElementById('qDevMm').value='0';
+  document.getElementById('qDevDeg').value='0';
+  document.getElementById('qResult').value='pass';
+  document.getElementById('qAction').value='accepted';
+  document.getElementById('qModal').classList.add('open');
+}
+function closeQCModal() { document.getElementById('qcModal').classList.remove('open'); }
+
+async function saveQC() {
+  const body = {
+    item_id:      Number(document.getElementById('qItemId').value),
+    order_num:    document.getElementById('qOrderNum').value,
+    check_type:   document.getElementById('qType').value,
+    sample_qty:   Number(document.getElementById('qSample').value),
+    pass_qty:     Number(document.getElementById('qPass').value),
+    fail_qty:     Number(document.getElementById('qFail').value),
+    deviation_mm: Number(document.getElementById('qDevMm').value),
+    deviation_deg:Number(document.getElementById('qDevDeg').value),
+    result:       document.getElementById('qResult').value,
+    action_taken: document.getElementById('qAction').value,
+    notes:        document.getElementById('qNotes').value,
+  };
+  if (!body.item_id) return alert('נדרש מזהה פריט (item_id)');
+  const r = await fetch('/api/quality', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) return alert('שגיאה בשמירה');
+  closeQCModal();
+  loadStats();
+  loadChecks();
+}
+
+// fix modal ID typo
+document.getElementById('qcModal').id = 'qcModal';
+function openQCModal() {
+  document.getElementById('qcModal').classList.add('open');
+}
+function closeQCModal() { document.getElementById('qcModal').classList.remove('open'); }
+
+loadStats();
+loadChecks();
+</script>
+</body>
+</html>
