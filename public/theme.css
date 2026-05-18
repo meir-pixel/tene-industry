@@ -32,6 +32,12 @@
 html { background: #f0f4f8 !important; }
 body { background: #f0f4f8 !important; color: #1a2533 !important; }
 
+/* ── Prevent bottom-nav layout shift ──────────────────── */
+/* nav.js injects #bottom-nav after page load — pre-reserve space so content doesn't jump */
+@media (max-width: 768px) {
+  body { padding-bottom: 64px !important; }
+}
+
 /* ── Topnav ────────────────────────────────────────────── */
 .topnav, nav.topnav {
   background: #ffffff !important;
