@@ -1249,6 +1249,19 @@ app.get('/api/intake/log', (req, res) => {
   res.json(db.prepare('SELECT * FROM intake_log ORDER BY created_at DESC LIMIT 50').all());
 });
 
+// ── INTAKE – Parse text manually (WhatsApp / Email paste) ──────────
+app.post('/api/intake/parse-text', (req, res) => {
+  const { text, source } = req.body;
+  if (!text) return res.status(400).json({ error: 'text required' });
+  const parsed = source === 'whatsapp'
+    ? intake.parseWhatsAppMessage(text)
+    : intake.parseOCRText(text);
+  parsed.source = source || 'manual';
+  db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
+    .run(source || 'manual', text.slice(0, 2000), JSON.stringify(parsed), 'pending');
+  res.json({ success: true, parsed });
+});
+
 // ── AI PREDICTION ─────────────────────────────────────────────────
 app.post('/api/ai/predict', (req, res) => {
   const { items } = req.body;

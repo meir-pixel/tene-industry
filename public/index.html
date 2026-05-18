@@ -16,34 +16,32 @@
 <script src="/nav.js" defer></script>
 <style>
   :root {
-    --steel: #1a2332;
-    --steel-mid: #243447;
-    --steel-light: #2e4060;
-    --iron: #3d5a80;
-    --accent: #e07b39;
-    --accent-light: #f0954d;
-    --success: #2ecc71;
-    --danger: #e74c3c;
-    --warning: #f39c12;
-    --text: #e8edf3;
-    --text-dim: #8fa3b8;
-    --border: rgba(255,255,255,0.08);
-    --card: rgba(255,255,255,0.04);
-    --card-hover: rgba(255,255,255,0.07);
+    --steel: #f0f4f8;
+    --steel-mid: #ffffff;
+    --steel-light: #e8edf4;
+    --iron: #d0dcea;
+    --accent: #c9621a;
+    --accent-light: #e07b39;
+    --success: #1a7a42;
+    --danger: #b83227;
+    --warning: #a86b00;
+    --text: #1a2533;
+    --text-dim: #526070;
+    --border: rgba(0,0,0,0.09);
+    --card: rgba(0,0,0,0.02);
+    --card-hover: rgba(0,0,0,0.04);
     --radius: 12px;
-    --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
     font-family: 'Heebo', sans-serif;
-    background: var(--steel);
+    background: #f0f4f8;
     color: var(--text);
     min-height: 100vh;
-    background-image: 
-      radial-gradient(ellipse at 20% 50%, rgba(61,90,128,0.15) 0%, transparent 60%),
-      radial-gradient(ellipse at 80% 20%, rgba(224,123,57,0.08) 0%, transparent 50%);
+    
   }
 
   /* HEADER */
@@ -58,7 +56,7 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+    box-shadow: 0 1px 8px rgba(0,0,0,0.08);
   }
   .logo {
     display: flex;
@@ -290,6 +288,16 @@
   .channel-btn:hover { border-color: var(--accent); color: var(--text); }
   .channel-btn.active { background: rgba(224,123,57,0.15); border-color: var(--accent); color: var(--accent); }
 
+  /* CHANNEL PANELS */
+  .channel-panel {
+    background: var(--steel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
   /* PRIORITY SELECTOR */
   .priority-selector { display: flex; gap: 8px; }
   .priority-btn {
@@ -318,7 +326,7 @@
     overflow: hidden;
     transition: border-color 0.2s;
   }
-  .pallet-card:hover { border-color: rgba(255,255,255,0.15); }
+  .pallet-card:hover { border-color: rgba(0,0,0,0.11); }
   .pallet-header {
     padding: 14px 20px;
     display: flex;
@@ -402,7 +410,7 @@
     width: 100%;
     padding: 10px;
     background: transparent;
-    border: 1px dashed rgba(255,255,255,0.15);
+    border: 1px dashed rgba(0,0,0,0.11);
     border-radius: 8px;
     color: var(--text-dim);
     cursor: pointer;
@@ -430,7 +438,7 @@
     width: 100%;
     padding: 14px;
     background: transparent;
-    border: 2px dashed rgba(255,255,255,0.1);
+    border: 2px dashed rgba(0,0,0,0.07);
     border-radius: var(--radius);
     color: var(--text-dim);
     cursor: pointer;
@@ -703,7 +711,7 @@
   <!-- SECTION 1: CUSTOMER -->
   <div class="section" id="customer-section">
     <div class="section-header">
-      <div class="section-icon" style="background:rgba(61,90,128,0.3)">👤</div>
+      <div class="section-icon" style="background:rgba(21,96,168,0.12)">👤</div>
       <div>
         <div class="section-title">פרטי לקוח</div>
         <div class="section-subtitle">חפש לקוח קיים או הוסף חדש</div>
@@ -721,6 +729,31 @@
           </div>
           <input type="hidden" id="orderChannel" value="טלפון">
         </div>
+      </div>
+
+      <!-- ══ CHANNEL PANELS ══ -->
+      <div id="channel-panel-whatsapp" class="channel-panel" style="display:none;margin-bottom:16px">
+        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">💬 הדבק הודעת WhatsApp</label>
+        <textarea id="waText" rows="5" placeholder="הדבק כאן את הודעת הוואטסאפ מהלקוח..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--steel-mid);color:var(--text);font-family:inherit;font-size:14px;resize:vertical"></textarea>
+        <button type="button" onclick="parseChannelText('whatsapp')" style="margin-top:8px;padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">🔍 פרסר הודעה ← מלא טופס אוטומטית</button>
+        <div id="parseResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
+      </div>
+      <div id="channel-panel-email" class="channel-panel" style="display:none;margin-bottom:16px">
+        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📧 הדבק תוכן המייל</label>
+        <textarea id="emailText" rows="5" placeholder="הדבק כאן את תוכן המייל מהלקוח..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--steel-mid);color:var(--text);font-family:inherit;font-size:14px;resize:vertical"></textarea>
+        <button type="button" onclick="parseChannelText('email')" style="margin-top:8px;padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">🔍 פרסר מייל ← מלא טופס אוטומטית</button>
+        <div id="emailParseResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
+      </div>
+      <div id="channel-panel-image" class="channel-panel" style="display:none;margin-bottom:16px">
+        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📷 העלה תמונה / PDF של הזמנה</label>
+        <div style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;background:var(--steel)">
+          <input type="file" id="ocrFile" accept="image/*,.pdf" style="display:none" onchange="ocrFileSelected(this)">
+          <div style="color:var(--text-dim);margin-bottom:10px">גרור תמונה לכאן או</div>
+          <button type="button" onclick="document.getElementById('ocrFile').click()" style="padding:8px 18px;background:var(--steel-mid);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">📁 בחר קובץ</button>
+          <div id="ocrFileName" style="margin-top:8px;font-size:13px;color:var(--text-dim)"></div>
+        </div>
+        <button type="button" id="ocrRunBtn" onclick="runOCR()" style="margin-top:10px;padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit;display:none">📷 סרוק OCR ← מלא טופס אוטומטית</button>
+        <div id="ocrResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
       </div>
 
       <div class="form-grid form-grid-2">
@@ -754,7 +787,7 @@
   <!-- SECTION 2: DELIVERY -->
   <div class="section" id="delivery-section">
     <div class="section-header">
-      <div class="section-icon" style="background:rgba(224,123,57,0.2)">🚚</div>
+      <div class="section-icon" style="background:rgba(201,98,26,0.12)">🚚</div>
       <div>
         <div class="section-title">פרטי אספקה</div>
         <div class="section-subtitle">מתי ולאן מספקים?</div>
@@ -903,10 +936,86 @@ function updateDateTime() {
 }
 
 // ── CHANNEL ──────────────────────────────────────────────
+const CHANNEL_MAP = { 'וואטסאפ': 'whatsapp', 'מייל': 'email', 'תמונה': 'image' };
+
 function setChannel(btn, value) {
   document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('orderChannel').value = value;
+  // Hide all panels
+  document.querySelectorAll('.channel-panel').forEach(p => p.style.display = 'none');
+  // Show relevant panel
+  const panelKey = CHANNEL_MAP[value];
+  if (panelKey) document.getElementById('channel-panel-' + panelKey).style.display = 'block';
+}
+
+async function parseChannelText(source) {
+  const textEl = source === 'whatsapp' ? document.getElementById('waText') : document.getElementById('emailText');
+  const resultEl = source === 'whatsapp' ? document.getElementById('parseResult') : document.getElementById('emailParseResult');
+  const text = textEl.value.trim();
+  if (!text) { resultEl.textContent = '⚠️ הדבק טקסט תחילה'; resultEl.style.color = 'var(--warning)'; return; }
+  resultEl.textContent = '⏳ מנתח...';
+  try {
+    const r = await fetch('/api/intake/parse-text', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ text, source })
+    });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error || 'שגיאה');
+    const p = data.parsed;
+    // Auto-fill customer fields
+    if (p.customerName) { document.getElementById('customerSearch').value = p.customerName; }
+    if (p.phone) { document.getElementById('customerPhone').value = p.phone; }
+    if (p.deliveryAddress) { document.getElementById('deliveryAddress').value = p.deliveryAddress; }
+    if (p.deliveryDate) { document.getElementById('deliveryDate').value = p.deliveryDate; }
+    // Auto-fill items if parsed
+    if (p.items && p.items.length > 0) {
+      p.items.forEach(item => {
+        addItem();
+        const rows = document.querySelectorAll('.item-row');
+        const last = rows[rows.length - 1];
+        if (item.shape) { const sel = last.querySelector('.item-shape'); if (sel) sel.value = item.shape; }
+        if (item.diameter) { const inp = last.querySelector('.item-diameter'); if (inp) inp.value = item.diameter; }
+        if (item.quantity) { const inp = last.querySelector('.item-qty'); if (inp) inp.value = item.quantity; }
+        if (item.length) { const inp = last.querySelector('.item-length'); if (inp) inp.value = item.length; }
+      });
+    }
+    resultEl.style.color = 'var(--success)';
+    resultEl.textContent = '✅ הטופס מולא אוטומטית! בדוק ועדכן לפי הצורך.';
+  } catch(e) {
+    resultEl.style.color = 'var(--danger)';
+    resultEl.textContent = '❌ ' + e.message;
+  }
+}
+
+function ocrFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('ocrFileName').textContent = '📎 ' + file.name;
+  document.getElementById('ocrRunBtn').style.display = 'inline-block';
+}
+
+async function runOCR() {
+  const fileInput = document.getElementById('ocrFile');
+  const resultEl = document.getElementById('ocrResult');
+  if (!fileInput.files[0]) { resultEl.textContent = '⚠️ בחר קובץ תחילה'; return; }
+  resultEl.textContent = '⏳ סורק...';
+  const formData = new FormData();
+  formData.append('image', fileInput.files[0]);
+  try {
+    const r = await fetch('/api/intake/image', { method: 'POST', body: formData });
+    const data = await r.json();
+    if (!data.success) throw new Error(data.error || 'שגיאה בסריקה');
+    const p = data.parsed || {};
+    if (p.customerName) document.getElementById('customerSearch').value = p.customerName;
+    if (p.phone) document.getElementById('customerPhone').value = p.phone;
+    if (p.deliveryAddress) document.getElementById('deliveryAddress').value = p.deliveryAddress;
+    resultEl.style.color = 'var(--success)';
+    resultEl.textContent = '✅ סריקה הושלמה! בדוק את הנתונים שמולאו.';
+  } catch(e) {
+    resultEl.style.color = 'var(--danger)';
+    resultEl.textContent = '❌ ' + e.message;
+  }
 }
 
 // ── PRIORITY ──────────────────────────────────────────────
@@ -1292,6 +1401,7 @@ function showToast(msg, isOffline = false) {
 <script src="/help.js"></script>
 </body>
 </html>
+
 
 
 
