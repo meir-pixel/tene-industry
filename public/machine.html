@@ -182,14 +182,65 @@
       </div>
       <div class="card">
         <div class="card-title">פעולות</div>
-        <div id="actionButtons">
+        <div id="actionButtons" style="display:flex;flex-direction:column;gap:8px">
           <button class="action-btn assign" onclick="loadQueue()">📋 בחר עבודה מהתור</button>
+          <button class="action-btn" onclick="showManualForm()"
+            style="background:rgba(46,204,113,0.15);border:1px solid rgba(46,204,113,0.4);color:#27ae60">
+            ✍️ הכנס עבודה ידנית
+          </button>
         </div>
         <div class="complete-form" id="completeForm">
           <div style="font-size:12px;color:var(--text-dim)">כמות פסולת (אופציונלי):</div>
           <input class="waste-input" type="number" id="wasteQty" placeholder="0" min="0">
           <button class="action-btn finish" onclick="completeJob()">✅ סיים עבודה</button>
           <button class="action-btn cancel" onclick="cancelComplete()">ביטול</button>
+        </div>
+        <!-- MANUAL WORK FORM -->
+        <div id="manualForm" style="display:none;flex-direction:column;gap:10px;margin-top:8px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:var(--accent)">✍️ עבודה ידנית</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">קוטר (מ"מ)</div>
+              <select id="manDiameter" style="width:100%;padding:8px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Heebo',sans-serif;font-size:14px">
+                <option>6</option><option>8</option><option>10</option>
+                <option selected>12</option><option>14</option><option>16</option>
+                <option>18</option><option>20</option><option>22</option>
+                <option>25</option><option>28</option><option>32</option>
+              </select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">כמות יח'</div>
+              <input type="text" inputmode="numeric" id="manQty" value="1"
+                style="width:100%;padding:8px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Heebo',sans-serif;font-size:14px;text-align:center"
+                onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">צורה</div>
+            <select id="manShape" style="width:100%;padding:8px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Heebo',sans-serif;font-size:14px">
+              <option value="straight">➖ ישר</option>
+              <option value="L">⌐ L – זווית</option>
+              <option value="U">∪ U – אנקר</option>
+              <option value="Z">Z – הזזה</option>
+              <option value="rect">□ מלבן – אצבה</option>
+              <option value="custom">✏️ אחר</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">פרימטר / אורך (מ"מ)</div>
+            <input type="text" inputmode="numeric" id="manLength" placeholder="1200"
+              style="width:100%;padding:8px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Heebo',sans-serif;font-size:14px"
+              onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">הערה (אופציונלי)</div>
+            <input type="text" id="manNote" placeholder="שם לקוח / פרויקט..."
+              style="width:100%;padding:8px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Heebo',sans-serif;font-size:14px">
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="action-btn start" style="flex:1" onclick="startManualWork()">▶ התחל עבודה</button>
+            <button class="action-btn cancel" style="flex:0 0 80px" onclick="hideManualForm()">ביטול</button>
+          </div>
         </div>
       </div>
       <div class="card" id="queueCard" style="display:none">
@@ -288,6 +339,49 @@ function showCompleteForm() {
 function cancelComplete() {
   document.getElementById('actionButtons').style.display='';
   document.getElementById('completeForm').classList.remove('show');
+}
+
+// ── MANUAL WORK ───────────────────────────────────────────
+function showManualForm() {
+  document.getElementById('manualForm').style.display = 'flex';
+  document.getElementById('actionButtons').style.display = 'none';
+  document.getElementById('manLength').focus();
+}
+
+function hideManualForm() {
+  document.getElementById('manualForm').style.display = 'none';
+  document.getElementById('actionButtons').style.display = '';
+}
+
+async function startManualWork() {
+  if (!selectedMachineId) { alert('בחר מכונה תחילה'); return; }
+  const diameter = parseInt(document.getElementById('manDiameter').value);
+  const qty      = parseInt(document.getElementById('manQty').value) || 1;
+  const length   = parseInt(document.getElementById('manLength').value) || 0;
+  const shape    = document.getElementById('manShape').value;
+  const note     = document.getElementById('manNote').value.trim();
+
+  if (!length) { alert('יש להזין אורך / פרימטר'); return; }
+
+  // Create a manual order → pallet → item, then assign to machine
+  try {
+    const r = await fetch('/api/orders/manual', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        machineId: selectedMachineId,
+        diameter, qty, totalLengthMm: length,
+        shape, note,
+      })
+    });
+    const d = await r.json();
+    if (!d.success) { alert(d.error || 'שגיאה'); return; }
+    hideManualForm();
+    await fetchMachines();
+    showToast(`✅ עבודה ידנית הוקצתה למכונה`);
+  } catch(e) {
+    alert('שגיאת שרת: ' + e.message);
+  }
 }
 
 async function completeJob() {

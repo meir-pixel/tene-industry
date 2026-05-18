@@ -418,6 +418,45 @@ app.get('/api/orders/:id', (req, res) => {
   res.json(order);
 });
 
+// ── MANUAL WORK (from machine station, no order needed) ───────────
+app.post('/api/orders/manual', (req, res) => {
+  const { machineId, diameter, qty, totalLengthMm, shape, note } = req.body;
+  if (!machineId || !diameter || !qty || !totalLengthMm) {
+    return res.status(400).json({ error: 'חסרים פרמטרים' });
+  }
+  const orderNum = 'MAN-' + Date.now().toString(36).toUpperCase();
+  const weightKgPerM = { 6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,20:2.47,22:2.98,25:3.85,28:4.83,32:6.31 };
+  const kgPerM = weightKgPerM[diameter] ?? (diameter*diameter*0.00617);
+  const totalWeight = (totalLengthMm / 1000) * kgPerM * qty;
+
+  const orderRow = db.prepare(
+    `INSERT INTO orders (order_num,channel,delivery_date,delivery_address,priority,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)
+     VALUES (?,?,date('now'),?,?,?,?,3,?,?)`
+  ).run(orderNum,'ידני','מפעל',note||'עבודה ידנית','רגיל',totalWeight,totalWeight*1.03,null);
+
+  const orderId = orderRow.lastInsertRowid;
+  const palletRow = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight,total_weight) VALUES (?,1,9999,?)').run(orderId, totalWeight);
+  const palletId = palletRow.lastInsertRowid;
+
+  const segments = JSON.stringify([{ length_mm: totalLengthMm, angle_deg: 0 }]);
+  const itemRow = db.prepare(
+    `INSERT INTO items (pallet_id,order_id,shape_id,shape_name,diameter,quantity,production_qty,segments,total_length_mm,weight_per_unit,status,machine_id)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+  ).run(palletId, orderId, shape||'straight', shape||'ישר', diameter, qty, qty, segments, totalLengthMm, totalWeight/qty, 'בייצור', machineId);
+
+  const itemId = itemRow.lastInsertRowid;
+  db.prepare('UPDATE machines SET current_item_id=?,current_order_num=?,status=? WHERE id=?')
+    .run(itemId, orderNum, 'בייצור', machineId);
+  db.prepare('UPDATE items SET started_at=? WHERE id=?').run(new Date().toISOString(), itemId);
+
+  const machineState = modbus.getState(machineId);
+  if (machineState) {
+    modbus.writeParams(machineId, { diameter, totalLengthMm, productionQty: qty, angles: [] }).catch(()=>{});
+  }
+  wsBroadcast('machine_assign', { machineId: Number(machineId), itemId, orderNum });
+  res.json({ success: true, orderNum, itemId });
+});
+
 app.post('/api/orders', (req, res) => {
   const { customer, order, pallets } = req.body;
 
