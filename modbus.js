@@ -22,13 +22,15 @@ const STATUS_MAP = { 0: 'כבוי', 1: 'ממתין', 2: 'בייצור', 3: 'תק
 const CONNECT_RETRY_MS = 10000;
 
 class ModbusService {
-  constructor() {
+  constructor(db) {
+    this.db        = db;   // SQLite db reference for reading live config
     this.clients   = {};   // machineId → ModbusRTU client
     this.state     = {};   // machineId → { counter, status, connected, lastSeen, ... }
     this.listeners = [];
     this.polling   = false;
     this._retryTimers = {};
 
+    // Init state from hardcoded defaults; DB will override at startPolling
     for (const m of MACHINES_CONFIG) {
       this.state[m.id] = {
         id: m.id, label: m.label, name: m.name,
@@ -36,6 +38,42 @@ class ModbusService {
         connected: false, lastSeen: null, errorCode: 0,
       };
     }
+  }
+
+  // ── Read machine config from DB, fall back to hardcoded defaults ──
+  _getConfigs() {
+    if (!this.db) return MACHINES_CONFIG;
+    try {
+      const rows = this.db.prepare('SELECT * FROM machines ORDER BY id').all();
+      return rows.map(row => ({
+        id:         row.id,
+        label:      row.label || String(row.id),
+        name:       row.name,
+        type:       'xinje',
+        mode:       row.conn_mode || 'tcp',
+        host:       row.tcp_host  || `192.168.1.${100 + row.id}`,
+        port:       row.tcp_port  || 502,
+        serialPort: row.rtu_port  || `COM${2 + row.id}`,
+        baudRate:   row.baud_rate || 9600,
+        unitId:     row.slave_id  || row.id,
+      }));
+    } catch { return MACHINES_CONFIG; }
+  }
+
+  // ── Reconnect a single machine after config change ────────────────
+  async reconfigMachine(machineId) {
+    const id = Number(machineId);
+    // Close existing connection
+    try { if (this.clients[id]) this.clients[id].close(); } catch (_) {}
+    delete this.clients[id];
+    if (this.state[id]) {
+      this.state[id].connected = false;
+      this.state[id].status = 'לא מחובר';
+      this._broadcast(id);
+    }
+    // Re-connect with new config
+    const cfg = this._getConfigs().find(c => c.id === id);
+    if (cfg) await this.connectMachine(cfg);
   }
 
   onUpdate(fn) { this.listeners.push(fn); }
@@ -134,12 +172,23 @@ class ModbusService {
   async startPolling(intervalMs = 5000) {
     if (this.polling) return;
     this.polling = true;
-    for (const cfg of MACHINES_CONFIG) {
+    const configs = this._getConfigs();
+    // Init state for all machines from DB
+    for (const m of configs) {
+      if (!this.state[m.id]) {
+        this.state[m.id] = {
+          id: m.id, label: m.label, name: m.name,
+          counter: 0, statusCode: -1, status: 'לא מחובר',
+          connected: false, lastSeen: null, errorCode: 0,
+        };
+      }
+    }
+    for (const cfg of configs) {
       await this.connectMachine(cfg);
     }
     const tick = async () => {
       if (!this.polling) return;
-      for (const cfg of MACHINES_CONFIG) {
+      for (const cfg of this._getConfigs()) {
         await this.pollMachine(cfg);
       }
       setTimeout(tick, intervalMs);
@@ -159,4 +208,17 @@ class ModbusService {
   getState(id)  { return this.state[id]; }
 }
 
-module.exports = new ModbusService();
+// Export class so server.js can pass db reference, and also a lazy singleton
+let _instance = null;
+module.exports = {
+  init(db) { _instance = new ModbusService(db); return _instance; },
+  getInstance() { return _instance || (_instance = new ModbusService(null)); },
+  // Proxy all methods so existing code (require('./modbus').startPolling etc.) still works
+  get startPolling()   { return (...a) => module.exports.getInstance().startPolling(...a); },
+  get stopPolling()    { return (...a) => module.exports.getInstance().stopPolling(...a); },
+  get onUpdate()       { return (...a) => module.exports.getInstance().onUpdate(...a); },
+  get getAllState()     { return (...a) => module.exports.getInstance().getAllState(...a); },
+  get getState()       { return (...a) => module.exports.getInstance().getState(...a); },
+  get writeParams()    { return (...a) => module.exports.getInstance().writeParams(...a); },
+  get reconfigMachine(){ return (...a) => module.exports.getInstance().reconfigMachine(...a); },
+};

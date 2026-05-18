@@ -408,31 +408,17 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
           <div class="settings-head-left">
             <span class="settings-head-icon">🔧</span>
             <div>
-              <div class="settings-head-title">מכונות Modbus RTU</div>
-              <div class="settings-head-sub">חיבור מכונות כיפוף XINJE דרך COM Port</div>
+              <div class="settings-head-title">חיבור מכונות Modbus</div>
+              <div class="settings-head-sub">TCP/IP (USR-N510 / גיטוויי) או RS-485 סיריאלי — גמיש לכל מכונה</div>
             </div>
           </div>
         </div>
-        <div style="padding:16px 20px; overflow-x:auto;">
-          <table class="machines-table" id="machinesTable">
-            <thead>
-              <tr>
-                <th>מכונה</th>
-                <th>COM Port</th>
-                <th>Slave ID</th>
-                <th>קוטר מינ'</th>
-                <th>קוטר מקס'</th>
-                <th>סטטוס</th>
-                <th>Counter היום</th>
-              </tr>
-            </thead>
-            <tbody id="machinesBody">
-              <tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">טוען...</td></tr>
-            </tbody>
-          </table>
-          <div style="padding-top:14px;">
-            <button class="btn btn-primary" onclick="saveMachines()">💾 שמור פורטים</button>
-          </div>
+        <div id="machinesCards" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+          <div style="text-align:center;padding:20px;color:var(--muted)">טוען...</div>
+        </div>
+        <div style="padding:0 20px 16px;">
+          <button class="btn btn-primary" onclick="saveMachines()">💾 שמור הגדרות חיבור</button>
+          <span id="machinesSaveStatus" style="margin-right:10px;font-size:13px;color:var(--success)"></span>
         </div>
       </div>
 
@@ -589,33 +575,88 @@ let machinesData = [];
 function renderMachinesTable(machines) {
   machinesData = machines;
   const statusColor = s => s==='בייצור'?'var(--success)':s==='תקלה'?'var(--danger)':'var(--muted)';
-  document.getElementById('machinesBody').innerHTML = machines.map(m => `
-    <tr>
-      <td><strong>${m.name}</strong></td>
-      <td><input type="text" value="${m.port||''}" data-mid="${m.id}" data-field="port"
-        style="width:90px;background:#f5f8fb;border:1.5px solid rgba(0,0,0,0.10);
-        border-radius:6px;padding:5px 8px;font-size:13px;font-family:'Heebo',sans-serif;color:var(--text)">
-      </td>
-      <td>${m.slave_id||1}</td>
-      <td>${m.min_diameter||8} מ"מ</td>
-      <td>${m.max_diameter||12} מ"מ</td>
-      <td><span style="color:${statusColor(m.status)};font-weight:700">${m.status||'לא מחובר'}</span></td>
-      <td style="font-weight:800;color:var(--accent)">${m.counter||0}</td>
-    </tr>`).join('');
+  const inp = (id,val,ph,w)=>`<input type="text" id="${id}" value="${val||''}" placeholder="${ph}"
+    style="width:${w||'100%'};background:#f5f8fb;border:1.5px solid rgba(0,0,0,0.10);
+    border-radius:6px;padding:6px 10px;font-size:13px;font-family:'Heebo',sans-serif;color:var(--text)">`;
+  document.getElementById('machinesCards').innerHTML = machines.map(m => {
+    const mode = m.conn_mode || 'tcp';
+    return `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:15px;font-weight:800">${m.name}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:${statusColor(m.status)};font-weight:700">${m.status||'לא מחובר'}</span>
+          <span style="font-size:12px;color:var(--muted)">counter: ${m.counter||0}</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;align-items:center;font-size:13px">
+        <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap">סוג חיבור</label>
+        <select data-mid="${m.id}" data-field="conn_mode" onchange="toggleMachineMode(${m.id},this.value)"
+          style="background:#f5f8fb;border:1.5px solid rgba(0,0,0,0.10);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'Heebo',sans-serif;color:var(--text)">
+          <option value="tcp" ${mode==='tcp'?'selected':''}>🌐 TCP/IP – גיטוויי (USR-N510 וכד')</option>
+          <option value="rtu" ${mode==='rtu'?'selected':''}>🔌 RTU – סיריאלי RS-485</option>
+        </select>
+
+        <div id="tcp-fields-${m.id}" style="display:${mode==='tcp'?'contents':'none'}">
+          <label style="font-size:11px;font-weight:700;color:var(--muted)">כתובת IP</label>
+          ${inp(`tcp_host_${m.id}`, m.tcp_host, '192.168.1.101')}
+          <label style="font-size:11px;font-weight:700;color:var(--muted)">TCP Port</label>
+          ${inp(`tcp_port_${m.id}`, m.tcp_port||502, '502', '100px')}
+        </div>
+
+        <div id="rtu-fields-${m.id}" style="display:${mode==='rtu'?'contents':'none'}">
+          <label style="font-size:11px;font-weight:700;color:var(--muted)">COM Port</label>
+          ${inp(`rtu_port_${m.id}`, m.rtu_port, 'COM3 / /dev/ttyUSB0')}
+          <label style="font-size:11px;font-weight:700;color:var(--muted)">Baud Rate</label>
+          ${inp(`baud_rate_${m.id}`, m.baud_rate||9600, '9600', '100px')}
+        </div>
+
+        <label style="font-size:11px;font-weight:700;color:var(--muted)">Slave ID</label>
+        ${inp(`slave_id_${m.id}`, m.slave_id||m.id, '1', '80px')}
+        <label style="font-size:11px;font-weight:700;color:var(--muted)">קוטר מינ'-מקס' (מ"מ)</label>
+        <div style="display:flex;gap:8px">
+          ${inp(`min_d_${m.id}`, m.min_diameter||8, 'מינ'', '80px')}
+          <span style="padding-top:6px">–</span>
+          ${inp(`max_d_${m.id}`, m.max_diameter||32, 'מקס'', '80px')}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleMachineMode(mid, mode) {
+  const tcpDiv = document.getElementById(`tcp-fields-${mid}`);
+  const rtuDiv = document.getElementById(`rtu-fields-${mid}`);
+  if (tcpDiv) tcpDiv.style.display = mode === 'tcp' ? 'contents' : 'none';
+  if (rtuDiv) rtuDiv.style.display = mode === 'rtu' ? 'contents' : 'none';
 }
 
 async function saveMachines() {
-  const rows = document.querySelectorAll('[data-mid][data-field="port"]');
+  const selects = document.querySelectorAll('[data-field="conn_mode"]');
   const updates = [];
-  rows.forEach(inp => {
-    updates.push(fetch(`/api/machines/${inp.dataset.mid}/assign`, {
-      method:'POST',
+  selects.forEach(sel => {
+    const mid = sel.dataset.mid;
+    const mode = sel.value;
+    const body = {
+      conn_mode:    mode,
+      tcp_host:     (document.getElementById(`tcp_host_${mid}`)?.value || '').trim(),
+      tcp_port:     parseInt(document.getElementById(`tcp_port_${mid}`)?.value) || 502,
+      rtu_port:     (document.getElementById(`rtu_port_${mid}`)?.value || '').trim(),
+      baud_rate:    parseInt(document.getElementById(`baud_rate_${mid}`)?.value) || 9600,
+      slave_id:     parseInt(document.getElementById(`slave_id_${mid}`)?.value) || 1,
+      min_diameter: parseFloat(document.getElementById(`min_d_${mid}`)?.value) || 8,
+      max_diameter: parseFloat(document.getElementById(`max_d_${mid}`)?.value) || 32,
+    };
+    updates.push(fetch(`/api/machines/${mid}/config`, {
+      method:'PATCH',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ port: inp.value }),
+      body: JSON.stringify(body),
     }));
   });
   await Promise.all(updates);
-  toast('✓ פורטי COM נשמרו');
+  document.getElementById('machinesSaveStatus').textContent = '✅ נשמר! המכונות יתחברו מחדש.';
+  setTimeout(()=>{ document.getElementById('machinesSaveStatus').textContent=''; }, 4000);
+  toast('✓ הגדרות מכונות נשמרו');
 }
 
 // ── Save sections ──────────────────────────────────────────────

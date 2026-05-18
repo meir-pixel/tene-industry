@@ -26,6 +26,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const db = new Database('ironbend.db');
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+modbus.init(db); // pass db so modbus reads machine config live
 
 // ── SCHEMA ────────────────────────────────────────────────────────
 db.exec(`
@@ -240,6 +241,11 @@ addCol('machines',   'label',              'TEXT');
 addCol('machines',   'slave_id',           'INTEGER DEFAULT 1');
 addCol('machines',   'min_diameter',       'REAL DEFAULT 8');
 addCol('machines',   'max_diameter',       'REAL DEFAULT 12');
+addCol('machines',   'conn_mode',          "TEXT DEFAULT 'tcp'");   // 'tcp' or 'rtu'
+addCol('machines',   'tcp_host',           'TEXT');                  // IP of USR-N510 / gateway
+addCol('machines',   'tcp_port',           'INTEGER DEFAULT 502');   // Modbus TCP port
+addCol('machines',   'rtu_port',           'TEXT');                  // COM3 / /dev/ttyUSB0
+addCol('machines',   'baud_rate',          'INTEGER DEFAULT 9600');  // baud rate for RTU
 addCol('customers',  'company_id',         'INTEGER DEFAULT 1');
 addCol('orders',     'company_id',         'INTEGER DEFAULT 1');
 
@@ -698,6 +704,28 @@ app.post('/api/machines/:id/assign', (req, res) => {
   db.prepare('UPDATE items SET status=?,started_at=?,machine_id=? WHERE id=?')
     .run('בייצור', new Date().toISOString(), req.params.id, itemId);
   wsBroadcast('machine_assign', { machineId: Number(req.params.id), itemId, orderNum });
+  res.json({ success: true });
+});
+
+// ── MACHINE CONNECTION CONFIG ─────────────────────────────────────
+app.patch('/api/machines/:id/config', (req, res) => {
+  const { conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, slave_id, min_diameter, max_diameter, name } = req.body;
+  db.prepare(`UPDATE machines SET
+    conn_mode=COALESCE(?,conn_mode),
+    tcp_host=COALESCE(?,tcp_host),
+    tcp_port=COALESCE(?,tcp_port),
+    rtu_port=COALESCE(?,rtu_port),
+    baud_rate=COALESCE(?,baud_rate),
+    slave_id=COALESCE(?,slave_id),
+    min_diameter=COALESCE(?,min_diameter),
+    max_diameter=COALESCE(?,max_diameter),
+    name=COALESCE(?,name)
+    WHERE id=?`)
+    .run(conn_mode||null, tcp_host||null, tcp_port||null, rtu_port||null,
+         baud_rate||null, slave_id||null, min_diameter||null, max_diameter||null,
+         name||null, req.params.id);
+  // Tell modbus service to reconnect this machine
+  if (modbus) modbus.reconfigMachine(req.params.id).catch(()=>{});
   res.json({ success: true });
 });
 
