@@ -55,6 +55,72 @@ function shapeSVGPath(sides, angles, w, h, padding = 14) {
   return { path, pts: mapped };
 }
 
+// ── 3D ISOMETRIC SVG ──────────────────────────────────────────────
+// Projects a flat 2D rebar shape into an isometric 3D view.
+// The rebar lies in the XY plane; we view from above-right at 30°.
+function shape3DSVG(sides, angles, w, h, diameterMm = 12) {
+  if (!sides || sides.length === 0) return '<text x="50%" y="50%" text-anchor="middle" fill="#7a93ab" font-size="12">אין צורה</text>';
+
+  const pts2d = calcShapePoints(sides, angles);
+
+  // Isometric projection: (x,y) → screen
+  const ISO_X = 0.866; // cos(30°)
+  const ISO_Y = 0.5;   // sin(30°)
+  const project = ([x, y]) => [
+    (x - y) * ISO_X,
+    (x + y) * ISO_Y
+  ];
+
+  const iso = pts2d.map(project);
+  const sxs = iso.map(p => p[0]), sys = iso.map(p => p[1]);
+  const minSX = Math.min(...sxs), maxSX = Math.max(...sxs);
+  const minSY = Math.min(...sys), maxSY = Math.max(...sys);
+  const pad = 24;
+  const scaleX = (w - pad*2) / (maxSX - minSX || 1);
+  const scaleY = (h - pad*2) / (maxSY - minSY || 1);
+  const sc = Math.min(scaleX, scaleY);
+  const ox = pad + ((w - pad*2) - (maxSX - minSX) * sc) / 2;
+  const oy = pad + ((h - pad*2) - (maxSY - minSY) * sc) / 2;
+
+  const mapped = iso.map(([sx, sy]) => [
+    ox + (sx - minSX) * sc,
+    oy + (sy - minSY) * sc,
+  ]);
+
+  const pathD = 'M ' + mapped.map(([x,y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L ');
+
+  // Bar thickness proportional to diameter (min 4px, max 14px)
+  const barW = Math.max(4, Math.min(14, diameterMm * sc * 0.001 + 5));
+
+  // Shadow (offset copy)
+  const shadowD = 'M ' + mapped.map(([x,y]) => `${(x+3).toFixed(1)},${(y+3).toFixed(1)}`).join(' L ');
+
+  // Dots at bend points
+  const bendDots = mapped.slice(1, -1).map(([x,y]) =>
+    `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(barW/2+1).toFixed(1)}" fill="#c9621a"/>`
+  ).join('');
+
+  return `
+    <defs>
+      <linearGradient id="rebarGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#e07b39"/>
+        <stop offset="100%" stop-color="#8b4513"/>
+      </linearGradient>
+    </defs>
+    <!-- shadow -->
+    <path d="${shadowD}" stroke="rgba(0,0,0,0.25)" stroke-width="${barW}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <!-- bar body -->
+    <path d="${pathD}" stroke="url(#rebarGrad)" stroke-width="${barW}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <!-- highlight -->
+    <path d="${pathD}" stroke="rgba(255,255,255,0.35)" stroke-width="${(barW*0.3).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-dasharray="none"/>
+    <!-- bend markers -->
+    ${bendDots}
+    <!-- start/end dots -->
+    <circle cx="${mapped[0][0].toFixed(1)}" cy="${mapped[0][1].toFixed(1)}" r="${(barW/2).toFixed(1)}" fill="#1a7a42"/>
+    <circle cx="${mapped[mapped.length-1][0].toFixed(1)}" cy="${mapped[mapped.length-1][1].toFixed(1)}" r="${(barW/2).toFixed(1)}" fill="#1560a8"/>
+  `;
+}
+
 // ── WEIGHT ────────────────────────────────────────────────────────
 function calcItemWeight(diameter, sides, qty) {
   const d = Number(diameter);
@@ -209,10 +275,16 @@ class ShapeEditorModal {
     <div class="se-presets" id="sePresets"></div>
     <div class="se-main">
       <div class="se-preview-row">
-        <div class="se-svg-wrap" id="seSvgWrap">
-          <svg id="seShapeSvg" viewBox="0 0 300 180" preserveAspectRatio="xMidYMid meet">
-            <path id="seShapePath" stroke="#e07b39" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+        <div style="display:flex;flex-direction:column;flex:1;gap:8px">
+          <div style="display:flex;gap:6px;justify-content:flex-end">
+            <button id="seView2D" onclick="seSetView('2d')" style="padding:4px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#e8edf3;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer">2D</button>
+            <button id="seView3D" onclick="seSetView('3d')" style="padding:4px 12px;border-radius:6px;border:1px solid #e07b39;background:rgba(224,123,57,0.15);color:#e07b39;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer">3D</button>
+          </div>
+          <div class="se-svg-wrap" id="seSvgWrap">
+            <svg id="seShapeSvg" viewBox="0 0 300 180" preserveAspectRatio="xMidYMid meet">
+              <path id="seShapePath" stroke="#e07b39" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
         </div>
         <div class="se-info-col">
           <div class="se-stat">
@@ -363,8 +435,18 @@ class ShapeEditorModal {
   _updatePreview() {
     if (!this.current) return;
     const { sides, angles } = this.current;
-    const { path } = shapeSVGPath(sides, angles, 300, 180, 16);
-    document.getElementById('seShapePath').setAttribute('d', path);
+    const svg = document.getElementById('seShapeSvg');
+    const is3D = window._seViewMode !== '2d';
+
+    if (is3D) {
+      const diam = this._diameter || 12;
+      svg.innerHTML = shape3DSVG(sides, angles, 300, 180, diam);
+    } else {
+      svg.innerHTML = '<path id="seShapePath" stroke="#e07b39" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+      const { path } = shapeSVGPath(sides, angles, 300, 180, 16);
+      document.getElementById('seShapePath').setAttribute('d', path);
+    }
+
     const perimeter = sides.reduce((s, l) => s + Number(l), 0);
     document.getElementById('sePerimeter').textContent  = perimeter.toLocaleString('he-IL');
     document.getElementById('seBarLength').textContent  = (perimeter / 1000).toFixed(2);
@@ -395,3 +477,18 @@ class ShapeEditorModal {
     this._el.classList.remove('show');
   }
 }
+
+// ── VIEW MODE TOGGLE (global, called from onclick) ────────────────
+window._seViewMode = '3d'; // default to 3D
+window.seSetView = function(mode) {
+  window._seViewMode = mode;
+  const btn2d = document.getElementById('seView2D');
+  const btn3d = document.getElementById('seView3D');
+  if (btn2d && btn3d) {
+    const activeStyle = 'border:1px solid #e07b39;background:rgba(224,123,57,0.15);color:#e07b39';
+    const idleStyle   = 'border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#e8edf3';
+    btn2d.style.cssText = (mode === '2d' ? activeStyle : idleStyle) + ';padding:4px 12px;border-radius:6px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer';
+    btn3d.style.cssText = (mode === '3d' ? activeStyle : idleStyle) + ';padding:4px 12px;border-radius:6px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer';
+  }
+  if (window._seEditor) window._seEditor._updatePreview();
+};

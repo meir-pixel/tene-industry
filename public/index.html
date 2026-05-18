@@ -1177,8 +1177,11 @@ function renderItemRow(palletId, item) {
       </div>
     </td>
     <td>
-      <input type="number" value="${item.qty||1}" min="1" style="width:70px"
-        oninput="updateItem(${palletId},'${item.id}','qty',this.value)">
+      <input type="text" inputmode="numeric" pattern="[0-9]*" value="${item.qty||1}"
+        style="width:60px;text-align:center;font-size:15px;font-weight:700"
+        onfocus="this.select()"
+        oninput="this.value=this.value.replace(/[^0-9]/g,'');updateItem(${palletId},'${item.id}','qty',this.value)"
+        onchange="if(!this.value||this.value<1)this.value=1;updateItem(${palletId},'${item.id}','qty',this.value)">
     </td>
     <td class="weight-cell">
       ${w > 0 ? `<span title="${weightPerMeter(item.diameter)} ק&quot;ג/מ׳">${w.toFixed(2)}</span>` : '—'}
