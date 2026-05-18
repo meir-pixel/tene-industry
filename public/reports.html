@@ -191,7 +191,7 @@ let reportData = null;
 
 window.addEventListener('DOMContentLoaded', () => {
   const today = new Date();
-  const from  = new Date(today.getFullYear(), today.getMonth(), 1);
+  const from  = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000); // last 30 days
   document.getElementById('fromDate').value = from.toISOString().split('T')[0];
   document.getElementById('toDate').value   = today.toISOString().split('T')[0];
   loadAll();
@@ -200,21 +200,20 @@ window.addEventListener('DOMContentLoaded', () => {
 async function loadAll() {
   const from = document.getElementById('fromDate').value;
   const to   = document.getElementById('toDate').value;
-  const [summaryRes, efficiencyRes] = await Promise.all([
-    fetch(`/api/reports/summary?from=${from}&to=${to}`),
-    fetch('/api/ai/machine-efficiency?days=30'),
+  const safe = (p, fb) => p.then(r => r.ok ? r.json() : fb).catch(() => fb);
+  const [summary, efficiency] = await Promise.all([
+    safe(fetch(`/api/reports/summary?from=${from}&to=${to}`), { orders:[], byStatus:[], waste:[], topCustomers:[], period:{} }),
+    safe(fetch('/api/ai/machine-efficiency?days=30'), []),
   ]);
-  const summary    = await summaryRes.json();
-  const efficiency = await efficiencyRes.json();
   reportData = summary;
   renderKPIs(summary);
-  renderOrdersChart(summary.orders);
-  renderWeightChart(summary.orders);
-  renderStatusChart(summary.byStatus);
-  renderWasteChart(summary.waste);
-  renderMachineEfficiency(efficiency);
-  renderWasteTable(summary.waste);
-  renderCustomersTable(summary.topCustomers);
+  renderOrdersChart(summary.orders || []);
+  renderWeightChart(summary.orders || []);
+  renderStatusChart(summary.byStatus || []);
+  renderWasteChart(summary.waste || []);
+  renderMachineEfficiency(efficiency || []);
+  renderWasteTable(summary.waste || []);
+  renderCustomersTable(summary.topCustomers || []);
 }
 
 function renderKPIs(data) {

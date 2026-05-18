@@ -244,7 +244,7 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <button class="tab-btn" onclick="showTab('vision')">📷 OCR</button>
         <button class="tab-btn" onclick="showTab('machines')">🔧 מכונות</button>
         <button class="tab-btn" onclick="showTab('drivers')">🚚 נהגים</button>
-        <button class="tab-btn" onclick="showTab('pricelist')">💰 מחירון</button>
+        <button class="tab-btn" onclick="showTab('pricelist');loadPriceList()">💰 מחירון</button>
       </div>
 
       <!-- TAB: MODULES -->
@@ -1027,12 +1027,7 @@ async function copyCustomerLink(id, btn) {
   }
 }
 
-// Load price list when tab opens
-const _origShowTab = showTab;
-function showTab(id) {
-  _origShowTab(id);
-  if (id === 'pricelist') loadPriceList();
-}
+// (price list loaded via onclick on the tab button)
 </script>
 <script src="/help.js"></script>
 </body>
