@@ -237,6 +237,10 @@ function addCol(table, col, def) {
 }
 addCol('customers',  'email',              'TEXT');
 addCol('customers',  'notes',              'TEXT');
+addCol('drivers',    'vehicle_desc',       'TEXT');       // e.g. "משאית מרצדס 2018"
+addCol('drivers',    'license_plate',      'TEXT');       // plate number
+addCol('drivers',    'license_expiry',     'TEXT');       // YYYY-MM-DD
+addCol('drivers',    'notes',              'TEXT');
 addCol('orders',     'waste_pct_charged',  'REAL DEFAULT 3');
 addCol('orders',     'billing_weight',     'REAL DEFAULT 0');
 addCol('orders',     'priority_order_id',  'TEXT');
@@ -1091,13 +1095,38 @@ app.get('/api/holdings', (req, res) => {
 
 // ── DRIVERS ───────────────────────────────────────────────────────
 app.get('/api/drivers', (req, res) => {
-  res.json(db.prepare('SELECT * FROM drivers WHERE active=1 ORDER BY name').all());
+  const all = req.query.all === '1';
+  const rows = all
+    ? db.prepare('SELECT * FROM drivers ORDER BY name').all()
+    : db.prepare('SELECT * FROM drivers WHERE active=1 ORDER BY name').all();
+  res.json(rows);
 });
 
 app.post('/api/drivers', (req, res) => {
-  const { name, phone } = req.body;
-  const r = db.prepare('INSERT INTO drivers (name,phone) VALUES (?,?)').run(name, phone);
-  res.json({ id: r.lastInsertRowid });
+  const { name, phone, vehicle_desc, license_plate, license_expiry, notes } = req.body;
+  if (!name) return res.status(400).json({ error: 'שם נהג חסר' });
+  const r = db.prepare(
+    'INSERT INTO drivers (name,phone,vehicle_desc,license_plate,license_expiry,notes) VALUES (?,?,?,?,?,?)'
+  ).run(name, phone||null, vehicle_desc||null, license_plate||null, license_expiry||null, notes||null);
+  res.json({ success: true, id: r.lastInsertRowid });
+});
+
+app.patch('/api/drivers/:id', (req, res) => {
+  const { name, phone, vehicle_desc, license_plate, license_expiry, notes, active } = req.body;
+  db.prepare(`UPDATE drivers SET
+    name=COALESCE(?,name), phone=COALESCE(?,phone),
+    vehicle_desc=COALESCE(?,vehicle_desc), license_plate=COALESCE(?,license_plate),
+    license_expiry=COALESCE(?,license_expiry), notes=COALESCE(?,notes),
+    active=COALESCE(?,active)
+    WHERE id=?`)
+    .run(name||null, phone||null, vehicle_desc||null, license_plate||null,
+         license_expiry||null, notes||null, active??null, req.params.id);
+  res.json({ success: true });
+});
+
+app.delete('/api/drivers/:id', (req, res) => {
+  db.prepare('UPDATE drivers SET active=0 WHERE id=?').run(req.params.id);
+  res.json({ success: true });
 });
 
 app.patch('/api/drivers/:id/location', (req, res) => {
