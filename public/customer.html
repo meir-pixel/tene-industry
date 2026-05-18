@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+  <title>IronBend – הזמנת ברזל</title>
+  <meta name="theme-color" content="#e07b39"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{--orange:#e07b39;--dark:#1a1a2e;--card:#fff;--bg:#f4f6fa;--text:#222;--dim:#666;--border:#e0e0e0;--green:#27ae60;--red:#e74c3c;--blue:#3498db}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;direction:rtl}
+
+    /* ── Header ── */
+    .header{background:var(--dark);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+    .header-logo{font-size:22px;font-weight:900;color:var(--orange)}
+    .header-sub{font-size:13px;color:#aaa;flex:1}
+    .header-name{font-size:14px;font-weight:700;color:#fff}
+
+    /* ── Toast ── */
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;z-index:9999;display:none}
+    #toast.show{display:block}
+    #toast.err{background:var(--red)}
+
+    /* ── Screen ── */
+    .screen{display:none;padding:20px;max-width:600px;margin:0 auto}
+    .screen.active{display:block}
+
+    /* ── Auth screen ── */
+    .auth-box{background:#fff;border-radius:16px;padding:32px 24px;box-shadow:0 4px 20px rgba(0,0,0,.08);text-align:center}
+    .auth-box h2{font-size:22px;margin-bottom:8px}
+    .auth-box p{color:var(--dim);font-size:14px;margin-bottom:24px}
+    .auth-logo{font-size:48px;margin-bottom:16px}
+
+    /* ── Inputs ── */
+    input,select,textarea{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-family:inherit;direction:rtl;background:#fff;color:var(--text)}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
+    .field{margin-bottom:14px}
+    .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--dim)}
+
+    /* ── Buttons ── */
+    .btn{display:inline-block;padding:13px 24px;border-radius:12px;font-size:15px;font-weight:700;border:none;cursor:pointer;transition:.15s}
+    .btn-primary{background:var(--orange);color:#fff;width:100%;margin-top:8px}
+    .btn-primary:active{background:#c9622a}
+    .btn-secondary{background:#eee;color:#333}
+    .btn-sm{padding:7px 14px;font-size:13px;border-radius:8px}
+    .btn-danger{background:#fdecea;color:var(--red)}
+
+    /* ── Cards ── */
+    .card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:12px}
+    .card-title{font-size:15px;font-weight:700;margin-bottom:6px}
+
+    /* ── Home screen ── */
+    .welcome-banner{background:linear-gradient(135deg,var(--dark),#2d2d5e);color:#fff;border-radius:16px;padding:20px;margin-bottom:20px}
+    .welcome-banner h2{font-size:20px;margin-bottom:4px}
+    .welcome-banner p{font-size:13px;color:#bbb}
+    .new-order-btn{background:var(--orange);color:#fff;border:none;border-radius:14px;padding:16px;width:100%;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:10px}
+
+    .order-card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:10px;cursor:pointer;border-right:4px solid transparent}
+    .order-card.status-pending{border-right-color:#f39c12}
+    .order-card.status-prod{border-right-color:var(--blue)}
+    .order-card.status-done{border-right-color:var(--green)}
+    .order-num{font-weight:800;font-size:15px}
+    .order-meta{font-size:12px;color:var(--dim);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+    .status-badge{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
+    .badge-orange{background:#fef3e2;color:#e07b39}
+    .badge-blue{background:#eaf4fb;color:var(--blue)}
+    .badge-green{background:#eafaf1;color:var(--green)}
+    .badge-red{background:#fdecea;color:var(--red)}
+    .badge-gray{background:#f0f0f0;color:#555}
+
+    /* ── New Order ── */
+    .step-title{font-size:18px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .step-num{background:var(--orange);color:#fff;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+    .section-card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:16px}
+
+    /* ── Shape picker ── */
+    .shapes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .shape-btn{border:2px solid var(--border);border-radius:12px;padding:10px 6px;cursor:pointer;background:#fff;display:flex;flex-direction:column;align-items:center;gap:6px;transition:.15s}
+    .shape-btn.selected{border-color:var(--orange);background:#fff8f3}
+    .shape-btn svg{width:50px;height:40px}
+    .shape-name-label{font-size:11px;font-weight:600;color:var(--text);text-align:center}
+
+    /* ── Items list ── */
+    .item-row{background:#f8f8f8;border-radius:10px;padding:12px;margin-bottom:8px;position:relative}
+    .item-row-title{font-weight:700;font-size:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+    .item-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .segments-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .seg-input{width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;text-align:center}
+    .seg-label{font-size:11px;color:var(--dim);text-align:center;margin-top:2px}
+    .remove-item{color:var(--red);background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px}
+
+    /* ── Price box ── */
+    .price-box{background:linear-gradient(135deg,#1a1a2e,#2d3a5e);color:#fff;border-radius:14px;padding:18px;margin-bottom:16px}
+    .price-row{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+    .price-row.total{font-size:18px;font-weight:800;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.2)}
+    .price-note{font-size:11px;color:rgba(255,255,255,.6);margin-top:8px}
+
+    /* ── Order detail ── */
+    .detail-status{font-size:20px;font-weight:800;margin-bottom:6px}
+    .timeline{padding-right:16px;border-right:2px solid var(--border);margin:16px 0}
+    .tl-step{position:relative;margin-bottom:14px;padding-right:14px}
+    .tl-step::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--border);position:absolute;right:-7px;top:4px}
+    .tl-step.done::before{background:var(--green)}
+    .tl-step.active::before{background:var(--orange)}
+    .tl-label{font-weight:600;font-size:14px}
+    .tl-sub{font-size:12px;color:var(--dim)}
+
+    .item-detail-row{background:#f8f8f8;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;gap:12px;align-items:center}
+    .item-detail-diam{width:44px;height:44px;border-radius:50%;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+    .item-detail-info{flex:1}
+    .item-detail-status{font-size:12px;font-weight:700}
+
+    /* ── Delivery row ── */
+    .delivery-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+    /* ── Back btn ── */
+    .back-btn{background:none;border:none;color:var(--orange);font-size:15px;font-weight:700;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;gap:6px;padding:0}
+
+    /* Loader */
+    .loader{text-align:center;padding:40px;color:var(--dim);font-size:14px}
+
+    @media(min-width:600px){.shapes-grid{grid-template-columns:repeat(4,1fr)}}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">⚙️ IronBend</div>
+  <div class="header-sub">כיפוף ברזל מקצועי</div>
+  <div class="header-name" id="headerName"></div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ══ AUTH SCREEN ══ -->
+<div class="screen active" id="screenAuth">
+  <div class="auth-box" style="margin-top:40px">
+    <div class="auth-logo">🏗️</div>
+    <h2>ברוכים הבאים</h2>
+    <p>הכנסו פרטים כדי לבצע הזמנה ולעקוב אחרי הזמנות קיימות</p>
+    <div class="field">
+      <label>מספר טלפון</label>
+      <input type="tel" id="authPhone" placeholder="05X-XXXXXXX" inputmode="numeric"/>
+    </div>
+    <div class="field" id="authNameField" style="display:none">
+      <label>שם מלא</label>
+      <input type="text" id="authName" placeholder="שם ושם משפחה"/>
+    </div>
+    <button class="btn btn-primary" onclick="doAuth()">כניסה ←</button>
+  </div>
+</div>
+
+<!-- ══ HOME SCREEN ══ -->
+<div class="screen" id="screenHome">
+  <div class="welcome-banner">
+    <h2 id="welcomeName">שלום 👋</h2>
+    <p id="welcomeSub">מחירון <span id="tierLabel">מחירון</span></p>
+  </div>
+  <button class="new-order-btn" onclick="showScreen('screenOrder')">
+    ➕ הזמנה חדשה
+  </button>
+  <div class="card-title" style="margin-bottom:10px">הזמנות אחרונות</div>
+  <div id="ordersList"><div class="loader">טוען...</div></div>
+</div>
+
+<!-- ══ NEW ORDER SCREEN ══ -->
+<div class="screen" id="screenOrder">
+  <button class="back-btn" onclick="showScreen('screenHome')">← חזרה</button>
+
+  <div class="step-title"><span class="step-num">1</span> בחר פריטים</div>
+
+  <div id="itemsList"></div>
+
+  <button class="btn btn-secondary btn-sm" onclick="addItem()" style="margin-bottom:20px">➕ הוסף פריט</button>
+
+  <div class="step-title"><span class="step-num">2</span> פרטי אספקה</div>
+  <div class="section-card">
+    <div class="field">
+      <label>תאריך אספקה</label>
+      <input type="date" id="delivDate"/>
+    </div>
+    <div class="delivery-fields">
+      <div class="field">
+        <label>שעה</label>
+        <input type="time" id="delivTime"/>
+      </div>
+      <div class="field">
+        <label>אופן אספקה</label>
+        <select id="delivMode">
+          <option value="משלוח">משלוח</option>
+          <option value="איסוף עצמי">איסוף עצמי</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>כתובת</label>
+      <input type="text" id="delivAddr" placeholder="רחוב, עיר"/>
+    </div>
+    <div class="field">
+      <label>הערות</label>
+      <textarea id="orderNotes" rows="2" placeholder="הערות נוספות..."></textarea>
+    </div>
+  </div>
+
+  <div id="priceBox" class="price-box" style="display:none">
+    <div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:10px">הערכת מחיר</div>
+    <div id="priceBreakdown"></div>
+    <div class="price-note">* המחיר כולל 3% תוספת פסולת · אינו כולל מע"מ</div>
+  </div>
+
+  <button class="btn btn-secondary" onclick="calcQuote()" style="margin-bottom:10px;width:100%">🧮 חשב הצעת מחיר</button>
+  <button class="btn btn-primary" onclick="submitOrder()">שלח הזמנה ✓</button>
+</div>
+
+<!-- ══ ORDER DETAIL SCREEN ══ -->
+<div class="screen" id="screenDetail">
+  <button class="back-btn" onclick="showScreen('screenHome')">← חזרה</button>
+  <div id="detailContent"><div class="loader">טוען...</div></div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────
+// State
+// ──────────────────────────────────────────────────────
+let TOKEN = null;
+let ME    = null;
+let SHAPES = [];
+let PRICE_LIST = {};  // {diameter: price_per_kg}
+let orderItems  = []; // [{id, shapeId, shapeName, diameter, sides, angles, qty, note}]
+let itemIdSeq   = 0;
+
+const DIAMETERS = [6,8,10,12,14,16,18,20,22,25,28,32,36,40];
+const WEIGHTS   = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86};
+
+// ──────────────────────────────────────────────────────
+// Boot
+// ──────────────────────────────────────────────────────
+(async function init() {
+  // Token from URL or localStorage
+  const params = new URLSearchParams(location.search);
+  TOKEN = params.get('token') || localStorage.getItem('ib_token');
+
+  if (TOKEN) {
+    try {
+      const me = await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json());
+      if (me.customer) {
+        ME = me.customer;
+        localStorage.setItem('ib_token', TOKEN);
+        await loadShapes();
+        await loadPriceList();
+        showHome(me.orders);
+        return;
+      }
+    } catch {}
+    TOKEN = null;
+    localStorage.removeItem('ib_token');
+  }
+  showScreen('screenAuth');
+})();
+
+async function loadShapes() {
+  SHAPES = await fetch('/api/c/shapes').then(r=>r.json()).catch(()=>[]);
+}
+
+async function loadPriceList() {
+  const pl = await fetch(`/api/c/price-list?token=${TOKEN}`).then(r=>r.json()).catch(()=>[]);
+  PRICE_LIST = {};
+  pl.forEach(r => { PRICE_LIST[r.diameter] = parseFloat(r.price_per_kg); });
+}
+
+// ──────────────────────────────────────────────────────
+// Auth
+// ──────────────────────────────────────────────────────
+let _needName = false;
+async function doAuth() {
+  const phone = document.getElementById('authPhone').value.replace(/\D/g,'');
+  if (phone.length < 9) { toast('הכנס מספר טלפון תקין', true); return; }
+
+  const body = { phone };
+  if (_needName) {
+    const nm = document.getElementById('authName').value.trim();
+    if (!nm) { toast('הכנס שם', true); return; }
+    body.name = nm;
+  }
+
+  const data = await fetch('/api/c/auth', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  }).then(r=>r.json()).catch(()=>null);
+
+  if (!data) { toast('שגיאה בחיבור לשרת', true); return; }
+
+  if (data.needName) {
+    _needName = true;
+    document.getElementById('authNameField').style.display = '';
+    document.getElementById('authName').focus();
+    toast('הכנס שם לחשבון חדש');
+    return;
+  }
+
+  TOKEN = data.token;
+  ME    = data.customer;
+  localStorage.setItem('ib_token', TOKEN);
+
+  // Update URL without reload
+  const url = new URL(location.href);
+  url.searchParams.set('token', TOKEN);
+  history.replaceState({}, '', url);
+
+  await loadShapes();
+  await loadPriceList();
+  showHome(null);
+}
+
+// ──────────────────────────────────────────────────────
+// Home
+// ──────────────────────────────────────────────────────
+async function showHome(preloaded) {
+  document.getElementById('headerName').textContent = ME?.name || '';
+  document.getElementById('welcomeName').textContent = `שלום, ${ME?.name || ''}! 👋`;
+  const tierTxt = ME?.price_tier === 'customer' ? 'לקוח קבוע' : 'מחירון';
+  document.getElementById('tierLabel').textContent = tierTxt;
+  showScreen('screenHome');
+
+  const orders = preloaded ?? await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json()).then(d=>d.orders).catch(()=>[]);
+  renderOrdersList(orders);
+}
+
+function renderOrdersList(orders) {
+  const el = document.getElementById('ordersList');
+  if (!orders?.length) { el.innerHTML = '<div class="loader">אין הזמנות עדיין</div>'; return; }
+  el.innerHTML = orders.map(o => {
+    const cls = statusClass(o.status);
+    const date = o.delivery_date ? `אספקה: ${o.delivery_date}` : '';
+    const weight = o.billing_weight ? `${(+o.billing_weight).toFixed(1)} ק"ג` : '';
+    const price = o.portal_price ? `₪${(+o.portal_price).toLocaleString('he')}` : '';
+    return `
+    <div class="order-card ${cls}" onclick="openOrder(${o.id})">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="order-num">${o.order_num}</div>
+        <span class="status-badge ${badgeCls(o.status)}">${o.status}</span>
+      </div>
+      <div class="order-meta">
+        ${date ? `<span>📅 ${date}</span>` : ''}
+        ${weight ? `<span>⚖️ ${weight}</span>` : ''}
+        ${price  ? `<span style="font-weight:700;color:var(--orange)">💰 ${price}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function statusClass(s) {
+  if (!s) return '';
+  if (s.includes('ממתינה')) return 'status-pending';
+  if (s.includes('ייצור') || s.includes('בייצור')) return 'status-prod';
+  if (s.includes('הושלם') || s.includes('סופק')) return 'status-done';
+  return '';
+}
+function badgeCls(s) {
+  if (!s) return 'badge-gray';
+  if (s.includes('ממתינה')) return 'badge-orange';
+  if (s.includes('ייצור') || s.includes('בייצור')) return 'badge-blue';
+  if (s.includes('הושלם') || s.includes('סופק')) return 'badge-green';
+  if (s.includes('בוטל')) return 'badge-red';
+  return 'badge-gray';
+}
+
+// ──────────────────────────────────────────────────────
+// Order detail
+// ──────────────────────────────────────────────────────
+async function openOrder(id) {
+  showScreen('screenDetail');
+  document.getElementById('detailContent').innerHTML = '<div class="loader">טוען...</div>';
+  const order = await fetch(`/api/c/orders/${id}?token=${TOKEN}`).then(r=>r.json()).catch(()=>null);
+  if (!order) { document.getElementById('detailContent').innerHTML = '<div class="loader">לא נמצא</div>'; return; }
+  renderDetail(order);
+}
+
+const STATUS_TIMELINE = [
+  { key:'ממתינה לאישור', label:'התקבלה בהזמנה', sub:'ממתינה לאישור מנהל' },
+  { key:'אושרה',         label:'אושרה',          sub:'ההזמנה אושרה' },
+  { key:'בייצור',        label:'בייצור',          sub:'עובדים על ההזמנה שלך' },
+  { key:'הושלם',         label:'הושלמה',          sub:'ההזמנה הושלמה' },
+  { key:'בדרך',          label:'בדרך אליך',       sub:'השליח בדרך' },
+  { key:'סופק',          label:'סופק',            sub:'ההזמנה נמסרה' },
+];
+
+function renderDetail(order) {
+  const allItems = (order.pallets||[]).flatMap(p=>p.items||[]);
+  const currentIdx = STATUS_TIMELINE.findIndex(s => order.status?.includes(s.key.split(' ')[0]));
+
+  const timelineHtml = STATUS_TIMELINE.map((s,i) => {
+    const cls = i < currentIdx ? 'done' : i === currentIdx ? 'active' : '';
+    return `<div class="tl-step ${cls}"><div class="tl-label">${s.label}</div><div class="tl-sub">${s.sub}</div></div>`;
+  }).join('');
+
+  const itemsHtml = allItems.map(item => {
+    const pct = item.quantity ? Math.round((item.produced_qty||0)/item.quantity*100) : 0;
+    return `
+    <div class="item-detail-row">
+      <div class="item-detail-diam">Ø${item.diameter}</div>
+      <div class="item-detail-info">
+        <div style="font-weight:700;font-size:14px">${item.shape_name||'ישר'}</div>
+        <div style="font-size:12px;color:var(--dim)">${item.quantity} יחידות · ${Math.round((item.total_length_mm||0)/10)} ס"מ</div>
+        <div style="margin-top:6px;background:#eee;border-radius:20px;height:6px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:var(--green);transition:.3s"></div>
+        </div>
+        <div class="item-detail-status" style="margin-top:3px;color:${pct===100?'var(--green)':'var(--dim)'}">${pct}% הושלם</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const price = order.portal_price ? `<div class="price-box" style="margin-top:16px">
+    <div class="price-row"><span>משקל לחיוב</span><span>${(+order.billing_weight).toFixed(2)} ק"ג</span></div>
+    <div class="price-row total"><span>סה"כ לתשלום</span><span>₪${(+order.portal_price).toLocaleString('he',{minimumFractionDigits:2})}</span></div>
+    <div class="price-note">* לא כולל מע"מ</div>
+  </div>` : '';
+
+  document.getElementById('detailContent').innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div class="detail-status">${order.order_num}</div>
+          <div style="font-size:13px;color:var(--dim)">${order.created_at?.slice(0,10)||''}</div>
+        </div>
+        <span class="status-badge ${badgeCls(order.status)}">${order.status}</span>
+      </div>
+      ${order.delivery_date?`<div style="font-size:13px;margin-top:4px">📅 אספקה: ${order.delivery_date}${order.delivery_time?' '+order.delivery_time:''}</div>`:''}
+      ${order.delivery_address?`<div style="font-size:13px;color:var(--dim)">📍 ${order.delivery_address}</div>`:''}
+    </div>
+
+    <div class="card-title" style="margin:16px 0 10px">מצב הזמנה</div>
+    <div class="timeline">${timelineHtml}</div>
+
+    ${price}
+
+    <div class="card-title" style="margin:16px 0 10px">פריטים (${allItems.length})</div>
+    ${itemsHtml}
+  `;
+}
+
+// ──────────────────────────────────────────────────────
+// New Order
+// ──────────────────────────────────────────────────────
+function showOrderScreen() {
+  orderItems = [];
+  document.getElementById('priceBox').style.display = 'none';
+  document.getElementById('delivDate').value = '';
+  document.getElementById('delivTime').value = '';
+  document.getElementById('delivAddr').value = '';
+  document.getElementById('orderNotes').value = '';
+  addItem();
+  showScreen('screenOrder');
+}
+
+function addItem() {
+  const id = ++itemIdSeq;
+  const shape = SHAPES[0] || { id:'s1', name:'ישר', bends:0, sides_default:'[1000]', angles_default:'[]' };
+  const sides = JSON.parse(shape.sides_default||'[1000]');
+  const angles = JSON.parse(shape.angles_default||'[]');
+  orderItems.push({ id, shapeId:shape.id, shapeName:shape.name, diameter:12, sides:[...sides], angles:[...angles], qty:1, note:'' });
+  renderItems();
+}
+
+function removeItem(id) {
+  orderItems = orderItems.filter(i=>i.id!==id);
+  if (!orderItems.length) addItem();
+  else renderItems();
+}
+
+function renderItems() {
+  const el = document.getElementById('itemsList');
+  el.innerHTML = orderItems.map((item,idx) => renderItemRow(item, idx+1)).join('');
+}
+
+function renderItemRow(item, num) {
+  const diamOpts = DIAMETERS.map(d => `<option value="${d}" ${d===item.diameter?'selected':''}>${d}</option>`).join('');
+  const shapeOpts = SHAPES.map(s => `<option value="${s.id}" data-name="${s.name}" data-bends="${s.bends}" data-sides='${s.sides_default}' data-angles='${s.angles_default}' ${s.id===item.shapeId?'selected':''}>${s.name}</option>`).join('');
+
+  const segsHtml = item.sides.map((s,i) => `
+    <div>
+      <input class="seg-input" type="text" inputmode="numeric" value="${s}"
+        oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+        onchange="updateSeg(${item.id},${i},+this.value||0)"
+        placeholder="${i===0?'ס"מ':''}" style="width:70px"/>
+      <div class="seg-label">קטע ${i+1}</div>
+    </div>
+  `).join('');
+
+  // Weight estimate
+  const totalMm = item.sides.reduce((s,v)=>s+v,0);
+  const kgUnit  = WEIGHTS[item.diameter] ?? (item.diameter*item.diameter*0.00617);
+  const weight  = (totalMm/1000)*kgUnit*item.qty;
+  const price   = (PRICE_LIST[item.diameter]||0)*weight;
+
+  return `
+  <div class="item-row" id="item-${item.id}">
+    <div class="item-row-title">
+      <span>פריט ${num}</span>
+      <button class="remove-item" onclick="removeItem(${item.id})">✕</button>
+    </div>
+    <div class="item-fields">
+      <div class="field">
+        <label>צורה</label>
+        <select onchange="changeShape(${item.id},this)">${shapeOpts}</select>
+      </div>
+      <div class="field">
+        <label>קוטר (מ"מ)</label>
+        <select onchange="updateField(${item.id},'diameter',+this.value)">${diamOpts}</select>
+      </div>
+    </div>
+    <div class="field" style="margin-top:4px">
+      <label>אורכי קטעים (מ"מ)</label>
+      <div class="segments-row">${segsHtml}</div>
+    </div>
+    <div class="item-fields" style="margin-top:10px">
+      <div class="field">
+        <label>כמות (יחידות)</label>
+        <input type="text" inputmode="numeric" value="${item.qty}"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+          onchange="updateField(${item.id},'qty',+this.value||1)"
+          onfocus="this.select()" style="text-align:center"/>
+      </div>
+      <div class="field">
+        <label>הערה</label>
+        <input type="text" value="${item.note||''}"
+          onchange="updateField(${item.id},'note',this.value)"/>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--dim);margin-top:6px">
+      ⚖️ ${weight.toFixed(2)} ק"ג${price?' · ≈ ₪'+price.toFixed(0):''}
+    </div>
+  </div>`;
+}
+
+function changeShape(id, sel) {
+  const opt = sel.options[sel.selectedIndex];
+  const item = orderItems.find(i=>i.id===id);
+  if (!item) return;
+  item.shapeId   = opt.value;
+  item.shapeName = opt.dataset.name;
+  item.sides     = JSON.parse(opt.dataset.sides||'[1000]');
+  item.angles    = JSON.parse(opt.dataset.angles||'[]');
+  renderItems();
+}
+
+function updateSeg(id, segIdx, val) {
+  const item = orderItems.find(i=>i.id===id);
+  if (!item) return;
+  item.sides[segIdx] = val;
+}
+
+function updateField(id, field, val) {
+  const item = orderItems.find(i=>i.id===id);
+  if (!item) return;
+  item[field] = val;
+  renderItems();
+}
+
+// ──────────────────────────────────────────────────────
+// Quote
+// ──────────────────────────────────────────────────────
+async function calcQuote() {
+  const items = orderItems.map(i=>({ diameter:i.diameter, sides:i.sides, angles:i.angles, qty:i.qty }));
+  const data = await fetch('/api/c/quote',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ token:TOKEN, items })
+  }).then(r=>r.json()).catch(()=>null);
+
+  if (!data) { toast('שגיאה בחישוב', true); return; }
+
+  const bkd = data.breakdown.map(b =>
+    `<div class="price-row"><span>Ø${b.diameter} – ${b.weight.toFixed(2)} ק"ג × ₪${b.price_per_kg}</span><span>₪${b.price.toFixed(0)}</span></div>`
+  ).join('');
+
+  document.getElementById('priceBreakdown').innerHTML = `
+    ${bkd}
+    <div class="price-row" style="margin-top:8px;color:rgba(255,255,255,.7)"><span>פסולת 3%</span><span>₪${(data.billingPrice-data.totalPrice).toFixed(0)}</span></div>
+    <div class="price-row total"><span>סה"כ לתשלום</span><span>₪${data.billingPrice.toLocaleString('he',{minimumFractionDigits:0})}</span></div>
+  `;
+  document.getElementById('priceBox').style.display = '';
+  toast(`הצעת מחיר: ₪${data.billingPrice.toFixed(0)}`);
+}
+
+// ──────────────────────────────────────────────────────
+// Submit
+// ──────────────────────────────────────────────────────
+async function submitOrder() {
+  if (!orderItems.length) { toast('הוסף לפחות פריט אחד', true); return; }
+  for (const item of orderItems) {
+    if (!item.sides.every(s=>s>0)) { toast('הכנס אורכי קטעים תקינים', true); return; }
+  }
+
+  const body = {
+    token:       TOKEN,
+    items:       orderItems.map(i=>({ shapeId:i.shapeId, shapeName:i.shapeName, diameter:i.diameter, sides:i.sides, angles:i.angles, qty:i.qty, note:i.note })),
+    deliveryDate: document.getElementById('delivDate').value,
+    deliveryTime: document.getElementById('delivTime').value,
+    deliveryAddress: document.getElementById('delivAddr').value + ' ' + document.getElementById('delivMode').value,
+    notes:        document.getElementById('orderNotes').value,
+  };
+
+  const res = await fetch('/api/c/order',{
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  }).then(r=>r.json()).catch(()=>null);
+
+  if (!res?.success) { toast(res?.error||'שגיאה בשליחה', true); return; }
+
+  toast(`הזמנה ${res.orderNum} נשלחה בהצלחה! ✓`);
+  setTimeout(async () => {
+    await showHome(null);
+  }, 1200);
+}
+
+// ──────────────────────────────────────────────────────
+// Utils
+// ──────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'screenOrder' && !orderItems.length) showOrderScreen();
+  window.scrollTo(0,0);
+}
+
+function toast(msg, err=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (err?' err':'');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 3500);
+}
+</script>
+</body>
+</html>

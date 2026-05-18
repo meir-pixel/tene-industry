@@ -244,6 +244,7 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <button class="tab-btn" onclick="showTab('vision')">📷 OCR</button>
         <button class="tab-btn" onclick="showTab('machines')">🔧 מכונות</button>
         <button class="tab-btn" onclick="showTab('drivers')">🚚 נהגים</button>
+        <button class="tab-btn" onclick="showTab('pricelist')">💰 מחירון</button>
       </div>
 
       <!-- TAB: MODULES -->
@@ -438,6 +439,44 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <div style="padding:16px 20px">
           <div id="driversList" style="display:flex;flex-direction:column;gap:8px">
             <div style="text-align:center;padding:20px;color:var(--muted)">טוען...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: PRICE LIST -->
+      <div id="tab-pricelist" class="tab-pane">
+        <div class="settings-head">
+          <div class="settings-head-left">
+            <span class="settings-head-icon">💰</span>
+            <div>
+              <div class="settings-head-title">מחירון ופורטל לקוחות</div>
+              <div class="settings-head-sub">מחיר לק"ג לפי קוטר · מחירון (מזדמן) ומחיר לקוח קבוע</div>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="savePriceList()">💾 שמור מחירון</button>
+        </div>
+        <div style="padding:16px 20px">
+          <!-- Price list table -->
+          <table style="width:100%;border-collapse:collapse;margin-bottom:24px" id="priceListTable">
+            <thead>
+              <tr style="background:#f4f6fa;text-align:center">
+                <th style="padding:10px;text-align:right;font-size:13px">קוטר (מ"מ)</th>
+                <th style="padding:10px;font-size:13px">מחיר מחירון (₪/ק"ג)</th>
+                <th style="padding:10px;font-size:13px">מחיר לקוח קבוע (₪/ק"ג)</th>
+              </tr>
+            </thead>
+            <tbody id="priceListBody">
+              <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--muted)">טוען...</td></tr>
+            </tbody>
+          </table>
+
+          <!-- Customer links -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-weight:700;font-size:15px">קישורים ללקוחות</div>
+            <input type="text" id="custSearch" placeholder="חפש לקוח..." style="width:200px;padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" oninput="searchCustomersForLinks(this.value)"/>
+          </div>
+          <div id="customerLinksList" style="display:flex;flex-direction:column;gap:8px">
+            <div style="text-align:center;padding:20px;color:var(--muted)">חפש לקוח לקישור</div>
           </div>
         </div>
       </div>
@@ -874,6 +913,119 @@ async function toggleDriver(id, active) {
 }
 
 loadAll();
+
+// ── PRICE LIST ────────────────────────────────────────────────────
+let _priceRows = [];
+
+async function loadPriceList() {
+  _priceRows = await fetch('/api/price-list').then(r=>r.json()).catch(()=>[]);
+  renderPriceListTable();
+}
+
+function renderPriceListTable() {
+  const tbody = document.getElementById('priceListBody');
+  if (!tbody) return;
+  tbody.innerHTML = _priceRows.map(row => `
+    <tr>
+      <td style="padding:8px 10px;font-weight:700;font-size:15px">Ø${row.diameter}</td>
+      <td style="padding:8px 10px;text-align:center">
+        <input type="number" step="0.1" min="0" value="${row.price_list}"
+          style="width:80px;text-align:center;padding:6px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"
+          data-diam="${row.diameter}" data-field="price_list" class="pl-input" onchange="updatePriceRow(${row.diameter},'price_list',+this.value)"/>
+      </td>
+      <td style="padding:8px 10px;text-align:center">
+        <input type="number" step="0.1" min="0" value="${row.price_cust}"
+          style="width:80px;text-align:center;padding:6px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"
+          data-diam="${row.diameter}" data-field="price_cust" class="pl-input" onchange="updatePriceRow(${row.diameter},'price_cust',+this.value)"/>
+      </td>
+    </tr>`).join('');
+}
+
+function updatePriceRow(diameter, field, val) {
+  const row = _priceRows.find(r=>r.diameter===diameter);
+  if (row) row[field] = val;
+}
+
+async function savePriceList() {
+  const res = await fetch('/api/price-list',{
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_priceRows)
+  }).then(r=>r.json()).catch(()=>null);
+  toast(res?.success ? '✓ מחירון נשמר' : 'שגיאה בשמירה', !res?.success);
+}
+
+// ── CUSTOMER PORTAL LINKS ─────────────────────────────────────────
+let _custSearchTimer = null;
+function searchCustomersForLinks(q) {
+  clearTimeout(_custSearchTimer);
+  if (!q || q.length < 2) {
+    document.getElementById('customerLinksList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">הכנס לפחות 2 תווים לחיפוש</div>';
+    return;
+  }
+  _custSearchTimer = setTimeout(async () => {
+    const custs = await fetch(`/api/customers?q=${encodeURIComponent(q)}`).then(r=>r.json()).catch(()=>[]);
+    renderCustomerLinks(custs);
+  }, 300);
+}
+
+function renderCustomerLinks(custs) {
+  const el = document.getElementById('customerLinksList');
+  if (!custs.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">לא נמצאו לקוחות</div>'; return; }
+  el.innerHTML = custs.map(c => `
+    <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${c.name}</div>
+        <div style="font-size:12px;color:var(--muted)">${c.phone||''}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select onchange="saveCustomerPricing(${c.id},this.value,'${c.discount_pct||0}')" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:12px">
+          <option value="list" ${c.price_tier!=='customer'?'selected':''}>מחירון</option>
+          <option value="customer" ${c.price_tier==='customer'?'selected':''}>לקוח קבוע</option>
+        </select>
+        <input type="number" min="0" max="50" step="0.5" value="${c.discount_pct||0}"
+          style="width:60px;padding:6px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;text-align:center"
+          placeholder="הנחה%" title="הנחה נוספת %"
+          onchange="saveCustomerPricingFull(${c.id},this)"/>
+        <button class="btn btn-primary btn-sm" onclick="copyCustomerLink(${c.id},this)">🔗 קישור</button>
+      </div>
+    </div>`).join('');
+}
+
+async function saveCustomerPricing(id, tier, discount) {
+  await fetch(`/api/customers/${id}/pricing`,{
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ price_tier:tier, discount_pct:+discount })
+  });
+}
+
+async function saveCustomerPricingFull(id, input) {
+  const row = input.closest('div[style]');
+  const tierSel = row.querySelector('select');
+  await fetch(`/api/customers/${id}/pricing`,{
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ price_tier: tierSel.value, discount_pct:+input.value })
+  });
+  toast('✓ מחיר לקוח עודכן');
+}
+
+async function copyCustomerLink(id, btn) {
+  const data = await fetch(`/api/customers/${id}/token`).then(r=>r.json()).catch(()=>null);
+  if (!data?.link) { toast('שגיאה', true); return; }
+  try {
+    await navigator.clipboard.writeText(data.link);
+    btn.textContent = '✓ הועתק!';
+    setTimeout(()=>btn.textContent='🔗 קישור', 2000);
+    toast('✓ קישור הועתק ללוח');
+  } catch {
+    prompt('העתק את הקישור:', data.link);
+  }
+}
+
+// Load price list when tab opens
+const _origShowTab = showTab;
+function showTab(id) {
+  _origShowTab(id);
+  if (id === 'pricelist') loadPriceList();
+}
 </script>
 <script src="/help.js"></script>
 </body>

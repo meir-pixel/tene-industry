@@ -6,6 +6,7 @@ const path     = require('path');
 const http     = require('http');
 const multer   = require('multer');
 const cron     = require('node-cron');
+const crypto   = require('crypto');
 const { WebSocketServer } = require('ws');
 const modbus   = require('./modbus');
 const priority = require('./priority');
@@ -225,6 +226,12 @@ db.exec(`
     active INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS price_list (
+    diameter    INTEGER PRIMARY KEY,
+    price_list  REAL DEFAULT 0,     -- מחיר מחירון (מזדמן) לק"ג
+    price_cust  REAL DEFAULT 0      -- מחיר לקוח קבוע לק"ג
+  );
 `);
 
 // ── MIGRATIONS (safe column additions) ────────────────────────────
@@ -263,6 +270,21 @@ addCol('machines',   'rtu_port',           'TEXT');                  // COM3 / /
 addCol('machines',   'baud_rate',          'INTEGER DEFAULT 9600');  // baud rate for RTU
 addCol('customers',  'company_id',         'INTEGER DEFAULT 1');
 addCol('orders',     'company_id',         'INTEGER DEFAULT 1');
+addCol('customers',  'portal_token',       'TEXT');              // unique link token
+addCol('customers',  'price_tier',         "TEXT DEFAULT 'list'"); // 'list' | 'customer'
+addCol('customers',  'discount_pct',       'REAL DEFAULT 0');    // extra % off
+addCol('orders',     'portal_order',       'INTEGER DEFAULT 0'); // 1 = placed by customer portal
+addCol('orders',     'portal_price',       'REAL DEFAULT 0');   // calculated price in ILS
+
+// ── SEED PRICE LIST ───────────────────────────────────────────────
+const plCount = db.prepare('SELECT COUNT(*) as c FROM price_list').get().c;
+if (plCount === 0) {
+  const ins = db.prepare('INSERT OR IGNORE INTO price_list (diameter,price_list,price_cust) VALUES (?,?,?)');
+  [[6,7.5,6.5],[8,7.5,6.5],[10,7.8,6.8],[12,8.0,7.0],[14,8.2,7.2],[16,8.5,7.3],
+   [18,8.7,7.5],[20,9.0,7.8],[22,9.5,8.2],[25,9.8,8.5],[28,10.5,9.0],[32,11.0,9.5],
+   [36,12.0,10.5],[40,13.0,11.5]].forEach(r => ins.run(...r));
+  console.log('[DB] Price list seeded');
+}
 
 // ── SEED COMPANIES ────────────────────────────────────────────────
 db.exec(`
@@ -1367,6 +1389,210 @@ app.post('/api/intake/parse-text', (req, res) => {
   db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
     .run(source || 'manual', text.slice(0, 2000), JSON.stringify(parsed), 'pending');
   res.json({ success: true, parsed });
+});
+
+// ── PRICE LIST (admin) ────────────────────────────────────────────
+app.get('/api/price-list', (req, res) => {
+  res.json(db.prepare('SELECT * FROM price_list ORDER BY diameter').all());
+});
+
+app.patch('/api/price-list', (req, res) => {
+  const rows = req.body; // [{diameter, price_list, price_cust}, ...]
+  const upsert = db.prepare('INSERT OR REPLACE INTO price_list (diameter,price_list,price_cust) VALUES (?,?,?)');
+  const tx = db.transaction(() => rows.forEach(r => upsert.run(r.diameter, r.price_list, r.price_cust)));
+  tx();
+  res.json({ success: true });
+});
+
+// Generate / fetch portal token for a customer
+app.get('/api/customers/:id/token', (req, res) => {
+  let c = db.prepare('SELECT id,name,portal_token FROM customers WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'לא נמצא' });
+  if (!c.portal_token) {
+    const token = crypto.randomBytes(12).toString('hex');
+    db.prepare('UPDATE customers SET portal_token=? WHERE id=?').run(token, c.id);
+    c.portal_token = token;
+  }
+  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+  res.json({ token: c.portal_token, link: `${baseUrl}/customer.html?token=${c.portal_token}` });
+});
+
+app.patch('/api/customers/:id/pricing', (req, res) => {
+  const { price_tier, discount_pct } = req.body;
+  db.prepare('UPDATE customers SET price_tier=?,discount_pct=? WHERE id=?')
+    .run(price_tier, discount_pct ?? 0, req.params.id);
+  res.json({ success: true });
+});
+
+// ── CUSTOMER PORTAL API ───────────────────────────────────────────
+function resolveCustomer(token, phone) {
+  if (token) return db.prepare('SELECT * FROM customers WHERE portal_token=?').get(token);
+  if (phone) return db.prepare('SELECT * FROM customers WHERE phone=?').get(phone);
+  return null;
+}
+
+// Auth: get/create customer by phone (walk-in) or by token
+app.post('/api/c/auth', (req, res) => {
+  const { phone, name } = req.body;
+  if (!phone) return res.status(400).json({ error: 'טלפון חובה' });
+  let c = db.prepare('SELECT * FROM customers WHERE phone=?').get(phone);
+  if (!c) {
+    if (!name) return res.json({ needName: true }); // ask for name first
+    const r = db.prepare('INSERT INTO customers (name,phone,price_tier) VALUES (?,?,?)').run(name, phone, 'list');
+    c = db.prepare('SELECT * FROM customers WHERE id=?').get(r.lastInsertRowid);
+  }
+  if (!c.portal_token) {
+    const token = crypto.randomBytes(12).toString('hex');
+    db.prepare('UPDATE customers SET portal_token=? WHERE id=?').run(token, c.id);
+    c = db.prepare('SELECT * FROM customers WHERE id=?').get(c.id);
+  }
+  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+  res.json({
+    token: c.portal_token,
+    link: `${baseUrl}/customer.html?token=${c.portal_token}`,
+    customer: { id: c.id, name: c.name, phone: c.phone, price_tier: c.price_tier }
+  });
+});
+
+// Get customer info + recent orders
+app.get('/api/c/me', (req, res) => {
+  const { token } = req.query;
+  const c = resolveCustomer(token);
+  if (!c) return res.status(401).json({ error: 'לא מורשה' });
+  const orders = db.prepare(`
+    SELECT id, order_num, status, created_at, total_weight, billing_weight, delivery_date, portal_price
+    FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 20
+  `).all(c.id);
+  res.json({ customer: { id: c.id, name: c.name, phone: c.phone, price_tier: c.price_tier, discount_pct: c.discount_pct }, orders });
+});
+
+// Shapes (public)
+app.get('/api/c/shapes', (req, res) => {
+  res.json(db.prepare('SELECT * FROM shapes WHERE active=1 ORDER BY id').all());
+});
+
+// Price list for this customer
+app.get('/api/c/price-list', (req, res) => {
+  const { token } = req.query;
+  const c = resolveCustomer(token);
+  const tier = c?.price_tier || 'list';
+  const discount = c?.discount_pct || 0;
+  const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
+  const result = pl.map(row => ({
+    diameter: row.diameter,
+    price_per_kg: ((tier === 'customer' ? row.price_cust : row.price_list) * (1 - discount / 100)).toFixed(2)
+  }));
+  res.json(result);
+});
+
+// Quote — calculate price for items before ordering
+app.post('/api/c/quote', (req, res) => {
+  const { token, items } = req.body; // items: [{diameter, sides[], qty}]
+  const c = resolveCustomer(token);
+  const tier = c?.price_tier || 'list';
+  const discount = c?.discount_pct || 0;
+  const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
+  const priceMap = {};
+  pl.forEach(r => {
+    priceMap[r.diameter] = (tier === 'customer' ? r.price_cust : r.price_list) * (1 - discount / 100);
+  });
+  const WEIGHTS = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86};
+  let totalWeight = 0, totalPrice = 0;
+  const breakdown = (items || []).map(item => {
+    const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
+    const kgPerM = WEIGHTS[item.diameter] ?? (item.diameter*item.diameter*0.00617);
+    const weight = (totalLengthMm / 1000) * kgPerM * (item.qty || 1);
+    const ppu = priceMap[item.diameter] || 0;
+    const price = weight * ppu;
+    totalWeight += weight;
+    totalPrice += price;
+    return { diameter: item.diameter, weight: +weight.toFixed(3), price_per_kg: +ppu.toFixed(2), price: +price.toFixed(2) };
+  });
+  // Add 3% waste
+  const waste = 0.03;
+  const billingWeight = totalWeight * (1 + waste);
+  const billingPrice  = totalPrice  * (1 + waste);
+  res.json({ breakdown, totalWeight: +totalWeight.toFixed(2), billingWeight: +billingWeight.toFixed(2), totalPrice: +totalPrice.toFixed(2), billingPrice: +billingPrice.toFixed(2), currency: '₪' });
+});
+
+// Submit order from portal
+app.post('/api/c/order', (req, res) => {
+  const { token, phone, name, items, deliveryDate, deliveryTime, deliveryAddress, notes } = req.body;
+  let c = resolveCustomer(token, phone);
+  if (!c && name && phone) {
+    const r = db.prepare('INSERT INTO customers (name,phone,price_tier) VALUES (?,?,?)').run(name, phone, 'list');
+    const tok = crypto.randomBytes(12).toString('hex');
+    db.prepare('UPDATE customers SET portal_token=? WHERE id=?').run(tok, r.lastInsertRowid);
+    c = db.prepare('SELECT * FROM customers WHERE id=?').get(r.lastInsertRowid);
+  }
+  if (!c) return res.status(401).json({ error: 'נדרש זיהוי' });
+  if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
+
+  // Calculate price
+  const tier = c.price_tier || 'list';
+  const discount = c.discount_pct || 0;
+  const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
+  const priceMap = {};
+  pl.forEach(r => { priceMap[r.diameter] = (tier === 'customer' ? r.price_cust : r.price_list) * (1 - discount / 100); });
+  const WEIGHTS = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86};
+
+  let totalWeight = 0, totalPrice = 0;
+  const orderNum = generateOrderNum();
+  const wastePct = 3;
+
+  const orderRow = db.prepare(`
+    INSERT INTO orders (order_num,customer_id,channel,delivery_date,delivery_time,delivery_address,
+      priority,general_notes,total_weight,waste_pct_charged,billing_weight,portal_order)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,1)
+  `).run(orderNum, c.id, 'פורטל לקוח', deliveryDate, deliveryTime, deliveryAddress,
+         'רגיל', notes, 0, wastePct, 0);
+
+  const orderId = orderRow.lastInsertRowid;
+  const palletRow = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight) VALUES (?,1,9999)').run(orderId);
+  const palletId = palletRow.lastInsertRowid;
+
+  items.forEach(item => {
+    const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
+    const kgPerM = WEIGHTS[item.diameter] ?? (item.diameter*item.diameter*0.00617);
+    const weight = (totalLengthMm / 1000) * kgPerM * (item.qty || 1);
+    const ppu = priceMap[item.diameter] || 0;
+    totalWeight += weight;
+    totalPrice += weight * ppu;
+    const segments = JSON.stringify((item.sides || []).map((l,i) => ({ length_mm:l, angle_deg:(item.angles||[])[i]??0 })));
+    let machine = 'A';
+    if (item.diameter >= 14 && item.diameter <= 20) machine = 'B';
+    else if (item.diameter > 20) machine = 'D';
+    db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,machine)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(palletId, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,
+           item.qty||1, Math.ceil((item.qty||1)*(1+wastePct/100)), weight/(item.qty||1), weight, item.note||'', machine);
+  });
+
+  const billingWeight = totalWeight * (1 + wastePct/100);
+  const portalPrice   = totalPrice  * (1 + wastePct/100);
+  db.prepare('UPDATE orders SET total_weight=?,billing_weight=?,portal_price=? WHERE id=?')
+    .run(totalWeight, billingWeight, portalPrice, orderId);
+  db.prepare('UPDATE pallets SET total_weight=? WHERE id=?').run(totalWeight, palletId);
+
+  wsBroadcast('new_order', { orderNum, orderId, channel: 'פורטל לקוח' });
+  res.json({
+    success: true, orderNum, orderId,
+    summary: { totalWeight: +totalWeight.toFixed(2), billingWeight: +billingWeight.toFixed(2), portalPrice: +portalPrice.toFixed(2) },
+    token: c.portal_token
+  });
+});
+
+// Customer order history
+app.get('/api/c/orders/:orderId', (req, res) => {
+  const { token } = req.query;
+  const c = resolveCustomer(token);
+  if (!c) return res.status(401).json({ error: 'לא מורשה' });
+  const order = db.prepare('SELECT * FROM orders WHERE id=? AND customer_id=?').get(req.params.orderId, c.id);
+  if (!order) return res.status(404).json({ error: 'לא נמצא' });
+  const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=?').all(order.id);
+  pallets.forEach(p => { p.items = db.prepare('SELECT * FROM items WHERE pallet_id=?').all(p.id); });
+  order.pallets = pallets;
+  res.json(order);
 });
 
 // ── AI PREDICTION ─────────────────────────────────────────────────
