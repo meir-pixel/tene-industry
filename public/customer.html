@@ -333,17 +333,19 @@ function renderOrdersList(orders) {
     const date = o.delivery_date ? `אספקה: ${o.delivery_date}` : '';
     const weight = o.billing_weight ? `${(+o.billing_weight).toFixed(1)} ק"ג` : '';
     const price = o.portal_price ? `₪${(+o.portal_price).toLocaleString('he')}` : '';
+    const needsApproval = o.status === 'ממתינה לאישור לקוח';
     return `
-    <div class="order-card ${cls}" onclick="openOrder(${o.id})">
+    <div class="order-card ${cls}" onclick="openOrder(${o.id})" style="${needsApproval?'border:2px solid #f39c12;background:#fffdf5':''}">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div class="order-num">${o.order_num}</div>
-        <span class="status-badge ${badgeCls(o.status)}">${o.status}</span>
+        <span class="status-badge ${badgeCls(o.status)}">${needsApproval?'⏳ '+o.status:o.status}</span>
       </div>
       <div class="order-meta">
         ${date ? `<span>📅 ${date}</span>` : ''}
         ${weight ? `<span>⚖️ ${weight}</span>` : ''}
         ${price  ? `<span style="font-weight:700;color:var(--orange)">💰 ${price}</span>` : ''}
       </div>
+      ${needsApproval ? `<div style="margin-top:10px;font-size:12px;color:#e07b39;font-weight:700">👆 לחץ לאישור ותחילת ייצור</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -376,16 +378,20 @@ async function openOrder(id) {
 }
 
 const STATUS_TIMELINE = [
-  { key:'ממתינה לאישור', label:'התקבלה בהזמנה', sub:'ממתינה לאישור מנהל' },
-  { key:'אושרה',         label:'אושרה',          sub:'ההזמנה אושרה' },
-  { key:'בייצור',        label:'בייצור',          sub:'עובדים על ההזמנה שלך' },
-  { key:'הושלם',         label:'הושלמה',          sub:'ההזמנה הושלמה' },
-  { key:'בדרך',          label:'בדרך אליך',       sub:'השליח בדרך' },
-  { key:'סופק',          label:'סופק',            sub:'ההזמנה נמסרה' },
+  { key:'ממתינה לאישור לקוח', label:'ממתינה לאישורך',   sub:'לחץ "אשר הזמנה" להתחלת ייצור' },
+  { key:'אושרה',               label:'אושרה',             sub:'ההזמנה אושרה ועוברת לתכנון' },
+  { key:'בייצור',              label:'בייצור',             sub:'עובדים על ההזמנה שלך' },
+  { key:'הושלם',               label:'הושלמה',             sub:'ההזמנה הושלמה, ממתינה לאיסוף' },
+  { key:'בדרך',                label:'בדרך אליך',          sub:'השליח בדרך' },
+  { key:'סופק',                label:'סופק',               sub:'ההזמנה נמסרה' },
 ];
 
+let _currentOrderId = null;
+
 function renderDetail(order) {
+  _currentOrderId = order.id;
   const allItems = (order.pallets||[]).flatMap(p=>p.items||[]);
+  const isPendingApproval = order.status === 'ממתינה לאישור לקוח';
   const currentIdx = STATUS_TIMELINE.findIndex(s => order.status?.includes(s.key.split(' ')[0]));
 
   const timelineHtml = STATUS_TIMELINE.map((s,i) => {
@@ -401,10 +407,11 @@ function renderDetail(order) {
       <div class="item-detail-info">
         <div style="font-weight:700;font-size:14px">${item.shape_name||'ישר'}</div>
         <div style="font-size:12px;color:var(--dim)">${item.quantity} יחידות · ${Math.round((item.total_length_mm||0)/10)} ס"מ</div>
+        ${isPendingApproval ? '' : `
         <div style="margin-top:6px;background:#eee;border-radius:20px;height:6px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:var(--green);transition:.3s"></div>
         </div>
-        <div class="item-detail-status" style="margin-top:3px;color:${pct===100?'var(--green)':'var(--dim)'}">${pct}% הושלם</div>
+        <div class="item-detail-status" style="margin-top:3px;color:${pct===100?'var(--green)':'var(--dim)'}">${pct}% הושלם</div>`}
       </div>
     </div>`;
   }).join('');
@@ -414,6 +421,19 @@ function renderDetail(order) {
     <div class="price-row total"><span>סה"כ לתשלום</span><span>₪${(+order.portal_price).toLocaleString('he',{minimumFractionDigits:2})}</span></div>
     <div class="price-note">* לא כולל מע"מ</div>
   </div>` : '';
+
+  // Approval banner — shown when pending customer approval
+  const approvalBanner = isPendingApproval ? `
+    <div style="background:#fff8e1;border:2px solid #f39c12;border-radius:14px;padding:18px;margin-bottom:16px;text-align:center">
+      <div style="font-size:32px;margin-bottom:8px">⏳</div>
+      <div style="font-weight:800;font-size:16px;color:#e07b39;margin-bottom:6px">ממתינה לאישורך</div>
+      <div style="font-size:13px;color:#666;margin-bottom:16px">אשר את ההזמנה כדי שנוכל להתחיל בייצור</div>
+      ${price}
+      <button onclick="approveOrder(${order.id})"
+        style="background:#27ae60;color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:16px;font-weight:800;cursor:pointer;width:100%;margin-top:12px">
+        ✅ אשר הזמנה ולאשר תחילת ייצור
+      </button>
+    </div>` : '';
 
   document.getElementById('detailContent').innerHTML = `
     <div class="card">
@@ -428,14 +448,34 @@ function renderDetail(order) {
       ${order.delivery_address?`<div style="font-size:13px;color:var(--dim)">📍 ${order.delivery_address}</div>`:''}
     </div>
 
+    ${approvalBanner}
+
     <div class="card-title" style="margin:16px 0 10px">מצב הזמנה</div>
     <div class="timeline">${timelineHtml}</div>
 
-    ${price}
+    ${isPendingApproval ? '' : price}
 
     <div class="card-title" style="margin:16px 0 10px">פריטים (${allItems.length})</div>
     ${itemsHtml}
   `;
+}
+
+async function approveOrder(orderId) {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.textContent = '...שולח';
+  const res = await fetch('/api/c/approve', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ token:TOKEN, orderId })
+  }).then(r=>r.json()).catch(()=>null);
+  if (res?.success) {
+    toast('✅ הזמנה אושרה! נתחיל בייצור בהקדם');
+    setTimeout(() => openOrder(orderId), 1000);
+  } else {
+    toast(res?.error || 'שגיאה', true);
+    btn.disabled = false;
+    btn.textContent = '✅ אשר הזמנה ולאשר תחילת ייצור';
+  }
 }
 
 // ──────────────────────────────────────────────────────
@@ -605,9 +645,17 @@ async function submitOrder() {
 
   if (!res?.success) { toast(res?.error||'שגיאה בשליחה', true); return; }
 
-  toast(`הזמנה ${res.orderNum} נשלחה בהצלחה! ✓`);
+  if (res.awaitingApproval) {
+    toast(`הזמנה ${res.orderNum} נשלחה! שלחנו לך WhatsApp לאישור 📲`);
+  } else {
+    toast(`הזמנה ${res.orderNum} נשלחה בהצלחה! ✓`);
+  }
   setTimeout(async () => {
     await showHome(null);
+    if (res.awaitingApproval) {
+      // Auto-open the order so customer can approve inline too
+      setTimeout(() => openOrder(res.orderId), 500);
+    }
   }, 1200);
 }
 

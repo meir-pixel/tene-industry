@@ -947,10 +947,17 @@ function updatePriceRow(diameter, field, val) {
 }
 
 async function savePriceList() {
+  const btn = document.querySelector('#tab-pricelist .btn-primary');
+  if (btn) { btn.textContent = '...שומר'; btn.disabled = true; }
   const res = await fetch('/api/price-list',{
     method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_priceRows)
   }).then(r=>r.json()).catch(()=>null);
-  toast(res?.success ? '✓ מחירון נשמר' : 'שגיאה בשמירה', !res?.success);
+  if (btn) { btn.textContent = '💾 שמור מחירון'; btn.disabled = false; }
+  if (res?.success) {
+    toast('✓ מחירון נשמר ונשלח WhatsApp ללקוחות עם פורטל 📲');
+  } else {
+    toast('שגיאה בשמירה', true);
+  }
 }
 
 // ── CUSTOMER PORTAL LINKS ─────────────────────────────────────────

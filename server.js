@@ -275,6 +275,8 @@ addCol('customers',  'price_tier',         "TEXT DEFAULT 'list'"); // 'list' | '
 addCol('customers',  'discount_pct',       'REAL DEFAULT 0');    // extra % off
 addCol('orders',     'portal_order',       'INTEGER DEFAULT 0'); // 1 = placed by customer portal
 addCol('orders',     'portal_price',       'REAL DEFAULT 0');   // calculated price in ILS
+addCol('orders',     'confirm_token',      'TEXT');             // one-time approval token
+addCol('customers',  'price_approved_at',  'TEXT');             // last time customer approved the price list
 
 // ── SEED PRICE LIST ───────────────────────────────────────────────
 const plCount = db.prepare('SELECT COUNT(*) as c FROM price_list').get().c;
@@ -1396,13 +1398,39 @@ app.get('/api/price-list', (req, res) => {
   res.json(db.prepare('SELECT * FROM price_list ORDER BY diameter').all());
 });
 
-app.patch('/api/price-list', (req, res) => {
+app.patch('/api/price-list', async (req, res) => {
   const rows = req.body; // [{diameter, price_list, price_cust}, ...]
   const upsert = db.prepare('INSERT OR REPLACE INTO price_list (diameter,price_list,price_cust) VALUES (?,?,?)');
   const tx = db.transaction(() => rows.forEach(r => upsert.run(r.diameter, r.price_list, r.price_cust)));
   tx();
   res.json({ success: true });
+
+  // Notify portal customers about updated price list (async, don't block response)
+  notifyPriceListUpdate(rows).catch(e => console.warn('[PriceList notify]', e));
 });
+
+async function notifyPriceListUpdate(rows) {
+  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+  // key diameters to show in message
+  const keyDiams = [8, 10, 12, 14, 16, 20];
+  const priceLines = rows
+    .filter(r => keyDiams.includes(r.diameter))
+    .map(r => `• Ø${r.diameter}: מחירון ₪${r.price_list}/ק"ג | לקוח קבוע ₪${r.price_cust}/ק"ג`)
+    .join('\n');
+
+  // Get all customers with portal tokens and phone numbers
+  const customers = db.prepare(
+    `SELECT id, name, phone, portal_token FROM customers WHERE portal_token IS NOT NULL AND phone IS NOT NULL`
+  ).all();
+
+  for (const c of customers) {
+    const link = `${baseUrl}/customer.html?token=${c.portal_token}`;
+    const msg = `🔔 *עדכון מחירון IronBend*\n\nשלום ${c.name},\nהמחירון עודכן:\n\n${priceLines}\n\nלצפייה בכל המחירים ולהזמנה:\n${link}`;
+    try { await intake.sendWhatsApp(c.phone, msg); } catch {}
+    // small delay to avoid rate limiting
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
 
 // Generate / fetch portal token for a customer
 app.get('/api/customers/:id/token', (req, res) => {
@@ -1516,7 +1544,7 @@ app.post('/api/c/quote', (req, res) => {
 });
 
 // Submit order from portal
-app.post('/api/c/order', (req, res) => {
+app.post('/api/c/order', async (req, res) => {
   const { token, phone, name, items, deliveryDate, deliveryTime, deliveryAddress, notes } = req.body;
   let c = resolveCustomer(token, phone);
   if (!c && name && phone) {
@@ -1539,18 +1567,20 @@ app.post('/api/c/order', (req, res) => {
   let totalWeight = 0, totalPrice = 0;
   const orderNum = generateOrderNum();
   const wastePct = 3;
+  const confirmToken = crypto.randomBytes(16).toString('hex');
 
   const orderRow = db.prepare(`
     INSERT INTO orders (order_num,customer_id,channel,delivery_date,delivery_time,delivery_address,
-      priority,general_notes,total_weight,waste_pct_charged,billing_weight,portal_order)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,1)
+      priority,general_notes,total_weight,waste_pct_charged,billing_weight,portal_order,status,confirm_token)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,1,'ממתינה לאישור לקוח',?)
   `).run(orderNum, c.id, 'פורטל לקוח', deliveryDate, deliveryTime, deliveryAddress,
-         'רגיל', notes, 0, wastePct, 0);
+         'רגיל', notes, 0, wastePct, 0, confirmToken);
 
   const orderId = orderRow.lastInsertRowid;
   const palletRow = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight) VALUES (?,1,9999)').run(orderId);
   const palletId = palletRow.lastInsertRowid;
 
+  const itemLines = [];
   items.forEach(item => {
     const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
     const kgPerM = WEIGHTS[item.diameter] ?? (item.diameter*item.diameter*0.00617);
@@ -1566,6 +1596,7 @@ app.post('/api/c/order', (req, res) => {
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(palletId, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,
            item.qty||1, Math.ceil((item.qty||1)*(1+wastePct/100)), weight/(item.qty||1), weight, item.note||'', machine);
+    itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} – ${Math.round(totalLengthMm/10)}ס"מ`);
   });
 
   const billingWeight = totalWeight * (1 + wastePct/100);
@@ -1574,13 +1605,79 @@ app.post('/api/c/order', (req, res) => {
     .run(totalWeight, billingWeight, portalPrice, orderId);
   db.prepare('UPDATE pallets SET total_weight=? WHERE id=?').run(totalWeight, palletId);
 
-  wsBroadcast('new_order', { orderNum, orderId, channel: 'פורטל לקוח' });
+  wsBroadcast('new_order', { orderNum, orderId, channel: 'פורטל לקוח', status: 'ממתינה לאישור לקוח' });
+
+  // Send WhatsApp confirmation with approve link (non-blocking)
+  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+  const approveLink = `${baseUrl}/api/c/approve/${confirmToken}`;
+  const delivInfo = deliveryDate ? `📅 אספקה: ${deliveryDate}${deliveryTime ? ' ' + deliveryTime : ''}` : '';
+  const addrInfo  = deliveryAddress ? `📍 ${deliveryAddress}` : '';
+  const waMsg = `📋 *הזמנה ${orderNum} – ממתינה לאישורך*\n\nשלום ${c.name},\nקיבלנו את הזמנתך:\n\n${itemLines.join('\n')}\n\n⚖️ משקל לחיוב: ${billingWeight.toFixed(1)} ק"ג\n💰 סה"כ: ₪${portalPrice.toFixed(0)}\n${delivInfo}\n${addrInfo}\n\n*לאישור ותחילת ייצור – לחץ כאן:*\n${approveLink}\n\n_⚠️ ייצור יתחיל רק לאחר אישורך_`;
+
+  if (c.phone) intake.sendWhatsApp(c.phone, waMsg).catch(e => console.warn('[Order confirm WA]', e));
+
   res.json({
     success: true, orderNum, orderId,
     summary: { totalWeight: +totalWeight.toFixed(2), billingWeight: +billingWeight.toFixed(2), portalPrice: +portalPrice.toFixed(2) },
-    token: c.portal_token
+    token: c.portal_token,
+    awaitingApproval: true
   });
 });
+
+// Customer order approval (link from WhatsApp)
+app.get('/api/c/approve/:token', (req, res) => {
+  const order = db.prepare('SELECT o.*,c.name as customer_name,c.phone FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.confirm_token=?').get(req.params.token);
+  if (!order) return res.status(404).send(approvalPage('לא נמצא', 'קישור לא תקין או פג תוקף.', false));
+  if (order.status !== 'ממתינה לאישור לקוח') {
+    return res.send(approvalPage('כבר אושרה', `הזמנה ${order.order_num} כבר אושרה ובטיפול!`, true));
+  }
+  db.prepare("UPDATE orders SET status='אושרה – ממתין לייצור', confirm_token=NULL WHERE id=?").run(order.id);
+  wsBroadcast('order_status', { id: order.id, status: 'אושרה – ממתין לייצור', orderNum: order.order_num });
+  // Notify factory via WA to the notify phone
+  const notifyPhone = db.prepare("SELECT value FROM settings WHERE key='WHATSAPP_NOTIFY_PHONE'").get()?.value;
+  if (notifyPhone) {
+    const msg = `✅ הזמנה ${order.order_num} אושרה ע"י הלקוח ${order.customer_name||''} – ניתן להתחיל ייצור!`;
+    intake.sendWhatsApp(notifyPhone, msg).catch(()=>{});
+  }
+  return res.send(approvalPage('✅ הזמנה אושרה!', `הזמנה ${order.order_num} אושרה בהצלחה.\nנתחיל בייצור בהקדם האפשרי. 🏗️`, true));
+});
+
+// Also allow approval from portal (POST)
+app.post('/api/c/approve', (req, res) => {
+  const { token, orderId } = req.body;
+  const c = resolveCustomer(token);
+  if (!c) return res.status(401).json({ error: 'לא מורשה' });
+  const order = db.prepare('SELECT * FROM orders WHERE id=? AND customer_id=? AND status=?').get(orderId, c.id, 'ממתינה לאישור לקוח');
+  if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה או כבר אושרה' });
+  db.prepare("UPDATE orders SET status='אושרה – ממתין לייצור', confirm_token=NULL WHERE id=?").run(orderId);
+  wsBroadcast('order_status', { id: orderId, status: 'אושרה – ממתין לייצור', orderNum: order.order_num });
+  const notifyPhone = db.prepare("SELECT value FROM settings WHERE key='WHATSAPP_NOTIFY_PHONE'").get()?.value;
+  if (notifyPhone) {
+    intake.sendWhatsApp(notifyPhone, `✅ הזמנה ${order.order_num} אושרה ע"י הלקוח – ניתן להתחיל ייצור!`).catch(()=>{});
+  }
+  res.json({ success: true });
+});
+
+function approvalPage(title, msg, success) {
+  const color = success ? '#27ae60' : '#e74c3c';
+  const icon  = success ? '✅' : '❌';
+  return `<!DOCTYPE html><html lang="he" dir="rtl">
+  <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>${title}</title>
+  <style>body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6fa;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;direction:rtl}
+  .box{background:#fff;border-radius:20px;padding:40px 32px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.1);max-width:380px;width:90%}
+  .icon{font-size:64px;margin-bottom:16px}
+  h1{font-size:22px;color:${color};margin-bottom:12px}
+  p{color:#555;font-size:15px;line-height:1.6;white-space:pre-line}
+  a{display:inline-block;margin-top:24px;padding:12px 28px;background:#e07b39;color:#fff;border-radius:12px;text-decoration:none;font-weight:700}
+  </style></head>
+  <body><div class="box">
+    <div class="icon">${icon}</div>
+    <h1>${title}</h1>
+    <p>${msg}</p>
+    <a href="/">חזרה לדף הבית</a>
+  </div></body></html>`;
+}
 
 // Customer order history
 app.get('/api/c/orders/:orderId', (req, res) => {
