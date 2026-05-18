@@ -509,22 +509,21 @@ function showTab(id) {
 
 // ── Load ──────────────────────────────────────────────────────
 async function loadAll() {
-  try {
-    const [settings, dash, machines, drivers] = await Promise.all([
-      fetch('/api/settings').then(r=>r.json()),
-      fetch('/api/dashboard').then(r=>r.json()),
-      fetch('/api/machines').then(r=>r.json()),
-      fetch('/api/drivers?all=1').then(r=>r.json()),
-    ]);
-    savedSettings = settings;
-    fillForms(settings);
-    renderStatus(dash, machines, settings);
-    renderModules(settings);
-    renderMachinesTable(machines);
-    renderDriversList(drivers);
-  } catch(e) {
-    toast('שגיאה בטעינת הגדרות', true);
-  }
+  const safe = (fn, fallback) => fn().catch(e => { console.warn(e); return fallback; });
+
+  const [settings, dash, machines, drivers] = await Promise.all([
+    safe(() => fetch('/api/settings').then(r=>r.json()), {}),
+    safe(() => fetch('/api/dashboard').then(r=>r.json()), {}),
+    safe(() => fetch('/api/machines').then(r=>r.json()), []),
+    safe(() => fetch('/api/drivers?all=1').then(r=>r.json()), []),
+  ]);
+
+  savedSettings = settings;
+  fillForms(settings);
+  renderStatus(dash, machines, settings);
+  renderModules(settings);
+  renderMachinesTable(machines);
+  renderDriversList(drivers);
 }
 
 function fillForms(s) {
