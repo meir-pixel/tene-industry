@@ -13,20 +13,16 @@ services:
       - key: NODE_ENV
         value: production
       - key: DB_PATH
-        value: /data/ironbend.db
+        value: ./ironbend.db
       - key: BACKUP_DIR
-        value: /data/backups
+        value: ./backups
       - key: SESSION_SECRET
-        generateValue: true # Generates a cryptographically secure random secret
+        generateValue: true
       - key: GEMINI_API_KEY
-        sync: false # Set manually in Render dashboard
+        sync: false
       - key: WHATSAPP_TOKEN
-        sync: false # Set manually in Render dashboard
+        sync: false
       - key: WHATSAPP_PHONE_ID
-        sync: false # Set manually in Render dashboard
+        sync: false
       - key: WHATSAPP_VERIFY_TOKEN
-        sync: false # Set manually in Render dashboard
-    disk:
-      name: ironbend-data
-      mountPath: /data
-      sizeGB: 1
+        sync: false
