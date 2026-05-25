@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="IronBend">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="/shape-editor.js"></script>
+<script src="/shape-editor.js?v=35"></script>
 <script src="/offline-db.js"></script>
 <script src="/nav.js" defer></script>
 <style>
@@ -836,6 +836,14 @@
         <div class="section-title">פריטי ברזל – משטחים</div>
         <div class="section-subtitle">כל משטח נשלח בנפרד. המשקל מחושב אוטומטית.</div>
       </div>
+      <button onclick="document.getElementById('imgUploadInput').click()"
+        style="margin-right:auto;padding:9px 16px;background:linear-gradient(135deg,#1a5c2e,#1a7a3c);color:#fff;
+               border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;
+               display:flex;align-items:center;gap:6px;white-space:nowrap;">
+        📷 ייבוא מתמונה
+      </button>
+      <input type="file" id="imgUploadInput" accept="image/*" capture="environment" style="display:none"
+             onchange="analyzeOrderImage(this)">
     </div>
     <div class="section-body">
       <div class="pallets-container" id="palletsContainer"></div>
@@ -844,6 +852,70 @@
       </button>
     </div>
   </div>
+
+  <!-- IMAGE ANALYZE MODAL -->
+  <div id="imgAnalyzeOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:2000;
+    align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#fff;border-radius:16px;max-width:700px;width:100%;max-height:90vh;
+      overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <!-- Header -->
+      <div style="padding:18px 20px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:18px;font-weight:900;color:#1a2332;">📷 ניתוח הזמנה מתמונה</div>
+        <button onclick="closeImgModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#888;">✕</button>
+      </div>
+      <!-- Loading -->
+      <div id="imgLoading" style="padding:48px;text-align:center;display:none;">
+        <div style="font-size:40px;margin-bottom:16px;">🔍</div>
+        <div style="font-size:16px;font-weight:700;color:#1a2332;margin-bottom:8px;">מנתח את ההזמנה...</div>
+        <div style="font-size:13px;color:#888;">Gemini AI קורא את הטופס</div>
+        <div style="margin-top:20px;height:4px;background:#eee;border-radius:2px;overflow:hidden;">
+          <div id="imgProgress" style="height:100%;background:linear-gradient(90deg,#1a7a3c,#3ab060);
+            animation:loadbar 2s infinite;border-radius:2px;width:60%;"></div>
+        </div>
+      </div>
+      <!-- Image preview -->
+      <div id="imgPreviewWrap" style="padding:12px 20px;display:none;">
+        <img id="imgPreview" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #ddd;" />
+      </div>
+      <!-- Results -->
+      <div id="imgResults" style="display:none;padding:0 20px 20px;">
+        <div style="font-size:14px;font-weight:700;color:#1a2332;margin:12px 0 8px;">
+          ✅ זוהו הפריטים הבאים — בדוק ואשר:
+        </div>
+        <div id="imgItemsList"></div>
+        <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+          <button onclick="closeImgModal()"
+            style="padding:10px 20px;border:1px solid #ccc;border-radius:8px;background:#fff;
+                   font-family:inherit;font-size:14px;cursor:pointer;">ביטול</button>
+          <button onclick="confirmImgItems()"
+            style="padding:10px 24px;background:linear-gradient(135deg,#1a5c2e,#1a7a3c);color:#fff;
+                   border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;">
+            ✅ אישור — ייבא לטופס
+          </button>
+        </div>
+      </div>
+      <!-- Error -->
+      <div id="imgError" style="display:none;padding:24px 20px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:12px;">⚠️</div>
+        <div id="imgErrorMsg" style="color:#b83227;font-weight:700;margin-bottom:16px;"></div>
+        <button onclick="closeImgModal()"
+          style="padding:9px 20px;border:1px solid #ccc;border-radius:8px;background:#fff;
+                 font-family:inherit;font-size:13px;cursor:pointer;">סגור</button>
+      </div>
+    </div>
+  </div>
+  <style>
+    @keyframes loadbar { 0%{margin-right:100%} 50%{margin-right:0%} 100%{margin-right:100%} }
+    .img-item-card{border:1px solid #dde3ea;border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#f8fbff;}
+    .img-item-card.edited{border-color:#e07b39;}
+    .img-item-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px;}
+    .img-item-label{font-size:11px;color:#888;min-width:50px;}
+    .img-item-val{font-size:13px;font-weight:700;color:#1a2332;}
+    .img-item-inp{padding:4px 8px;border:1px solid #ccc;border-radius:5px;font-family:inherit;
+      font-size:13px;width:80px;text-align:center;}
+    .img-remove-btn{margin-right:auto;padding:3px 10px;border:1px solid #e8a0a0;border-radius:5px;
+      background:#fff;color:#b83227;font-size:12px;cursor:pointer;}
+  </style>
 
   <!-- SECTION 4: NOTES -->
   <div class="section">
@@ -1113,7 +1185,18 @@ function renderPalletHTML(p, idx) {
       <div class="iron-items-table-wrap"><table class="iron-items-table">
         <thead>
           <tr>
-            <th style="width:64px">צורה</th>
+            <th style="width:72px">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <span>צורה</span>
+                <button onclick="toggleThumb3D()" id="thumb3d-btn"
+                  title="החלף בין תצוגת 2D/3D"
+                  style="padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;cursor:pointer;
+                    border:1px solid;line-height:1.4;background:rgba(224,123,57,0.15);
+                    border-color:#e07b39;color:#e07b39;font-family:inherit">
+                  🧊 3D
+                </button>
+              </div>
+            </th>
             <th>קוטר</th>
             <th>פרימטר (מ"מ)</th>
             <th>כמות</th>
@@ -1149,20 +1232,49 @@ function renderPalletHTML(p, idx) {
 // ── ITEM ROW ──────────────────────────────────────────────
 let _shapeTarget = null;
 
+// ── Global 3D toggle for item thumbnails ──────────────────────────
+window._itemThumb3D = true; // default: show 3D in thumbnails
+window.toggleThumb3D = function() {
+  window._itemThumb3D = !window._itemThumb3D;
+  const btn = document.getElementById('thumb3d-btn');
+  if (btn) {
+    const is3D = window._itemThumb3D;
+    btn.textContent = is3D ? '🧊 3D' : '📐 2D';
+    btn.style.background = is3D ? 'rgba(224,123,57,0.15)' : 'rgba(255,255,255,0.05)';
+    btn.style.borderColor = is3D ? '#e07b39' : 'rgba(0,0,0,0.2)';
+    btn.style.color = is3D ? '#e07b39' : 'var(--text-dim)';
+  }
+  renderPallets();
+};
+
 function renderItemRow(palletId, item) {
   const w = calcItemWeight(item);
   const sides = item.shapeSides || [];
+  const angles = item.shapeAngles || [];
   const perimeter = sides.reduce((s, l) => s + Number(l), 0);
-  const { path } = sides.length ? shapeSVGPath(sides, item.shapeAngles || [], 60, 44, 6) : { path: '' };
-  const svgPreview = path
-    ? `<svg viewBox="0 0 60 44" width="60" height="44"><path d="${path}" stroke="#e07b39" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-    : `<span style="font-size:20px">${item.shapeEmoji || '?'}</span>`;
+
+  let svgPreview;
+  if (sides.length) {
+    if (window._itemThumb3D) {
+      const inner = shape3DSVG(sides, angles, 68, 52, item.diameter || 12,
+        { showAxes: false, showDims: false, dark: false });
+      svgPreview = `<svg viewBox="0 0 68 52" width="68" height="52">${inner}</svg>`;
+    } else {
+      const { path } = shapeSVGPath(sides, angles, 68, 52, 7);
+      svgPreview = `<svg viewBox="0 0 68 52" width="68" height="52"><path d="${path}" stroke="#e07b39" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    }
+  } else {
+    svgPreview = `<span style="font-size:24px">${item.shapeEmoji || '⬡'}</span>`;
+  }
 
   return `
   <tr class="iron-row" id="item-row-${item.id}">
     <td>
-      <div class="shape-preview" onclick="openShapeEditor(${palletId}, '${item.id}')" title="עריכת צורה" style="width:62px;height:46px">
-        ${svgPreview}
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div class="shape-preview" onclick="openShapeEditor(${palletId}, '${item.id}')" title="לחץ לעריכת צורה" style="width:70px;height:54px;cursor:pointer;position:relative">
+          ${svgPreview}
+          ${item.is3d ? '<span title="מוצר תלת-מימד" style="position:absolute;top:2px;right:2px;background:#7c3aed;color:white;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;line-height:1.4">3D</span>' : ''}
+        </div>
       </div>
     </td>
     <td>
@@ -1178,10 +1290,12 @@ function renderItemRow(palletId, item) {
     </td>
     <td>
       <input type="text" inputmode="numeric" pattern="[0-9]*" value="${item.qty||1}"
-        style="width:60px;text-align:center;font-size:15px;font-weight:700"
+        class="item-qty"
+        style="width:76px;text-align:center;font-size:15px;font-weight:700"
         onfocus="this.select()"
-        oninput="this.value=this.value.replace(/[^0-9]/g,'');updateItem(${palletId},'${item.id}','qty',this.value)"
-        onchange="if(!this.value||this.value<1)this.value=1;updateItem(${palletId},'${item.id}','qty',this.value)">
+        oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+        onblur="if(!this.value||+this.value<1)this.value=1;updateItem(${palletId},'${item.id}','qty',+this.value)"
+        onkeydown="if(event.key==='Enter'){this.blur();}">
     </td>
     <td class="weight-cell">
       ${w > 0 ? `<span title="${weightPerMeter(item.diameter)} ק&quot;ג/מ׳">${w.toFixed(2)}</span>` : '—'}
@@ -1216,7 +1330,11 @@ function shapeSelected(data) {
   item.shapeEmoji  = data.presetEmoji;
   item.shapeSides  = data.sides;
   item.shapeAngles = data.angles;
-  item.length      = data.sides.reduce((s, l) => s + Number(l), 0); // total perimeter
+  item.azAngles    = data.azAngles || null;
+  item.elAngles    = data.elAngles || null;
+  // Detect true 3D: any non-zero azimuth or elevation angle
+  item.is3d = (data.azAngles?.some(a => a !== 0) || data.elAngles?.some(a => a !== 0)) ? 1 : 0;
+  item.length      = data.sides.reduce((s, l) => s + Number(l), 0);
   _shapeTarget = null;
   renderPallets();
 }
@@ -1340,6 +1458,7 @@ async function submitOrder() {
         qty: item.qty,
         weight: calcItemWeight(item),
         note: item.note || '',
+        is_3d: item.is3d || 0,
         structElement: '',
         structFloor: '',
         sheetNum: '',
@@ -1402,6 +1521,158 @@ function showToast(msg, isOffline = false) {
 }
 </script>
 <script src="/help.js"></script>
+<script>
+// ── IMAGE ANALYSIS ────────────────────────────────────────────────
+var _imgAnalyzedItems = [];
+
+function analyzeOrderImage(input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  input.value = ''; // reset so same file can be re-selected
+
+  // Show modal + loading
+  var overlay = document.getElementById('imgAnalyzeOverlay');
+  overlay.style.display = 'flex';
+  document.getElementById('imgLoading').style.display = 'block';
+  document.getElementById('imgResults').style.display = 'none';
+  document.getElementById('imgError').style.display = 'none';
+  document.getElementById('imgPreviewWrap').style.display = 'none';
+
+  // Show image preview
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('imgPreview').src = e.target.result;
+    document.getElementById('imgPreviewWrap').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+
+  // Upload + analyze
+  var fd = new FormData();
+  fd.append('image', file);
+
+  fetch('/api/analyze-image', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('imgLoading').style.display = 'none';
+      if (!data.success || !data.items || !data.items.length) {
+        showImgError(data.error || 'לא נמצאו פריטים בתמונה');
+        return;
+      }
+      _imgAnalyzedItems = data.items;
+      renderImgItems(data.items);
+      document.getElementById('imgResults').style.display = 'block';
+    })
+    .catch(function(err) {
+      document.getElementById('imgLoading').style.display = 'none';
+      showImgError('שגיאת תקשורת: ' + err.message);
+    });
+}
+
+function showImgError(msg) {
+  document.getElementById('imgErrorMsg').textContent = msg;
+  document.getElementById('imgError').style.display = 'block';
+}
+
+function renderImgItems(items) {
+  var html = '';
+  items.forEach(function(it, i) {
+    var segsText = (it.segments || []).map(function(s, si) {
+      return '<span style="background:#e8f0fb;border-radius:3px;padding:1px 5px;font-size:11px;margin:1px;">' +
+        (String.fromCharCode(0x05D0 + si)) + ': <b>' + s.length_mm + '</b></span>';
+    }).join(' ');
+
+    html += '<div class="img-item-card" id="imgCard' + i + '">';
+    html += '<div class="img-item-row">';
+    html += '<span class="img-item-label">קוטר:</span>';
+    html += '<span style="font-size:16px;font-weight:900;color:#c9621a;">Ø</span>';
+    html += '<input class="img-item-inp" style="width:60px;" type="number" value="' + (it.diameter||12) + '" id="imgD' + i + '" oninput="markEdited(' + i + ')">';
+    html += '<span class="img-item-label" style="margin-right:8px;">כמות:</span>';
+    html += '<input class="img-item-inp" style="width:70px;" type="number" value="' + (it.quantity||1) + '" id="imgQ' + i + '" oninput="markEdited(' + i + ')">';
+    html += '<span class="img-item-label" style="margin-right:8px;">סוג:</span>';
+    html += '<span class="img-item-val" style="font-size:12px;">' + (it.shape_name||'—') + '</span>';
+    html += '<button class="img-remove-btn" onclick="removeImgItem(' + i + ')">🗑 הסר</button>';
+    html += '</div>';
+    if (segsText) {
+      html += '<div style="margin-top:4px;font-size:11px;color:#555;">מידות: ' + segsText + '</div>';
+    }
+    if (it.note) {
+      html += '<div style="margin-top:4px;font-size:11px;color:#a86b00;">⚠ ' + it.note + '</div>';
+    }
+    html += '</div>';
+  });
+  document.getElementById('imgItemsList').innerHTML = html || '<div style="color:#888;padding:12px;">לא זוהו פריטים</div>';
+}
+
+function markEdited(i) {
+  var card = document.getElementById('imgCard' + i);
+  if (card) card.classList.add('edited');
+  // Update _imgAnalyzedItems from inputs
+  var dInput = document.getElementById('imgD' + i);
+  var qInput = document.getElementById('imgQ' + i);
+  if (dInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].diameter = parseInt(dInput.value) || 12;
+  if (qInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].quantity  = parseInt(qInput.value) || 1;
+}
+
+function removeImgItem(i) {
+  _imgAnalyzedItems[i] = null;
+  var card = document.getElementById('imgCard' + i);
+  if (card) { card.style.opacity = '0.3'; card.style.pointerEvents = 'none'; }
+}
+
+function confirmImgItems() {
+  var toImport = _imgAnalyzedItems.filter(function(it) { return it !== null; });
+  if (!toImport.length) { closeImgModal(); return; }
+
+  // Make sure there is at least one pallet
+  if (!pallets || !pallets.length) addPallet();
+
+  var pallet = pallets[0];
+
+  toImport.forEach(function(it) {
+    // Build sides/angles from segments
+    var sides  = (it.segments || []).map(function(s) { return s.length_mm || 500; });
+    var angles = (it.segments || []).map(function(s) { return s.angle_deg != null ? s.angle_deg : 180; });
+    if (!sides.length) sides = [it.total_length_mm || 1000];
+
+    pallet.items.push({
+      id:          Date.now() + Math.random(),
+      shapeId:     'custom',
+      shapeEmoji:  '✏️',
+      shapeName:   it.shape_name || 'מותאם',
+      shapeSides:  sides,
+      shapeAngles: angles,
+      diameter:    it.diameter || 12,
+      length:      it.total_length_mm || sides.reduce(function(a,b){return a+b;},0),
+      qty:         it.quantity || 1,
+      note:        it.note || ''
+    });
+  });
+
+  renderPallets();
+  closeImgModal();
+
+  // Scroll to items section
+  var el = document.getElementById('items-section');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Toast
+  var t = document.getElementById('toast');
+  if (t) {
+    t.textContent = '✅ יובאו ' + toImport.length + ' פריטים מהתמונה';
+    t.style.opacity = '1'; t.style.color = 'white';
+    clearTimeout(t._timer); t._timer = setTimeout(function(){ t.style.opacity = '0'; }, 4000);
+  }
+}
+
+function closeImgModal() {
+  document.getElementById('imgAnalyzeOverlay').style.display = 'none';
+}
+
+// Close on overlay click
+document.getElementById('imgAnalyzeOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeImgModal();
+});
+</script>
 </body>
 </html>
 
