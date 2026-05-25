@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>כניסה – IronBend</title>
+<meta name="theme-color" content="#c9621a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --accent:#c9621a; --accent-light:#e07b39;
+  --text:#1a2533; --text-dim:#526070; --text-muted:#8fa0b0;
+  --border:rgba(0,0,0,0.09); --success:#1a7a42; --danger:#b83227;
+  --warning:#a86b00; --info:#1560a8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:'Heebo',sans-serif;
+  background:linear-gradient(135deg,#1a2533 0%,#2d3e52 50%,#1a2533 100%);
+  color:var(--text);
+  direction:rtl;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+
+/* background texture */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background:
+    radial-gradient(ellipse at 20% 80%, rgba(201,98,26,0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(21,96,168,0.10) 0%, transparent 50%);
+  pointer-events:none;
+}
+
+.login-card{
+  background:#ffffff;
+  border-radius:20px;
+  padding:40px 36px;
+  width:100%;
+  max-width:420px;
+  box-shadow:0 24px 60px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.20);
+  position:relative;
+}
+
+/* ERROR BANNER */
+.error-banner{
+  display:none;
+  background:#fff0ef;
+  border:1px solid var(--danger);
+  border-radius:10px;
+  padding:12px 16px;
+  margin-bottom:20px;
+  color:var(--danger);
+  font-size:13px;
+  font-weight:600;
+  text-align:center;
+}
+.error-banner.show{display:block;}
+
+/* LOGO */
+.logo-area{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  margin-bottom:28px;
+  gap:10px;
+}
+.logo-icon{
+  width:64px;
+  height:64px;
+  background:linear-gradient(145deg,#df8640 0%,#c9621a 55%,#a4500f 100%);
+  border-radius:16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:32px;
+  box-shadow:0 8px 24px rgba(201,98,26,0.40), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+.logo-name{
+  font-size:26px;
+  font-weight:900;
+  color:var(--text);
+  letter-spacing:-0.5px;
+}
+.logo-sub{
+  font-size:12px;
+  color:var(--text-muted);
+  font-weight:600;
+  letter-spacing:0.3px;
+}
+
+/* LANG SELECTOR */
+.lang-row{
+  display:flex;
+  justify-content:center;
+  gap:6px;
+  margin-bottom:22px;
+}
+.lang-btn{
+  padding:5px 14px;
+  border-radius:20px;
+  border:1px solid var(--border);
+  background:transparent;
+  font-size:12px;
+  font-weight:700;
+  color:var(--text-dim);
+  cursor:pointer;
+  transition:all 0.2s;
+  font-family:'Heebo',sans-serif;
+}
+.lang-btn.active{
+  background:var(--accent);
+  color:#fff;
+  border-color:var(--accent);
+}
+.lang-btn:hover:not(.active){background:rgba(0,0,0,0.04);}
+
+/* TABS */
+.tabs{
+  display:flex;
+  background:#f0f4f8;
+  border-radius:10px;
+  padding:3px;
+  margin-bottom:24px;
+  gap:3px;
+}
+.tab{
+  flex:1;
+  padding:9px;
+  border:none;
+  border-radius:8px;
+  background:transparent;
+  font-family:'Heebo',sans-serif;
+  font-size:13px;
+  font-weight:700;
+  color:var(--text-dim);
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.tab.active{
+  background:#fff;
+  color:var(--accent);
+  box-shadow:0 2px 8px rgba(0,0,0,0.12);
+}
+
+/* FORM */
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+.field-group{margin-bottom:16px;}
+label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:var(--text-dim);
+  margin-bottom:6px;
+  text-transform:uppercase;
+  letter-spacing:0.4px;
+}
+input[type="text"],input[type="password"],select{
+  width:100%;
+  padding:12px 14px;
+  border:1.5px solid var(--border);
+  border-radius:10px;
+  font-family:'Heebo',sans-serif;
+  font-size:14px;
+  color:var(--text);
+  background:#fafbfc;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  outline:none;
+}
+input[type="text"]:focus,input[type="password"]:focus,select:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(201,98,26,0.12);
+  background:#fff;
+}
+select{appearance:none;cursor:pointer;}
+
+.role-select-wrap{position:relative;}
+.role-select-wrap::after{
+  content:'▼';
+  position:absolute;
+  left:14px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:10px;
+  color:var(--text-muted);
+  pointer-events:none;
+}
+
+/* REMEMBER */
+.remember-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:22px;
+}
+.remember-row input[type="checkbox"]{
+  width:16px;
+  height:16px;
+  accent-color:var(--accent);
+  cursor:pointer;
+}
+.remember-row label{
+  font-size:13px;
+  font-weight:600;
+  color:var(--text-dim);
+  text-transform:none;
+  letter-spacing:0;
+  margin:0;
+  cursor:pointer;
+}
+
+/* PIN PAD */
+.pin-display{
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  margin-bottom:24px;
+}
+.pin-dot{
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  border:2px solid var(--border);
+  background:transparent;
+  transition:all 0.2s;
+}
+.pin-dot.filled{
+  background:var(--accent);
+  border-color:var(--accent);
+}
+.pin-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-bottom:20px;
+}
+.pin-key{
+  padding:16px;
+  border:1.5px solid var(--border);
+  border-radius:12px;
+  background:#fafbfc;
+  font-family:'Heebo',sans-serif;
+  font-size:20px;
+  font-weight:700;
+  color:var(--text);
+  cursor:pointer;
+  transition:all 0.15s;
+  text-align:center;
+}
+.pin-key:hover{background:#f0f4f8;border-color:rgba(0,0,0,0.15);}
+.pin-key:active{transform:scale(0.95);}
+.pin-key.del{font-size:16px;color:var(--danger);}
+.pin-key.wide{grid-column:span 2;}
+.pin-hint{text-align:center;font-size:11px;color:var(--text-muted);margin-bottom:12px;}
+
+/* SUBMIT */
+.btn-login{
+  width:100%;
+  padding:14px;
+  background:linear-gradient(135deg,var(--accent-light),var(--accent));
+  color:#fff;
+  border:none;
+  border-radius:12px;
+  font-family:'Heebo',sans-serif;
+  font-size:16px;
+  font-weight:800;
+  cursor:pointer;
+  transition:all 0.2s;
+  box-shadow:0 4px 16px rgba(201,98,26,0.35);
+}
+.btn-login:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 20px rgba(201,98,26,0.45);
+}
+.btn-login:active{transform:scale(0.99);}
+
+.footer-note{
+  text-align:center;
+  margin-top:20px;
+  font-size:11px;
+  color:var(--text-muted);
+}
+</style>
+</head>
+<body>
+
+<div class="login-card">
+
+  <!-- ERROR BANNER -->
+  <div class="error-banner" id="errBanner">שם משתמש, סיסמה, או קוד PIN שגויים. נסה שוב.</div>
+
+  <!-- LOGO -->
+  <div class="logo-area">
+    <div class="logo-icon">🔩</div>
+    <div class="logo-name">IronBend</div>
+    <div class="logo-sub">מערכת ניהול ייצור תעשייתי</div>
+  </div>
+
+  <!-- LANGUAGE -->
+  <div class="lang-row">
+    <button class="lang-btn active" onclick="setLang('he',this)">עברית</button>
+    <button class="lang-btn" onclick="setLang('en',this)">English</button>
+    <button class="lang-btn" onclick="setLang('th',this)">ภาษาไทย</button>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" id="tabReg" onclick="switchTab('regular')">כניסה רגילה</button>
+    <button class="tab" id="tabPin" onclick="switchTab('pin')">⚡ PIN מהיר</button>
+  </div>
+
+  <!-- TAB: REGULAR LOGIN -->
+  <div class="tab-panel active" id="panelRegular">
+    <div class="field-group">
+      <label>שם משתמש</label>
+      <input type="text" id="username" placeholder="הכנס שם משתמש" autocomplete="username">
+    </div>
+    <div class="field-group">
+      <label>סיסמה</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="field-group">
+      <label>תפקיד</label>
+      <div class="role-select-wrap">
+        <select id="roleSelect">
+          <option value="admin">מנהל מערכת</option>
+          <option value="ceo">מנכ"ל</option>
+          <option value="factory_mgr">מנהל מפעל</option>
+          <option value="production_mgr">מנהל ייצור</option>
+          <option value="operator">מפעיל מכונה</option>
+          <option value="warehouse">מחסן</option>
+          <option value="shipping">שילוח</option>
+          <option value="quality">איכות</option>
+          <option value="maintenance">תחזוקה</option>
+          <option value="finance">כספים</option>
+          <option value="driver">נהג</option>
+        </select>
+      </div>
+    </div>
+    <div class="remember-row">
+      <input type="checkbox" id="rememberDevice" checked>
+      <label for="rememberDevice">זכור מכשיר זה</label>
+    </div>
+    <button class="btn-login" onclick="doLogin()">כניסה למערכת</button>
+  </div>
+
+  <!-- TAB: PIN LOGIN -->
+  <div class="tab-panel" id="panelPin">
+    <div class="pin-hint">הכנס קוד PIN בן 4 ספרות</div>
+    <div class="pin-display">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-grid">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+      <button class="pin-key wide" onclick="pinKey('0')">0</button>
+    </div>
+    <div class="pin-hint" style="color:var(--text-muted);font-size:11px;">
+      דמו: PIN 1234 = כניסה כמנהל מערכת
+    </div>
+  </div>
+
+  <div class="footer-note">IronBend ERP v2.0 — כל הזכויות שמורות</div>
+</div>
+
+<script>
+let pinValue = '';
+
+const DEMO_PINS = { '1234':'admin', '2222':'operator', '3333':'quality', '4444':'warehouse' };
+const ROLE_NAMES = {
+  admin:'מנהל מערכת', ceo:'מנכ"ל', factory_mgr:'מנהל מפעל',
+  production_mgr:'מנהל ייצור', operator:'מפעיל מכונה', warehouse:'מחסן',
+  shipping:'שילוח', quality:'איכות', maintenance:'תחזוקה', finance:'כספים', driver:'נהג'
+};
+
+function switchTab(mode) {
+  document.getElementById('panelRegular').classList.toggle('active', mode === 'regular');
+  document.getElementById('panelPin').classList.toggle('active', mode === 'pin');
+  document.getElementById('tabReg').classList.toggle('active', mode === 'regular');
+  document.getElementById('tabPin').classList.toggle('active', mode === 'pin');
+  hideError();
+  pinValue = '';
+  updatePinDots();
+}
+
+function setLang(lang, btn) {
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.documentElement.lang = lang;
+  if (lang === 'en') document.documentElement.dir = 'ltr';
+  else document.documentElement.dir = 'rtl';
+}
+
+function showError(msg) {
+  const b = document.getElementById('errBanner');
+  b.textContent = msg;
+  b.classList.add('show');
+}
+function hideError() {
+  document.getElementById('errBanner').classList.remove('show');
+}
+
+function doLogin() {
+  const u = document.getElementById('username').value.trim();
+  const p = document.getElementById('password').value;
+  const role = document.getElementById('roleSelect').value;
+  const remember = document.getElementById('rememberDevice').checked;
+
+  if (!u) { showError('יש להזין שם משתמש'); return; }
+  if (!p) { showError('יש להזין סיסמה'); return; }
+
+  // Demo mode — any non-empty credentials work
+  hideError();
+  const storage = remember ? localStorage : sessionStorage;
+  storage.setItem('ib_role', role);
+  storage.setItem('ib_user', u);
+  localStorage.setItem('ib_role', role);
+  localStorage.setItem('ib_user', u);
+  window.location.href = 'dashboard.html?role=' + role;
+}
+
+function pinKey(digit) {
+  if (pinValue.length >= 4) return;
+  pinValue += digit;
+  updatePinDots();
+  if (pinValue.length === 4) {
+    setTimeout(checkPin, 200);
+  }
+}
+function pinDel() {
+  pinValue = pinValue.slice(0, -1);
+  updatePinDots();
+  hideError();
+}
+function updatePinDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('d' + i).classList.toggle('filled', i < pinValue.length);
+  }
+}
+function checkPin() {
+  const role = DEMO_PINS[pinValue];
+  if (role) {
+    localStorage.setItem('ib_role', role);
+    localStorage.setItem('ib_user', 'PIN:' + pinValue);
+    window.location.href = 'dashboard.html?role=' + role;
+  } else {
+    showError('קוד PIN שגוי. נסה שוב.');
+    pinValue = '';
+    updatePinDots();
+  }
+}
+
+// Enter key support
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const active = document.querySelector('.tab-panel.active');
+    if (active && active.id === 'panelRegular') doLogin();
+  }
+});
+
+// Auto-fill from remembered device
+window.addEventListener('load', () => {
+  const savedUser = localStorage.getItem('ib_user');
+  const savedRole = localStorage.getItem('ib_role');
+  if (savedUser && !savedUser.startsWith('PIN:')) {
+    document.getElementById('username').value = savedUser;
+  }
+  if (savedRole) {
+    const sel = document.getElementById('roleSelect');
+    if (sel.querySelector('option[value="' + savedRole + '"]')) sel.value = savedRole;
+  }
+});
+</script>
+</body>
+</html>

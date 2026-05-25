@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: ironbend
+    env: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    numReplicas: 1
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /data/ironbend.db
+      - key: BACKUP_DIR
+        value: /data/backups
+      - key: SESSION_SECRET
+        generateValue: true # Generates a cryptographically secure random secret
+      - key: GEMINI_API_KEY
+        sync: false # Set manually in Render dashboard
+      - key: WHATSAPP_TOKEN
+        sync: false # Set manually in Render dashboard
+      - key: WHATSAPP_PHONE_ID
+        sync: false # Set manually in Render dashboard
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false # Set manually in Render dashboard
+    disk:
+      name: ironbend-data
+      mountPath: /data
+      sizeGB: 1

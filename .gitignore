@@ -1,6 +1,23 @@
 node_modules/
+
+# Database
 ironbend.db
 *.db-journal
 *.db-shm
 *.db-wal
+
+# Backups & Logs
+backups/
+logs/
+*.log
+server_out.txt
+server_err.txt
+
+# Secrets
 .env
+google-credentials.json
+
+# Temp / OS
+*.tmp
+Thumbs.db
+.DS_Store

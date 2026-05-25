@@ -58,7 +58,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .page{max-width:1400px;margin:0 auto;padding:18px 16px;display:flex;flex-direction:column;gap:16px;}
 
 /* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;}
+.kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;}
 .kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);
   padding:15px 16px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden;
   transition:border-color 0.2s;}
@@ -240,6 +240,49 @@ tr:hover td{background:rgba(0,0,0,0.02);}
   .page{padding:12px 10px;gap:12px;}
   .day-bar{padding:8px 14px;gap:12px;}
 }
+.role-tab{
+  padding:6px 16px;border:1.5px solid transparent;border-radius:22px;background:none;cursor:pointer;
+  font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:700;color:#526070;
+  transition:all .18s;white-space:nowrap;flex-shrink:0;
+  box-shadow:none;
+}
+.role-tab:hover{
+  background:rgba(0,0,0,0.04);color:#1a2533;
+  box-shadow:0 1px 4px rgba(0,0,0,0.07);
+}
+.role-tab.active{
+  background:linear-gradient(135deg,rgba(201,98,26,0.13) 0%,rgba(224,123,57,0.07) 100%);
+  color:#c9621a;
+  border-color:rgba(201,98,26,0.30);
+  box-shadow:0 2px 8px rgba(201,98,26,0.15), inset 0 1px 0 rgba(255,255,255,0.6);
+}
+.role-section{transition:opacity .2s;}
+.role-section.hidden{display:none;}
+
+/* PIPELINE */
+.pipeline-row{display:flex;align-items:center;gap:10px;}
+.pipeline-label{font-size:12px;color:var(--text-dim);min-width:130px;flex-shrink:0;}
+.pipeline-bar-wrap{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+.pipeline-bar{height:100%;border-radius:4px;transition:width .5s;width:0%;}
+.pipeline-val{font-size:13px;font-weight:800;min-width:28px;text-align:left;}
+
+/* SHIFT STATS */
+.shift-stat-cell{padding:12px 16px;border-left:1px solid var(--border);text-align:center;}
+.shift-stat-cell:last-child{border-left:none;}
+.shift-stat-val{font-size:26px;font-weight:900;line-height:1.1;}
+.shift-stat-lbl{font-size:10px;color:var(--text-dim);font-weight:600;margin-top:2px;}
+
+/* STOP ITEM */
+.stop-item{padding:10px 14px;border-bottom:1px solid rgba(0,0,0,0.03);display:flex;gap:8px;align-items:flex-start;}
+.stop-item:last-child{border-bottom:none;}
+.stop-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0;margin-top:4px;}
+.stop-info{flex:1;}
+.stop-title{font-size:12px;font-weight:700;}
+.stop-sub{font-size:11px;color:var(--text-dim);}
+
+/* EXEC label chip */
+.exec-badge{background:rgba(21,96,168,0.08);color:var(--info);font-size:10px;font-weight:700;
+  padding:1px 7px;border-radius:10px;margin-right:4px;}
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -278,12 +321,31 @@ tr:hover td{background:rgba(0,0,0,0.02);}
   <div class="day-bar-sep"></div>
   <span class="shift-badge" id="shiftBadge">משמרת בוקר</span>
   <span class="urgent-badge" id="urgentBadge">⚠️ <span id="urgentCount">0</span> הזמנות דחופות</span>
+  <div style="margin-right:auto;display:flex;gap:6px;align-items:center">
+    <a href="/warroom.html"     style="padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;text-decoration:none;background:rgba(184,50,39,0.10);color:#b83227;border:1px solid rgba(184,50,39,0.20)" id="warRoomBadge">🚨 War Room</a>
+    <a href="/warehouse.html"   style="padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;text-decoration:none;background:rgba(21,96,168,0.09);color:#1560a8;border:1px solid rgba(21,96,168,0.15)">📦 מחסן</a>
+    <a href="/procurement.html" style="padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;text-decoration:none;background:rgba(26,122,66,0.09);color:#1a7a42;border:1px solid rgba(26,122,66,0.15)">🛒 רכש</a>
+  </div>
+</div>
+
+<!-- ROLE SELECTOR -->
+<div style="background:#ffffff;border-bottom:1px solid rgba(0,0,0,0.07);padding:0 16px;display:flex;align-items:center;gap:6px;height:46px;overflow-x:auto;box-shadow:0 2px 6px rgba(0,0,0,0.04);">
+  <span style="font-size:11px;color:#8fa0b0;font-weight:700;flex-shrink:0;letter-spacing:.4px;text-transform:uppercase">דשבורד:</span>
+  <button class="role-tab" id="rtab-exec"       onclick="setRole('exec')">       👔 הנהלה</button>
+  <button class="role-tab" id="rtab-production" onclick="setRole('production')"> ⚙️ מנהל ייצור</button>
+  <button class="role-tab" id="rtab-plant"      onclick="setRole('plant')">      🏗️ מנהל מפעל</button>
+  <div style="width:1px;height:20px;background:rgba(0,0,0,0.09);margin:0 4px;flex-shrink:0"></div>
+  <a href="/admin.html" style="padding:5px 14px;border-radius:20px;text-decoration:none;font-size:12px;font-weight:600;color:#526070;transition:all .18s;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:5px;"
+     onmouseover="this.style.background='rgba(0,0,0,0.05)';this.style.color='#1a2533'"
+     onmouseout="this.style.background='';this.style.color='#526070'">
+    ⚙️ ניהול מערכת →
+  </a>
 </div>
 
 <div class="page">
 
   <!-- KPI ROW -->
-  <div class="kpi-grid">
+  <div class="kpi-grid role-section" data-roles="all,exec,plant,production">
     <div class="kpi-card c-accent">
       <div class="kpi-top"><span class="kpi-icon">📦</span><span class="kpi-trend" id="kpiOrdersTrend" style="display:none"></span></div>
       <div class="kpi-label">הזמנות היום</div>
@@ -322,10 +384,16 @@ tr:hover td{background:rgba(0,0,0,0.02);}
       <div class="kpi-value" id="kpiPending">—</div>
       <div class="kpi-sub">הזמנות חדשות</div>
     </div>
+    <div class="kpi-card c-success">
+      <div class="kpi-top"><span class="kpi-icon">🏋️</span></div>
+      <div class="kpi-label">טון היום</div>
+      <div class="kpi-value v-success" id="kpiTonsToday">—</div>
+      <div class="kpi-sub">טון יוצר היום</div>
+    </div>
   </div>
 
   <!-- MAIN GRID: machines + sidebar -->
-  <div class="main-grid">
+  <div class="main-grid role-section" data-roles="all,plant,production">
 
     <div>
       <div class="section-title">🔧 מכונות <span class="count-pill" id="machinesOnlineCount">0/4</span></div>
@@ -375,8 +443,182 @@ tr:hover td{background:rgba(0,0,0,0.02);}
     </div>
   </div>
 
+  <!-- ════════════════════════════════════════════════════════════
+       EXEC DASHBOARD — הנהלה בלבד
+       ════════════════════════════════════════════════════════════ -->
+  <div class="role-section" data-roles="exec" id="execSection">
+
+    <!-- Financial KPIs -->
+    <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px" id="execKpiRow">
+      <div class="kpi-card c-success">
+        <div class="kpi-top"><span class="kpi-icon">💰</span><span class="kpi-trend trend-up" id="execRevTrend" style="display:none"></span></div>
+        <div class="kpi-label">הכנסה חודשית</div>
+        <div class="kpi-value v-success" id="execRevenue">—</div>
+        <div class="kpi-sub" id="execRevSub">טוען...</div>
+      </div>
+      <div class="kpi-card c-accent">
+        <div class="kpi-top"><span class="kpi-icon">📊</span></div>
+        <div class="kpi-label">מרווח רווח</div>
+        <div class="kpi-value v-accent" id="execMargin">—</div>
+        <div class="kpi-sub">הכנסה פחות עלות</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" id="execMarginBar" style="width:0%"></div></div>
+      </div>
+      <div class="kpi-card c-info">
+        <div class="kpi-top"><span class="kpi-icon">🏋️</span></div>
+        <div class="kpi-label">טון חודשי</div>
+        <div class="kpi-value v-info" id="execTons">—</div>
+        <div class="kpi-sub" id="execTonsSub">יצור חודש זה</div>
+      </div>
+      <div class="kpi-card c-warning">
+        <div class="kpi-top"><span class="kpi-icon">📋</span></div>
+        <div class="kpi-label">הזמנות חודש</div>
+        <div class="kpi-value v-warning" id="execOrders">—</div>
+        <div class="kpi-sub" id="execOrdersSub">הושלמו / סה"כ</div>
+      </div>
+      <div class="kpi-card c-danger">
+        <div class="kpi-top"><span class="kpi-icon">🔴</span></div>
+        <div class="kpi-label">דחופות פתוחות</div>
+        <div class="kpi-value v-danger" id="execUrgent">—</div>
+        <div class="kpi-sub">דורשות טיפול</div>
+      </div>
+    </div>
+
+    <!-- Exec Bottom Grid -->
+    <div class="bottom-grid">
+
+      <!-- TOP CUSTOMERS -->
+      <div class="table-card">
+        <div class="table-header">
+          <div class="section-title" style="margin:0">👥 לקוחות מובילים <span style="font-size:10px;color:var(--text-muted);font-weight:400">חודש זה</span></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>לקוח</th><th>הזמנות</th><th>משקל (טון)</th><th>הכנסה</th></tr>
+            </thead>
+            <tbody id="execTopCustomers">
+              <tr><td colspan="5" class="empty-state">טוען...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ORDER PIPELINE -->
+      <div class="table-card">
+        <div class="table-header">
+          <div class="section-title" style="margin:0">🔄 פייפליין הזמנות</div>
+        </div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:12px" id="execPipeline">
+          <div class="pipeline-row">
+            <div class="pipeline-label">⏳ ממתינות לאישור</div>
+            <div class="pipeline-bar-wrap"><div class="pipeline-bar" id="pbar-pending" style="background:var(--warning)"></div></div>
+            <div class="pipeline-val" id="pval-pending">—</div>
+          </div>
+          <div class="pipeline-row">
+            <div class="pipeline-label">⚙️ בייצור</div>
+            <div class="pipeline-bar-wrap"><div class="pipeline-bar" id="pbar-prod" style="background:var(--accent)"></div></div>
+            <div class="pipeline-val" id="pval-prod">—</div>
+          </div>
+          <div class="pipeline-row">
+            <div class="pipeline-label">✅ הושלמו החודש</div>
+            <div class="pipeline-bar-wrap"><div class="pipeline-bar" id="pbar-done" style="background:var(--success)"></div></div>
+            <div class="pipeline-val" id="pval-done">—</div>
+          </div>
+        </div>
+        <!-- Monthly comparison -->
+        <div style="padding:0 16px 16px">
+          <div class="section-title" style="margin-bottom:8px">📅 השוואה לחודש קודם</div>
+          <div class="qs-row">
+            <span class="qs-label">הזמנות</span>
+            <span class="qs-val" id="execCmpOrders">—</span>
+          </div>
+          <div class="qs-row">
+            <span class="qs-label">טונאז'</span>
+            <span class="qs-val" id="execCmpTons">—</span>
+          </div>
+          <div class="qs-row">
+            <span class="qs-label">הכנסה</span>
+            <span class="qs-val" id="execCmpRev">—</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       PRODUCTION MANAGER DASHBOARD — מנהל ייצור
+       ════════════════════════════════════════════════════════════ -->
+  <div class="role-section" data-roles="production" id="productionSection">
+
+    <!-- Shift status bar -->
+    <div class="table-card" style="margin-bottom:14px">
+      <div class="table-header">
+        <div class="section-title" style="margin:0">🕐 מצב משמרת נוכחית</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="prodShiftName" style="font-size:12px;font-weight:700;color:var(--accent)"></span>
+          <span id="prodTodayTons" style="font-size:12px;color:var(--text-dim)"></span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--border)" id="prodShiftGrid">
+        <div class="shift-stat-cell">
+          <div class="shift-stat-val" id="psActiveShifts">—</div>
+          <div class="shift-stat-lbl">משמרות פעילות</div>
+        </div>
+        <div class="shift-stat-cell">
+          <div class="shift-stat-val" id="psItemsInProd">—</div>
+          <div class="shift-stat-lbl">פריטים בייצור</div>
+        </div>
+        <div class="shift-stat-cell">
+          <div class="shift-stat-val v-success" id="psTodayTons">—</div>
+          <div class="shift-stat-lbl">טון יוצר היום</div>
+        </div>
+        <div class="shift-stat-cell" id="psStopCell">
+          <div class="shift-stat-val v-danger" id="psActiveStops">0</div>
+          <div class="shift-stat-lbl">מכונות עצורות</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Production items table -->
+    <div class="bottom-grid">
+      <div class="table-card">
+        <div class="table-header">
+          <div class="section-title" style="margin:0">⚙️ פריטים בעבודה כעת</div>
+          <a href="/machine.html" class="btn-sm">→ מסך מכונה</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>מכונה</th><th>הזמנה</th><th>לקוח</th><th>⌀</th><th>כמות</th><th>סטטוס</th></tr>
+            </thead>
+            <tbody id="prodItemsTable">
+              <tr><td colspan="6" class="empty-state">טוען...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Active stops -->
+      <div class="table-card">
+        <div class="table-header">
+          <div class="section-title" style="margin:0">🛑 עצירות פעילות</div>
+          <a href="/machine.html" class="btn-sm">→ דיווח</a>
+        </div>
+        <div id="prodStopsList">
+          <div class="no-alerts" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">✅ אין עצירות כרגע</div>
+        </div>
+        <!-- Active shifts -->
+        <div style="border-top:1px solid var(--border);padding:12px 14px">
+          <div class="section-title" style="margin-bottom:8px">👷 משמרות פעילות</div>
+          <div id="prodActiveShifts" style="font-size:12px;color:var(--text-dim)">טוען...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- BOTTOM GRID: production queue + recent orders -->
-  <div class="bottom-grid">
+  <div class="bottom-grid role-section" data-roles="all,plant,production">
 
     <!-- PRODUCTION QUEUE -->
     <div class="table-card">
@@ -500,6 +742,42 @@ function renderKPIs(d) {
   }
 
   document.getElementById('qsWeight').textContent = (d.totalWeightToday||0).toFixed(0) + ' ק"ג';
+
+  // Tons today (separate endpoint)
+  fetchTonsToday();
+}
+
+async function fetchTonsToday() {
+  try {
+    const d = await fetch('/api/kpi/tons-today').then(r=>r.json());
+    document.getElementById('kpiTonsToday').textContent = (d.tons || 0) + ' ט';
+  } catch {}
+}
+
+async function fetchInventoryForecast() {
+  try {
+    const data = await fetch('/api/inventory/forecast').then(r=>r.json());
+    const alerts = data.filter(f => f.alert !== 'ok');
+    if (alerts.length === 0) return;
+    const alertsList = document.getElementById('alertsList');
+    alerts.forEach(f => {
+      const existing = document.getElementById('inv-alert-' + f.diameter);
+      if (existing) return;
+      const div = document.createElement('div');
+      div.id = 'inv-alert-' + f.diameter;
+      div.className = 'alert-item alert-' + (f.alert === 'critical' ? 'danger' : 'warning');
+      div.innerHTML = `<span class="alert-icon">${f.alert === 'critical' ? '🚨' : '⚠️'}</span>
+        <div class="alert-body"><div class="alert-msg">מלאי נמוך ⌀${f.diameter}: ${f.on_hand_kg} ק"ג (${f.days_left} ימים)</div>
+        <div class="alert-time">צריכה יומית: ${f.avg_daily_kg} ק"ג</div></div>`;
+      const noAlerts = alertsList.querySelector('.no-alerts');
+      if (noAlerts) noAlerts.remove();
+      alertsList.insertBefore(div, alertsList.firstChild);
+    });
+    // Update count
+    const count = alertsList.querySelectorAll('.alert-item').length;
+    const pill = document.getElementById('alertCountPill');
+    if (pill) pill.textContent = count;
+  } catch {}
 }
 
 function renderWasteByMachine(wasteByMachine) {
@@ -712,14 +990,233 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ── Init ─────────────────────────────────────────────────────────────
+// ── EXEC DASHBOARD ───────────────────────────────────────────────
+async function fetchExecDashboard() {
+  try {
+    const d = await fetch('/api/kpi/monthly').then(r => r.json());
+    const c = d.current;
+
+    // Revenue
+    const revFmt = c.revenue > 0
+      ? '₪' + (c.revenue >= 1000000 ? (c.revenue/1000000).toFixed(2)+'M' : c.revenue >= 1000 ? Math.round(c.revenue/1000)+'K' : c.revenue)
+      : '—';
+    document.getElementById('execRevenue').textContent = revFmt;
+    document.getElementById('execRevSub').textContent = d.month;
+
+    // Margin
+    if (c.margin !== null && c.margin !== undefined) {
+      document.getElementById('execMargin').textContent = c.margin + '%';
+      document.getElementById('execMarginBar').style.width = Math.max(0, Math.min(100, c.margin)) + '%';
+      document.getElementById('execMarginBar').style.background =
+        c.margin >= 20 ? 'var(--success)' : c.margin >= 10 ? 'var(--warning)' : 'var(--danger)';
+    } else {
+      document.getElementById('execMargin').textContent = 'ללא נתון';
+    }
+
+    // Tons
+    document.getElementById('execTons').textContent = (c.tons||0) + ' ט';
+    const prevTons = d.prev.tons || 0;
+    const tonsDiff = prevTons > 0 ? Math.round(((c.tons - prevTons) / prevTons) * 100) : null;
+    document.getElementById('execTonsSub').textContent = tonsDiff !== null
+      ? (tonsDiff >= 0 ? '▲' : '▼') + ' ' + Math.abs(tonsDiff) + '% מחודש קודם'
+      : 'יצור חודש זה';
+
+    // Orders
+    document.getElementById('execOrders').textContent = c.order_count;
+    document.getElementById('execOrdersSub').textContent = (c.completed||0) + ' הושלמו / ' + c.order_count + ' סה"כ';
+    document.getElementById('execUrgent').textContent = c.urgent_open || 0;
+
+    // Pipeline bars
+    const maxPipe = Math.max(1, (c.pending||0) + (c.in_production||0) + (c.completed||0));
+    [
+      [c.pending||0,      'pbar-pending', 'pval-pending'],
+      [c.in_production||0,'pbar-prod',    'pval-prod'],
+      [c.completed||0,    'pbar-done',    'pval-done'],
+    ].forEach(([val, barId, valId]) => {
+      document.getElementById(barId).style.width = Math.round((val / maxPipe) * 100) + '%';
+      document.getElementById(valId).textContent = val;
+    });
+
+    // Comparison
+    const prevOrders = d.prev.order_count || 0;
+    const prevRev    = d.prev.revenue || 0;
+    document.getElementById('execCmpOrders').innerHTML = _cmpHtml(c.order_count, prevOrders, '');
+    document.getElementById('execCmpTons').innerHTML   = _cmpHtml(c.tons||0, prevTons, ' ט');
+    document.getElementById('execCmpRev').innerHTML    = _cmpHtml(c.revenue||0, prevRev, '', true);
+
+    // Top customers
+    const tbody = document.getElementById('execTopCustomers');
+    if (!d.topCustomers?.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">אין נתונים</td></tr>';
+    } else {
+      tbody.innerHTML = d.topCustomers.map((cu, i) => {
+        const tons = Math.round((cu.total_weight_kg||0)/100)/10;
+        const rev  = cu.revenue > 0 ? '₪' + Math.round(cu.revenue).toLocaleString('he-IL') : '—';
+        return '<tr>' +
+          '<td style="color:var(--text-muted);font-weight:700">' + (i+1) + '</td>' +
+          '<td style="font-weight:700">' + escHtml(cu.name) + '</td>' +
+          '<td>' + cu.orders + '</td>' +
+          '<td class="weight-val">' + tons + '</td>' +
+          '<td style="color:var(--success);font-weight:700">' + rev + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+  } catch(e) { console.warn('exec dashboard error', e); }
+}
+
+function _cmpHtml(cur, prev, unit, isMoney) {
+  if (!prev) return '<span style="color:var(--text-dim)">—</span>';
+  const diff = cur - prev;
+  const pct  = Math.round((diff / prev) * 100);
+  const sign  = diff >= 0 ? '▲' : '▼';
+  const color = diff >= 0 ? 'var(--success)' : 'var(--danger)';
+  const curFmt = isMoney && cur >= 1000 ? '₪' + Math.round(cur/1000) + 'K' : cur + unit;
+  return curFmt + ' <span style="color:' + color + ';font-size:10px;font-weight:700">' + sign + Math.abs(pct) + '%</span>';
+}
+
+// ── PRODUCTION DASHBOARD ─────────────────────────────────────────
+async function fetchProductionDashboard() {
+  try {
+    const d = await fetch('/api/kpi/shift-summary').then(r => r.json());
+
+    const shiftNames = { morning: 'בוקר', afternoon: 'אחר צהריים', night: 'לילה' };
+    document.getElementById('prodShiftName').textContent = 'משמרת ' + (shiftNames[d.shiftType] || '');
+    document.getElementById('prodTodayTons').textContent = (d.todayTons||0) + ' ט יוצר היום';
+
+    document.getElementById('psActiveShifts').textContent  = (d.activeShifts||[]).length;
+    document.getElementById('psItemsInProd').textContent   = (d.itemsInProd||[]).length;
+    document.getElementById('psTodayTons').textContent     = (d.todayTons||0) + ' ט';
+    document.getElementById('psActiveStops').textContent   = (d.activeStops||[]).length;
+
+    const stopCell = document.getElementById('psStopCell');
+    stopCell.style.background = (d.activeStops||[]).length > 0 ? 'var(--danger-dim)' : '';
+
+    // Items table
+    const tbody = document.getElementById('prodItemsTable');
+    if (!(d.itemsInProd||[]).length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">אין פריטים בייצור</td></tr>';
+    } else {
+      tbody.innerHTML = d.itemsInProd.map(it => {
+        const progress = it.quantity > 0 ? Math.round(((it.produced_qty||0) / it.quantity) * 100) : 0;
+        const bar = '<div style="height:4px;background:var(--border);border-radius:2px;margin-top:3px;width:50px;display:inline-block">' +
+          '<div style="height:100%;width:' + progress + '%;background:' + (it.status==='בייצור'?'var(--accent)':'var(--text-muted)') + ';border-radius:2px"></div></div>';
+        return '<tr>' +
+          '<td style="font-weight:700">' + escHtml(it.machine_name||'—') + '</td>' +
+          '<td><span class="order-num">' + escHtml(it.order_num||'—') + '</span></td>' +
+          '<td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(it.customer_name||'—') + '</td>' +
+          '<td>⌀' + (it.diameter||'—') + '</td>' +
+          '<td>' + (it.produced_qty||0) + '/' + it.quantity + ' ' + bar + '</td>' +
+          '<td><span class="status-badge ' + (it.status==='בייצור'?'s-prod':'s-wait') + '">' + escHtml(it.status) + '</span></td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    // Active stops
+    const stopsList = document.getElementById('prodStopsList');
+    if (!(d.activeStops||[]).length) {
+      stopsList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">✅ אין עצירות כרגע</div>';
+    } else {
+      stopsList.innerHTML = d.activeStops.map(s => {
+        const dur = Math.round((Date.now() - new Date(s.started_at).getTime()) / 60000);
+        return '<div class="stop-item">' +
+          '<div class="stop-dot"></div>' +
+          '<div class="stop-info">' +
+            '<div class="stop-title">' + escHtml(s.machine_name||'מכונה') + ' — ' + escHtml(s.reason_label||s.reason_code||'עצירה') + '</div>' +
+            '<div class="stop-sub">מזה ' + dur + ' דקות' + (s.notes ? ' · ' + escHtml(s.notes) : '') + '</div>' +
+          '</div></div>';
+      }).join('');
+    }
+
+    // Active shifts
+    const shiftsDiv = document.getElementById('prodActiveShifts');
+    if (!(d.activeShifts||[]).length) {
+      shiftsDiv.textContent = 'אין משמרות פעילות';
+    } else {
+      shiftsDiv.innerHTML = d.activeShifts.map(s => {
+        const since = new Date(s.started_at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+        return '<div style="padding:4px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">' +
+          '<span>' + escHtml(s.machine_name||'מכונה') + ' — ' + escHtml(s.operator_name||'מפעיל') + '</span>' +
+          '<span style="color:var(--text-muted)">מ-' + since + '</span>' +
+          '</div>';
+      }).join('');
+    }
+  } catch(e) { console.warn('prod dashboard error', e); }
+}
+
+// ── ROLE TABS ──────────────────────────────────────────────────
+let _execLoaded = false, _prodLoaded = false;
+
+function setRole(role) {
+  document.querySelectorAll('.role-tab').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('rtab-' + role);
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.role-section').forEach(sec => {
+    const roles = (sec.dataset.roles || 'all').split(',');
+    sec.classList.toggle('hidden', !roles.includes(role));
+  });
+  localStorage.setItem('ib_dashboard_role', role);
+
+  // Lazy-load role-specific data
+  if (role === 'exec' && !_execLoaded) {
+    _execLoaded = true;
+    fetchExecDashboard();
+  }
+  if ((role === 'production') && !_prodLoaded) {
+    _prodLoaded = true;
+    fetchProductionDashboard();
+  }
+}
+
+// Restore saved role (default: exec — admin is at /admin.html)
+(function() {
+  const saved = localStorage.getItem('ib_dashboard_role') || 'exec';
+  // migrate old 'all' default
+  setRole(saved === 'all' ? 'exec' : saved);
+})();
+
 connectWS();
 fetchDashboard();
 fetchAlerts();
+fetchInventoryForecast();
 setInterval(fetchDashboard, 15000);
 setInterval(fetchAlerts, 30000);
+setInterval(fetchInventoryForecast, 120000);
 setInterval(updateTime, 1000);
+// Refresh role dashboards periodically
+setInterval(() => { if (_execLoaded) fetchExecDashboard(); }, 60000);
+setInterval(() => { if (_prodLoaded) fetchProductionDashboard(); }, 20000);
 updateTime();
+
+// War Room badge: show open incident count
+(async function fetchWarRoomBadge() {
+  try {
+    const incidents = await fetch('/api/incidents').then(r=>r.json()).catch(()=>[]);
+    const open = incidents.filter(i => i.status !== 'סגור').length;
+    const el = document.getElementById('warRoomBadge');
+    if (!el) return;
+    if (open > 0) {
+      el.textContent = `🚨 War Room (${open})`;
+      el.style.animation = 'pulse 2s infinite';
+      if (!document.getElementById('wr-pulse-style')) {
+        const s = document.createElement('style');
+        s.id = 'wr-pulse-style';
+        s.textContent = '@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}';
+        document.head.appendChild(s);
+      }
+    } else {
+      el.textContent = '🚨 War Room';
+      el.style.animation = '';
+    }
+  } catch(e){}
+})();
+setInterval(async () => {
+  try {
+    const incidents = await fetch('/api/incidents').then(r=>r.json()).catch(()=>[]);
+    const open = incidents.filter(i=>i.status!=='סגור').length;
+    const el = document.getElementById('warRoomBadge');
+    if (el) el.textContent = open > 0 ? `🚨 War Room (${open})` : '🚨 War Room';
+  } catch(e){}
+}, 30000);
 </script>
 <script src="/help.js"></script>
 </body>

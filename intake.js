@@ -136,13 +136,63 @@ async function notifyOrderStatus(customerPhone, orderNum, status) {
   return sendWhatsApp(customerPhone, msg);
 }
 
+// ── Gemini email classifier ───────────────────────────────────────
+// Returns { is_order, customer_name, customer_phone, delivery_date,
+//           delivery_address, notes, items: [{diameter,length,qty,shape,notes}] }
+async function classifyEmailWithGemini(text, apiKey) {
+  if (!apiKey) return null;
+  const prompt = `אתה מערכת ניהול הזמנות למפעל כיפוף ברזל.
+קרא את המייל הבא וענה ב-JSON בלבד (ללא הסבר, ללא markdown).
+
+קבע:
+1. is_order: האם זו הזמנת ברזל? (true/false)
+2. אם כן, חלץ את השדות:
+   - customer_name: שם הלקוח / חברה
+   - customer_phone: טלפון (ספרות בלבד, ללא מקפים)
+   - delivery_date: תאריך אספקה בפורמט YYYY-MM-DD (null אם אין)
+   - delivery_address: כתובת אספקה
+   - notes: הערות כלליות
+   - items: מערך פריטים. כל פריט:
+       { "diameter": קוטר במ"מ (מספר), "length": אורך במ"מ (מספר),
+         "qty": כמות (מספר), "shape": שם צורה (string, יכול להיות null), "notes": "" }
+
+דוגמה לתגובה תקינה:
+{"is_order":true,"customer_name":"אבי כהן","customer_phone":"0521234567",
+ "delivery_date":"2025-06-01","delivery_address":"רחוב הרצל 5 תל אביב",
+ "notes":"","items":[{"diameter":12,"length":6000,"qty":50,"shape":"U","notes":""}]}
+
+אם אינה הזמנה: {"is_order":false}
+
+המייל:
+${text.slice(0, 3000)}`;
+
+  try {
+    const resp = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+      { contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 } },
+      { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
+    );
+    let raw = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    raw = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('[Gemini] שגיאת סיווג מייל:', err.message);
+    return null;
+  }
+}
+
 // ── Email polling ─────────────────────────────────────────────────
-async function pollEmail(db) {
-  const host = process.env.EMAIL_IMAP_HOST;
-  const user = process.env.EMAIL_IMAP_USER;
-  const pass = process.env.EMAIL_IMAP_PASS;
+// cfg: { host, user, pass, port, geminiKey }
+async function pollEmail(db, cfg = {}) {
+  const host = cfg.host || process.env.EMAIL_IMAP_HOST;
+  const user = cfg.user || process.env.EMAIL_IMAP_USER;
+  const pass = cfg.pass || process.env.EMAIL_IMAP_PASS;
+  const port = Number(cfg.port || process.env.EMAIL_IMAP_PORT || 993);
+  const geminiKey = cfg.geminiKey || process.env.GEMINI_API_KEY;
+
   if (!host || !user || !pass) {
-    console.log('[Email] IMAP לא מוגדר ב-.env');
+    console.log('[Email] IMAP לא מוגדר');
     return [];
   }
 
@@ -150,10 +200,7 @@ async function pollEmail(db) {
   try { ImapFlow = require('imapflow'); } catch { console.log('[Email] imapflow לא מותקן'); return []; }
 
   const client = new ImapFlow.ImapFlow({
-    host, port: Number(process.env.EMAIL_IMAP_PORT || 993),
-    secure: true,
-    auth: { user, pass },
-    logger: false,
+    host, port, secure: true, auth: { user, pass }, logger: false,
   });
 
   const results = [];
@@ -161,30 +208,38 @@ async function pollEmail(db) {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
     try {
-      // Read unread messages from last 24h
-      const since = new Date(Date.now() - 86400000);
+      const since = new Date(Date.now() - 86400000); // last 24h
       const msgs  = await client.search({ seen: false, since });
 
-      for (const uid of msgs.slice(0, 10)) { // max 10 at a time
-        const msg = await client.fetchOne(uid, { source: true, envelope: true });
+      for (const uid of msgs.slice(0, 10)) {
+        const msg    = await client.fetchOne(uid, { source: true, envelope: true });
         const source = msg.source.toString('utf-8');
 
-        // Extract text part (simplified – full MIME parsing needs mailparser)
+        // Extract plain text body
         const textMatch = source.match(/Content-Type: text\/plain[\s\S]*?\r\n\r\n([\s\S]*?)(?:\r\n--|\r\n\r\n--)/i);
-        const bodyText  = textMatch ? textMatch[1] : source;
+        const bodyText  = (textMatch ? textMatch[1] : source).slice(0, 3000);
 
-        const parsed = parseOCRText(bodyText);
-        parsed.from  = msg.envelope?.from?.[0]?.address || '';
-        parsed.subject = msg.envelope?.subject || '';
-        parsed.source = 'email';
+        const from    = msg.envelope?.from?.[0]?.address || '';
+        const subject = msg.envelope?.subject || '';
 
-        // Log to intake_log
+        // Classify with Gemini
+        const gemini = await classifyEmailWithGemini(`נושא: ${subject}\n\n${bodyText}`, geminiKey);
+
+        if (!gemini || !gemini.is_order) {
+          // Not an order — mark as seen and skip
+          await client.messageFlagsAdd(uid, ['\\Seen']);
+          console.log(`[Email] לא הזמנה: "${subject}" מ-${from}`);
+          continue;
+        }
+
+        // It's an order → save to intake_log as pending_review
+        const parsed = { ...gemini, from, subject, source: 'email' };
         db.prepare(`INSERT INTO intake_log (source, raw_content, parsed_data, status) VALUES (?,?,?,?)`)
-          .run('email', bodyText.slice(0, 2000), JSON.stringify(parsed), 'pending');
+          .run('email', bodyText, JSON.stringify(parsed), 'pending_review');
 
         results.push(parsed);
-        // Mark as seen
         await client.messageFlagsAdd(uid, ['\\Seen']);
+        console.log(`[Email] הזמנה זוהתה: "${subject}" מ-${from}`);
       }
     } finally {
       lock.release();

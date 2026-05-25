@@ -258,6 +258,9 @@ function renderTable(orders) {
         <div class="actions">
           ${o.status==='ממתינה לאישור'?`<button class="btn-sm success" onclick="setStatus(${o.id},'אושרה')">אשר</button>`:''}
           ${o.status==='אושרה'?`<button class="btn-sm" onclick="setStatus(${o.id},'בייצור')">ייצור</button>`:''}
+          <a class="btn-sm" href="/api/orders/${o.id}/print-cards" target="_blank" title="הדפס כרטיסיות" style="text-decoration:none">🖨️</a>
+          <a class="btn-sm" href="/api/orders/${o.id}/print-a4" target="_blank" title="הדפס A4" style="text-decoration:none">📄</a>
+          <a class="btn-sm" href="/api/orders/${o.id}/delivery-certificate" target="_blank" title="תעודת משלוח" style="text-decoration:none">📋</a>
         </div>
       </td>
     </tr>`).join('');
@@ -269,16 +272,20 @@ async function setStatus(id, status) {
 }
 
 async function openDetail(id) {
-  const r = await fetch(`/api/orders/${id}`);
+  const [r, pkgR] = await Promise.all([
+    fetch(`/api/orders/${id}`),
+    fetch(`/api/packages?order_id=${id}`)
+  ]);
   const o = await r.json();
+  const pkgs = await pkgR.json().catch(() => []);
   document.getElementById('detailOrderNum').textContent = o.order_num;
   document.getElementById('detailCustomer').textContent = o.customer_name ?? '';
-  document.getElementById('detailBody').innerHTML = buildDetailHTML(o);
+  document.getElementById('detailBody').innerHTML = buildDetailHTML(o, pkgs);
   document.getElementById('detailOverlay').classList.add('show');
   history.replaceState(null,'',`?id=${id}`);
 }
 
-function buildDetailHTML(o) {
+function buildDetailHTML(o, pkgs) {
   const info = `<div class="detail-section">
     <div class="detail-section-title">פרטי הזמנה</div>
     <div class="info-grid">
@@ -312,6 +319,7 @@ function buildDetailHTML(o) {
         <div style="flex:1">
           <div><strong>⌀${item.diameter}</strong> × ${item.length}מ"מ × ${qty}יח'
             ${item.shape_name?` <span style="color:var(--text-dim);font-size:12px">${item.shape_name}</span>`:''}
+            ${item.is_3d?` <span title="מוצר תלת-מימד — דורש מכונת 3D" style="background:#7c3aed;color:white;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;vertical-align:middle">3D</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--text-dim)">${(item.weight*qty).toFixed(1)} ק"ג${item.note?' | '+item.note:''}</div>
           ${item.status==='בייצור'&&qty>0?`<div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100,produced/qty*100).toFixed(0)}%"></div></div><div style="font-size:11px;color:var(--text-dim)">${produced}/${qty}</div>`:''}
@@ -326,11 +334,70 @@ function buildDetailHTML(o) {
     </div>`;
   }).join('');
 
-  return info + statusHtml + `<div class="detail-section"><div class="detail-section-title">פריטים</div>${palletsHtml}</div>`;
+  const packagesHtml = pkgs && pkgs.length ? pkgs.map(p => {
+    const statusColor = p.status === 'shipped' ? 'var(--success)' : p.status === 'staged' ? 'var(--warning)' : 'var(--accent)';
+    const statusLabel = p.status === 'shipped' ? 'נשלח' : p.status === 'staged' ? 'מוכן לטעינה' : 'ארוז';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.04)">
+      <div>
+        <div style="font-weight:700;font-size:13px">📦 ${p.package_code}</div>
+        <div style="font-size:11px;color:var(--text-dim)">${(p.weight||0).toFixed(0)} ק"ג${p.diameter ? ' | ⌀'+p.diameter : ''}${p.zone ? ' | אזור '+p.zone : ''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:700;color:${statusColor}">${statusLabel}</span>
+        <button class="btn-sm" onclick="printQR('${p.package_code}','${p.order_num||''}',${p.weight||0},${p.diameter||0})" title="הדפס QR">🖨️</button>
+      </div>
+    </div>`;
+  }).join('') : '<div style="color:var(--text-dim);font-size:12px;padding:8px 0">אין חבילות ארוזות עדיין</div>';
+
+  const packagesSection = `<div class="detail-section">
+    <div class="detail-section-title">חבילות וQR</div>
+    ${packagesHtml}
+  </div>`;
+
+  const printCardsBtn = `<div class="detail-section" style="padding:12px 20px;display:flex;gap:10px;flex-wrap:wrap;">
+    <a href="/api/orders/${o.id}/print-cards" target="_blank"
+       style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#1a2332;color:#fff;
+              text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;">
+      🖨️ הדפס כרטיסיות ייצור
+    </a>
+    <a href="/api/orders/${o.id}/print-a4" target="_blank"
+       style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#1a5c2e;color:#fff;
+              text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;">
+      📄 הדפסת A4 (גיבוי)
+    </a>
+    <a href="/api/orders/${o.id}/delivery-certificate" target="_blank"
+       style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#5c1a6e;color:#fff;
+              text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;">
+      📋 תעודת משלוח
+    </a>
+  </div>`;
+
+  return printCardsBtn + info + statusHtml + packagesSection + `<div class="detail-section"><div class="detail-section-title">פריטים</div>${palletsHtml}</div>`;
 }
 
 function closeDetail(e) { if (e.target===document.getElementById('detailOverlay')) closeDetailPanel(); }
 function closeDetailPanel() { document.getElementById('detailOverlay').classList.remove('show'); history.replaceState(null,'','/orders.html'); }
+
+function printQR(code, orderNum, weight, diameter) {
+  const w = window.open('', '_blank', 'width=400,height=350');
+  w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
+  <title>QR - ${code}</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
+  <style>body{font-family:'Heebo',sans-serif;text-align:center;padding:20px;margin:0}
+  h2{font-size:18px;margin:0 0 4px}p{font-size:12px;color:#526070;margin:2px 0}
+  canvas{margin:12px auto;display:block}
+  @media print{button{display:none}}</style>
+  </head><body>
+  <h2>📦 ${code}</h2>
+  <p>הזמנה: ${orderNum}</p>
+  <p>${weight.toFixed(0)} ק"ג${diameter ? ' | ⌀' + diameter : ''}</p>
+  <canvas id="qrCanvas"></canvas>
+  <br><button onclick="window.print()">🖨️ הדפס</button>
+  <script>
+    QRCode.toCanvas(document.getElementById('qrCanvas'),'${code}',{width:200,margin:1},function(){});
+  <\/script></body></html>`);
+  w.document.close();
+}
 
 const urlId = new URLSearchParams(location.search).get('id');
 if (urlId) openDetail(urlId);

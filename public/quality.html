@@ -29,34 +29,93 @@ table{width:100%;border-collapse:collapse;}
 th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);white-space:nowrap;}
 td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.04);}
 tr:last-child td{border-bottom:none;}
+tr.clickable{cursor:pointer;}
+tr.clickable:hover td{background:rgba(0,0,0,0.02);}
 .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
 .badge-pass{background:var(--success-dim);color:var(--success);}
 .badge-fail{background:var(--danger-dim);color:var(--danger);}
 .badge-cond{background:var(--warning-dim);color:var(--warning);}
+.badge-open{background:var(--info-dim);color:var(--info);}
+.badge-inprog{background:var(--warning-dim);color:var(--warning);}
+.badge-pending{background:var(--accent-dim);color:var(--accent);}
+.badge-closed{background:var(--success-dim);color:var(--success);}
+.badge-verify{background:var(--info-dim);color:var(--info);}
+.sev-critical{background:var(--danger-dim);color:var(--danger);}
+.sev-high{background:#fce8d6;color:#c9621a;}
+.sev-medium{background:var(--warning-dim);color:var(--warning);}
+.sev-low{background:var(--border);color:var(--text-dim);}
 .btn{padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;}
 .btn-primary{background:var(--accent);color:#fff;}
 .btn-primary:hover{background:var(--accent-light);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover{background:#c94040;}
+.btn-success{background:var(--success);color:#fff;}
+.btn-success:hover{background:#228a4e;}
 .btn-sm{padding:5px 12px;font-size:12px;}
 .btn-outline{background:transparent;border:1px solid var(--border-bright);color:var(--text-dim);}
 .btn-outline:hover{background:rgba(0,0,0,0.04);}
 .filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .filters select,.filters input{padding:8px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px;}
 .modal-overlay.open{display:flex;}
-.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:500px;box-shadow:0 16px 50px rgba(0,0,0,0.25);}
+.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:560px;box-shadow:0 16px 50px rgba(0,0,0,0.25);margin:auto;}
 .modal h2{font-size:18px;font-weight:900;margin-bottom:20px;}
 .form-row{margin-bottom:14px;}
 .form-row label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:6px;}
 .form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
-.form-row input:focus,.form-row select:focus{outline:none;border-color:var(--accent);}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:var(--accent);}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
-/* pass rate bar */
 .rate-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:6px;}
 .rate-fill{height:100%;border-radius:4px;}
+/* tabs */
+.tabs{display:flex;gap:2px;background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);padding:4px;margin-bottom:20px;}
+.tab-btn{flex:1;padding:9px 12px;border:none;border-radius:calc(var(--radius) - 4px);background:transparent;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;color:var(--text-dim);cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+.tab-btn:hover{background:var(--steel);color:var(--text);}
+.tab-btn.active{background:var(--accent);color:#fff;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+/* side panel */
+.side-panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:400;}
+.side-panel-overlay.open{display:block;}
+.side-panel{position:fixed;top:0;left:0;bottom:0;width:480px;max-width:100vw;background:var(--steel-mid);box-shadow:-4px 0 30px rgba(0,0,0,0.18);z-index:401;overflow-y:auto;transform:translateX(-100%);transition:transform 0.3s ease;}
+.side-panel.open{transform:translateX(0);}
+.side-panel-head{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.side-panel-head h3{font-size:16px;font-weight:800;}
+.side-panel-body{padding:20px 22px;}
+.sp-section{margin-bottom:18px;}
+.sp-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px;}
+.sp-val{font-size:13px;font-weight:600;}
+.sp-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.timeline{border-right:2px solid var(--border);padding-right:14px;margin-top:4px;}
+.tl-item{position:relative;margin-bottom:12px;font-size:12px;}
+.tl-item::before{content:'';position:absolute;right:-19px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--accent);}
+.tl-time{color:var(--text-muted);font-size:11px;}
+/* progress bar */
+.prog-bar{height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-top:4px;}
+.prog-fill{height:100%;border-radius:5px;background:var(--accent);transition:width 0.4s;}
+/* action items */
+.action-items-list{list-style:none;padding:0;}
+.action-items-list li{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.action-items-list li:last-child{border-bottom:none;}
+.action-items-list input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--accent);}
+.action-items-list .done{text-decoration:line-through;color:var(--text-muted);}
+.add-action-row{display:flex;gap:8px;margin-top:8px;}
+.add-action-row input{flex:1;padding:7px 10px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);}
+/* file upload */
+.file-list{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;}
+.file-chip{background:var(--steel);border:1px solid var(--border-bright);border-radius:20px;padding:3px 10px;font-size:12px;color:var(--text-dim);}
+/* dynamic capa actions */
+.capa-action-input-row{display:flex;gap:6px;margin-bottom:6px;}
+.capa-action-input-row input{flex:1;padding:7px 10px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);}
+.capa-actions-list{margin-bottom:8px;}
+.capa-actions-list .cai{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.capa-actions-list .cai:last-child{border-bottom:none;}
+.cai-del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:0 4px;}
 </style>
 </head>
-<body>
+<body data-page="quality">
 <nav class="topnav">
   <div class="logo"><div class="logo-icon">🔩</div>IronBend</div>
   <div class="nav-links">
@@ -71,56 +130,147 @@ tr:last-child td{border-bottom:none;}
     <a href="admin.html" class="nav-link">ניהול</a>
   </div>
 </nav>
+
 <div class="page">
-  <div class="kpi-row">
-    <div class="kpi-card">
-      <div class="kpi-label">סה"כ בדיקות</div>
-      <div class="kpi-val" id="kpiTotal">—</div>
-      <div class="kpi-sub">מאז תחילה</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">עברו ✅</div>
-      <div class="kpi-val" style="color:var(--success)" id="kpiPass">—</div>
-      <div class="kpi-sub">בדיקות עובר</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">נכשלו ❌</div>
-      <div class="kpi-val" style="color:var(--danger)" id="kpiFail">—</div>
-      <div class="kpi-sub">בדיקות נכשל</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">אחוז עובר</div>
-      <div class="kpi-val" id="kpiRate">—</div>
-      <div class="kpi-sub">pass rate</div>
-      <div class="rate-bar"><div class="rate-fill" id="rateBar" style="background:var(--success);width:0%"></div></div>
-    </div>
+  <!-- TAB BAR -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('qc')">🔍 בקרת איכות</button>
+    <button class="tab-btn" onclick="switchTab('ncr')">⚠️ NCR – אי-התאמה</button>
+    <button class="tab-btn" onclick="switchTab('capa')">🔧 CAPA – פעולות מתקנות</button>
   </div>
 
-  <div class="card">
-    <div class="card-header">
-      <span class="card-title">🔍 יומן בקרת איכות</span>
-      <div class="filters">
-        <select id="fResult" onchange="loadChecks()">
-          <option value="">כל התוצאות</option>
-          <option value="pass">עבר ✅</option>
-          <option value="fail">נכשל ❌</option>
-          <option value="conditional">מותנה ⚠️</option>
-        </select>
-        <input type="text" id="fOrder" placeholder="מס' הזמנה..." style="width:160px" oninput="loadChecks()">
-        <button class="btn btn-primary btn-sm" onclick="openQCModal()">+ בדיקת איכות</button>
+  <!-- ===== TAB: QC ===== -->
+  <div class="tab-panel active" id="tab-qc">
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">סה"כ בדיקות</div>
+        <div class="kpi-val" id="kpiTotal">—</div>
+        <div class="kpi-sub">מאז תחילה</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">עברו ✅</div>
+        <div class="kpi-val" style="color:var(--success)" id="kpiPass">—</div>
+        <div class="kpi-sub">בדיקות עובר</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">נכשלו ❌</div>
+        <div class="kpi-val" style="color:var(--danger)" id="kpiFail">—</div>
+        <div class="kpi-sub">בדיקות נכשל</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">אחוז עובר</div>
+        <div class="kpi-val" id="kpiRate">—</div>
+        <div class="kpi-sub">pass rate</div>
+        <div class="rate-bar"><div class="rate-fill" id="rateBar" style="background:var(--success);width:0%"></div></div>
       </div>
     </div>
-    <table>
-      <thead><tr>
-        <th>הזמנה</th><th>פריט</th><th>סוג בדיקה</th><th>תוצאה</th><th>דגימה</th>
-        <th>סטייה אורך (מ"מ)</th><th>סטייה זווית (°)</th><th>פעולה</th><th>בודק</th><th>תאריך</th>
-      </tr></thead>
-      <tbody id="qcTable">טוען...</tbody>
-    </table>
-  </div>
-</div>
 
-<!-- QC MODAL -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🔍 יומן בקרת איכות</span>
+        <div class="filters">
+          <select id="fResult" onchange="loadChecks()">
+            <option value="">כל התוצאות</option>
+            <option value="pass">עבר ✅</option>
+            <option value="fail">נכשל ❌</option>
+            <option value="conditional">מותנה ⚠️</option>
+          </select>
+          <input type="text" id="fOrder" placeholder="מס' הזמנה..." style="width:160px" oninput="loadChecks()">
+          <button class="btn btn-primary btn-sm" onclick="openQCModal()">+ בדיקת איכות</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>הזמנה</th><th>פריט</th><th>סוג בדיקה</th><th>תוצאה</th><th>דגימה</th>
+          <th>סטייה אורך (מ"מ)</th><th>סטייה זווית (°)</th><th>פעולה</th><th>בודק</th><th>תאריך</th>
+        </tr></thead>
+        <tbody id="qcTable">טוען...</tbody>
+      </table>
+    </div>
+  </div><!-- /tab-qc -->
+
+  <!-- ===== TAB: NCR ===== -->
+  <div class="tab-panel" id="tab-ncr">
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">NCR פתוחים</div>
+        <div class="kpi-val" style="color:var(--info)" id="ncrKpiOpen">—</div>
+        <div class="kpi-sub">דורשים טיפול</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">ממתינים לאישור</div>
+        <div class="kpi-val" style="color:var(--accent)" id="ncrKpiPending">—</div>
+        <div class="kpi-sub">pending approval</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">נסגרו השבוע</div>
+        <div class="kpi-val" style="color:var(--success)" id="ncrKpiWeek">—</div>
+        <div class="kpi-sub">closed this week</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">ממוצע ימי פתרון</div>
+        <div class="kpi-val" id="ncrKpiAvgDays">—</div>
+        <div class="kpi-sub">avg resolution days</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⚠️ דוחות אי-התאמה (NCR)</span>
+        <div class="filters">
+          <input type="text" id="ncrSearch" placeholder="חיפוש..." style="width:140px" oninput="renderNCR()">
+          <select id="ncrFStatus" onchange="renderNCR()">
+            <option value="">כל הסטטוסים</option>
+            <option value="open">פתוח</option>
+            <option value="inprog">בטיפול</option>
+            <option value="pending">ממתין אישור</option>
+            <option value="closed">סגור</option>
+          </select>
+          <select id="ncrFSev" onchange="renderNCR()">
+            <option value="">כל החומרות</option>
+            <option value="critical">קריטי</option>
+            <option value="high">גבוה</option>
+            <option value="medium">בינוני</option>
+            <option value="low">נמוך</option>
+          </select>
+          <select id="ncrFMachine" onchange="renderNCR()">
+            <option value="">כל המכונות</option>
+          </select>
+          <input type="date" id="ncrFDate" onchange="renderNCR()" style="width:148px">
+          <button class="btn btn-danger btn-sm" onclick="openNcrModal()">+ פתח NCR חדש</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>מס' NCR</th><th>תאריך</th><th>מכונה</th><th>הזמנה</th><th>תיאור הממצא</th>
+          <th>חומרה</th><th>סטטוס</th><th>אחראי</th><th>פעולות</th>
+        </tr></thead>
+        <tbody id="ncrTable">טוען...</tbody>
+      </table>
+    </div>
+  </div><!-- /tab-ncr -->
+
+  <!-- ===== TAB: CAPA ===== -->
+  <div class="tab-panel" id="tab-capa">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🔧 פעולות מתקנות ומונעות (CAPA)</span>
+        <button class="btn btn-primary btn-sm" onclick="openCapaModal()">+ פעולה מתקנת חדשה</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>מס' CAPA</th><th>שייך ל-NCR</th><th>כותרת</th><th>סוג</th><th>סטטוס</th>
+          <th>בעל</th><th>תאריך יעד</th><th>% השלמה</th>
+        </tr></thead>
+        <tbody id="capaTable">טוען...</tbody>
+      </table>
+    </div>
+  </div><!-- /tab-capa -->
+</div><!-- /page -->
+
+<!-- ============================================================
+     MODAL: QC
+============================================================ -->
 <div class="modal-overlay" id="qcModal">
   <div class="modal">
     <h2>🔍 רישום בדיקת איכות</h2>
@@ -163,13 +313,224 @@ tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- ============================================================
+     MODAL: NCR
+============================================================ -->
+<div class="modal-overlay" id="ncrModal">
+  <div class="modal" style="max-width:620px">
+    <h2>⚠️ פתיחת NCR חדש</h2>
+    <div class="form-grid">
+      <div class="form-row"><label>הזמנה</label><input id="ncrOrd" type="text" placeholder="HZ-2026-001"></div>
+      <div class="form-row"><label>מכונה</label>
+        <select id="ncrMachine">
+          <option value="">בחר מכונה...</option>
+          <option>CNC-01</option><option>CNC-02</option><option>Bend-03</option>
+          <option>Cut-04</option><option>Press-05</option>
+        </select>
+      </div>
+      <div class="form-row"><label>חומרה</label>
+        <select id="ncrSev">
+          <option value="critical">קריטי</option>
+          <option value="high">גבוה</option>
+          <option value="medium" selected>בינוני</option>
+          <option value="low">נמוך</option>
+        </select>
+      </div>
+      <div class="form-row"><label>קוטר (מ"מ)</label><input id="ncrDiam" type="number" step="0.5" placeholder="12.5"></div>
+      <div class="form-row"><label>כמות פגומה</label><input id="ncrQty" type="number" min="1" value="1"></div>
+      <div class="form-row"><label>אחראי</label><input id="ncrOwner" type="text" placeholder="שם האחראי"></div>
+    </div>
+    <div class="form-row"><label>תיאור הממצא</label><textarea id="ncrDesc" rows="3" placeholder="תאר את הממצא..."></textarea></div>
+    <div class="form-row"><label>גורם שורש ראשוני</label><textarea id="ncrRootCause" rows="2" placeholder="גורם שורש ראשוני..."></textarea></div>
+    <div class="form-row"><label>המלצת disposition</label>
+      <select id="ncrDisp">
+        <option value="release">שחרור</option>
+        <option value="reject">פסילה</option>
+        <option value="rework">עיבוד מחדש</option>
+        <option value="return">החזרה לספק</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('ncrModal')">ביטול</button>
+      <button class="btn btn-danger" onclick="saveNCR()">פתח NCR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: CAPA
+============================================================ -->
+<div class="modal-overlay" id="capaModal">
+  <div class="modal" style="max-width:620px">
+    <h2>🔧 פעולה מתקנת / מונעת חדשה</h2>
+    <div class="form-grid">
+      <div class="form-row"><label>כותרת</label><input id="capaTitle" type="text" placeholder="כותרת הפעולה..."></div>
+      <div class="form-row"><label>קישור ל-NCR</label>
+        <select id="capaNCR">
+          <option value="">ללא NCR קשור</option>
+        </select>
+      </div>
+      <div class="form-row"><label>סוג</label>
+        <select id="capaType">
+          <option value="corrective">מתקן</option>
+          <option value="preventive">מונע</option>
+        </select>
+      </div>
+      <div class="form-row"><label>בעל</label><input id="capaOwner" type="text" placeholder="שם האחראי"></div>
+      <div class="form-row" style="grid-column:1/-1"><label>תיאור הבעיה</label><textarea id="capaDesc" rows="2" placeholder="תאר את הבעיה..."></textarea></div>
+      <div class="form-row" style="grid-column:1/-1"><label>גורם שורש</label><textarea id="capaRoot" rows="2" placeholder="גורם שורש..."></textarea></div>
+      <div class="form-row"><label>תאריך יעד</label><input id="capaDue" type="date"></div>
+    </div>
+    <div class="form-row">
+      <label>פעולות לביצוע</label>
+      <div class="capa-actions-list" id="capaActList"></div>
+      <div class="capa-action-input-row">
+        <input type="text" id="capaActInput" placeholder="הוסף פעולה..." onkeydown="if(event.key==='Enter')addCapaAction()">
+        <button class="btn btn-outline btn-sm" onclick="addCapaAction()">+ הוסף</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('capaModal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveCapa()">צור CAPA</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SIDE PANEL: NCR DETAIL
+============================================================ -->
+<div class="side-panel-overlay" id="ncrPanelOverlay" onclick="closeNcrPanel()"></div>
+<div class="side-panel" id="ncrPanel">
+  <div class="side-panel-head">
+    <h3 id="spNcrTitle">NCR #—</h3>
+    <button class="btn btn-outline btn-sm" onclick="closeNcrPanel()">✕ סגור</button>
+  </div>
+  <div class="side-panel-body">
+    <div class="sp-meta-grid">
+      <div><div class="sp-label">סטטוס</div><div id="spNcrStatus"></div></div>
+      <div><div class="sp-label">חומרה</div><div id="spNcrSev"></div></div>
+      <div><div class="sp-label">מכונה</div><div class="sp-val" id="spNcrMachine"></div></div>
+      <div><div class="sp-label">הזמנה</div><div class="sp-val" id="spNcrOrd"></div></div>
+      <div><div class="sp-label">כמות פגומה</div><div class="sp-val" id="spNcrQty"></div></div>
+      <div><div class="sp-label">קוטר</div><div class="sp-val" id="spNcrDiam"></div></div>
+      <div><div class="sp-label">אחראי</div><div class="sp-val" id="spNcrOwner"></div></div>
+      <div><div class="sp-label">תאריך</div><div class="sp-val" id="spNcrDate"></div></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">תיאור הממצא</div>
+      <div class="sp-val" id="spNcrDesc" style="white-space:pre-wrap;line-height:1.5"></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">גורם שורש</div>
+      <textarea id="spNcrRootCause" rows="3" style="width:100%;padding:9px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);resize:vertical"></textarea>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">Disposition</div>
+      <select id="spNcrDisp" style="width:100%;padding:9px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text)">
+        <option value="release">שחרור</option>
+        <option value="reject">פסילה</option>
+        <option value="rework">עיבוד מחדש</option>
+        <option value="return">החזרה לספק</option>
+      </select>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">תמונות / קבצים</div>
+      <input type="file" id="spNcrFiles" multiple accept="image/*,.pdf" onchange="handleNcrFiles(event)" style="display:none">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('spNcrFiles').click()">📎 העלה קבצים</button>
+      <div class="file-list" id="spNcrFileList"></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">ציר זמן</div>
+      <div class="timeline" id="spNcrTimeline"></div>
+    </div>
+    <div class="sp-section" id="spNcrCloseSection">
+      <div class="sp-label">סיכום לסגירה</div>
+      <textarea id="spNcrCloseSummary" rows="2" style="width:100%;padding:9px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);resize:vertical" placeholder="תאר את הפתרון..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-primary btn-sm" onclick="updateNcrStatus('inprog')">בטיפול</button>
+      <button class="btn btn-outline btn-sm" onclick="updateNcrStatus('pending')">ממתין אישור</button>
+      <button class="btn btn-success btn-sm" onclick="closeNCR()">✓ סגור NCR</button>
+      <button class="btn btn-outline btn-sm" onclick="saveNcrDetails()">שמור שינויים</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SIDE PANEL: CAPA DETAIL
+============================================================ -->
+<div class="side-panel-overlay" id="capaPanelOverlay" onclick="closeCapaPanel()"></div>
+<div class="side-panel" id="capaPanel">
+  <div class="side-panel-head">
+    <h3 id="spCapaTitle">CAPA #—</h3>
+    <button class="btn btn-outline btn-sm" onclick="closeCapaPanel()">✕ סגור</button>
+  </div>
+  <div class="side-panel-body">
+    <div class="sp-meta-grid">
+      <div><div class="sp-label">סטטוס</div><div id="spCapaStatus"></div></div>
+      <div><div class="sp-label">סוג</div><div id="spCapaType"></div></div>
+      <div><div class="sp-label">בעל</div><div class="sp-val" id="spCapaOwner"></div></div>
+      <div><div class="sp-label">תאריך יעד</div><div class="sp-val" id="spCapaDue"></div></div>
+      <div><div class="sp-label">NCR קשור</div><div class="sp-val" id="spCapaNCR"></div></div>
+      <div><div class="sp-label">% השלמה</div><div class="sp-val" id="spCapaPct"></div></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">תיאור הבעיה</div>
+      <div class="sp-val" id="spCapaDesc" style="white-space:pre-wrap;line-height:1.5"></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">גורם שורש</div>
+      <div class="sp-val" id="spCapaRoot" style="white-space:pre-wrap;line-height:1.5"></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">פעולות לביצוע</div>
+      <ul class="action-items-list" id="spCapaActions"></ul>
+      <div class="add-action-row">
+        <input type="text" id="spCapaNewAction" placeholder="פעולה חדשה..." onkeydown="if(event.key==='Enter')addPanelCapaAction()">
+        <button class="btn btn-outline btn-sm" onclick="addPanelCapaAction()">+ הוסף</button>
+      </div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">שיטת אימות</div>
+      <textarea id="spCapaVerify" rows="2" style="width:100%;padding:9px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);resize:vertical" placeholder="כיצד תאומת האפקטיביות..."></textarea>
+    </div>
+    <div class="sp-section">
+      <div class="sp-label">בדיקת אפקטיביות</div>
+      <textarea id="spCapaEffect" rows="2" style="width:100%;padding:9px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);resize:vertical" placeholder="תוצאות בדיקת אפקטיביות..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-primary btn-sm" onclick="updateCapaStatus('inprog')">בביצוע</button>
+      <button class="btn btn-outline btn-sm" onclick="updateCapaStatus('verify')">לאימות</button>
+      <button class="btn btn-success btn-sm" onclick="updateCapaStatus('closed')">✓ סגור CAPA</button>
+      <button class="btn btn-outline btn-sm" onclick="saveCapaDetails()">שמור שינויים</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT
+============================================================ -->
 <script>
+/* -------- UTILS -------- */
+let _tabActive = 'qc';
+function switchTab(t) {
+  _tabActive = t;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active', ['qc','ncr','capa'][i]===t));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active', p.id==='tab-'+t));
+  if (t==='ncr') { loadNCR(); }
+  if (t==='capa') { loadCAPA(); }
+}
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function dtStr(s) { return s ? new Date(s).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
+function dtDate(s) { return s ? new Date(s).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—'; }
+function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* -------- QC -------- */
 let checks = [];
 const RESULT_CLS = { pass:'badge-pass', fail:'badge-fail', conditional:'badge-cond' };
 const RESULT_LBL = { pass:'✅ עבר', fail:'❌ נכשל', conditional:'⚠️ מותנה' };
 const TYPE_LBL   = { length:'אורך', angle:'זווית', visual:'ויזואלי', full:'מלאה' };
-function dtStr(s){ return s ? new Date(s).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
-function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 async function loadStats() {
   const s = await fetch('/api/quality/stats').then(r=>r.json()).catch(()=>({}));
@@ -215,9 +576,9 @@ function openQCModal() {
   document.getElementById('qDevDeg').value='0';
   document.getElementById('qResult').value='pass';
   document.getElementById('qAction').value='accepted';
-  document.getElementById('qModal').classList.add('open');
+  openModal('qcModal');
 }
-function closeQCModal() { document.getElementById('qcModal').classList.remove('open'); }
+function closeQCModal() { closeModal('qcModal'); }
 
 async function saveQC() {
   const body = {
@@ -241,15 +602,427 @@ async function saveQC() {
   loadChecks();
 }
 
-// fix modal ID typo
-document.getElementById('qcModal').id = 'qcModal';
-function openQCModal() {
-  document.getElementById('qcModal').classList.add('open');
-}
-function closeQCModal() { document.getElementById('qcModal').classList.remove('open'); }
+/* -------- NCR DATA -------- */
+let ncrList = [];
+let ncrActiveId = null;
 
+const NCR_STATUS_LBL = { open:'פתוח', inprog:'בטיפול', pending:'ממתין אישור', closed:'סגור' };
+const NCR_STATUS_CLS = { open:'badge-open', inprog:'badge-inprog', pending:'badge-pending', closed:'badge-closed' };
+const SEV_LBL = { critical:'קריטי', high:'גבוה', medium:'בינוני', low:'נמוך' };
+const SEV_CLS = { critical:'sev-critical', high:'sev-high', medium:'sev-medium', low:'sev-low' };
+const DISP_LBL = { release:'שחרור', reject:'פסילה', rework:'עיבוד מחדש', return:'החזרה לספק' };
+
+// Generate local IDs for demo
+let _ncrSeq = 100;
+let _capaSeq = 200;
+
+// Demo seed data (will be replaced by API data when available)
+function seedNCR() {
+  if (ncrList.length) return;
+  const now = new Date();
+  const d = (days) => new Date(now - days*86400000).toISOString();
+  ncrList = [
+    { id:'NCR-101', date:d(12), machine:'CNC-01', order:'HZ-2026-043', desc:'סטייה אורך מעל 3 מ"מ ב-15 חתיכות', severity:'high', status:'inprog', owner:'יוסי כהן', root_cause:'שחיקת כלי', disposition:'rework', timeline:[{ts:d(12),msg:'NCR נפתח'},{ts:d(10),msg:'הועבר לטיפול – יוסי כהן'}], files:[] },
+    { id:'NCR-102', date:d(3), machine:'Bend-03', order:'HZ-2026-051', desc:'זווית כיפוף שגויה – 92° במקום 90°', severity:'critical', status:'open', owner:'רחל לוי', root_cause:'', disposition:'rework', timeline:[{ts:d(3),msg:'NCR נפתח'}], files:[] },
+    { id:'NCR-103', date:d(20), machine:'Cut-04', order:'HZ-2026-031', desc:'עקמומיות בחתך – ריצה של 2 מ"מ', severity:'medium', status:'closed', owner:'מוטי אברהם', root_cause:'ניתיב שגוי', disposition:'reject', timeline:[{ts:d(20),msg:'NCR נפתח'},{ts:d(18),msg:'בטיפול'},{ts:d(15),msg:'ממתין אישור'},{ts:d(12),msg:'סגור – פסילה'}], files:[] },
+    { id:'NCR-104', date:d(1), machine:'Press-05', order:'HZ-2026-055', desc:'פגמי ויזואל – שריטות על פני השטח', severity:'low', status:'pending', owner:'דנה שפירא', root_cause:'', disposition:'release', timeline:[{ts:d(1),msg:'NCR נפתח'},{ts:d(0.5),msg:'ממתין אישור'}], files:[] },
+  ];
+  _ncrSeq = 104;
+}
+
+function ncrKpiCalc() {
+  const open = ncrList.filter(n=>n.status==='open').length;
+  const pending = ncrList.filter(n=>n.status==='pending').length;
+  const weekAgo = new Date(Date.now()-7*86400000);
+  const week = ncrList.filter(n=>n.status==='closed' && new Date(n.date)>=weekAgo).length;
+  const closed = ncrList.filter(n=>n.status==='closed');
+  let avgDays = '—';
+  if (closed.length) {
+    const daysArr = closed.map(n=>{
+      const tl = n.timeline;
+      if (!tl||tl.length<2) return null;
+      return (new Date(tl[tl.length-1].ts) - new Date(tl[0].ts)) / 86400000;
+    }).filter(x=>x!==null);
+    if (daysArr.length) avgDays = (daysArr.reduce((a,b)=>a+b,0)/daysArr.length).toFixed(1);
+  }
+  document.getElementById('ncrKpiOpen').textContent = open;
+  document.getElementById('ncrKpiPending').textContent = pending;
+  document.getElementById('ncrKpiWeek').textContent = week;
+  document.getElementById('ncrKpiAvgDays').textContent = avgDays;
+}
+
+async function loadNCR() {
+  try {
+    const data = await fetch('/api/ncr').then(r=>r.json());
+    ncrList = data;
+  } catch(e) {
+    seedNCR();
+  }
+  ncrKpiCalc();
+  populateNcrMachineFilter();
+  renderNCR();
+  populateCapaNcrSelect();
+}
+
+function populateNcrMachineFilter() {
+  const sel = document.getElementById('ncrFMachine');
+  const machines = [...new Set(ncrList.map(n=>n.machine).filter(Boolean))];
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">כל המכונות</option>' + machines.map(m=>`<option ${m===cur?'selected':''}>${escH(m)}</option>`).join('');
+}
+
+function renderNCR() {
+  const search = document.getElementById('ncrSearch').value.toLowerCase();
+  const fSt = document.getElementById('ncrFStatus').value;
+  const fSev = document.getElementById('ncrFSev').value;
+  const fMach = document.getElementById('ncrFMachine').value;
+  const fDate = document.getElementById('ncrFDate').value;
+  let list = ncrList.filter(n=>{
+    if (fSt && n.status !== fSt) return false;
+    if (fSev && n.severity !== fSev) return false;
+    if (fMach && n.machine !== fMach) return false;
+    if (fDate && !n.date.startsWith(fDate)) return false;
+    if (search && !(
+      (n.id||'').toLowerCase().includes(search) ||
+      (n.desc||'').toLowerCase().includes(search) ||
+      (n.order||'').toLowerCase().includes(search) ||
+      (n.owner||'').toLowerCase().includes(search)
+    )) return false;
+    return true;
+  });
+  const tbody = document.getElementById('ncrTable');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">אין NCR תואמים</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(n=>`
+    <tr class="clickable" onclick="openNcrPanel('${n.id}')">
+      <td><strong>${escH(n.id)}</strong></td>
+      <td style="font-size:12px">${dtDate(n.date)}</td>
+      <td>${escH(n.machine||'—')}</td>
+      <td style="font-size:12px">${escH(n.order||'—')}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(n.desc)}</td>
+      <td><span class="badge ${SEV_CLS[n.severity]||''}">${SEV_LBL[n.severity]||n.severity}</span></td>
+      <td><span class="badge ${NCR_STATUS_CLS[n.status]||''}">${NCR_STATUS_LBL[n.status]||n.status}</span></td>
+      <td style="font-size:12px">${escH(n.owner||'—')}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openNcrPanel('${n.id}')">פרטים</button></td>
+    </tr>
+  `).join('');
+}
+
+function openNcrModal() { openModal('ncrModal'); }
+
+async function saveNCR() {
+  const newNCR = {
+    id: 'NCR-' + (++_ncrSeq),
+    date: new Date().toISOString(),
+    machine: document.getElementById('ncrMachine').value,
+    order: document.getElementById('ncrOrd').value,
+    desc: document.getElementById('ncrDesc').value,
+    severity: document.getElementById('ncrSev').value,
+    status: 'open',
+    owner: document.getElementById('ncrOwner').value,
+    root_cause: document.getElementById('ncrRootCause').value,
+    disposition: document.getElementById('ncrDisp').value,
+    diam: document.getElementById('ncrDiam').value,
+    qty: document.getElementById('ncrQty').value,
+    timeline: [{ ts: new Date().toISOString(), msg: 'NCR נפתח' }],
+    files: []
+  };
+  if (!newNCR.desc) return alert('נדרש תיאור הממצא');
+  try {
+    const r = await fetch('/api/ncr', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(newNCR) });
+    if (r.ok) { const saved = await r.json(); newNCR.id = saved.id || newNCR.id; }
+  } catch(e) {}
+  ncrList.unshift(newNCR);
+  closeModal('ncrModal');
+  ncrKpiCalc();
+  renderNCR();
+  populateCapaNcrSelect();
+}
+
+/* NCR Panel */
+function openNcrPanel(id) {
+  const n = ncrList.find(x=>x.id===id);
+  if (!n) return;
+  ncrActiveId = id;
+  document.getElementById('spNcrTitle').textContent = n.id + ' – ' + (n.machine||'');
+  document.getElementById('spNcrStatus').innerHTML = `<span class="badge ${NCR_STATUS_CLS[n.status]||''}">${NCR_STATUS_LBL[n.status]||n.status}</span>`;
+  document.getElementById('spNcrSev').innerHTML = `<span class="badge ${SEV_CLS[n.severity]||''}">${SEV_LBL[n.severity]||n.severity}</span>`;
+  document.getElementById('spNcrMachine').textContent = n.machine||'—';
+  document.getElementById('spNcrOrd').textContent = n.order||'—';
+  document.getElementById('spNcrQty').textContent = n.qty||'—';
+  document.getElementById('spNcrDiam').textContent = n.diam ? n.diam + ' מ"מ' : '—';
+  document.getElementById('spNcrOwner').textContent = n.owner||'—';
+  document.getElementById('spNcrDate').textContent = dtDate(n.date);
+  document.getElementById('spNcrDesc').textContent = n.desc||'';
+  document.getElementById('spNcrRootCause').value = n.root_cause||'';
+  document.getElementById('spNcrDisp').value = n.disposition||'release';
+  // files
+  const fl = document.getElementById('spNcrFileList');
+  fl.innerHTML = (n.files||[]).map(f=>`<span class="file-chip">📎 ${escH(f)}</span>`).join('');
+  // timeline
+  const tl = document.getElementById('spNcrTimeline');
+  tl.innerHTML = (n.timeline||[]).map(t=>`<div class="tl-item"><div>${escH(t.msg)}</div><div class="tl-time">${dtStr(t.ts)}</div></div>`).join('');
+  document.getElementById('spNcrCloseSummary').value = '';
+  document.getElementById('ncrPanelOverlay').classList.add('open');
+  document.getElementById('ncrPanel').classList.add('open');
+}
+
+function closeNcrPanel() {
+  document.getElementById('ncrPanelOverlay').classList.remove('open');
+  document.getElementById('ncrPanel').classList.remove('open');
+  ncrActiveId = null;
+}
+
+function handleNcrFiles(evt) {
+  const n = ncrList.find(x=>x.id===ncrActiveId);
+  if (!n) return;
+  const newFiles = [...evt.target.files].map(f=>f.name);
+  n.files = [...(n.files||[]), ...newFiles];
+  const fl = document.getElementById('spNcrFileList');
+  fl.innerHTML = n.files.map(f=>`<span class="file-chip">📎 ${escH(f)}</span>`).join('');
+}
+
+function updateNcrStatus(status) {
+  const n = ncrList.find(x=>x.id===ncrActiveId);
+  if (!n) return;
+  n.status = status;
+  n.timeline.push({ ts: new Date().toISOString(), msg: NCR_STATUS_LBL[status] || status });
+  patchNCR(n);
+  openNcrPanel(ncrActiveId);
+  ncrKpiCalc();
+  renderNCR();
+}
+
+function closeNCR() {
+  const n = ncrList.find(x=>x.id===ncrActiveId);
+  if (!n) return;
+  const summary = document.getElementById('spNcrCloseSummary').value.trim();
+  n.status = 'closed';
+  n.timeline.push({ ts: new Date().toISOString(), msg: 'NCR נסגר' + (summary ? ' – ' + summary : '') });
+  patchNCR(n);
+  closeNcrPanel();
+  ncrKpiCalc();
+  renderNCR();
+}
+
+function saveNcrDetails() {
+  const n = ncrList.find(x=>x.id===ncrActiveId);
+  if (!n) return;
+  n.root_cause = document.getElementById('spNcrRootCause').value;
+  n.disposition = document.getElementById('spNcrDisp').value;
+  patchNCR(n);
+  alert('פרטי NCR נשמרו');
+}
+
+async function patchNCR(n) {
+  try { await fetch('/api/ncr/'+n.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(n) }); } catch(e) {}
+}
+
+/* -------- CAPA DATA -------- */
+let capaList = [];
+let capaActiveId = null;
+let _capaNewActions = [];
+
+const CAPA_STATUS_LBL = { open:'פתוח', inprog:'בביצוע', verify:'אימות', closed:'סגור' };
+const CAPA_STATUS_CLS = { open:'badge-open', inprog:'badge-inprog', verify:'badge-verify', closed:'badge-closed' };
+const CAPA_TYPE_LBL = { corrective:'מתקן', preventive:'מונע' };
+
+function seedCAPA() {
+  if (capaList.length) return;
+  capaList = [
+    { id:'CAPA-201', ncr:'NCR-101', title:'החלפת כלי כיסוח CNC-01', type:'corrective', status:'inprog', owner:'יוסי כהן', due:'2026-06-01', pct:60, desc:'כלי שחוק גורם לסטיות אורך', root_cause:'מעקב שחיקת כלי לא תקין', actions:[{text:'בדיקת כלי שבועית',done:true},{text:'הגדרת threshold שחיקה',done:false},{text:'הדרכת מפעיל',done:false}], verify:'מדידת 50 חתיכות לאחר החלפה', effect:'' },
+    { id:'CAPA-202', ncr:'', title:'בדיקת כיול מכבש Bend-03', type:'preventive', status:'open', owner:'רחל לוי', due:'2026-05-30', pct:0, desc:'מניעת שגיאות זווית עתידיות', root_cause:'חוסר בלוח כיול', actions:[{text:'יצירת לוח כיול חודשי',done:false},{text:'הכשרת מפעילים',done:false}], verify:'ביצוע כיול מלא ואישור', effect:'' },
+  ];
+  _capaSeq = 202;
+}
+
+async function loadCAPA() {
+  try {
+    const data = await fetch('/api/capa').then(r=>r.json());
+    capaList = data;
+  } catch(e) {
+    seedCAPA();
+  }
+  renderCAPA();
+}
+
+function renderCAPA() {
+  const tbody = document.getElementById('capaTable');
+  if (!capaList.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">אין CAPA רשומות</td></tr>';
+    return;
+  }
+  tbody.innerHTML = capaList.map(c=>`
+    <tr class="clickable" onclick="openCapaPanel('${c.id}')">
+      <td><strong>${escH(c.id)}</strong></td>
+      <td style="font-size:12px">${c.ncr ? escH(c.ncr) : '—'}</td>
+      <td>${escH(c.title)}</td>
+      <td><span class="badge ${c.type==='corrective'?'badge-inprog':'badge-open'}">${CAPA_TYPE_LBL[c.type]||c.type}</span></td>
+      <td><span class="badge ${CAPA_STATUS_CLS[c.status]||''}">${CAPA_STATUS_LBL[c.status]||c.status}</span></td>
+      <td style="font-size:12px">${escH(c.owner||'—')}</td>
+      <td style="font-size:12px">${c.due||'—'}</td>
+      <td style="min-width:120px">
+        <div style="font-size:12px;margin-bottom:3px">${c.pct||0}%</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:${c.pct||0}%"></div></div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function populateCapaNcrSelect() {
+  const sel = document.getElementById('capaNCR');
+  const openNCRs = ncrList.filter(n=>n.status!=='closed');
+  sel.innerHTML = '<option value="">ללא NCR קשור</option>' + openNCRs.map(n=>`<option value="${escH(n.id)}">${escH(n.id)} – ${escH(n.desc.substring(0,30))}</option>`).join('');
+}
+
+function openCapaModal() {
+  _capaNewActions = [];
+  document.getElementById('capaActList').innerHTML = '';
+  ['capaTitle','capaOwner','capaDesc','capaRoot','capaActInput'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('capaType').value = 'corrective';
+  document.getElementById('capaDue').value = '';
+  populateCapaNcrSelect();
+  openModal('capaModal');
+}
+
+function addCapaAction() {
+  const inp = document.getElementById('capaActInput');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  _capaNewActions.push({text:txt, done:false});
+  inp.value = '';
+  renderCapaModalActions();
+}
+
+function renderCapaModalActions() {
+  document.getElementById('capaActList').innerHTML = _capaNewActions.map((a,i)=>`
+    <div class="cai">
+      <span style="flex:1">${escH(a.text)}</span>
+      <button class="cai-del" onclick="_capaNewActions.splice(${i},1);renderCapaModalActions()">✕</button>
+    </div>
+  `).join('');
+}
+
+async function saveCapa() {
+  const newCapa = {
+    id: 'CAPA-' + (++_capaSeq),
+    ncr: document.getElementById('capaNCR').value,
+    title: document.getElementById('capaTitle').value,
+    type: document.getElementById('capaType').value,
+    status: 'open',
+    owner: document.getElementById('capaOwner').value,
+    due: document.getElementById('capaDue').value,
+    pct: 0,
+    desc: document.getElementById('capaDesc').value,
+    root_cause: document.getElementById('capaRoot').value,
+    actions: _capaNewActions.slice(),
+    verify: '',
+    effect: ''
+  };
+  if (!newCapa.title) return alert('נדרשת כותרת לפעולה');
+  try {
+    const r = await fetch('/api/capa', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(newCapa) });
+    if (r.ok) { const saved = await r.json(); newCapa.id = saved.id || newCapa.id; }
+  } catch(e) {}
+  capaList.unshift(newCapa);
+  closeModal('capaModal');
+  renderCAPA();
+}
+
+/* CAPA Panel */
+function openCapaPanel(id) {
+  const c = capaList.find(x=>x.id===id);
+  if (!c) return;
+  capaActiveId = id;
+  document.getElementById('spCapaTitle').textContent = c.id + ' – ' + c.title;
+  document.getElementById('spCapaStatus').innerHTML = `<span class="badge ${CAPA_STATUS_CLS[c.status]||''}">${CAPA_STATUS_LBL[c.status]||c.status}</span>`;
+  document.getElementById('spCapaType').innerHTML = `<span class="badge ${c.type==='corrective'?'badge-inprog':'badge-open'}">${CAPA_TYPE_LBL[c.type]||c.type}</span>`;
+  document.getElementById('spCapaOwner').textContent = c.owner||'—';
+  document.getElementById('spCapaDue').textContent = c.due||'—';
+  document.getElementById('spCapaNCR').textContent = c.ncr||'—';
+  document.getElementById('spCapaPct').textContent = (c.pct||0) + '%';
+  document.getElementById('spCapaDesc').textContent = c.desc||'';
+  document.getElementById('spCapaRoot').textContent = c.root_cause||'';
+  document.getElementById('spCapaVerify').value = c.verify||'';
+  document.getElementById('spCapaEffect').value = c.effect||'';
+  renderPanelCapaActions(c);
+  document.getElementById('capaPanelOverlay').classList.add('open');
+  document.getElementById('capaPanel').classList.add('open');
+}
+
+function renderPanelCapaActions(c) {
+  const ul = document.getElementById('spCapaActions');
+  ul.innerHTML = (c.actions||[]).map((a,i)=>`
+    <li>
+      <input type="checkbox" ${a.done?'checked':''} onchange="toggleCapaAction(${i},this.checked)">
+      <span class="${a.done?'done':''}">${escH(a.text)}</span>
+    </li>
+  `).join('');
+  recalcCapaPct(c);
+}
+
+function toggleCapaAction(i, done) {
+  const c = capaList.find(x=>x.id===capaActiveId);
+  if (!c) return;
+  c.actions[i].done = done;
+  recalcCapaPct(c);
+  document.getElementById('spCapaPct').textContent = (c.pct||0) + '%';
+  renderCAPA();
+}
+
+function recalcCapaPct(c) {
+  if (!c.actions || !c.actions.length) { c.pct = 0; return; }
+  c.pct = Math.round(c.actions.filter(a=>a.done).length / c.actions.length * 100);
+}
+
+function addPanelCapaAction() {
+  const inp = document.getElementById('spCapaNewAction');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  const c = capaList.find(x=>x.id===capaActiveId);
+  if (!c) return;
+  c.actions = c.actions || [];
+  c.actions.push({text:txt, done:false});
+  inp.value = '';
+  renderPanelCapaActions(c);
+  renderCAPA();
+}
+
+function updateCapaStatus(status) {
+  const c = capaList.find(x=>x.id===capaActiveId);
+  if (!c) return;
+  c.status = status;
+  if (status==='closed') c.pct = 100;
+  patchCAPA(c);
+  openCapaPanel(capaActiveId);
+  renderCAPA();
+}
+
+function saveCapaDetails() {
+  const c = capaList.find(x=>x.id===capaActiveId);
+  if (!c) return;
+  c.verify = document.getElementById('spCapaVerify').value;
+  c.effect = document.getElementById('spCapaEffect').value;
+  patchCAPA(c);
+  alert('פרטי CAPA נשמרו');
+}
+
+async function patchCAPA(c) {
+  try { await fetch('/api/capa/'+c.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(c) }); } catch(e) {}
+}
+
+function closeCapaPanel() {
+  document.getElementById('capaPanelOverlay').classList.remove('open');
+  document.getElementById('capaPanel').classList.remove('open');
+  capaActiveId = null;
+}
+
+/* -------- INIT -------- */
 loadStats();
 loadChecks();
 </script>
+<script src="/nav.js"></script>
 </body>
 </html>

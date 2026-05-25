@@ -85,7 +85,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .btn-export:hover{border-color:var(--accent);color:var(--accent);}
 </style>
 <link rel="stylesheet" href="/theme.css">
-</head>
+<script src="/nav.js"></script></head>
 <body data-page="reports">
 
 <nav class="topnav">
@@ -183,6 +183,26 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
     </div>
   </div>
 
+  <!-- Financial margin -->
+  <div>
+    <div class="section-title">💰 מרווח פיננסי – הזמנות אחרונות</div>
+    <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
+      <table class="data-table">
+        <thead>
+          <tr><th>הזמנה</th><th>עלות חומר</th><th>עלות עבודה</th><th>מחיר מכירה</th><th>רווח גולמי</th><th>מרווח %</th></tr>
+        </thead>
+        <tbody id="marginTable"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-dim)">טוען...</td></tr></tbody>
+      </table>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:8px;padding:0 4px">* עלות חומר מחושבת על פי היסטוריית מחירי פלדה. מחיר מכירה נלקח מהזמנות שהושלמו.</div>
+  </div>
+
+  <!-- OEE / Machine health -->
+  <div>
+    <div class="section-title">🏭 OEE ובריאות מכונות – היום</div>
+    <div id="oeeGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:8px"></div>
+  </div>
+
 </div>
 
 <script>
@@ -207,6 +227,8 @@ async function loadAll() {
   ]);
   reportData = summary;
   renderKPIs(summary);
+  loadMarginTable();
+  loadOEE();
   renderOrdersChart(summary.orders || []);
   renderWeightChart(summary.orders || []);
   renderStatusChart(summary.byStatus || []);
@@ -329,6 +351,57 @@ function renderCustomersTable(customers) {
       <td>${((c.total_weight || 0) / 1000).toFixed(2)} טון</td>
     </tr>
   `).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:20px">אין נתונים</td></tr>';
+}
+
+async function loadMarginTable() {
+  try {
+    const orders = await fetch('/api/orders?status=נשלח&limit=20').then(r=>r.json()).catch(()=>[]);
+    const recentOrders = (Array.isArray(orders) ? orders : orders.orders || []).slice(0, 20);
+    const margins = await Promise.all(
+      recentOrders.map(o => fetch(`/api/orders/${o.id}/margin`).then(r=>r.json()).catch(()=>null))
+    );
+    const valid = margins.filter(Boolean);
+    const tbody = document.getElementById('marginTable');
+    if (!valid.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-dim)">אין נתוני מרווח להצגה</td></tr>';
+      return;
+    }
+    tbody.innerHTML = valid.map(m => {
+      const mpct = m.margin_pct || 0;
+      const cls = mpct >= 20 ? 'color:var(--success)' : mpct >= 10 ? 'color:var(--warning)' : 'color:var(--danger)';
+      return `<tr>
+        <td><strong>${m.order_num}</strong></td>
+        <td>₪${(m.cost_material||0).toLocaleString()}</td>
+        <td>₪${(m.cost_labor||0).toLocaleString()}</td>
+        <td>₪${(m.sale_price||0).toLocaleString()}</td>
+        <td style="${m.gross_profit>=0?'color:var(--success)':'color:var(--danger)'}">₪${(m.gross_profit||0).toLocaleString()}</td>
+        <td><strong style="${cls}">${mpct}%</strong></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.warn('margin table error', e); }
+}
+
+async function loadOEE() {
+  try {
+    const data = await fetch('/api/machines/oee').then(r=>r.json());
+    const grid = document.getElementById('oeeGrid');
+    if (!data.length) { grid.innerHTML = '<div style="color:var(--text-muted)">אין נתוני OEE</div>'; return; }
+    grid.innerHTML = data.map(m => {
+      const oee = m.oee || 0;
+      const cls = oee >= 85 ? 'var(--success)' : oee >= 65 ? 'var(--warning)' : 'var(--danger)';
+      return `<div style="background:white;border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--text-dim);margin-bottom:8px">${m.name}</div>
+        <div style="font-size:28px;font-weight:900;color:${cls}">${oee}%</div>
+        <div style="font-size:11px;color:var(--text-muted)">OEE</div>
+        <div style="margin-top:8px;font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <div>זמינות: <strong>${m.availability||0}%</strong></div>
+          <div>איכות: <strong>${m.quality||0}%</strong></div>
+          <div>עצירות: <strong>${m.downtime_min||0} דק'</strong></div>
+          <div>טון: <strong>${(m.tons_today||0).toFixed(2)}</strong></div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.warn('OEE error', e); }
 }
 
 function exportCSV() {

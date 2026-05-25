@@ -184,3 +184,57 @@ canvas { filter: none !important; }
 .overdue     { color: #b83227 !important; }
 .due-today   { color: #a86b00 !important; }
 .due-soon    { color: #c9621a !important; }
+
+/* ── Skeleton Loading (כרך ח) ──────────────────────────── */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #e8edf4 25%, #f0f4f8 50%, #e8edf4 75%) !important;
+  background-size: 800px 100% !important;
+  animation: skeleton-shimmer 1.4s infinite linear !important;
+  border-radius: 6px !important;
+  color: transparent !important;
+  user-select: none !important;
+  pointer-events: none !important;
+}
+.skeleton * { visibility: hidden !important; }
+.skeleton-text  { height: 14px; margin-bottom: 8px; border-radius: 4px; }
+.skeleton-title { height: 22px; margin-bottom: 12px; width: 60%; border-radius: 4px; }
+.skeleton-card  { height: 80px; border-radius: 12px; margin-bottom: 12px; }
+.skeleton-kpi   { height: 90px; border-radius: 12px; }
+.skeleton-row   { height: 44px; border-radius: 6px; margin-bottom: 6px; }
+.skeleton-circle{ border-radius: 50% !important; }
+
+/* ── Global Search Bar (כרך ט) ─────────────────────────── */
+#ib-search-bar {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.55); z-index: 999;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 80px; backdrop-filter: blur(4px);
+}
+#ib-search-box {
+  width: min(640px, 95vw);
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.32);
+  overflow: hidden;
+}
+#ib-search-input {
+  width: 100%; padding: 16px 20px; font-size: 17px;
+  font-family: 'Heebo', sans-serif; border: none; outline: none;
+  direction: rtl; background: transparent; color: #1a2533;
+  border-bottom: 1px solid rgba(0,0,0,0.09);
+}
+#ib-search-results { max-height: 400px; overflow-y: auto; }
+.ib-sr-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 18px; cursor: pointer; text-decoration: none;
+  color: #1a2533; border-bottom: 1px solid rgba(0,0,0,0.04);
+  transition: background .12s; font-family: 'Heebo', sans-serif;
+}
+.ib-sr-item:hover { background: rgba(201,98,26,0.07); }
+.ib-sr-icon { font-size: 18px; flex-shrink: 0; }
+.ib-sr-ref  { font-weight: 700; font-size: 14px; }
+.ib-sr-label{ font-size: 12px; color: #526070; margin-top: 1px; }
+.ib-sr-empty{ padding: 24px; text-align: center; color: #8fa0b0; font-family: 'Heebo',sans-serif; }

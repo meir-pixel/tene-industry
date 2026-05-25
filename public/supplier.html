@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>פורטל ספקים – IronBend</title>
+<meta name="theme-color" content="#c9621a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --accent:#c9621a; --accent-light:#e07b39;
+  --text:#1a2533; --text-dim:#526070; --text-muted:#8fa0b0;
+  --border:rgba(0,0,0,0.09); --success:#1a7a42; --danger:#b83227;
+  --warning:#a86b00; --info:#1560a8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:'Heebo',sans-serif;
+  background:#f0f4f8;
+  color:var(--text);
+  direction:rtl;
+  min-height:100vh;
+}
+
+/* TOP BAR */
+.topbar{
+  background:#fff;
+  border-bottom:1px solid var(--border);
+  padding:0 20px;
+  height:60px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  box-shadow:0 2px 12px rgba(0,0,0,0.06);
+}
+.logo{display:flex;align-items:center;gap:9px;}
+.logo-icon{
+  width:36px;height:36px;
+  background:linear-gradient(145deg,#df8640 0%,#c9621a 55%,#a4500f 100%);
+  border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+  box-shadow:0 3px 8px rgba(201,98,26,0.30);
+}
+.logo-text{display:flex;flex-direction:column;line-height:1.2;}
+.logo-name{font-size:16px;font-weight:800;color:var(--text);}
+.logo-sub{font-size:11px;font-weight:600;color:var(--accent);}
+.topbar-badge{
+  padding:6px 14px;
+  border-radius:20px;
+  background:rgba(21,96,168,0.08);
+  color:var(--info);
+  font-size:12px;
+  font-weight:700;
+  border:1px solid rgba(21,96,168,0.15);
+}
+
+/* MAIN */
+.main{max-width:780px;margin:0 auto;padding:24px 16px;}
+
+/* ENTRY */
+.entry-card{
+  background:#fff;
+  border-radius:18px;
+  padding:40px 32px;
+  text-align:center;
+  box-shadow:0 4px 24px rgba(0,0,0,0.08);
+  margin-top:40px;
+}
+.entry-icon{font-size:56px;margin-bottom:16px;}
+.entry-title{font-size:24px;font-weight:900;color:var(--text);margin-bottom:8px;}
+.entry-sub{font-size:14px;color:var(--text-dim);margin-bottom:28px;line-height:1.6;}
+.entry-field{
+  max-width:380px;
+  margin:0 auto 12px;
+  text-align:right;
+}
+.entry-field label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:var(--text-dim);
+  text-transform:uppercase;
+  letter-spacing:0.4px;
+  margin-bottom:6px;
+}
+.entry-input{
+  width:100%;
+  padding:13px 16px;
+  border:2px solid var(--border);
+  border-radius:12px;
+  font-family:'Heebo',sans-serif;
+  font-size:16px;
+  font-weight:700;
+  outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  color:var(--text);
+  background:#fafbfc;
+  text-align:right;
+}
+.entry-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(201,98,26,0.12);}
+.btn-primary{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:13px 32px;
+  background:linear-gradient(135deg,var(--accent-light),var(--accent));
+  color:#fff;
+  border:none;
+  border-radius:12px;
+  font-family:'Heebo',sans-serif;
+  font-size:15px;
+  font-weight:800;
+  cursor:pointer;
+  transition:all 0.2s;
+  box-shadow:0 4px 16px rgba(201,98,26,0.30);
+  margin-top:8px;
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(201,98,26,0.40);}
+.entry-hint{font-size:12px;color:var(--text-muted);margin-top:10px;}
+.entry-error{
+  display:none;
+  max-width:380px;
+  margin:12px auto 0;
+  padding:10px 16px;
+  background:#fff0ef;
+  border:1px solid var(--danger);
+  border-radius:8px;
+  color:var(--danger);
+  font-size:13px;
+  font-weight:600;
+  text-align:center;
+}
+.entry-error.show{display:block;}
+
+/* SUPPLIER VIEW */
+.supplier-view{display:none;}
+.supplier-view.show{display:block;}
+
+.back-link{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:var(--text-dim);
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  margin-bottom:16px;
+  background:none;
+  border:none;
+  font-family:'Heebo',sans-serif;
+  padding:0;
+}
+.back-link:hover{color:var(--accent);}
+
+.supplier-header{
+  background:#fff;
+  border-radius:16px;
+  padding:22px 24px;
+  margin-bottom:16px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.06);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.supplier-name{font-size:20px;font-weight:900;color:var(--text);}
+.supplier-code{font-size:13px;color:var(--text-muted);margin-top:2px;}
+.open-count{
+  padding:8px 18px;
+  border-radius:20px;
+  background:rgba(21,96,168,0.08);
+  color:var(--info);
+  font-size:14px;
+  font-weight:800;
+  border:1px solid rgba(21,96,168,0.15);
+}
+
+/* PO LIST */
+.section-title{
+  font-size:14px;
+  font-weight:800;
+  color:var(--text);
+  margin-bottom:14px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.po-card{
+  background:#fff;
+  border-radius:14px;
+  margin-bottom:12px;
+  box-shadow:0 2px 10px rgba(0,0,0,0.06);
+  overflow:hidden;
+  border:1px solid var(--border);
+  transition:border-color 0.2s;
+}
+.po-card:hover{border-color:rgba(0,0,0,0.14);}
+.po-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 20px;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.po-num{font-size:16px;font-weight:800;color:var(--text);}
+.po-status{
+  font-size:11px;
+  font-weight:800;
+  padding:4px 12px;
+  border-radius:20px;
+}
+.status-open{background:rgba(21,96,168,0.10);color:var(--info);}
+.status-partial{background:rgba(168,107,0,0.10);color:var(--warning);}
+.status-received{background:rgba(26,122,66,0.10);color:var(--success);}
+.status-overdue{background:rgba(184,50,39,0.10);color:var(--danger);}
+
+.po-meta{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:12px;
+  padding:0 20px 16px;
+  border-bottom:1px solid var(--border);
+}
+.po-meta-item{display:flex;flex-direction:column;gap:2px;}
+.po-meta-label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;}
+.po-meta-value{font-size:14px;font-weight:700;color:var(--text);}
+.po-meta-value.overdue{color:var(--danger);}
+
+/* ACTIONS */
+.po-actions{padding:14px 20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+.btn-eta{
+  padding:9px 18px;
+  border:1.5px solid var(--accent);
+  border-radius:9px;
+  background:transparent;
+  color:var(--accent);
+  font-family:'Heebo',sans-serif;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.btn-eta:hover{background:rgba(201,98,26,0.06);}
+
+.btn-upload{
+  padding:9px 18px;
+  border:1.5px solid var(--info);
+  border-radius:9px;
+  background:transparent;
+  color:var(--info);
+  font-family:'Heebo',sans-serif;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.btn-upload:hover{background:rgba(21,96,168,0.06);}
+
+.upload-status{font-size:12px;color:var(--success);display:none;}
+.upload-status.show{display:inline-block;}
+
+/* ETA MODAL */
+.modal-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(26,37,51,0.55);
+  z-index:500;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+.modal-overlay.show{display:flex;}
+.modal{
+  background:#fff;
+  border-radius:18px;
+  padding:28px 28px;
+  width:100%;
+  max-width:420px;
+  box-shadow:0 16px 48px rgba(0,0,0,0.25);
+}
+.modal-title{font-size:18px;font-weight:900;color:var(--text);margin-bottom:6px;}
+.modal-sub{font-size:13px;color:var(--text-dim);margin-bottom:22px;}
+.modal-field{margin-bottom:16px;}
+.modal-field label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:var(--text-dim);
+  text-transform:uppercase;
+  letter-spacing:0.4px;
+  margin-bottom:6px;
+}
+.modal-field input{
+  width:100%;
+  padding:12px 14px;
+  border:1.5px solid var(--border);
+  border-radius:10px;
+  font-family:'Heebo',sans-serif;
+  font-size:14px;
+  color:var(--text);
+  background:#fafbfc;
+  outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+}
+.modal-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(201,98,26,0.12);}
+.modal-row{display:flex;gap:10px;margin-top:4px;}
+.btn-cancel{
+  flex:1;
+  padding:12px;
+  border:1.5px solid var(--border);
+  border-radius:10px;
+  background:transparent;
+  font-family:'Heebo',sans-serif;
+  font-size:14px;
+  font-weight:700;
+  color:var(--text-dim);
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.btn-cancel:hover{background:#f0f4f8;}
+.btn-save{
+  flex:2;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  background:linear-gradient(135deg,var(--accent-light),var(--accent));
+  color:#fff;
+  font-family:'Heebo',sans-serif;
+  font-size:14px;
+  font-weight:800;
+  cursor:pointer;
+  transition:all 0.2s;
+  box-shadow:0 3px 12px rgba(201,98,26,0.25);
+}
+.btn-save:hover{transform:translateY(-1px);}
+
+/* CERT MODAL */
+.file-drop{
+  border:2px dashed var(--border);
+  border-radius:12px;
+  padding:28px;
+  text-align:center;
+  cursor:pointer;
+  transition:all 0.2s;
+  background:#fafbfc;
+  margin-bottom:14px;
+}
+.file-drop:hover, .file-drop.drag{border-color:var(--accent);background:rgba(201,98,26,0.04);}
+.file-drop-icon{font-size:32px;margin-bottom:8px;}
+.file-drop-text{font-size:13px;color:var(--text-dim);}
+.file-drop-sub{font-size:11px;color:var(--text-muted);margin-top:4px;}
+.file-chosen{font-size:12px;color:var(--success);margin-top:8px;display:none;}
+.file-chosen.show{display:block;}
+
+.toast{
+  position:fixed;
+  bottom:24px;
+  left:50%;
+  transform:translateX(-50%) translateY(80px);
+  background:var(--success);
+  color:#fff;
+  padding:12px 24px;
+  border-radius:12px;
+  font-size:14px;
+  font-weight:700;
+  box-shadow:0 6px 24px rgba(0,0,0,0.20);
+  z-index:600;
+  transition:transform 0.35s ease;
+  white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+@media(max-width:500px){
+  .supplier-header{flex-direction:column;align-items:flex-start;}
+  .po-actions{flex-direction:column;align-items:flex-start;}
+  .modal-row{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">🔩</div>
+    <div class="logo-text">
+      <div class="logo-name">IronBend</div>
+      <div class="logo-sub">פורטל ספקים</div>
+    </div>
+  </div>
+  <div class="topbar-badge">📦 ספקים בלבד</div>
+</div>
+
+<div class="main">
+
+  <!-- ENTRY SCREEN -->
+  <div id="entryScreen">
+    <div class="entry-card">
+      <div class="entry-icon">🏭</div>
+      <div class="entry-title">כניסת ספק</div>
+      <div class="entry-sub">
+        הזן את קוד הספק שלך כדי לצפות בהזמנות הפתוחות שלך,<br>
+        לעדכן מועדי הגעה ולהעלות תעודות חומר.
+      </div>
+      <div class="entry-field">
+        <label>קוד ספק</label>
+        <input class="entry-input" id="supplierCodeInput" placeholder="לדוגמה: SUP-042"
+          onkeydown="if(event.key==='Enter')lookupSupplier()">
+      </div>
+      <button class="btn-primary" onclick="lookupSupplier()">כניסה לפורטל</button>
+      <div class="entry-hint">קוד הספק נשלח אליך בדוא"ל מ-IronBend בעת הרישום</div>
+      <div class="entry-error" id="entryError">קוד ספק לא נמצא. פנה לרכש של IronBend.</div>
+    </div>
+  </div>
+
+  <!-- SUPPLIER VIEW -->
+  <div class="supplier-view" id="supplierView">
+
+    <button class="back-link" onclick="resetView()">← חזור לכניסה</button>
+
+    <div class="supplier-header">
+      <div>
+        <div class="supplier-name" id="viewSupplierName">—</div>
+        <div class="supplier-code" id="viewSupplierCode">קוד: —</div>
+      </div>
+      <div class="open-count" id="viewOpenCount">—</div>
+    </div>
+
+    <div class="section-title">📋 הזמנות רכש פתוחות</div>
+    <div id="poList"></div>
+
+  </div>
+
+</div><!-- /main -->
+
+<!-- ETA MODAL -->
+<div class="modal-overlay" id="etaModal">
+  <div class="modal">
+    <div class="modal-title">עדכון מועד הגעה (ETA)</div>
+    <div class="modal-sub" id="etaModalSub">הזמנה —</div>
+    <div class="modal-field">
+      <label>תאריך הגעה משוער</label>
+      <input type="date" id="etaDate">
+    </div>
+    <div class="modal-field">
+      <label>הערות (אופציונלי)</label>
+      <input type="text" id="etaNotes" placeholder="לדוגמה: עיכוב בייצור אצל היצרן">
+    </div>
+    <div class="modal-row">
+      <button class="btn-cancel" onclick="closeEtaModal()">ביטול</button>
+      <button class="btn-save" onclick="saveEta()">שמור ETA</button>
+    </div>
+  </div>
+</div>
+
+<!-- CERTIFICATE MODAL -->
+<div class="modal-overlay" id="certModal">
+  <div class="modal">
+    <div class="modal-title">העלאת תעודת חומר</div>
+    <div class="modal-sub" id="certModalSub">הזמנה —</div>
+    <div class="modal-field">
+      <label>מספר חום (Heat Number)</label>
+      <input type="text" id="certHeatNum" placeholder="לדוגמה: HT-2026-4481">
+    </div>
+    <div class="modal-field">
+      <label>מספר תעודה</label>
+      <input type="text" id="certCertNum" placeholder="לדוגמה: CERT-7823">
+    </div>
+    <div class="modal-field">
+      <label>קובץ תעודה (PDF / JPG)</label>
+      <div class="file-drop" id="fileDrop" onclick="document.getElementById('certFile').click()"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="handleDrop(event)">
+        <div class="file-drop-icon">📄</div>
+        <div class="file-drop-text">לחץ לבחירת קובץ או גרור לכאן</div>
+        <div class="file-drop-sub">PDF, JPG, PNG עד 10MB</div>
+        <div class="file-chosen" id="fileChosen"></div>
+      </div>
+      <input type="file" id="certFile" accept=".pdf,.jpg,.jpeg,.png" style="display:none"
+        onchange="onFileSelect(this)">
+    </div>
+    <div class="modal-row">
+      <button class="btn-cancel" onclick="closeCertModal()">ביטול</button>
+      <button class="btn-save" onclick="saveCert()">העלה תעודה</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// Demo supplier data
+const DEMO_SUPPLIERS = {
+  'SUP-042': {
+    name: 'פרופילים המרכז בע"מ',
+    code: 'SUP-042',
+    pos: [
+      { id:'PO-2026-0881', item:'פרופיל IPE200 S355 L=12m', qty:80, unit:'יח׳', eta:'20/05/2026', status:'open', overdue:false },
+      { id:'PO-2026-0892', item:'זווית 100×100×10 S275', qty:200, unit:'ק"ג', eta:'22/05/2026', status:'partial', overdue:false },
+      { id:'PO-2026-0901', item:'פלטה 300×20 S355', qty:40, unit:'יח׳', eta:'12/05/2026', status:'open', overdue:true },
+    ]
+  },
+  'SUP-017': {
+    name: 'גולן סגסוגות מתכת',
+    code: 'SUP-017',
+    pos: [
+      { id:'PO-2026-0855', item:'נירוסטה 304 צינור 60×3', qty:150, unit:'מטר', eta:'18/05/2026', status:'open', overdue:false },
+      { id:'PO-2026-0867', item:'אלומיניום 6061 פרופיל C', qty:60, unit:'יח׳', eta:'25/05/2026', status:'open', overdue:false },
+    ]
+  }
+};
+
+const STATUS_LABELS = { open:'פתוחה', partial:'סופקה חלקית', received:'סופקה במלואה', overdue:'באיחור' };
+const STATUS_CLASSES = { open:'status-open', partial:'status-partial', received:'status-received', overdue:'status-overdue' };
+
+let currentSupplier = null;
+let activePO = null;
+
+function lookupSupplier() {
+  const code = document.getElementById('supplierCodeInput').value.trim().toUpperCase();
+  document.getElementById('entryError').classList.remove('show');
+
+  const supplier = DEMO_SUPPLIERS[code];
+  if (!supplier) {
+    fetchSupplier(code);
+    return;
+  }
+  showSupplier(supplier);
+}
+
+async function fetchSupplier(code) {
+  try {
+    const res = await fetch('/api/purchase-orders?supplier_code=' + encodeURIComponent(code));
+    if (!res.ok) throw new Error('not found');
+    const data = await res.json();
+    if (!data || !data.supplier) throw new Error('empty');
+    showSupplier(data);
+  } catch {
+    document.getElementById('entryError').classList.add('show');
+  }
+}
+
+function showSupplier(supplier) {
+  currentSupplier = supplier;
+  document.getElementById('entryScreen').style.display = 'none';
+  document.getElementById('supplierView').classList.add('show');
+
+  document.getElementById('viewSupplierName').textContent = supplier.name;
+  document.getElementById('viewSupplierCode').textContent = 'קוד: ' + supplier.code;
+
+  const openCount = supplier.pos.filter(p => p.status !== 'received').length;
+  document.getElementById('viewOpenCount').textContent = openCount + ' הזמנות פתוחות';
+
+  renderPOs(supplier.pos);
+}
+
+function renderPOs(pos) {
+  const el = document.getElementById('poList');
+  if (!pos || !pos.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);background:#fff;border-radius:14px;">אין הזמנות פתוחות כרגע ✅</div>';
+    return;
+  }
+
+  el.innerHTML = pos.map(po => {
+    const statusKey = po.overdue ? 'overdue' : po.status;
+    const statusLabel = STATUS_LABELS[statusKey] || po.status;
+    const statusCls = STATUS_CLASSES[statusKey] || 'status-open';
+    const etaClass = po.overdue ? 'overdue' : '';
+
+    return `<div class="po-card" id="card-${po.id.replace(/[^a-z0-9]/gi,'_')}">
+      <div class="po-header">
+        <div class="po-num">${po.id}</div>
+        <span class="po-status ${statusCls}">${statusLabel}</span>
+      </div>
+      <div class="po-meta">
+        <div class="po-meta-item">
+          <span class="po-meta-label">פריט</span>
+          <span class="po-meta-value">${po.item}</span>
+        </div>
+        <div class="po-meta-item">
+          <span class="po-meta-label">כמות</span>
+          <span class="po-meta-value">${po.qty} ${po.unit}</span>
+        </div>
+        <div class="po-meta-item">
+          <span class="po-meta-label">ETA נוכחי</span>
+          <span class="po-meta-value ${etaClass}" id="eta-${po.id.replace(/[^a-z0-9]/gi,'_')}">${po.eta}</span>
+        </div>
+      </div>
+      <div class="po-actions">
+        <button class="btn-eta" onclick="openEtaModal('${po.id}')">📅 עדכן ETA</button>
+        <button class="btn-upload" onclick="openCertModal('${po.id}')">📎 העלה תעודת חומר</button>
+        <span class="upload-status" id="uploaded-${po.id.replace(/[^a-z0-9]/gi,'_')}">✅ תעודה הועלתה</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function resetView() {
+  document.getElementById('supplierView').classList.remove('show');
+  document.getElementById('entryScreen').style.display = 'block';
+  document.getElementById('supplierCodeInput').value = '';
+  document.getElementById('entryError').classList.remove('show');
+  currentSupplier = null;
+}
+
+// ETA MODAL
+function openEtaModal(poId) {
+  activePO = poId;
+  document.getElementById('etaModalSub').textContent = 'הזמנה ' + poId;
+  // Set today + 7d as default
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  document.getElementById('etaDate').value = d.toISOString().slice(0,10);
+  document.getElementById('etaNotes').value = '';
+  document.getElementById('etaModal').classList.add('show');
+}
+function closeEtaModal() {
+  document.getElementById('etaModal').classList.remove('show');
+  activePO = null;
+}
+async function saveEta() {
+  const dateVal = document.getElementById('etaDate').value;
+  const notes = document.getElementById('etaNotes').value.trim();
+  if (!dateVal) { alert('בחר תאריך'); return; }
+
+  try {
+    await fetch('/api/purchase-orders/' + activePO + '/eta', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ eta: dateVal, notes })
+    });
+  } catch {}
+
+  // Update UI optimistically
+  const d = new Date(dateVal);
+  const formatted = d.toLocaleDateString('he-IL');
+  const key = activePO.replace(/[^a-z0-9]/gi,'_');
+  const etaEl = document.getElementById('eta-' + key);
+  if (etaEl) etaEl.textContent = formatted;
+
+  closeEtaModal();
+  showToast('✅ ETA עודכן ל-' + formatted);
+}
+
+// CERT MODAL
+function openCertModal(poId) {
+  activePO = poId;
+  document.getElementById('certModalSub').textContent = 'הזמנה ' + poId;
+  document.getElementById('certHeatNum').value = '';
+  document.getElementById('certCertNum').value = '';
+  document.getElementById('certFile').value = '';
+  document.getElementById('fileChosen').textContent = '';
+  document.getElementById('fileChosen').classList.remove('show');
+  document.getElementById('certModal').classList.add('show');
+}
+function closeCertModal() {
+  document.getElementById('certModal').classList.remove('show');
+  activePO = null;
+}
+function onFileSelect(inp) {
+  const f = inp.files[0];
+  if (f) {
+    document.getElementById('fileChosen').textContent = '📄 ' + f.name;
+    document.getElementById('fileChosen').classList.add('show');
+  }
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('fileDrop').classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) {
+    const inp = document.getElementById('certFile');
+    const dt = new DataTransfer();
+    dt.items.add(f);
+    inp.files = dt.files;
+    document.getElementById('fileChosen').textContent = '📄 ' + f.name;
+    document.getElementById('fileChosen').classList.add('show');
+  }
+}
+async function saveCert() {
+  const heatNum = document.getElementById('certHeatNum').value.trim();
+  const certNum = document.getElementById('certCertNum').value.trim();
+  const fileInp = document.getElementById('certFile');
+
+  if (!heatNum) { alert('הזן מספר חום'); return; }
+  if (!certNum) { alert('הזן מספר תעודה'); return; }
+
+  try {
+    const fd = new FormData();
+    fd.append('heat_number', heatNum);
+    fd.append('certificate_num', certNum);
+    if (fileInp.files[0]) fd.append('file', fileInp.files[0]);
+
+    await fetch('/api/purchase-orders/' + activePO + '/receive', {
+      method: 'POST',
+      body: fd
+    });
+  } catch {}
+
+  // Update UI
+  const key = activePO.replace(/[^a-z0-9]/gi,'_');
+  const uploadEl = document.getElementById('uploaded-' + key);
+  if (uploadEl) uploadEl.classList.add('show');
+
+  closeCertModal();
+  showToast('✅ תעודת חומר הועלתה בהצלחה');
+}
+
+// TOAST
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// Close modals on overlay click
+document.getElementById('etaModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeEtaModal();
+});
+document.getElementById('certModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeCertModal();
+});
+</script>
+</body>
+</html>

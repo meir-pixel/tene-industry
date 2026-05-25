@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>רכש – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --steel:#f0f4f8;--steel-mid:#ffffff;--steel-light:#e8edf4;
+  --accent:#c9621a;--accent-light:#e07b39;--accent-dim:rgba(201,98,26,0.10);
+  --success:#1a7a42;--success-dim:rgba(26,122,66,0.10);
+  --danger:#b83227;--danger-dim:rgba(184,50,39,0.10);
+  --warning:#a86b00;--warning-dim:rgba(168,107,0,0.10);
+  --info:#1560a8;--info-dim:rgba(21,96,168,0.10);
+  --text:#1a2533;--text-dim:#526070;--text-muted:#8fa0b0;
+  --border:rgba(0,0,0,0.09);--border-bright:rgba(0,0,0,0.15);
+  --radius:14px;--radius-sm:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+
+/* ── PAGE ── */
+.page{max-width:1320px;margin:0 auto;padding:24px 16px;}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+.page-title{font-size:22px;font-weight:900;}
+.page-sub{font-size:13px;color:var(--text-dim);margin-top:2px;}
+
+/* ── KPI ROW ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;}
+.kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;display:flex;flex-direction:column;gap:4px;}
+.kpi-icon{font-size:20px;margin-bottom:4px;}
+.kpi-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;}
+.kpi-val{font-size:26px;font-weight:900;line-height:1.1;}
+.kpi-sub{font-size:11px;color:var(--text-dim);}
+.kpi-card.accent .kpi-val{color:var(--accent);}
+.kpi-card.success .kpi-val{color:var(--success);}
+.kpi-card.danger .kpi-val{color:var(--danger);}
+.kpi-card.warning .kpi-val{color:var(--warning);}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:24px;}
+.tab-btn{padding:10px 22px;border:none;background:none;border-radius:var(--radius-sm) var(--radius-sm) 0 0;font-family:'Heebo',sans-serif;font-weight:700;font-size:13px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;border-bottom:2px solid transparent;margin-bottom:-2px;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-dim);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* ── CARD ── */
+.card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
+.card-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.card-title{font-size:15px;font-weight:800;}
+
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--steel-light);}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.04);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(0,0,0,0.012);}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+.badge-draft{background:#f0f0f0;color:#666;}
+.badge-pending{background:var(--warning-dim);color:var(--warning);}
+.badge-approved{background:var(--info-dim);color:var(--info);}
+.badge-transit{background:var(--accent-dim);color:var(--accent);}
+.badge-arrived{background:var(--success-dim);color:var(--success);}
+.badge-cancelled{background:var(--danger-dim);color:var(--danger);}
+.badge-risk-low{background:var(--success-dim);color:var(--success);}
+.badge-risk-med{background:var(--warning-dim);color:var(--warning);}
+.badge-risk-high{background:var(--danger-dim);color:var(--danger);}
+.badge-single{background:var(--warning-dim);color:var(--warning);}
+
+/* ── BUTTONS ── */
+.btn{padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-light);}
+.btn-success{background:var(--success);color:#fff;}
+.btn-success:hover{opacity:0.88;}
+.btn-danger{background:var(--danger-dim);color:var(--danger);border:1px solid rgba(184,50,39,0.2);}
+.btn-danger:hover{background:var(--danger);color:#fff;}
+.btn-sm{padding:5px 11px;font-size:11px;}
+.btn-outline{background:transparent;border:1px solid var(--border-bright);color:var(--text-dim);}
+.btn-outline:hover{background:rgba(0,0,0,0.04);}
+.btn-info{background:var(--info-dim);color:var(--info);border:1px solid rgba(21,96,168,0.2);}
+.btn-info:hover{background:var(--info);color:#fff;}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+.filter-bar input,.filter-bar select{padding:8px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel-mid);color:var(--text);}
+.filter-bar input{flex:1;min-width:180px;}
+.filter-bar input:focus,.filter-bar select:focus{outline:none;border-color:var(--accent);}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:600;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.28);max-height:90vh;overflow-y:auto;}
+.modal h2{font-size:18px;font-weight:900;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:5px;}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:var(--accent);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
+.total-preview{background:var(--accent-dim);border:1px solid rgba(201,98,26,0.2);border-radius:var(--radius-sm);padding:12px 16px;font-weight:800;font-size:16px;color:var(--accent);text-align:center;margin-bottom:12px;}
+.approval-note{background:var(--warning-dim);border:1px solid rgba(168,107,0,0.2);border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;font-weight:700;color:var(--warning);display:none;margin-bottom:12px;}
+
+/* ── SUPPLIER EXPAND ── */
+.supplier-row{cursor:pointer;}
+.supplier-row:hover td{background:var(--accent-dim);}
+.supplier-expand{display:none;background:var(--steel-light);}
+.supplier-expand.open{display:table-row;}
+.supplier-expand td{padding:16px 20px;}
+.expand-inner{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.expand-section h4{font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px;}
+.mini-table{width:100%;border-collapse:collapse;font-size:12px;}
+.mini-table th{font-size:10px;padding:6px 10px;background:var(--steel-mid);}
+.mini-table td{padding:6px 10px;border-bottom:1px solid rgba(0,0,0,0.04);}
+
+/* ── STARS ── */
+.stars{color:#e8a020;font-size:14px;letter-spacing:1px;}
+.stars-empty{color:#ddd;}
+
+/* ── BAR CHART (SVG replacement) ── */
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:60px;padding:4px 0;}
+.bar-col{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;}
+.bar-fill{width:100%;background:var(--accent);border-radius:3px 3px 0 0;transition:height 0.3s;min-height:2px;}
+.bar-label{font-size:9px;color:var(--text-muted);white-space:nowrap;}
+
+/* ── STEEL PRICE ── */
+.price-hero{background:linear-gradient(135deg,var(--accent),var(--accent-light));color:#fff;border-radius:var(--radius);padding:28px 32px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+.price-hero-num{font-size:52px;font-weight:900;line-height:1;}
+.price-hero-label{font-size:14px;opacity:0.85;margin-top:4px;}
+.price-hero-change{font-size:16px;font-weight:700;background:rgba(255,255,255,0.2);padding:8px 16px;border-radius:20px;}
+.price-hero-change.up{background:rgba(184,50,39,0.3);}
+.price-hero-change.down{background:rgba(26,122,66,0.3);}
+
+/* SVG Line chart */
+.chart-wrap{padding:16px 20px;}
+.chart-title{font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:12px;}
+svg.line-chart{width:100%;height:120px;overflow:visible;}
+
+/* Impact calculator */
+.impact-calc{background:var(--info-dim);border:1px solid rgba(21,96,168,0.15);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.impact-calc label{font-size:13px;font-weight:700;color:var(--info);}
+.impact-calc input{padding:8px 12px;border:1px solid rgba(21,96,168,0.3);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;width:90px;background:#fff;color:var(--text);}
+.impact-result{font-size:15px;font-weight:800;color:var(--info);}
+
+/* ── PO detail mini ── */
+.po-detail-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px;padding:14px;background:var(--steel-light);border-radius:var(--radius-sm);}
+.po-detail-item{display:flex;flex-direction:column;gap:2px;}
+.po-detail-item .lbl{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;}
+.po-detail-item .val{font-size:14px;font-weight:800;}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:40px;color:var(--text-muted);}
+.empty-icon{font-size:40px;margin-bottom:12px;}
+
+/* ── ACTION GROUP ── */
+.action-group{display:flex;gap:6px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">📦 רכש והזמנות קנייה</div>
+      <div class="page-sub">ניהול הזמנות רכש, ספקים ומחירי חומר גלם</div>
+    </div>
+  </div>
+
+  <!-- KPI ROW -->
+  <div class="kpi-row">
+    <div class="kpi-card accent">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-label">הזמנות רכש פתוחות</div>
+      <div class="kpi-val" id="kpi-open">—</div>
+      <div class="kpi-sub">בסטטוס פעיל</div>
+    </div>
+    <div class="kpi-card warning">
+      <div class="kpi-icon">⏳</div>
+      <div class="kpi-label">ממתינות לאישור</div>
+      <div class="kpi-val" id="kpi-pending">—</div>
+      <div class="kpi-sub">דורשות פעולה</div>
+    </div>
+    <div class="kpi-card success">
+      <div class="kpi-icon">✅</div>
+      <div class="kpi-label">הגיעו השבוע</div>
+      <div class="kpi-val" id="kpi-arrived">—</div>
+      <div class="kpi-sub">משלוחים התקבלו</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">שווי פתוח</div>
+      <div class="kpi-val" id="kpi-value">—</div>
+      <div class="kpi-sub">₪ בהזמנות פתוחות</div>
+    </div>
+    <div class="kpi-card danger">
+      <div class="kpi-icon">⚠️</div>
+      <div class="kpi-label">ספקים עם סיכון</div>
+      <div class="kpi-val" id="kpi-risk">—</div>
+      <div class="kpi-sub">Risk High / ספק יחיד</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('po')">הזמנות רכש</button>
+    <button class="tab-btn" onclick="switchTab('suppliers')">ספקים</button>
+    <button class="tab-btn" onclick="switchTab('prices')">מחירי ברזל</button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       TAB: הזמנות רכש
+  ════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-po">
+    <div class="filter-bar">
+      <input type="text" id="po-search" placeholder="🔍 חיפוש לפי PO, ספק..." oninput="renderPOTable()">
+      <select id="po-filter-status" onchange="renderPOTable()">
+        <option value="">כל הסטטוסים</option>
+        <option value="draft">טיוטה</option>
+        <option value="pending">ממתין לאישור</option>
+        <option value="approved">מאושר</option>
+        <option value="transit">בדרך</option>
+        <option value="arrived">הגיע</option>
+        <option value="cancelled">בוטל</option>
+      </select>
+      <select id="po-filter-supplier" onchange="renderPOTable()">
+        <option value="">כל הספקים</option>
+      </select>
+      <button class="btn btn-primary" onclick="openNewPOModal()">+ הזמנת רכש חדשה</button>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>מספר PO</th>
+              <th>ספק</th>
+              <th>קוטר</th>
+              <th>כמות (טון)</th>
+              <th>מחיר/טון</th>
+              <th>סה"כ (₪)</th>
+              <th>אספקה צפויה</th>
+              <th>סטטוס</th>
+              <th>פעולות</th>
+            </tr>
+          </thead>
+          <tbody id="po-tbody">
+            <tr><td colspan="9" class="empty"><div class="empty-icon">⏳</div>טוען נתונים...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       TAB: ספקים
+  ════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-suppliers">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+      <button class="btn btn-primary" onclick="openSupplierModal()">+ הוסף ספק</button>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">ספקי חומר גלם – כרטיסי ביצועים</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>שם ספק</th>
+              <th>יחידות סופקו (טון)</th>
+              <th>ממוצע זמן אספקה</th>
+              <th>אחוז בזמן</th>
+              <th>אחוז איכות</th>
+              <th>ציון כולל</th>
+              <th>רמת סיכון</th>
+              <th>פעולות</th>
+            </tr>
+          </thead>
+          <tbody id="supplier-tbody">
+            <tr><td colspan="9" class="empty"><div class="empty-icon">⏳</div>טוען נתונים...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       TAB: מחירי ברזל
+  ════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-prices">
+    <!-- Hero price -->
+    <div class="price-hero" id="price-hero">
+      <div>
+        <div class="price-hero-num" id="current-price">—</div>
+        <div class="price-hero-label">₪ לטון · מחיר נוכחי</div>
+        <div style="font-size:12px;opacity:0.7;margin-top:4px" id="price-date">—</div>
+      </div>
+      <div>
+        <div class="price-hero-change" id="price-change">—</div>
+        <div style="text-align:center;font-size:11px;opacity:0.75;margin-top:6px">שינוי מהעדכון הקודם</div>
+      </div>
+      <button class="btn btn-outline" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.3);" onclick="openPriceModal()">
+        עדכן מחיר
+      </button>
+    </div>
+
+    <!-- Line chart -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><span class="card-title">מגמת מחירים – 12 חודשים אחרונים</span></div>
+      <div class="chart-wrap">
+        <svg class="line-chart" id="price-chart" viewBox="0 0 600 120" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+
+    <!-- Impact Calculator -->
+    <div class="impact-calc" style="margin-bottom:20px;">
+      <span style="font-size:20px;">🧮</span>
+      <label>אם המחיר עולה ב-</label>
+      <input type="number" id="impact-pct" value="5" min="1" max="100" oninput="calcImpact()">
+      <label>%</label>
+      <span class="impact-result" id="impact-result">→ חישוב...</span>
+    </div>
+
+    <!-- Price history table -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">היסטוריית מחירים</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>תאריך</th>
+              <th>מחיר/טון (₪)</th>
+              <th>שינוי</th>
+              <th>מקור</th>
+            </tr>
+          </thead>
+          <tbody id="prices-tbody">
+            <tr><td colspan="4" class="empty">טוען...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div><!-- /page -->
+
+<!-- ════════════════════════════════════════════════
+     MODAL: New Purchase Order
+════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-new-po">
+  <div class="modal">
+    <h2>📦 הזמנת רכש חדשה</h2>
+    <div class="form-row">
+      <label>ספק *</label>
+      <select id="po-supplier-sel" onchange="calcPOTotal()">
+        <option value="">— בחר ספק —</option>
+      </select>
+    </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>קוטר (מ"מ) *</label>
+        <select id="po-diameter">
+          <option value="">— בחר —</option>
+          <option>6</option><option>8</option><option>10</option>
+          <option>12</option><option>14</option><option>16</option>
+          <option>18</option><option>20</option><option>22</option>
+          <option>25</option><option>28</option><option>32</option>
+          <option>36</option><option>40</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>סוג חומר</label>
+        <select id="po-material-type">
+          <option value="coil">סליל</option>
+          <option value="straight">מוט ישר</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>כמות (טון) *</label>
+        <input type="number" id="po-qty" min="0.1" step="0.1" placeholder="0.0" oninput="calcPOTotal()">
+      </div>
+      <div class="form-row">
+        <label>מחיר/טון (₪) *</label>
+        <input type="number" id="po-price" min="1" step="10" placeholder="0" oninput="calcPOTotal()">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>תאריך אספקה צפוי</label>
+      <input type="date" id="po-delivery-date">
+    </div>
+    <div class="total-preview" id="po-total-preview">סה"כ: — ₪</div>
+    <div class="approval-note" id="po-approval-note">⚠️ נדרש אישור מנהל – סכום מעל 10,000 ₪</div>
+    <div class="form-row">
+      <label>הערות</label>
+      <textarea id="po-notes" rows="2" placeholder="הערות נוספות..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-new-po')">ביטול</button>
+      <button class="btn btn-primary" onclick="submitNewPO()">שלח הזמנה</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     MODAL: קבלת סחורה
+════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-receive">
+  <div class="modal">
+    <h2>✅ קבלת סחורה</h2>
+    <div class="po-detail-row" id="receive-po-info"></div>
+    <div class="form-row">
+      <label>Heat Number *</label>
+      <input type="text" id="receive-heat" placeholder="לדוגמה: HN-24081234">
+    </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>משקל שהגיע בפועל (ק"ג) *</label>
+        <input type="number" id="receive-weight" min="1" step="1" placeholder="0">
+      </div>
+      <div class="form-row">
+        <label>מספר תעודת חומר</label>
+        <input type="text" id="receive-cert" placeholder="TC-XXXXX">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>הערות קבלה</label>
+      <textarea id="receive-notes" rows="2" placeholder="הבדלים, נזק, הערות..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-receive')">ביטול</button>
+      <button class="btn btn-success" onclick="submitReceive()">✅ אשר קבלה</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     MODAL: הוסף ספק
+════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-supplier">
+  <div class="modal">
+    <h2>🏭 הוסף / ערוך ספק</h2>
+    <input type="hidden" id="supplier-id-field">
+    <div class="form-grid">
+      <div class="form-row">
+        <label>שם ספק *</label>
+        <input type="text" id="sup-name" placeholder="שם חברה">
+      </div>
+      <div class="form-row">
+        <label>איש קשר</label>
+        <input type="text" id="sup-contact" placeholder="שם איש קשר">
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>טלפון</label>
+        <input type="tel" id="sup-phone" placeholder="05X-XXXXXXX">
+      </div>
+      <div class="form-row">
+        <label>מייל</label>
+        <input type="email" id="sup-email" placeholder="email@example.com">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>כתובת</label>
+      <input type="text" id="sup-address" placeholder="כתובת מלאה">
+    </div>
+    <div class="form-row">
+      <label>תנאי תשלום</label>
+      <select id="sup-payment">
+        <option value="30">שוטף + 30</option>
+        <option value="60">שוטף + 60</option>
+        <option value="45">שוטף + 45</option>
+        <option value="immediate">מזומן מיידי</option>
+        <option value="custom">אחר</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>הערות</label>
+      <textarea id="sup-notes" rows="2" placeholder="הערות כלליות..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-supplier')">ביטול</button>
+      <button class="btn btn-primary" onclick="submitSupplier()">שמור ספק</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     MODAL: עדכן מחיר ברזל
+════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-price">
+  <div class="modal" style="max-width:380px;">
+    <h2>💹 עדכן מחיר ברזל</h2>
+    <div class="form-row">
+      <label>תאריך *</label>
+      <input type="date" id="price-date-input">
+    </div>
+    <div class="form-row">
+      <label>מחיר לטון (₪) *</label>
+      <input type="number" id="price-value-input" min="1" step="10" placeholder="0">
+    </div>
+    <div class="form-row">
+      <label>מקור המחיר</label>
+      <input type="text" id="price-source-input" placeholder="לדוגמה: ספק ראשי, בורסה...">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-price')">ביטול</button>
+      <button class="btn btn-primary" onclick="submitPrice()">שמור מחיר</button>
+    </div>
+  </div>
+</div>
+
+<script src="/nav.js"></script>
+<script>
+// ════════════════════════════════════════════════════
+// DATA STORE (demo data – replace with real API calls)
+// ════════════════════════════════════════════════════
+let POs = [
+  {id:'PO-2025-001',supplier:'אחים כהן ברזל',diameter:16,materialType:'coil',qty:8.5,pricePerTon:3200,deliveryDate:'2025-06-10',status:'arrived',notes:'',arrivedDate:'2025-06-08'},
+  {id:'PO-2025-002',supplier:'מטלורג בע"מ',diameter:12,materialType:'coil',qty:5,pricePerTon:3350,deliveryDate:'2025-06-18',status:'transit',notes:''},
+  {id:'PO-2025-003',supplier:'ברזל ישיר',diameter:20,materialType:'straight',qty:3,pricePerTon:3450,deliveryDate:'2025-06-25',status:'approved',notes:''},
+  {id:'PO-2025-004',supplier:'אחים כהן ברזל',diameter:10,materialType:'coil',qty:6,pricePerTon:3150,deliveryDate:'2025-07-01',status:'pending',notes:'נדרש אישור מנהל'},
+  {id:'PO-2025-005',supplier:'מטלורג בע"מ',diameter:25,materialType:'straight',qty:2.5,pricePerTon:3600,deliveryDate:'2025-07-05',status:'pending',notes:''},
+  {id:'PO-2025-006',supplier:'סגסוגות מתקדמות',diameter:32,materialType:'straight',qty:1.2,pricePerTon:3900,deliveryDate:'2025-07-10',status:'draft',notes:''},
+  {id:'PO-2025-007',supplier:'ברזל ישיר',diameter:8,materialType:'coil',qty:10,pricePerTon:3050,deliveryDate:'2025-05-30',status:'arrived',arrivedDate:'2025-05-28',notes:''},
+  {id:'PO-2025-008',supplier:'סגסוגות מתקדמות',diameter:40,materialType:'straight',qty:0.8,pricePerTon:4200,deliveryDate:'2025-06-30',status:'cancelled',notes:'ספק לא זמין'},
+];
+
+let Suppliers = [
+  {id:'s1',name:'אחים כהן ברזל',contact:'יוסי כהן',phone:'052-1234567',email:'yossi@cohen-iron.co.il',address:'אזור תעשייה רמת גן',payment:'30',notes:'ספק ראשי',suppliedTons:340,avgDeliveryDays:5,onTimePct:92,qualityPct:97,score:4.5,risk:'low',diameters:[10,12,16,20]},
+  {id:'s2',name:'מטלורג בע"מ',contact:'רחל לוי',phone:'054-7654321',email:'rachel@metalurg.co.il',address:'אשדוד, שכונת תעשייה',payment:'60',notes:'טוב לקטרים גדולים',suppliedTons:180,avgDeliveryDays:7,onTimePct:85,qualityPct:94,score:3.8,risk:'medium',diameters:[20,25,32]},
+  {id:'s3',name:'ברזל ישיר',contact:'מוטי ברק',phone:'050-9876543',email:'moti@iron-direct.co.il',address:'פתח תקווה',payment:'45',notes:'מחירים תחרותיים',suppliedTons:220,avgDeliveryDays:4,onTimePct:96,qualityPct:99,score:4.8,risk:'low',diameters:[6,8,10,12]},
+  {id:'s4',name:'סגסוגות מתקדמות',contact:'אבי שמש',phone:'053-1122334',email:'avi@alloys.co.il',address:'קרית גת',payment:'30',notes:'ספק יחיד לקוטר 40',suppliedTons:45,avgDeliveryDays:12,onTimePct:70,qualityPct:88,score:2.5,risk:'high',diameters:[36,40]},
+];
+
+let SteelPrices = [
+  {date:'2024-07-01',price:2950,source:'ספק ראשי'},
+  {date:'2024-08-01',price:3000,source:'בורסה'},
+  {date:'2024-09-01',price:3100,source:'ספק ראשי'},
+  {date:'2024-10-01',price:3050,source:'בורסה'},
+  {date:'2024-11-01',price:3200,source:'ספק ראשי'},
+  {date:'2024-12-01',price:3180,source:'בורסה'},
+  {date:'2025-01-01',price:3250,source:'ספק ראשי'},
+  {date:'2025-02-01',price:3300,source:'בורסה'},
+  {date:'2025-03-01',price:3150,source:'ספק ראשי'},
+  {date:'2025-04-01',price:3280,source:'בורסה'},
+  {date:'2025-05-01',price:3350,source:'ספק ראשי'},
+  {date:'2025-06-01',price:3420,source:'ספק ראשי'},
+];
+
+let currentReceivePOId = null;
+
+// ════════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    b.classList.toggle('active', ['po','suppliers','prices'][i]===tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  if(tab==='prices') renderPrices();
+}
+
+// ════════════════════════════════════════════════════
+// KPI
+// ════════════════════════════════════════════════════
+function updateKPIs(){
+  const open = POs.filter(p=>!['arrived','cancelled'].includes(p.status));
+  const pending = POs.filter(p=>p.status==='pending');
+  const thisWeek = POs.filter(p=>{
+    if(!p.arrivedDate) return false;
+    const d = new Date(p.arrivedDate);
+    const now = new Date();
+    const diff = (now - d)/(1000*60*60*24);
+    return diff<=7;
+  });
+  const openVal = open.reduce((s,p)=>s+p.qty*p.pricePerTon,0);
+  const riskSuppliers = Suppliers.filter(s=>s.risk==='high'||s.diameters.some(d=>isSingleSource(d)));
+
+  document.getElementById('kpi-open').textContent = open.length;
+  document.getElementById('kpi-pending').textContent = pending.length;
+  document.getElementById('kpi-arrived').textContent = thisWeek.length;
+  document.getElementById('kpi-value').textContent = formatMoney(openVal);
+  document.getElementById('kpi-risk').textContent = riskSuppliers.length;
+}
+
+function isSingleSource(diameter){
+  const sups = Suppliers.filter(s=>s.diameters.includes(diameter));
+  return sups.length===1;
+}
+
+// ════════════════════════════════════════════════════
+// PO TABLE
+// ════════════════════════════════════════════════════
+const STATUS_MAP = {
+  draft:{label:'טיוטה',cls:'badge-draft'},
+  pending:{label:'ממתין לאישור',cls:'badge-pending'},
+  approved:{label:'מאושר',cls:'badge-approved'},
+  transit:{label:'בדרך',cls:'badge-transit'},
+  arrived:{label:'הגיע',cls:'badge-arrived'},
+  cancelled:{label:'בוטל',cls:'badge-cancelled'},
+};
+
+function renderPOTable(){
+  const search = document.getElementById('po-search').value.toLowerCase();
+  const statusF = document.getElementById('po-filter-status').value;
+  const supplierF = document.getElementById('po-filter-supplier').value;
+
+  let rows = POs.filter(p=>{
+    if(statusF && p.status!==statusF) return false;
+    if(supplierF && p.supplier!==supplierF) return false;
+    if(search && !p.id.toLowerCase().includes(search) && !p.supplier.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('po-tbody');
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="9" class="empty"><div class="empty-icon">📭</div>אין הזמנות תואמות</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(p=>{
+    const st = STATUS_MAP[p.status]||{label:p.status,cls:'badge-draft'};
+    const total = p.qty*p.pricePerTon;
+    let actions = '';
+    if(p.status==='pending') actions+=`<button class="btn btn-sm btn-info" onclick="approvePO('${p.id}')">אשר</button> `;
+    if(['approved','transit'].includes(p.status)) actions+=`<button class="btn btn-sm btn-success" onclick="openReceiveModal('${p.id}')">קבל סחורה</button> `;
+    if(p.status!=='cancelled'&&p.status!=='arrived') actions+=`<button class="btn btn-sm btn-danger" onclick="cancelPO('${p.id}')">בטל</button>`;
+    return `<tr>
+      <td><strong>${p.id}</strong></td>
+      <td>${p.supplier}</td>
+      <td>∅${p.diameter} מ"מ</td>
+      <td>${p.qty.toFixed(1)}</td>
+      <td>${p.pricePerTon.toLocaleString('he-IL')} ₪</td>
+      <td><strong>${formatMoney(total)}</strong></td>
+      <td>${formatDate(p.deliveryDate)}</td>
+      <td><span class="badge ${st.cls}">${st.label}</span></td>
+      <td><div class="action-group">${actions}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function populateSupplierFilter(){
+  const sel = document.getElementById('po-filter-supplier');
+  const po_sel = document.getElementById('po-supplier-sel');
+  Suppliers.forEach(s=>{
+    const o1 = document.createElement('option');
+    o1.value = s.name; o1.textContent = s.name;
+    sel.appendChild(o1);
+    const o2 = document.createElement('option');
+    o2.value = s.name; o2.textContent = s.name;
+    po_sel.appendChild(o2);
+  });
+}
+
+function approvePO(id){
+  const po = POs.find(p=>p.id===id);
+  if(!po) return;
+  po.status = 'approved';
+  updateKPIs();
+  renderPOTable();
+  // API: PATCH /api/purchase-orders/:id
+  fetch(`/api/purchase-orders/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved'})}).catch(()=>{});
+}
+
+function cancelPO(id){
+  if(!confirm('לבטל את ההזמנה?')) return;
+  const po = POs.find(p=>p.id===id);
+  if(!po) return;
+  po.status = 'cancelled';
+  updateKPIs();
+  renderPOTable();
+  fetch(`/api/purchase-orders/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'cancelled'})}).catch(()=>{});
+}
+
+// ════════════════════════════════════════════════════
+// NEW PO MODAL
+// ════════════════════════════════════════════════════
+function openNewPOModal(){
+  document.getElementById('po-supplier-sel').value='';
+  document.getElementById('po-diameter').value='';
+  document.getElementById('po-material-type').value='coil';
+  document.getElementById('po-qty').value='';
+  document.getElementById('po-price').value='';
+  document.getElementById('po-notes').value='';
+  document.getElementById('po-delivery-date').value='';
+  document.getElementById('po-total-preview').textContent='סה"כ: — ₪';
+  document.getElementById('po-approval-note').style.display='none';
+  openModal('modal-new-po');
+}
+
+function calcPOTotal(){
+  const qty = parseFloat(document.getElementById('po-qty').value)||0;
+  const price = parseFloat(document.getElementById('po-price').value)||0;
+  const total = qty*price;
+  document.getElementById('po-total-preview').textContent = `סה"כ: ${formatMoney(total)} ₪`;
+  document.getElementById('po-approval-note').style.display = total>10000?'block':'none';
+}
+
+function submitNewPO(){
+  const supplier = document.getElementById('po-supplier-sel').value;
+  const diameter = parseInt(document.getElementById('po-diameter').value);
+  const materialType = document.getElementById('po-material-type').value;
+  const qty = parseFloat(document.getElementById('po-qty').value);
+  const price = parseFloat(document.getElementById('po-price').value);
+  const deliveryDate = document.getElementById('po-delivery-date').value;
+  const notes = document.getElementById('po-notes').value;
+
+  if(!supplier||!diameter||!qty||!price){
+    alert('נא למלא את כל שדות החובה');
+    return;
+  }
+
+  const newId = 'PO-'+new Date().getFullYear()+'-'+(String(POs.length+1).padStart(3,'0'));
+  const newPO = {id:newId,supplier,diameter,materialType,qty,pricePerTon:price,deliveryDate,status:'pending',notes};
+  POs.unshift(newPO);
+  updateKPIs();
+  renderPOTable();
+  closeModal('modal-new-po');
+
+  fetch('/api/purchase-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(newPO)}).catch(()=>{});
+}
+
+// ════════════════════════════════════════════════════
+// RECEIVE MODAL
+// ════════════════════════════════════════════════════
+function openReceiveModal(id){
+  const po = POs.find(p=>p.id===id);
+  if(!po) return;
+  currentReceivePOId = id;
+
+  document.getElementById('receive-po-info').innerHTML = `
+    <div class="po-detail-item"><span class="lbl">מספר PO</span><span class="val">${po.id}</span></div>
+    <div class="po-detail-item"><span class="lbl">ספק</span><span class="val">${po.supplier}</span></div>
+    <div class="po-detail-item"><span class="lbl">קוטר</span><span class="val">∅${po.diameter} מ"מ</span></div>
+    <div class="po-detail-item"><span class="lbl">כמות מוזמנת</span><span class="val">${po.qty.toFixed(1)} טון</span></div>
+    <div class="po-detail-item"><span class="lbl">סה"כ</span><span class="val">${formatMoney(po.qty*po.pricePerTon)} ₪</span></div>
+  `;
+  document.getElementById('receive-heat').value='';
+  document.getElementById('receive-weight').value='';
+  document.getElementById('receive-cert').value='';
+  document.getElementById('receive-notes').value='';
+  openModal('modal-receive');
+}
+
+function submitReceive(){
+  const heatNum = document.getElementById('receive-heat').value.trim();
+  const weight = parseInt(document.getElementById('receive-weight').value);
+  const cert = document.getElementById('receive-cert').value.trim();
+  const notes = document.getElementById('receive-notes').value;
+
+  if(!heatNum||!weight){
+    alert('נא למלא Heat Number ומשקל שהגיע');
+    return;
+  }
+
+  const po = POs.find(p=>p.id===currentReceivePOId);
+  if(po){
+    po.status='arrived';
+    po.arrivedDate = new Date().toISOString().slice(0,10);
+    po.heatNumber = heatNum;
+    po.actualWeightKg = weight;
+    po.certNumber = cert;
+  }
+  updateKPIs();
+  renderPOTable();
+  closeModal('modal-receive');
+
+  const payload = {heatNumber:heatNum,actualWeightKg:weight,certNumber:cert,notes};
+  fetch(`/api/purchase-orders/${currentReceivePOId}/receive`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
+  fetch('/api/inventory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,poId:currentReceivePOId})}).catch(()=>{});
+}
+
+// ════════════════════════════════════════════════════
+// SUPPLIERS TABLE
+// ════════════════════════════════════════════════════
+function renderSuppliers(){
+  const tbody = document.getElementById('supplier-tbody');
+  if(!Suppliers.length){
+    tbody.innerHTML='<tr><td colspan="9" class="empty"><div class="empty-icon">🏭</div>אין ספקים</td></tr>';
+    return;
+  }
+
+  let html = '';
+  Suppliers.forEach((s,idx)=>{
+    const riskCls = {low:'badge-risk-low',medium:'badge-risk-med',high:'badge-risk-high'}[s.risk]||'badge-risk-med';
+    const riskLabel = {low:'נמוך',medium:'בינוני',high:'גבוה'}[s.risk]||'—';
+    const singleSource = s.diameters.some(d=>isSingleSource(d));
+    const singleBadge = singleSource?'<span class="badge badge-single" title="ספק יחיד לקוטר זה">⚠️ ספק יחיד</span>':'';
+    const stars = renderStars(s.score);
+
+    html += `<tr class="supplier-row" onclick="toggleSupplier('s-expand-${idx}')">
+      <td style="color:var(--text-muted);font-size:12px;">▶</td>
+      <td><strong>${s.name}</strong> ${singleBadge}</td>
+      <td>${s.suppliedTons} טון</td>
+      <td>${s.avgDeliveryDays} ימים</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="flex:1;background:var(--border);border-radius:4px;height:6px;min-width:60px;">
+            <div style="width:${s.onTimePct}%;background:${s.onTimePct>=90?'var(--success)':s.onTimePct>=75?'var(--warning)':'var(--danger)'};height:100%;border-radius:4px;"></div>
+          </div>
+          <span style="font-size:12px;font-weight:700;">${s.onTimePct}%</span>
+        </div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="flex:1;background:var(--border);border-radius:4px;height:6px;min-width:60px;">
+            <div style="width:${s.qualityPct}%;background:${s.qualityPct>=95?'var(--success)':s.qualityPct>=85?'var(--warning)':'var(--danger)'};height:100%;border-radius:4px;"></div>
+          </div>
+          <span style="font-size:12px;font-weight:700;">${s.qualityPct}%</span>
+        </div>
+      </td>
+      <td>${stars}</td>
+      <td><span class="badge ${riskCls}">${riskLabel}</span></td>
+      <td><button class="btn btn-sm btn-outline" onclick="event.stopPropagation();editSupplier('${s.id}')">עריכה</button></td>
+    </tr>
+    <tr class="supplier-expand" id="s-expand-${idx}">
+      <td colspan="9">
+        <div class="expand-inner">
+          <div class="expand-section">
+            <h4>5 הזמנות אחרונות</h4>
+            <table class="mini-table">
+              <thead><tr><th>PO</th><th>קוטר</th><th>טון</th><th>סטטוס</th></tr></thead>
+              <tbody>${getSupplierLastPOs(s.name)}</tbody>
+            </table>
+          </div>
+          <div class="expand-section">
+            <h4>היסטוריית ביצועים</h4>
+            <div class="bar-chart">${generateBarChart(s)}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
+              📞 ${s.phone} &nbsp;·&nbsp; ✉️ ${s.email}<br>
+              📍 ${s.address} &nbsp;·&nbsp; 💳 שוטף +${s.payment}<br>
+              💬 ${s.notes||'—'}
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+function toggleSupplier(id){
+  const row = document.getElementById(id);
+  if(row) row.classList.toggle('open');
+}
+
+function getSupplierLastPOs(name){
+  const rows = POs.filter(p=>p.supplier===name).slice(0,5);
+  if(!rows.length) return '<tr><td colspan="4" style="color:var(--text-muted);font-size:11px;padding:8px 10px;">אין הזמנות</td></tr>';
+  return rows.map(p=>{
+    const st=STATUS_MAP[p.status]||{label:p.status,cls:'badge-draft'};
+    return `<tr><td>${p.id}</td><td>∅${p.diameter}</td><td>${p.qty}</td><td><span class="badge ${st.cls}" style="font-size:10px;">${st.label}</span></td></tr>`;
+  }).join('');
+}
+
+function generateBarChart(s){
+  const metrics=[
+    {label:'בזמן',val:s.onTimePct,color:'var(--info)'},
+    {label:'איכות',val:s.qualityPct,color:'var(--success)'},
+    {label:'ציון×20',val:Math.round(s.score*20),color:'var(--accent)'},
+  ];
+  return metrics.map(m=>`
+    <div class="bar-col">
+      <div class="bar-fill" style="height:${Math.round(m.val*0.5)}px;background:${m.color};"></div>
+      <div class="bar-label">${m.label}</div>
+      <div class="bar-label" style="font-weight:700;color:${m.color};">${m.val}%</div>
+    </div>`).join('');
+}
+
+function renderStars(score){
+  const full = Math.floor(score);
+  const half = score-full>=0.5;
+  let s='';
+  for(let i=0;i<5;i++){
+    if(i<full) s+='★';
+    else if(i===full&&half) s+='⭑';
+    else s+='<span class="stars-empty">☆</span>';
+  }
+  return `<span class="stars">${s}</span> <span style="font-size:11px;color:var(--text-dim);">${score.toFixed(1)}</span>`;
+}
+
+// ════════════════════════════════════════════════════
+// SUPPLIER MODAL
+// ════════════════════════════════════════════════════
+function openSupplierModal(){
+  document.getElementById('supplier-id-field').value='';
+  ['sup-name','sup-contact','sup-phone','sup-email','sup-address','sup-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('sup-payment').value='30';
+  openModal('modal-supplier');
+}
+
+function editSupplier(id){
+  const s = Suppliers.find(x=>x.id===id);
+  if(!s) return;
+  document.getElementById('supplier-id-field').value=s.id;
+  document.getElementById('sup-name').value=s.name;
+  document.getElementById('sup-contact').value=s.contact;
+  document.getElementById('sup-phone').value=s.phone;
+  document.getElementById('sup-email').value=s.email;
+  document.getElementById('sup-address').value=s.address;
+  document.getElementById('sup-payment').value=s.payment;
+  document.getElementById('sup-notes').value=s.notes||'';
+  openModal('modal-supplier');
+}
+
+function submitSupplier(){
+  const id = document.getElementById('supplier-id-field').value;
+  const name = document.getElementById('sup-name').value.trim();
+  if(!name){alert('נא למלא שם ספק');return;}
+
+  const data = {
+    name, contact:document.getElementById('sup-contact').value,
+    phone:document.getElementById('sup-phone').value,
+    email:document.getElementById('sup-email').value,
+    address:document.getElementById('sup-address').value,
+    payment:document.getElementById('sup-payment').value,
+    notes:document.getElementById('sup-notes').value,
+  };
+
+  if(id){
+    const s = Suppliers.find(x=>x.id===id);
+    if(s) Object.assign(s,data);
+  } else {
+    Suppliers.push({id:'s'+Date.now(),...data,suppliedTons:0,avgDeliveryDays:0,onTimePct:0,qualityPct:0,score:0,risk:'low',diameters:[]});
+  }
+
+  renderSuppliers();
+  closeModal('modal-supplier');
+  fetch('/api/suppliers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(()=>{});
+}
+
+// ════════════════════════════════════════════════════
+// STEEL PRICES
+// ════════════════════════════════════════════════════
+function renderPrices(){
+  const sorted = [...SteelPrices].sort((a,b)=>a.date.localeCompare(b.date));
+  const last = sorted[sorted.length-1];
+  const prev = sorted[sorted.length-2];
+
+  // Hero
+  document.getElementById('current-price').textContent = last ? last.price.toLocaleString('he-IL') : '—';
+  document.getElementById('price-date').textContent = last ? formatDate(last.date) : '';
+  if(last && prev){
+    const diff = last.price - prev.price;
+    const pct = ((diff/prev.price)*100).toFixed(1);
+    const sign = diff>0?'+':'';
+    const el = document.getElementById('price-change');
+    el.textContent = `${sign}${diff.toLocaleString('he-IL')} ₪ (${sign}${pct}%)`;
+    el.className = 'price-hero-change '+(diff>0?'up':diff<0?'down':'');
+  }
+
+  // SVG chart
+  renderLineChart(sorted);
+
+  // Table
+  const tbody = document.getElementById('prices-tbody');
+  const reversed = [...sorted].reverse();
+  tbody.innerHTML = reversed.map((p,i)=>{
+    const prev2 = reversed[i+1];
+    let changeHtml = '—';
+    if(prev2){
+      const diff = p.price-prev2.price;
+      const pct = ((diff/prev2.price)*100).toFixed(1);
+      const sign = diff>0?'+':'';
+      const color = diff>0?'var(--danger)':diff<0?'var(--success)':'var(--text-muted)';
+      const arrow = diff>0?'▲':diff<0?'▼':'—';
+      changeHtml=`<span style="color:${color};font-weight:700;">${arrow} ${sign}${diff.toLocaleString('he-IL')} ₪ (${sign}${pct}%)</span>`;
+    }
+    return `<tr>
+      <td>${formatDate(p.date)}</td>
+      <td><strong>${p.price.toLocaleString('he-IL')} ₪</strong></td>
+      <td>${changeHtml}</td>
+      <td><span style="color:var(--text-dim);font-size:12px;">${p.source||'—'}</span></td>
+    </tr>`;
+  }).join('');
+
+  calcImpact();
+}
+
+function renderLineChart(data){
+  const svg = document.getElementById('price-chart');
+  if(!data.length){svg.innerHTML='';return;}
+  const w=600,h=110,pad=30;
+  const prices = data.map(d=>d.price);
+  const minP = Math.min(...prices)-100;
+  const maxP = Math.max(...prices)+100;
+  const xStep = (w-2*pad)/(data.length-1||1);
+
+  const points = data.map((d,i)=>{
+    const x = pad+i*xStep;
+    const y = h-pad - ((d.price-minP)/(maxP-minP))*(h-2*pad);
+    return {x,y,d};
+  });
+
+  const polyline = points.map(p=>`${p.x},${p.y}`).join(' ');
+  // Area fill
+  const areaPath = `M${points[0].x},${h-pad} `+points.map(p=>`L${p.x},${p.y}`).join(' ')+` L${points[points.length-1].x},${h-pad} Z`;
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.2"/>
+        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#areaGrad)"/>
+    <polyline points="${polyline}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>
+    ${points.map((p,i)=>`
+      <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--accent)" stroke="#fff" stroke-width="1.5"/>
+      <text x="${p.x}" y="${h-2}" text-anchor="middle" font-size="8" fill="var(--text-muted)" font-family="Heebo,sans-serif">${p.d.date.slice(5,7)}/${p.d.date.slice(2,4)}</text>
+    `).join('')}
+    <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="var(--border)" stroke-width="1"/>
+  `;
+}
+
+function calcImpact(){
+  const pct = parseFloat(document.getElementById('impact-pct').value)||0;
+  const openPOs = POs.filter(p=>!['arrived','cancelled'].includes(p.status));
+  const totalVal = openPOs.reduce((s,p)=>s+p.qty*p.pricePerTon,0);
+  const impact = totalVal*(pct/100);
+  document.getElementById('impact-result').textContent =
+    `→ ${openPOs.length} הזמנות פתוחות · השפעה: ${formatMoney(impact)} ₪`;
+}
+
+// ════════════════════════════════════════════════════
+// PRICE MODAL
+// ════════════════════════════════════════════════════
+function openPriceModal(){
+  document.getElementById('price-date-input').value = new Date().toISOString().slice(0,10);
+  document.getElementById('price-value-input').value='';
+  document.getElementById('price-source-input').value='';
+  openModal('modal-price');
+}
+
+function submitPrice(){
+  const date = document.getElementById('price-date-input').value;
+  const price = parseInt(document.getElementById('price-value-input').value);
+  const source = document.getElementById('price-source-input').value||'—';
+  if(!date||!price){alert('נא למלא תאריך ומחיר');return;}
+  SteelPrices.push({date,price,source});
+  closeModal('modal-price');
+  renderPrices();
+  fetch('/api/steel-prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,price,source})}).catch(()=>{});
+}
+
+// ════════════════════════════════════════════════════
+// MODAL HELPERS
+// ════════════════════════════════════════════════════
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(overlay=>{
+  overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.classList.remove('open');});
+});
+
+// ════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════
+function formatMoney(n){
+  if(!n&&n!==0) return '—';
+  return Math.round(n).toLocaleString('he-IL');
+}
+
+function formatDate(d){
+  if(!d) return '—';
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+// ════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════
+function init(){
+  populateSupplierFilter();
+  updateKPIs();
+  renderPOTable();
+  renderSuppliers();
+
+  // Try real API, fallback to demo data
+  fetch('/api/purchase-orders').then(r=>r.json()).then(data=>{
+    if(Array.isArray(data)&&data.length){POs=data;updateKPIs();renderPOTable();}
+  }).catch(()=>{});
+
+  fetch('/api/suppliers').then(r=>r.json()).then(data=>{
+    if(Array.isArray(data)&&data.length){Suppliers=data;renderSuppliers();updateKPIs();}
+  }).catch(()=>{});
+
+  fetch('/api/steel-prices').then(r=>r.json()).then(data=>{
+    if(Array.isArray(data)&&data.length){SteelPrices=data;}
+  }).catch(()=>{});
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

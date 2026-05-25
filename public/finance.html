@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IronBend – בינה פיננסית</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap">
+<link rel="stylesheet" href="/theme.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh}
+
+/* ── Layout ── */
+.page-wrap{max-width:1400px;margin:0 auto;padding:16px}
+
+/* ── Period tabs ── */
+.period-tabs{display:flex;gap:6px;margin-bottom:16px}
+.period-btn{padding:6px 18px;border:1px solid var(--border);background:var(--steel-mid);border-radius:20px;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text-dim)}
+.period-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Grid ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:var(--steel-mid);border-radius:12px;padding:16px;border:1px solid var(--border)}
+.kpi-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-val{font-size:26px;font-weight:900;color:var(--text)}
+.kpi-sub{font-size:11px;color:var(--text-dim);margin-top:4px}
+.kpi-card.accent .kpi-val{color:var(--accent)}
+.kpi-card.success .kpi-val{color:var(--success)}
+.kpi-card.danger .kpi-val{color:var(--danger)}
+.kpi-card.warning .kpi-val{color:var(--warning)}
+
+/* ── Two-col ── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+@media(max-width:768px){.two-col{grid-template-columns:1fr}}
+
+/* ── Table card ── */
+.table-card{background:var(--steel-mid);border-radius:12px;border:1px solid var(--border);overflow:hidden}
+.table-card h3{padding:14px 16px;font-size:14px;font-weight:700;border-bottom:1px solid var(--border);color:var(--text)}
+.finance-table{width:100%;border-collapse:collapse;font-size:12px}
+.finance-table th{background:var(--steel);padding:8px 12px;color:var(--text-dim);font-weight:600;text-align:right;border-bottom:1px solid var(--border)}
+.finance-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+.finance-table tr:last-child td{border-bottom:none}
+.finance-table tr:hover td{background:var(--steel)}
+.badge-ok{background:var(--success-dim);color:var(--success);padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
+.badge-warn{background:var(--warning-dim);color:var(--warning);padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
+.badge-danger{background:var(--danger-dim);color:var(--danger);padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
+
+/* ── Order costs panel ── */
+.costs-panel{background:var(--steel-mid);border-radius:12px;border:1px solid var(--border);padding:0;overflow:hidden;margin-bottom:20px}
+.costs-panel h3{padding:14px 16px;font-size:14px;font-weight:700;border-bottom:1px solid var(--border)}
+.cost-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.cost-cell{padding:14px 16px;border-bottom:1px solid var(--border)}
+.cost-cell:nth-child(3n+1):not(:nth-child(3n)){border-left:1px solid var(--border)}
+.cost-label{font-size:10px;color:var(--text-muted);margin-bottom:4px}
+.cost-val{font-size:16px;font-weight:700;color:var(--text)}
+.cost-pct{font-size:10px;color:var(--text-dim)}
+@media(max-width:768px){.cost-grid{grid-template-columns:1fr 1fr}}
+
+/* ── Margin bar ── */
+.margin-bar-wrap{padding:14px 16px}
+.margin-bar-track{height:16px;background:var(--steel);border-radius:8px;overflow:hidden;margin:6px 0}
+.margin-bar-fill{height:100%;border-radius:8px;transition:width .6s ease}
+.margin-info{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim)}
+
+/* ── Steel price input ── */
+.price-form{display:flex;gap:8px;align-items:center;padding:12px 16px;border-top:1px solid var(--border)}
+.price-form input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;background:var(--steel);color:var(--text)}
+.price-form .btn-sm{padding:7px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;background:var(--steel-mid);color:var(--text-dim)}
+.price-form .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Customer ledger ── */
+.ledger-search{display:flex;gap:8px;padding:12px 16px}
+.ledger-search select,.ledger-search input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;background:var(--steel);color:var(--text)}
+.credit-bar-wrap{padding:12px 16px;border-top:1px solid var(--border)}
+.credit-bar-track{height:12px;background:var(--steel);border-radius:6px;overflow:hidden}
+.credit-bar-fill{height:100%;border-radius:6px;transition:width .5s}
+.ledger-detail{padding:0 16px 16px}
+
+/* ── Skeleton ── */
+.skeleton-row{height:40px;background:var(--steel);border-radius:6px;margin:4px 0;animation:skeleton-shimmer 1.4s infinite linear;background-size:800px 100%}
+
+/* ── Alert banner ── */
+.alert-banner{padding:10px 16px;margin-bottom:12px;border-radius:8px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+.alert-banner.critical{background:var(--danger-dim);color:var(--danger);border:1px solid var(--danger)}
+.alert-banner.warning{background:var(--warning-dim);color:var(--warning);border:1px solid var(--warning)}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+
+<div class="page-wrap" id="app">
+
+  <!-- Period selector -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <h1 style="font-size:20px;font-weight:900;color:var(--text)">📊 בינה פיננסית</h1>
+    <div class="period-tabs">
+      <button class="period-btn active" onclick="setPeriod('week')">שבוע</button>
+      <button class="period-btn" onclick="setPeriod('month')">חודש</button>
+      <button class="period-btn" onclick="setPeriod('quarter')">רבעון</button>
+    </div>
+  </div>
+
+  <!-- Alert banners -->
+  <div id="alert-zone"></div>
+
+  <!-- KPI row -->
+  <div class="kpi-row" id="kpi-row">
+    <div class="kpi-card"><div class="kpi-label">סה"כ הכנסות</div><div class="kpi-val skeleton" id="kv-revenue">–</div><div class="kpi-sub" id="ks-revenue"></div></div>
+    <div class="kpi-card"><div class="kpi-label">עלות ייצור</div><div class="kpi-val skeleton" id="kv-cost">–</div><div class="kpi-sub" id="ks-cost"></div></div>
+    <div class="kpi-card"><div class="kpi-label">רווח גולמי</div><div class="kpi-val skeleton" id="kv-margin">–</div><div class="kpi-sub" id="ks-margin"></div></div>
+    <div class="kpi-card"><div class="kpi-label">טונות מסירה</div><div class="kpi-val skeleton" id="kv-tons">–</div><div class="kpi-sub" id="ks-tons"></div></div>
+    <div class="kpi-card"><div class="kpi-label">חשבוניות פתוחות</div><div class="kpi-val skeleton" id="kv-recv">–</div><div class="kpi-sub" id="ks-recv"></div></div>
+    <div class="kpi-card"><div class="kpi-label">גיוס חוב</div><div class="kpi-val skeleton" id="kv-overdue">–</div><div class="kpi-sub" id="ks-overdue"></div></div>
+  </div>
+
+  <!-- Two column: top customers + low margin alerts -->
+  <div class="two-col">
+
+    <!-- Top customers -->
+    <div class="table-card">
+      <h3>🏆 לקוחות מובילים</h3>
+      <table class="finance-table" id="top-cust-table">
+        <thead><tr><th>לקוח</th><th>הכנסות ₪</th><th>מרווח ₪</th><th>%</th></tr></thead>
+        <tbody id="top-cust-body">
+          <tr><td colspan="4"><div class="skeleton-row"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Low margin warnings -->
+    <div class="table-card">
+      <h3>⚠️ הזמנות עם מרווח נמוך</h3>
+      <table class="finance-table">
+        <thead><tr><th>הזמנה</th><th>לקוח</th><th>מרווח</th><th>%</th></tr></thead>
+        <tbody id="low-margin-body">
+          <tr><td colspan="4"><div class="skeleton-row"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- Steel price + order cost calculator -->
+  <div class="two-col">
+
+    <!-- Steel price -->
+    <div class="table-card">
+      <h3>🔩 מחיר פלדה</h3>
+      <table class="finance-table" id="steel-price-table">
+        <thead><tr><th>תאריך</th><th>ספק</th><th>Ø מ"מ</th><th>₪/טון</th></tr></thead>
+        <tbody id="steel-price-body"><tr><td colspan="4"><div class="skeleton-row"></div></td></tr></tbody>
+      </table>
+      <div class="price-form">
+        <input type="number" id="new-price-diam" placeholder="Ø קוטר (ריק=כל)" min="5" max="50" style="max-width:80px">
+        <input type="number" id="new-price-val" placeholder="₪ לטון" min="100" step="50">
+        <button class="btn-sm btn-primary" onclick="submitSteelPrice()">עדכן מחיר</button>
+      </div>
+    </div>
+
+    <!-- Order cost calculator -->
+    <div class="table-card">
+      <h3>🧮 מחשבון עלויות הזמנה</h3>
+      <div class="ledger-search">
+        <select id="cost-order-sel">
+          <option value="">בחר הזמנה...</option>
+        </select>
+        <button class="btn-sm btn-primary" onclick="calcOrderCost()">חשב</button>
+      </div>
+      <div id="order-cost-result"></div>
+    </div>
+
+  </div>
+
+  <!-- Customer ledger -->
+  <div class="table-card" style="margin-bottom:20px">
+    <h3>📒 כרטסת לקוח</h3>
+    <div class="ledger-search">
+      <select id="ledger-cust-sel" onchange="loadLedger(this.value)">
+        <option value="">בחר לקוח...</option>
+      </select>
+    </div>
+    <div id="ledger-result"></div>
+  </div>
+
+</div>
+
+<script>
+let currentPeriod = 'week';
+
+function fmt(n) {
+  if (!n && n !== 0) return '–';
+  n = Number(n);
+  if (Math.abs(n) >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1000) return (n/1000).toFixed(1) + 'K';
+  return n.toFixed(0);
+}
+function fmtILS(n) { return fmt(n) + ' ₪'; }
+function fmtPct(n) { return (Number(n)||0).toFixed(1) + '%'; }
+function marginClass(pct) {
+  const p = Number(pct);
+  if (p < 0)  return 'badge-danger';
+  if (p < 5)  return 'badge-warn';
+  return 'badge-ok';
+}
+function marginColor(pct) {
+  const p = Number(pct);
+  if (p < 0)  return 'var(--danger)';
+  if (p < 10) return 'var(--warning)';
+  if (p < 20) return 'var(--accent)';
+  return 'var(--success)';
+}
+
+async function loadKPIs() {
+  try {
+    const d = await fetch('/api/finance/kpis?period=' + currentPeriod).then(r=>r.json());
+
+    const s = d.summary;
+    document.getElementById('kv-revenue').textContent = fmtILS(s.total_revenue);
+    document.getElementById('ks-revenue').textContent = s.order_count + ' הזמנות';
+    document.getElementById('kv-revenue').classList.remove('skeleton');
+
+    document.getElementById('kv-cost').textContent = fmtILS(s.total_cost);
+    document.getElementById('ks-cost').textContent = 'עלות ישירה + עקיפה';
+    document.getElementById('kv-cost').classList.remove('skeleton');
+
+    const marginEl = document.getElementById('kv-margin');
+    marginEl.textContent = fmtILS(s.total_margin);
+    marginEl.style.color = s.total_margin >= 0 ? 'var(--success)' : 'var(--danger)';
+    document.getElementById('ks-margin').textContent = fmtPct(s.avg_margin_pct) + ' מרווח ממוצע';
+    marginEl.classList.remove('skeleton');
+
+    document.getElementById('kv-tons').textContent = (s.total_tons||0).toFixed(2) + ' ט';
+    document.getElementById('ks-tons').textContent = s.total_tons > 0 ? fmtILS(s.total_cost / s.total_tons) + ' לטון' : '';
+    document.getElementById('kv-tons').classList.remove('skeleton');
+
+    const recv = d.receivables;
+    document.getElementById('kv-recv').textContent = fmtILS(recv.unpaid);
+    document.getElementById('ks-recv').textContent = recv.unpaid_count + ' חשבוניות';
+    document.getElementById('kv-recv').classList.remove('skeleton');
+
+    const overdueEl = document.getElementById('kv-overdue');
+    overdueEl.textContent = fmtILS(recv.overdue);
+    overdueEl.style.color = recv.overdue > 0 ? 'var(--danger)' : 'var(--success)';
+    document.getElementById('ks-overdue').textContent = recv.overdue_count + ' חשבוניות בפיגור';
+    overdueEl.classList.remove('skeleton');
+
+    // Alert banners
+    const alerts = [];
+    if (recv.overdue > 0) alerts.push(`<div class="alert-banner critical">🚨 ${recv.overdue_count} חשבוניות בפיגור בסך ${fmtILS(recv.overdue)}</div>`);
+    if (s.avg_margin_pct > 0 && s.avg_margin_pct < 5) alerts.push(`<div class="alert-banner warning">⚠️ מרווח ממוצע נמוך: ${fmtPct(s.avg_margin_pct)} – נדרשת בדיקה</div>`);
+    document.getElementById('alert-zone').innerHTML = alerts.join('');
+
+    // Top customers
+    const cBody = document.getElementById('top-cust-body');
+    if (d.top_customers.length === 0) {
+      cBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px;">אין נתונים לתקופה</td></tr>';
+    } else {
+      cBody.innerHTML = d.top_customers.map(c => `
+        <tr>
+          <td><b>${c.name}</b></td>
+          <td>${fmtILS(c.revenue)}</td>
+          <td style="color:${c.margin>=0?'var(--success)':'var(--danger)'}">${fmtILS(c.margin)}</td>
+          <td><span class="${marginClass(c.margin_pct)}">${fmtPct(c.margin_pct)}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    // Low margin orders
+    const lBody = document.getElementById('low-margin-body');
+    if (d.low_margin_orders.length === 0) {
+      lBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px;">✅ אין הזמנות עם מרווח נמוך</td></tr>';
+    } else {
+      lBody.innerHTML = d.low_margin_orders.map(o => `
+        <tr>
+          <td><a href="/orders.html" style="color:var(--accent);font-weight:700">${o.order_num}</a></td>
+          <td>${o.customer}</td>
+          <td style="color:${o.gross_margin>=0?'var(--success)':'var(--danger)'}">${fmtILS(o.gross_margin)}</td>
+          <td><span class="${marginClass(o.margin_pct)}">${fmtPct(o.margin_pct)}</span></td>
+        </tr>
+      `).join('');
+    }
+
+  } catch(e) { console.error('KPI error:', e); }
+}
+
+async function loadSteelPrices() {
+  try {
+    const prices = await fetch('/api/steel-prices').then(r=>r.json());
+    const tbody = document.getElementById('steel-price-body');
+    if (!prices.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:12px;">אין מחירים רשומים</td></tr>';
+      return;
+    }
+    tbody.innerHTML = prices.slice(0,8).map(p => `
+      <tr>
+        <td>${p.effective_date || '–'}</td>
+        <td>${p.supplier_name || 'ידני'}</td>
+        <td>${p.diameter || 'כל'}</td>
+        <td><b>${(p.price_per_ton||0).toFixed(0)} ₪</b></td>
+      </tr>
+    `).join('');
+  } catch(e) {}
+}
+
+async function loadOrders() {
+  try {
+    const orders = await fetch('/api/orders').then(r=>r.json());
+    const sel = document.getElementById('cost-order-sel');
+    sel.innerHTML = '<option value="">בחר הזמנה...</option>' +
+      orders.map(o => `<option value="${o.id}">${o.order_num} – ${o.customer_name||''}</option>`).join('');
+  } catch(e) {}
+}
+
+async function loadCustomers() {
+  try {
+    const custs = await fetch('/api/customers').then(r=>r.json());
+    const sel = document.getElementById('ledger-cust-sel');
+    sel.innerHTML = '<option value="">בחר לקוח...</option>' +
+      custs.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  } catch(e) {}
+}
+
+async function submitSteelPrice() {
+  const diam = document.getElementById('new-price-diam').value;
+  const val  = document.getElementById('new-price-val').value;
+  if (!val) return alert('נדרש להזין מחיר');
+  const body = { price_per_ton: Number(val), grade: 'B500B',
+    effective_date: new Date().toISOString().slice(0,10), source: 'manual' };
+  if (diam) body.diameter = Number(diam);
+  await fetch('/api/steel-prices', {
+    method:'POST', headers:{'Content-Type':'application/json','x-user-role':'manager'},
+    body: JSON.stringify(body)
+  });
+  document.getElementById('new-price-val').value = '';
+  document.getElementById('new-price-diam').value = '';
+  loadSteelPrices();
+  loadKPIs();
+}
+
+async function calcOrderCost() {
+  const orderId = document.getElementById('cost-order-sel').value;
+  if (!orderId) return;
+  document.getElementById('order-cost-result').innerHTML = '<div class="skeleton-row" style="margin:12px 16px"></div>';
+  const data = await fetch(`/api/orders/${orderId}/costs/recalculate`, {
+    method:'POST', headers:{'Content-Type':'application/json','x-user-role':'manager'},
+    body: JSON.stringify({reason:'חישוב ידני'})
+  }).then(r=>r.json());
+
+  const marginPct = Number(data.margin_pct) || 0;
+  const barColor  = marginColor(marginPct);
+  const barWidth  = Math.max(0, Math.min(100, marginPct));
+
+  document.getElementById('order-cost-result').innerHTML = `
+    <div class="margin-bar-wrap">
+      <div class="margin-info">
+        <span>עלות כוללת: <b>${fmtILS(data.total_cost)}</b></span>
+        <span>מרווח: <b style="color:${barColor}">${fmtPct(data.margin_pct)}</b></span>
+      </div>
+      <div class="margin-bar-track">
+        <div class="margin-bar-fill" style="width:${barWidth}%;background:${barColor}"></div>
+      </div>
+    </div>
+    <div class="cost-grid">
+      <div class="cost-cell"><div class="cost-label">חומרי גלם</div><div class="cost-val">${fmtILS(data.material_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">עבודה</div><div class="cost-val">${fmtILS(data.labor_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">מכונות</div><div class="cost-val">${fmtILS(data.machine_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">פסולת</div><div class="cost-val">${fmtILS(data.scrap_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">תקורה 15%</div><div class="cost-val">${fmtILS(data.overhead_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">טונות</div><div class="cost-val">${(data.tons_delivered||0).toFixed(2)} ט</div><div class="cost-pct">${fmtILS(data.cost_per_ton)}/ט</div></div>
+    </div>
+    <div style="padding:8px 16px;font-size:11px;color:var(--text-muted)">
+      רמת ביטחון: <b style="color:${data.confidence==='high'?'var(--success)':'var(--warning)'}">${data.confidence==='high'?'גבוהה':'נמוכה'}</b>
+      ${data.confidence!=='high' ? ' – הזן מחיר פלדה לדיוק' : ''}
+    </div>
+  `;
+}
+
+async function loadLedger(customerId) {
+  if (!customerId) { document.getElementById('ledger-result').innerHTML = ''; return; }
+  document.getElementById('ledger-result').innerHTML = '<div class="skeleton-row" style="margin:12px 16px"></div>';
+  try {
+    const d = await fetch(`/api/customers/${customerId}/ledger`).then(r=>r.json());
+    const c = d.credit;
+    const s = d.summary;
+    const creditColor = c.credit_alert==='critical'?'var(--danger)':c.credit_alert==='warning'?'var(--warning)':'var(--success)';
+    const creditBarW = Math.min(100, c.credit_pct||0);
+
+    let html = `
+      <div class="credit-bar-wrap">
+        <div class="margin-info" style="margin-bottom:4px">
+          <span>חשיפת אשראי: <b style="color:${creditColor}">${fmtILS(c.total_exposure)}</b></span>
+          <span>מסגרת: <b>${fmtILS(c.credit_limit)}</b> | זמין: <b>${fmtILS(c.credit_available)}</b></span>
+        </div>
+        <div class="credit-bar-track">
+          <div class="credit-bar-fill" style="width:${creditBarW}%;background:${creditColor}"></div>
+        </div>
+        <div class="margin-info" style="margin-top:4px">
+          <span>חוב פתוח: ${fmtILS(c.open_debt)}</span>
+          <span>עבודות בתהליך: ${fmtILS(c.wip_value)}</span>
+          <span>תנאי תשלום: ${c.payment_terms||30} ימים</span>
+        </div>
+      </div>
+      <div style="padding:0 16px 8px;display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--text-dim)">
+        <span>הזמנות: <b style="color:var(--text)">${s.total_orders}</b></span>
+        <span>הכנסות: <b style="color:var(--accent)">${fmtILS(s.totalRevenue)}</b></span>
+        <span>רווח: <b style="color:${s.totalMargin>=0?'var(--success)':'var(--danger)'}">${fmtILS(s.totalMargin)}</b></span>
+        <span>מרווח ממוצע: <b><span class="${marginClass(s.avgMarginPct)}">${fmtPct(s.avgMarginPct)}</span></b></span>
+        <span>טונות: <b>${(s.totalTons||0).toFixed(1)}</b></span>
+      </div>
+    `;
+
+    if (d.orders.length > 0) {
+      html += `<div class="ledger-detail">
+        <table class="finance-table" style="margin-bottom:0">
+          <thead><tr><th>#</th><th>הזמנה</th><th>סטטוס</th><th>הכנסה</th><th>מרווח</th><th>%</th></tr></thead>
+          <tbody>
+            ${d.orders.slice(0,15).map((o,i) => `<tr>
+              <td style="color:var(--text-muted)">${i+1}</td>
+              <td><a href="/orders.html" style="color:var(--accent);font-weight:700">${o.order_num}</a></td>
+              <td><span class="status-badge">${o.status}</span></td>
+              <td>${o.revenue ? fmtILS(o.revenue) : '–'}</td>
+              <td style="color:${(o.gross_margin||0)>=0?'var(--success)':'var(--danger)'}">${o.gross_margin ? fmtILS(o.gross_margin) : '–'}</td>
+              <td>${o.margin_pct ? '<span class="'+marginClass(o.margin_pct)+'">'+fmtPct(o.margin_pct)+'</span>' : '–'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    }
+
+    document.getElementById('ledger-result').innerHTML = html;
+  } catch(e) {
+    document.getElementById('ledger-result').innerHTML = '<div style="padding:16px;color:var(--danger)">שגיאה בטעינת כרטסת</div>';
+  }
+}
+
+function setPeriod(p) {
+  currentPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.textContent.includes({week:'שבוע',month:'חודש',quarter:'רבעון'}[p])));
+  // Reset skeleton
+  ['revenue','cost','margin','tons','recv','overdue'].forEach(k => {
+    document.getElementById('kv-'+k).classList.add('skeleton');
+    document.getElementById('kv-'+k).textContent = '–';
+  });
+  loadKPIs();
+}
+
+// Init
+loadKPIs();
+loadSteelPrices();
+loadOrders();
+loadCustomers();
+</script>
+</body>
+</html>

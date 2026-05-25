@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>תחנת עבודה – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0d1117; --panel:#161b22; --border:rgba(255,255,255,0.08);
+  --accent:#e07b39; --accent-dim:rgba(224,123,57,0.15);
+  --success:#27ae60; --success-dim:rgba(39,174,96,0.15);
+  --danger:#e74c3c;  --danger-dim:rgba(231,76,60,0.15);
+  --warning:#f39c12; --warning-dim:rgba(243,156,18,0.15);
+  --info:#3498db;
+  --text:#e8edf4; --text-dim:#8fa0b0;
+  --radius:16px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;touch-action:manipulation;}
+
+/* ── LAYOUT ─────────────────────────────────────────────────── */
+.kiosk{height:100dvh;display:flex;flex-direction:column;gap:0;}
+
+/* TOP BAR */
+.kbar{background:var(--panel);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.kbar-machine{font-size:18px;font-weight:900;color:var(--accent);}
+.kbar-time{font-size:15px;font-weight:700;color:var(--text-dim);}
+.kbar-status{display:flex;align-items:center;gap:8px;}
+.status-dot{width:10px;height:10px;border-radius:50%;background:var(--text-dim);}
+.status-dot.running{background:var(--success);box-shadow:0 0 8px var(--success);}
+.status-dot.error{background:var(--danger);box-shadow:0 0 8px var(--danger);}
+
+/* MAIN AREA */
+.kmain{flex:1;display:grid;grid-template-columns:1fr 320px;gap:16px;padding:16px;min-height:0;overflow:hidden;}
+
+/* COUNTER PANEL */
+.counter-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;position:relative;}
+.counter-label{font-size:13px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
+.counter-big{font-size:clamp(80px,18vw,160px);font-weight:900;line-height:1;color:var(--accent);
+  font-variant-numeric:tabular-nums;transition:color .3s;}
+.counter-big.complete{color:var(--success);}
+.counter-target{font-size:24px;font-weight:700;color:var(--text-dim);}
+.progress-ring-wrap{position:relative;width:160px;height:160px;}
+.progress-ring{transform:rotate(-90deg);}
+.progress-ring-bg{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:8;}
+.progress-ring-fg{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .5s,stroke .3s;}
+
+/* JOB INFO */
+.job-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:14px 16px;width:100%;}
+.job-label{font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+.job-val{font-size:20px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.job-sub{font-size:13px;color:var(--text-dim);margin-top:3px;}
+.dia-badge{display:inline-block;padding:4px 12px;border-radius:20px;background:var(--accent-dim);color:var(--accent);font-size:14px;font-weight:800;margin-top:4px;}
+
+/* RIGHT PANEL */
+.kright{display:flex;flex-direction:column;gap:12px;overflow-y:auto;min-height:0;}
+
+/* ACTION BUTTONS */
+.kbtn{width:100%;padding:18px 20px;border:none;border-radius:14px;font-family:'Heebo',sans-serif;
+  font-size:18px;font-weight:800;cursor:pointer;transition:all .15s;letter-spacing:.2px;
+  display:flex;align-items:center;justify-content:center;gap:10px;}
+.kbtn:active{transform:scale(0.97);}
+.kbtn-success{background:var(--success);color:#fff;}
+.kbtn-success:hover{background:#219a52;}
+.kbtn-danger {background:var(--danger); color:#fff;}
+.kbtn-danger:hover{background:#c0392b;}
+.kbtn-warning{background:var(--warning);color:#fff;}
+.kbtn-warning:hover{background:#d68910;}
+.kbtn-outline{background:transparent;border:2px solid var(--border);color:var(--text-dim);}
+.kbtn-outline:hover{border-color:var(--accent);color:var(--accent);}
+.kbtn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+/* SHIFT INFO */
+.shift-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+.shift-title{font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
+.shift-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.shift-row:last-child{border-bottom:none;}
+.shift-key{font-size:12px;color:var(--text-dim);}
+.shift-val{font-size:14px;font-weight:700;}
+
+/* ALERTS BOX */
+.alerts-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;flex:1;overflow-y:auto;}
+.alert-row{padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:13px;}
+.alert-row:last-child{border-bottom:none;}
+.no-alerts-msg{color:var(--text-dim);font-size:13px;text-align:center;padding:16px 0;}
+
+/* ── MODALS ─────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:800;
+  display:none;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:#1e2530;border:1px solid var(--border);border-radius:20px;
+  width:min(480px,95vw);padding:24px;display:flex;flex-direction:column;gap:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+.modal-title{font-size:20px;font-weight:900;}
+
+/* PIN PAD */
+.pin-display{background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:12px;
+  padding:12px 20px;font-size:32px;letter-spacing:8px;text-align:center;min-height:56px;}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.pin-btn{padding:16px;border:none;border-radius:12px;background:rgba(255,255,255,0.08);
+  color:var(--text);font-family:'Heebo',sans-serif;font-size:22px;font-weight:700;cursor:pointer;transition:background .15s;}
+.pin-btn:active{background:rgba(255,255,255,0.18);}
+
+/* REASON PILLS */
+.reason-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.reason-pill{padding:14px 16px;border:2px solid var(--border);border-radius:12px;
+  cursor:pointer;font-size:14px;font-weight:700;text-align:center;transition:all .15s;
+  background:transparent;color:var(--text);}
+.reason-pill:active,.reason-pill.selected{border-color:var(--danger);background:var(--danger-dim);color:var(--danger);}
+
+/* TEXTAREA */
+.knotes{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-family:'Heebo',sans-serif;font-size:14px;padding:12px;resize:none;}
+.knotes:focus{outline:none;border-color:var(--accent);}
+
+/* STATUS OVERLAY on counter panel */
+.status-overlay{position:absolute;inset:0;border-radius:var(--radius);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:28px;font-weight:900;gap:8px;display:none;}
+.status-overlay.stopped{display:flex;background:rgba(231,76,60,0.15);}
+.status-overlay .overlay-reason{font-size:16px;font-weight:600;color:var(--text-dim);}
+
+/* ── NO JOB STATE ────────────────────────────────────────────── */
+.nojob{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  text-align:center;opacity:.7;}
+.nojob-icon{font-size:64px;}
+.nojob-text{font-size:20px;font-weight:700;color:var(--text-dim);}
+
+/* ── MOBILE (portrait tablet) ─────────────────────────────────── */
+@media(max-width:700px),(max-height:600px){
+  .kmain{grid-template-columns:1fr;grid-template-rows:auto 1fr;}
+  .counter-big{font-size:clamp(60px,25vw,120px);}
+  .kright{flex-direction:row;overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;}
+  .kright > *{flex-shrink:0;width:260px;}
+  .kbtn{font-size:15px;padding:14px;}
+}
+</style>
+</head>
+<body>
+<div class="kiosk">
+
+  <!-- TOP BAR -->
+  <div class="kbar">
+    <div>
+      <div class="kbar-machine" id="machineName">🔧 מכונה</div>
+      <div style="font-size:11px;color:var(--text-dim)" id="operatorName">לא מחובר</div>
+    </div>
+    <div class="kbar-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span style="font-size:13px;font-weight:700" id="machineStatus">לא מחובר</span>
+    </div>
+    <div style="text-align:left">
+      <div class="kbar-time" id="kTime"></div>
+      <div style="font-size:11px;color:var(--text-dim)" id="kDate"></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="kmain">
+
+    <!-- LEFT: COUNTER + JOB -->
+    <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+
+      <!-- Counter panel -->
+      <div class="counter-panel" id="counterPanel" style="flex:1">
+        <div id="noJobState" class="nojob">
+          <div class="nojob-icon">⏸</div>
+          <div class="nojob-text">אין עבודה פעילה</div>
+          <div style="font-size:13px;color:var(--text-dim)">ממתין להקצאת עבודה</div>
+        </div>
+        <div id="activeJobState" style="display:none;width:100%;height:100%;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+          <div class="counter-label">יחידות</div>
+          <div class="counter-big" id="counterVal">0</div>
+          <div class="counter-target" id="counterTarget">/ — יחידות</div>
+
+          <!-- Progress bar -->
+          <div style="width:100%;max-width:360px;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;margin-top:4px">
+            <div id="progressBar" style="height:100%;border-radius:5px;background:var(--accent);transition:width .5s;width:0%"></div>
+          </div>
+        </div>
+        <div class="status-overlay" id="stopOverlay">
+          🛑 עצירה פעילה
+          <div class="overlay-reason" id="stopOverlayReason"></div>
+        </div>
+      </div>
+
+      <!-- Job info cards -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="job-card">
+          <div class="job-label">הזמנה</div>
+          <div class="job-val" id="jobOrderNum">—</div>
+          <div class="job-sub" id="jobCustomer">—</div>
+        </div>
+        <div class="job-card">
+          <div class="job-label">קוטר / צורה</div>
+          <div class="job-val" id="jobDiameter"><span class="dia-badge">—</span></div>
+        </div>
+        <div class="job-card">
+          <div class="job-label">אספקה</div>
+          <div class="job-val" id="jobDelivery">—</div>
+          <div class="job-sub" id="jobDeliveryDays">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: ACTIONS + INFO -->
+    <div class="kright">
+
+      <!-- Action buttons -->
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="kbtn kbtn-success" id="btnComplete" onclick="reportComplete()" disabled>
+          ✅ סיום יחידה
+        </button>
+        <button class="kbtn kbtn-danger" id="btnStop" onclick="openStopModal()" disabled>
+          🛑 דיווח עצירה
+        </button>
+        <button class="kbtn kbtn-warning" id="btnWaste" onclick="openWasteModal()" disabled>
+          ⚠️ דיווח פחת
+        </button>
+        <button class="kbtn kbtn-outline" onclick="openShiftModal()">
+          👤 משמרת / כניסה
+        </button>
+        <button class="kbtn kbtn-outline" onclick="callSupervisor()">
+          📞 קרא מנהל
+        </button>
+      </div>
+
+      <!-- Shift info -->
+      <div class="shift-box" id="shiftBox">
+        <div class="shift-title">📋 משמרת נוכחית</div>
+        <div class="shift-row"><span class="shift-key">מפעיל</span><span class="shift-val" id="sOperator">—</span></div>
+        <div class="shift-row"><span class="shift-key">התחלה</span><span class="shift-val" id="sStart">—</span></div>
+        <div class="shift-row"><span class="shift-key">טון היום</span><span class="shift-val" id="sTons" style="color:var(--success)">—</span></div>
+        <div class="shift-row"><span class="shift-key">פחת</span><span class="shift-val" id="sWaste">—</span></div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="alerts-box">
+        <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔔 התראות</div>
+        <div id="alertsBox"><div class="no-alerts-msg">אין התראות</div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── SHIFT / LOGIN MODAL ──────────────────────────────────── -->
+<div class="modal-overlay" id="shiftModal">
+  <div class="modal-box">
+    <div class="modal-title">👤 כניסת מפעיל</div>
+    <div style="font-size:14px;color:var(--text-dim)">בחר מפעיל והזן PIN לפתיחת משמרת</div>
+    <select id="operatorSelect" style="padding:12px 16px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:16px;font-family:'Heebo',sans-serif;width:100%">
+      <option value="">בחר מפעיל...</option>
+    </select>
+    <div class="pin-display" id="pinDisplay">הזן PIN</div>
+    <div class="pin-grid">
+      <button class="pin-btn" onclick="pinPress('1')">1</button>
+      <button class="pin-btn" onclick="pinPress('2')">2</button>
+      <button class="pin-btn" onclick="pinPress('3')">3</button>
+      <button class="pin-btn" onclick="pinPress('4')">4</button>
+      <button class="pin-btn" onclick="pinPress('5')">5</button>
+      <button class="pin-btn" onclick="pinPress('6')">6</button>
+      <button class="pin-btn" onclick="pinPress('7')">7</button>
+      <button class="pin-btn" onclick="pinPress('8')">8</button>
+      <button class="pin-btn" onclick="pinPress('9')">9</button>
+      <button class="pin-btn" onclick="pinClear()" style="font-size:16px">🗑 מחק</button>
+      <button class="pin-btn" onclick="pinPress('0')">0</button>
+      <button class="pin-btn kbtn-success" onclick="pinConfirm()" style="font-size:16px">✓</button>
+    </div>
+    <button class="kbtn kbtn-outline" onclick="closeModal('shiftModal')">ביטול</button>
+  </div>
+</div>
+
+<!-- ── STOP MODAL ──────────────────────────────────────────── -->
+<div class="modal-overlay" id="stopModal">
+  <div class="modal-box">
+    <div class="modal-title">🛑 דיווח עצירה</div>
+    <div style="font-size:14px;color:var(--text-dim)">בחר סיבת עצירה:</div>
+    <div class="reason-grid" id="reasonGrid"></div>
+    <textarea class="knotes" id="stopNotes" rows="2" placeholder="הערות (אופציונלי)..."></textarea>
+    <div style="display:flex;gap:10px">
+      <button class="kbtn kbtn-danger" onclick="submitStop()" style="flex:1">🛑 אשר עצירה</button>
+      <button class="kbtn kbtn-outline" onclick="closeModal('stopModal')" style="flex:1">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── WASTE MODAL ─────────────────────────────────────────── -->
+<div class="modal-overlay" id="wasteModal">
+  <div class="modal-box">
+    <div class="modal-title">⚠️ דיווח פחת</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">כמות שיוצרה בפועל</div>
+        <input type="number" id="wasteProduced" min="0" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:22px;font-weight:700;padding:12px 16px;text-align:center">
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">פחת (יח')</div>
+        <input type="number" id="wasteAmt" min="0" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:22px;font-weight:700;padding:12px 16px;text-align:center;color:var(--warning)">
+      </div>
+    </div>
+    <textarea class="knotes" id="wasteNotes" rows="2" placeholder="סיבת פחת (אופציונלי)..."></textarea>
+    <div style="display:flex;gap:10px">
+      <button class="kbtn kbtn-warning" onclick="submitWaste()" style="flex:1">⚠️ שמור פחת</button>
+      <button class="kbtn kbtn-outline" onclick="closeModal('wasteModal')" style="flex:1">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SUPERVISOR CALL MODAL ──────────────────────────────── -->
+<div class="modal-overlay" id="supervisorModal">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:48px">📞</div>
+    <div class="modal-title">קריאה למנהל</div>
+    <div style="font-size:16px;color:var(--text-dim)">ההתראה נשלחה! מנהל יגיע בקרוב.</div>
+    <div id="supTimer" style="font-size:40px;font-weight:900;color:var(--warning)"></div>
+    <button class="kbtn kbtn-outline" onclick="closeModal('supervisorModal')">סגור</button>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────
+const params = new URLSearchParams(location.search);
+const MACHINE_ID = parseInt(params.get('machine') || params.get('m') || '1');
+
+let machineData  = null;
+let activeItem   = null;
+let activeShift  = null;
+let stopReasons  = [];
+let operators    = [];
+let currentOp    = null;
+let pinBuffer    = '';
+let activeStop   = null;
+let ws;
+
+const WS_URL = `ws://${location.host}`;
+
+// ── INIT ──────────────────────────────────────────────────────
+async function init() {
+  updateClock();
+  setInterval(updateClock, 1000);
+  await loadBaseData();
+  connectWS();
+  setInterval(refreshMachineState, 5000);
+  setInterval(refreshAlerts, 30000);
+}
+
+async function loadBaseData() {
+  try {
+    const [machines, reasons, users] = await Promise.all([
+      fetch('/api/machines').then(r=>r.json()),
+      fetch('/api/downtime-reasons').then(r=>r.json()),
+      fetch('/api/users').then(r=>r.json()),
+    ]);
+
+    machineData = machines.find(m => m.id === MACHINE_ID) || machines[0] || { id:1, name:'מכונה', status:'לא מחובר', counter:0 };
+    document.getElementById('machineName').textContent = '🔧 ' + machineData.name;
+    document.title = machineData.name + ' – IronBend';
+
+    stopReasons = reasons;
+    operators   = users.filter(u => u.active);
+    buildOperatorSelect();
+    buildReasonGrid();
+
+    await refreshMachineState();
+    await refreshAlerts();
+
+    // Restore last operator from localStorage
+    const savedOp = localStorage.getItem('kiosk_op_' + MACHINE_ID);
+    if (savedOp) {
+      const op = operators.find(u => u.id === parseInt(savedOp));
+      if (op) setCurrentOperator(op);
+    }
+  } catch(e) { console.warn('init error', e); }
+}
+
+function buildOperatorSelect() {
+  const sel = document.getElementById('operatorSelect');
+  sel.innerHTML = '<option value="">בחר מפעיל...</option>' +
+    operators.map(u => `<option value="${u.id}">${u.display_name} (${ROLE_HE[u.role]||u.role})</option>`).join('');
+}
+const ROLE_HE = { operator:'מפעיל', admin:'מנהל', manager:'מנהל', quality:'איכות', driver:'נהג' };
+
+function buildReasonGrid() {
+  const colors = { SETUP:'#3498db', BREAKDOWN:'#e74c3c', MATERIAL:'#f39c12', QUALITY:'#9b59b6', BREAK:'#27ae60', OTHER:'#7f8c8d' };
+  document.getElementById('reasonGrid').innerHTML = stopReasons.map(r => {
+    const col = r.color || colors[r.code] || '#7f8c8d';
+    return `<button class="reason-pill" data-code="${r.code}" style="border-color:${col}20"
+      onclick="selectReason(this,'${r.code}',this.style.borderColor='${col}',this.style.background='${col}20',this.style.color='${col}')">
+      ${r.label}</button>`;
+  }).join('');
+}
+
+function selectReason(btn, code) {
+  document.querySelectorAll('.reason-pill').forEach(p => p.classList.remove('selected'));
+  btn.classList.add('selected');
+  btn._code = code;
+}
+
+// ── CLOCK ──────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('kTime').textContent = now.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('kDate').textContent = now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});
+}
+
+// ── MACHINE STATE ──────────────────────────────────────────────
+async function refreshMachineState() {
+  try {
+    const machines = await fetch('/api/machines').then(r=>r.json());
+    machineData = machines.find(m => m.id === MACHINE_ID) || machineData;
+    renderMachineState();
+
+    // Fetch active item if exists
+    if (machineData.current_item_id) {
+      const items = await fetch(`/api/production-queue?machine=${MACHINE_ID}`).then(r=>r.json()).catch(()=>[]);
+      activeItem = items.find(it => it.id === machineData.current_item_id) || null;
+    } else {
+      activeItem = null;
+    }
+    renderJobInfo();
+
+    // Fetch active shift
+    await refreshShift();
+
+    // Fetch active stop
+    const stops = await fetch('/api/machine-stops?machine_id=' + MACHINE_ID + '&active=1').then(r=>r.json()).catch(()=>[]);
+    activeStop = stops.find(s => !s.ended_at) || null;
+    renderStopState();
+  } catch(e) { console.warn('state refresh error', e); }
+}
+
+function renderMachineState() {
+  if (!machineData) return;
+  const dot = document.getElementById('statusDot');
+  const statusEl = document.getElementById('machineStatus');
+  const s = machineData.status || 'לא מחובר';
+  statusEl.textContent = s;
+  dot.className = 'status-dot ' + (s==='בייצור'?'running':s.includes('תקלה')?'error':'');
+
+  document.getElementById('counterVal').textContent = machineData.counter || 0;
+  updateCounterColor();
+}
+
+function renderJobInfo() {
+  const noJob = document.getElementById('noJobState');
+  const activeJob = document.getElementById('activeJobState');
+  const hasJob = !!activeItem;
+
+  noJob.style.display    = hasJob ? 'none' : 'flex';
+  activeJob.style.display = hasJob ? 'flex' : 'none';
+
+  document.getElementById('btnComplete').disabled = !hasJob;
+  document.getElementById('btnStop').disabled     = !activeShift;
+  document.getElementById('btnWaste').disabled    = !hasJob;
+
+  if (hasJob) {
+    const qty = activeItem.quantity || 1;
+    const done = machineData.counter || 0;
+    const pct  = Math.min(100, Math.round((done / qty) * 100));
+
+    document.getElementById('counterTarget').textContent = '/ ' + qty + ' יחידות (' + pct + '%)';
+    document.getElementById('progressBar').style.width  = pct + '%';
+    document.getElementById('progressBar').style.background = pct >= 100 ? 'var(--success)' : 'var(--accent)';
+
+    document.getElementById('jobOrderNum').textContent  = activeItem.order_num || '—';
+    document.getElementById('jobCustomer').textContent  = activeItem.customer_name || '';
+    document.getElementById('jobDiameter').innerHTML    = `<span class="dia-badge">⌀${activeItem.diameter || '—'} מ"מ</span>`;
+
+    if (activeItem.delivery_date) {
+      const daysLeft = Math.round((new Date(activeItem.delivery_date) - new Date()) / 86400000);
+      document.getElementById('jobDelivery').textContent = new Date(activeItem.delivery_date).toLocaleDateString('he-IL',{day:'numeric',month:'short'});
+      document.getElementById('jobDeliveryDays').textContent = daysLeft < 0 ? `⚠️ איחור ${Math.abs(daysLeft)} ימים` : daysLeft === 0 ? '🔴 היום!' : `${daysLeft} ימים`;
+      document.getElementById('jobDeliveryDays').style.color = daysLeft <= 0 ? 'var(--danger)' : daysLeft <= 2 ? 'var(--warning)' : 'var(--text-dim)';
+    } else {
+      document.getElementById('jobDelivery').textContent = '—';
+      document.getElementById('jobDeliveryDays').textContent = '';
+    }
+  }
+  updateCounterColor();
+}
+
+function updateCounterColor() {
+  const el = document.getElementById('counterVal');
+  if (!activeItem) { el.style.color = 'var(--text-dim)'; return; }
+  const pct = (machineData.counter || 0) / (activeItem.quantity || 1);
+  el.className = 'counter-big' + (pct >= 1 ? ' complete' : '');
+}
+
+function renderStopState() {
+  const overlay = document.getElementById('stopOverlay');
+  if (activeStop) {
+    overlay.className = 'status-overlay stopped';
+    document.getElementById('stopOverlayReason').textContent = activeStop.reason_code || '';
+    document.getElementById('btnStop').textContent = '▶️ סיים עצירה';
+    document.getElementById('btnStop').classList.remove('kbtn-danger');
+    document.getElementById('btnStop').classList.add('kbtn-success');
+    document.getElementById('btnStop').onclick = resumeFromStop;
+  } else {
+    overlay.className = 'status-overlay';
+    document.getElementById('btnStop').textContent = '🛑 דיווח עצירה';
+    document.getElementById('btnStop').classList.remove('kbtn-success');
+    document.getElementById('btnStop').classList.add('kbtn-danger');
+    document.getElementById('btnStop').onclick = openStopModal;
+  }
+}
+
+// ── SHIFT ──────────────────────────────────────────────────────
+async function refreshShift() {
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const shifts = await fetch('/api/shifts?date=' + today + '&machine_id=' + MACHINE_ID).then(r=>r.json());
+    activeShift = shifts.find(s => !s.ended_at) || null;
+
+    if (activeShift) {
+      const since = new Date(activeShift.started_at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+      document.getElementById('sOperator').textContent = currentOp?.display_name || activeShift.operator_id;
+      document.getElementById('sStart').textContent    = since;
+    } else {
+      document.getElementById('sOperator').textContent = currentOp?.display_name || 'לא פתוחה';
+      document.getElementById('sStart').textContent    = '—';
+    }
+
+    // Tons today
+    const tons = await fetch('/api/kpi/tons-today').then(r=>r.json()).catch(()=>({tons:0}));
+    document.getElementById('sTons').textContent = tons.tons + ' ט';
+  } catch {}
+}
+
+// ── SHIFT MODAL ─────────────────────────────────────────────────
+function openShiftModal() {
+  pinBuffer = '';
+  document.getElementById('pinDisplay').textContent = 'הזן PIN';
+  document.getElementById('operatorSelect').value = currentOp?.id || '';
+  openModal('shiftModal');
+}
+
+function pinPress(digit) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += digit;
+  document.getElementById('pinDisplay').textContent = '●'.repeat(pinBuffer.length);
+}
+
+function pinClear() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  document.getElementById('pinDisplay').textContent = pinBuffer.length ? '●'.repeat(pinBuffer.length) : 'הזן PIN';
+}
+
+async function pinConfirm() {
+  const opId = parseInt(document.getElementById('operatorSelect').value);
+  if (!opId) { shakeEl('operatorSelect'); return; }
+
+  const op = operators.find(u => u.id === opId);
+  if (!op) return;
+
+  // If operator has PIN, verify it
+  if (op.pin && op.pin !== pinBuffer) {
+    document.getElementById('pinDisplay').textContent = '✗ PIN שגוי';
+    document.getElementById('pinDisplay').style.color = 'var(--danger)';
+    pinBuffer = '';
+    setTimeout(() => {
+      document.getElementById('pinDisplay').textContent = 'הזן PIN';
+      document.getElementById('pinDisplay').style.color = '';
+    }, 1500);
+    return;
+  }
+
+  setCurrentOperator(op);
+
+  // Open shift if none exists
+  if (!activeShift) {
+    try {
+      await fetch('/api/shifts', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          machine_id: MACHINE_ID,
+          operator_id: op.id,
+          shift_type: getShiftType(),
+          date: new Date().toISOString().slice(0,10),
+        })
+      });
+      await refreshShift();
+      showKioskToast('✓ משמרת נפתחה – ' + op.display_name, 'success');
+    } catch(e) { showKioskToast('שגיאה בפתיחת משמרת', 'error'); }
+  } else {
+    showKioskToast('✓ ברוך הבא, ' + op.display_name, 'success');
+  }
+  closeModal('shiftModal');
+}
+
+function setCurrentOperator(op) {
+  currentOp = op;
+  document.getElementById('operatorName').textContent = '👤 ' + op.display_name;
+  localStorage.setItem('kiosk_op_' + MACHINE_ID, op.id);
+  document.getElementById('btnStop').disabled = false;
+}
+
+function getShiftType() {
+  const h = new Date().getHours();
+  return h >= 6 && h < 14 ? 'morning' : h >= 14 && h < 22 ? 'afternoon' : 'night';
+}
+
+// ── STOP MODAL ──────────────────────────────────────────────────
+function openStopModal() {
+  document.querySelectorAll('.reason-pill').forEach(p => p.classList.remove('selected'));
+  document.getElementById('stopNotes').value = '';
+  openModal('stopModal');
+}
+
+async function submitStop() {
+  const selectedBtn = document.querySelector('.reason-pill.selected');
+  if (!selectedBtn) { shakeEl('reasonGrid'); return; }
+
+  try {
+    await fetch('/api/machine-stops', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        machine_id:  MACHINE_ID,
+        shift_id:    activeShift?.id || null,
+        reason_code: selectedBtn.dataset.code,
+        notes:       document.getElementById('stopNotes').value,
+        reported_by: currentOp?.id || null,
+      })
+    });
+    closeModal('stopModal');
+    await refreshMachineState();
+    showKioskToast('🛑 עצירה נרשמה', 'error');
+  } catch(e) { showKioskToast('שגיאה בדיווח עצירה', 'error'); }
+}
+
+async function resumeFromStop() {
+  if (!activeStop) return;
+  try {
+    await fetch(`/api/machine-stops/${activeStop.id}/end`, { method:'PATCH' });
+    await refreshMachineState();
+    showKioskToast('▶️ עצירה הסתיימה', 'success');
+  } catch(e) { showKioskToast('שגיאה', 'error'); }
+}
+
+// ── WASTE MODAL ──────────────────────────────────────────────────
+function openWasteModal() {
+  document.getElementById('wasteProduced').value = machineData.counter || 0;
+  document.getElementById('wasteAmt').value = 0;
+  document.getElementById('wasteNotes').value = '';
+  openModal('wasteModal');
+}
+
+async function submitWaste() {
+  if (!activeItem) return;
+  const produced = parseInt(document.getElementById('wasteProduced').value) || 0;
+  const waste    = parseInt(document.getElementById('wasteAmt').value) || 0;
+  const notes    = document.getElementById('wasteNotes').value;
+
+  try {
+    await fetch(`/api/items/${activeItem.id}`, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ produced_qty: produced, actual_waste: waste, note: notes })
+    });
+    closeModal('wasteModal');
+    await refreshMachineState();
+    showKioskToast('✓ פחת נרשם', 'success');
+  } catch(e) { showKioskToast('שגיאה', 'error'); }
+}
+
+// ── COMPLETE ──────────────────────────────────────────────────────
+async function reportComplete() {
+  if (!confirm('לסמן יחידה זו כ"הושלמה"?')) return;
+  try {
+    await fetch(`/api/items/${activeItem.id}/status`, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status:'הושלם', produced_qty: machineData.counter || activeItem.quantity })
+    });
+    showKioskToast('✅ יחידה הושלמה!', 'success');
+    await refreshMachineState();
+  } catch(e) { showKioskToast('שגיאה', 'error'); }
+}
+
+// ── SUPERVISOR ────────────────────────────────────────────────────
+async function callSupervisor() {
+  try {
+    await fetch('/api/alerts', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        message: `📞 מפעיל קורא למנהל — ${machineData?.name || 'מכונה ' + MACHINE_ID} · ${currentOp?.display_name || 'לא מזוהה'}`,
+        level: 'warning',
+        entity_type: 'machine',
+        entity_id: MACHINE_ID,
+      })
+    });
+  } catch {}
+  openModal('supervisorModal');
+  let sec = 0;
+  const t = setInterval(() => {
+    document.getElementById('supTimer').textContent = ++sec + 's';
+  }, 1000);
+  setTimeout(() => { clearInterval(t); closeModal('supervisorModal'); }, 60000);
+}
+
+// ── ALERTS ────────────────────────────────────────────────────────
+async function refreshAlerts() {
+  try {
+    const alerts = await fetch('/api/alerts').then(r=>r.json());
+    const machine_alerts = alerts.filter(a => !a.entity_type || a.entity_type === 'machine' || a.entity_id === MACHINE_ID);
+    const el = document.getElementById('alertsBox');
+    if (!machine_alerts.length) {
+      el.innerHTML = '<div class="no-alerts-msg">אין התראות ✓</div>';
+    } else {
+      const colors = { critical:'var(--danger)', warning:'var(--warning)', info:'var(--info)' };
+      el.innerHTML = machine_alerts.slice(0,5).map(a => `
+        <div class="alert-row" style="color:${colors[a.level]||'var(--text-dim)'}">
+          ${a.message}
+        </div>`).join('');
+    }
+  } catch {}
+}
+
+// ── WEBSOCKET ─────────────────────────────────────────────────────
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+  ws.onclose = () => setTimeout(connectWS, 3000);
+  ws.onmessage = e => {
+    try {
+      const { type, data } = JSON.parse(e.data);
+      if (type === 'machine_update' && data.id === MACHINE_ID) {
+        machineData = { ...machineData, ...data };
+        renderMachineState();
+        renderJobInfo();
+      }
+      if (type === 'alert') refreshAlerts();
+    } catch {}
+  };
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function shakeEl(id) {
+  const el = document.getElementById(id);
+  el.style.animation = 'none';
+  el.style.outline = '2px solid var(--danger)';
+  setTimeout(() => el.style.outline = '', 1200);
+}
+
+function showKioskToast(msg, type) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  const bg = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--warning)';
+  t.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:${bg};color:#fff;padding:12px 24px;border-radius:12px;font-size:16px;font-weight:700;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,0.3)`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+init();
+</script>
+</body>
+</html>

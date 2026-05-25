@@ -17,11 +17,22 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
 .nav-link.active{background:var(--accent-dim);color:var(--accent);}
 .page{max-width:1300px;margin:0 auto;padding:24px 16px;}
-.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin-bottom:24px;}
 .kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;}
 .kpi-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
 .kpi-val{font-size:26px;font-weight:900;}
 .kpi-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+/* TABS */
+.tabs{display:flex;gap:4px;background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);padding:6px;margin-bottom:20px;}
+.tab-btn{flex:1;padding:10px 16px;border:none;border-radius:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:700;cursor:pointer;background:transparent;color:var(--text-dim);transition:all 0.2s;}
+.tab-btn.active{background:var(--accent);color:#fff;}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+
+/* CARDS + TABLE */
 .card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
 .card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
 .card-title{font-size:15px;font-weight:800;}
@@ -30,6 +41,8 @@ th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(-
 td{padding:10px 14px;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.04);}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:rgba(0,0,0,0.015);}
+
+/* BADGES */
 .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
 .badge-open{background:var(--danger-dim);color:var(--danger);}
 .badge-wip{background:var(--warning-dim);color:var(--warning);}
@@ -37,18 +50,32 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .badge-urgent{background:var(--danger-dim);color:var(--danger);}
 .badge-high{background:var(--warning-dim);color:var(--warning);}
 .badge-normal{background:rgba(0,0,0,0.06);color:var(--text-dim);}
+.badge-locked{background:#b83227;color:#fff;}
+.badge-green{background:var(--success-dim);color:var(--success);}
+.badge-orange{background:var(--warning-dim);color:var(--warning);}
+.badge-red{background:var(--danger-dim);color:var(--danger);}
+
+/* BUTTONS */
 .btn{padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;}
 .btn-primary{background:var(--accent);color:#fff;}
 .btn-primary:hover{background:var(--accent-light);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover{background:#d44040;}
 .btn-success{background:var(--success);color:#fff;}
+.btn-success:hover{background:#23a05a;}
 .btn-sm{padding:5px 12px;font-size:12px;}
+.btn-lg{padding:12px 28px;font-size:15px;}
 .btn-outline{background:transparent;border:1px solid var(--border-bright);color:var(--text-dim);}
 .btn-outline:hover{background:rgba(0,0,0,0.04);}
+
+/* FILTERS */
 .filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .filters select,.filters input{padding:8px 12px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center;}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center;padding:16px;}
 .modal-overlay.open{display:flex;}
-.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:520px;box-shadow:0 16px 50px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto;}
+.modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:540px;box-shadow:0 16px 50px rgba(0,0,0,0.28);max-height:92vh;overflow-y:auto;}
 .modal h2{font-size:18px;font-weight:900;margin-bottom:20px;}
 .form-row{margin-bottom:14px;}
 .form-row label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:6px;}
@@ -56,14 +83,45 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:var(--accent);}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
-.timeline-row{display:grid;grid-template-columns:120px 1fr;gap:20px;padding:16px 20px;}
-.tl-machines{display:flex;flex-direction:column;gap:8px;}
-.machine-badge{padding:8px 12px;border-radius:var(--radius-sm);background:var(--steel-light);border:1px solid var(--border);font-weight:700;font-size:13px;cursor:pointer;transition:0.2s;}
-.machine-badge.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);}
-.machine-badge.broken{background:var(--danger-dim);color:var(--danger);border-color:var(--danger);}
+
+/* WARNING BOX */
+.warning-box{background:#fff3cd;border:2px solid #f0ad4e;border-radius:var(--radius-sm);padding:12px 16px;font-size:13px;font-weight:700;color:#7a5700;margin-bottom:16px;display:flex;align-items:flex-start;gap:8px;}
+
+/* LOTO CARDS */
+.loto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;padding:20px;}
+.loto-card{border:2px solid var(--danger);border-radius:var(--radius);background:#fff8f7;padding:20px;position:relative;}
+.loto-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.loto-machine-name{font-size:17px;font-weight:900;color:var(--danger);}
+.loto-timer{font-size:20px;font-weight:900;font-variant-numeric:tabular-nums;color:var(--danger);background:var(--danger-dim);padding:4px 10px;border-radius:6px;}
+.loto-row{display:flex;gap:8px;font-size:13px;margin-bottom:6px;}
+.loto-row-label{font-weight:700;color:var(--text-dim);min-width:90px;}
+.loto-row-val{color:var(--text);}
+.loto-actions{margin-top:14px;display:flex;gap:8px;}
+
+/* HEALTH CARDS */
+.health-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;padding:20px;}
+.health-card{border:1px solid var(--border);border-radius:var(--radius);background:var(--steel-mid);padding:20px;}
+.health-card-header{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+.health-ring{width:64px;height:64px;position:relative;flex-shrink:0;}
+.health-ring svg{transform:rotate(-90deg);}
+.health-ring-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;}
+.health-name{font-size:15px;font-weight:800;}
+.health-label{font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.4px;}
+.health-detail{font-size:12px;color:var(--text-dim);margin-bottom:4px;}
+.health-fault{font-size:11px;background:var(--steel-light);border-radius:4px;padding:3px 7px;display:inline-block;margin:2px 2px 0 0;color:var(--text-dim);}
+.health-alert{background:var(--warning-dim);border:1px solid var(--warning);border-radius:6px;padding:6px 10px;font-size:12px;font-weight:700;color:var(--warning);margin-top:10px;}
+
+/* PM STATUS COLORS */
+.pm-ok td:first-child{border-right:3px solid var(--success);}
+.pm-soon td:first-child{border-right:3px solid var(--warning);}
+.pm-late td:first-child{border-right:3px solid var(--danger);}
+
+/* RELEASE INFO BOX */
+.info-box{background:var(--info-dim);border:1px solid var(--info);border-radius:var(--radius-sm);padding:12px 16px;font-size:13px;color:var(--info);margin-bottom:14px;}
+.info-box strong{display:block;font-size:14px;margin-bottom:4px;}
 </style>
 </head>
-<body>
+<body data-page="maintenance">
 <nav class="topnav">
   <div class="logo"><div class="logo-icon">🔩</div>IronBend</div>
   <div class="nav-links">
@@ -77,48 +135,129 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     <a href="admin.html" class="nav-link">ניהול</a>
   </div>
 </nav>
+
 <div class="page">
+
+  <!-- ═══ KPI BAR ═══ -->
   <div class="kpi-row">
     <div class="kpi-card"><div class="kpi-label">תקלות פתוחות</div><div class="kpi-val" style="color:var(--danger)" id="kpiOpen">—</div><div class="kpi-sub">דורשות טיפול</div></div>
     <div class="kpi-card"><div class="kpi-label">בטיפול</div><div class="kpi-val" style="color:var(--warning)" id="kpiWip">—</div><div class="kpi-sub">בתהליך</div></div>
     <div class="kpi-card"><div class="kpi-label">סה"כ תקלות</div><div class="kpi-val" id="kpiTotal">—</div><div class="kpi-sub">מאז תחילה</div></div>
     <div class="kpi-card"><div class="kpi-label">השבתה ממוצעת</div><div class="kpi-val" id="kpiDowntime">—</div><div class="kpi-sub">דקות לתקלה</div></div>
+    <div class="kpi-card"><div class="kpi-label">MTBF</div><div class="kpi-val" id="kpiMtbf" style="color:var(--info)">—</div><div class="kpi-sub">שעות בין תקלות</div></div>
+    <div class="kpi-card"><div class="kpi-label">MTTR</div><div class="kpi-val" id="kpiMttr" style="color:var(--accent)">—</div><div class="kpi-sub">שעות לתיקון</div></div>
+    <div class="kpi-card"><div class="kpi-label">LOTO פעילים</div><div class="kpi-val" style="color:var(--danger)" id="kpiLotoActive">—</div><div class="kpi-sub">מכונות נעולות כרגע</div></div>
+    <div class="kpi-card"><div class="kpi-label">LOTO השבוע</div><div class="kpi-val" id="kpiLotoWeek">—</div><div class="kpi-sub">הושלמו</div></div>
+    <div class="kpi-card"><div class="kpi-label">זמן ממוצע נעילה</div><div class="kpi-val" id="kpiLotoAvg">—</div><div class="kpi-sub">שעות</div></div>
   </div>
 
-  <div class="card">
-    <div class="card-header">
-      <span class="card-title">🔧 יומן תחזוקה ותקלות</span>
-      <div class="filters">
-        <select id="fMachine" onchange="loadLogs()"><option value="">כל המכונות</option></select>
-        <select id="fStatus" onchange="loadLogs()">
-          <option value="">כל הסטטוסים</option>
-          <option value="פתוחה">פתוחות</option>
-          <option value="בטיפול">בטיפול</option>
-          <option value="סגורה">סגורות</option>
-        </select>
-        <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ דיווח תקלה / תחזוקה</button>
+  <!-- ═══ TABS ═══ -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('maintenance')">🔧 תקלות ותחזוקה</button>
+    <button class="tab-btn" onclick="switchTab('loto')">🔒 LOTO – נעילה ותיוג</button>
+    <button class="tab-btn" onclick="switchTab('pm')">📅 תחזוקה מונעת</button>
+    <button class="tab-btn" onclick="switchTab('health')">❤️ בריאות מכונות</button>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       TAB 1: MAINTENANCE LOG
+  ══════════════════════════════════════ -->
+  <div class="tab-pane active" id="tab-maintenance">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🔧 יומן תחזוקה ותקלות</span>
+        <div class="filters">
+          <select id="fMachine" onchange="loadLogs()"><option value="">כל המכונות</option></select>
+          <select id="fStatus" onchange="loadLogs()">
+            <option value="">כל הסטטוסים</option>
+            <option value="פתוחה">פתוחות</option>
+            <option value="בטיפול">בטיפול</option>
+            <option value="סגורה">סגורות</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ דיווח תקלה / תחזוקה</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>מכונה</th><th>סוג</th><th>תיאור</th><th>עדיפות</th><th>סטטוס</th>
+          <th>דיווח</th><th>השבתה (דק')</th><th>עלות</th><th>פעולות</th>
+        </tr></thead>
+        <tbody id="logsTable">טוען...</tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">📊 השבתה לפי מכונה</span></div>
+      <table>
+        <thead><tr><th>מכונה</th><th>אירועים</th><th>סה"כ השבתה</th><th>ממוצע לתקלה</th><th>MTBF</th><th>MTTR</th></tr></thead>
+        <tbody id="byMachineTable">טוען...</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       TAB 2: LOTO
+  ══════════════════════════════════════ -->
+  <div class="tab-pane" id="tab-loto">
+
+    <!-- Active locks -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🔴 נעילות פעילות</span>
+        <button class="btn btn-danger btn-lg" onclick="openLotoModal()">🔒 פתח נעילה חדשה</button>
+      </div>
+      <div id="lotoActiveGrid" class="loto-grid" style="min-height:80px">
+        <div style="padding:20px;color:var(--text-muted);text-align:center">טוען...</div>
       </div>
     </div>
-    <table>
-      <thead><tr>
-        <th>מכונה</th><th>סוג</th><th>תיאור</th><th>עדיפות</th><th>סטטוס</th>
-        <th>דיווח</th><th>השבתה (דק')</th><th>עלות</th><th>פעולות</th>
-      </tr></thead>
-      <tbody id="logsTable">טוען...</tbody>
-    </table>
+
+    <!-- LOTO history -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">📋 היסטוריית LOTO</span></div>
+      <table>
+        <thead><tr>
+          <th>תאריך נעילה</th><th>מכונה</th><th>מבצע</th><th>סיבה</th><th>משך</th><th>שוחרר ע"י</th><th>תאריך שחרור</th>
+        </tr></thead>
+        <tbody id="lotoHistoryTable">טוען...</tbody>
+      </table>
+    </div>
   </div>
 
-  <!-- MACHINE STATUS SUMMARY -->
-  <div class="card">
-    <div class="card-header"><span class="card-title">📊 השבתה לפי מכונה</span></div>
-    <table>
-      <thead><tr><th>מכונה</th><th>אירועים</th><th>סה"כ השבתה</th><th>ממוצע לתקלה</th></tr></thead>
-      <tbody id="byMachineTable">טוען...</tbody>
-    </table>
+  <!-- ══════════════════════════════════════
+       TAB 3: PREVENTIVE MAINTENANCE
+  ══════════════════════════════════════ -->
+  <div class="tab-pane" id="tab-pm">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📅 לוח תחזוקה מונעת</span>
+        <button class="btn btn-primary btn-sm" onclick="openPmModal()">+ תזמן תחזוקה</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>מכונה</th><th>סוג תחזוקה</th><th>תדירות</th><th>ביצוע אחרון</th><th>ביצוע הבא</th><th>סטטוס</th><th>פעולות</th>
+        </tr></thead>
+        <tbody id="pmTable">טוען...</tbody>
+      </table>
+    </div>
   </div>
-</div>
 
-<!-- ADD/EDIT MODAL -->
+  <!-- ══════════════════════════════════════
+       TAB 4: MACHINE HEALTH
+  ══════════════════════════════════════ -->
+  <div class="tab-pane" id="tab-health">
+    <div class="card">
+      <div class="card-header"><span class="card-title">❤️ בריאות מכונות – ניתוח חכם</span></div>
+      <div id="healthGrid" class="health-grid">
+        <div style="padding:20px;color:var(--text-muted)">טוען...</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- ══════════════════════════════════════
+     MODAL: ADD/EDIT MAINTENANCE LOG
+══════════════════════════════════════ -->
 <div class="modal-overlay" id="mainModal">
   <div class="modal">
     <h2 id="modalTitle">🔧 דיווח תקלה</h2>
@@ -172,40 +311,203 @@ tr:hover td{background:rgba(0,0,0,0.015);}
       <input id="mParts" type="text" placeholder="רשימת חלקים...">
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal()">ביטול</button>
+      <button class="btn btn-outline" onclick="closeModal('mainModal')">ביטול</button>
       <button class="btn btn-primary" onclick="saveLog()">שמור</button>
     </div>
   </div>
 </div>
 
+<!-- ══════════════════════════════════════
+     MODAL: OPEN LOTO
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="lotoModal">
+  <div class="modal">
+    <h2>🔒 פתח נעילה חדשה (LOTO)</h2>
+    <div class="warning-box">⚠️ ביצוע LOTO עוצר את המכונה ומונע הפעלתה עד לשחרור מאושר</div>
+    <div class="form-row"><label>מכונה *</label>
+      <select id="lMachine"><option value="">בחר מכונה פעילה...</option></select>
+    </div>
+    <div class="form-row"><label>מבצע LOTO *</label>
+      <select id="lWorker"><option value="">בחר עובד...</option></select>
+    </div>
+    <div class="form-row"><label>סיבה *</label>
+      <select id="lReason" onchange="toggleLotoOther()">
+        <option value="תחזוקה מונעת">תחזוקה מונעת</option>
+        <option value="תקלה">תקלה</option>
+        <option value="ניקיון">ניקיון</option>
+        <option value="הכשרה">הכשרה</option>
+        <option value="אחר">אחר</option>
+      </select>
+    </div>
+    <div class="form-row" id="lOtherRow" style="display:none"><label>פרט סיבה</label>
+      <textarea id="lOther" rows="2" placeholder="פרט את הסיבה..."></textarea>
+    </div>
+    <div class="form-row"><label>הערות בטיחות</label>
+      <textarea id="lSafetyNotes" rows="2" placeholder="הערות בטיחות, סכנות, נהלים מיוחדים..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('lotoModal')">ביטול</button>
+      <button class="btn btn-danger" onclick="saveLoto()">🔒 אשר ופתח LOTO</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MODAL: RELEASE LOTO
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="releaseModal">
+  <div class="modal">
+    <h2>🔓 שחרור נעילה (LOTO)</h2>
+    <input type="hidden" id="rLotoId">
+    <div class="info-box" id="releaseInfoBox">
+      <strong id="releaseMachineName">מכונה</strong>
+      <span id="releaseLockedBy"></span><br>
+      <span id="releaseLockedAt"></span><br>
+      <span id="releaseDuration" style="font-weight:900"></span>
+    </div>
+    <div class="form-row"><label>שם המשחרר *</label>
+      <input id="rReleasedBy" type="text" placeholder="שם מלא">
+    </div>
+    <div class="form-row">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="rSafeCheck" style="width:auto;accent-color:var(--success)">
+        <span>אני מצהיר/ה שהמכונה בטוחה לחזרה לפעולה</span>
+      </label>
+    </div>
+    <div class="form-row"><label>הערות שחרור</label>
+      <textarea id="rNotes" rows="2" placeholder="מה בוצע? האם הבעיה נפתרה?"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('releaseModal')">ביטול</button>
+      <button class="btn btn-success" onclick="releaseLoto()">🔓 אשר שחרור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MODAL: PM SCHEDULE
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="pmModal">
+  <div class="modal">
+    <h2>📅 תזמון תחזוקה מונעת</h2>
+    <input type="hidden" id="pmId">
+    <div class="form-row"><label>מכונה *</label>
+      <select id="pmMachine"><option value="">בחר מכונה...</option></select>
+    </div>
+    <div class="form-row"><label>סוג תחזוקה *</label>
+      <input id="pmType" type="text" placeholder="שמן, פילטר, כיול, בדיקת חשמל...">
+    </div>
+    <div class="form-row"><label>תדירות *</label>
+      <select id="pmFrequency">
+        <option value="יומי">יומי</option>
+        <option value="שבועי">שבועי</option>
+        <option value="חודשי" selected>חודשי</option>
+        <option value="רבעוני">רבעוני</option>
+      </select>
+    </div>
+    <div class="form-row"><label>תאריך ביצוע אחרון</label>
+      <input id="pmLastDate" type="date">
+    </div>
+    <div class="form-row"><label>הוראות ביצוע</label>
+      <textarea id="pmInstructions" rows="3" placeholder="צעדים לביצוע התחזוקה..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('pmModal')">ביטול</button>
+      <button class="btn btn-primary" onclick="savePm()">שמור</button>
+    </div>
+  </div>
+</div>
+
 <script>
-let logs = [], machines = [];
+/* ── globals ── */
+let logs = [], machines = [], lotoList = [], pmList = [], editingId = null, releasingLotoId = null;
+let lotoTimers = {};
 
 const TYPE_LABELS = { breakdown:'🔴 תקלה', preventive:'🔵 מונעת', repair:'🟠 תיקון', inspection:'🟢 בדיקה' };
 const STATUS_CLS  = { פתוחה:'badge-open', בטיפול:'badge-wip', סגורה:'badge-done' };
 const PRIO_CLS    = { דחוף:'badge-urgent', גבוה:'badge-high', רגיל:'badge-normal', נמוך:'badge-normal' };
+const FREQ_DAYS   = { יומי:1, שבועי:7, חודשי:30, רבעוני:90 };
 
+/* ── utils ── */
 function fmt0(v){ return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:0}); }
 function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function dtStr(s){ return s ? new Date(s).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
-
-async function init() {
-  machines = await fetch('/api/machines').then(r=>r.json()).catch(()=>[]);
-  const sel = document.getElementById('fMachine');
-  const mSel = document.getElementById('mMachine');
-  const opts = machines.map(m=>`<option value="${m.id}">${escH(m.label||'')} – ${escH(m.name)}</option>`).join('');
-  sel.innerHTML = '<option value="">כל המכונות</option>' + opts;
-  mSel.innerHTML = '<option value="">בחר מכונה...</option>' + opts;
-  loadStats();
-  loadLogs();
+function dateStr(s){ return s ? new Date(s).toLocaleDateString('he-IL') : '—'; }
+function elapsed(start){
+  const ms = Date.now() - new Date(start).getTime();
+  const h = Math.floor(ms/3600000);
+  const m = Math.floor((ms%3600000)/60000);
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+function durStr(startStr, endStr){
+  const ms = new Date(endStr||Date.now()).getTime() - new Date(startStr).getTime();
+  const h = Math.floor(ms/3600000);
+  const m = Math.floor((ms%3600000)/60000);
+  return h+'ש\' '+m+'ד\'';
 }
 
+/* ── tabs ── */
+function switchTab(name){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.target.classList.add('active');
+  if(name==='loto') loadLoto();
+  if(name==='pm')   loadPm();
+  if(name==='health') loadHealth();
+}
+
+/* ── modal helpers ── */
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+
+/* ══════════════════════════════════════
+   INIT
+══════════════════════════════════════ */
+async function init() {
+  machines = await fetch('/api/machines').then(r=>r.json()).catch(()=>mockMachines());
+  populateMachineSelects();
+  populateWorkerSelects();
+  loadStats();
+  loadLogs();
+  loadLotoKpi();
+}
+
+function mockMachines(){
+  return [
+    {id:1,label:'M-01',name:'כופף CNC ראשי',status:'running'},
+    {id:2,label:'M-02',name:'מחתך פלזמה',status:'running'},
+    {id:3,label:'M-03',name:'מכונת קידוח',status:'idle'},
+    {id:4,label:'M-04',name:'לוח בקרה',status:'running'},
+  ];
+}
+
+function populateMachineSelects(){
+  const opts = machines.map(m=>`<option value="${m.id}">${escH(m.label||'')} – ${escH(m.name)}</option>`).join('');
+  const runningOpts = machines.filter(m=>m.status==='running'||!m.status).map(m=>`<option value="${m.id}">${escH(m.label||'')} – ${escH(m.name)}</option>`).join('');
+  document.getElementById('fMachine').innerHTML = '<option value="">כל המכונות</option>'+opts;
+  document.getElementById('mMachine').innerHTML = '<option value="">בחר מכונה...</option>'+opts;
+  document.getElementById('pmMachine').innerHTML = '<option value="">בחר מכונה...</option>'+opts;
+  document.getElementById('lMachine').innerHTML = '<option value="">בחר מכונה פעילה...</option>'+runningOpts;
+}
+
+function populateWorkerSelects(){
+  const workers = ['ישראל ישראלי','משה כהן','דוד לוי','אברהם רוזנברג','שמעון מוזס'];
+  const opts = workers.map(w=>`<option value="${w}">${w}</option>`).join('');
+  document.getElementById('lWorker').innerHTML = '<option value="">בחר עובד...</option>'+opts;
+}
+
+/* ══════════════════════════════════════
+   MAINTENANCE – STATS & LOGS
+══════════════════════════════════════ */
 async function loadStats() {
-  const s = await fetch('/api/maintenance/stats').then(r=>r.json()).catch(()=>({}));
-  document.getElementById('kpiOpen').textContent = s.open||0;
-  document.getElementById('kpiWip').textContent  = 0; // calculated below
-  document.getElementById('kpiTotal').textContent = s.breakdowns||0;
+  const s = await fetch('/api/maintenance/stats').then(r=>r.json()).catch(()=>mockStats());
+  document.getElementById('kpiOpen').textContent   = s.open||0;
+  document.getElementById('kpiTotal').textContent  = s.breakdowns||0;
   document.getElementById('kpiDowntime').textContent = s.avgDowntime||0;
+  document.getElementById('kpiMtbf').textContent = s.mtbf ? s.mtbf+'h' : '—';
+  document.getElementById('kpiMttr').textContent = s.mttr ? s.mttr+'h' : '—';
+
   const tbody = document.getElementById('byMachineTable');
   const rows = s.byMachine||[];
   tbody.innerHTML = rows.length ? rows.map(r=>`<tr>
@@ -213,20 +515,29 @@ async function loadStats() {
     <td>${r.events}</td>
     <td>${fmt0(r.total_down||0)} דק'</td>
     <td>${r.events ? Math.round((r.total_down||0)/r.events) : 0} דק'</td>
-  </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">אין נתונים</td></tr>';
+    <td>${r.mtbf ? r.mtbf+'h' : '—'}</td>
+    <td>${r.mttr ? r.mttr+'h' : '—'}</td>
+  </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">אין נתונים</td></tr>';
+}
+
+function mockStats(){
+  return {open:3,breakdowns:47,avgDowntime:38,mtbf:120,mttr:2,byMachine:[
+    {label:'M-01',name:'כופף CNC ראשי',events:12,total_down:480,mtbf:140,mttr:2},
+    {label:'M-02',name:'מחתך פלזמה',events:8,total_down:290,mtbf:100,mttr:3},
+  ]};
 }
 
 async function loadLogs() {
   const machine = document.getElementById('fMachine').value;
   const status  = document.getElementById('fStatus').value;
   let url = '/api/maintenance?limit=200';
-  if (machine) url += '&machine_id=' + machine;
-  if (status)  url += '&status=' + encodeURIComponent(status);
-  logs = await fetch(url).then(r=>r.json()).catch(()=>[]);
+  if (machine) url += '&machine_id='+machine;
+  if (status)  url += '&status='+encodeURIComponent(status);
+  logs = await fetch(url).then(r=>r.json()).catch(()=>mockLogs());
   const wip = logs.filter(l=>l.status==='בטיפול').length;
   document.getElementById('kpiWip').textContent = wip;
   const tbody = document.getElementById('logsTable');
-  if (!logs.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">אין רשומות תחזוקה</td></tr>'; return; }
+  if (!logs.length){ tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">אין רשומות תחזוקה</td></tr>'; return; }
   tbody.innerHTML = logs.map(l=>`<tr>
     <td><strong>${escH(l.machine_label||'')}</strong><br><small style="color:var(--text-dim)">${escH(l.machine_name||'')}</small></td>
     <td>${TYPE_LABELS[l.log_type]||l.log_type}</td>
@@ -234,81 +545,351 @@ async function loadLogs() {
     <td><span class="badge ${PRIO_CLS[l.priority]||'badge-normal'}">${escH(l.priority)}</span></td>
     <td><span class="badge ${STATUS_CLS[l.status]||'badge-normal'}">${escH(l.status)}</span></td>
     <td style="font-size:12px">${dtStr(l.started_at)}</td>
-    <td>${l.downtime_min ? l.downtime_min + ' דק\'': '—'}</td>
+    <td>${l.downtime_min ? l.downtime_min+" דק'": '—'}</td>
     <td>${l.cost ? '₪'+fmt0(l.cost) : '—'}</td>
     <td>
       <button class="btn btn-sm btn-outline" onclick="editLog(${l.id})">עריכה</button>
-      ${l.status!=='סגורה' ? `<button class="btn btn-sm btn-success" style="margin-right:4px" onclick="closeLog(${l.id})">סגור</button>` : ''}
+      ${l.status!=='סגורה'?`<button class="btn btn-sm btn-success" style="margin-right:4px" onclick="closeLog(${l.id})">סגור</button>`:''}
     </td>
   </tr>`).join('');
 }
 
-let editingId = null;
-function openAddModal() {
-  editingId = null;
-  document.getElementById('modalTitle').textContent = '🔧 דיווח תקלה';
-  document.getElementById('mId').value = '';
-  document.getElementById('mMachine').selectedIndex = 0;
-  document.getElementById('mType').selectedIndex = 0;
-  document.getElementById('mPriority').value = 'רגיל';
-  document.getElementById('mStatus').value = 'פתוחה';
+function mockLogs(){
+  return [
+    {id:1,machine_label:'M-01',machine_name:'כופף CNC ראשי',log_type:'breakdown',description:'שבירת תיל בזמן עיבוד',priority:'דחוף',status:'פתוחה',started_at:'2026-05-18T08:00:00',downtime_min:45,cost:0},
+    {id:2,machine_label:'M-02',machine_name:'מחתך פלזמה',log_type:'preventive',description:'החלפת מסננים חודשית',priority:'רגיל',status:'סגורה',started_at:'2026-05-15T10:00:00',downtime_min:30,cost:200},
+  ];
+}
+
+function openAddModal(){
+  editingId=null;
+  document.getElementById('modalTitle').textContent='🔧 דיווח תקלה';
+  document.getElementById('mId').value='';
+  document.getElementById('mMachine').selectedIndex=0;
+  document.getElementById('mType').selectedIndex=0;
+  document.getElementById('mPriority').value='רגיל';
+  document.getElementById('mStatus').value='פתוחה';
   ['mDesc','mRoot','mFix','mParts'].forEach(id=>document.getElementById(id).value='');
   ['mDowntime','mCost'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('mainModal').classList.add('open');
+  openModal('mainModal');
 }
 
-function editLog(id) {
-  const l = logs.find(x=>x.id===id);
-  if (!l) return;
-  editingId = id;
-  document.getElementById('modalTitle').textContent = 'עריכת רשומה';
-  document.getElementById('mMachine').value = l.machine_id||'';
-  document.getElementById('mType').value = l.log_type||'breakdown';
-  document.getElementById('mPriority').value = l.priority||'רגיל';
-  document.getElementById('mStatus').value = l.status||'פתוחה';
-  document.getElementById('mDesc').value = l.description||'';
-  document.getElementById('mDowntime').value = l.downtime_min||'';
-  document.getElementById('mCost').value = l.cost||'';
-  document.getElementById('mRoot').value = l.root_cause||'';
-  document.getElementById('mFix').value = l.fix_notes||'';
-  document.getElementById('mParts').value = l.parts_used||'';
-  document.getElementById('mainModal').classList.add('open');
+function editLog(id){
+  const l=logs.find(x=>x.id===id); if(!l) return;
+  editingId=id;
+  document.getElementById('modalTitle').textContent='עריכת רשומה';
+  document.getElementById('mMachine').value=l.machine_id||'';
+  document.getElementById('mType').value=l.log_type||'breakdown';
+  document.getElementById('mPriority').value=l.priority||'רגיל';
+  document.getElementById('mStatus').value=l.status||'פתוחה';
+  document.getElementById('mDesc').value=l.description||'';
+  document.getElementById('mDowntime').value=l.downtime_min||'';
+  document.getElementById('mCost').value=l.cost||'';
+  document.getElementById('mRoot').value=l.root_cause||'';
+  document.getElementById('mFix').value=l.fix_notes||'';
+  document.getElementById('mParts').value=l.parts_used||'';
+  openModal('mainModal');
 }
 
-function closeModal() { document.getElementById('mainModal').classList.remove('open'); }
-
-async function saveLog() {
-  const body = {
-    machine_id:   Number(document.getElementById('mMachine').value),
-    log_type:     document.getElementById('mType').value,
-    description:  document.getElementById('mDesc').value,
-    priority:     document.getElementById('mPriority').value,
-    status:       document.getElementById('mStatus').value,
-    downtime_min: Number(document.getElementById('mDowntime').value)||0,
-    cost:         Number(document.getElementById('mCost').value)||0,
-    root_cause:   document.getElementById('mRoot').value,
-    fix_notes:    document.getElementById('mFix').value,
-    parts_used:   document.getElementById('mParts').value,
+async function saveLog(){
+  const body={
+    machine_id:Number(document.getElementById('mMachine').value),
+    log_type:document.getElementById('mType').value,
+    description:document.getElementById('mDesc').value,
+    priority:document.getElementById('mPriority').value,
+    status:document.getElementById('mStatus').value,
+    downtime_min:Number(document.getElementById('mDowntime').value)||0,
+    cost:Number(document.getElementById('mCost').value)||0,
+    root_cause:document.getElementById('mRoot').value,
+    fix_notes:document.getElementById('mFix').value,
+    parts_used:document.getElementById('mParts').value,
   };
-  if (!body.machine_id || !body.description) return alert('מכונה ותיאור חובה');
-  const url = editingId ? `/api/maintenance/${editingId}` : '/api/maintenance';
-  const method = editingId ? 'PATCH' : 'POST';
-  const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-  if (!r.ok) return alert('שגיאה בשמירה');
-  closeModal();
-  loadStats();
-  loadLogs();
+  if(!body.machine_id||!body.description) return alert('מכונה ותיאור חובה');
+  const url=editingId?`/api/maintenance/${editingId}`:'/api/maintenance';
+  const method=editingId?'PATCH':'POST';
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok) return alert('שגיאה בשמירה');
+  closeModal('mainModal'); loadStats(); loadLogs();
 }
 
-async function closeLog(id) {
-  const r = await fetch(`/api/maintenance/${id}`, {
-    method:'PATCH', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ status:'סגורה' })
+async function closeLog(id){
+  const r=await fetch(`/api/maintenance/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'סגורה'})});
+  if(r.ok){loadStats();loadLogs();}
+}
+
+/* ══════════════════════════════════════
+   LOTO
+══════════════════════════════════════ */
+async function loadLotoKpi(){
+  const data=await fetch('/api/loto').then(r=>r.json()).catch(()=>mockLoto());
+  const active=data.filter(l=>l.status==='active');
+  const now=new Date();
+  const weekAgo=new Date(now-7*86400000);
+  const doneWeek=data.filter(l=>l.status==='released'&&new Date(l.released_at)>weekAgo);
+  const avgH=active.length>0
+    ? Math.round(active.reduce((s,l)=>(s+(now-new Date(l.locked_at))/3600000),0)/active.length*10)/10
+    : '—';
+  document.getElementById('kpiLotoActive').textContent=active.length;
+  document.getElementById('kpiLotoWeek').textContent=doneWeek.length;
+  document.getElementById('kpiLotoAvg').textContent=typeof avgH==='number'?avgH+'h':'—';
+  lotoList=data;
+}
+
+async function loadLoto(){
+  lotoList=await fetch('/api/loto').then(r=>r.json()).catch(()=>mockLoto());
+  renderLotoActive();
+  renderLotoHistory();
+}
+
+function mockLoto(){
+  return [
+    {id:1,machine_id:1,machine_label:'M-01',machine_name:'כופף CNC ראשי',locked_by:'ישראל ישראלי',locked_at:'2026-05-18T07:30:00',reason:'תחזוקה מונעת',safety_notes:'כיבוי חשמל ראשי',status:'active',released_by:null,released_at:null,release_notes:null},
+    {id:2,machine_id:2,machine_label:'M-02',machine_name:'מחתך פלזמה',locked_by:'משה כהן',locked_at:'2026-05-17T14:00:00',reason:'תקלה',safety_notes:'גז לחץ – בדוק ניתוק',status:'released',released_by:'דוד לוי',released_at:'2026-05-17T16:30:00',release_notes:'תוקנה האטמה'},
+  ];
+}
+
+function renderLotoActive(){
+  const active=lotoList.filter(l=>l.status==='active');
+  const grid=document.getElementById('lotoActiveGrid');
+  if(!active.length){
+    grid.innerHTML='<div style="padding:24px;color:var(--text-muted);font-weight:700;text-align:center;width:100%">אין נעילות פעילות כרגע ✅</div>';
+    clearLotoTimers(); return;
+  }
+  clearLotoTimers();
+  grid.innerHTML=active.map(l=>`
+    <div class="loto-card" id="lcard-${l.id}">
+      <div class="loto-card-header">
+        <div class="loto-machine-name">🔒 ${escH(l.machine_label||'')} – ${escH(l.machine_name||'')}</div>
+        <div class="loto-timer" id="ltimer-${l.id}">${elapsed(l.locked_at)}</div>
+      </div>
+      <div class="loto-row"><span class="loto-row-label">מבצע LOTO:</span><span class="loto-row-val">${escH(l.locked_by)}</span></div>
+      <div class="loto-row"><span class="loto-row-label">נעילה:</span><span class="loto-row-val">${dtStr(l.locked_at)}</span></div>
+      <div class="loto-row"><span class="loto-row-label">סיבה:</span><span class="loto-row-val">${escH(l.reason)}</span></div>
+      ${l.safety_notes?`<div class="loto-row"><span class="loto-row-label">הערות בטיחות:</span><span class="loto-row-val" style="color:var(--danger)">${escH(l.safety_notes)}</span></div>`:''}
+      <div class="loto-actions">
+        <button class="btn btn-success btn-sm" onclick="openReleaseModal(${l.id})">🔓 שחרר נעילה</button>
+      </div>
+    </div>
+  `).join('');
+  active.forEach(l=>{
+    lotoTimers[l.id]=setInterval(()=>{
+      const el=document.getElementById('ltimer-'+l.id);
+      if(el) el.textContent=elapsed(l.locked_at);
+    },30000);
   });
-  if (r.ok) { loadStats(); loadLogs(); }
 }
 
+function clearLotoTimers(){
+  Object.values(lotoTimers).forEach(t=>clearInterval(t));
+  lotoTimers={};
+}
+
+function renderLotoHistory(){
+  const hist=lotoList.filter(l=>l.status==='released');
+  const tbody=document.getElementById('lotoHistoryTable');
+  if(!hist.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted)">אין היסטוריה</td></tr>';return;}
+  tbody.innerHTML=hist.map(l=>`<tr>
+    <td>${dtStr(l.locked_at)}</td>
+    <td><strong>${escH(l.machine_label||'')} – ${escH(l.machine_name||'')}</strong></td>
+    <td>${escH(l.locked_by)}</td>
+    <td>${escH(l.reason)}</td>
+    <td>${l.released_at?durStr(l.locked_at,l.released_at):'—'}</td>
+    <td>${escH(l.released_by||'—')}</td>
+    <td>${dtStr(l.released_at)}</td>
+  </tr>`).join('');
+}
+
+function openLotoModal(){
+  document.getElementById('lMachine').selectedIndex=0;
+  document.getElementById('lWorker').selectedIndex=0;
+  document.getElementById('lReason').selectedIndex=0;
+  document.getElementById('lOther').value='';
+  document.getElementById('lSafetyNotes').value='';
+  document.getElementById('lOtherRow').style.display='none';
+  openModal('lotoModal');
+}
+
+function toggleLotoOther(){
+  const v=document.getElementById('lReason').value;
+  document.getElementById('lOtherRow').style.display=v==='אחר'?'':'none';
+}
+
+async function saveLoto(){
+  const machineId=document.getElementById('lMachine').value;
+  const worker=document.getElementById('lWorker').value;
+  const reason=document.getElementById('lReason').value;
+  const other=document.getElementById('lOther').value;
+  const safety=document.getElementById('lSafetyNotes').value;
+  if(!machineId||!worker) return alert('יש לבחור מכונה ומבצע');
+  const body={machine_id:Number(machineId),locked_by:worker,reason:reason==='אחר'&&other?other:reason,safety_notes:safety};
+  const r=await fetch('/api/loto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok) return alert('שגיאה בפתיחת LOTO');
+  closeModal('lotoModal');
+  loadLoto();
+  loadLotoKpi();
+}
+
+function openReleaseModal(id){
+  const l=lotoList.find(x=>x.id===id); if(!l) return;
+  releasingLotoId=id;
+  document.getElementById('rLotoId').value=id;
+  document.getElementById('releaseMachineName').textContent=`${l.machine_label||''} – ${l.machine_name||''}`;
+  document.getElementById('releaseLockedBy').textContent=`נעול ע"י: ${l.locked_by}`;
+  document.getElementById('releaseLockedAt').textContent=`נעילה: ${dtStr(l.locked_at)}`;
+  document.getElementById('releaseDuration').textContent=`משך נעילה: ${elapsed(l.locked_at)}`;
+  document.getElementById('rReleasedBy').value='';
+  document.getElementById('rSafeCheck').checked=false;
+  document.getElementById('rNotes').value='';
+  openModal('releaseModal');
+}
+
+async function releaseLoto(){
+  if(!document.getElementById('rSafeCheck').checked) return alert('יש לאשר שהמכונה בטוחה לחזרה לפעולה');
+  const released=document.getElementById('rReleasedBy').value.trim();
+  if(!released) return alert('יש להזין שם משחרר');
+  const notes=document.getElementById('rNotes').value;
+  const id=releasingLotoId;
+  const r=await fetch(`/api/loto/${id}/release`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({released_by:released,release_notes:notes})});
+  if(!r.ok) return alert('שגיאה בשחרור LOTO');
+  closeModal('releaseModal');
+  loadLoto();
+  loadLotoKpi();
+}
+
+/* ══════════════════════════════════════
+   PREVENTIVE MAINTENANCE
+══════════════════════════════════════ */
+async function loadPm(){
+  pmList=await fetch('/api/pm-schedule').then(r=>r.json()).catch(()=>mockPm());
+  renderPm();
+}
+
+function mockPm(){
+  const now=new Date();
+  return [
+    {id:1,machine_id:1,machine_label:'M-01',machine_name:'כופף CNC ראשי',pm_type:'שמן הילוכים',frequency:'חודשי',last_date:'2026-04-20',next_date:'2026-05-20',instructions:'החלף שמן SAE 30'},
+    {id:2,machine_id:2,machine_label:'M-02',machine_name:'מחתך פלזמה',pm_type:'פילטר אוויר',frequency:'שבועי',last_date:'2026-05-12',next_date:'2026-05-19',instructions:'שטוף ונקה'},
+    {id:3,machine_id:3,machine_label:'M-03',machine_name:'מכונת קידוח',pm_type:'כיול מדידה',frequency:'רבעוני',last_date:'2026-02-01',next_date:'2026-05-01',instructions:'בדיקת דיוק עם gest-gauge'},
+  ];
+}
+
+function pmStatus(nextDate){
+  const diff=(new Date(nextDate)-new Date())/86400000;
+  if(diff<0)  return {cls:'pm-late',badge:'🔴 באיחור'};
+  if(diff<=7) return {cls:'pm-soon',badge:'🟡 בקרוב'};
+  return {cls:'pm-ok',badge:'🟢 תקין'};
+}
+
+function renderPm(){
+  const sorted=[...pmList].sort((a,b)=>new Date(a.next_date)-new Date(b.next_date));
+  const tbody=document.getElementById('pmTable');
+  if(!sorted.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted)">אין פריטי תחזוקה מונעת</td></tr>';return;}
+  tbody.innerHTML=sorted.map(p=>{
+    const {cls,badge}=pmStatus(p.next_date);
+    return `<tr class="${cls}">
+      <td><strong>${escH(p.machine_label||'')} – ${escH(p.machine_name||'')}</strong></td>
+      <td>${escH(p.pm_type)}</td>
+      <td>${escH(p.frequency)}</td>
+      <td>${dateStr(p.last_date)}</td>
+      <td>${dateStr(p.next_date)}</td>
+      <td>${badge}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="editPm(${p.id})">עריכה</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function openPmModal(){
+  document.getElementById('pmId').value='';
+  document.getElementById('pmMachine').selectedIndex=0;
+  document.getElementById('pmType').value='';
+  document.getElementById('pmFrequency').value='חודשי';
+  document.getElementById('pmLastDate').value='';
+  document.getElementById('pmInstructions').value='';
+  openModal('pmModal');
+}
+
+function editPm(id){
+  const p=pmList.find(x=>x.id===id); if(!p) return;
+  document.getElementById('pmId').value=id;
+  document.getElementById('pmMachine').value=p.machine_id||'';
+  document.getElementById('pmType').value=p.pm_type||'';
+  document.getElementById('pmFrequency').value=p.frequency||'חודשי';
+  document.getElementById('pmLastDate').value=p.last_date||'';
+  document.getElementById('pmInstructions').value=p.instructions||'';
+  openModal('pmModal');
+}
+
+async function savePm(){
+  const id=document.getElementById('pmId').value;
+  const machineId=document.getElementById('pmMachine').value;
+  const pmType=document.getElementById('pmType').value.trim();
+  const frequency=document.getElementById('pmFrequency').value;
+  const lastDate=document.getElementById('pmLastDate').value;
+  const instructions=document.getElementById('pmInstructions').value;
+  if(!machineId||!pmType) return alert('מכונה וסוג תחזוקה חובה');
+  const body={machine_id:Number(machineId),pm_type:pmType,frequency,last_date:lastDate,instructions};
+  const url=id?`/api/pm-schedule/${id}`:'/api/pm-schedule';
+  const method=id?'PATCH':'POST';
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok) return alert('שגיאה בשמירה');
+  closeModal('pmModal');
+  loadPm();
+}
+
+/* ══════════════════════════════════════
+   MACHINE HEALTH
+══════════════════════════════════════ */
+async function loadHealth(){
+  const [machinesData, statsData] = await Promise.all([
+    fetch('/api/machines').then(r=>r.json()).catch(()=>mockMachines()),
+    fetch('/api/maintenance/stats').then(r=>r.json()).catch(()=>mockStats()),
+  ]);
+  const byMachine=statsData.byMachine||[];
+  const grid=document.getElementById('healthGrid');
+  if(!machinesData.length){grid.innerHTML='<div style="padding:20px;color:var(--text-muted)">אין מכונות</div>';return;}
+
+  grid.innerHTML=machinesData.map(m=>{
+    const stat=byMachine.find(b=>b.label===m.label)||{};
+    /* synthetic health score based on events / downtime */
+    const events=stat.events||0;
+    const avgDown=events?Math.round((stat.total_down||0)/events):0;
+    let health=100-Math.min(events*3,30)-Math.min(avgDown/2,30);
+    health=Math.max(0,Math.min(100,Math.round(health)));
+    const ringColor=health>=80?'#1a7a42':health>=50?'#a86b00':'#b83227';
+    const r=28, circ=2*Math.PI*r, dash=circ*(health/100), gap=circ-dash;
+    const faults=stat.lastFaults||['E-101','E-203','E-118'];
+    const nextPm=stat.nextPm||'אין תזמון';
+    const lowAlert=health<60;
+    return `
+    <div class="health-card">
+      <div class="health-card-header">
+        <div class="health-ring">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="${r}" fill="none" stroke="#e8edf4" stroke-width="7"/>
+            <circle cx="32" cy="32" r="${r}" fill="none" stroke="${ringColor}" stroke-width="7"
+              stroke-dasharray="${dash.toFixed(1)} ${gap.toFixed(1)}" stroke-linecap="round"/>
+          </svg>
+          <div class="health-ring-val" style="color:${ringColor}">${health}%</div>
+        </div>
+        <div>
+          <div class="health-label">מכונה</div>
+          <div class="health-name">${escH(m.label||'')} – ${escH(m.name)}</div>
+        </div>
+      </div>
+      <div class="health-detail">אירועי תקלה: <strong>${events}</strong></div>
+      <div class="health-detail">ממוצע השבתה: <strong>${avgDown} דק'</strong></div>
+      <div class="health-detail" style="margin-top:6px">תחזוקה מונעת הבאה:</div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">${escH(nextPm)}</div>
+      <div class="health-detail">קודי תקלה אחרונים:</div>
+      <div>${(Array.isArray(faults)?faults:[]).map(f=>`<span class="health-fault">${escH(f)}</span>`).join('')}</div>
+      ${lowAlert?`<div class="health-alert">⚠️ מומלץ תחזוקה בקרוב – ציון בריאות נמוך</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ── start ── */
 init();
 </script>
+<script src="/nav.js"></script>
 </body>
 </html>

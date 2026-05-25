@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -83,12 +83,16 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
 .tabs { display:flex; flex-wrap:wrap; gap:4px; border-bottom:2px solid var(--border); margin-bottom:0; padding:4px 12px 0; }
 .tab-btn { padding:9px 14px; border:none; background:none; font-family:'Heebo',sans-serif;
   font-size:13px; font-weight:700; color:var(--muted); cursor:pointer;
-  border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s;
-  white-space:nowrap; border-radius:6px 6px 0 0; }
-.tab-btn:hover  { color:var(--text); background:rgba(0,0,0,0.03); }
-.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); background:rgba(201,98,26,0.05); }
-.tab-pane { display:none; }
-.tab-pane.active { display:block; }
+  border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .18s;
+  white-space:nowrap; border-radius:8px 8px 0 0; }
+.tab-btn:hover  { color:var(--text); background:rgba(0,0,0,0.04);
+  box-shadow:0 -2px 6px rgba(0,0,0,0.04); }
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent);
+  background:linear-gradient(180deg,rgba(201,98,26,0.07) 0%,rgba(201,98,26,0.02) 100%);
+  box-shadow:0 -3px 8px rgba(201,98,26,0.10); }
+.tab-pane { display:none; opacity:0; }
+.tab-pane.active { display:block; animation:fadeIn .18s ease forwards; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
 
 /* ── SETTINGS CARD ─────────────────────────────────────── */
 .settings-card { background:#fff; border:1px solid var(--border);
@@ -186,6 +190,21 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
   .tabs        { flex-wrap:wrap; overflow-x:visible; gap:2px; }
   .tab-btn     { flex:1; min-width:80px; text-align:center; font-size:12px; padding:8px 8px; }
 }
+
+/* ERP picker */
+.erp-opt { padding:9px 14px; border:1.5px solid var(--border); border-radius:10px;
+  background:#fff; cursor:pointer; font-family:'Heebo',sans-serif; font-size:13px;
+  font-weight:700; color:var(--text-dim); transition:all .2s; text-align:center; }
+.erp-opt:hover  { border-color:var(--accent); color:var(--accent); }
+.erp-opt.active { border-color:var(--accent); background:var(--accent-bg); color:var(--accent); }
+
+/* Workstation card */
+.ws-card { background:#fff; border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px; box-shadow:var(--shadow); }
+.ws-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.ws-machine-name { font-size:15px; font-weight:800; }
+.ws-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.ws-kiosk-url { font-size:11px; color:var(--muted); margin-top:6px; word-break:break-all; }
 </style>
 </head>
 <body data-page="admin">
@@ -202,8 +221,9 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
     <a href="/holdings.html" class="nl">🏢 אחזקות</a>
     <a href="/dashboard.html"class="nl">📊 דשבורד</a>
     <a href="/orders.html"   class="nl">📋 הזמנות</a>
-    <a href="/reports.html"  class="nl">📈 דוחות</a>
-    <a href="/driver.html"   class="nl">🚚 נהג</a>
+    <a href="/reports.html"          class="nl">📈 דוחות</a>
+    <a href="/production-queue.html" class="nl">📋 תור ייצור</a>
+    <a href="/driver.html"           class="nl">🚚 נהג</a>
   </div>
   <span style="font-size:12px;color:var(--muted)" id="navTime"></span>
 </nav>
@@ -218,9 +238,11 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
       <a href="/orders.html"    class="qn"><div class="qn-icon">📋</div><div class="qn-label">הזמנות</div><div class="qn-sub">רשימה מלאה</div></a>
       <a href="/index.html"     class="qn"><div class="qn-icon">➕</div><div class="qn-label">הזמנה חדשה</div><div class="qn-sub">אשף 4 שלבים</div></a>
       <a href="/machine.html"   class="qn"><div class="qn-icon">🔧</div><div class="qn-label">מכונה</div><div class="qn-sub">סריקת QR</div></a>
+      <a href="/kiosk.html"    class="qn"><div class="qn-icon">🖥️</div><div class="qn-label">תחנת עבודה</div><div class="qn-sub">נהג PWA</div></a>
       <a href="/reports.html"   class="qn"><div class="qn-icon">📈</div><div class="qn-label">דוחות</div><div class="qn-sub">גרפים BI</div></a>
       <a href="/driver.html"    class="qn"><div class="qn-icon">🚚</div><div class="qn-label">נהג</div><div class="qn-sub">PWA נייד</div></a>
       <a href="/holdings.html"  class="qn"><div class="qn-icon">🏢</div><div class="qn-label">אחזקות</div><div class="qn-sub">ריבוי חברות</div></a>
+      <a href="/help.html" target="_blank" class="qn" style="border-color:#a855f7"><div class="qn-icon">📖</div><div class="qn-label" style="color:#7c3aed">מדריך</div><div class="qn-sub">עזרה ומידע</div></a>
     </div>
   </div>
 
@@ -237,16 +259,18 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
     <div class="sec-title">הגדרות מערכת</div>
     <div class="settings-card">
       <div class="tabs" style="background:#fafbfd;border-bottom:1px solid var(--border);">
-        <button class="tab-btn active" onclick="showTab('modules')">🔌 מודולים</button>
-        <button class="tab-btn" onclick="showTab('whatsapp')">💬 WhatsApp</button>
-        <button class="tab-btn" onclick="showTab('email')">📧 מייל</button>
-        <button class="tab-btn" onclick="showTab('priority')">🏭 Priority</button>
-        <button class="tab-btn" onclick="showTab('vision')">📷 OCR</button>
-        <button class="tab-btn" onclick="showTab('machines')">🔧 מכונות</button>
-        <button class="tab-btn" onclick="showTab('drivers')">🚚 נהגים</button>
-        <button class="tab-btn" onclick="showTab('pricelist');loadPriceList()">💰 מחירון</button>
-        <button class="tab-btn" onclick="showTab('users');loadUsers()">👥 משתמשים</button>
-        <button class="tab-btn" onclick="showTab('auditlog');loadAuditLog()">📋 לוג שינויים</button>
+        <button class="tab-btn active" onclick="showTab('modules',this)">🔌 מודולים</button>
+        <button class="tab-btn" onclick="showTab('whatsapp',this)">💬 WhatsApp</button>
+        <button class="tab-btn" onclick="showTab('email',this)">📧 מייל</button>
+        <button class="tab-btn" onclick="showTab('integrations',this)">🔗 אינטגרציות</button>
+        <button class="tab-btn" onclick="showTab('vision',this)">📷 OCR</button>
+        <button class="tab-btn" onclick="showTab('machines',this);loadMachinesAdmin()">🔧 מכונות</button>
+        <button class="tab-btn" onclick="showTab('workstations',this);loadWorkstations()">🖥️ תחנות עבודה</button>
+        <button class="tab-btn" onclick="showTab('drivers',this);loadDriversAdmin()">🚚 נהגים</button>
+        <button class="tab-btn" onclick="showTab('pricelist',this);loadPriceList()">💰 מחירון</button>
+        <button class="tab-btn" onclick="showTab('users',this);loadUsers()">👥 משתמשים</button>
+        <button class="tab-btn" onclick="showTab('auditlog',this);loadAuditLog()">📋 לוג שינויים</button>
+        <button class="tab-btn" onclick="showTab('cloud',this)">☁️ ניהול ענן</button>
       </div>
 
       <!-- TAB: MODULES -->
@@ -336,47 +360,122 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
           <div class="form-actions">
             <button class="btn btn-primary" onclick="saveSection('email')">💾 שמור</button>
             <button class="btn btn-outline" onclick="testConn('email')">🔌 בדוק חיבור</button>
+            <button class="btn btn-outline" onclick="loadIntakeQueue()" style="background:rgba(21,96,168,0.08);border-color:#1560a8;color:#1560a8;">
+              📬 הזמנות ממתינות <span id="intakeBadge" style="display:none;background:#e74c3c;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;margin-right:4px"></span>
+            </button>
             <div class="test-result" id="test-email"></div>
           </div>
         </div>
+
+        <!-- ── Intake queue ── -->
+        <div id="intakeQueue" style="display:none;margin-top:18px;">
+          <div style="font-size:13px;font-weight:800;color:#1560a8;margin-bottom:10px;">📬 הזמנות ממתינות לאישור מהמייל</div>
+          <div id="intakeList"></div>
+        </div>
       </div>
 
-      <!-- TAB: PRIORITY -->
-      <div id="tab-priority" class="tab-pane">
+      <!-- TAB: INTEGRATIONS -->
+      <div id="tab-integrations" class="tab-pane">
         <div class="settings-head">
           <div class="settings-head-left">
-            <span class="settings-head-icon">🏭</span>
+            <span class="settings-head-icon">🔗</span>
             <div>
-              <div class="settings-head-title">Priority ERP</div>
-              <div class="settings-head-sub">סנכרון לקוחות, הזמנות וחשבוניות עם Priority</div>
+              <div class="settings-head-title">אינטגרציות ומערכות חיצוניות</div>
+              <div class="settings-head-sub">חיבור ל-ERP, הנהלת חשבונות וכלים עסקיים</div>
             </div>
           </div>
-          <span class="conn-badge conn-off" id="priorityBadge">לא מוגדר</span>
         </div>
         <div class="settings-body">
-          <div class="form-group">
-            <label>כתובת שרת Priority (Base URL)</label>
-            <input type="url" id="pri_url" placeholder="https://priority.yourcompany.com/odata/Priority/company">
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>שם משתמש</label>
-              <input type="text" id="pri_user" placeholder="apiuser">
+
+          <!-- ERP selector -->
+          <div style="background:var(--bg);border-radius:10px;padding:14px 16px;margin-bottom:4px">
+            <div style="font-size:13px;font-weight:800;margin-bottom:10px">🏭 ERP / מערכת ניהול עסקית</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px" id="erpPicker">
+              <button onclick="selectERP('priority')"   class="erp-opt" id="erp-priority">🏭 Priority</button>
+              <button onclick="selectERP('sap')"        class="erp-opt" id="erp-sap">🔵 SAP B1</button>
+              <button onclick="selectERP('hashavshevet')"class="erp-opt" id="erp-hashavshevet">📒 חשבשבת</button>
+              <button onclick="selectERP('rivhit')"     class="erp-opt" id="erp-rivhit">📊 ריווחית</button>
+              <button onclick="selectERP('maven')"      class="erp-opt" id="erp-maven">📒 Maven</button>
+              <button onclick="selectERP('custom')"     class="erp-opt" id="erp-custom">🔧 API מותאם</button>
             </div>
-            <div class="form-group">
-              <label>סיסמה</label>
-              <input type="password" id="pri_pass" placeholder="••••••••">
+          </div>
+
+          <!-- Priority fields -->
+          <div id="erp-fields-priority" class="erp-fields" style="display:none">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Priority ERP – הגדרות</div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label>כתובת שרת (Base URL)</label>
+              <input type="url" id="pri_url" placeholder="https://priority.yourcompany.com/odata/Priority/company">
+            </div>
+            <div class="form-row" style="margin-bottom:10px">
+              <div class="form-group">
+                <label>שם משתמש</label>
+                <input type="text" id="pri_user" placeholder="apiuser">
+              </div>
+              <div class="form-group">
+                <label>סיסמה</label>
+                <input type="password" id="pri_pass" placeholder="••••••••">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label>שם חברה ב-Priority</label>
+              <input type="text" id="pri_company" placeholder="demo">
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveSection('priority')">💾 שמור</button>
+              <button class="btn btn-outline" onclick="testConn('priority')">🔌 בדוק חיבור</button>
+              <span class="conn-badge conn-off" id="priorityBadge" style="margin-right:8px">לא מוגדר</span>
+              <div class="test-result" id="test-priority"></div>
             </div>
           </div>
-          <div class="form-group">
-            <label>שם חברה ב-Priority</label>
-            <input type="text" id="pri_company" placeholder="demo">
+
+          <!-- Hashavshevet fields -->
+          <div id="erp-fields-hashavshevet" class="erp-fields" style="display:none">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">חשבשבת – הגדרות</div>
+            <div class="form-row" style="margin-bottom:10px">
+              <div class="form-group"><label>חברה מספר</label><input type="text" id="hsh_company" placeholder="1"></div>
+              <div class="form-group"><label>שם משתמש</label><input type="text" id="hsh_user" placeholder="SYSADM"></div>
+            </div>
+            <div class="form-group" style="margin-bottom:10px"><label>סיסמה</label><input type="password" id="hsh_pass" placeholder="••••••••"></div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveSection('hashavshevet')">💾 שמור</button>
+              <button class="btn btn-outline btn-sm" onclick="alert('בפיתוח')">🔌 בדוק</button>
+            </div>
           </div>
-          <div class="form-actions">
-            <button class="btn btn-primary" onclick="saveSection('priority')">💾 שמור</button>
-            <button class="btn btn-outline" onclick="testConn('priority')">🔌 בדוק חיבור</button>
-            <div class="test-result" id="test-priority"></div>
+
+          <!-- Rivhit fields -->
+          <div id="erp-fields-rivhit" class="erp-fields" style="display:none">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">ריווחית – API</div>
+            <div class="form-group" style="margin-bottom:10px"><label>API Key</label><input type="password" id="rivhit_key" placeholder="rv_xxxxxxxx"></div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveSection('rivhit')">💾 שמור</button>
+            </div>
           </div>
+
+          <!-- Custom API -->
+          <div id="erp-fields-custom" class="erp-fields" style="display:none">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Webhook / REST API מותאם</div>
+            <div class="form-group" style="margin-bottom:10px"><label>Webhook URL</label><input type="url" id="custom_webhook" placeholder="https://your-erp.com/webhook/ironbend"></div>
+            <div class="form-group" style="margin-bottom:10px"><label>Bearer Token / API Key</label><input type="password" id="custom_token" placeholder="Bearer xxxx"></div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label>אירועים לשלוח (Webhook Events)</label>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px" id="webhookEvents">
+                <label style="font-weight:400;font-size:13px;display:flex;align-items:center;gap:5px"><input type="checkbox" checked> הזמנה חדשה</label>
+                <label style="font-weight:400;font-size:13px;display:flex;align-items:center;gap:5px"><input type="checkbox" checked> סטטוס שונה</label>
+                <label style="font-weight:400;font-size:13px;display:flex;align-items:center;gap:5px"><input type="checkbox"> סופק</label>
+                <label style="font-weight:400;font-size:13px;display:flex;align-items:center;gap:5px"><input type="checkbox"> תקלת מכונה</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveSection('custom_webhook')">💾 שמור</button>
+              <button class="btn btn-outline" onclick="testWebhook()">🔌 שלח בדיקה</button>
+            </div>
+          </div>
+
+          <!-- Coming soon for others -->
+          <div id="erp-fields-sap"   class="erp-fields" style="display:none;padding:16px;background:var(--bg);border-radius:10px;color:var(--muted);text-align:center">SAP B1 – בפיתוח (בקרוב)</div>
+          <div id="erp-fields-maven" class="erp-fields" style="display:none;padding:16px;background:var(--bg);border-radius:10px;color:var(--muted);text-align:center">Maven – בפיתוח (בקרוב)</div>
+
         </div>
       </div>
 
@@ -416,13 +515,46 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
               <div class="settings-head-sub">TCP/IP (USR-N510 / גיטוויי) או RS-485 סיריאלי — גמיש לכל מכונה</div>
             </div>
           </div>
+          <button class="btn btn-primary" onclick="openAddMachineModal()">➕ מכונה חדשה</button>
         </div>
         <div id="machinesCards" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+          <div style="text-align:center;padding:20px;color:var(--muted)">לחץ על הטאב לטעינה</div>
+        </div>
+        <div style="padding:0 20px 16px;display:flex;align-items:center;gap:12px">
+          <button class="btn btn-primary" onclick="saveMachinesAdmin()">💾 שמור שינויים</button>
+          <span id="machinesSaveStatus" style="font-size:13px;color:var(--success)"></span>
+        </div>
+
+        <!-- Add Machine Modal lives at body level (see bottom of file) -->
+      </div>
+
+      <!-- TAB: WORKSTATIONS -->
+      <div id="tab-workstations" class="tab-pane">
+        <div class="settings-head">
+          <div class="settings-head-left">
+            <span class="settings-head-icon">🖥️</span>
+            <div>
+              <div class="settings-head-title">תחנות עבודה ליד מכונות</div>
+              <div class="settings-head-sub">טאבלט/מסך ליד כל מכונה – כניסה ב-PIN, צג counter, בקרת עצירות</div>
+            </div>
+          </div>
+          <a href="/machine.html" class="btn btn-outline btn-sm" target="_blank">🔧 פתח מסך מכונה</a>
+        </div>
+        <div id="workstationsGrid" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
           <div style="text-align:center;padding:20px;color:var(--muted)">טוען...</div>
         </div>
-        <div style="padding:0 20px 16px;">
-          <button class="btn btn-primary" onclick="saveMachines()">💾 שמור הגדרות חיבור</button>
-          <span id="machinesSaveStatus" style="margin-right:10px;font-size:13px;color:var(--success)"></span>
+        <div style="padding:0 20px 16px">
+          <button class="btn btn-primary" onclick="saveWorkstations()">💾 שמור הגדרות תחנות</button>
+          <span id="wsSaveStatus" style="margin-right:10px;font-size:13px;color:var(--success)"></span>
+        </div>
+        <div style="padding:0 20px 20px;border-top:1px solid var(--border);margin-top:8px">
+          <div style="font-size:13px;font-weight:800;margin-bottom:12px;margin-top:12px">💡 הנחיות התקנה</div>
+          <div style="font-size:12px;color:var(--text-dim);line-height:1.8">
+            <div>1. פתח את <b>machine.html</b> בדפדפן הטאבלט ליד כל מכונה</div>
+            <div>2. הגדר URL ישיר: <code style="background:var(--bg);padding:2px 6px;border-radius:4px">http://[IP שרת]:3000/machine.html?machine=[ID]</code></div>
+            <div>3. הכנס את פינה של המפעיל לנעילה/פתיחה</div>
+            <div>4. הוסף לעמוד הבית של הטאבלט כ-PWA (הוסף לדף הבית)</div>
+          </div>
         </div>
       </div>
 
@@ -569,6 +701,56 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         </div>
       </div>
 
+      <!-- TAB: CLOUD DEPLOYMENT & DATABASE MIGRATION -->
+      <div id="tab-cloud" class="tab-pane" style="padding:20px">
+        <h3 style="margin-top:0; color:var(--text); font-weight:600;">☁️ ניהול ענן וגיבוי בסיס נתונים</h3>
+        <p style="color:var(--text-muted); margin-bottom:20px;">
+          ממשק זה מאפשר לך לסנכרן ולגבות את בסיס הנתונים של המפעל (<code>ironbend.db</code>) בין המחשב המקומי לשרת הענן שלך, על מנת שתוכל להמשיך לעבוד מכל מקום.
+        </p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
+          
+          <!-- Download Backup Card -->
+          <div class="card" style="padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:8px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <h4 style="margin:0 0 10px 0; color:var(--text);">📥 גיבוי והורדת נתונים</h4>
+              <p style="color:var(--text-muted); font-size:13px; margin:0 0 20px 0;">
+                הורד עותק מלא ועדכני של בסיס הנתונים הפעיל כרגע בענן למחשב האישי שלך.
+              </p>
+            </div>
+            <button class="btn btn-primary" onclick="downloadDatabase()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;">
+              <span>⬇️ הורד גיבוי (ironbend.db)</span>
+            </button>
+          </div>
+
+          <!-- Upload / Restore Card -->
+          <div class="card" style="padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:8px;">
+            <h4 style="margin:0 0 10px 0; color:var(--text);">📤 העלאה ושחזור נתונים (הגירה לענן)</h4>
+            <p style="color:var(--text-muted); font-size:13px; margin:0 0 20px 0;">
+              העלה קובץ <code>ironbend.db</code> מהמחשב שלך כדי להחליף את בסיס הנתונים הפעיל בענן.
+            </p>
+            
+            <div id="db-dropzone" style="border:2px dashed var(--border); border-radius:8px; padding:25px; text-align:center; cursor:pointer; background:rgba(0,0,0,0.02); transition:all 0.2s;" onclick="document.getElementById('db-file-input').click()">
+              <span style="font-size:32px; display:block; margin-bottom:10px;">💾</span>
+              <span style="font-size:13px; font-weight:500; display:block; color:var(--text);" id="dropzone-text">גרור לכאן את קובץ ה-db או לחץ לבחירה</span>
+              <span style="font-size:11px; color:var(--text-muted); display:block; margin-top:4px;">תומך בקבצי .db בלבד</span>
+              <input type="file" id="db-file-input" accept=".db" style="display:none;" onchange="handleDbUpload(this.files[0])">
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Connection Details & Advice -->
+        <div class="card" style="margin-top:20px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:8px;">
+          <h4 style="margin:0 0 10px 0; color:var(--text);">🔒 אבטחה והנחיות עבודה</h4>
+          <ul style="color:var(--text-muted); font-size:13px; margin:0; padding-right:20px; line-height:1.6;">
+            <li>לפני העלאת בסיס נתונים חדש, מומלץ להוריד גיבוי של בסיס הנתונים הנוכחי באמצעות הכפתור למעלה.</li>
+            <li>בעת העלאת בסיס נתונים חדש, השרת יסגור את החיבור הקיים בצורה בטוחה, יחליף את הקובץ ויבצע אתחול חם למערכת תוך שניות בודדות ללא השבתת שירות.</li>
+            <li><strong>סנכרון נסיעות:</strong> כשתחזור מהנסיעה למפעל, פשוט הורד את הגיבוי מהענן והחלף את הקובץ המקומי במחשב המפעל כדי להמשיך לעבוד מסונכרן לחלוטין!</li>
+          </ul>
+        </div>
+      </div>
+
     </div><!-- end settings-card -->
   </div>
 
@@ -636,12 +818,30 @@ setInterval(() => {
 }, 1000);
 
 // ── Tabs ──────────────────────────────────────────────────────
-function showTab(id) {
+function showTab(id, btn) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + id).classList.add('active');
-  event.target.classList.add('active');
+  const pane = document.getElementById('tab-' + id);
+  if (pane) pane.classList.add('active');
+  if (btn) btn.classList.add('active');
 }
+
+// ── ERP Picker ─────────────────────────────────────────────────
+function selectERP(erp) {
+  document.querySelectorAll('.erp-opt').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.erp-fields').forEach(d => d.style.display = 'none');
+  const btn = document.getElementById('erp-' + erp);
+  if (btn) btn.classList.add('active');
+  const fields = document.getElementById('erp-fields-' + erp);
+  if (fields) fields.style.display = 'block';
+  // Save selected ERP type
+  localStorage.setItem('ib_erp_type', erp);
+}
+// Restore ERP selection
+(function() {
+  const saved = localStorage.getItem('ib_erp_type');
+  if (saved) setTimeout(() => selectERP(saved), 100);
+})();
 
 // ── Load ──────────────────────────────────────────────────────
 async function loadAll() {
@@ -660,6 +860,69 @@ async function loadAll() {
   renderModules(settings);
   renderMachinesTable(machines);
   renderDriversList(drivers);
+}
+
+// ── Cloud Database Sync ───────────────────────────────────────
+async function downloadDatabase() {
+  toast('🔄 מכין קובץ להורדה...');
+  try {
+    window.location.href = '/api/admin/database/download';
+    toast('✅ הורדת הגיבוי החלה!');
+  } catch (e) {
+    toast('❌ שגיאה בהורדת הגיבוי', true);
+  }
+}
+
+async function handleDbUpload(file) {
+  if (!file) return;
+  if (!file.name.endsWith('.db')) {
+    toast('❌ שגיאה: ניתן להעלות קבצי .db בלבד', true);
+    return;
+  }
+
+  const dropzoneText = document.getElementById('dropzone-text');
+  const dropzone = document.getElementById('db-dropzone');
+  
+  if (!confirm('⚠️ האם אתה בטוח שברצונך להעלות ולשחזר את בסיס הנתונים?\nפעולה זו תחליף את בסיס הנתונים הנוכחי בענן!')) {
+    return;
+  }
+
+  toast('🔄 מעלה ומעבד בסיס נתונים...');
+  dropzoneText.textContent = '🔄 מעלה קובץ...';
+  dropzone.style.background = 'rgba(var(--accent-rgb, 0), 0.05)';
+
+  const formData = new FormData();
+  formData.append('dbFile', file);
+
+  try {
+    const res = await fetch('/api/admin/database/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    
+    if (data.ok) {
+      toast('✅ בסיס הנתונים שוחזר בהצלחה!');
+      dropzoneText.textContent = '✅ השחזור הושלם בהצלחה!';
+      dropzone.style.background = 'rgba(76, 175, 80, 0.08)';
+      setTimeout(() => {
+        dropzoneText.textContent = 'גרור לכאן את קובץ ה-db או לחץ לבחירה';
+        dropzone.style.background = 'rgba(0,0,0,0.02)';
+        loadAll(); // reload data
+      }, 5000);
+    } else {
+      throw new Error(data.error || 'שגיאה לא ידועה');
+    }
+  } catch (e) {
+    console.error(e);
+    toast('❌ שגיאה בשחזור הנתונים: ' + e.message, true);
+    dropzoneText.textContent = '❌ השחזור נכשל. נסה שנית.';
+    dropzone.style.background = 'rgba(244, 67, 54, 0.08)';
+    setTimeout(() => {
+      dropzoneText.textContent = 'גרור לכאן את קובץ ה-db או לחץ לבחירה';
+      dropzone.style.background = 'rgba(0,0,0,0.02)';
+    }, 5000);
+  }
 }
 
 function fillForms(s) {
@@ -768,6 +1031,85 @@ async function quickSave(key, val) {
   toast((val==='true'?'✓ הופעל: ':'⏸ כובה: ') + MODULES.find(m=>m.id===key)?.name);
 }
 
+async function loadWorkstations() {
+  const machines = await fetch('/api/machines').then(r=>r.json()).catch(()=>[]);
+  const host = window.location.hostname + ':' + window.location.port;
+  const el = document.getElementById('workstationsGrid');
+  if (!machines.length) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">אין מכונות מוגדרות</div>';
+    return;
+  }
+  el.innerHTML = machines.map(m => {
+    const kioskUrl = `http://${host}/machine.html?machine=${m.id}`;
+    const pin = localStorage.getItem('ws_pin_' + m.id) || '';
+    const label = localStorage.getItem('ws_label_' + m.id) || m.name;
+    return `<div class="ws-card">
+      <div class="ws-card-head">
+        <div>
+          <div class="ws-machine-name">🔧 ${m.name}</div>
+          <div style="font-size:11px;color:var(--muted)">מצב: ${m.status||'לא מחובר'} · counter: ${m.counter||0}</div>
+        </div>
+        <a href="${kioskUrl}" target="_blank" class="btn btn-outline btn-sm">🖥️ פתח תחנה</a>
+      </div>
+      <div class="ws-grid">
+        <div class="form-group">
+          <label>תווית תחנה (שם למפעיל)</label>
+          <input type="text" id="ws_label_${m.id}" value="${label}" placeholder="${m.name}">
+        </div>
+        <div class="form-group">
+          <label>PIN נעילת תחנה (4 ספרות)</label>
+          <input type="text" id="ws_pin_${m.id}" value="${pin}" maxlength="4" pattern="[0-9]*" placeholder="אופציונלי">
+        </div>
+      </div>
+      <div class="ws-kiosk-url">🔗 כתובת תחנה: <a href="${kioskUrl}" target="_blank" style="color:var(--accent)">${kioskUrl}</a></div>
+      <div style="margin-top:8px">
+        <button class="btn btn-outline btn-sm" onclick="copyWsUrl('${kioskUrl}',this)">📋 העתק כתובת</button>
+        <button class="btn btn-outline btn-sm" style="margin-right:8px" onclick="openQRModal('${kioskUrl}','${m.name}')">📱 QR לסריקה</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function saveWorkstations() {
+  document.querySelectorAll('[id^="ws_label_"],[id^="ws_pin_"]').forEach(inp => {
+    localStorage.setItem(inp.id, inp.value);
+  });
+  document.getElementById('wsSaveStatus').textContent = '✅ נשמר בדפדפן';
+  setTimeout(() => { document.getElementById('wsSaveStatus').textContent = ''; }, 3000);
+  toast('✓ הגדרות תחנות נשמרו');
+}
+
+function copyWsUrl(url, btn) {
+  navigator.clipboard.writeText(url).then(() => {
+    btn.textContent = '✓ הועתק';
+    setTimeout(() => btn.textContent = '📋 העתק כתובת', 2000);
+  });
+}
+
+function openQRModal(url, name) {
+  // Simple QR using Google Charts API
+  const qrUrl = `https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=${encodeURIComponent(url)}&choe=UTF-8`;
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:900;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = `<div style="background:#fff;border-radius:16px;padding:24px;text-align:center;max-width:280px">
+    <div style="font-size:15px;font-weight:800;margin-bottom:12px">📱 QR – ${name}</div>
+    <img src="${qrUrl}" alt="QR" style="width:200px;height:200px">
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;word-break:break-all">${url}</div>
+    <button onclick="this.closest('div[style]').remove()" style="margin-top:12px;padding:8px 20px;border:none;background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700">סגור</button>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+async function testWebhook() {
+  const url = document.getElementById('custom_webhook')?.value;
+  if (!url) { toast('יש להזין כתובת Webhook', true); return; }
+  try {
+    await fetch('/api/settings/test/webhook', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url }) });
+    toast('✓ בדיקה נשלחה ל-Webhook');
+  } catch { toast('שגיאה בשליחת בדיקה', true); }
+}
+
 // ── Machines table ─────────────────────────────────────────────
 let machinesData = [];
 function renderMachinesTable(machines) {
@@ -788,6 +1130,10 @@ function renderMachinesTable(machines) {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;align-items:center;font-size:13px">
+        <label style="font-size:11px;font-weight:700;color:var(--muted)">שם מכונה</label>
+        ${inp(`m_name_${m.id}`, m.name, 'מכונה A')}
+        <label style="font-size:11px;font-weight:700;color:var(--muted)">תווית / קיצור</label>
+        ${inp(`m_label_${m.id}`, m.label||m.name, 'A', '80px')}
         <label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap">סוג חיבור</label>
         <select data-mid="${m.id}" data-field="conn_mode" onchange="toggleMachineMode(${m.id},this.value)"
           style="background:#f5f8fb;border:1.5px solid rgba(0,0,0,0.10);border-radius:6px;padding:6px 10px;font-size:13px;font-family:'Heebo',sans-serif;color:var(--text)">
@@ -813,10 +1159,18 @@ function renderMachinesTable(machines) {
         ${inp(`slave_id_${m.id}`, m.slave_id||m.id, '1', '80px')}
         <label style="font-size:11px;font-weight:700;color:var(--muted)">קוטר מינ'-מקס' (מ"מ)</label>
         <div style="display:flex;gap:8px">
-          ${inp(`min_d_${m.id}`, m.min_diameter||8, 'מינ'', '80px')}
+          ${inp(`min_d_${m.id}`, m.min_diameter||8, "מינ'", '80px')}
           <span style="padding-top:6px">–</span>
-          ${inp(`max_d_${m.id}`, m.max_diameter||32, 'מקס'', '80px')}
+          ${inp(`max_d_${m.id}`, m.max_diameter||32, "מקס'", '80px')}
         </div>
+        <label style="font-size:11px;font-weight:700;color:var(--muted)">כיפוף תלת-מימד</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="can3d_${m.id}" ${m.can_3d ? 'checked' : ''}
+            style="width:16px;height:16px;accent-color:var(--primary)">
+          <span style="font-size:12px;color:var(--text)">
+            🆙 מכונה זו תומכת בכיפוף תלת-מימד (מחוץ למישור)
+          </span>
+        </label>
       </div>
     </div>`;
   }).join('');
@@ -836,6 +1190,8 @@ async function saveMachines() {
     const mid = sel.dataset.mid;
     const mode = sel.value;
     const body = {
+      name:         (document.getElementById(`m_name_${mid}`)?.value || '').trim(),
+      label:        (document.getElementById(`m_label_${mid}`)?.value || '').trim(),
       conn_mode:    mode,
       tcp_host:     (document.getElementById(`tcp_host_${mid}`)?.value || '').trim(),
       tcp_port:     parseInt(document.getElementById(`tcp_port_${mid}`)?.value) || 502,
@@ -844,6 +1200,7 @@ async function saveMachines() {
       slave_id:     parseInt(document.getElementById(`slave_id_${mid}`)?.value) || 1,
       min_diameter: parseFloat(document.getElementById(`min_d_${mid}`)?.value) || 8,
       max_diameter: parseFloat(document.getElementById(`max_d_${mid}`)?.value) || 32,
+      can_3d:       document.getElementById(`can3d_${mid}`)?.checked ? 1 : 0,
     };
     updates.push(fetch(`/api/machines/${mid}/config`, {
       method:'PATCH',
@@ -910,6 +1267,86 @@ async function testConn(service) {
   el.className = 'test-result ' + (res.ok ? 'ok' : 'err');
   el.textContent = (res.ok ? '✓ ' : '✗ ') + res.msg;
 }
+
+// ── Intake queue (email orders pending approval) ───────────────
+async function loadIntakeQueue() {
+  const queue = document.getElementById('intakeQueue');
+  const list  = document.getElementById('intakeList');
+  queue.style.display = '';
+  list.innerHTML = '<div style="color:#7a93ab;font-size:13px;">⏳ טוען...</div>';
+
+  const rows = await fetch('/api/intake/log?status=pending_review').then(r=>r.json());
+  if (!rows.length) {
+    list.innerHTML = '<div style="color:#7a93ab;font-size:13px;padding:12px;">✅ אין הזמנות ממתינות</div>';
+    return;
+  }
+
+  list.innerHTML = rows.map(row => {
+    let p = {};
+    try { p = JSON.parse(row.parsed_data || '{}'); } catch {}
+    const items = (p.items || []).map(it =>
+      `<span style="background:#e8f0fe;border-radius:6px;padding:2px 8px;font-size:11px;margin:2px;display:inline-block">
+        Ø${it.diameter} × ${it.length}מ"מ × ${it.qty} יח'
+        ${it.shape ? '(' + it.shape + ')' : ''}
+      </span>`
+    ).join('');
+    return `
+    <div id="intake_${row.id}" style="background:#fff;border:1px solid #dde4ed;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:800;font-size:14px;color:#1a2333;">${p.customer_name || 'לקוח לא ידוע'}</div>
+          <div style="font-size:12px;color:#526070;margin-top:2px;">
+            ${p.from || ''}
+            ${p.delivery_date ? ' · ' + p.delivery_date : ''}
+            ${p.delivery_address ? ' · ' + p.delivery_address : ''}
+          </div>
+          <div style="margin-top:8px;">${items || '<span style="color:#aaa;font-size:12px">אין פריטים שזוהו</span>'}</div>
+          ${p.notes ? `<div style="font-size:12px;color:#7a93ab;margin-top:6px;">💬 ${p.notes}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button onclick="intakeApprove(${row.id})"
+            style="padding:7px 16px;border-radius:7px;border:none;background:#1a7a42;color:#fff;font-family:Heebo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">
+            ✅ אשר הזמנה
+          </button>
+          <button onclick="intakeReject(${row.id})"
+            style="padding:7px 12px;border-radius:7px;border:1px solid #d0d8e4;background:#fff;color:#526070;font-family:Heebo,sans-serif;font-size:13px;cursor:pointer;">
+            ✕ דחה
+          </button>
+        </div>
+      </div>
+      <details style="margin-top:8px;">
+        <summary style="font-size:11px;color:#aab8c8;cursor:pointer;">תוכן המייל המקורי</summary>
+        <pre style="font-size:11px;color:#526070;white-space:pre-wrap;margin-top:4px;max-height:120px;overflow-y:auto;">${row.raw_content || ''}</pre>
+      </details>
+    </div>`;
+  }).join('');
+}
+
+async function intakeApprove(id) {
+  const r = await fetch(`/api/intake/${id}/approve`, { method:'POST' });
+  const res = await r.json();
+  if (res.success) {
+    document.getElementById('intake_' + id)?.remove();
+    toast(`✅ הזמנה ${res.orderNum} נוצרה בהצלחה`);
+  } else {
+    toast('שגיאה: ' + (res.error || ''), true);
+  }
+}
+
+async function intakeReject(id) {
+  await fetch(`/api/intake/${id}/reject`, { method:'POST' });
+  document.getElementById('intake_' + id)?.remove();
+  toast('הודעה סומנה כדחויה');
+}
+
+// Check for pending on load
+(async () => {
+  try {
+    const rows = await fetch('/api/intake/log?status=pending_review').then(r=>r.json());
+    const badge = document.getElementById('intakeBadge');
+    if (badge && rows.length) { badge.style.display=''; badge.textContent = rows.length; }
+  } catch {}
+})();
 
 // ── Toast ──────────────────────────────────────────────────────
 function toast(msg, err=false) {
@@ -979,24 +1416,40 @@ function closeDriverModal() {
   document.getElementById('driverModal').style.display = 'none';
 }
 
-async function saveDriver() {
-  const id   = document.getElementById('driverEditId').value;
-  const body = {
-    name:           document.getElementById('driverName').value.trim(),
-    phone:          document.getElementById('driverPhone').value.trim(),
-    vehicle_desc:   document.getElementById('driverVehicle').value.trim(),
-    license_plate:  document.getElementById('driverPlate').value.trim(),
-    license_expiry: document.getElementById('driverLicense').value || null,
-    notes:          document.getElementById('driverNotes').value.trim(),
-  };
-  if (!body.name) { alert('יש להזין שם נהג'); return; }
-  const url    = id ? `/api/drivers/${id}` : '/api/drivers';
-  const method = id ? 'PATCH' : 'POST';
-  await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-  closeDriverModal();
-  const drivers = await fetch('/api/drivers?all=1').then(r=>r.json());
-  renderDriversList(drivers);
-  toast(`✓ נהג ${body.name} נשמר`);
+// saveDriver(id) — called from inline card buttons; saveDriver() — called from modal
+async function saveDriver(id) {
+  if (id) {
+    // Inline card mode
+    await fetch(`/api/drivers/${id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        name:          document.getElementById('dname-'+id)?.value,
+        phone:         document.getElementById('dphone-'+id)?.value,
+        vehicle_desc:  document.getElementById('dveh-'+id)?.value,
+        license_plate: document.getElementById('dplate-'+id)?.value,
+      })
+    });
+    window.showToast && window.showToast('✓ נהג עודכן');
+    loadDriversAdmin();
+  } else {
+    // Modal mode (new driver or edit)
+    const mid  = document.getElementById('driverEditId').value;
+    const body = {
+      name:           document.getElementById('driverName').value.trim(),
+      phone:          document.getElementById('driverPhone').value.trim(),
+      vehicle_desc:   document.getElementById('driverVehicle').value.trim(),
+      license_plate:  document.getElementById('driverPlate').value.trim(),
+      license_expiry: document.getElementById('driverLicense').value || null,
+      notes:          document.getElementById('driverNotes').value.trim(),
+    };
+    if (!body.name) { alert('יש להזין שם נהג'); return; }
+    const url    = mid ? `/api/drivers/${mid}` : '/api/drivers';
+    const method = mid ? 'PATCH' : 'POST';
+    await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    closeDriverModal();
+    loadDriversAdmin();
+    toast(`✓ נהג ${body.name} נשמר`);
+  }
 }
 
 async function toggleDriver(id, active) {
@@ -1004,8 +1457,7 @@ async function toggleDriver(id, active) {
     method:'PATCH', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ active })
   });
-  const drivers = await fetch('/api/drivers?all=1').then(r=>r.json());
-  renderDriversList(drivers);
+  loadDriversAdmin();
   toast(active ? '✓ נהג הופעל' : '✓ נהג הושבת');
 }
 
@@ -1224,8 +1676,460 @@ async function loadAuditLog(append) {
   auditOffset += rows.length;
   document.getElementById('auditLoadMore').style.display = rows.length === 100 ? 'block' : 'none';
 }
+
+// ── MACHINES ADMIN ─────────────────────────────────────────────
+let _machines = [];
+const COM_PORTS = ['COM1','COM2','COM3','COM4','COM5','COM6','COM7','COM8','COM9','COM10',
+  '/dev/ttyUSB0','/dev/ttyUSB1','/dev/ttyS0','/dev/ttyS1'];
+const BAUD_RATES = [1200,2400,4800,9600,19200,38400,57600,115200];
+const DIAMETERS  = [6,8,10,12,14,16,20,25,28,32,36,40];
+
+function machineConnIcon(m) {
+  const live = m.status === 'מחובר' || m.status === 'בייצור';
+  const clr  = live ? 'var(--success)' : (m.status==='תקלה'?'var(--danger)':'#aaa');
+  return `<span title="${m.status||'לא מחובר'}" style="width:10px;height:10px;border-radius:50%;background:${clr};display:inline-block;margin-left:6px"></span>`;
+}
+
+function selOpts(vals, cur) {
+  return vals.map(v=>`<option value="${v}" ${String(v)===String(cur)?'selected':''}>${v}</option>`).join('');
+}
+
+function renderMachineCardHtml(m) {
+  const mode = m.conn_mode || 'tcp';
+  const statusClr = m.status==='מחובר'||m.status==='בייצור' ? 'var(--success)' : (m.status==='תקלה'?'var(--danger)':'var(--muted)');
+  return `
+  <div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.07)" id="mc-${m.id}">
+    <!-- Card header -->
+    <div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#e07b39,#f0954d);
+          color:#fff;font-size:15px;font-weight:900;display:flex;align-items:center;justify-content:center">
+          ${m.label||m.id}
+        </div>
+        <div>
+          <div style="font-weight:800;font-size:14px">${m.name}</div>
+          <div style="font-size:11px;font-weight:600;color:${statusClr}">${m.status||'לא מחובר'}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="testMachineConn(${m.id})" title="בדוק חיבור"
+          style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer;font-family:'Heebo',sans-serif">
+          📡 בדיקה
+        </button>
+        <button onclick="deleteMachine(${m.id},'${m.name}')" title="מחק מכונה"
+          style="padding:5px 10px;border-radius:7px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;font-size:13px;cursor:pointer">
+          🗑
+        </button>
+      </div>
+    </div>
+
+    <!-- Card body -->
+    <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
+
+      <!-- Name + label -->
+      <div style="display:grid;grid-template-columns:1fr 80px;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px">שם מכונה</div>
+          <input class="input-field" id="mname-${m.id}" value="${m.name||''}" placeholder="מכונה A" style="width:100%">
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px">תווית</div>
+          <input class="input-field" id="mlabel-${m.id}" value="${m.label||''}" placeholder="A" maxlength="4" style="width:100%">
+        </div>
+      </div>
+
+      <!-- Connection type selector -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">סוג חיבור</div>
+        <div style="display:flex;gap:8px">
+          <button id="mc-tcp-btn-${m.id}" onclick="switchMachineMode(${m.id},'tcp')"
+            style="flex:1;padding:10px 8px;border-radius:9px;border:2px solid ${mode==='tcp'?'var(--primary)':'var(--border)'};
+            background:${mode==='tcp'?'#fff7f3':'#fff'};cursor:pointer;font-family:'Heebo',sans-serif;transition:all .15s">
+            <div style="font-size:18px">🌐</div>
+            <div style="font-size:12px;font-weight:700;color:${mode==='tcp'?'var(--primary)':'var(--text)'}">TCP/IP</div>
+            <div style="font-size:10px;color:var(--muted)">USR-N510 / גיטוויי</div>
+          </button>
+          <button id="mc-rtu-btn-${m.id}" onclick="switchMachineMode(${m.id},'rtu')"
+            style="flex:1;padding:10px 8px;border-radius:9px;border:2px solid ${mode==='rtu'?'var(--primary)':'var(--border)'};
+            background:${mode==='rtu'?'#fff7f3':'#fff'};cursor:pointer;font-family:'Heebo',sans-serif;transition:all .15s">
+            <div style="font-size:18px">🔌</div>
+            <div style="font-size:12px;font-weight:700;color:${mode==='rtu'?'var(--primary)':'var(--text)'}">RTU סיריאלי</div>
+            <div style="font-size:10px;color:var(--muted)">RS-485 / COM</div>
+          </button>
+        </div>
+        <input type="hidden" id="mconn-${m.id}" value="${mode}">
+      </div>
+
+      <!-- TCP fields -->
+      <div id="tcp-fields-${m.id}" style="display:${mode==='tcp'?'grid':'none'};grid-template-columns:1fr 100px;gap:10px">
+        <div>
+          <div dir="ltr" style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-align:right">כתובת IP</div>
+          <input class="input-field" id="tcp_host-${m.id}" value="${m.tcp_host||''}" placeholder="192.168.1.10" style="width:100%"
+            oninput="this.style.borderColor=this.value.match(/^(\d{1,3}\.){3}\d{1,3}$/)?'':'#fca5a5'">
+        </div>
+        <div>
+          <div dir="ltr" style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-align:right">פורט TCP</div>
+          <input class="input-field" id="tcp_port-${m.id}" type="number" value="${m.tcp_port||502}" min="1" max="65535" style="width:100%">
+        </div>
+      </div>
+
+      <!-- RTU fields -->
+      <div id="rtu-fields-${m.id}" style="display:${mode==='rtu'?'grid':'none'};grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <div dir="ltr" style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-align:right">פורט COM</div>
+          <select class="input-field" id="rtu_port-${m.id}" style="width:100%">
+            ${selOpts(COM_PORTS, m.rtu_port)}
+          </select>
+        </div>
+        <div>
+          <div dir="ltr" style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-align:right">Baud Rate</div>
+          <select class="input-field" id="baud_rate-${m.id}" style="width:100%">
+            ${selOpts(BAUD_RATES, m.baud_rate||9600)}
+          </select>
+        </div>
+        <div>
+          <div dir="ltr" style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-align:right">Parity</div>
+          <select class="input-field" id="parity-${m.id}" style="width:100%">
+            <option value="none"  ${(m.parity||'none')==='none' ?'selected':''}>None (8N)</option>
+            <option value="even"  ${m.parity==='even'?'selected':''}>Even (8E)</option>
+            <option value="odd"   ${m.parity==='odd' ?'selected':''}>Odd  (8O)</option>
+          </select>
+        </div>
+        <div>
+          <div dir="ltr" style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-align:right">Stop Bits</div>
+          <select class="input-field" id="stop_bits-${m.id}" style="width:100%">
+            <option value="1" ${(m.stop_bits||1)=== 1?'selected':''}>1</option>
+            <option value="2" ${m.stop_bits===2?'selected':''}>2</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Slave ID + diameter range -->
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px">Slave ID</div>
+          <input class="input-field" id="slave_id-${m.id}" type="number" value="${m.slave_id||1}" min="1" max="247" style="width:100%">
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px">קוטר מינ' (מ"מ)</div>
+          <select class="input-field" id="mmin-${m.id}" style="width:100%">
+            ${selOpts(DIAMETERS, m.min_diameter||8)}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px">קוטר מקס' (מ"מ)</div>
+          <select class="input-field" id="mmax-${m.id}" style="width:100%">
+            ${selOpts(DIAMETERS, m.max_diameter||32)}
+          </select>
+        </div>
+      </div>
+
+      <!-- test result -->
+      <div id="mc-test-${m.id}" style="display:none;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600"></div>
+    </div>
+  </div>`;
+}
+
+async function loadMachinesAdmin() {
+  _machines = await fetch('/api/machines').then(r=>r.json()).catch(()=>[]);
+  const c = document.getElementById('machinesCards');
+  if (!_machines.length) {
+    c.innerHTML = `<div style="text-align:center;padding:32px;color:var(--muted);font-size:14px">
+      אין מכונות מוגדרות. לחץ <b>➕ מכונה חדשה</b> להוסיף.</div>`;
+    return;
+  }
+  c.innerHTML = _machines.map(renderMachineCardHtml).join('');
+}
+
+function switchMachineMode(mid, mode) {
+  document.getElementById(`mconn-${mid}`).value = mode;
+  document.getElementById(`tcp-fields-${mid}`).style.display = mode==='tcp' ? 'grid' : 'none';
+  document.getElementById(`rtu-fields-${mid}`).style.display = mode==='rtu' ? 'grid' : 'none';
+  const primary = 'var(--primary)', border = 'var(--border)';
+  const tcpBtn = document.getElementById(`mc-tcp-btn-${mid}`);
+  const rtuBtn = document.getElementById(`mc-rtu-btn-${mid}`);
+  [tcpBtn,rtuBtn].forEach(b=>{ b.style.borderColor=border; b.style.background='#fff';
+    b.querySelector('div:nth-child(2)').style.color='var(--text)'; });
+  const active = mode==='tcp' ? tcpBtn : rtuBtn;
+  active.style.borderColor=primary; active.style.background='#fff7f3';
+  active.querySelector('div:nth-child(2)').style.color='var(--primary)';
+}
+
+async function testMachineConn(mid) {
+  const el = document.getElementById(`mc-test-${mid}`);
+  el.style.display='block'; el.style.background='rgba(0,0,0,0.05)'; el.style.color='var(--text-dim)';
+  el.textContent='⏳ בודק חיבור...';
+  // Save first
+  await saveSingleMachine(mid);
+  try {
+    const r = await fetch(`/api/machines/${mid}/send-params`, { method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({}) });
+    const d = await r.json();
+    if (r.ok) { el.style.background='rgba(34,200,70,0.1)'; el.style.color='var(--success)'; el.textContent='✅ מחובר בהצלחה'; }
+    else       { el.style.background='rgba(220,38,38,0.1)'; el.style.color='var(--danger)';  el.textContent='❌ '+d.error; }
+  } catch(e) { el.style.background='rgba(220,38,38,0.1)'; el.style.color='var(--danger)'; el.textContent='❌ שגיאת רשת'; }
+  setTimeout(()=>{ el.style.display='none'; }, 5000);
+}
+
+async function saveSingleMachine(mid) {
+  const mode = document.getElementById(`mconn-${mid}`)?.value || 'tcp';
+  await fetch(`/api/machines/${mid}/config`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      name:         document.getElementById(`mname-${mid}`)?.value.trim(),
+      label:        document.getElementById(`mlabel-${mid}`)?.value.trim(),
+      conn_mode:    mode,
+      tcp_host:     mode==='tcp' ? document.getElementById(`tcp_host-${mid}`)?.value.trim() : null,
+      tcp_port:     mode==='tcp' ? +document.getElementById(`tcp_port-${mid}`)?.value : null,
+      rtu_port:     mode==='rtu' ? document.getElementById(`rtu_port-${mid}`)?.value : null,
+      baud_rate:    mode==='rtu' ? +document.getElementById(`baud_rate-${mid}`)?.value : null,
+      parity:       mode==='rtu' ? document.getElementById(`parity-${mid}`)?.value : null,
+      stop_bits:    mode==='rtu' ? +document.getElementById(`stop_bits-${mid}`)?.value : null,
+      slave_id:     +document.getElementById(`slave_id-${mid}`)?.value || 1,
+      min_diameter: +document.getElementById(`mmin-${mid}`)?.value || 8,
+      max_diameter: +document.getElementById(`mmax-${mid}`)?.value || 32,
+    })
+  });
+}
+
+async function saveMachinesAdmin() {
+  for (const m of _machines) await saveSingleMachine(m.id);
+  const el = document.getElementById('machinesSaveStatus');
+  el.textContent = '✅ נשמר! המכונות יתחברו מחדש.';
+  setTimeout(()=>{ el.textContent=''; }, 3000);
+}
+
+async function deleteMachine(mid, name) {
+  if (!confirm(`למחוק את "${name}"?`)) return;
+  await fetch(`/api/machines/${mid}`, { method:'DELETE' });
+  _machines = _machines.filter(m=>m.id!==mid);
+  document.getElementById(`mc-${mid}`)?.remove();
+  if (!_machines.length) document.getElementById('machinesCards').innerHTML =
+    `<div style="text-align:center;padding:32px;color:var(--muted)">אין מכונות. לחץ ➕ מכונה חדשה.</div>`;
+  toast(`✓ "${name}" נמחקה`);
+}
+
+function openAddMachineModal() {
+  const m = document.getElementById('addMachineModal');
+  m.style.display='flex';
+  document.getElementById('nm_name').value='';
+  document.getElementById('nm_label').value='';
+  document.getElementById('nm_tcp_host').value='';
+  document.getElementById('nm_tcp_port').value='502';
+  document.getElementById('nm_slave').value='1';
+  toggleAddMachineConn('tcp');
+}
+
+function toggleAddMachineConn(mode) {
+  document.getElementById('nm_conn_type').value = mode;   // ← store selected mode
+  document.getElementById('nm_tcp_fields').style.display = mode==='tcp'?'block':'none';
+  document.getElementById('nm_rtu_fields').style.display = mode==='rtu'?'block':'none';
+  const primary='var(--primary)', border='var(--border)';
+  document.getElementById('nm_tcp_opt').style.borderColor = mode==='tcp' ? primary : border;
+  document.getElementById('nm_tcp_opt').style.background  = mode==='tcp' ? '#fff7f3' : '#fff';
+  document.getElementById('nm_rtu_opt').style.borderColor = mode==='rtu' ? primary : border;
+  document.getElementById('nm_rtu_opt').style.background  = mode==='rtu' ? '#fff7f3' : '#fff';
+}
+
+async function submitAddMachine() {
+  const name = document.getElementById('nm_name').value.trim();
+  if (!name) { document.getElementById('nm_name').style.borderColor='#fca5a5'; return; }
+  const mode = document.getElementById('nm_conn_type').value || 'tcp';
+  if (mode==='tcp' && !document.getElementById('nm_tcp_host').value.trim()) {
+    document.getElementById('nm_tcp_host').style.borderColor='#fca5a5'; return; }
+  if (mode==='rtu' && !document.getElementById('nm_rtu_port').value) {
+    document.getElementById('nm_rtu_port').style.borderColor='#fca5a5'; return; }
+
+  const body = {
+    name, label: document.getElementById('nm_label').value.trim() || name.substring(0,1).toUpperCase(),
+    conn_mode: mode,
+    tcp_host:  mode==='tcp' ? document.getElementById('nm_tcp_host').value.trim() : null,
+    tcp_port:  mode==='tcp' ? +document.getElementById('nm_tcp_port').value : null,
+    rtu_port:  mode==='rtu' ? document.getElementById('nm_rtu_port').value : null,
+    baud_rate: mode==='rtu' ? +document.getElementById('nm_baud').value : null,
+    parity:    mode==='rtu' ? document.getElementById('nm_parity').value : null,
+    stop_bits: mode==='rtu' ? +document.getElementById('nm_stop_bits').value : null,
+    slave_id:  +document.getElementById('nm_slave').value || 1,
+    min_diameter: +document.getElementById('nm_mind').value || 8,
+    max_diameter: +document.getElementById('nm_maxd').value || 32,
+  };
+  const r = await fetch('/api/machines', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { toast(d.error||'שגיאה', true); return; }
+  document.getElementById('addMachineModal').style.display='none';
+  toast('✓ מכונה נוספה בהצלחה');
+  loadMachinesAdmin();
+}
+
+// ── DRIVERS ADMIN ──────────────────────────────────────────────
+async function loadDriversAdmin() {
+  const drivers = await fetch('/api/drivers?all=1').then(r=>r.json()).catch(()=>[]);
+  const el = document.getElementById('driversList');
+  if (!el) return;
+  if (!drivers.length) { el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted)">אין נהגים</div>'; return; }
+  el.innerHTML = drivers.map(d => `
+    <div style="background:#f8fafc;border:1px solid rgba(0,0,0,0.09);border-radius:10px;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;align-items:end">
+      <div>
+        <div style="font-size:11px;color:#526070;margin-bottom:3px;font-weight:600">שם</div>
+        <input class="input-field" id="dname-${d.id}" value="${d.name||''}">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#526070;margin-bottom:3px;font-weight:600">טלפון</div>
+        <input class="input-field" id="dphone-${d.id}" value="${d.phone||''}">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#526070;margin-bottom:3px;font-weight:600">רכב</div>
+        <input class="input-field" id="dveh-${d.id}" value="${d.vehicle_desc||''}">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#526070;margin-bottom:3px;font-weight:600">לוחית</div>
+        <input class="input-field" id="dplate-${d.id}" value="${d.license_plate||''}">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:6px">
+        <button class="btn btn-primary" style="flex:1;padding:8px" onclick="saveDriver(${d.id})">💾 שמור</button>
+        <button class="btn" style="padding:8px;background:${d.active?'rgba(184,50,39,0.08)':'rgba(26,122,66,0.08)'};color:${d.active?'var(--danger)':'var(--success)'};border:1px solid currentColor"
+          onclick="toggleDriver(${d.id},${d.active?0:1})">${d.active?'השבת':'הפעל'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
 </script>
 <script src="/help.js"></script>
+
+<!-- ── Add Machine Modal – at body level so position:fixed works correctly ── -->
+<div id="addMachineModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:#fff;border-radius:16px;width:480px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;max-height:90vh;overflow-y:auto">
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e9ef;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1">
+      <div style="font-size:16px;font-weight:800">➕ הוסף מכונה חדשה</div>
+      <button onclick="document.getElementById('addMachineModal').style.display='none'"
+        style="width:32px;height:32px;border:none;background:#f0f0f0;border-radius:8px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px;font-family:'Heebo',sans-serif">
+      <div style="display:grid;grid-template-columns:1fr 80px;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px">שם מכונה *</div>
+          <input id="nm_name" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px" placeholder="מכונה A – XINJE">
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px">תווית</div>
+          <input id="nm_label" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px" placeholder="A" maxlength="4">
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#526070;margin-bottom:8px">סוג חיבור</div>
+        <div style="display:flex;gap:10px">
+          <div id="nm_tcp_opt" onclick="toggleAddMachineConn('tcp')"
+            style="flex:1;border:2px solid #e07b39;background:#fff7f3;border-radius:10px;padding:12px;text-align:center;cursor:pointer">
+            <div style="font-size:20px">🌐</div>
+            <div style="font-size:12px;font-weight:700;margin-top:4px;color:#e07b39">TCP/IP</div>
+            <div style="font-size:10px;color:#526070">גיטוויי / USR-N510</div>
+          </div>
+          <div id="nm_rtu_opt" onclick="toggleAddMachineConn('rtu')"
+            style="flex:1;border:2px solid #dde3ec;background:#fff;border-radius:10px;padding:12px;text-align:center;cursor:pointer">
+            <div style="font-size:20px">🔌</div>
+            <div style="font-size:12px;font-weight:700;margin-top:4px">RTU סיריאלי</div>
+            <div style="font-size:10px;color:#526070">RS-485 / COM</div>
+          </div>
+        </div>
+        <input type="hidden" id="nm_conn_type" value="tcp">
+      </div>
+
+      <!-- TCP fields -->
+      <div id="nm_tcp_fields">
+        <div style="display:grid;grid-template-columns:1fr 100px;gap:10px">
+          <div>
+            <div dir="ltr" style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px;text-align:right">כתובת IP</div>
+            <input id="nm_tcp_host" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px" placeholder="192.168.1.10"
+              oninput="this.style.borderColor=this.value.match(/^(\d{1,3}\.){3}\d{1,3}$/)?'#dde3ec':'#fca5a5'">
+          </div>
+          <div>
+            <div dir="ltr" style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px;text-align:right">פורט TCP</div>
+            <input id="nm_tcp_port" type="number" value="502" min="1" max="65535"
+              style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px">
+          </div>
+        </div>
+      </div>
+
+      <!-- RTU fields -->
+      <div id="nm_rtu_fields" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <div dir="ltr" style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px;text-align:right">פורט COM</div>
+            <select id="nm_rtu_port" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px">
+              <option value="">-- בחר פורט --</option>
+              <option>COM1</option><option>COM2</option><option selected>COM3</option>
+              <option>COM4</option><option>COM5</option><option>COM6</option>
+              <option>COM7</option><option>COM8</option>
+              <option>COM7</option><option>COM8</option><option>COM9</option><option>COM10</option>
+              <option>/dev/ttyUSB0</option><option>/dev/ttyUSB1</option>
+              <option>/dev/ttyS0</option><option>/dev/ttyS1</option>
+            </select>
+          </div>
+          <div>
+            <div dir="ltr" style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px;text-align:right">Baud Rate</div>
+            <select id="nm_baud" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px">
+              <option>1200</option><option>2400</option><option>4800</option>
+              <option selected>9600</option><option>19200</option><option>38400</option>
+              <option>57600</option><option>115200</option>
+            </select>
+          </div>
+          <div>
+            <div dir="ltr" style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px;text-align:right">Parity</div>
+            <select id="nm_parity" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px">
+              <option value="none" selected>None (8N)</option>
+              <option value="even">Even (8E)</option>
+              <option value="odd">Odd  (8O)</option>
+            </select>
+          </div>
+          <div>
+            <div dir="ltr" style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px;text-align:right">Stop Bits</div>
+            <select id="nm_stop_bits" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px">
+              <option value="1" selected>1</option>
+              <option value="2">2</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diameter note -->
+      <div style="background:#f0f7ff;border:1px solid #bcd4f0;border-radius:8px;padding:9px 12px;font-size:12px;color:#3a6090;line-height:1.5">
+        💡 <strong>טווח קוטרים</strong> — קובע אילו הזמנות יופנו למכונה זו אוטומטית (לפי קוטר הברזל). מכונה לא תקבל הזמנות מחוץ לטווח.
+      </div>
+
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px">Slave ID</div>
+          <input id="nm_slave" type="number" value="1" min="1" max="247"
+            style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px">
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px">קוטר מינ' (מ"מ)</div>
+          <select id="nm_mind" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px">
+            <option value="6">6</option><option value="8" selected>8</option>
+            <option value="10">10</option><option value="12">12</option>
+            <option value="14">14</option><option value="16">16</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#526070;margin-bottom:5px">קוטר מקס' (מ"מ)</div>
+          <select id="nm_maxd" style="width:100%;padding:8px 12px;border:1.5px solid #dde3ec;border-radius:8px;font-family:'Heebo',sans-serif;font-size:13px">
+            <option value="12">12</option><option value="16">16</option>
+            <option value="20">20</option><option value="25">25</option>
+            <option value="28">28</option><option value="32" selected>32</option>
+            <option value="36">36</option><option value="40">40</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div style="padding:12px 20px 16px;border-top:1px solid #e5e9ef;display:flex;justify-content:flex-end;gap:10px;font-family:'Heebo',sans-serif">
+      <button onclick="document.getElementById('addMachineModal').style.display='none'"
+        style="padding:9px 20px;border-radius:8px;border:1px solid #dde3ec;background:#f8fafc;color:#526070;cursor:pointer;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700">ביטול</button>
+      <button onclick="submitAddMachine()"
+        style="padding:9px 20px;border-radius:8px;border:none;background:linear-gradient(135deg,#e07b39,#f0954d);color:#fff;cursor:pointer;font-family:'Heebo',sans-serif;font-size:13px;font-weight:800">➕ הוסף מכונה</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
 

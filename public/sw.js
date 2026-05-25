@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'ironbend-v2';
+const CACHE_VERSION = 'ironbend-v3';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const API_CACHE     = `${CACHE_VERSION}-api`;
 
@@ -57,7 +57,13 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Static assets (JS, CSS, fonts, images): cache-first
+  // JS and CSS: always network-first so code changes are seen immediately
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    e.respondWith(networkFirstHTML(e.request));
+    return;
+  }
+
+  // Other static assets (images, icons, fonts): cache-first
   e.respondWith(cacheFirstStatic(e.request));
 });
 

@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>תור ייצור – IronBend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent:  #e07b39;
+    --success: #27ae60;
+    --danger:  #e74c3c;
+    --warning: #f39c12;
+    --info:    #3498db;
+    --bg:      #0f1117;
+    --card:    #1a1d27;
+    --border:  #2a2d3a;
+    --text:    #e8eaf0;
+    --muted:   #7f8898;
+    --radius:  12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Heebo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* NAV */
+  .nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px;
+         display: flex; align-items: center; gap: 8px; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .nav-brand { font-size: 18px; font-weight: 800; color: var(--accent); margin-left: auto; }
+  .nav a { color: var(--muted); text-decoration: none; font-size: 13px; padding: 6px 12px;
+           border-radius: 6px; transition: all .2s; }
+  .nav a:hover, .nav a.active { background: rgba(224,123,57,.15); color: var(--accent); }
+
+  /* HEADER */
+  .page-header { padding: 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .page-title { font-size: 22px; font-weight: 800; }
+  .header-actions { display: flex; gap: 8px; margin-right: auto; flex-wrap: wrap; }
+
+  /* MACHINE FILTER TABS */
+  .machine-tabs { display: flex; gap: 8px; padding: 0 24px 16px; flex-wrap: wrap; }
+  .machine-tab { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--border);
+                 background: var(--card); color: var(--muted); cursor: pointer; font-size: 14px;
+                 font-family: 'Heebo', sans-serif; transition: all .2s; }
+  .machine-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(224,123,57,.1); }
+  .machine-tab:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+
+  /* SHIFT BAR */
+  .shift-bar { background: var(--card); border-bottom: 1px solid var(--border);
+               padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .shift-info { display: flex; align-items: center; gap: 24px; flex: 1; flex-wrap: wrap; }
+  .shift-stat { display: flex; flex-direction: column; }
+  .shift-stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .shift-stat .value { font-size: 18px; font-weight: 700; color: var(--text); }
+  .btn { padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer;
+         font-family: 'Heebo', sans-serif; font-size: 14px; font-weight: 600; transition: all .2s; }
+  .btn-primary  { background: var(--accent); color: #fff; }
+  .btn-success  { background: var(--success); color: #fff; }
+  .btn-danger   { background: var(--danger);  color: #fff; }
+  .btn-warning  { background: var(--warning); color: #fff; }
+  .btn-outline  { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn:hover    { opacity: .85; transform: translateY(-1px); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  /* CONTENT */
+  .content { padding: 0 24px 48px; }
+
+  /* MACHINE COLUMNS */
+  .machines-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+
+  .machine-col { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+  .machine-col-header { padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+                         border-bottom: 1px solid var(--border); position: relative; }
+  .machine-badge { width: 36px; height: 36px; border-radius: 8px; background: var(--accent);
+                   display: flex; align-items: center; justify-content: center;
+                   font-size: 16px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .machine-col-title { font-size: 15px; font-weight: 700; }
+  .machine-status-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: auto; }
+  .dot-green  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .dot-red    { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+  .dot-gray   { background: var(--muted); }
+  .machine-col-count { font-size: 11px; color: var(--muted); }
+  .stop-btn-small { background: rgba(231,76,60,.15); color: var(--danger); border: 1px solid var(--danger);
+                    padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+                    font-family: 'Heebo', sans-serif; }
+
+  /* QUEUE ITEMS */
+  .queue-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
+  .queue-item { background: var(--bg); border-radius: 8px; padding: 12px 14px;
+                border: 1px solid var(--border); cursor: pointer; transition: all .2s;
+                display: flex; flex-direction: column; gap: 6px; }
+  .queue-item:hover { border-color: var(--accent); }
+  .queue-item.active-item { border-color: var(--success); background: rgba(39,174,96,.06); }
+  .queue-item.active-item .item-status-badge { background: rgba(39,174,96,.2); color: var(--success); }
+  .item-top { display: flex; align-items: center; gap: 8px; }
+  .item-order { font-size: 13px; font-weight: 700; color: var(--accent); }
+  .item-customer { font-size: 12px; color: var(--muted); }
+  .item-priority-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; }
+  .badge-urgent { background: rgba(231,76,60,.2); color: var(--danger); }
+  .badge-high   { background: rgba(243,156,18,.2); color: var(--warning); }
+  .badge-normal { background: rgba(52,152,219,.12); color: var(--info); }
+  .item-details { display: flex; gap: 12px; flex-wrap: wrap; }
+  .item-detail  { font-size: 12px; color: var(--muted); }
+  .item-detail strong { color: var(--text); }
+  .item-status-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px;
+                       background: rgba(127,136,152,.15); color: var(--muted); margin-right: auto; }
+  .item-actions { display: flex; gap: 6px; margin-top: 4px; }
+  .item-btn { padding: 4px 10px; border-radius: 6px; border: none; cursor: pointer;
+              font-family: 'Heebo', sans-serif; font-size: 12px; font-weight: 600; }
+  .item-btn-start { background: rgba(39,174,96,.2); color: var(--success); border: 1px solid var(--success); }
+  .item-btn-done  { background: rgba(52,152,219,.2); color: var(--info);    border: 1px solid var(--info); }
+  .item-btn-waste { background: rgba(243,156,18,.2); color: var(--warning); border: 1px solid var(--warning); }
+  .item-btn:hover { opacity: .8; }
+
+  .empty-state { padding: 40px; text-align: center; color: var(--muted); font-size: 14px; }
+
+  /* PROGRESS BAR */
+  .item-progress { height: 4px; background: var(--border); border-radius: 2px; margin-top: 2px; overflow: hidden; }
+  .item-progress-fill { height: 100%; background: var(--success); border-radius: 2px; transition: width .3s; }
+
+  /* MODALS */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 1000;
+                   display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border);
+           width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+                  display: flex; justify-content: space-between; align-items: center; }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+  .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border);
+                  display: flex; justify-content: flex-end; gap: 8px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .form-control { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+                  padding: 10px 14px; color: var(--text); font-family: 'Heebo', sans-serif;
+                  font-size: 14px; width: 100%; }
+  .form-control:focus { outline: none; border-color: var(--accent); }
+  select.form-control option { background: var(--card); }
+
+  /* STOP REASON PILLS */
+  .reason-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .reason-pill { padding: 8px 16px; border-radius: 8px; border: 2px solid var(--border);
+                 cursor: pointer; font-size: 13px; font-weight: 500; transition: all .2s; }
+  .reason-pill.selected { border-color: var(--accent); background: rgba(224,123,57,.15); color: var(--accent); }
+  .reason-pill:hover:not(.selected) { border-color: var(--muted); }
+
+  /* SCAN OVERLAY */
+  .scan-indicator { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+                    background: var(--card); border: 1px solid var(--accent); border-radius: 12px;
+                    padding: 12px 24px; display: flex; align-items: center; gap: 10px;
+                    box-shadow: 0 4px 20px rgba(224,123,57,.3); z-index: 500; }
+  .scan-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+              animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+
+  /* RESPONSIVE */
+  @media (max-width: 600px) {
+    .machines-grid { grid-template-columns: 1fr; }
+    .page-header { padding: 16px; }
+    .content { padding: 0 12px 48px; }
+    .machine-tabs { padding: 0 12px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <a href="/dashboard.html">🏠 לוח בקרה</a>
+  <a href="/machine.html">🤖 מכונות</a>
+  <a href="/production-queue.html" class="active">📋 תור ייצור</a>
+  <a href="/maintenance.html">🔧 תחזוקה</a>
+  <a href="/quality.html">✅ איכות</a>
+  <a href="/inventory.html">📦 מלאי</a>
+  <span class="nav-brand">IronBend</span>
+</nav>
+
+<!-- SHIFT BAR -->
+<div class="shift-bar">
+  <div class="shift-info">
+    <div class="shift-stat">
+      <span class="label">משמרת פעילה</span>
+      <span class="value" id="shift-type-label">—</span>
+    </div>
+    <div class="shift-stat">
+      <span class="label">מפעיל</span>
+      <span class="value" id="shift-operator">—</span>
+    </div>
+    <div class="shift-stat">
+      <span class="label">פריטים הושלמו</span>
+      <span class="value" id="shift-pieces">0</span>
+    </div>
+    <div class="shift-stat">
+      <span class="label">טון היום</span>
+      <span class="value" id="shift-tons">0</span>
+    </div>
+  </div>
+  <button class="btn btn-success" onclick="openStartShift()">▶ פתח משמרת</button>
+  <button class="btn btn-danger" id="end-shift-btn" onclick="endCurrentShift()" disabled>■ סגור משמרת</button>
+  <button class="btn btn-warning" onclick="openStopModal()">⏸ דיווח עצירה</button>
+</div>
+
+<!-- MACHINE TABS -->
+<div class="machine-tabs" id="machine-tabs">
+  <button class="machine-tab active" data-machine="all" onclick="filterMachine('all',this)">🏭 כל המכונות</button>
+</div>
+
+<!-- HEADER -->
+<div class="page-header">
+  <div>
+    <div class="page-title">📋 תור ייצור</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px">פריטים ממתינים לייצור — ממוינים לפי עדיפות</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-outline" onclick="loadQueue()">🔄 רענן</button>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+  <div class="machines-grid" id="machines-grid">
+    <div class="empty-state">טוען...</div>
+  </div>
+</div>
+
+<!-- START SHIFT MODAL -->
+<div class="modal-overlay" id="start-shift-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">▶ פתיחת משמרת</div>
+      <button class="modal-close" onclick="closeModal('start-shift-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>סוג משמרת</label>
+        <select class="form-control" id="shift-type-sel">
+          <option value="morning">בוקר (07:00-15:00)</option>
+          <option value="afternoon">צהריים (15:00-23:00)</option>
+          <option value="night">לילה (23:00-07:00)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>מפעיל</label>
+        <select class="form-control" id="shift-operator-sel">
+          <option value="">— בחר מפעיל —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>מכונה</label>
+        <select class="form-control" id="shift-machine-sel">
+          <option value="">— כל המכונות —</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('start-shift-modal')">ביטול</button>
+      <button class="btn btn-success" onclick="startShift()">פתח משמרת</button>
+    </div>
+  </div>
+</div>
+
+<!-- STOP REASON MODAL -->
+<div class="modal-overlay" id="stop-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⏸ דיווח עצירת מכונה</div>
+      <button class="modal-close" onclick="closeModal('stop-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>מכונה</label>
+        <select class="form-control" id="stop-machine-sel">
+          <option value="">— בחר מכונה —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>סיבת עצירה</label>
+        <div class="reason-pills" id="reason-pills"></div>
+      </div>
+      <div class="form-group">
+        <label>הערות</label>
+        <textarea class="form-control" id="stop-notes" rows="2" placeholder="פרטים נוספים..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('stop-modal')">ביטול</button>
+      <button class="btn btn-danger" onclick="submitStop()">דווח עצירה</button>
+    </div>
+  </div>
+</div>
+
+<!-- WASTE MODAL -->
+<div class="modal-overlay" id="waste-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="waste-modal-title">דיווח פחת</div>
+      <button class="modal-close" onclick="closeModal('waste-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>כמות שיוצרה (יח')</label>
+        <input type="number" class="form-control" id="waste-produced" min="0" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>פחת בפועל (ס"מ)</label>
+        <input type="number" class="form-control" id="waste-amount" min="0" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>הערה</label>
+        <textarea class="form-control" id="waste-note" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('waste-modal')">ביטול</button>
+      <button class="btn btn-warning" onclick="submitWaste()">שמור דיווח</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let queueData = { items: [], grouped: {} };
+let machines = [];
+let users = [];
+let stopReasons = [];
+let currentShift = null;
+let selectedReason = null;
+let currentMachineFilter = 'all';
+let currentWasteItemId = null;
+
+// ── INIT ──────────────────────────────────────────────────────────
+async function init() {
+  await Promise.all([loadMachines(), loadUsers(), loadStopReasons()]);
+  populateStopMachines();
+  populateShiftMachines();
+  populateShiftOperators();
+  loadQueue();
+  loadTonsToday();
+  setInterval(() => { loadQueue(); loadTonsToday(); }, 30000);
+}
+
+async function loadMachines() {
+  const data = await fetch(`${API}/api/machines`).then(r=>r.json());
+  machines = Array.isArray(data) ? data : (data.machines || []);
+  const tabs = document.getElementById('machine-tabs');
+  tabs.innerHTML = `<button class="machine-tab active" data-machine="all" onclick="filterMachine('all',this)">🏭 כל המכונות</button>`;
+  machines.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'machine-tab';
+    btn.dataset.machine = m.name;
+    btn.onclick = () => filterMachine(m.name, btn);
+    btn.textContent = `מכונה ${m.label || m.name}`;
+    tabs.appendChild(btn);
+  });
+}
+
+async function loadUsers() {
+  try {
+    const data = await fetch(`${API}/api/users`).then(r=>r.json());
+    users = Array.isArray(data) ? data : (data.users || []);
+  } catch(e) { users = []; }
+}
+
+async function loadStopReasons() {
+  stopReasons = await fetch(`${API}/api/downtime-reasons`).then(r=>r.json());
+  const pills = document.getElementById('reason-pills');
+  pills.innerHTML = '';
+  stopReasons.forEach(r => {
+    const p = document.createElement('div');
+    p.className = 'reason-pill';
+    p.textContent = r.label;
+    p.dataset.code = r.code;
+    p.onclick = () => selectReason(r.code, p);
+    pills.appendChild(p);
+  });
+}
+
+function selectReason(code, el) {
+  selectedReason = code;
+  document.querySelectorAll('.reason-pill').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+async function loadQueue() {
+  const url = currentMachineFilter === 'all'
+    ? `${API}/api/production-queue`
+    : `${API}/api/production-queue?machine=${encodeURIComponent(currentMachineFilter)}`;
+  queueData = await fetch(url).then(r=>r.json());
+  renderQueue();
+}
+
+async function loadTonsToday() {
+  try {
+    const data = await fetch(`${API}/api/kpi/tons-today`).then(r=>r.json());
+    document.getElementById('shift-tons').textContent = data.tons + ' ט';
+  } catch(e) {}
+}
+
+// ── FILTER ────────────────────────────────────────────────────────
+function filterMachine(machine, btn) {
+  currentMachineFilter = machine;
+  document.querySelectorAll('.machine-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  loadQueue();
+}
+
+// ── RENDER QUEUE ─────────────────────────────────────────────────
+function renderQueue() {
+  const grid = document.getElementById('machines-grid');
+  const grouped = queueData.grouped || {};
+  const keys = Object.keys(grouped);
+
+  if (keys.length === 0) {
+    grid.innerHTML = `<div class="empty-state">✅ אין פריטים ממתינים לייצור</div>`;
+    return;
+  }
+
+  grid.innerHTML = '';
+  keys.forEach(machineKey => {
+    const items = grouped[machineKey];
+    const machineInfo = machines.find(m => m.name === machineKey);
+    const col = createMachineColumn(machineKey, machineInfo, items);
+    grid.appendChild(col);
+  });
+
+  // Update shift pieces count
+  const totalPending = queueData.items ? queueData.items.length : 0;
+  document.getElementById('shift-pieces').textContent = totalPending;
+}
+
+function createMachineColumn(machineName, machineInfo, items) {
+  const col = document.createElement('div');
+  col.className = 'machine-col';
+
+  const isConnected = machineInfo && machineInfo.status === 'מחובר';
+  const dotClass = isConnected ? 'dot-green' : machineInfo ? 'dot-gray' : 'dot-gray';
+  const activeItems = items.filter(i => i.status === 'בייצור');
+
+  col.innerHTML = `
+    <div class="machine-col-header">
+      <div class="machine-badge">${machineInfo ? (machineInfo.label || machineName) : machineName[0]}</div>
+      <div>
+        <div class="machine-col-title">${machineName}</div>
+        <div class="machine-col-count">${items.length} פריטים | ${activeItems.length} פעיל</div>
+      </div>
+      <div class="machine-status-dot ${dotClass}"></div>
+      <button class="stop-btn-small" onclick="openStopForMachine('${machineName}')">⏸ עצירה</button>
+    </div>
+    <div class="queue-list" id="list-${machineName.replace(/\s/g,'_')}">
+      ${items.map(item => renderQueueItem(item)).join('')}
+      ${items.length === 0 ? '<div class="empty-state">אין פריטים</div>' : ''}
+    </div>
+  `;
+  return col;
+}
+
+function renderQueueItem(item) {
+  const isActive = item.status === 'בייצור';
+  const pct = item.quantity > 0 ? Math.min(100, Math.round((item.produced_qty || 0) / item.quantity * 100)) : 0;
+  const priorityBadge = item.priority === 'דחוף' ? 'badge-urgent' :
+                        item.priority === 'גבוה' ? 'badge-high' : 'badge-normal';
+
+  const segments = safeJson(item.segments);
+  const dims = segments && segments.length > 0
+    ? segments.slice(0,3).map(s => typeof s === 'object' ? (s.length || s) : s).join(' / ') + ' מ"מ'
+    : '';
+
+  return `
+    <div class="queue-item ${isActive ? 'active-item' : ''}" onclick="toggleItemActions(${item.id})">
+      <div class="item-top">
+        <span class="item-order">${item.order_num || ''}</span>
+        <span class="item-customer">${item.customer_name || ''}</span>
+        <span class="item-priority-badge ${priorityBadge}">${item.priority || 'רגיל'}</span>
+        <span class="item-status-badge">${item.status}</span>
+      </div>
+      <div class="item-details">
+        <span class="item-detail"><strong>קוטר</strong> ⌀${item.diameter}</span>
+        <span class="item-detail"><strong>כמות</strong> ${item.produced_qty||0}/${item.quantity}</span>
+        <span class="item-detail"><strong>משקל</strong> ${Math.round(item.weight||0)} ק"ג</span>
+        ${item.shape_name ? `<span class="item-detail"><strong>צורה</strong> ${item.shape_name}</span>` : ''}
+        ${dims ? `<span class="item-detail"><strong>מידות</strong> ${dims}</span>` : ''}
+        ${item.delivery_date ? `<span class="item-detail"><strong>אספקה</strong> ${item.delivery_date}</span>` : ''}
+      </div>
+      ${isActive ? `<div class="item-progress"><div class="item-progress-fill" style="width:${pct}%"></div></div>` : ''}
+      <div class="item-actions" id="actions-${item.id}" style="display:none">
+        ${item.status === 'ממתין'
+          ? `<button class="item-btn item-btn-start" onclick="startItem(${item.id},event)">▶ התחל</button>`
+          : `<button class="item-btn item-btn-done" onclick="completeItem(${item.id},event)">✅ הושלם</button>`
+        }
+        <button class="item-btn item-btn-waste" onclick="openWaste(${item.id},'${item.order_num}',event)">📊 פחת</button>
+      </div>
+    </div>
+  `;
+}
+
+function safeJson(str) {
+  if (!str) return null;
+  try { return typeof str === 'string' ? JSON.parse(str) : str; } catch(e) { return null; }
+}
+
+function toggleItemActions(itemId) {
+  const el = document.getElementById(`actions-${itemId}`);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+}
+
+// ── ITEM ACTIONS ─────────────────────────────────────────────────
+async function startItem(itemId, e) {
+  e && e.stopPropagation();
+  await fetch(`${API}/api/items/${itemId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'בייצור' })
+  });
+  loadQueue();
+}
+
+async function completeItem(itemId, e) {
+  e && e.stopPropagation();
+  await fetch(`${API}/api/items/${itemId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'הושלם' })
+  });
+  loadQueue();
+}
+
+function openWaste(itemId, orderNum, e) {
+  e && e.stopPropagation();
+  currentWasteItemId = itemId;
+  document.getElementById('waste-modal-title').textContent = `פחת — ${orderNum}`;
+  document.getElementById('waste-produced').value = '';
+  document.getElementById('waste-amount').value = '';
+  document.getElementById('waste-note').value = '';
+  document.getElementById('waste-modal').style.display = 'flex';
+}
+
+async function submitWaste() {
+  if (!currentWasteItemId) return;
+  const produced = parseInt(document.getElementById('waste-produced').value) || 0;
+  const waste = parseInt(document.getElementById('waste-amount').value) || 0;
+  const note = document.getElementById('waste-note').value;
+  await fetch(`${API}/api/items/${currentWasteItemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ produced_qty: produced, actual_waste: waste, note })
+  });
+  closeModal('waste-modal');
+  loadQueue();
+}
+
+// ── SHIFT ACTIONS ─────────────────────────────────────────────────
+function openStartShift() {
+  document.getElementById('start-shift-modal').style.display = 'flex';
+}
+
+function populateShiftOperators() {
+  const sel = document.getElementById('shift-operator-sel');
+  sel.innerHTML = '<option value="">— בחר מפעיל —</option>';
+  users.filter(u => ['operator','manager','admin'].includes(u.role)).forEach(u => {
+    sel.innerHTML += `<option value="${u.id}">${u.display_name}</option>`;
+  });
+}
+
+function populateShiftMachines() {
+  const sel = document.getElementById('shift-machine-sel');
+  sel.innerHTML = '<option value="">— כל המכונות —</option>';
+  machines.forEach(m => {
+    sel.innerHTML += `<option value="${m.id}">${m.name}</option>`;
+  });
+}
+
+function populateStopMachines() {
+  const sel = document.getElementById('stop-machine-sel');
+  sel.innerHTML = '<option value="">— בחר מכונה —</option>';
+  machines.forEach(m => {
+    sel.innerHTML += `<option value="${m.id}">${m.name}</option>`;
+  });
+}
+
+async function startShift() {
+  const shift_type = document.getElementById('shift-type-sel').value;
+  const operator_id = document.getElementById('shift-operator-sel').value;
+  const machine_id = document.getElementById('shift-machine-sel').value;
+  const data = await fetch(`${API}/api/shifts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shift_type, operator_id: operator_id || null, machine_id: machine_id || null })
+  }).then(r=>r.json());
+  currentShift = { id: data.id, shift_type, operator_id, machine_id };
+
+  const typeLabels = { morning: 'בוקר', afternoon: 'צהריים', night: 'לילה' };
+  document.getElementById('shift-type-label').textContent = typeLabels[shift_type] || shift_type;
+  const op = users.find(u => u.id == operator_id);
+  document.getElementById('shift-operator').textContent = op ? op.display_name : '—';
+  document.getElementById('end-shift-btn').disabled = false;
+  closeModal('start-shift-modal');
+}
+
+async function endCurrentShift() {
+  if (!currentShift) return;
+  if (!confirm('לסגור את המשמרת הנוכחית?')) return;
+  await fetch(`${API}/api/shifts/${currentShift.id}/end`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ total_pieces: parseInt(document.getElementById('shift-pieces').textContent) || 0 })
+  });
+  currentShift = null;
+  document.getElementById('shift-type-label').textContent = '—';
+  document.getElementById('shift-operator').textContent = '—';
+  document.getElementById('end-shift-btn').disabled = true;
+}
+
+function openStopModal() {
+  selectedReason = null;
+  document.querySelectorAll('.reason-pill').forEach(p => p.classList.remove('selected'));
+  document.getElementById('stop-notes').value = '';
+  document.getElementById('stop-modal').style.display = 'flex';
+}
+
+function openStopForMachine(machineName) {
+  const m = machines.find(mc => mc.name === machineName);
+  if (m) document.getElementById('stop-machine-sel').value = m.id;
+  openStopModal();
+}
+
+async function submitStop() {
+  const machine_id = document.getElementById('stop-machine-sel').value;
+  if (!machine_id) return alert('בחר מכונה');
+  if (!selectedReason) return alert('בחר סיבת עצירה');
+  const notes = document.getElementById('stop-notes').value;
+  await fetch(`${API}/api/machine-stops`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      machine_id, shift_id: currentShift?.id || null,
+      reason_code: selectedReason, notes,
+      reported_by: currentShift?.operator_id || null
+    })
+  });
+  closeModal('stop-modal');
+  alert('עצירה דווחה בהצלחה');
+}
+
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.style.display = 'none';
+  });
+});
+
+init();
+</script>
+</body>
+</html>

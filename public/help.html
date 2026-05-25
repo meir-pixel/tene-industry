@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מדריך למשתמש – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary:#e07b39; --primary-dim:rgba(224,123,57,0.12);
+  --text:#1a2533; --text-dim:#526070; --muted:#8fa0b0;
+  --bg:#f0f4f8; --card:#fff; --border:rgba(0,0,0,0.09);
+  --success:#1a7a42; --info:#1560a8; --warning:#a86b00;
+  --sidebar-w:260px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;}
+
+/* ── NAV ── */
+.topnav{background:#fff;border-bottom:1px solid var(--border);padding:0 24px;height:52px;
+  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;
+  box-shadow:0 1px 8px rgba(0,0,0,0.06)}
+.topnav-brand{font-size:18px;font-weight:900;color:var(--primary)}
+.topnav-brand span{color:var(--text);font-weight:400;font-size:14px;margin-right:10px}
+.topnav a{font-size:13px;color:var(--text-dim);text-decoration:none;padding:6px 12px;
+  border-radius:7px;border:1px solid var(--border);transition:all .15s}
+.topnav a:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* ── LAYOUT ── */
+.layout{display:flex;min-height:calc(100vh - 52px)}
+
+/* ── SIDEBAR ── */
+.sidebar{width:var(--sidebar-w);background:#fff;border-left:1px solid var(--border);
+  padding:20px 0;position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;flex-shrink:0}
+.sidebar-section{margin-bottom:4px}
+.sidebar-heading{font-size:10px;font-weight:800;color:var(--muted);padding:10px 20px 4px;
+  text-transform:uppercase;letter-spacing:.8px}
+.sidebar a{display:flex;align-items:center;gap:8px;padding:7px 20px;font-size:13px;
+  color:var(--text-dim);text-decoration:none;transition:all .12s;border-right:3px solid transparent}
+.sidebar a:hover{background:#fdf6f0;color:var(--primary)}
+.sidebar a.active{background:var(--primary-dim);color:var(--primary);font-weight:700;
+  border-right-color:var(--primary)}
+.sidebar a .icon{width:20px;text-align:center;font-size:14px}
+
+/* ── CONTENT ── */
+.content{flex:1;padding:32px 40px;max-width:860px}
+
+/* ── SECTIONS ── */
+.section{margin-bottom:52px}
+.section-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;
+  padding-bottom:14px;border-bottom:2px solid var(--border)}
+.section-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;
+  justify-content:center;font-size:22px;background:var(--primary-dim);flex-shrink:0}
+.section-title{font-size:22px;font-weight:800}
+.section-sub{font-size:13px;color:var(--text-dim);margin-top:2px}
+
+h3{font-size:15px;font-weight:800;color:var(--text);margin:24px 0 10px;
+  display:flex;align-items:center;gap:7px}
+h3::before{content:'';display:inline-block;width:4px;height:16px;background:var(--primary);
+  border-radius:2px;flex-shrink:0}
+
+p{font-size:14px;color:var(--text-dim);margin-bottom:12px}
+ul,ol{padding-right:20px;font-size:14px;color:var(--text-dim);margin-bottom:12px}
+li{margin-bottom:5px}
+strong{color:var(--text);font-weight:700}
+
+/* ── CARDS ── */
+.step-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.step-card{background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;
+  position:relative}
+.step-num{position:absolute;top:10px;left:10px;width:22px;height:22px;background:var(--primary);
+  color:#fff;border-radius:50%;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.step-card h4{font-size:13px;font-weight:800;margin-bottom:5px;padding-left:28px}
+.step-card p{font-size:12px;margin:0}
+
+/* ── CALLOUTS ── */
+.callout{border-radius:10px;padding:13px 16px;margin-bottom:16px;font-size:13px;
+  display:flex;gap:10px;align-items:flex-start}
+.callout.tip{background:#f0fdf4;border:1px solid #86efac}
+.callout.info{background:#eff6ff;border:1px solid #93c5fd}
+.callout.warn{background:#fffbeb;border:1px solid #fcd34d}
+.callout.icon{font-size:18px;flex-shrink:0;margin-top:-1px}
+.callout-body strong{color:var(--text);font-weight:800;display:block;margin-bottom:3px}
+
+/* ── TABLE ── */
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px}
+th{background:#f8fafc;font-weight:800;text-align:right;padding:9px 12px;
+  border:1px solid var(--border)}
+td{padding:8px 12px;border:1px solid var(--border);vertical-align:top}
+tr:hover td{background:#fdf6f0}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-green{background:#dcfce7;color:#166534}
+.badge-orange{background:#ffedd5;color:#9a3412}
+.badge-blue{background:#dbeafe;color:#1e40af}
+.badge-gray{background:#f1f5f9;color:#475569}
+
+/* ── KEYBOARD SHORTCUT ── */
+kbd{background:#e2e8f0;border-radius:4px;padding:1px 6px;font-family:monospace;
+  font-size:12px;color:var(--text);border:1px solid #cbd5e1}
+
+/* ── SCROLLSPY ── */
+@media (max-width: 800px) {
+  .sidebar{display:none}
+  .content{padding:20px}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="topnav">
+  <div class="topnav-brand">🔧 IronBend <span>מדריך למשתמש</span></div>
+  <a href="/admin.html">← חזור לניהול</a>
+</nav>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-heading">התחלה מהירה</div>
+    <a href="#overview" class="active"><span class="icon">🏠</span> סקירה כללית</a>
+    <a href="#users"><span class="icon">👤</span> כניסה למערכת</a>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-heading">מודולים עיקריים</div>
+    <a href="#orders"><span class="icon">📋</span> הזמנות</a>
+    <a href="#machines"><span class="icon">🔧</span> מכונות Modbus</a>
+    <a href="#drivers"><span class="icon">🚚</span> נהגים ומשלוחים</a>
+    <a href="#workstations"><span class="icon">🖥️</span> תחנות עבודה</a>
+    <a href="#customers"><span class="icon">🏢</span> פורטל לקוחות</a>
+    <a href="#dashboard"><span class="icon">📊</span> דשבורד</a>
+    <a href="#reports"><span class="icon">📈</span> דוחות</a>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-heading">ניהול מערכת</div>
+    <a href="#admin"><span class="icon">⚙️</span> הגדרות כלליות</a>
+    <a href="#modbus"><span class="icon">📡</span> חיבור Modbus</a>
+    <a href="#integrations"><span class="icon">🔗</span> אינטגרציות</a>
+    <a href="#troubleshoot"><span class="icon">🩺</span> פתרון בעיות</a>
+  </div>
+</nav>
+
+<!-- CONTENT -->
+<main class="content">
+
+<!-- ─────────────── OVERVIEW ─────────────── -->
+<section class="section" id="overview">
+  <div class="section-header">
+    <div class="section-icon">🏠</div>
+    <div>
+      <div class="section-title">סקירה כללית – מה זה IronBend?</div>
+      <div class="section-sub">מערכת ניהול מרכזית לבית מלאכה לכיפוף ברזל</div>
+    </div>
+  </div>
+
+  <p><strong>IronBend</strong> היא מערכת ניהול מלאה לבית מלאכה לכיפוף ברזל לבניין. המערכת מנהלת את כל מחזור החיים של ההזמנה — מקבלת ההזמנה מהלקוח ועד לשליחה עם הנהג לאתר הבנייה.</p>
+
+  <div class="step-grid">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <h4>הזמנה נכנסת</h4>
+      <p>לקוח מגיש הזמנת ברזל עם צורות ומידות</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <h4>תיכנות מכונה</h4>
+      <p>הפרמטרים נשלחים למכונת הכיפוף אוטומטית דרך Modbus</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <h4>ייצור</h4>
+      <p>המפעיל ליד המכונה מאשר ביצוע ועוקב אחר התקדמות</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <h4>משלוח</h4>
+      <p>הנהג מקבל ניווט וקבלה דיגיטלית ללקוח</p>
+    </div>
+  </div>
+
+  <h3>מפת המודולים</h3>
+  <table>
+    <tr><th>מודול</th><th>URL</th><th>מי משתמש</th></tr>
+    <tr><td>📋 <strong>הזמנות</strong></td><td><code>/orders.html</code></td><td>מנהל, פקיד</td></tr>
+    <tr><td>🔧 <strong>מסך מכונה</strong></td><td><code>/machine.html</code></td><td>מפעיל ליד המכונה</td></tr>
+    <tr><td>🚚 <strong>נהג</strong></td><td><code>/driver.html</code></td><td>נהגי משלוחים (נייד)</td></tr>
+    <tr><td>📊 <strong>דשבורד</strong></td><td><code>/dashboard.html</code></td><td>מנהל</td></tr>
+    <tr><td>📈 <strong>דוחות</strong></td><td><code>/reports.html</code></td><td>מנהל</td></tr>
+    <tr><td>🏢 <strong>פורטל לקוח</strong></td><td><code>/customer.html?token=...</code></td><td>לקוחות (לינק ייחודי)</td></tr>
+    <tr><td>⚙️ <strong>ניהול</strong></td><td><code>/admin.html</code></td><td>מנהל מערכת בלבד</td></tr>
+  </table>
+</section>
+
+<!-- ─────────────── ORDERS ─────────────── -->
+<section class="section" id="orders">
+  <div class="section-header">
+    <div class="section-icon">📋</div>
+    <div>
+      <div class="section-title">הזמנות</div>
+      <div class="section-sub">קבלה, עריכה, ותיכנות הזמנות ברזל</div>
+    </div>
+  </div>
+
+  <h3>יצירת הזמנה חדשה</h3>
+  <ol>
+    <li>לחץ <strong>➕ הזמנה חדשה</strong> בפינה הימנית העליונה</li>
+    <li>הכנס שם לקוח / מספר אתר / כתובת</li>
+    <li>הוסף פריטים — לכל פריט: <strong>צורה</strong>, <strong>קוטר ברזל</strong>, <strong>כמות</strong>, <strong>מידות</strong></li>
+    <li>בחר תאריך אספקה</li>
+    <li>לחץ <strong>💾 שמור</strong></li>
+  </ol>
+
+  <h3>עריכת צורת ברזל</h3>
+  <p>לחיצה על שורת פריט פותחת את <strong>עורך הצורות</strong>. ניתן לבחור מתוך ספריית צורות מוכנות (לפי תקן ישראלי) או לצייר צורה מותאמת אישית.</p>
+  <div class="callout info">
+    <span class="callout icon">💡</span>
+    <div class="callout-body">
+      <strong>תצוגה 3D / 2D</strong>
+      לחץ על 🧊 3D לראיית הצורה בפרספקטיבה תלת-ממדית. לחץ 📐 2D לחזרה לתצוגה שטוחה עם מידות.
+    </div>
+  </div>
+
+  <h3>שליחת הזמנה למכונה</h3>
+  <p>לאחר שמירה, לחץ <strong>📡 שלח למכונה</strong>. הפרמטרים מועברים אוטומטית למכונת הכיפוף דרך Modbus. אם יש מספר מכונות — המערכת בוחרת את המכונה הפנויה המתאימה לפי טווח הקוטר.</p>
+
+  <h3>סטטוסים של הזמנה</h3>
+  <table>
+    <tr><th>סטטוס</th><th>משמעות</th></tr>
+    <tr><td><span class="badge badge-gray">טיוטה</span></td><td>הזמנה שנשמרה אך לא אושרה</td></tr>
+    <tr><td><span class="badge badge-blue">בייצור</span></td><td>נשלחה למכונה, בביצוע</td></tr>
+    <tr><td><span class="badge badge-green">מוכן</span></td><td>הושלם, ממתין לאיסוף</td></tr>
+    <tr><td><span class="badge badge-orange">במשלוח</span></td><td>בדרך ללקוח עם הנהג</td></tr>
+    <tr><td><span class="badge badge-green">נמסר</span></td><td>הנהג אישר מסירה</td></tr>
+  </table>
+
+  <h3>הזמנה חדשה מ-QR / פורטל לקוח</h3>
+  <p>ניתן לשלוח ללקוח לינק אישי (<code>/customer.html?token=XXX</code>) בו הוא יכול להגיש הזמנות עצמאית ולעקוב אחר סטטוס ההזמנות שלו.</p>
+</section>
+
+<!-- ─────────────── MACHINES ─────────────── -->
+<section class="section" id="machines">
+  <div class="section-header">
+    <div class="section-icon">🔧</div>
+    <div>
+      <div class="section-title">מכונות Modbus</div>
+      <div class="section-sub">הגדרת חיבור ושליחת פרמטרים למכונות כיפוף</div>
+    </div>
+  </div>
+
+  <div class="callout info">
+    <span class="callout icon">📡</span>
+    <div class="callout-body">
+      <strong>מה זה Modbus?</strong>
+      Modbus הוא פרוטוקול תקשורת תעשייתי. IronBend שולח פרמטרי כיפוף (זוויות, אורכים, כמות) ישירות למכונה דרך רשת או כבל סיריאלי — ללא הקלדה ידנית של האופרטור.
+    </div>
+  </div>
+
+  <h3>סוגי חיבור</h3>
+  <table>
+    <tr><th>סוג</th><th>מתי משתמשים</th><th>ציוד נדרש</th></tr>
+    <tr>
+      <td>🌐 <strong>TCP/IP</strong></td>
+      <td>מכונה מחוברת לרשת דרך ממיר Ethernet כמו <strong>USR-N510</strong></td>
+      <td>כבל Ethernet, גיטוויי TCP→RS485</td>
+    </tr>
+    <tr>
+      <td>🔌 <strong>RTU סיריאלי</strong></td>
+      <td>השרת מחובר ישירות למכונה בכבל RS-485 / RS-232</td>
+      <td>כבל RS-485, מתאם USB→RS485</td>
+    </tr>
+  </table>
+
+  <h3>הוספת מכונה חדשה</h3>
+  <ol>
+    <li>עבור לטאב <strong>ניהול → מכונות</strong></li>
+    <li>לחץ <strong>➕ מכונה חדשה</strong></li>
+    <li>הכנס שם ותווית (אות/ספרה לזיהוי מהיר)</li>
+    <li>בחר סוג חיבור: <strong>TCP/IP</strong> או <strong>RTU סיריאלי</strong></li>
+    <li>מלא את שדות הכתובת (IP:פורט לTCP, פורט COM לRTU)</li>
+    <li>הגדר <strong>Slave ID</strong> (מספר שנקבע במכונה עצמה, בד"כ 1)</li>
+    <li>הגדר <strong>טווח קוטרים</strong> — המערכת תפנה למכונה זו רק הזמנות בקוטר המתאים</li>
+    <li>לחץ <strong>➕ הוסף מכונה</strong></li>
+  </ol>
+
+  <h3>שדות חיבור TCP/IP</h3>
+  <table>
+    <tr><th>שדה</th><th>ערך לדוגמה</th><th>הסבר</th></tr>
+    <tr><td>כתובת IP</td><td><code>192.168.1.10</code></td><td>כתובת הממיר/גיטוויי ברשת המקומית</td></tr>
+    <tr><td>פורט TCP</td><td><code>502</code></td><td>פורט Modbus סטנדרטי. שנה רק אם הממיר מוגדר אחרת</td></tr>
+    <tr><td>Slave ID</td><td><code>1</code></td><td>מזהה המכונה בפרוטוקול Modbus (בד"כ 1)</td></tr>
+  </table>
+
+  <h3>שדות חיבור RTU סיריאלי</h3>
+  <table>
+    <tr><th>שדה</th><th>ערך לדוגמה</th><th>הסבר</th></tr>
+    <tr><td>פורט COM</td><td><code>COM3</code> / <code>/dev/ttyUSB0</code></td><td>הפורט הסיריאלי שהמכונה מחוברת אליו</td></tr>
+    <tr><td>Baud Rate</td><td><code>9600</code></td><td>מהירות תקשורת — חייבת להתאים להגדרת המכונה</td></tr>
+    <tr><td>Slave ID</td><td><code>1</code></td><td>מזהה המכונה</td></tr>
+  </table>
+
+  <div class="callout tip">
+    <span class="callout icon">✅</span>
+    <div class="callout-body">
+      <strong>כיצד לדעת את Slave ID של המכונה?</strong>
+      נכנס לתפריט ההגדרות של מכונת הכיפוף (דרך הלוח הקדמי) ומחפש "Station Address" או "Modbus ID". ברוב מכונות XINJE, ברירת המחדל היא 1.
+    </div>
+  </div>
+
+  <h3>בדיקת חיבור</h3>
+  <p>לאחר שמירת ההגדרות, לחץ <strong>📡 בדיקה</strong> בכרטיס המכונה. המערכת שולחת פקודת Modbus ומציגה "✅ מחובר" או הודעת שגיאה.</p>
+
+  <h3>טווח קוטרים — למה זה חשוב?</h3>
+  <p>כל מכונה מסוגלת לכופף קוטרים מסוימים בלבד. הגדרת הטווח מונעת שגיאות:</p>
+  <ul>
+    <li>הזמנה עם ברזל Ø8–Ø12 תופנה למכונה קטנה (קוטר מינ' 6, מקס' 16)</li>
+    <li>הזמנה עם ברזל Ø32 תופנה למכונה כבדה (קוטר מינ' 16, מקס' 40)</li>
+    <li>אם אין מכונה מתאימה — מוצגת אזהרה</li>
+  </ul>
+</section>
+
+<!-- ─────────────── WORKSTATIONS ─────────────── -->
+<section class="section" id="workstations">
+  <div class="section-header">
+    <div class="section-icon">🖥️</div>
+    <div>
+      <div class="section-title">תחנות עבודה</div>
+      <div class="section-sub">מסך ליד המכונה לאופרטור</div>
+    </div>
+  </div>
+
+  <p>כל מכונה יכולה להיות מצוידת בטאבלט או מסך קטן המציג את ההזמנה הנוכחית. האופרטור רואה את הצורה, המידות, והכמות — ומדווח על השלמת כל שורת ייצור.</p>
+
+  <h3>הגדרת תחנה</h3>
+  <ol>
+    <li>ב-<strong>ניהול → תחנות עבודה</strong>, צור תחנה חדשה ושייך אותה למכונה</li>
+    <li>הגדר PIN כניסה (4 ספרות)</li>
+    <li>פתח <code>/machine.html?machine=ID</code> בטאבלט ליד המכונה</li>
+    <li>הטאבלט יוצג עם מסך כניסה ב-PIN</li>
+  </ol>
+
+  <h3>שימוש יומיומי ליד המכונה</h3>
+  <ol>
+    <li>הזן PIN להתחברות</li>
+    <li>רשימת העבודות לאותה מכונה מוצגת אוטומטית</li>
+    <li>לחץ <strong>▶ התחל</strong> על הפריט הבא לייצור</li>
+    <li>הפרמטרים נשלחים למכונה דרך Modbus</li>
+    <li>לאחר ייצור — לחץ <strong>✅ הושלם</strong></li>
+    <li>ספור הייצור מתעדכן בזמן אמת בדשבורד</li>
+  </ol>
+</section>
+
+<!-- ─────────────── DRIVERS ─────────────── -->
+<section class="section" id="drivers">
+  <div class="section-header">
+    <div class="section-icon">🚚</div>
+    <div>
+      <div class="section-title">נהגים ומשלוחים</div>
+      <div class="section-sub">ניהול ממשק ייעודי לנהגי משלוחים</div>
+    </div>
+  </div>
+
+  <p>הנהגים עובדים מהנייד עם ממשק פשוט. הם רואים רשימת משלוחים, ניווט לאתר, ומאשרים מסירה עם חתימה דיגיטלית.</p>
+
+  <h3>הוספת נהג</h3>
+  <ol>
+    <li>עבור ל-<strong>ניהול → נהגים</strong></li>
+    <li>לחץ <strong>➕ נהג חדש</strong> — הכנס שם, טלפון, סוג רכב</li>
+    <li>שלח לנהג את הלינק <code>/driver.html</code></li>
+    <li>הנהג מזדהה עם מספר הטלפון שלו</li>
+  </ol>
+
+  <h3>תהליך המשלוח</h3>
+  <ol>
+    <li>מנהל משייך הזמנה "מוכנה" לנהג</li>
+    <li>הנהג מקבל הודעת WhatsApp עם פרטי המשלוח</li>
+    <li>ב-<code>/driver.html</code> רואה מפה + פרטי לקוח</li>
+    <li>לאחר מסירה — לוחץ <strong>✅ נמסר</strong> + חתימת לקוח (אופציונלי)</li>
+    <li>הסטטוס מתעדכן אוטומטית במערכת</li>
+  </ol>
+</section>
+
+<!-- ─────────────── CUSTOMERS ─────────────── -->
+<section class="section" id="customers">
+  <div class="section-header">
+    <div class="section-icon">🏢</div>
+    <div>
+      <div class="section-title">פורטל לקוחות</div>
+      <div class="section-sub">גישה עצמאית ללקוחות</div>
+    </div>
+  </div>
+
+  <p>כל לקוח מקבל לינק ייחודי לפורטל אישי בו הוא יכול:</p>
+  <ul>
+    <li>להגיש הזמנות חדשות</li>
+    <li>לעקוב אחר סטטוס הזמנות קיימות</li>
+    <li>לראות היסטוריית הזמנות</li>
+    <li>לקבל אישור מסירה</li>
+  </ul>
+
+  <h3>שליחת לינק ללקוח</h3>
+  <ol>
+    <li>ב-<strong>הזמנות</strong> — לחץ על שם הלקוח</li>
+    <li>לחץ <strong>📱 שלח לינק WhatsApp</strong></li>
+    <li>הלקוח מקבל SMS/WhatsApp עם קישור</li>
+    <li>הקישור תקף לכל הזמנות אותו לקוח</li>
+  </ol>
+</section>
+
+<!-- ─────────────── DASHBOARD ─────────────── -->
+<section class="section" id="dashboard">
+  <div class="section-header">
+    <div class="section-icon">📊</div>
+    <div>
+      <div class="section-title">דשבורד</div>
+      <div class="section-sub">מצב המפעל בזמן אמת</div>
+    </div>
+  </div>
+
+  <p>הדשבורד מציג סקירה כוללת של המצב הנוכחי:</p>
+  <table>
+    <tr><th>כרטיס</th><th>מה מוצג</th></tr>
+    <tr><td>📋 הזמנות היום</td><td>כמה הזמנות צפויות לסיום היום</td></tr>
+    <tr><td>🔧 מכונות</td><td>כמה מכונות מחוברות / סה"כ</td></tr>
+    <tr><td>🚚 משלוחים</td><td>הזמנות שיצאו לאספקה</td></tr>
+    <tr><td>📈 ייצור</td><td>כמות ברזל שיוצרה היום (ק"ג)</td></tr>
+    <tr><td>⚠️ התראות</td><td>מכונות לא מחוברות, הזמנות מאוחרות</td></tr>
+  </table>
+</section>
+
+<!-- ─────────────── REPORTS ─────────────── -->
+<section class="section" id="reports">
+  <div class="section-header">
+    <div class="section-icon">📈</div>
+    <div>
+      <div class="section-title">דוחות</div>
+      <div class="section-sub">ניתוח נתוני ייצור ומכירות</div>
+    </div>
+  </div>
+
+  <h3>דוחות זמינים</h3>
+  <table>
+    <tr><th>דוח</th><th>תוכן</th></tr>
+    <tr><td>📦 סיכום ייצור</td><td>כמות ברזל לפי תאריך, לקוח, קוטר</td></tr>
+    <tr><td>💰 מכירות</td><td>הכנסות לפי לקוח / חודש</td></tr>
+    <tr><td>♻️ פסולת</td><td>בזבוז חומר בייצור</td></tr>
+    <tr><td>🚚 משלוחים</td><td>ביצוע נהגים וזמני מסירה</td></tr>
+    <tr><td>📊 מכונות</td><td>ניצולת מכונות ושעות עבודה</td></tr>
+  </table>
+
+  <p>ניתן לייצא כל דוח ל-<strong>Excel</strong> או <strong>PDF</strong> ולסנן לפי תאריך.</p>
+</section>
+
+<!-- ─────────────── ADMIN ─────────────── -->
+<section class="section" id="admin">
+  <div class="section-header">
+    <div class="section-icon">⚙️</div>
+    <div>
+      <div class="section-title">הגדרות ניהול</div>
+      <div class="section-sub">הגדרות מערכת, משתמשים, אינטגרציות</div>
+    </div>
+  </div>
+
+  <h3>טאבים בדף הניהול</h3>
+  <table>
+    <tr><th>טאב</th><th>מה עושים שם</th></tr>
+    <tr><td>👤 משתמשים</td><td>הוספת/עדכון אנשי צוות וסיסמאות</td></tr>
+    <tr><td>🔧 מכונות</td><td>הגדרת חיבורי Modbus (ראה מדריך מכונות)</td></tr>
+    <tr><td>🖥️ תחנות עבודה</td><td>תחנות ליד המכונות עם PIN</td></tr>
+    <tr><td>🚚 נהגים</td><td>הוספת נהגים ורכבים</td></tr>
+    <tr><td>📦 מחירון</td><td>עדכון מחירי ברזל לפי קוטר</td></tr>
+    <tr><td>📧 מייל</td><td>הגדרת IMAP לקבלת הזמנות מאימייל</td></tr>
+    <tr><td>💬 WhatsApp</td><td>API ל-WhatsApp Business לשליחת עדכונים</td></tr>
+    <tr><td>🔗 אינטגרציות</td><td>Priority ERP, מחסן, OCR תמונות</td></tr>
+    <tr><td>📝 לוג שינויים</td><td>היסטוריית שינויים במערכת</td></tr>
+  </table>
+</section>
+
+<!-- ─────────────── MODBUS CONFIG ─────────────── -->
+<section class="section" id="modbus">
+  <div class="section-header">
+    <div class="section-icon">📡</div>
+    <div>
+      <div class="section-title">הגדרת Modbus — מדריך טכני</div>
+      <div class="section-sub">חיבור מכונות כיפוף לרשת</div>
+    </div>
+  </div>
+
+  <h3>חיבור דרך TCP/IP (מומלץ)</h3>
+  <p>השיטה הנוחה ביותר — חיבור דרך הרשת הביתית של המפעל:</p>
+  <ol>
+    <li>חבר גיטוויי <strong>USR-N510</strong> (או דומה) לפורט RS-485 של המכונה</li>
+    <li>חבר את הגיטוויי לרשת ה-LAN של המפעל</li>
+    <li>קבע לגיטוויי כתובת IP קבועה (static IP) — למשל <code>192.168.1.10</code></li>
+    <li>ב-IronBend ← מכונות: הזן כתובת IP ופורט 502</li>
+    <li>לחץ <strong>📡 בדיקה</strong></li>
+  </ol>
+
+  <h3>חיבור ישיר RTU (סיריאלי)</h3>
+  <p>מתאים כשהשרת קרוב פיזית למכונה:</p>
+  <ol>
+    <li>חבר כבל RS-485 מהמכונה למחשב השרת (דרך מתאם USB→RS485)</li>
+    <li>ב-Windows: פתח <em>Device Manager</em> → <em>Ports</em> ← ראה מה הCOM (למשל COM3)</li>
+    <li>ב-Linux: הפורט יהיה בד"כ <code>/dev/ttyUSB0</code></li>
+    <li>ב-IronBend ← מכונות: בחר RTU, בחר פורט COM, הגדר Baud Rate</li>
+    <li>Baud Rate חייב להתאים למה שמוגדר במכונה</li>
+  </ol>
+
+  <div class="callout warn">
+    <span class="callout icon">⚠️</span>
+    <div class="callout-body">
+      <strong>שגיאת "Timeout / No Response"</strong>
+      בדוק: 1) כתובת IP נכונה? 2) Slave ID מתאים? 3) מכונה דלוקה? 4) בRTU — Baud Rate תואם? כבל תקין?
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── INTEGRATIONS ─────────────── -->
+<section class="section" id="integrations">
+  <div class="section-header">
+    <div class="section-icon">🔗</div>
+    <div>
+      <div class="section-title">אינטגרציות</div>
+      <div class="section-sub">חיבור לשירותים חיצוניים</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>שירות</th><th>מה הוא עושה</th><th>הגדרה</th></tr>
+    <tr>
+      <td>💬 <strong>WhatsApp</strong></td>
+      <td>שליחת עדכוני סטטוס ואישורי מסירה ללקוחות ולנהגים</td>
+      <td>ניהול → WhatsApp → הזן Token ו-Phone ID מ-Meta Business</td>
+    </tr>
+    <tr>
+      <td>📧 <strong>אימייל IMAP</strong></td>
+      <td>קבלת הזמנות שנשלחות לתיבת מייל ייעודית</td>
+      <td>ניהול → מייל → הכנס פרטי IMAP</td>
+    </tr>
+    <tr>
+      <td>💼 <strong>Priority ERP</strong></td>
+      <td>סנכרון הזמנות ולקוחות עם Priority</td>
+      <td>ניהול → אינטגרציות → Priority → הזן Base URL + משתמש</td>
+    </tr>
+    <tr>
+      <td>🔍 <strong>Google Vision OCR</strong></td>
+      <td>קריאת תמונות של הזמנות ידניות (סריקה)</td>
+      <td>ניהול → OCR → הזן Vision API Key</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ─────────────── TROUBLESHOOT ─────────────── -->
+<section class="section" id="troubleshoot">
+  <div class="section-header">
+    <div class="section-icon">🩺</div>
+    <div>
+      <div class="section-title">פתרון בעיות נפוצות</div>
+      <div class="section-sub">תשובות מהירות לשאלות שחוזרות</div>
+    </div>
+  </div>
+
+  <h3>מכונה מוצגת כ"לא מחוברת"</h3>
+  <ul>
+    <li>ודא שהמכונה דלוקה והגיטוויי/מתאם מחוברים</li>
+    <li>בדוק שכתובת ה-IP בהגדרות תואמת לכתובת בגיטוויי</li>
+    <li>נסה <strong>📡 בדיקה</strong> — ראה את הודעת השגיאה המדויקת</li>
+    <li>פינג לכתובת ה-IP מהשרת: <kbd>ping 192.168.1.10</kbd></li>
+  </ul>
+
+  <h3>כפתור "שלח למכונה" לא עושה כלום</h3>
+  <ul>
+    <li>בדוק שהמכונה מוגדרת ומחוברת בניהול → מכונות</li>
+    <li>ודא שהקוטר של הפריט נמצא בטווח הקוטרים של המכונה</li>
+    <li>ראה לוג שגיאות ב-<strong>ניהול → לוג שינויים</strong></li>
+  </ul>
+
+  <h3>הדפדפן מציג גרסה ישנה של הדף</h3>
+  <p>לחץ <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> לרענון מלא (מנקה cache).</p>
+
+  <h3>WhatsApp לא שולח הודעות</h3>
+  <ul>
+    <li>ודא ש-Token בתוקף (תפוגה: 24 שעות לטוקן זמני, ללא הגבלה לגרסה קבועה)</li>
+    <li>ודא שמספר הטלפון רשום ומאושר ב-Meta Business</li>
+    <li>בדוק בניהול → WhatsApp → לחץ <strong>🔌 בדוק חיבור</strong></li>
+  </ul>
+
+  <h3>איפוס סיסמת משתמש</h3>
+  <p>עבור ל-<strong>ניהול → משתמשים</strong> → מצא את המשתמש → לחץ <strong>✏️ ערוך</strong> → הזן סיסמה חדשה → שמור.</p>
+
+  <div class="callout tip">
+    <span class="callout icon">📞</span>
+    <div class="callout-body">
+      <strong>צריך עזרה נוספת?</strong>
+      פנה למנהל המערכת או בדוק את לוג השינויים בניהול לאיתור שגיאות.
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+// Scrollspy — highlight active sidebar link
+const sections = document.querySelectorAll('section[id]');
+const links = document.querySelectorAll('.sidebar a[href^="#"]');
+
+function setActive() {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 80) current = s.id;
+  });
+  links.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+}
+window.addEventListener('scroll', setActive, { passive: true });
+setActive();
+</script>
+</body>
+</html>

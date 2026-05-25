@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>War Room – IronBend</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --steel:#f0f4f8;--steel-mid:#ffffff;--accent:#c9621a;--accent-light:#e07b39;
+  --accent-dim:rgba(201,98,26,0.10);--success:#1a7a42;--success-dim:rgba(26,122,66,0.10);
+  --danger:#b83227;--danger-dim:rgba(184,50,39,0.10);--warning:#a86b00;
+  --warning-dim:rgba(168,107,0,0.10);--info:#1560a8;--info-dim:rgba(21,96,168,0.10);
+  --text:#1a2533;--text-dim:#526070;--text-muted:#8fa0b0;
+  --border:rgba(0,0,0,0.09);--border-bright:rgba(0,0,0,0.15);
+  --radius:14px;--radius-sm:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
+
+/* ── STATUS BAR ─────────────────────────────────────────── */
+.status-bar{
+  position:sticky;top:56px;z-index:90;
+  background:linear-gradient(135deg,#1a2533 0%,#2d3d52 60%,#c9621a 100%);
+  border-bottom:2px solid rgba(201,98,26,0.4);
+  padding:10px 20px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.18);
+}
+.status-bar-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.status-clock{font-size:22px;font-weight:900;color:#fff;letter-spacing:2px;font-variant-numeric:tabular-nums;}
+.status-date{font-size:12px;color:rgba(255,255,255,0.65);margin-top:1px;}
+.status-label{font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;}
+.machine-dots{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+.machine-dot-item{display:flex;align-items:center;gap:5px;}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,0.15);}
+.dot.running{background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,0.7);}
+.dot.fault{background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,0.7);animation:pulse-dot 1s infinite;}
+.dot.stopped{background:#f97316;box-shadow:0 0 6px rgba(249,115,22,0.5);}
+.dot.offline{background:#64748b;}
+.dot-name{font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);}
+@keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:0.4;}}
+
+/* ── PAGE ───────────────────────────────────────────────── */
+.page{max-width:1500px;margin:0 auto;padding:18px 16px;display:flex;flex-direction:column;gap:16px;}
+
+/* ── KPI STRIP ──────────────────────────────────────────── */
+.kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+@media(max-width:1100px){.kpi-strip{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:700px){.kpi-strip{grid-template-columns:repeat(2,1fr);}}
+.kpi-card{
+  background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 18px;display:flex;flex-direction:column;gap:4px;
+  transition:box-shadow 0.2s;
+}
+.kpi-card:hover{box-shadow:0 4px 18px rgba(0,0,0,0.08);}
+.kpi-icon{font-size:20px;margin-bottom:2px;}
+.kpi-label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;}
+.kpi-val{font-size:26px;font-weight:900;line-height:1;}
+.kpi-sub{font-size:11px;color:var(--text-dim);}
+.kpi-card.danger .kpi-val{color:var(--danger);}
+.kpi-card.success .kpi-val{color:var(--success);}
+.kpi-card.warning .kpi-val{color:var(--warning);}
+.kpi-card.info .kpi-val{color:var(--info);}
+.kpi-card.accent .kpi-val{color:var(--accent);}
+
+/* ── MAIN LAYOUT ────────────────────────────────────────── */
+.main-layout{display:grid;grid-template-columns:60% 40%;gap:16px;align-items:start;}
+@media(max-width:900px){.main-layout{grid-template-columns:1fr;}}
+
+/* ── CARD ───────────────────────────────────────────────── */
+.card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.card-header{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.card-title{font-size:15px;font-weight:800;}
+
+/* ── BUTTONS ────────────────────────────────────────────── */
+.btn{padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-light);}
+.btn-success{background:var(--success);color:#fff;}
+.btn-success:hover{background:#228b4d;}
+.btn-sm{padding:5px 11px;font-size:12px;}
+.btn-outline{background:transparent;border:1px solid var(--border-bright);color:var(--text-dim);}
+.btn-outline:hover{background:rgba(0,0,0,0.04);color:var(--text);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover{opacity:0.88;}
+
+/* ── INCIDENT CARD ──────────────────────────────────────── */
+#incidents-list{display:flex;flex-direction:column;gap:12px;padding:14px;}
+.incident-card{
+  background:var(--steel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px;transition:box-shadow 0.2s;
+}
+.incident-card:hover{box-shadow:0 4px 16px rgba(0,0,0,0.08);}
+.incident-card.escalated{
+  border-color:var(--danger);
+  animation:pulse-border 2s infinite;
+}
+@keyframes pulse-border{
+  0%,100%{box-shadow:0 0 0 0 rgba(184,50,39,0.4);}
+  50%{box-shadow:0 0 0 5px rgba(184,50,39,0.0);}
+}
+.incident-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.incident-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+.severity-badge{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
+  border-radius:20px;font-size:11px;font-weight:800;white-space:nowrap;
+}
+.sev-critical{background:var(--danger-dim);color:var(--danger);}
+.sev-high{background:var(--warning-dim);color:var(--warning);}
+.sev-medium{background:rgba(168,107,0,0.12);color:#7a5200;}
+.sev-low{background:var(--success-dim);color:var(--success);}
+.incident-title{font-size:14px;font-weight:800;margin-bottom:3px;}
+.incident-desc{font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.5;}
+.incident-details{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-dim);margin-bottom:10px;}
+.incident-detail strong{color:var(--text);font-weight:700;}
+.incident-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+
+/* ── TIMELINE ───────────────────────────────────────────── */
+.timeline{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+.timeline-entry{
+  display:flex;gap:8px;font-size:11px;padding:5px 8px;
+  background:var(--steel-mid);border-radius:var(--radius-sm);border:1px solid var(--border);
+}
+.timeline-time{color:var(--text-muted);white-space:nowrap;font-weight:600;}
+.timeline-text{color:var(--text-dim);}
+.update-form{display:none;margin-top:6px;gap:6px;}
+.update-form.open{display:flex;flex-direction:column;}
+.update-form textarea{
+  width:100%;padding:8px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);
+  font-family:'Heebo',sans-serif;font-size:12px;resize:vertical;min-height:56px;background:var(--steel-mid);
+  color:var(--text);
+}
+.escalation-badge{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
+  border-radius:20px;font-size:11px;font-weight:800;
+  background:var(--danger-dim);color:var(--danger);animation:pulse-dot 1.5s infinite;
+}
+
+/* ── MACHINE STATUS PANEL ───────────────────────────────── */
+#machines-list{display:flex;flex-direction:column;gap:10px;padding:14px;}
+.machine-card{
+  background:var(--steel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 14px;display:flex;flex-direction:column;gap:6px;
+}
+.machine-card.escalated-machine{border-color:var(--danger);}
+.machine-card-header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.machine-name{font-size:13px;font-weight:800;}
+.machine-status-badge{
+  padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
+}
+.ms-running{background:var(--success-dim);color:var(--success);}
+.ms-fault{background:var(--danger-dim);color:var(--danger);}
+.ms-stopped{background:var(--warning-dim);color:var(--warning);}
+.ms-offline{background:rgba(0,0,0,0.06);color:var(--text-muted);}
+.machine-info{display:flex;gap:14px;font-size:11px;color:var(--text-dim);flex-wrap:wrap;}
+.machine-info strong{color:var(--text);font-weight:700;}
+.oee-bar{height:5px;border-radius:3px;background:rgba(0,0,0,0.06);overflow:hidden;margin-top:2px;}
+.oee-fill{height:100%;border-radius:3px;transition:width 0.6s;}
+
+/* ── RESOLVED TABLE ─────────────────────────────────────── */
+.resolved-section{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:10px 14px;font-size:12px;border-bottom:1px solid rgba(0,0,0,0.04);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(0,0,0,0.015);}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge-resolved{background:var(--success-dim);color:var(--success);}
+
+/* ── MODAL ──────────────────────────────────────────────── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--steel-mid);border-radius:var(--radius);width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.25);}
+.modal-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.modal-title{font-size:16px;font-weight:800;}
+.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-dim);padding:2px 6px;border-radius:6px;}
+.modal-close:hover{background:rgba(0,0,0,0.05);}
+.modal-body{padding:20px;}
+.form-group{margin-bottom:14px;}
+.form-group label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.4px;}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;padding:9px 12px;border:1px solid var(--border-bright);
+  border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;
+  background:var(--steel);color:var(--text);
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);
+}
+.form-group textarea{resize:vertical;min-height:80px;}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-start;gap:10px;}
+
+/* ── STATUS MODAL ───────────────────────────────────────── */
+.status-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center;padding:16px;}
+.status-modal-overlay.open{display:flex;}
+
+/* ── EMPTY STATE ────────────────────────────────────────── */
+.empty-state{padding:40px;text-align:center;color:var(--text-muted);font-size:14px;}
+.empty-state .empty-icon{font-size:40px;margin-bottom:10px;}
+
+/* ── REFRESH INDICATOR ──────────────────────────────────── */
+.refresh-dot{width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block;animation:pulse-dot 2s infinite;}
+
+/* ── SCROLLBAR ──────────────────────────────────────────── */
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-bar-top">
+    <div>
+      <div class="status-clock" id="clock">--:--:--</div>
+      <div class="status-date" id="status-date"></div>
+    </div>
+    <div style="text-align:center;">
+      <div class="status-label">🏭 War Room – IronBend</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:2px;">ניטור בזמן אמת <span class="refresh-dot" style="margin-right:4px;"></span></div>
+    </div>
+    <div style="text-align:left;">
+      <div class="status-label" style="margin-bottom:4px;">סטטוס מכונות</div>
+      <div class="machine-dots" id="machine-dots">
+        <span style="color:rgba(255,255,255,0.4);font-size:11px;">טוען...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Page -->
+<div class="page">
+
+  <!-- KPI Strip -->
+  <div class="kpi-strip">
+    <div class="kpi-card danger">
+      <div class="kpi-icon">🔴</div>
+      <div class="kpi-label">אירועים פתוחים</div>
+      <div class="kpi-val" id="kpi-open">—</div>
+      <div class="kpi-sub">כרגע פעילים</div>
+    </div>
+    <div class="kpi-card warning">
+      <div class="kpi-icon">⏱️</div>
+      <div class="kpi-label">ממוצע זמן פתרון</div>
+      <div class="kpi-val" id="kpi-avg-resolve">—</div>
+      <div class="kpi-sub">דקות לאירוע</div>
+    </div>
+    <div class="kpi-card success">
+      <div class="kpi-icon">🏭</div>
+      <div class="kpi-label">מכונות תקינות</div>
+      <div class="kpi-val" id="kpi-machines-ok">—</div>
+      <div class="kpi-sub" id="kpi-machines-sub">מסה"כ</div>
+    </div>
+    <div class="kpi-card info">
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-label">OEE ממוצע</div>
+      <div class="kpi-val" id="kpi-oee">—</div>
+      <div class="kpi-sub">יעד: 80%</div>
+    </div>
+    <div class="kpi-card accent">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">עלות השבתה מוערכת</div>
+      <div class="kpi-val" id="kpi-cost">—</div>
+      <div class="kpi-sub">₪ / שעה נוכחית</div>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="main-layout">
+
+    <!-- Active Incidents (Left 60%) -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🚨 אירועים פעילים</div>
+        <button class="btn btn-primary" onclick="openIncidentModal()">+ פתח אירוע חדש</button>
+      </div>
+      <div id="incidents-list">
+        <div class="empty-state"><div class="empty-icon">⏳</div>טוען אירועים...</div>
+      </div>
+    </div>
+
+    <!-- Machine Status (Right 40%) -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">⚙️ סטטוס מכונות</div>
+        <span style="font-size:11px;color:var(--text-muted);">מתעדכן כל 10 שניות</span>
+      </div>
+      <div id="machines-list">
+        <div class="empty-state"><div class="empty-icon">⏳</div>טוען...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Resolved Incidents Table -->
+  <div class="resolved-section">
+    <div class="card-header">
+      <div class="card-title">✅ אירועים שנסגרו לאחרונה</div>
+      <span style="font-size:11px;color:var(--text-muted);">10 אחרונים</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="resolved-table">
+        <thead>
+          <tr>
+            <th>כותרת</th>
+            <th>מכונה</th>
+            <th>חומרה</th>
+            <th>נפתח</th>
+            <th>נסגר</th>
+            <th>זמן פתרון</th>
+            <th>השפעה כספית</th>
+            <th>סטטוס</th>
+          </tr>
+        </thead>
+        <tbody id="resolved-tbody">
+          <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">טוען...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- ── New Incident Modal ─────────────────────────────────── -->
+<div class="modal-overlay" id="incident-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🚨 פתיחת אירוע חדש</div>
+      <button class="modal-close" onclick="closeIncidentModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>כותרת האירוע</label>
+        <input type="text" id="f-title" placeholder="תאר בקצרה את הבעיה...">
+      </div>
+      <div class="form-group">
+        <label>מכונה</label>
+        <select id="f-machine">
+          <option value="">בחר מכונה...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>חומרה</label>
+        <select id="f-severity">
+          <option value="critical">🔴 קריטי</option>
+          <option value="high">🟠 גבוה</option>
+          <option value="medium" selected>🟡 בינוני</option>
+          <option value="low">🟢 נמוך</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>תיאור מפורט</label>
+        <textarea id="f-desc" placeholder="פרט את התקלה, השפעתה על הייצור..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>אחראי טיפול</label>
+        <input type="text" id="f-assigned" placeholder="שם האחראי...">
+      </div>
+      <div class="form-group">
+        <label>השפעה כספית מוערכת (₪)</label>
+        <input type="number" id="f-impact" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="submitIncident()">פתח אירוע</button>
+      <button class="btn btn-outline" onclick="closeIncidentModal()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Update Status Modal ────────────────────────────────── -->
+<div class="status-modal-overlay" id="status-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">עדכון סטטוס אירוע</div>
+      <button class="modal-close" onclick="closeStatusModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>סטטוס חדש</label>
+        <select id="sm-status">
+          <option value="open">פתוח</option>
+          <option value="in_progress">בטיפול</option>
+          <option value="monitoring">במעקב</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>עדכון / הערה</label>
+        <textarea id="sm-note" placeholder="תאר את הצעד הבא או הפעולה שנעשתה..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="submitStatusUpdate()">שמור עדכון</button>
+      <button class="btn btn-outline" onclick="closeStatusModal()">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<script src="/nav.js"></script>
+<script>
+// ── State ─────────────────────────────────────────────────
+let incidents = [];
+let machines = [];
+let oeeData = {};
+let currentStatusIncidentId = null;
+
+// ── Mock data (fallback if API not available) ─────────────
+const MOCK_MACHINES = [
+  {id:'m1', name:'כופף 1', status:'running', currentOrder:'IB-2341', stoppedMinutes:0},
+  {id:'m2', name:'כופף 2', status:'fault',   currentOrder:'IB-2342', stoppedMinutes:0},
+  {id:'m3', name:'כופף 3', status:'stopped', currentOrder:null,      stoppedMinutes:75},
+  {id:'m4', name:'גליל 1', status:'running', currentOrder:'IB-2343', stoppedMinutes:0},
+  {id:'m5', name:'גליל 2', status:'offline', currentOrder:null,      stoppedMinutes:180},
+  {id:'m6', name:'חיתוך',  status:'running', currentOrder:'IB-2345', stoppedMinutes:0},
+];
+const MOCK_OEE = {m1:82,m2:0,m3:0,m4:77,m5:0,m6:88};
+const MOCK_INCIDENTS = [
+  {
+    id:'i1', title:'כופף 2 – שבר ציר הסיבוב',
+    machine:'כופף 2', severity:'critical',
+    desc:'הציר הראשי נשבר במהלך עבודה. המכונה מושבתת לחלוטין.',
+    assignedTo:'דוד כהן', financialImpact:3200,
+    openedAt: new Date(Date.now()-55*60000).toISOString(),
+    timeline:[
+      {ts: new Date(Date.now()-55*60000).toISOString(), text:'אירוע נפתח'},
+      {ts: new Date(Date.now()-50*60000).toISOString(), text:'הזמנת חלף דחופה'},
+    ],
+    status:'open',
+  },
+  {
+    id:'i2', title:'גליל 2 – תקלת חשמל',
+    machine:'גליל 2', severity:'high',
+    desc:'נפל מפסק ראשי. חשמלאי בדרך.',
+    assignedTo:'יוסי לוי', financialImpact:1100,
+    openedAt: new Date(Date.now()-120*60000).toISOString(),
+    timeline:[
+      {ts: new Date(Date.now()-120*60000).toISOString(), text:'אירוע נפתח'},
+      {ts: new Date(Date.now()-110*60000).toISOString(), text:'חשמלאי יידע'},
+      {ts: new Date(Date.now()-90*60000).toISOString(), text:'חשמלאי הגיע לאתר'},
+    ],
+    status:'in_progress',
+  },
+];
+const MOCK_RESOLVED = [
+  {id:'r1',title:'חיתוך – להב שחוק',machine:'חיתוך',severity:'medium',openedAt:new Date(Date.now()-5*3600000).toISOString(),closedAt:new Date(Date.now()-4*3600000).toISOString(),financialImpact:400},
+  {id:'r2',title:'כופף 3 – סנכרון PLC',machine:'כופף 3',severity:'high',openedAt:new Date(Date.now()-8*3600000).toISOString(),closedAt:new Date(Date.now()-6.5*3600000).toISOString(),financialImpact:900},
+  {id:'r3',title:'גליל 1 – שמן הידראולי',machine:'גליל 1',severity:'low',openedAt:new Date(Date.now()-24*3600000).toISOString(),closedAt:new Date(Date.now()-23.5*3600000).toISOString(),financialImpact:80},
+];
+
+// ── Clock ─────────────────────────────────────────────────
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('status-date').textContent = now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+setInterval(updateClock,1000);
+updateClock();
+
+// ── API helpers ───────────────────────────────────────────
+async function fetchJSON(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+async function postJSON(url, body){
+  const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+async function patchJSON(url, body){
+  const r = await fetch(url,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+// ── Load machines ─────────────────────────────────────────
+async function loadMachines(){
+  try{
+    machines = await fetchJSON('/api/machines');
+  } catch(e){
+    machines = MOCK_MACHINES;
+  }
+  try{
+    const oee = await fetchJSON('/api/machines/oee');
+    oeeData = {};
+    (oee||[]).forEach(o=>{ oeeData[o.id||o.machineId] = o.oee||o.value||0; });
+  } catch(e){
+    oeeData = MOCK_OEE;
+  }
+  renderMachineDots();
+  renderMachineCards();
+  updateKPIs();
+}
+
+// ── Load incidents ────────────────────────────────────────
+async function loadIncidents(){
+  try{
+    const data = await fetchJSON('/api/incidents');
+    incidents = (data||[]).filter(i=>i.status!=='resolved'&&i.status!=='closed');
+    const resolved = (data||[]).filter(i=>i.status==='resolved'||i.status==='closed').slice(-10).reverse();
+    renderResolvedTable(resolved);
+  } catch(e){
+    incidents = MOCK_INCIDENTS;
+    renderResolvedTable(MOCK_RESOLVED);
+  }
+  renderIncidents();
+  updateKPIs();
+  populateMachineSelect();
+}
+
+// ── Render machine dots (status bar) ─────────────────────
+function renderMachineDots(){
+  const el = document.getElementById('machine-dots');
+  if(!machines.length){ el.innerHTML='<span style="color:rgba(255,255,255,0.4);font-size:11px;">אין נתונים</span>'; return; }
+  el.innerHTML = machines.map(m=>`
+    <div class="machine-dot-item">
+      <div class="dot ${m.status||'offline'}"></div>
+      <div class="dot-name">${m.name}</div>
+    </div>
+  `).join('');
+}
+
+// ── Render machine cards ──────────────────────────────────
+function renderMachineCards(){
+  const el = document.getElementById('machines-list');
+  if(!machines.length){ el.innerHTML='<div class="empty-state"><div class="empty-icon">🏭</div>אין מכונות</div>'; return; }
+  el.innerHTML = machines.map(m=>{
+    const oee = oeeData[m.id] ?? null;
+    const statusClass = 'ms-'+(m.status||'offline');
+    const statusLabel = {running:'פועלת',fault:'תקלה',stopped:'עצרה',offline:'לא מחוברת'}[m.status]||m.status;
+    const stopHours = m.stoppedMinutes ? (m.stoppedMinutes/60).toFixed(1) : null;
+    const isEscalated = (m.status==='stopped'||m.status==='fault') && m.stoppedMinutes>=60;
+    const oeeColor = oee===null ? '#8fa0b0' : oee>=75 ? 'var(--success)' : oee>=50 ? 'var(--warning)' : 'var(--danger)';
+    return `
+    <div class="machine-card ${isEscalated?'escalated-machine':''}">
+      <div class="machine-card-header">
+        <div class="machine-name">${m.name}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${isEscalated?'<span class="escalation-badge">⚠️ Escalation</span>':''}
+          <span class="machine-status-badge ${statusClass}">${statusLabel}</span>
+        </div>
+      </div>
+      <div class="machine-info">
+        ${m.currentOrder ? `<div>הזמנה: <strong>${m.currentOrder}</strong></div>` : '<div style="color:var(--text-muted)">אין הזמנה פעילה</div>'}
+        ${oee!==null ? `<div>OEE: <strong style="color:${oeeColor}">${oee}%</strong></div>` : ''}
+        ${stopHours ? `<div style="color:var(--danger);">הושבת: <strong>${m.stoppedMinutes} דק׳</strong></div>` : ''}
+      </div>
+      ${oee!==null ? `<div class="oee-bar"><div class="oee-fill" style="width:${Math.min(oee,100)}%;background:${oeeColor};"></div></div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Render incidents ──────────────────────────────────────
+function renderIncidents(){
+  const el = document.getElementById('incidents-list');
+  if(!incidents.length){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">✅</div>אין אירועים פעילים<br><span style="font-size:12px;margin-top:4px;display:block;">המערכת תקינה</span></div>';
+    return;
+  }
+  el.innerHTML = incidents.map(inc => {
+    const openedMs = Date.now() - new Date(inc.openedAt).getTime();
+    const openedMin = Math.floor(openedMs/60000);
+    const openedLabel = openedMin>=60 ? `${Math.floor(openedMin/60)} שעות ${openedMin%60} דק׳` : `${openedMin} דק׳`;
+    const lastUpdate = inc.timeline?.length ? new Date(inc.timeline[inc.timeline.length-1].ts).getTime() : new Date(inc.openedAt).getTime();
+    const minSinceUpdate = Math.floor((Date.now()-lastUpdate)/60000);
+    const isEscalated = minSinceUpdate>=30 && inc.status!=='monitoring';
+    const sevClass = {critical:'sev-critical',high:'sev-high',medium:'sev-medium',low:'sev-low'}[inc.severity]||'sev-medium';
+    const sevLabel = {critical:'🔴 קריטי',high:'🟠 גבוה',medium:'🟡 בינוני',low:'🟢 נמוך'}[inc.severity]||inc.severity;
+    const timeline = (inc.timeline||[]).map(t=>`
+      <div class="timeline-entry">
+        <span class="timeline-time">${fmtTime(t.ts)}</span>
+        <span class="timeline-text">${escHtml(t.text)}</span>
+      </div>
+    `).join('');
+    return `
+    <div class="incident-card ${isEscalated?'escalated':''}" id="inc-${inc.id}">
+      <div class="incident-header">
+        <div style="flex:1">
+          <div class="incident-meta">
+            <span class="severity-badge ${sevClass}">${sevLabel}</span>
+            ${isEscalated?'<span class="escalation-badge">⚠️ ללא עדכון '+minSinceUpdate+' דק׳</span>':''}
+          </div>
+          <div class="incident-title">${escHtml(inc.title)}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${openedLabel} אחורה</div>
+      </div>
+      <div class="incident-desc">${escHtml(inc.desc||inc.description||'')}</div>
+      <div class="incident-details">
+        <div>מכונה: <strong>${escHtml(inc.machine||inc.machineName||'—')}</strong></div>
+        <div>אחראי: <strong>${escHtml(inc.assignedTo||inc.assigned||'—')}</strong></div>
+        <div>השפעה: <strong style="color:var(--danger)">₪${Number(inc.financialImpact||0).toLocaleString('he-IL')}</strong></div>
+      </div>
+      <div class="incident-actions">
+        <button class="btn btn-outline btn-sm" onclick="openStatusModal('${inc.id}')">עדכן סטטוס</button>
+        <button class="btn btn-success btn-sm" onclick="closeIncident('${inc.id}')">סגור אירוע</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleUpdateForm('${inc.id}')">➕ הוסף עדכון</button>
+      </div>
+      <div class="timeline" id="timeline-${inc.id}">${timeline}</div>
+      <div class="update-form" id="uf-${inc.id}">
+        <textarea placeholder="הוסף הערה, פעולה שבוצעה..." id="uf-text-${inc.id}"></textarea>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" onclick="addUpdate('${inc.id}')">שמור עדכון</button>
+          <button class="btn btn-outline btn-sm" onclick="toggleUpdateForm('${inc.id}')">ביטול</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render resolved table ─────────────────────────────────
+function renderResolvedTable(resolved){
+  const tbody = document.getElementById('resolved-tbody');
+  if(!resolved||!resolved.length){
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">אין אירועים סגורים</td></tr>';
+    return;
+  }
+  const sevLabel = {critical:'🔴 קריטי',high:'🟠 גבוה',medium:'🟡 בינוני',low:'🟢 נמוך'};
+  tbody.innerHTML = resolved.slice(0,10).map(r=>{
+    const dur = r.openedAt&&r.closedAt ? Math.round((new Date(r.closedAt)-new Date(r.openedAt))/60000) : null;
+    return `<tr>
+      <td><strong>${escHtml(r.title)}</strong></td>
+      <td>${escHtml(r.machine||r.machineName||'—')}</td>
+      <td>${sevLabel[r.severity]||r.severity}</td>
+      <td>${r.openedAt?fmtDate(r.openedAt):'—'}</td>
+      <td>${r.closedAt?fmtDate(r.closedAt):'—'}</td>
+      <td>${dur!==null?(dur>=60?Math.round(dur/60)+' שע׳':dur+' דק׳'):'—'}</td>
+      <td>₪${Number(r.financialImpact||0).toLocaleString('he-IL')}</td>
+      <td><span class="badge badge-resolved">✅ סגור</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── KPI update ────────────────────────────────────────────
+function updateKPIs(){
+  // Open incidents
+  document.getElementById('kpi-open').textContent = incidents.length;
+
+  // Avg resolution — from resolved (mock: not tracked live; show placeholder)
+  document.getElementById('kpi-avg-resolve').textContent = '—';
+
+  // Machines OK / total
+  const ok = machines.filter(m=>m.status==='running').length;
+  const total = machines.length;
+  document.getElementById('kpi-machines-ok').textContent = total ? `${ok}/${total}` : '—';
+  document.getElementById('kpi-machines-sub').textContent = `מסה"כ ${total} מכונות`;
+
+  // OEE average (running machines only)
+  const oeeVals = machines.filter(m=>m.status==='running').map(m=>oeeData[m.id]).filter(v=>v!=null);
+  const avgOee = oeeVals.length ? Math.round(oeeVals.reduce((a,b)=>a+b,0)/oeeVals.length) : null;
+  document.getElementById('kpi-oee').textContent = avgOee!==null ? `${avgOee}%` : '—';
+
+  // Downtime cost: stopped/fault machines * 150₪/hr * stopped hours
+  let cost = 0;
+  machines.forEach(m=>{
+    if((m.status==='stopped'||m.status==='fault') && m.stoppedMinutes){
+      cost += (m.stoppedMinutes/60)*150;
+    }
+  });
+  // Add open incidents' financial impact
+  incidents.forEach(i=>{ cost += Number(i.financialImpact||0); });
+  document.getElementById('kpi-cost').textContent = cost ? `₪${Math.round(cost).toLocaleString('he-IL')}` : '₪0';
+}
+
+// ── Populate machine select ───────────────────────────────
+function populateMachineSelect(){
+  const sel = document.getElementById('f-machine');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">בחר מכונה...</option>';
+  machines.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m.name||m.id;
+    opt.textContent = m.name;
+    sel.appendChild(opt);
+  });
+  if(current) sel.value = current;
+}
+
+// ── Incident modal ────────────────────────────────────────
+function openIncidentModal(){
+  document.getElementById('incident-modal').classList.add('open');
+  populateMachineSelect();
+}
+function closeIncidentModal(){
+  document.getElementById('incident-modal').classList.remove('open');
+  ['f-title','f-machine','f-desc','f-assigned','f-impact'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.value='';
+  });
+}
+async function submitIncident(){
+  const title = document.getElementById('f-title').value.trim();
+  if(!title){ alert('יש להזין כותרת'); return; }
+  const payload = {
+    title,
+    machine: document.getElementById('f-machine').value,
+    severity: document.getElementById('f-severity').value,
+    desc: document.getElementById('f-desc').value.trim(),
+    assignedTo: document.getElementById('f-assigned').value.trim(),
+    financialImpact: Number(document.getElementById('f-impact').value)||0,
+    openedAt: new Date().toISOString(),
+    status: 'open',
+    timeline: [{ts:new Date().toISOString(), text:'אירוע נפתח'}],
+  };
+  try{
+    const created = await postJSON('/api/incidents', payload);
+    incidents.unshift(created);
+  } catch(e){
+    // API not available – add locally
+    payload.id = 'local-'+Date.now();
+    incidents.unshift(payload);
+  }
+  closeIncidentModal();
+  renderIncidents();
+  updateKPIs();
+}
+
+// ── Status modal ──────────────────────────────────────────
+function openStatusModal(id){
+  currentStatusIncidentId = id;
+  document.getElementById('status-modal').classList.add('open');
+}
+function closeStatusModal(){
+  document.getElementById('status-modal').classList.remove('open');
+  document.getElementById('sm-note').value='';
+  currentStatusIncidentId = null;
+}
+async function submitStatusUpdate(){
+  if(!currentStatusIncidentId) return;
+  const note = document.getElementById('sm-note').value.trim();
+  const status = document.getElementById('sm-status').value;
+  if(!note){ alert('יש להוסיף הערה'); return; }
+  const inc = incidents.find(i=>i.id===currentStatusIncidentId);
+  if(!inc) return;
+  const entry = {ts:new Date().toISOString(), text:note};
+  if(!inc.timeline) inc.timeline=[];
+  inc.timeline.push(entry);
+  inc.status = status;
+  try{
+    await patchJSON(`/api/incidents/${inc.id}`,{status, timelineEntry:entry});
+  } catch(e){}
+  closeStatusModal();
+  renderIncidents();
+}
+
+// ── Inline update form ────────────────────────────────────
+function toggleUpdateForm(id){
+  const uf = document.getElementById('uf-'+id);
+  uf.classList.toggle('open');
+}
+async function addUpdate(id){
+  const ta = document.getElementById('uf-text-'+id);
+  const text = ta.value.trim();
+  if(!text){ alert('יש להזין עדכון'); return; }
+  const inc = incidents.find(i=>i.id===id);
+  if(!inc) return;
+  const entry = {ts:new Date().toISOString(), text};
+  if(!inc.timeline) inc.timeline=[];
+  inc.timeline.push(entry);
+  try{
+    await patchJSON(`/api/incidents/${id}`,{timelineEntry:entry});
+  } catch(e){}
+  renderIncidents();
+}
+
+// ── Close incident ────────────────────────────────────────
+async function closeIncident(id){
+  if(!confirm('לסגור את האירוע?')) return;
+  const inc = incidents.find(i=>i.id===id);
+  if(!inc) return;
+  const entry = {ts:new Date().toISOString(), text:'אירוע נסגר'};
+  if(!inc.timeline) inc.timeline=[];
+  inc.timeline.push(entry);
+  inc.status='resolved';
+  inc.closedAt = new Date().toISOString();
+  try{
+    await patchJSON(`/api/incidents/${id}`,{status:'resolved', closedAt:inc.closedAt, timelineEntry:entry});
+  } catch(e){}
+  incidents = incidents.filter(i=>i.id!==id);
+  renderIncidents();
+  updateKPIs();
+}
+
+// ── Util ──────────────────────────────────────────────────
+function escHtml(s){
+  if(!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtTime(iso){
+  try{ return new Date(iso).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}); }
+  catch(e){ return ''; }
+}
+function fmtDate(iso){
+  try{ return new Date(iso).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+  catch(e){ return ''; }
+}
+
+// ── Close modals on backdrop click ───────────────────────
+document.getElementById('incident-modal').addEventListener('click',e=>{if(e.target===e.currentTarget) closeIncidentModal();});
+document.getElementById('status-modal').addEventListener('click',e=>{if(e.target===e.currentTarget) closeStatusModal();});
+
+// ── Initial load ──────────────────────────────────────────
+loadMachines();
+loadIncidents();
+
+// ── Auto-refresh ──────────────────────────────────────────
+setInterval(()=>{ loadMachines(); }, 10000);   // machines every 10s
+setInterval(()=>{ loadIncidents(); }, 15000);   // incidents every 15s
+</script>
+</body>
+</html>

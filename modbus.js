@@ -55,6 +55,8 @@ class ModbusService {
         port:       row.tcp_port  || 502,
         serialPort: row.rtu_port  || `COM${2 + row.id}`,
         baudRate:   row.baud_rate || 9600,
+        parity:     row.parity    || 'none',
+        stopBits:   row.stop_bits || 1,
         unitId:     row.slave_id  || row.id,
       }));
     } catch { return MACHINES_CONFIG; }
@@ -90,7 +92,8 @@ class ModbusService {
         await client.connectTCP(cfg.host, { port: cfg.port ?? 502 });
       } else {
         await client.connectRTUBuffered(cfg.serialPort, {
-          baudRate: cfg.baudRate ?? 9600, dataBits: 8, parity: 'none', stopBits: 1,
+          baudRate: cfg.baudRate ?? 9600, dataBits: 8,
+          parity: cfg.parity ?? 'none', stopBits: cfg.stopBits ?? 1,
         });
       }
       client.setID(cfg.unitId);
