@@ -6,7 +6,6 @@ services:
     region: oregon
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
-    numReplicas: 1
     envVars:
       - key: PORT
         value: 3000
