@@ -1077,19 +1077,28 @@ app.get('/api/orders/:id/print-cards', (req, res) => {
   const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '';
 
   // All item data for client-side rendering
-  const allItemsJson = JSON.stringify(allItems.map(it => ({
-    id:             it.id,
-    segments:       tryParseJSON(it.segments, []),
-    diameter:       it.diameter || '',
-    shape_name:     it.shape_name || '',
-    quantity:       it.quantity || 1,
-    total_length_mm:it.total_length_mm || 0,
-    total_weight:   it.total_weight || 0,
-    material_grade: it.material_grade || 'B500B',
-    struct_element: it.struct_element || '',
-    note:           it.note || '',
-    pallet_num:     it._palletNum || 1,
-  })));
+  // Escape </script> to prevent premature tag termination inside <script> block
+  const REBAR_KG_PC = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,
+                       20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86};
+  const allItemsJson = JSON.stringify(allItems.map(it => {
+    const kgm = REBAR_KG_PC[Math.round(it.diameter)];
+    const calcW = (it.total_weight && it.total_weight > 0)
+      ? it.total_weight
+      : (kgm ? Math.round((it.total_length_mm/1000) * kgm * (it.quantity||1) * 10)/10 : 0);
+    return {
+      id:             it.id,
+      segments:       tryParseJSON(it.segments, []),
+      diameter:       it.diameter || '',
+      shape_name:     it.shape_name || '',
+      quantity:       it.quantity || 1,
+      total_length_mm:it.total_length_mm || 0,
+      total_weight:   calcW,
+      material_grade: it.material_grade || 'B500B',
+      struct_element: it.struct_element || '',
+      note:           it.note || '',
+      pallet_num:     it._palletNum || 1,
+    };
+  })).replace(/<\/script>/gi, '<\\/script>').replace(/<!--/g, '<\\!--');
 
   const safeCustomer = (order.customer_name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   const safeAddress  = (order.delivery_address || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -1494,10 +1503,20 @@ app.get('/api/orders/:id/delivery-certificate', (req, res) => {
     return angles.some(a => a < 175);
   };
 
+  // Server-side weight table (kg/m) — mirrors client REBAR_WEIGHTS
+  const REBAR_KG = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,
+                    20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86};
+  const calcItemWeight = it => {
+    if (it.total_weight && it.total_weight > 0) return it.total_weight;
+    const kgm = REBAR_KG[Math.round(it.diameter)];
+    if (!kgm) return 0;
+    return Math.round((it.total_length_mm / 1000) * kgm * (it.quantity || 1) * 10) / 10;
+  };
+
   // Weight totals
   let wBent = 0, wStraight = 0;
   allItems.forEach(item => {
-    const w = item.total_weight || 0;
+    const w = calcItemWeight(item);
     if (isBent(item)) wBent += w; else wStraight += w;
   });
   const wTotal = wBent + wStraight;
@@ -1520,12 +1539,20 @@ app.get('/api/orders/:id/delivery-certificate', (req, res) => {
     const type   = bent ? "מכופף (ח')" : 'ישר';
     const lenCm  = item.total_length_mm ? Math.round(item.total_length_mm / 10) : '–';
     const qty    = item.quantity || 1;
-    const wt     = fmt1(item.total_weight || 0);
+    const wt     = fmt1(calcItemWeight(item));
     const notes  = [item.struct_element, item.struct_floor, item.sheet_num, item.note].filter(Boolean).join(' · ') || '–';
 
     // Inline SVG shape (80×52)
     const svgShape = (() => {
-      if (!segs.length) return '<text x="40" y="28" text-anchor="middle" font-size="9" fill="#aaa">—</text>';
+      if (!segs.length) {
+        // Straight bar — show a simple horizontal line with length label
+        const lenLabel = item.total_length_mm ? Math.round(item.total_length_mm) + '' : '–';
+        return `<line x1="8" y1="26" x2="72" y2="26" stroke="#1a2332" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="8" cy="26" r="2.5" fill="#1a2332"/>
+                <circle cx="72" cy="26" r="2.5" fill="#1a2332"/>
+                <rect x="25" y="16" width="30" height="9" rx="1.5" fill="white" fill-opacity="0.9"/>
+                <text x="40" y="23" text-anchor="middle" dominant-baseline="middle" font-size="6.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">${lenLabel}</text>`;
+      }
       const sides  = segs.map(s => s.length_mm);
       const angles = segs.map(s => s.angle_deg).slice(0, -1);
       const pts    = [[0, 0]];
