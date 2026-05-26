@@ -33,8 +33,8 @@ ENV PORT=3000
 ENV DB_PATH=/data/ironbend.db
 ENV BACKUP_DIR=/data/backups
 
-# Create volume mount point for persistent storage
-RUN mkdir -p /data
+# Create volume mount points for persistent storage
+RUN mkdir -p /data/backups /data/logs
 
 # Expose the application port
 EXPOSE 3000

@@ -2,19 +2,23 @@ services:
   - type: web
     name: ironbend
     env: docker
-    plan: free
-    region: oregon
+    plan: starter          # starter = persistent disk support
+    region: frankfurt      # קרוב יותר לישראל
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
+    disk:
+      name: ironbend-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: PORT
         value: 3000
       - key: NODE_ENV
         value: production
       - key: DB_PATH
-        value: ./ironbend.db
+        value: /data/ironbend.db
       - key: BACKUP_DIR
-        value: ./backups
+        value: /data/backups
       - key: SESSION_SECRET
         generateValue: true
       - key: GEMINI_API_KEY
