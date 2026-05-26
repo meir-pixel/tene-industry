@@ -988,14 +988,23 @@ app.post('/api/orders', (req, res) => {
   const { customer, order, pallets } = req.body;
 
   let customerId;
-  const existing = db.prepare('SELECT id FROM customers WHERE phone=?').get(customer.phone);
+  // Lookup: prefer phone (unique), fallback to name if phone is empty
+  const phone = (customer.phone || '').trim();
+  const name  = (customer.name  || '').trim();
+  let existing = null;
+  if (phone) {
+    existing = db.prepare('SELECT id FROM customers WHERE phone=?').get(phone);
+  }
+  if (!existing && name) {
+    existing = db.prepare("SELECT id FROM customers WHERE name=? AND (phone IS NULL OR phone='') ORDER BY id DESC LIMIT 1").get(name);
+  }
   if (existing) {
     customerId = existing.id;
-    db.prepare('UPDATE customers SET name=?,address=?,contact_name=?,contact_phone=? WHERE id=?')
-      .run(customer.name, customer.address, customer.contactName, customer.contactPhone, customerId);
+    db.prepare('UPDATE customers SET name=?,phone=?,address=?,contact_name=?,contact_phone=? WHERE id=?')
+      .run(name || customer.name, phone || null, customer.address, customer.contactName, customer.contactPhone, customerId);
   } else {
     const r = db.prepare('INSERT INTO customers (name,phone,address,contact_name,contact_phone) VALUES (?,?,?,?,?)')
-      .run(customer.name, customer.phone, customer.address, customer.contactName, customer.contactPhone);
+      .run(name || customer.name, phone || null, customer.address, customer.contactName, customer.contactPhone);
     customerId = r.lastInsertRowid;
   }
 
