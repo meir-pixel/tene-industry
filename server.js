@@ -1076,29 +1076,36 @@ app.get('/api/orders/:id/print-cards', (req, res) => {
   const printDate = fmtDate(order.created_at);
   const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '';
 
-  // All item data for client-side rendering
-  // Escape </script> to prevent premature tag termination inside <script> block
+  // All item data for client-side rendering.
+  // Use base64 encoding so no JSON content can ever break the <script> tag.
   const REBAR_KG_PC = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,
                        20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86};
-  const allItemsJson = JSON.stringify(allItems.map(it => {
-    const kgm = REBAR_KG_PC[Math.round(it.diameter)];
-    const calcW = (it.total_weight && it.total_weight > 0)
-      ? it.total_weight
-      : (kgm ? Math.round((it.total_length_mm/1000) * kgm * (it.quantity||1) * 10)/10 : 0);
-    return {
-      id:             it.id,
-      segments:       tryParseJSON(it.segments, []),
-      diameter:       it.diameter || '',
-      shape_name:     it.shape_name || '',
-      quantity:       it.quantity || 1,
-      total_length_mm:it.total_length_mm || 0,
-      total_weight:   calcW,
-      material_grade: it.material_grade || 'B500B',
-      struct_element: it.struct_element || '',
-      note:           it.note || '',
-      pallet_num:     it._palletNum || 1,
-    };
-  })).replace(/<\/script>/gi, '<\\/script>').replace(/<!--/g, '<\\!--');
+  let allItemsB64 = 'W10='; // base64 of '[]'
+  try {
+    const mapped = allItems.map(it => {
+      const kgm = REBAR_KG_PC[Math.round(it.diameter)];
+      const calcW = (it.total_weight && it.total_weight > 0)
+        ? it.total_weight
+        : (kgm ? Math.round((it.total_length_mm/1000) * kgm * (it.quantity||1) * 10)/10 : 0);
+      return {
+        id:             it.id,
+        segments:       tryParseJSON(it.segments, []),
+        diameter:       it.diameter || '',
+        shape_name:     it.shape_name || '',
+        quantity:       it.quantity || 1,
+        total_length_mm:it.total_length_mm || 0,
+        total_weight:   calcW,
+        material_grade: it.material_grade || 'B500B',
+        struct_element: it.struct_element || '',
+        note:           it.note || '',
+        pallet_num:     it._palletNum || 1,
+      };
+    });
+    allItemsB64 = Buffer.from(JSON.stringify(mapped)).toString('base64');
+    console.log('[print-cards] order', req.params.id, '→', mapped.length, 'items, b64 len', allItemsB64.length);
+  } catch(e) {
+    console.error('[print-cards] allItems encode error:', e);
+  }
 
   const safeCustomer = (order.customer_name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   const safeAddress  = (order.delivery_address || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -1238,7 +1245,7 @@ var DELIV_DATE    = '${delivDate}';
 var CUSTOMER      = '${safeCustomer}';
 var TOTAL_WEIGHT  = ${(order.total_weight||0).toFixed(1)};
 var TOTAL_PALLETS = ${pallets.length};
-var allItems      = ${allItemsJson};
+var allItems      = JSON.parse(atob('${allItemsB64}'));
 
 // ── Split config: item id -> number of sub-cards ──────────────────
 var splitCfg = {};
