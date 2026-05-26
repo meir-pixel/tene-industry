@@ -1052,6 +1052,128 @@ app.patch('/api/orders/:id/status', (req, res) => {
   res.json({ success: true });
 });
 
+// ── PRINT CARDS: server-side helpers ──────────────────────────────
+const PC_KG = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,
+               20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86};
+
+function pcEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function pcShapeSVG(segsRaw) {
+  try {
+    const segs = tryParseJSON(segsRaw, []);
+    const W=220, H=100, PAD=18;
+    if (!segs || !segs.length) {
+      return '<svg viewBox="0 0 220 60" style="width:100%;max-height:80px">' +
+        '<line x1="12" y1="30" x2="208" y2="30" stroke="#1a2332" stroke-width="3" stroke-linecap="round"/>' +
+        '<circle cx="12" cy="30" r="3" fill="#1a2332"/><circle cx="208" cy="30" r="3" fill="#1a2332"/></svg>';
+    }
+    const sides = segs.map(s => +(s.length_mm||0));
+    const angs  = segs.map(s => s.angle_deg);
+    const pts   = [[0,0]]; let dir=0;
+    for (let i=0; i<sides.length; i++) {
+      const p=pts[pts.length-1], rad=dir*Math.PI/180;
+      pts.push([p[0]+sides[i]*Math.cos(rad), p[1]+sides[i]*Math.sin(rad)]);
+      if (i<angs.length-1 && angs[i]!=null) dir-=(180-angs[i]);
+    }
+    const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+    const mnX=Math.min(...xs),mxX=Math.max(...xs),mnY=Math.min(...ys),mxY=Math.max(...ys);
+    const rX=mxX-mnX||1, rY=mxY-mnY||1;
+    const sc=Math.min((W-PAD*2)/rX,(H-PAD*2)/rY);
+    const oX=PAD+((W-PAD*2)-rX*sc)/2, oY=PAD+((H-PAD*2)-rY*sc)/2;
+    const mp=p=>[+(oX+(p[0]-mnX)*sc).toFixed(1), +(oY+(p[1]-mnY)*sc).toFixed(1)];
+    const mpts=pts.map(mp);
+    const pd='M '+mpts.map(p=>p.join(',')).join(' L ');
+    let s='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
+    s+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
+    for (let i=0; i<mpts.length-1; i++) {
+      const [x1,y1]=mpts[i],[x2,y2]=mpts[i+1];
+      const mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,ln=Math.sqrt(dx*dx+dy*dy)||1;
+      const nx=-dy/ln*10,ny=dx/ln*10;
+      s+='<rect x="'+(mx+nx-14).toFixed(1)+'" y="'+(my+ny-6).toFixed(1)+'" width="28" height="12" rx="2" fill="white" fill-opacity="0.9"/>';
+      s+='<text x="'+(mx+nx).toFixed(1)+'" y="'+(my+ny).toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
+    }
+    for (let i=1; i<mpts.length-1; i++) {
+      const a=angs[i-1];
+      if (a!=null && a!==180) {
+        const [x,y]=mpts[i];
+        s+='<circle cx="'+x+'" cy="'+y+'" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
+        s+='<text x="'+x+'" y="'+y+'" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">'+a+'\xb0</text>';
+      }
+    }
+    return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:100px">'+s+'</svg>';
+  } catch(e) {
+    return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
+  }
+}
+
+function pcMasterCard(allItems, order, printDate, delivDate, numPallets) {
+  let rows='';
+  allItems.forEach((it,i)=>{
+    rows+='<tr><td>'+(i+1)+'</td><td><b>'+pcEsc(it.diameter||'')+'</b></td><td>'+pcEsc(it.shape_name||'–')+'</td>'+
+      '<td>'+Math.round((it.total_length_mm||0)/10)+'</td><td><b>'+(it.quantity||1)+'</b></td>'+
+      '<td>'+(+(it.total_weight)||0).toFixed(1)+'</td><td class="check-cell">◯</td></tr>';
+  });
+  return '<div class="prod-card master-card">'+
+    '<div class="pc-head" style="background:#1a2332;color:#fff;padding:8px 12px;">'+
+      '<div><div class="pc-title" style="color:#e07b39;font-size:14px;">★ כרטיסיית מאסטר</div>'+
+      '<div class="pc-date" style="color:#8aa;">'+pcEsc(printDate)+'</div></div>'+
+      '<div style="text-align:left"><div style="font-size:16px;font-weight:900;">'+pcEsc(order.order_num||'')+'</div>'+
+      '<div style="font-size:10px;color:#8aa;">'+(delivDate?'מסירה: '+pcEsc(delivDate):'')+'</div></div></div>'+
+    '<div style="padding:6px 10px;font-size:12px;font-weight:700;border-bottom:1px solid #eee;">'+pcEsc(order.customer_name||'')+'</div>'+
+    '<table class="master-table"><thead><tr><th>#</th><th>\xd8</th><th>צורה</th><th>אורך</th><th>כמות</th><th>ק"ג</th><th>✓</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table>'+
+    '<div class="master-totals">סה"כ: <b>'+(+(order.total_weight)||0).toFixed(1)+' ק"ג</b> \xb7 '+numPallets+' משטחים \xb7 '+allItems.length+' פריטים</div>'+
+    '<div class="pc-footer" style="background:#1a2332;color:#8aa;font-size:9px;text-align:center;padding:4px;">★ כרטיסיית מאסטר – לא לאיבוד! \xb7 '+pcEsc(order.order_num||'')+'</div>'+
+  '</div>';
+}
+
+function pcItemCard(it, order, printDate) {
+  const barData = (order.order_num||'')+'-'+String(it.id).padStart(6,'0');
+  const uid = 'i'+it.id;
+  const segs = tryParseJSON(it.segments, []);
+  const title = it.shape_name ? ('כרטיסכיפוף – '+it.shape_name) : 'כרטיס כיפוף';
+  const kgm = PC_KG[Math.round(it.diameter||0)];
+  const wt = (it.total_weight && it.total_weight>0)
+    ? (+it.total_weight).toFixed(2)
+    : (kgm ? (Math.round((it.total_length_mm||0)/1000*kgm*(it.quantity||1)*10)/10).toFixed(2) : '0.00');
+  let dimHtml='';
+  for (let i=0;i<segs.length;i++){
+    const lbl=String.fromCharCode(0x05D0+i);
+    dimHtml+='<span class="dim-seg">'+lbl+': <b>'+pcEsc(String(segs[i].length_mm||''))+'</b></span>';
+    if (i<segs.length-1 && segs[i].angle_deg)
+      dimHtml+='<span class="dim-ang">'+pcEsc(String(segs[i].angle_deg))+'\xb0</span>';
+  }
+  return '<div class="prod-card" data-bar="'+pcEsc(barData)+'" data-uid="'+uid+'">'+
+    '<div class="pc-head">'+
+      '<div><div class="pc-title">'+pcEsc(title)+'</div><div class="pc-date">'+pcEsc(printDate)+'</div></div>'+
+      '<div class="pc-top-barcode"><svg class="bc-svg" id="bt-'+uid+'"></svg><div class="bc-label">'+pcEsc(barData)+'</div></div>'+
+    '</div>'+
+    '<div class="pc-order-row">'+
+      '<div class="pc-order-label">הזמנה מס\' :</div>'+
+      '<div class="pc-order-barcode"><svg class="bc-svg-wide" id="bo-'+uid+'"></svg><div class="bc-ord-text">'+pcEsc(order.order_num||'')+'</div></div>'+
+      '<div class="pc-pallet">משטח: <b>'+(it._palletNum||1)+'</b></div>'+
+    '</div>'+
+    '<div class="pc-wq-row">'+
+      '<div class="pc-wq-cell"><span class="wq-lbl">ק"ג:</span> <span class="wq-val">'+wt+'</span></div>'+
+      '<div class="pc-wq-sep"></div>'+
+      '<div class="pc-wq-cell"><span class="wq-lbl">כמות:</span> <span class="wq-val">'+(it.quantity||1)+'</span> יח\'</div>'+
+      '<div class="pc-wq-sep"></div>'+
+      '<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">'+pcEsc(order.customer_name||'')+'</span></div>'+
+    '</div>'+
+    '<div class="pc-shape-area">'+pcShapeSVG(it.segments)+'</div>'+
+    (dimHtml?'<div class="pc-dims">'+dimHtml+'</div>':'')+
+    '<div class="pc-spec-row">'+
+      '<div class="pc-spec-cell"><span class="spec-lbl">נ\':</span> <b>\xd8'+pcEsc(String(it.diameter||'?'))+'</b></div>'+
+      '<div class="pc-spec-sep"></div>'+
+      '<div class="pc-spec-cell"><span class="spec-lbl">אורך:</span> <b>'+(it.total_length_mm||0)+'</b> מ"מ</div>'+
+      (it.struct_element?'<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> '+pcEsc(it.struct_element)+'</div>':'')+
+    '</div>'+
+    (it.note?'<div class="pc-note">⚠ '+pcEsc(it.note)+'</div>':'')+
+    '<div class="pc-footer"><svg class="bc-svg-wide" id="bb-'+uid+'"></svg>'+
+      '<div class="pc-brand">SYNTA<br><span class="pc-brand-num">'+(it._palletNum||1)+'</span></div></div>'+
+  '</div>';
+}
+
 // ── PRINT CARDS ───────────────────────────────────────────────────
 app.get('/api/orders/:id/print-cards', (req, res) => {
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
@@ -1076,39 +1198,21 @@ app.get('/api/orders/:id/print-cards', (req, res) => {
   const printDate = fmtDate(order.created_at);
   const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '';
 
-  // All item data for client-side rendering.
-  // Use base64 encoding so no JSON content can ever break the <script> tag.
-  const REBAR_KG_PC = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,
-                       20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86};
-  let allItemsB64 = 'W10='; // base64 of '[]'
-  try {
-    const mapped = allItems.map(it => {
-      const kgm = REBAR_KG_PC[Math.round(it.diameter)];
-      const calcW = (it.total_weight && it.total_weight > 0)
-        ? it.total_weight
-        : (kgm ? Math.round((it.total_length_mm/1000) * kgm * (it.quantity||1) * 10)/10 : 0);
-      return {
-        id:             it.id,
-        segments:       tryParseJSON(it.segments, []),
-        diameter:       it.diameter || '',
-        shape_name:     it.shape_name || '',
-        quantity:       it.quantity || 1,
-        total_length_mm:it.total_length_mm || 0,
-        total_weight:   calcW,
-        material_grade: it.material_grade || 'B500B',
-        struct_element: it.struct_element || '',
-        note:           it.note || '',
-        pallet_num:     it._palletNum || 1,
-      };
-    });
-    allItemsB64 = Buffer.from(JSON.stringify(mapped)).toString('base64');
-    console.log('[print-cards] order', req.params.id, '→', mapped.length, 'items, b64 len', allItemsB64.length);
-  } catch(e) {
-    console.error('[print-cards] allItems encode error:', e);
-  }
+  // Server-side rendered setup rows and cards
+  const setupRowsHtml = allItems.map((it,i) =>
+    '<tr><td>'+(i+1)+'</td><td>'+pcEsc(it.shape_name||'–')+'</td>' +
+    '<td><b>\xd8'+(+it.diameter||'?')+'</b></td><td><b>'+(it.quantity||1)+'</b></td>' +
+    '<td><input class="split-inp" type="number" min="1" max="'+(it.quantity||1)+'" value="1" id="sp-'+it.id+'" oninput="onSplitChange('+it.id+','+(it.quantity||1)+')"></td>' +
+    '<td><div class="split-detail" id="sd-'+it.id+'">כרטיסייה אחת – כל הכמות</div></td></tr>'
+  ).join('');
 
-  const safeCustomer = (order.customer_name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  const safeAddress  = (order.delivery_address || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const serverCardsHtml = (allItems.length
+    ? pcMasterCard(allItems, order, printDate, delivDate, pallets.length) +
+      allItems.map(it => pcItemCard(it, order, printDate)).join('')
+    : '<div style="padding:40px;text-align:center;color:#888;">אין פריטים בהזמנה זו</div>'
+  );
+
+  console.log('[print-cards] order', req.params.id, '→', allItems.length, 'items server-rendered');
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
@@ -1225,7 +1329,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
       <thead><tr>
         <th>#</th><th>צורה</th><th>⌀</th><th>כמות</th><th>מס' כרטיסיות</th><th>חלוקה</th>
       </tr></thead>
-      <tbody id="setupBody"></tbody>
+      <tbody id="setupBody">${setupRowsHtml}</tbody>
     </table>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
       <button class="gen-btn" onclick="generateCards()">✅ עדכן כרטיסיות</button>
@@ -1234,18 +1338,17 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   </div>
 </div>
 
-<!-- ── Card grid (rendered by JS) ── -->
-<div class="cards-grid" id="cardsGrid"></div>
+<!-- ── Card grid – server-rendered, barcodes added by JS ── -->
+<div class="cards-grid" id="cardsGrid">${serverCardsHtml}</div>
 
 <script>
 // ── Server data ───────────────────────────────────────────────────
 var ORDER_NUM     = ${JSON.stringify(order.order_num || '')};
 var PRINT_DATE    = ${JSON.stringify(printDate)};
-var DELIV_DATE    = ${JSON.stringify(delivDate)};
-var CUSTOMER      = ${JSON.stringify(order.customer_name || '')};
 var TOTAL_WEIGHT  = ${(order.total_weight||0).toFixed(1)};
 var TOTAL_PALLETS = ${pallets.length};
-var allItems      = JSON.parse(atob('${allItemsB64}'));
+// allItems not needed for initial render – cards are server-rendered
+var allItems      = [];
 
 // ── Split config: item id -> number of sub-cards ──────────────────
 var splitCfg = {};
@@ -1485,9 +1588,27 @@ function generateCards() {
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────
-initSetup();
-generateCards();
+// ── Init: add barcodes to server-rendered cards ───────────────────
+(function() {
+  var bcOpts = { format:'CODE128', displayValue:false };
+  try {
+    document.querySelectorAll('[data-bar]').forEach(function(card) {
+      var bar = card.getAttribute('data-bar');
+      var uid = card.getAttribute('data-uid') || '';
+      var bt = document.getElementById('bt-'+uid);
+      var bo = document.getElementById('bo-'+uid);
+      var bb = document.getElementById('bb-'+uid);
+      if (bt) try { JsBarcode(bt, bar, Object.assign({},bcOpts,{width:1.4,height:38,margin:2})); } catch(e){}
+      if (bo) try { JsBarcode(bo, ORDER_NUM, Object.assign({},bcOpts,{width:1.2,height:28,margin:2})); } catch(e){}
+      if (bb) try { JsBarcode(bb, bar, Object.assign({},bcOpts,{width:1.2,height:28,margin:2})); } catch(e){}
+    });
+  } catch(e) {}
+  // Split config from existing rows
+  document.querySelectorAll('[id^="sp-"]').forEach(function(inp) {
+    var id = inp.id.replace('sp-','');
+    splitCfg[id] = 1;
+  });
+})();
 </script>
 </body>
 </html>`);
