@@ -1,30 +1,28 @@
-# Use the official Node.js 20 base image (includes build tools for native packages like better-sqlite3)
-FROM node:20-slim AS builder
-
-# Install build dependencies for better-sqlite3
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+# Builder stage — full Node image has all native build tools pre-installed
+FROM node:20 AS builder
 
 WORKDIR /usr/src/app
 
 # Copy dependency specifications
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies if needed for build steps)
+# Install all dependencies (better-sqlite3 needs python3/make/g++ — all present in node:20)
 RUN npm ci
 
 # Copy application source
 COPY . .
 
-# Production runner stage
+# ── Production runner stage ────────────────────────────────────────
 FROM node:20-slim
+
+# Runtime deps for better-sqlite3 (the compiled .node binary needs libstdc++)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 
-# Copy built node_modules and code from the builder stage
+# Copy built node_modules and app code from builder
 COPY --from=builder /usr/src/app /usr/src/app
 
 # Set default production environment variables
