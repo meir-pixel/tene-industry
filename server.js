@@ -1203,8 +1203,8 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 @media print{
   body{background:#fff;padding:0;}
   .screen-only{display:none!important;}
-  .cards-grid{gap:0;}
-  .prod-card{margin:2mm;box-shadow:none;}
+  .cards-grid{display:block!important;gap:0;}
+  .prod-card{display:block!important;margin:2mm;box-shadow:none;break-inside:avoid;page-break-inside:avoid;}
   @page{margin:8mm;}
 }
 </style>
@@ -1239,10 +1239,10 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 
 <script>
 // ── Server data ───────────────────────────────────────────────────
-var ORDER_NUM     = '${order.order_num}';
-var PRINT_DATE    = '${printDate}';
-var DELIV_DATE    = '${delivDate}';
-var CUSTOMER      = '${safeCustomer}';
+var ORDER_NUM     = ${JSON.stringify(order.order_num || '')};
+var PRINT_DATE    = ${JSON.stringify(printDate)};
+var DELIV_DATE    = ${JSON.stringify(delivDate)};
+var CUSTOMER      = ${JSON.stringify(order.customer_name || '')};
 var TOTAL_WEIGHT  = ${(order.total_weight||0).toFixed(1)};
 var TOTAL_PALLETS = ${pallets.length};
 var allItems      = JSON.parse(atob('${allItemsB64}'));
@@ -1437,23 +1437,31 @@ function generateCards() {
   grid.innerHTML = '';
 
   // Master card
-  var mDiv = document.createElement('div');
-  mDiv.innerHTML = buildMaster();
-  grid.appendChild(mDiv.firstElementChild);
+  try {
+    var mDiv = document.createElement('div');
+    mDiv.innerHTML = buildMaster();
+    var mEl = mDiv.firstElementChild;
+    if (mEl) grid.appendChild(mEl);
+  } catch(e) { console.error('buildMaster error:', e); }
 
   // Item cards
   var cardDefs = [];
   for (var i=0; i<allItems.length; i++) {
-    var item = allItems[i];
-    var n    = splitCfg[item.id] || 1;
-    var subs = splitQty(item.quantity, n);
-    for (var ci=0; ci<n; ci++) {
-      var def = buildCard(item, subs[ci], n, ci);
-      var div = document.createElement('div');
-      div.innerHTML = def.html;
-      grid.appendChild(div.firstElementChild);
-      cardDefs.push(def);
-    }
+    try {
+      var item = allItems[i];
+      var n    = splitCfg[item.id] || 1;
+      var subs = splitQty(item.quantity, n);
+      for (var ci=0; ci<n; ci++) {
+        try {
+          var def = buildCard(item, subs[ci], n, ci);
+          var div = document.createElement('div');
+          div.innerHTML = def.html;
+          var el = div.firstElementChild;
+          if (el) grid.appendChild(el);
+          cardDefs.push(def);
+        } catch(e2) { console.error('buildCard error item', item.id, e2); }
+      }
+    } catch(e) { console.error('card loop error:', e); }
   }
 
   // Barcodes + shapes (after DOM is updated)
