@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="IronBend">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="/shape-editor.js?v=35"></script>
+<script src="/shape-editor.js?v=36"></script>
 <script src="/offline-db.js"></script>
 <script src="/nav.js" defer></script>
 <style>
@@ -581,16 +581,36 @@
     background: var(--steel-mid);
     border: 1px solid var(--success);
     border-radius: 20px;
-    padding: 48px;
+    padding: 40px 48px;
     text-align: center;
-    max-width: 400px;
+    max-width: 460px;
+    width: 90%;
     box-shadow: 0 0 60px rgba(46,204,113,0.2);
   }
   .success-icon { font-size: 64px; margin-bottom: 16px; }
   .success-title { font-size: 24px; font-weight: 800; color: var(--success); margin-bottom: 8px; }
-  .success-order { font-size: 32px; font-weight: 900; color: var(--accent); margin: 16px 0; }
-  .success-sub { font-size: 14px; color: var(--text-dim); margin-bottom: 24px; }
+  .success-order { font-size: 32px; font-weight: 900; color: var(--accent); margin: 12px 0; }
+  .success-sub { font-size: 14px; color: var(--text-dim); margin-bottom: 20px; }
+  .success-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .success-btn {
+    padding: 11px 10px;
+    border: none; border-radius: 10px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .success-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+  .success-btn.primary   { background: var(--accent); color: white; }
+  .success-btn.secondary { background: #2a3a4a; color: #dde; border: 1px solid #3a5060; }
+  .success-btn.outline   { background: transparent; color: var(--text-dim); border: 1px solid #3a5060; }
   .new-order-btn {
+    width: 100%;
     padding: 12px 32px;
     background: var(--success);
     border: none; border-radius: 10px;
@@ -964,8 +984,15 @@
     <div class="success-icon">✅</div>
     <div class="success-title">ההזמנה נשמרה!</div>
     <div class="success-order" id="successOrderNum"></div>
-    <div class="success-sub" id="successSubText">ההזמנה נוצרה בהצלחה ונשלחה לתור הייצור</div>
-    <button class="new-order-btn" onclick="newOrder()">+ הזמנה חדשה</button>
+    <div class="success-sub" id="successSubText">ההזמנה נוצרה ונשלחה לתור הייצור</div>
+    <!-- Quick actions -->
+    <div class="success-actions" id="successActions">
+      <button class="success-btn primary" onclick="successGoView()">📋 פרטי הזמנה</button>
+      <button class="success-btn secondary" onclick="successPrintCards()">🖨️ כרטיסיות ייצור</button>
+      <button class="success-btn secondary" onclick="successDelivCert()">📄 תעודת משלוח</button>
+      <button class="success-btn outline" onclick="location.href='/orders.html'">📑 כל ההזמנות</button>
+    </div>
+    <button class="new-order-btn" onclick="newOrder()">➕ הזמנה חדשה</button>
   </div>
 </div>
 
@@ -1393,6 +1420,13 @@ function updateSummary() {
 }
 
 
+function _successOrderId() {
+  return document.getElementById('successOverlay').getAttribute('data-order-id') || '';
+}
+function successGoView()    { const id = _successOrderId(); if(id) location.href = '/orders.html?id='+id; else location.href='/orders.html'; }
+function successPrintCards(){ const id = _successOrderId(); if(id) window.open('/api/orders/'+id+'/print-cards','_blank'); }
+function successDelivCert() { const id = _successOrderId(); if(id) window.open('/api/orders/'+id+'/delivery-certificate','_blank'); }
+
 function newOrder() {
   orderCounter++;
   pallets = [];
@@ -1483,6 +1517,10 @@ async function submitOrder() {
     if (result.success) {
       document.getElementById('successOrderNum').textContent = result.orderNum;
       document.getElementById('successSubText').textContent = 'ההזמנה נוצרה ונשלחה לתור הייצור';
+      document.getElementById('successOverlay').setAttribute('data-order-id', result.orderId || '');
+      // show/hide cert buttons if online
+      const actionsEl = document.getElementById('successActions');
+      if (actionsEl) actionsEl.style.display = result.orderId ? 'grid' : 'none';
       document.getElementById('successOverlay').classList.add('show');
       orderCounter++;
     } else {
