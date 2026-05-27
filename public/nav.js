@@ -136,6 +136,7 @@
     { href:'/dashboard.html',    icon:'📊', label:'דשבורד',      id:'dashboard'    },
     { href:'/orders.html',       icon:'📋', label:'הזמנות',      id:'orders'       },
     { href:'/index.html',        icon:'➕', label:'הזמנה חדשה',  id:'new'          },
+    { href:'/customers.html',    icon:'👥', label:'לקוחות',      id:'customers'    },
     { href:'/machine.html',      icon:'🔧', label:'מכונות',      id:'machine'      },
     { href:'/kiosk.html',        icon:'🖥️', label:'תחנת עבודה',  id:'kiosk'        },
     { href:'/warehouse.html',    icon:'📦', label:'מחסן',        id:'warehouse'    },

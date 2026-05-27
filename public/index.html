@@ -1026,6 +1026,24 @@ function init() {
 
   // Shape editor
   shapeEditor = new ShapeEditorModal(shapeSelected);
+
+  // Pre-fill customer from URL params (e.g. coming from customers.html)
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('customer_name')) {
+    document.getElementById('customerSearch').value = urlParams.get('customer_name');
+  }
+  if (urlParams.get('customer_id')) {
+    // load and auto-select
+    fetch('/api/customers/' + urlParams.get('customer_id'))
+      .then(r => r.json())
+      .then(c => {
+        if (c && c.name) {
+          document.getElementById('customerSearch').value = c.name;
+          if (c.phone) document.getElementById('customerPhone').value = c.phone;
+          window._selectedCustomerId = c.id;
+        }
+      }).catch(() => {});
+  }
 }
 
 function updateDateTime() {

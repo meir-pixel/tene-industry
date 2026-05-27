@@ -895,14 +895,36 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().t
 // ── CUSTOMERS ─────────────────────────────────────────────────────
 app.get('/api/customers', (req, res) => {
   const q = req.query.q || '';
-  res.json(db.prepare(`SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? OR priority_id LIKE ? ORDER BY name LIMIT 20`)
-    .all(`%${q}%`, `%${q}%`, `%${q}%`));
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const rows = db.prepare(`
+    SELECT c.*,
+      COUNT(o.id)        AS order_count,
+      COALESCE(SUM(o.total_weight),0) AS total_weight_sum,
+      MAX(o.created_at)  AS last_order_at
+    FROM customers c
+    LEFT JOIN orders o ON o.customer_id = c.id
+    WHERE c.name LIKE ? OR c.phone LIKE ? OR c.priority_id LIKE ?
+    GROUP BY c.id
+    ORDER BY c.name
+    LIMIT ?
+  `).all(`%${q}%`, `%${q}%`, `%${q}%`, limit);
+  res.json(rows);
 });
 
 app.get('/api/customers/:id', (req, res) => {
   const c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
   if (!c) return res.status(404).json({ error: 'לא נמצא' });
-  c.orders = db.prepare('SELECT id,order_num,status,created_at,total_weight FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 10').all(c.id);
+  c.orders = db.prepare(`
+    SELECT id, order_num, status, created_at, total_weight, delivery_date, priority, channel
+    FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 30
+  `).all(c.id);
+  const stats = db.prepare(`
+    SELECT COUNT(*) AS order_count,
+           COALESCE(SUM(total_weight),0) AS total_weight_sum,
+           MAX(created_at) AS last_order_at
+    FROM orders WHERE customer_id=?
+  `).get(c.id);
+  c.stats = stats;
   res.json(c);
 });
 
