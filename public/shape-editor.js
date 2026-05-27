@@ -834,6 +834,10 @@ class ShapeEditorModal {
 
     const moveDrag = e => {
       if (!drag) return;
+      // Cancel if mouse button no longer held (released outside window)
+      if (!e.touches && e.buttons !== undefined && e.buttons === 0) { drag = null; return; }
+      // Cancel if view was switched to 2D while dragging
+      if (window._seViewMode === '2d') { drag = null; return; }
       if (e.cancelable) e.preventDefault();
       const [cx, cy] = getXY(e);
       const W = wrap.offsetWidth  || 300;
@@ -848,12 +852,17 @@ class ShapeEditorModal {
 
     const endDrag = () => { drag = null; };
 
+    // Expose so seSetView can cancel active drag when switching modes
+    window._seResetDrag = endDrag;
+
     wrap.addEventListener('mousedown',  startDrag);
     wrap.addEventListener('touchstart', startDrag, { passive: false });
     document.addEventListener('mousemove',  moveDrag);
     document.addEventListener('touchmove',  moveDrag, { passive: false });
     document.addEventListener('mouseup',    endDrag);
     document.addEventListener('touchend',   endDrag);
+    // Also cancel if focus leaves the window (alt-tab, etc.)
+    window.addEventListener('blur', endDrag);
   }
 
   _renderPresets(countFilter) {
@@ -1415,6 +1424,8 @@ class ShapeEditorModal {
 window._seViewMode = '3d'; // default to 3D
 window.seSetView = function(mode) {
   window._seViewMode = mode;
+  // Cancel any active drag when switching modes
+  if (window._seResetDrag) window._seResetDrag();
   const btn2d = document.getElementById('seView2D');
   const btn3d = document.getElementById('seView3D');
   if (btn2d && btn3d) {
