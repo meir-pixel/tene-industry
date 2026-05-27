@@ -799,8 +799,19 @@ function wsBroadcast(type, data) {
 }
 
 wss.on('connection', ws => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   ws.send(JSON.stringify({ type: 'machines_state', data: modbus.getAllState() }));
 });
+
+// Heartbeat – keeps connections alive through Render's 60s nginx timeout
+setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.isAlive === false) { ws.terminate(); return; }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 25000);
 
 modbus.onUpdate((machineId, state) => {
   db.prepare(`UPDATE machines SET status=?, counter=?, last_seen=? WHERE id=?`)

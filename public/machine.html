@@ -441,10 +441,13 @@ let machines=[], selectedMachineId=null, currentJob=null, selectedQueueItem=null
 let queueData={items:[],grouped:{}}, currentShift=null, stopReasons=[], users=[];
 let selectedStopReason=null, currentWasteItemId=null, currentView='machine';
 
+let _wsDelay = 1000;
 function connectWS() {
-  ws = new WebSocket(`ws://${location.host}`);
-  ws.onopen  = () => { document.getElementById('wsDot').classList.add('live'); document.getElementById('wsLabel').textContent='מחובר'; };
-  ws.onclose = () => { document.getElementById('wsDot').classList.remove('live'); document.getElementById('wsLabel').textContent='מתחבר מחדש...'; setTimeout(connectWS,3000); };
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+  ws.onopen  = () => { document.getElementById('wsDot').classList.add('live'); document.getElementById('wsLabel').textContent='מחובר'; _wsDelay = 1000; };
+  ws.onerror = () => ws.close();
+  ws.onclose = () => { document.getElementById('wsDot').classList.remove('live'); document.getElementById('wsLabel').textContent='מתחבר מחדש...'; _wsDelay = Math.min(_wsDelay * 2, 30000); setTimeout(connectWS, _wsDelay); };
   ws.onmessage = e => {
     const { type, data } = JSON.parse(e.data);
     if (type==='machines_state') { machines=data; renderTabs(); updateSelected(); }

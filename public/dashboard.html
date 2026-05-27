@@ -656,15 +656,16 @@ tr:hover td{background:rgba(0,0,0,0.02);}
 </div>
 
 <script>
-const WS_URL = `ws://${location.host}`;
-let ws, dashData = null, alertsData = [];
+const WS_URL = () => `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+let ws, dashData = null, alertsData = [], _wsDelay = 1000;
 const TODAY = new Date().toISOString().split('T')[0];
 
 // ── WebSocket ────────────────────────────────────────────────────────
 function connectWS() {
-  ws = new WebSocket(WS_URL);
-  ws.onopen  = () => document.getElementById('wsDot').classList.add('connected');
-  ws.onclose = () => { document.getElementById('wsDot').classList.remove('connected'); setTimeout(connectWS, 3000); };
+  ws = new WebSocket(WS_URL());
+  ws.onopen  = () => { document.getElementById('wsDot').classList.add('connected'); _wsDelay = 1000; };
+  ws.onerror = () => ws.close();
+  ws.onclose = () => { document.getElementById('wsDot').classList.remove('connected'); _wsDelay = Math.min(_wsDelay * 2, 30000); setTimeout(connectWS, _wsDelay); };
   ws.onmessage = e => {
     try {
       const { type, data } = JSON.parse(e.data);

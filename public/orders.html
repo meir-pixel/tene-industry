@@ -192,10 +192,13 @@
 <script>
 let allOrders = [], activeStatus = '', ws;
 
+let _wsDelay = 1000;
 function connectWS() {
-  ws = new WebSocket(`ws://${location.host}`);
-  ws.onopen  = () => document.getElementById('wsDot').classList.add('connected');
-  ws.onclose = () => { document.getElementById('wsDot').classList.remove('connected'); setTimeout(connectWS,3000); };
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+  ws.onopen  = () => { document.getElementById('wsDot').classList.add('connected'); _wsDelay = 1000; };
+  ws.onclose = () => { document.getElementById('wsDot').classList.remove('connected'); _wsDelay = Math.min(_wsDelay * 2, 30000); setTimeout(connectWS, _wsDelay); };
+  ws.onerror = () => ws.close();
   ws.onmessage = e => {
     const { type } = JSON.parse(e.data);
     if (['new_order','order_status','order_complete'].includes(type)) fetchOrders();
