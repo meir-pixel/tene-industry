@@ -1038,26 +1038,13 @@ class ShapeEditorModal {
               data-side="${i}" oninput="window._seEditor._setSide(${i}, this.value)"></td>
             <td>
               ${i === 0
-                ? `<span style="font-size:11px;color:#aab8c8;padding:0 4px;">— צלע ראשונה</span>`
-                : `<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                <input class="se-input" type="number" min="-360" max="360" value="${az}" style="width:62px"
-                  data-az="${i}" oninput="window._seEditor._setAzAngle(${i}, this.value)">
-                <div class="se-angle-btns">
-                  ${[{v:0,l:'ישר'},{v:90,l:'שמאל'},{v:-90,l:'ימין'},{v:180,l:'הפוך'}].map(({v,l}) =>
-                    `<button class="se-angle-btn${az==v?' active':''}"
-                      data-az-btn="${i}_${v}" onclick="window._seEditor._setAzAngle(${i},${v})">${l}<br><small style="font-weight:400;opacity:0.7">${v>0?'+':''}${v}°</small></button>`).join('')}
-                </div>
-              </div>`}
+                ? `<span style="font-size:11px;color:#aab8c8;padding:0 4px;">—</span>`
+                : `<input class="se-input" type="number" min="-360" max="360" value="${az}" style="width:68px"
+                    data-az="${i}" oninput="window._seEditor._setAzAngle(${i}, this.value)">`}
             </td>
             <td>
-              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                <input class="se-input" type="number" min="-90" max="90" value="${el}" style="width:62px"
-                  data-el="${i}" oninput="window._seEditor._setElAngle(${i}, this.value)">
-                <div class="se-angle-btns">
-                  ${[-90,-45,0,45,90].map(a => `<button class="se-angle-btn${el==a?' active':''}"
-                    data-el-btn="${i}_${a}" onclick="window._seEditor._setElAngle(${i},${a})">${a}°</button>`).join('')}
-                </div>
-              </div>
+              <input class="se-input" type="number" min="-90" max="90" value="${el}" style="width:68px"
+                data-el="${i}" oninput="window._seEditor._setElAngle(${i}, this.value)">
             </td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">✕</button>` : ''}</td>
           </tr>`;
