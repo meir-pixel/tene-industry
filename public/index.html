@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="IronBend">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="/shape-editor.js?v=36"></script>
+<script src="/shape-editor.js?v=37"></script>
 <script src="/offline-db.js"></script>
 <script src="/nav.js" defer></script>
 <style>
@@ -1489,13 +1489,15 @@ async function submitOrder() {
         shapeName: item.shapeName,
         diameter: item.diameter,
         length: item.length,
+        sides: item.shapeSides && item.shapeSides.length ? item.shapeSides : (item.length ? [item.length] : []),
+        angles: item.shapeAngles || [],
         qty: item.qty,
         weight: calcItemWeight(item),
         note: item.note || '',
         is_3d: item.is3d || 0,
-        structElement: '',
-        structFloor: '',
-        sheetNum: '',
+        structElement: item.structElement || '',
+        structFloor: item.structFloor || '',
+        sheetNum: item.sheetNum || '',
       }))
     }))
   };

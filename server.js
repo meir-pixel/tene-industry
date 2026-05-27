@@ -1027,10 +1027,11 @@ app.post('/api/orders', (req, res) => {
       .run(orderId, idx + 1, pallet.maxWeight || 500, pallet.totalWeight || 0);
 
     (pallet.items || []).forEach(item => {
-      const sides = item.sides || [];
-      const totalLengthMm = sides.reduce((s, v) => s + v, 0);
+      const sides = (item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []);
+      const totalLengthMm = sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0;
+      const angles = item.angles || [];
       const segments = JSON.stringify(
-        sides.map((len, i) => ({ length_mm: len, angle_deg: (item.angles || [])[i] ?? 0 }))
+        sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }))
       );
       const weightPerUnit = calcWeightPerUnit(item.diameter, totalLengthMm);
       const productionQty = Math.ceil((item.qty || 1) * (1 + wastePct / 100));
@@ -1353,11 +1354,26 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 <script>
 // ── Server data ───────────────────────────────────────────────────
 var ORDER_NUM     = ${JSON.stringify(order.order_num || '')};
+var CUSTOMER      = ${JSON.stringify(order.customer_name || '')};
 var PRINT_DATE    = ${JSON.stringify(printDate)};
+var DELIV_DATE    = ${JSON.stringify(delivDate)};
 var TOTAL_WEIGHT  = ${(order.total_weight||0).toFixed(1)};
 var TOTAL_PALLETS = ${pallets.length};
-// allItems not needed for initial render – cards are server-rendered
-var allItems      = [];
+var allItems      = ${JSON.stringify(allItems.map(it => ({
+  id:             it.id,
+  shape_name:     it.shape_name  || '',
+  diameter:       it.diameter    || 12,
+  quantity:       it.quantity    || 1,
+  total_length_mm:it.total_length_mm || 0,
+  total_weight:   +(it.total_weight  || 0),
+  weight_per_unit:+(it.weight_per_unit || 0),
+  segments:       tryParseJSON(it.segments, []),
+  note:           it.note        || '',
+  struct_element: it.struct_element || '',
+  pallet_num:     it._palletNum  || 1,
+  material_grade: it.material_grade || 'B500B',
+  is_3d:          it.is_3d       || 0
+})))};
 
 // ── Split config: item id -> number of sub-cards ──────────────────
 var splitCfg = {};
