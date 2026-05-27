@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>תיעוד מערכת IronBend – אפיון נוכחי</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="/nav.js" defer></script>
+<style>
+:root{
+  --acc:#c9621a; --acc2:#e07b39;
+  --text:#1a2533; --dim:#526070; --faint:#8fa0b0;
+  --bg:#f0f4f8; --card:#fff;
+  --border:rgba(0,0,0,0.09);
+  --ok:#1a7a42; --warn:#a86b00; --err:#b83227; --info:#1a5fa8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;}
+a{color:var(--acc);text-decoration:none;}
+a:hover{text-decoration:underline;}
+
+.page{max-width:1100px;margin:0 auto;padding:24px 20px 60px;}
+
+/* ── TOC ── */
+.toc{
+  background:var(--card);border-radius:14px;padding:20px 24px;
+  border:1px solid var(--border);margin-bottom:28px;
+  position:sticky;top:56px;z-index:50;
+  box-shadow:0 2px 12px rgba(0,0,0,0.07);
+}
+.toc h2{font-size:14px;font-weight:800;margin-bottom:12px;color:var(--dim);}
+.toc-links{display:flex;gap:8px;flex-wrap:wrap;}
+.toc-links a{
+  background:var(--bg);border-radius:6px;padding:5px 11px;
+  font-size:12px;font-weight:700;color:var(--dim);
+  border:1px solid var(--border);transition:all .14s;
+}
+.toc-links a:hover{background:rgba(201,98,26,0.08);color:var(--acc);border-color:rgba(201,98,26,0.25);text-decoration:none;}
+
+/* ── SECTION ── */
+.section{
+  background:var(--card);border-radius:14px;padding:24px 28px;
+  border:1px solid var(--border);margin-bottom:20px;
+}
+.section-title{
+  font-size:20px;font-weight:900;
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:20px;padding-bottom:12px;
+  border-bottom:2px solid var(--bg);
+}
+.section-title .num{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  color:#fff;font-size:15px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+h3{font-size:15px;font-weight:800;color:var(--text);margin:16px 0 8px;}
+h4{font-size:13px;font-weight:700;color:var(--dim);margin:12px 0 6px;}
+p{font-size:14px;color:var(--dim);margin-bottom:8px;}
+
+/* ── BADGES ── */
+.badge{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:2px 8px;border-radius:20px;
+  font-size:11px;font-weight:700;white-space:nowrap;
+}
+.ok{background:rgba(26,122,66,0.1);color:var(--ok);}
+.partial{background:rgba(168,107,0,0.1);color:var(--warn);}
+.stub{background:rgba(184,50,39,0.1);color:var(--err);}
+.info{background:rgba(26,95,168,0.1);color:var(--info);}
+
+/* ── TABLE ── */
+.doc-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;}
+.doc-table th{
+  background:#f8fafc;padding:8px 12px;
+  font-size:11px;font-weight:700;color:var(--faint);
+  text-transform:uppercase;letter-spacing:0.4px;
+  text-align:right;border-bottom:2px solid var(--border);
+  white-space:nowrap;
+}
+.doc-table td{
+  padding:9px 12px;border-bottom:1px solid var(--border);
+  color:var(--text);vertical-align:top;
+}
+.doc-table tr:last-child td{border-bottom:none;}
+.doc-table tr:hover td{background:rgba(0,0,0,0.017);}
+.doc-table code{
+  background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:4px;
+  font-size:12px;font-family:monospace;color:var(--acc);
+}
+
+/* ── FLOW DIAGRAM ── */
+.flow-wrap{overflow-x:auto;padding:10px 0;}
+.flow-svg{display:block;margin:0 auto;}
+
+/* ── ARCHITECTURE BOX ── */
+.arch-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
+.arch-box{
+  background:var(--bg);border-radius:10px;padding:14px;
+  border:1px solid var(--border);
+}
+.arch-box h4{margin:0 0 6px;font-size:13px;font-weight:800;color:var(--text);}
+.arch-box ul{padding-right:16px;font-size:12px;color:var(--dim);}
+.arch-box ul li{margin-bottom:3px;}
+
+/* ── DB TABLE LIST ── */
+.db-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.db-card{
+  background:var(--bg);border-radius:9px;padding:12px 14px;
+  border:1px solid var(--border);
+}
+.db-card h4{font-size:13px;font-weight:800;margin-bottom:6px;color:var(--text);
+  font-family:monospace;display:flex;align-items:center;gap:6px;}
+.db-card .fields{font-size:11px;color:var(--faint);line-height:1.7;}
+.db-card .fields b{color:var(--dim);}
+
+/* ── API GROUP ── */
+.api-group{margin-bottom:20px;}
+.api-group-title{
+  font-size:12px;font-weight:800;color:var(--faint);
+  text-transform:uppercase;letter-spacing:0.5px;
+  margin-bottom:8px;display:flex;align-items:center;gap:6px;
+}
+.api-row{
+  display:flex;align-items:baseline;gap:10px;
+  padding:7px 12px;border-radius:7px;margin-bottom:3px;
+  font-size:12.5px;background:var(--bg);
+}
+.method{
+  font-family:monospace;font-weight:900;font-size:11px;
+  padding:2px 7px;border-radius:4px;flex-shrink:0;
+}
+.GET{background:#dbeafe;color:#1d4ed8;}
+.POST{background:#dcfce7;color:#15803d;}
+.PATCH{background:#fef9c3;color:#854d0e;}
+.DELETE{background:#fee2e2;color:#b91c1c;}
+.api-path{font-family:monospace;font-size:12px;color:var(--text);flex:1;min-width:0;}
+.api-desc{font-size:12px;color:var(--dim);}
+
+/* ── STATUS MATRIX ── */
+.status-matrix{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+.status-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:9px;background:var(--bg);
+  border:1px solid var(--border);font-size:13px;
+}
+.status-icon{font-size:18px;flex-shrink:0;}
+.status-name{font-weight:700;flex:1;}
+
+@media(max-width:720px){
+  .arch-grid,.db-grid,.status-matrix{grid-template-columns:1fr;}
+  .section{padding:16px;}
+  .toc{position:static;}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div style="margin-bottom:24px;">
+  <h1 style="font-size:28px;font-weight:900;margin-bottom:4px;">📋 תיעוד מערכת IronBend</h1>
+  <p style="font-size:14px;color:var(--faint);">אפיון מה שקיים בפועל — לא מה שמתוכנן. עדכון: 27/05/2026</p>
+</div>
+
+<!-- ── TOC ── -->
+<div class="toc">
+  <h2>📑 תוכן עניינים</h2>
+  <div class="toc-links">
+    <a href="#arch">1. ארכיטקטורה</a>
+    <a href="#db">2. מסד נתונים</a>
+    <a href="#pages">3. דפי ממשק</a>
+    <a href="#api">4. API</a>
+    <a href="#flows">5. זרימות</a>
+    <a href="#modules">6. מודולים</a>
+    <a href="#status">7. מצב כל מודול</a>
+  </div>
+</div>
+
+<!-- ══ 1. ARCHITECTURE ══ -->
+<div class="section" id="arch">
+  <div class="section-title"><span class="num">1</span> ארכיטקטורה טכנית</div>
+
+  <div class="arch-grid">
+    <div class="arch-box">
+      <h4>⚙️ שרת (Backend)</h4>
+      <ul>
+        <li>Node.js 20 + Express 4</li>
+        <li>SQLite (better-sqlite3, WAL mode)</li>
+        <li>WebSocket (ws library)</li>
+        <li>Multer – העלאת קבצים/תמונות</li>
+        <li>node-cron – משימות מתוזמנות</li>
+        <li>CORS מופעל (פתוח לכולם)</li>
+      </ul>
+    </div>
+    <div class="arch-box">
+      <h4>🖥️ לקוח (Frontend)</h4>
+      <ul>
+        <li>HTML/CSS/JS ונילה – אין framework</li>
+        <li>Heebo (Google Fonts) – גופן ממשק</li>
+        <li>PWA – Service Worker + manifest.json</li>
+        <li>IndexedDB (offline-db.js) – שמירה offline</li>
+        <li>nav.js – ניווט משותף לכל הדפים</li>
+        <li>shape-editor.js v39 – עורך צורות</li>
+      </ul>
+    </div>
+    <div class="arch-box">
+      <h4>☁️ תשתית (Infra)</h4>
+      <ul>
+        <li>Render.com – Starter plan ($7/mo)</li>
+        <li>Persistent disk /data – 1GB (0.25$/GB)</li>
+        <li>DB_PATH=/data/ironbend.db</li>
+        <li>GitHub auto-deploy (push → deploy)</li>
+        <li>HTTPS מובנה ב-Render</li>
+      </ul>
+    </div>
+    <div class="arch-box">
+      <h4>🔗 חיבורים חיצוניים</h4>
+      <ul>
+        <li>Modbus RTU – מכונות כיפוף (דרך ממיר TCP)</li>
+        <li>Priority ERP – סנכרון הזמנות (stub)</li>
+        <li>OpenAI API – ניתוח תמונות/טקסט</li>
+        <li>SMTP/IMAP – קבלת הזמנות במייל</li>
+        <li>Google Fonts – Libre Barcode 128 + Heebo</li>
+      </ul>
+    </div>
+    <div class="arch-box">
+      <h4>💾 מודל נתונים</h4>
+      <ul>
+        <li>הזמנה → 1..N משטחים → 1..N פריטים</li>
+        <li>פריט = צורה + קוטר + מידות + כמות</li>
+        <li>segments: JSON [{length_mm, angle_deg}]</li>
+        <li>משקל: kg/m לפי טבלת REBAR_WEIGHTS</li>
+        <li>20+ טבלאות SQLite</li>
+      </ul>
+    </div>
+    <div class="arch-box">
+      <h4>📡 Real-time</h4>
+      <ul>
+        <li>WebSocket – wsBroadcast לכל הלקוחות</li>
+        <li>Events: new_order, order_status, machine_assign, item_complete</li>
+        <li>תחנת עבודה + מסך מכונות מתעדכנים בזמן אמת</li>
+        <li>Ping/Pong keepalive</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 2. DB SCHEMA ══ -->
+<div class="section" id="db">
+  <div class="section-title"><span class="num">2</span> מסד נתונים – טבלאות</div>
+  <p>SQLite אחד. כל הטבלאות נוצרות אוטומטית (CREATE IF NOT EXISTS) בהפעלת השרת.</p>
+  <br>
+  <div class="db-grid">
+
+    <div class="db-card">
+      <h4>🏢 customers</h4>
+      <div class="fields">
+        <b>id, name*</b>, phone, email, address,<br>
+        contact_name, contact_phone, priority_id,<br>
+        notes, created_at<br>
+        <em>+ price_tier, discount_pct, portal_token</em> (ALTER)
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>📋 orders</h4>
+      <div class="fields">
+        <b>id, order_num* (HZ-YYYY-NNN)</b>, customer_id,<br>
+        channel, delivery_date, delivery_time, delivery_address,<br>
+        priority, <b>status</b>, total_weight, waste_pct_charged,<br>
+        billing_weight, driver_notes, general_notes,<br>
+        priority_order_id, created_by, created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>📦 pallets</h4>
+      <div class="fields">
+        id, order_id, pallet_num, max_weight (500kg),<br>
+        total_weight, status
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>🔩 items</h4>
+      <div class="fields">
+        id, pallet_id, shape_id, shape_name,<br>
+        <b>diameter, segments (JSON)</b>, total_length_mm,<br>
+        quantity, production_qty, weight_per_unit, total_weight,<br>
+        struct_element, struct_floor, sheet_num, machine,<br>
+        status, started_at, completed_at, worker_id,<br>
+        produced_qty, actual_waste, note, is_3d
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>🔧 machines</h4>
+      <div class="fields">
+        id, name, label, port (TCP), slave_id,<br>
+        min_diameter, max_diameter, status,<br>
+        current_order_num, current_item_id,<br>
+        counter, last_seen
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>⬡ shapes</h4>
+      <div class="fields">
+        id (text), name, bends, sides_default (JSON),<br>
+        angles_default (JSON), emoji, description, active<br>
+        <em>14 presets מובנים (ישר, L, U, Z, S, ...)</em>
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>👷 workers</h4>
+      <div class="fields">
+        id, name, role (ייצור/...),<br>
+        language (he/ar/ru), active, created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>📡 scan_log</h4>
+      <div class="fields">
+        id, machine_id, worker_id, item_id, order_num,<br>
+        action, counter_at_scan, waste_calculated, scanned_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>🚚 drivers</h4>
+      <div class="fields">
+        id, name, phone, active,<br>
+        current_lat, current_lng, last_location_update, created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>🗺️ deliveries</h4>
+      <div class="fields">
+        id, order_id, driver_id, scheduled_date, status,<br>
+        departed_at, delivered_at, signature_data, photo_url,<br>
+        notes, problem_type, problem_notes,<br>
+        delivery_lat, delivery_lng, created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>⚠️ alerts</h4>
+      <div class="fields">
+        id, type, level (warning/critical), message,<br>
+        order_id, machine_id, resolved, created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>📥 intake_log</h4>
+      <div class="fields">
+        id, source (whatsapp/email/image),<br>
+        raw_content, parsed_data (JSON),<br>
+        order_id, status (pending/approved/rejected), created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>💰 price_list</h4>
+      <div class="fields">
+        diameter (PK), price_list (מחיר מזדמן ₪/ק"ג),<br>
+        price_cust (מחיר לקוח קבוע ₪/ק"ג)
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>🏭 suppliers</h4>
+      <div class="fields">
+        id, name, phone, contact, email, address,<br>
+        payment_terms, notes, active, created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>🧱 raw_material</h4>
+      <div class="fields">
+        id, material_type (coil/straight), diameter,<br>
+        supplier_id, lot_number, certificate_num, grade (B500B),<br>
+        received_date, weight_received/used/scrapped,<br>
+        purchase_price (₪/ton), warehouse_loc, active
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>📊 raw_material_usage</h4>
+      <div class="fields">
+        id, raw_material_id, order_id, item_id,<br>
+        weight_used, used_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>🏢 companies</h4>
+      <div class="fields">
+        id, name, short_name, ownership_pct,<br>
+        erp_type, color, active, created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>⚙️ settings</h4>
+      <div class="fields">
+        key (PK), value, updated_at<br>
+        <em>מפתחות: whatsapp_number, email_*, modbus_*, etc.</em>
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>📝 audit_log</h4>
+      <div class="fields">
+        id, entity_type, entity_id, entity_ref,<br>
+        action, field_name, old_value, new_value,<br>
+        user_id, user_name, notes, created_at
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>🧾 + עוד טבלאות</h4>
+      <div class="fields">
+        quality_events, maintenance_tasks, incidents,<br>
+        ncr, capa, loto, pm_schedule,<br>
+        projects, sites, invoices, packages,<br>
+        delivery_notes, shifts, machine_stops,<br>
+        downtime_reasons, steel_prices, credit/ledger
+      </div>
+    </div>
+
+  </div>
+
+  <h3>פורמט segments (ליבת הפריט)</h3>
+  <table class="doc-table">
+    <tr><th>שדה</th><th>סוג</th><th>תיאור</th><th>דוגמה</th></tr>
+    <tr><td><code>length_mm</code></td><td>number</td><td>אורך הצלע במ"מ</td><td>500</td></tr>
+    <tr><td><code>angle_deg</code></td><td>number</td><td>זווית כיפוף בסוף הצלע. 180=ישר, 90=90° ימין, 0=הפוך</td><td>90</td></tr>
+  </table>
+  <p style="font-size:12px;color:var(--faint);">נוסחת כיוון: <code>dir -= (180 - angle_deg)</code> — זהו הנתון שעובר למכונה.</p>
+</div>
+
+<!-- ══ 3. PAGES ══ -->
+<div class="section" id="pages">
+  <div class="section-title"><span class="num">3</span> דפי ממשק (UI Pages)</div>
+
+  <table class="doc-table">
+    <thead><tr><th>URL</th><th>שם</th><th>מה קיים בפועל</th><th>סטטוס</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>/index.html</code></td>
+        <td>הזמנה חדשה</td>
+        <td>טופס מלא: לקוח, ערוץ (טלפון/וואטסאפ/מייל/תמונה), תאריך מסירה, עדיפות, פלטות + פריטים. שמירה לשרת. עורך צורות מוטמע. הזנה מ-URL params.</td>
+        <td><span class="badge ok">✅ עובד</span></td>
+      </tr>
+      <tr>
+        <td><code>/customers.html</code></td>
+        <td>לקוחות</td>
+        <td>רשימה + חיפוש, פרטי לקוח, סטטיסטיקות, היסטוריית הזמנות, הוספה/עריכה, פורטל לקוח. רספונסיבי מלא.</td>
+        <td><span class="badge ok">✅ עובד</span></td>
+      </tr>
+      <tr>
+        <td><code>/orders.html</code></td>
+        <td>הזמנות</td>
+        <td>טבלת הזמנות, סינון לפי סטטוס/תאריך/עדיפות, שינוי סטטוס, ניווט לפרינט/כרטיסיות/תעודת משלוח.</td>
+        <td><span class="badge ok">✅ עובד</span></td>
+      </tr>
+      <tr>
+        <td><code>/dashboard.html</code></td>
+        <td>דשבורד</td>
+        <td>סטטיסטיקות יום, הזמנות פתוחות, מצב מכונות, התראות, גרפים.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/machine.html</code></td>
+        <td>מכונות</td>
+        <td>רשימת מכונות, חיבור Modbus RTU, שליחת פרמטרים, הגדרות קוטר.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/kiosk.html</code></td>
+        <td>תחנת עבודה</td>
+        <td>מסך לעובד ליד המכונה: סריקת ברקוד, מעבר בין פריטים, עדכון כמות יוצרת, סיום פריט.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/production-queue.html</code></td>
+        <td>תור ייצור</td>
+        <td>תצוגת פריטים ממתינים, סינון לפי מכונה, עדכון סטטוס בזמן אמת (WebSocket).</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/driver.html</code></td>
+        <td>נהג</td>
+        <td>רשימת משלוחים לנהג, אישור יציאה, אישור מסירה + חתימה/צילום, דיווח בעיה.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/warehouse.html</code></td>
+        <td>מחסן</td>
+        <td>קבלת חומר גלם, ניהול חבילות, שחרור לייצור.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/inventory.html</code></td>
+        <td>מלאי</td>
+        <td>מלאי חומר גלם לפי קוטר, תנועות, תחזית.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/procurement.html</code></td>
+        <td>רכש</td>
+        <td>הזמנות רכש לספקים, מעקב קבלה.</td>
+        <td><span class="badge stub">🔴 stub</span></td>
+      </tr>
+      <tr>
+        <td><code>/quality.html</code></td>
+        <td>איכות</td>
+        <td>NCR, CAPA, תקריות, LOTO, PM. ממשק קיים + API מלא.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/maintenance.html</code></td>
+        <td>תחזוקה</td>
+        <td>תוכנית תחזוקה מונעת, סטטוס משימות.</td>
+        <td><span class="badge stub">🔴 stub</span></td>
+      </tr>
+      <tr>
+        <td><code>/reports.html</code></td>
+        <td>דוחות</td>
+        <td>דוחות פסולת, ייצור, יעילות מכונות, KPIs.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/finance.html</code></td>
+        <td>פיננסים</td>
+        <td>חשבוניות, יתרת לקוחות, KPIs פיננסיים, פנקס חשבונות.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/projects.html</code></td>
+        <td>פרויקטים</td>
+        <td>ניהול פרויקטים ואתרי בנייה.</td>
+        <td><span class="badge stub">🔴 stub</span></td>
+      </tr>
+      <tr>
+        <td><code>/warroom.html</code></td>
+        <td>War Room</td>
+        <td>דשבורד חירום: התראות פעילות, מצב מכונות, עיכובים.</td>
+        <td><span class="badge stub">🔴 stub</span></td>
+      </tr>
+      <tr>
+        <td><code>/holdings.html</code></td>
+        <td>אחזקות</td>
+        <td>חברות קשורות, נתחי בעלות.</td>
+        <td><span class="badge stub">🔴 stub</span></td>
+      </tr>
+      <tr>
+        <td><code>/admin.html</code></td>
+        <td>ניהול</td>
+        <td>הגדרות מערכת, ניהול משתמשים, גיבוי/שחזור DB, לוגים.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/customer.html</code></td>
+        <td>פורטל לקוח</td>
+        <td>כניסה בטוקן, הגשת הזמנה, מעקב סטטוס, אישור הצעת מחיר.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
+      </tr>
+      <tr>
+        <td><code>/supplier.html</code></td>
+        <td>ספקים</td>
+        <td>ניהול ספקים, טבלאות מחירים.</td>
+        <td><span class="badge stub">🔴 stub</span></td>
+      </tr>
+      <tr>
+        <td><code>/portal.html</code></td>
+        <td>פורטל</td>
+        <td>כניסה אלטרנטיבית ללקוח.</td>
+        <td><span class="badge stub">🔴 stub</span></td>
+      </tr>
+      <tr>
+        <td><code>/api/orders/:id/print-cards</code></td>
+        <td>כרטיסיות ייצור</td>
+        <td>עמוד HTML שמיוצר בשרת. כרטיס מאסטר + כרטיס לכל פריט. ברקוד CSS (Libre Barcode 128), SVG צורה, מידות. הדפסה ישירה. חלוקת כרטיסיות לפי כמות.</td>
+        <td><span class="badge ok">✅ עובד</span></td>
+      </tr>
+      <tr>
+        <td><code>/api/orders/:id/delivery-certificate</code></td>
+        <td>תעודת משלוח</td>
+        <td>עמוד A4 עם טבלת פריטים מפורטת, SVG צורות, סיכום משקלים.</td>
+        <td><span class="badge ok">✅ עובד</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══ 4. API ══ -->
+<div class="section" id="api">
+  <div class="section-title"><span class="num">4</span> API Endpoints</div>
+
+  <div class="api-group">
+    <div class="api-group-title">👥 לקוחות <span class="badge info">customers</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/customers?q=&amp;limit=</span><span class="api-desc">רשימה עם חיפוש + order_count + total_weight_sum</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/customers/:id</span><span class="api-desc">פרטי לקוח + הזמנות אחרונות (30) + stats</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/customers</span><span class="api-desc">יצירת לקוח חדש</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/customers/:id</span><span class="api-desc">עדכון פרטי לקוח</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/customers/:id/token</span><span class="api-desc">יצירת/קבלת טוקן לפורטל לקוח</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/customers/:id/pricing</span><span class="api-desc">עדכון price_tier + discount_pct</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/customers/:id/ledger</span><span class="api-desc">פנקס חשבונות לקוח</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/customers/:id/credit</span><span class="api-desc">עדכון מסגרת אשראי (manager)</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">📋 הזמנות <span class="badge info">orders</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/orders?status=&amp;date=&amp;priority=</span><span class="api-desc">רשימת הזמנות עם סינון</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/orders/:id</span><span class="api-desc">פרטי הזמנה מלאים כולל פלטות ופריטים</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/orders</span><span class="api-desc">יצירת הזמנה מלאה (לקוח + הזמנה + פלטות + פריטים)</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/orders/manual</span><span class="api-desc">יצירת הזמנה ידנית מתחנת מכונה</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/orders/:id/status</span><span class="api-desc">עדכון סטטוס הזמנה + WebSocket</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/orders/:id/lock / unlock</span><span class="api-desc">נעילת/פתיחת הזמנה</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/orders/:id/print-cards</span><span class="api-desc">כרטיסיות ייצור (HTML מוגש מהשרת)</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/orders/:id/delivery-certificate</span><span class="api-desc">תעודת משלוח A4 (HTML)</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/orders/:id/print-a4</span><span class="api-desc">הדפסת הזמנה A4</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/orders/:id/costs</span><span class="api-desc">חישוב עלויות הזמנה</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/orders/:id/margin</span><span class="api-desc">מרווח רווח הזמנה</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">🔩 פריטים <span class="badge info">items</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/items/:id/status</span><span class="api-desc">עדכון סטטוס פריט (ממתין/בייצור/הושלם) + WebSocket</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/items/:id</span><span class="api-desc">עדכון שדות פריט</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">🔧 מכונות <span class="badge info">machines</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/machines</span><span class="api-desc">רשימת מכונות עם מצב Modbus</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/machines</span><span class="api-desc">הוספת מכונה</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/machines/:id/send-params</span><span class="api-desc">שליחת פרמטרים למכונה דרך Modbus</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/machines/:id/assign</span><span class="api-desc">שיוך פריט למכונה</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/machines/:id/config</span><span class="api-desc">הגדרת פרמטרי Modbus</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/machines/:id/complete</span><span class="api-desc">סיום ייצור פריט על מכונה</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/machines/:id/state</span><span class="api-desc">עדכון מצב מכונה</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/machines/oee</span><span class="api-desc">חישוב OEE (Overall Equipment Effectiveness)</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/scan</span><span class="api-desc">סריקת ברקוד – lookup פריט + שליחת פרמטרים למכונה</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">📥 קלט (Intake) <span class="badge info">intake</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/intake/parse-text</span><span class="api-desc">ניתוח טקסט (וואטסאפ/מייל) עם OpenAI → פרטי הזמנה</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/intake/image</span><span class="api-desc">ניתוח תמונה (תוכנית/תמונת WhatsApp) עם OpenAI Vision</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/intake/whatsapp</span><span class="api-desc">הצגת הודעות WhatsApp ממתינות</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/intake/:id/approve</span><span class="api-desc">אישור הזמנה מנותחת → יוצר הזמנה</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/intake/:id/reject</span><span class="api-desc">דחייה של הצעה מנותחת</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/intake/log</span><span class="api-desc">לוג כל הניתוחים</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">🚚 משלוחים + נהגים <span class="badge info">delivery</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/deliveries</span><span class="api-desc">רשימת משלוחים עם סינון</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/deliveries</span><span class="api-desc">יצירת משלוח</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/deliveries/:id/depart</span><span class="api-desc">יציאה לדרך</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/deliveries/:id/confirm</span><span class="api-desc">אישור מסירה + חתימה/תמונה + GPS</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/deliveries/:id/problem</span><span class="api-desc">דיווח בעיה במסירה</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/drivers/:id/location</span><span class="api-desc">עדכון מיקום נהג (GPS)</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">💰 פיננסים <span class="badge info">finance</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/invoices</span><span class="api-desc">רשימת חשבוניות</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/invoices</span><span class="api-desc">יצירת חשבונית</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/invoices/:id/pay</span><span class="api-desc">תשלום חשבונית</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/finance/kpis</span><span class="api-desc">KPIs פיננסיים (הכנסה, COGS, מרווח)</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/price-list</span><span class="api-desc">מחירון לפי קוטר (list + cust)</span></div>
+    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/price-list</span><span class="api-desc">עדכון מחירון</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">📊 דוחות + KPI <span class="badge info">reports</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/dashboard</span><span class="api-desc">נתוני דשבורד: הזמנות היום, משקל, מצב מכונות</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/kpi/tons-today</span><span class="api-desc">טונות שיוצרו היום</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/kpi/monthly</span><span class="api-desc">KPI חודשי</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/kpi/shift-summary</span><span class="api-desc">סיכום משמרת</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/reports/waste</span><span class="api-desc">דוח פסולת</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/reports/summary</span><span class="api-desc">סיכום ייצור מפורט</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">📤 ייצוא <span class="badge info">export</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/export/orders</span><span class="api-desc">ייצוא הזמנות CSV</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/export/packages</span><span class="api-desc">ייצוא חבילות CSV</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/export/inventory</span><span class="api-desc">ייצוא מלאי CSV</span></div>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">🔍 כלים <span class="badge info">utils</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/search?q=</span><span class="api-desc">חיפוש גלובלי: הזמנות + לקוחות + פריטים</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/bvbs/parse</span><span class="api-desc">פרסור קובץ BVBS (תוכנית ברזל) → פריטים</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/analyze-image</span><span class="api-desc">ניתוח תמונה עם OpenAI Vision</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/admin/database/download</span><span class="api-desc">הורדת קובץ DB (גיבוי)</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/admin/database/upload</span><span class="api-desc">שחזור קובץ DB</span></div>
+  </div>
+</div>
+
+<!-- ══ 5. FLOWS ══ -->
+<div class="section" id="flows">
+  <div class="section-title"><span class="num">5</span> זרימות מרכזיות</div>
+
+  <h3>5.1 זרימת הזמנה — מיצירה עד מסירה</h3>
+  <div class="flow-wrap">
+    <svg class="flow-svg" viewBox="0 0 900 460" xmlns="http://www.w3.org/2000/svg" font-family="Heebo,Arial" font-size="12">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#526070"/>
+        </marker>
+        <marker id="arr-ok" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#1a7a42"/>
+        </marker>
+      </defs>
+
+      <!-- Row 1: Order creation -->
+      <rect x="10" y="20" width="130" height="52" rx="9" fill="#1a2332" stroke="#fff" stroke-width="1.5"/>
+      <text x="75" y="42" text-anchor="middle" fill="#e07b39" font-weight="900" font-size="13">לקוח / מפעל</text>
+      <text x="75" y="60" text-anchor="middle" fill="#8aa" font-size="10">טלפון/WhatsApp/</text>
+      <text x="75" y="71" text-anchor="middle" fill="#8aa" font-size="10">מייל/תמונה/BVBS</text>
+
+      <line x1="140" y1="46" x2="168" y2="46" stroke="#526070" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="168" y="20" width="130" height="52" rx="9" fill="#e8f0fb" stroke="#3a7bd5" stroke-width="1.5"/>
+      <text x="233" y="42" text-anchor="middle" fill="#1a2533" font-weight="700">index.html</text>
+      <text x="233" y="58" text-anchor="middle" fill="#526070" font-size="10">טופס הזמנה חדשה</text>
+      <text x="233" y="69" text-anchor="middle" fill="#526070" font-size="10">לקוח + פלטות + פריטים</text>
+
+      <line x1="298" y1="46" x2="326" y2="46" stroke="#526070" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="326" y="20" width="130" height="52" rx="9" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+      <text x="391" y="42" text-anchor="middle" fill="#1a2533" font-weight="700">POST /api/orders</text>
+      <text x="391" y="58" text-anchor="middle" fill="#526070" font-size="10">lookup/create לקוח</text>
+      <text x="391" y="69" text-anchor="middle" fill="#526070" font-size="10">auto-assign מכונה</text>
+
+      <line x1="456" y1="46" x2="484" y2="46" stroke="#526070" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="484" y="20" width="130" height="52" rx="9" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+      <text x="549" y="42" text-anchor="middle" fill="#1a2533" font-weight="700">SQLite</text>
+      <text x="549" y="58" text-anchor="middle" fill="#526070" font-size="10">orders + pallets</text>
+      <text x="549" y="69" text-anchor="middle" fill="#526070" font-size="10">+ items (segments)</text>
+
+      <line x1="614" y1="46" x2="642" y2="46" stroke="#526070" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="642" y="20" width="130" height="52" rx="9" fill="#fef9c3" stroke="#854d0e" stroke-width="1.5"/>
+      <text x="707" y="42" text-anchor="middle" fill="#1a2533" font-weight="700">WebSocket</text>
+      <text x="707" y="58" text-anchor="middle" fill="#526070" font-size="10">new_order broadcast</text>
+      <text x="707" y="69" text-anchor="middle" fill="#526070" font-size="10">לכל הלקוחות</text>
+
+      <!-- Arrow down from SQLite to production -->
+      <line x1="549" y1="72" x2="549" y2="130" stroke="#526070" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- Row 2: Production -->
+      <rect x="326" y="130" width="230" height="52" rx="9" fill="#e8f0fb" stroke="#3a7bd5" stroke-width="1.5"/>
+      <text x="441" y="152" text-anchor="middle" fill="#1a2533" font-weight="700">תור ייצור</text>
+      <text x="441" y="168" text-anchor="middle" fill="#526070" font-size="10">production-queue.html</text>
+      <text x="441" y="179" text-anchor="middle" fill="#526070" font-size="10">פריטים ממוינים לפי מכונה/עדיפות</text>
+
+      <line x1="441" y1="182" x2="441" y2="230" stroke="#526070" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="326" y="230" width="230" height="52" rx="9" fill="#e8f0fb" stroke="#3a7bd5" stroke-width="1.5"/>
+      <text x="441" y="252" text-anchor="middle" fill="#1a2533" font-weight="700">תחנת עבודה (kiosk.html)</text>
+      <text x="441" y="268" text-anchor="middle" fill="#526070" font-size="10">עובד סורק ברקוד → /api/scan</text>
+      <text x="441" y="279" text-anchor="middle" fill="#526070" font-size="10">פרמטרים נשלחים למכונה (Modbus)</text>
+
+      <!-- Arrow down from kiosk to machine -->
+      <line x1="441" y1="282" x2="441" y2="330" stroke="#526070" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="326" y="330" width="230" height="52" rx="9" fill="#fce7d4" stroke="#c9621a" stroke-width="1.5"/>
+      <text x="441" y="352" text-anchor="middle" fill="#1a2533" font-weight="700">מכונת כיפוף</text>
+      <text x="441" y="368" text-anchor="middle" fill="#526070" font-size="10">Modbus RTU → diameter, length,</text>
+      <text x="441" y="379" text-anchor="middle" fill="#526070" font-size="10">qty, angles → מייצרת</text>
+
+      <!-- Arrow up from machine to complete -->
+      <line x1="556" y1="355" x2="620" y2="355" stroke="#526070" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <rect x="620" y="330" width="150" height="52" rx="9" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+      <text x="695" y="352" text-anchor="middle" fill="#1a2533" font-weight="700">סיום פריט</text>
+      <text x="695" y="368" text-anchor="middle" fill="#526070" font-size="10">/api/machines/:id/complete</text>
+      <text x="695" y="379" text-anchor="middle" fill="#526070" font-size="10">item_complete broadcast</text>
+
+      <!-- Row 3: Delivery -->
+      <rect x="10" y="330" width="150" height="52" rx="9" fill="#e8f0fb" stroke="#3a7bd5" stroke-width="1.5"/>
+      <text x="85" y="352" text-anchor="middle" fill="#1a2533" font-weight="700">כרטיסיות ייצור</text>
+      <text x="85" y="368" text-anchor="middle" fill="#526070" font-size="10">print-cards (server HTML)</text>
+      <text x="85" y="379" text-anchor="middle" fill="#526070" font-size="10">ברקוד + SVG צורה + הדפסה</text>
+
+      <!-- Arrow from complete down to delivery -->
+      <line x1="695" y1="382" x2="695" y2="420" stroke="#1a7a42" stroke-width="1.5" marker-end="url(#arr-ok)"/>
+
+      <rect x="620" y="420" width="150" height="38" rx="9" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+      <text x="695" y="436" text-anchor="middle" fill="#1a2533" font-weight="700">משלוח</text>
+      <text x="695" y="451" text-anchor="middle" fill="#526070" font-size="10">driver.html → GPS → חתימה</text>
+
+      <!-- Print cards to scan -->
+      <line x1="160" y1="355" x2="240" y2="282" stroke="#c9621a" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+      <text x="175" y="310" fill="#c9621a" font-size="10" font-weight="700">סריקה</text>
+    </svg>
+  </div>
+
+  <h3>5.2 זרימת שמירת פריט (segments)</h3>
+  <div class="flow-wrap">
+    <svg class="flow-svg" viewBox="0 0 840 120" xmlns="http://www.w3.org/2000/svg" font-family="Heebo,Arial" font-size="12">
+      <defs>
+        <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#526070"/>
+        </marker>
+      </defs>
+      <rect x="10" y="30" width="140" height="60" rx="8" fill="#e8f0fb" stroke="#3a7bd5" stroke-width="1.5"/>
+      <text x="80" y="55" text-anchor="middle" fill="#1a2533" font-weight="700">עורך צורות</text>
+      <text x="80" y="70" text-anchor="middle" fill="#526070" font-size="10">sides[] + angles[]</text>
+      <text x="80" y="82" text-anchor="middle" fill="#526070" font-size="10">(+ azAngles[] לתצוגה)</text>
+
+      <line x1="150" y1="60" x2="175" y2="60" stroke="#526070" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+      <rect x="175" y="30" width="150" height="60" rx="8" fill="#fef9c3" stroke="#854d0e" stroke-width="1.5"/>
+      <text x="250" y="55" text-anchor="middle" fill="#1a2533" font-weight="700">index.html</text>
+      <text x="250" y="70" text-anchor="middle" fill="#526070" font-size="10">items.map({sides, angles,</text>
+      <text x="250" y="82" text-anchor="middle" fill="#526070" font-size="10">diameter, qty, ...})</text>
+
+      <line x1="325" y1="60" x2="350" y2="60" stroke="#526070" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+      <rect x="350" y="30" width="170" height="60" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+      <text x="435" y="55" text-anchor="middle" fill="#1a2533" font-weight="700">POST /api/orders</text>
+      <text x="435" y="70" text-anchor="middle" fill="#526070" font-size="10">segments = sides.map((len,i)=></text>
+      <text x="435" y="82" text-anchor="middle" fill="#526070" font-size="10">({length_mm, angle_deg}))</text>
+
+      <line x1="520" y1="60" x2="545" y2="60" stroke="#526070" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+      <rect x="545" y="30" width="130" height="60" rx="8" fill="#f3f4f6" stroke="#526070" stroke-width="1.5"/>
+      <text x="610" y="55" text-anchor="middle" fill="#1a2533" font-weight="700">SQLite items</text>
+      <text x="610" y="70" text-anchor="middle" fill="#526070" font-size="10">segments (JSON)</text>
+      <text x="610" y="82" text-anchor="middle" fill="#526070" font-size="10">angle_deg → מכונה</text>
+
+      <line x1="675" y1="60" x2="700" y2="60" stroke="#c9621a" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+      <rect x="700" y="30" width="130" height="60" rx="8" fill="#fce7d4" stroke="#c9621a" stroke-width="1.5"/>
+      <text x="765" y="55" text-anchor="middle" fill="#1a2533" font-weight="700">Modbus RTU</text>
+      <text x="765" y="70" text-anchor="middle" fill="#526070" font-size="10">diameter, length,</text>
+      <text x="765" y="82" text-anchor="middle" fill="#526070" font-size="10">qty, angles[]</text>
+    </svg>
+  </div>
+
+  <h3>5.3 זרימת קליטת הזמנה (AI Intake)</h3>
+  <div class="flow-wrap">
+    <svg class="flow-svg" viewBox="0 0 760 110" xmlns="http://www.w3.org/2000/svg" font-family="Heebo,Arial" font-size="12">
+      <defs>
+        <marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#526070"/>
+        </marker>
+      </defs>
+      <rect x="10" y="25" width="120" height="60" rx="8" fill="#1a2332" stroke="#fff" stroke-width="1"/>
+      <text x="70" y="48" text-anchor="middle" fill="#e07b39" font-weight="900">טקסט / תמונה</text>
+      <text x="70" y="63" text-anchor="middle" fill="#8aa" font-size="10">וואטסאפ/מייל/</text>
+      <text x="70" y="75" text-anchor="middle" fill="#8aa" font-size="10">צילום תוכנית</text>
+
+      <line x1="130" y1="55" x2="155" y2="55" stroke="#526070" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+      <rect x="155" y="25" width="130" height="60" rx="8" fill="#e8f0fb" stroke="#3a7bd5" stroke-width="1.5"/>
+      <text x="220" y="48" text-anchor="middle" fill="#1a2533" font-weight="700">OpenAI API</text>
+      <text x="220" y="63" text-anchor="middle" fill="#526070" font-size="10">/api/intake/parse-text</text>
+      <text x="220" y="75" text-anchor="middle" fill="#526070" font-size="10">/api/intake/image</text>
+
+      <line x1="285" y1="55" x2="310" y2="55" stroke="#526070" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+      <rect x="310" y="25" width="140" height="60" rx="8" fill="#fef9c3" stroke="#854d0e" stroke-width="1.5"/>
+      <text x="380" y="48" text-anchor="middle" fill="#1a2533" font-weight="700">intake_log</text>
+      <text x="380" y="63" text-anchor="middle" fill="#526070" font-size="10">status: pending</text>
+      <text x="380" y="75" text-anchor="middle" fill="#526070" font-size="10">parsed_data JSON</text>
+
+      <line x1="450" y1="55" x2="475" y2="55" stroke="#526070" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+      <rect x="475" y="25" width="130" height="60" rx="8" fill="#e8f0fb" stroke="#3a7bd5" stroke-width="1.5"/>
+      <text x="540" y="48" text-anchor="middle" fill="#1a2533" font-weight="700">מפעיל מאשר</text>
+      <text x="540" y="63" text-anchor="middle" fill="#526070" font-size="10">/api/intake/:id/approve</text>
+      <text x="540" y="75" text-anchor="middle" fill="#526070" font-size="10">בטופס index.html</text>
+
+      <line x1="605" y1="55" x2="630" y2="55" stroke="#1a7a42" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+      <rect x="630" y="25" width="120" height="60" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+      <text x="690" y="48" text-anchor="middle" fill="#1a2533" font-weight="700">הזמנה נוצרת</text>
+      <text x="690" y="63" text-anchor="middle" fill="#526070" font-size="10">POST /api/orders</text>
+      <text x="690" y="75" text-anchor="middle" fill="#526070" font-size="10">→ orders + items</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ══ 6. MODULES ══ -->
+<div class="section" id="modules">
+  <div class="section-title"><span class="num">6</span> מודולים פנימיים</div>
+
+  <h3>shape-editor.js (v39)</h3>
+  <table class="doc-table">
+    <thead><tr><th>יכולת</th><th>פירוט</th></tr></thead>
+    <tr><td>בחירת צורה</td><td>14 presets מוכנות (ישר, L, U, Z, S, אוברל, אסדה, מלבן, ריבוע, 5-6-4 כיפופים, C, W). בחירה לפי כמות כיפופים (count picker) או מרשימה.</td></tr>
+    <tr><td>עריכה 2D</td><td>טבלת צלעות עם אורך וזווית כיפוף (1–179°). כפתורי 45°/90°/135°. תצוגה SVG עם labels ועיגולי זווית.</td></tr>
+    <tr><td>עריכה 3D</td><td>פנייה (azAngle -360..360°) והטיית Z (elAngle ±90°) לכל צלע. כפתורים: ישר/שמאל/ימין/הפוך. Orbit drag (camTheta/camPhi). ציר XYZ.</td></tr>
+    <tr><td>סנכרון 2D↔3D</td><td>azAngles ↔ angles מסונכרנים בעריכה. טעינת צורה קיימת מחשבת azAngles מ-angles אוטומטית.</td></tr>
+    <tr><td>Overlap detection</td><td>צלעות מקבילות חופפות מוזזות בהיסט אלכסוני (OVLP_DX/DY ±4°) בשתי התצוגות.</td></tr>
+    <tr><td>שמירת צורה</td><td>שמירה לטבלת shapes בDB. טעינת צורה שמורה.</td></tr>
+    <tr><td>Thumbnails</td><td>תמונות מוקטנות ב-count picker לכל preset.</td></tr>
+    <tr><td>Stats</td><td>כיפופים, אורך בר, פרימטר כולל.</td></tr>
+  </table>
+
+  <h3>modbus.js</h3>
+  <table class="doc-table">
+    <thead><tr><th>פונקציה</th><th>תיאור</th></tr></thead>
+    <tr><td><code>init(db)</code></td><td>טעינת הגדרות מכונות מה-DB, ניסיון חיבור ראשוני.</td></tr>
+    <tr><td><code>getState(machineId)</code></td><td>מצב נוכחי: connected/error/counter.</td></tr>
+    <tr><td><code>writeParams(id, {diameter, totalLengthMm, productionQty, angles})</code></td><td>כתיבת פרמטרים ל-registers של מכונה. Protocol: Modbus RTU over TCP. Registers: defined per machine type.</td></tr>
+    <tr><td>Polling</td><td>קריאת counter כל N שניות → שידור WebSocket <code>machine_counter</code>.</td></tr>
+  </table>
+
+  <h3>offline-db.js</h3>
+  <table class="doc-table">
+    <tr><td>IndexedDB store</td><td><code>pending_orders</code> – שמירת הזמנות כשאין חיבור</td></tr>
+    <tr><td>Sync</td><td>כשהחיבור חוזר → שליחה אוטומטית ל-/api/orders</td></tr>
+    <tr><td>PWA</td><td>Service Worker מאחסן בcache: HTML, JS, CSS, fonts</td></tr>
+  </table>
+
+  <h3>חישוב משקל</h3>
+  <p>טבלת REBAR_WEIGHTS (kg/m): 6→0.222, 8→0.395, 10→0.617, 12→0.888, 14→1.21, 16→1.58, 18→2.00, 20→2.47, 22→2.98, 25→3.85, 28→4.83, 32→6.31, 36→7.99, 40→9.86</p>
+  <p>weight_per_unit = (total_length_mm / 1000) × kg/m</p>
+  <p>billing_weight = total_weight × (1 + waste_pct / 100) — ברירת מחדל waste_pct=3%</p>
+
+  <h3>auto-assign מכונה</h3>
+  <p>בהגשת הזמנה: קוטר ≤12mm → מכונה A; 14-20mm → B; &gt;20mm → D</p>
+</div>
+
+<!-- ══ 7. STATUS ══ -->
+<div class="section" id="status">
+  <div class="section-title"><span class="num">7</span> מצב כל מודול</div>
+  <p>כל מה שמסומן ✅ עובד בפועל ב-production (ironbend.onrender.com). 🔶 = קיים ממשק אבל חלק מהפונקציות לא מחוברות. 🔴 = Stub/UI בלי logic אמיתי.</p>
+  <br>
+  <div class="status-matrix">
+    <div class="status-item"><span class="status-icon">📝</span><div><div class="status-name">יצירת הזמנה</div><small style="color:var(--faint)">מלא: לקוח + פריטים + שמירה</small></div><span class="badge ok">✅ מלא</span></div>
+    <div class="status-item"><span class="status-icon">👥</span><div><div class="status-name">ניהול לקוחות</div><small style="color:var(--faint)">רשימה + פרטים + עריכה + סטטיסטיקות</small></div><span class="badge ok">✅ מלא</span></div>
+    <div class="status-item"><span class="status-icon">🖨️</span><div><div class="status-name">כרטיסיות ייצור</div><small style="color:var(--faint)">server-side render + ברקוד + SVG + חלוקה</small></div><span class="badge ok">✅ מלא</span></div>
+    <div class="status-item"><span class="status-icon">📄</span><div><div class="status-name">תעודת משלוח</div><small style="color:var(--faint)">A4 HTML + SVG צורות + סיכום</small></div><span class="badge ok">✅ מלא</span></div>
+    <div class="status-item"><span class="status-icon">⬡</span><div><div class="status-name">עורך צורות</div><small style="color:var(--faint)">2D+3D + sync + overlap + drag</small></div><span class="badge ok">✅ מלא</span></div>
+    <div class="status-item"><span class="status-icon">🔗</span><div><div class="status-name">Modbus RTU</div><small style="color:var(--faint)">חיבור TCP + שליחת פרמטרים + polling counter</small></div><span class="badge partial">🔶 עובד, לא נבדק בייצור</span></div>
+    <div class="status-item"><span class="status-icon">📡</span><div><div class="status-name">WebSocket real-time</div><small style="color:var(--faint)">broadcast new_order / status / machine</small></div><span class="badge ok">✅ מלא</span></div>
+    <div class="status-item"><span class="status-icon">📥</span><div><div class="status-name">AI Intake (WhatsApp/מייל/תמונה)</div><small style="color:var(--faint)">parse + אישור → הזמנה</small></div><span class="badge partial">🔶 API מלא, UI חלקי</span></div>
+    <div class="status-item"><span class="status-icon">🔍</span><div><div class="status-name">חיפוש גלובלי</div><small style="color:var(--faint)">Ctrl+K בניווט → הזמנות + לקוחות</small></div><span class="badge ok">✅ מלא</span></div>
+    <div class="status-item"><span class="status-icon">📦</span><div><div class="status-name">מלאי חומר גלם</div><small style="color:var(--faint)">API + DB. UI חלקי.</small></div><span class="badge partial">🔶 חלקי</span></div>
+    <div class="status-item"><span class="status-icon">🚚</span><div><div class="status-name">משלוחים</div><small style="color:var(--faint)">driver.html + GPS + חתימה</small></div><span class="badge partial">🔶 חלקי</span></div>
+    <div class="status-item"><span class="status-icon">💰</span><div><div class="status-name">פיננסים</div><small style="color:var(--faint)">חשבוניות + KPIs + מרווח</small></div><span class="badge partial">🔶 חלקי</span></div>
+    <div class="status-item"><span class="status-icon">🔍</span><div><div class="status-name">איכות (NCR/CAPA/LOTO)</div><small style="color:var(--faint)">API מלא + ממשק בסיסי</small></div><span class="badge partial">🔶 חלקי</span></div>
+    <div class="status-item"><span class="status-icon">🔐</span><div><div class="status-name">הרשאות / אימות</div><small style="color:var(--faint)">users table + login endpoint קיים. אין middleware.</small></div><span class="badge stub">🔴 לא מופעל</span></div>
+    <div class="status-item"><span class="status-icon">🔗</span><div><div class="status-name">Priority ERP</div><small style="color:var(--faint)">API endpoint + priority.js stub</small></div><span class="badge stub">🔴 stub</span></div>
+    <div class="status-item"><span class="status-icon">📲</span><div><div class="status-name">PWA Offline</div><small style="color:var(--faint)">Service Worker + IndexedDB pending_orders</small></div><span class="badge partial">🔶 בסיסי</span></div>
+  </div>
+
+  <br>
+  <h3>נתונים טכניים</h3>
+  <table class="doc-table">
+    <tr><th>מדד</th><th>ערך</th></tr>
+    <tr><td>שורות קוד שרת (server.js)</td><td>~5,430</td></tr>
+    <tr><td>API endpoints</td><td>~130</td></tr>
+    <tr><td>טבלאות SQLite</td><td>~28</td></tr>
+    <tr><td>דפי HTML</td><td>23</td></tr>
+    <tr><td>shape-editor.js</td><td>~1,460 שורות</td></tr>
+    <tr><td>nav.js</td><td>~340 שורות</td></tr>
+    <tr><td>ניהול פלטות</td><td>הזמנה → N פלטות (default: 1), max_weight=500kg</td></tr>
+    <tr><td>מספור הזמנות</td><td>HZ-YYYY-NNN (אוטומטי בשרת)</td></tr>
+    <tr><td>ברקוד</td><td>פורמט: &lt;order_num&gt;-&lt;item_id padded 6&gt; (לדוגמה: HZ-2026-001-000023)</td></tr>
+  </table>
+</div>
+
+</div><!-- /page -->
+</body>
+</html>
