@@ -608,25 +608,125 @@ body { font-family:'Heebo',sans-serif; background:#f0f4f8; color:var(--text); mi
 }
 @keyframes spin { to { transform:rotate(360deg); } }
 
-/* Responsive */
+/* ── RESPONSIVE ── */
+
+/* Tablet: narrow list panel */
+@media(max-width:1100px) {
+  .list-panel { width:300px; }
+}
 @media(max-width:900px) {
+  .list-panel { width:260px; }
   .stats-row { grid-template-columns:repeat(2,1fr); }
   .info-grid { grid-template-columns:1fr; }
 }
+
+/* Mobile: single-panel mode (list OR detail, never both) */
 @media(max-width:700px) {
-  .page-wrap { flex-direction:column; height:auto; overflow:visible; }
-  .list-panel { width:100%; border-left:none; border-bottom:1px solid var(--border); height:auto; }
-  .customer-list { max-height:320px; }
-  .detail-panel { padding:16px; }
-  .detail-header { flex-direction:column; gap:12px; }
-  .detail-actions { flex-wrap:wrap; }
-  .portal-section { flex-direction:column; align-items:flex-start; }
-  .stats-row { grid-template-columns:repeat(2,1fr); }
+  .page-wrap {
+    display:block;
+    height:auto;
+    overflow:visible;
+  }
+
+  /* List panel full width, shown by default */
+  .list-panel {
+    width:100%;
+    height:auto;
+    border-left:none;
+    border-bottom:none;
+    /* height is managed by JS show/hide */
+  }
+  .customer-list { max-height:none; }
+
+  /* Detail panel full width, hidden until a customer is selected */
+  .detail-panel {
+    padding:12px;
+    min-height:0;
+  }
+
+  /* Mobile: when detail is active, list hides and detail shows */
+  .page-wrap.detail-open .list-panel { display:none; }
+  .page-wrap.detail-open .detail-panel { display:block; }
+
+  /* Back button visible only on mobile */
+  .mobile-back {
+    display:flex !important;
+    align-items:center;
+    gap:8px;
+    background:none;
+    border:none;
+    font-family:'Heebo',sans-serif;
+    font-size:14px;
+    font-weight:700;
+    color:var(--accent);
+    cursor:pointer;
+    padding:4px 0 14px;
+    margin-bottom:4px;
+  }
+
+  /* Detail layout adjustments */
+  .detail-header {
+    flex-direction:column;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .detail-actions {
+    width:100%;
+    flex-wrap:wrap;
+  }
+  .detail-actions .btn-action {
+    flex:1;
+    justify-content:center;
+    min-width:0;
+  }
+
+  .stats-row { grid-template-columns:1fr 1fr; gap:8px; }
+  .stat-card { padding:10px 12px; }
+  .stat-value { font-size:18px; }
+
+  .info-grid { grid-template-columns:1fr; }
+  .info-section { padding:12px; }
+
+  .portal-section { flex-direction:column; align-items:flex-start; gap:10px; }
+  .portal-section .btn-action { width:100%; justify-content:center; }
+
+  .orders-table { font-size:12px; }
+  .orders-table th,
+  .orders-table td { padding:8px 8px; }
+  /* Hide less-important columns on very small screens */
+  .orders-table .col-priority,
+  .orders-table .col-weight { display:none; }
 }
-@media(max-width:480px) {
+
+/* Small phones */
+@media(max-width:400px) {
   .stats-row { grid-template-columns:1fr 1fr; }
+  .stat-value { font-size:16px; }
   .form-row { grid-template-columns:1fr; }
+  .list-head { padding:12px; }
+  .list-title h2 { font-size:15px; }
+  .btn-new { padding:6px 10px; font-size:12px; }
 }
+
+/* Modal full-screen on mobile */
+@media(max-width:560px) {
+  .modal {
+    width:100%;
+    max-width:100%;
+    max-height:100%;
+    border-radius:16px 16px 0 0;
+    margin-top:auto;
+  }
+  .modal-backdrop {
+    align-items:flex-end;
+  }
+  .form-row { grid-template-columns:1fr; }
+  .modal-body { padding:16px 20px; }
+  .modal-foot { padding:12px 20px 20px; }
+}
+
+/* Always hide back button on desktop */
+.mobile-back { display:none; }
 </style>
 </head>
 <body>
@@ -657,6 +757,7 @@ body { font-family:'Heebo',sans-serif; background:#f0f4f8; color:var(--text); mi
 
   <!-- RIGHT: Detail Panel -->
   <main class="detail-panel" id="detailPanel">
+    <button class="mobile-back" id="mobileBackBtn" onclick="mobileBack()">← חזרה לרשימה</button>
     <div class="detail-empty">
       <div class="de-icon">👥</div>
       <p>בחר לקוח מהרשימה</p>
@@ -818,6 +919,26 @@ function onSearch(val) {
   searchTimer = setTimeout(() => loadList(val), 250);
 }
 
+// ── MOBILE NAV ──
+function isMobile() { return window.innerWidth <= 700; }
+
+function mobileShowDetail() {
+  if (isMobile()) {
+    document.querySelector('.page-wrap').classList.add('detail-open');
+    window.scrollTo(0, 0);
+  }
+}
+
+function mobileBack() {
+  document.querySelector('.page-wrap').classList.remove('detail-open');
+  activeId = null;
+  document.querySelectorAll('.cust-card').forEach(el => el.classList.remove('active'));
+  // restore empty detail
+  document.getElementById('detailPanel').innerHTML =
+    '<button class="mobile-back" id="mobileBackBtn" onclick="mobileBack()">← חזרה לרשימה</button>' +
+    '<div class="detail-empty"><div class="de-icon">👥</div><p>בחר לקוח מהרשימה</p><small>לצפייה בפרטים, הזמנות והיסטוריה</small></div>';
+}
+
 // ── SELECT / LOAD DETAIL ──
 async function selectCustomer(id) {
   activeId = id;
@@ -825,9 +946,11 @@ async function selectCustomer(id) {
   document.querySelectorAll('.cust-card').forEach(el => {
     el.classList.toggle('active', Number(el.dataset.id) === id);
   });
-  // show loading
+  // show loading + switch to detail on mobile
   document.getElementById('detailPanel').innerHTML =
+    '<button class="mobile-back" id="mobileBackBtn" onclick="mobileBack()">← חזרה לרשימה</button>' +
     '<div class="detail-empty"><div class="de-icon" style="animation:spin .8s linear infinite;font-size:36px">⏳</div></div>';
+  mobileShowDetail();
 
   try {
     const r = await fetch('/api/customers/' + id);
@@ -835,6 +958,7 @@ async function selectCustomer(id) {
     renderDetail(c);
   } catch(e) {
     document.getElementById('detailPanel').innerHTML =
+      '<button class="mobile-back" id="mobileBackBtn" onclick="mobileBack()">← חזרה לרשימה</button>' +
       '<div class="detail-empty"><div class="de-icon">⚠️</div><p>שגיאה בטעינה</p></div>';
   }
 }
@@ -844,7 +968,8 @@ function renderDetail(c) {
   const orders  = c.orders || [];
   const initAvg = orders.length ? (stats.total_weight_sum / orders.length).toFixed(0) : 0;
 
-  let html = '';
+  // mobile back button always at top (hidden via CSS on desktop)
+  let html = '<button class="mobile-back" id="mobileBackBtn" onclick="mobileBack()">← חזרה לרשימה</button>';
 
   // ── Header ──
   html += '<div class="detail-header">' +
@@ -925,9 +1050,9 @@ function renderDetail(c) {
       '<thead><tr>' +
         '<th>מספר הזמנה</th>' +
         '<th>סטטוס</th>' +
-        '<th>עדיפות</th>' +
+        '<th class="col-priority">עדיפות</th>' +
         '<th>תאריך מסירה</th>' +
-        '<th>משקל</th>' +
+        '<th class="col-weight">משקל</th>' +
         '<th>תאריך יצירה</th>' +
       '</tr></thead>' +
       '<tbody>';
@@ -935,9 +1060,9 @@ function renderDetail(c) {
       html += '<tr>' +
         '<td><a href="/orders.html?id='+o.id+'">'+esc(o.order_num)+'</a></td>' +
         '<td>'+statusBadge(o.status)+'</td>' +
-        '<td>'+esc(o.priority||'רגיל')+'</td>' +
+        '<td class="col-priority">'+esc(o.priority||'רגיל')+'</td>' +
         '<td>'+fmtDate(o.delivery_date)+'</td>' +
-        '<td>'+(o.total_weight ? fmtWeight(o.total_weight) : '–')+'</td>' +
+        '<td class="col-weight">'+(o.total_weight ? fmtWeight(o.total_weight) : '–')+'</td>' +
         '<td>'+fmtDate(o.created_at)+'</td>' +
       '</tr>';
     });
@@ -1102,6 +1227,24 @@ document.addEventListener('keydown', function(e) {
     if (e.target.tagName !== 'TEXTAREA') saveCustomer();
   }
   if (e.key === 'Escape') closeModal();
+});
+
+// ── BROWSER BACK BUTTON (mobile) ──
+window.addEventListener('popstate', () => {
+  if (isMobile() && document.querySelector('.page-wrap').classList.contains('detail-open')) {
+    mobileBack();
+  }
+});
+
+// Push a history entry when navigating to detail on mobile
+const _origSelectCustomer = selectCustomer;
+// (already modifies URL implicitly via mobileShowDetail; no extra push needed here)
+
+// Resize: if going from mobile→desktop while in detail-open mode, remove the class
+window.addEventListener('resize', () => {
+  if (!isMobile()) {
+    document.querySelector('.page-wrap').classList.remove('detail-open');
+  }
 });
 
 // ── INIT ──
