@@ -1101,6 +1101,11 @@ class ShapeEditorModal {
     if (!this.current) return;
     const a = Math.min(179, Math.max(1, Number(val) || 90));
     this.current.angles[i] = a;
+    // ── Sync to azAngles (so 3D view stays consistent) ─────────────────
+    // azAngles[i+1] = -(180 - angles[i])
+    if (this.current.azAngles && i + 1 < this.current.azAngles.length) {
+      this.current.azAngles[i + 1] = -(180 - a);
+    }
     // update active btn
     const row = document.querySelector(`[data-angle="${i}"]`)?.closest('tr');
     row?.querySelectorAll('.se-angle-btn').forEach(b => b.classList.toggle('active', Number(b.textContent) === a));
@@ -1113,6 +1118,19 @@ class ShapeEditorModal {
     const az = Math.min(360, Math.max(-360, Math.round(Number(val) || 0)));
     if (!this.current.azAngles) this.current.azAngles = Array(this.current.sides.length).fill(0);
     this.current.azAngles[i] = az;
+    // ── Sync back to 2D angles (machine data) ──────────────────────────
+    // Inverse of: azAngles[i] = -(180 - angles[i-1])
+    //             angles[i-1] = 180 + azAngles[i]
+    // Clamp to valid 2D range [1, 179]; angles outside this range mean
+    // a purely-3D direction change with no classic 2D equivalent.
+    const ang2d = 180 + az;
+    if (i - 1 >= 0 && i - 1 < this.current.angles.length) {
+      if (ang2d >= 1 && ang2d <= 179) {
+        this.current.angles[i - 1] = ang2d;
+      }
+      // If outside range (e.g. "שמאל" +90 → ang2d=270), keep existing 2D angle
+      // but flag the shape as 3D so the machine operator knows to check.
+    }
     // sync input field
     const inp = document.querySelector(`[data-az="${i}"]`);
     if (inp) inp.value = az;
@@ -1397,11 +1415,21 @@ class ShapeEditorModal {
     if (svgWrap)   svgWrap.classList.toggle('grab-mode', is3D);
     if (existingData?.sides?.length) {
       const n = existingData.sides.length;
+      // Derive azAngles from 2D bend angles when not saved with the shape.
+      // Formula: azAngles[i] = -(180 - angles[i-1])  (same as _init3DAnglesFrom2D)
+      // This ensures the 3D table shows the correct turn for each segment,
+      // matching the actual bend angles that go to the machine.
+      let initAz;
+      if (existingData.azAngles?.length === n) {
+        initAz = [...existingData.azAngles];
+      } else {
+        initAz = [0, ...(existingData.angles || []).map(a => -(180 - (a ?? 180)))];
+        while (initAz.length < n) initAz.push(0);
+        initAz = initAz.slice(0, n);
+      }
       this.current = {
         ...existingData,
-        azAngles: existingData.azAngles?.length === n
-          ? [...existingData.azAngles]
-          : Array(n).fill(0),
+        azAngles: initAz,
         elAngles: existingData.elAngles?.length === n
           ? [...existingData.elAngles]
           : Array(n).fill(0),
