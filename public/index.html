@@ -728,6 +728,22 @@
     </div>
   </div>
 
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(26,122,66,0.12)">📊</div>
+      <div>
+        <div class="section-title">ייבוא טבלת הזמנות</div>
+        <div class="section-subtitle">CSV או TSV בלבד. קודם תצוגה מקדימה, אחר כך אישור כתיבה.</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <input type="file" id="orderImportFile" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+      <button type="button" onclick="previewOrderImport()" style="margin-right:8px;padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">בדוק טבלה</button>
+      <button type="button" id="approveOrderImportBtn" onclick="approveOrderImport()" style="display:none;margin-right:8px;padding:8px 18px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">אשר וייבא</button>
+      <div id="orderImportResult" style="margin-top:10px;font-size:13px;color:var(--text-dim)"></div>
+    </div>
+  </div>
+
   <!-- SECTION 1: CUSTOMER -->
   <div class="section" id="customer-section">
     <div class="section-header">
@@ -765,9 +781,9 @@
         <div id="emailParseResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
       </div>
       <div id="channel-panel-image" class="channel-panel" style="display:none;margin-bottom:16px">
-        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📷 העלה תמונה / PDF של הזמנה</label>
+        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📷 העלה תמונה של הזמנה</label>
         <div style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;background:var(--steel)">
-          <input type="file" id="ocrFile" accept="image/*,.pdf" style="display:none" onchange="ocrFileSelected(this)">
+          <input type="file" id="ocrFile" accept="image/*" style="display:none" onchange="ocrFileSelected(this)">
           <div style="color:var(--text-dim);margin-bottom:10px">גרור תמונה לכאן או</div>
           <button type="button" onclick="document.getElementById('ocrFile').click()" style="padding:8px 18px;background:var(--steel-mid);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">📁 בחר קובץ</button>
           <div id="ocrFileName" style="margin-top:8px;font-size:13px;color:var(--text-dim)"></div>
@@ -1013,13 +1029,15 @@ function init() {
   // Order number preview (actual number assigned on save)
   fetch('/api/dashboard').then(r=>r.json()).then(d=>{
     const next = String(d.ordersToday !== undefined ? (d.recentOrders?.length ?? 0) + 1 : 1).padStart(3,'0');
-    document.getElementById('orderNumDisplay').textContent = `HZ-${new Date().getFullYear()}-${next}`;
+    const orderNumDisplay = document.getElementById('orderNumDisplay');
+    if (orderNumDisplay) orderNumDisplay.textContent = `HZ-${new Date().getFullYear()}-${next}`;
   });
 
   // Default delivery date (tomorrow)
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  document.getElementById('deliveryDate').value = tomorrow.toISOString().split('T')[0];
+  const deliveryDate = document.getElementById('deliveryDate');
+  if (deliveryDate) deliveryDate.value = tomorrow.toISOString().split('T')[0];
 
   // First pallet
   addPallet();
@@ -1048,8 +1066,11 @@ function init() {
 
 function updateDateTime() {
   const now = new Date();
-  document.getElementById('currentDateTime').textContent =
-    now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  const currentDateTime = document.getElementById('currentDateTime');
+  if (currentDateTime) {
+    currentDateTime.textContent =
+      now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  }
 }
 
 // ── CHANNEL ──────────────────────────────────────────────
@@ -1082,7 +1103,7 @@ async function parseChannelText(source) {
     const p = data.parsed;
     // Auto-fill customer fields
     if (p.customerName) { document.getElementById('customerSearch').value = p.customerName; }
-    if (p.phone) { document.getElementById('customerPhone').value = p.phone; }
+    if (p.customerPhone) { document.getElementById('customerPhone').value = p.customerPhone; }
     if (p.deliveryAddress) { document.getElementById('deliveryAddress').value = p.deliveryAddress; }
     if (p.deliveryDate) { document.getElementById('deliveryDate').value = p.deliveryDate; }
     // Auto-fill items if parsed
@@ -1093,7 +1114,7 @@ async function parseChannelText(source) {
         const last = rows[rows.length - 1];
         if (item.shape) { const sel = last.querySelector('.item-shape'); if (sel) sel.value = item.shape; }
         if (item.diameter) { const inp = last.querySelector('.item-diameter'); if (inp) inp.value = item.diameter; }
-        if (item.quantity) { const inp = last.querySelector('.item-qty'); if (inp) inp.value = item.quantity; }
+        if (item.qty) { const inp = last.querySelector('.item-qty'); if (inp) inp.value = item.qty; }
         if (item.length) { const inp = last.querySelector('.item-length'); if (inp) inp.value = item.length; }
       });
     }
@@ -1125,13 +1146,74 @@ async function runOCR() {
     if (!data.success) throw new Error(data.error || 'שגיאה בסריקה');
     const p = data.parsed || {};
     if (p.customerName) document.getElementById('customerSearch').value = p.customerName;
-    if (p.phone) document.getElementById('customerPhone').value = p.phone;
+    if (p.customerPhone) document.getElementById('customerPhone').value = p.customerPhone;
     if (p.deliveryAddress) document.getElementById('deliveryAddress').value = p.deliveryAddress;
+    if (p.deliveryDate) document.getElementById('deliveryDate').value = p.deliveryDate;
+    if (p.items && p.items.length > 0) {
+      p.items.forEach(item => {
+        addItem();
+        const rows = document.querySelectorAll('.item-row');
+        const last = rows[rows.length - 1];
+        if (item.shape) { const sel = last.querySelector('.item-shape'); if (sel) sel.value = item.shape; }
+        if (item.diameter) { const inp = last.querySelector('.item-diameter'); if (inp) inp.value = item.diameter; }
+        if (item.qty) { const inp = last.querySelector('.item-qty'); if (inp) inp.value = item.qty; }
+        if (item.length) { const inp = last.querySelector('.item-length'); if (inp) inp.value = item.length; }
+      });
+    }
     resultEl.style.color = 'var(--success)';
     resultEl.textContent = '✅ סריקה הושלמה! בדוק את הנתונים שמולאו.';
   } catch(e) {
     resultEl.style.color = 'var(--danger)';
     resultEl.textContent = '❌ ' + e.message;
+  }
+}
+
+let pendingOrderImportId = null;
+async function previewOrderImport() {
+  const file = document.getElementById('orderImportFile').files[0];
+  const resultEl = document.getElementById('orderImportResult');
+  const approveBtn = document.getElementById('approveOrderImportBtn');
+  pendingOrderImportId = null;
+  approveBtn.style.display = 'none';
+  if (!file) { resultEl.textContent = 'בחר קובץ CSV או TSV תחילה'; return; }
+  resultEl.textContent = 'בודק את הטבלה...';
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const response = await fetch('/api/order-imports/preview', { method: 'POST', body: formData });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || 'שגיאה בקריאת הטבלה');
+    const preview = data.preview || {};
+    const duplicateCount = (preview.orders || []).filter(order => order.duplicate).length;
+    const errorCount = (preview.errors || []).length;
+    resultEl.textContent = `נמצאו ${preview.orders?.length || 0} הזמנות מתוך ${preview.rowCount || 0} שורות. שגיאות: ${errorCount}. כפילויות: ${duplicateCount}.`;
+    if (!errorCount && !duplicateCount && preview.orders?.length) {
+      pendingOrderImportId = data.importId;
+      approveBtn.style.display = 'inline-block';
+      resultEl.style.color = 'var(--success)';
+    } else {
+      resultEl.style.color = 'var(--warning)';
+    }
+  } catch (error) {
+    resultEl.textContent = error.message;
+    resultEl.style.color = 'var(--danger)';
+  }
+}
+
+async function approveOrderImport() {
+  if (!pendingOrderImportId) return;
+  const resultEl = document.getElementById('orderImportResult');
+  try {
+    const response = await fetch(`/api/order-imports/${pendingOrderImportId}/approve`, { method: 'POST' });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || 'שגיאה בייבוא');
+    resultEl.textContent = `הייבוא הושלם: נוצרו ${data.created?.length || 0} הזמנות.`;
+    resultEl.style.color = 'var(--success)';
+    document.getElementById('approveOrderImportBtn').style.display = 'none';
+    pendingOrderImportId = null;
+  } catch (error) {
+    resultEl.textContent = error.message;
+    resultEl.style.color = 'var(--danger)';
   }
 }
 

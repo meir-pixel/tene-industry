@@ -5,8 +5,8 @@ const fs    = require('fs');
 const path  = require('path');
 
 // ── OCR – Google Cloud Vision ─────────────────────────────────────
-async function runOCR(imageBuffer) {
-  const apiKey = process.env.GOOGLE_VISION_API_KEY;
+async function runOCR(imageBuffer, options = {}) {
+  const apiKey = options.apiKey || process.env.GOOGLE_VISION_API_KEY;
   if (!apiKey) throw new Error('GOOGLE_VISION_API_KEY לא מוגדר ב-.env');
 
   const b64 = imageBuffer.toString('base64');
@@ -17,7 +17,6 @@ async function runOCR(imageBuffer) {
         image: { content: b64 },
         features: [
           { type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 },
-          { type: 'TABLE_DETECTION',         maxResults: 5 },
         ],
         imageContext: { languageHints: ['he', 'iw', 'en'] },
       }],
@@ -47,8 +46,8 @@ function parseOCRText(text) {
   };
 
   // Phone: look for Israeli phone patterns
-  const phoneMatch = text.match(/0[5-9][0-9\-\s]{7,9}/);
-  if (phoneMatch) result.customerPhone = phoneMatch[0].replace(/[\s\-]/g, '');
+  const phoneMatch = text.match(/0[5-9][0-9\-\s]{8,12}/);
+  if (phoneMatch) result.customerPhone = phoneMatch[0].replace(/[\s\-]/g, '').slice(0, 10);
 
   // Date: look for dates DD/MM/YYYY or DD.MM.YYYY
   const dateMatch = text.match(/(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](2\d{3})/);

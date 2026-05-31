@@ -1294,11 +1294,11 @@ async function loadIntakeQueue() {
     <div id="intake_${row.id}" style="background:#fff;border:1px solid #dde4ed;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
         <div>
-          <div style="font-weight:800;font-size:14px;color:#1a2333;">${p.customer_name || 'לקוח לא ידוע'}</div>
+          <div style="font-weight:800;font-size:14px;color:#1a2333;">${p.customer_name || p.customerName || 'לקוח לא ידוע'}</div>
           <div style="font-size:12px;color:#526070;margin-top:2px;">
             ${p.from || ''}
-            ${p.delivery_date ? ' · ' + p.delivery_date : ''}
-            ${p.delivery_address ? ' · ' + p.delivery_address : ''}
+            ${p.delivery_date || p.deliveryDate ? ' · ' + (p.delivery_date || p.deliveryDate) : ''}
+            ${p.delivery_address || p.deliveryAddress ? ' · ' + (p.delivery_address || p.deliveryAddress) : ''}
           </div>
           <div style="margin-top:8px;">${items || '<span style="color:#aaa;font-size:12px">אין פריטים שזוהו</span>'}</div>
           ${p.notes ? `<div style="font-size:12px;color:#7a93ab;margin-top:6px;">💬 ${p.notes}</div>` : ''}

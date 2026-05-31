@@ -23,6 +23,10 @@ services:
         value: false
       - key: ALLOW_DATABASE_UPLOAD
         value: false
+      - key: AI_ENABLED
+        value: false
+      - key: INTAKE_AI_ENABLED
+        value: false
       - key: SESSION_SECRET
         generateValue: true
       - key: GEMINI_API_KEY

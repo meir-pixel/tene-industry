@@ -767,6 +767,16 @@ addCol('items',      'zone',               'TEXT');             // warehouse zon
 addCol('items',      'machine_id',         'INTEGER');          // FK to machines table
 addCol('items',      'is_3d',              'INTEGER DEFAULT 0'); // 1 = true 3D product (out-of-plane bends)
 addCol('machines',   'can_3d',             'INTEGER DEFAULT 0'); // 1 = machine supports 3D bending
+db.exec(`
+  CREATE TABLE IF NOT EXISTS order_imports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT,
+    preview_data JSON,
+    status TEXT DEFAULT 'preview',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    approved_at DATETIME
+  );
+`);
 ensureAuthSchema(db);
 
 const runtimeJwtSecret = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
@@ -1189,8 +1199,12 @@ app.post('/api/orders/manual', (req, res) => {
   res.json({ success: true, orderNum, itemId });
 });
 
-app.post('/api/orders', (req, res) => {
-  const { customer, order, pallets } = req.body;
+function createOrderFromPayload(payload) {
+  const { customer = {}, order = {}, pallets = [] } = payload || {};
+  if (!customer.name?.trim()) throw Object.assign(new Error('customer.name is required'), { statusCode: 400 });
+  if (!pallets.length || !pallets.some(pallet => pallet.items?.length)) {
+    throw Object.assign(new Error('At least one order item is required'), { statusCode: 400 });
+  }
 
   let customerId;
   // Lookup: prefer phone (unique), fallback to name if phone is empty
@@ -1213,7 +1227,7 @@ app.post('/api/orders', (req, res) => {
     customerId = r.lastInsertRowid;
   }
 
-  const orderNum = generateOrderNum();
+  const orderNum = order.orderNum || generateOrderNum();
   const wastePct = order.wastePctCharged ?? 3;
   const totalWeight = order.totalWeight ?? 0;
   const billingWeight = totalWeight * (1 + wastePct / 100);
@@ -1255,8 +1269,170 @@ app.post('/api/orders', (req, res) => {
     });
   });
 
-  wsBroadcast('new_order', { orderNum, orderId });
-  res.json({ success: true, orderNum, orderId });
+  return { success: true, orderNum, orderId };
+}
+
+const createOrderTransaction = db.transaction(createOrderFromPayload);
+
+function intakeToOrderPayload(parsed = {}, source = 'intake') {
+  const items = (parsed.items || []).map(item => {
+    const length = Number(item.length ?? item.total_length_mm ?? 0);
+    const qty = Number(item.qty ?? item.quantity ?? 1);
+    return {
+      diameter: Number(item.diameter),
+      length,
+      sides: length ? [length] : [],
+      qty,
+      shapeId: item.shapeId || item.shape || 'straight',
+      shapeName: item.shapeName || item.shape || 'straight',
+      note: item.notes || item.note || '',
+    };
+  });
+  return {
+    customer: {
+      name: parsed.customer_name || parsed.customerName || 'Unidentified customer',
+      phone: parsed.customer_phone || parsed.customerPhone || '',
+      address: parsed.delivery_address || parsed.deliveryAddress || '',
+    },
+    order: {
+      channel: source,
+      deliveryDate: parsed.delivery_date || parsed.deliveryDate || null,
+      deliveryAddress: parsed.delivery_address || parsed.deliveryAddress || '',
+      priority: parsed.priority || 'regular',
+      generalNotes: parsed.notes || '',
+      totalWeight: items.reduce((sum, item) => sum + calcWeightPerUnit(item.diameter, item.length) * item.qty, 0),
+    },
+    pallets: [{ maxWeight: 9999, items }],
+  };
+}
+
+function importCell(row, aliases) {
+  const normalized = Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [String(key).trim().toLowerCase().replace(/[\s_-]+/g, ''), value])
+  );
+  for (const alias of aliases) {
+    const value = normalized[String(alias).toLowerCase().replace(/[\s_-]+/g, '')];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return '';
+}
+
+function parseDelimitedRows(buffer) {
+  const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
+  const delimiter = text.split(/\r?\n/, 1)[0].includes('\t') ? '\t' : ',';
+  const records = [];
+  let row = [], cell = '', quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"') {
+      if (quoted && text[index + 1] === '"') { cell += '"'; index += 1; }
+      else quoted = !quoted;
+    } else if (char === delimiter && !quoted) {
+      row.push(cell); cell = '';
+    } else if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && text[index + 1] === '\n') index += 1;
+      row.push(cell); cell = '';
+      if (row.some(value => String(value).trim())) records.push(row);
+      row = [];
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell);
+  if (row.some(value => String(value).trim())) records.push(row);
+  if (!records.length) throw Object.assign(new Error('CSV file is empty'), { statusCode: 400 });
+  const headers = records.shift().map(header => String(header).trim());
+  return records.map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])));
+}
+
+function buildOrderImportPreview(buffer) {
+  const rows = parseDelimitedRows(buffer);
+  const groups = new Map();
+  const errors = [];
+
+  rows.forEach((row, index) => {
+    const sourceOrderNum = String(importCell(row, ['order_num', 'ordernum', 'order', 'מספרהזמנה', 'הזמנה']) || '').trim();
+    const customerName = String(importCell(row, ['customer_name', 'customer', 'client', 'לקוח', 'שםלקוח']) || '').trim();
+    const customerPhone = String(importCell(row, ['customer_phone', 'phone', 'טלפון', 'טלפוןלקוח']) || '').trim();
+    const deliveryDate = String(importCell(row, ['delivery_date', 'deliverydate', 'אספקה', 'תאריךאספקה']) || '').trim();
+    const deliveryAddress = String(importCell(row, ['delivery_address', 'address', 'כתובת', 'כתובתאספקה']) || '').trim();
+    const diameter = Number(importCell(row, ['diameter', 'dia', 'קוטר']));
+    const length = Number(importCell(row, ['length', 'length_mm', 'אורך', 'אורךממ']));
+    const qty = Number(importCell(row, ['qty', 'quantity', 'כמות']));
+    const shape = String(importCell(row, ['shape', 'shape_name', 'צורה']) || 'straight').trim();
+    const notes = String(importCell(row, ['notes', 'note', 'הערות']) || '').trim();
+    const rowErrors = [];
+    if (!customerName) rowErrors.push('customer is required');
+    if (!(diameter > 0)) rowErrors.push('diameter is required');
+    if (!(length > 0)) rowErrors.push('length is required');
+    if (!(qty > 0)) rowErrors.push('quantity is required');
+    if (rowErrors.length) {
+      errors.push({ row: index + 2, errors: rowErrors });
+      return;
+    }
+    const groupKey = sourceOrderNum || `${customerName}|${deliveryDate}|${deliveryAddress}`;
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        sourceOrderNum,
+        duplicate: Boolean(sourceOrderNum && db.prepare('SELECT 1 FROM orders WHERE order_num=?').get(sourceOrderNum)),
+        payload: {
+          customer: { name: customerName, phone: customerPhone, address: deliveryAddress },
+          order: { orderNum: sourceOrderNum || undefined, channel: 'spreadsheet', deliveryDate, deliveryAddress, priority: 'regular' },
+          pallets: [{ maxWeight: 9999, items: [] }],
+        },
+      });
+    }
+    groups.get(groupKey).payload.pallets[0].items.push({
+      diameter, length, sides: [length], qty, shapeId: shape, shapeName: shape, note: notes,
+    });
+  });
+
+  return { orders: [...groups.values()], errors, rowCount: rows.length };
+}
+
+app.post('/api/order-imports/preview', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, error: 'Spreadsheet file is required' });
+  try {
+    const preview = buildOrderImportPreview(req.file.buffer);
+    const result = db.prepare('INSERT INTO order_imports (filename,preview_data,status) VALUES (?,?,?)')
+      .run(req.file.originalname || 'orders.xlsx', JSON.stringify(preview), 'preview');
+    res.json({ success: true, importId: result.lastInsertRowid, preview });
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/order-imports/:id/approve', (req, res) => {
+  const row = db.prepare('SELECT * FROM order_imports WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ success: false, error: 'Import preview not found' });
+  if (row.status === 'approved') return res.json({ success: true, alreadyApproved: true });
+  try {
+    const preview = JSON.parse(row.preview_data || '{}');
+    if (preview.errors?.length) throw Object.assign(new Error('Resolve spreadsheet validation errors before approval'), { statusCode: 400 });
+    if (preview.orders?.some(order => order.duplicate)) {
+      throw Object.assign(new Error('Resolve duplicate order numbers before approval'), { statusCode: 409 });
+    }
+    const approve = db.transaction(() => {
+      const created = (preview.orders || []).map(order => createOrderFromPayload(order.payload));
+      db.prepare("UPDATE order_imports SET status='approved',approved_at=CURRENT_TIMESTAMP WHERE id=?").run(row.id);
+      return created;
+    });
+    const created = approve();
+    created.forEach(order => wsBroadcast('new_order', { orderNum: order.orderNum, orderId: order.orderId }));
+    res.json({ success: true, created });
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/orders', (req, res) => {
+  try {
+    const result = createOrderTransaction(req.body);
+    wsBroadcast('new_order', { orderNum: result.orderNum, orderId: result.orderId });
+    res.json(result);
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ success: false, error: error.message });
+  }
 });
 
 // BUG-03: duplicate PATCH /api/orders/:id/status removed — authoritative version (with audit) is ~line 3715
@@ -3269,11 +3445,11 @@ app.post('/api/intake/image', upload.single('image'), async (req, res) => {
   if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'OCR לא זמין בשלב זה', feature: 'intake-ai' });
   if (!req.file) return res.status(400).json({ error: 'לא צורפה תמונה' });
   try {
-    const ocrResult = await intake.runOCR(req.file.buffer);
+    const ocrResult = await intake.runOCR(req.file.buffer, { apiKey: getSetting('GOOGLE_VISION_API_KEY') });
     const parsed    = intake.parseOCRText(ocrResult.fullText);
-    db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
-      .run('ocr', ocrResult.fullText.slice(0, 2000), JSON.stringify(parsed), 'pending');
-    res.json({ success: true, parsed, fullText: ocrResult.fullText });
+    const log = db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
+      .run('ocr', ocrResult.fullText.slice(0, 2000), JSON.stringify(parsed), 'pending_review');
+    res.json({ success: true, intakeId: log.lastInsertRowid, parsed, fullText: ocrResult.fullText });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3348,7 +3524,31 @@ app.get('/api/intake/log', (req, res) => {
 });
 
 // ── INTAKE – Approve: create order from email ─────────────────────
+// Intake approval uses the same transactional order writer as the manual form.
 app.post('/api/intake/:id/approve', (req, res) => {
+  const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Intake row not found' });
+  if (row.status === 'approved' && row.order_id) {
+    const order = db.prepare('SELECT order_num FROM orders WHERE id=?').get(row.order_id);
+    return res.json({ success: true, orderId: row.order_id, orderNum: order?.order_num, alreadyApproved: true });
+  }
+  try {
+    const parsed = JSON.parse(row.parsed_data || '{}');
+    const approve = db.transaction(() => {
+      const result = createOrderFromPayload(intakeToOrderPayload(parsed, row.source || 'intake'));
+      db.prepare('UPDATE intake_log SET status=?,order_id=? WHERE id=?').run('approved', result.orderId, row.id);
+      return result;
+    });
+    const result = approve();
+    wsBroadcast('new_order', { orderNum: result.orderNum, orderId: result.orderId });
+    res.json(result);
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ success: false, error: error.message });
+  }
+});
+
+// Legacy route: unreachable while the transactional handler above is active.
+if (false) app.post('/api/intake-legacy/:id/approve', (req, res) => {
   const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'לא נמצא' });
 
