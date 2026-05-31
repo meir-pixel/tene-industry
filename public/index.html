@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="/shape-editor.js?v=40"></script>
 <script src="/offline-db.js"></script>
+<script src="/auth-client.js"></script>
 <script src="/nav.js" defer></script>
 <style>
   :root {
@@ -783,7 +784,7 @@
       <div id="channel-panel-image" class="channel-panel" style="display:none;margin-bottom:16px">
         <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📷 העלה תמונה של הזמנה</label>
         <div style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;background:var(--steel)">
-          <input type="file" id="ocrFile" accept="image/*" style="display:none" onchange="ocrFileSelected(this)">
+          <input type="file" id="ocrFile" accept="image/*,.pdf" style="display:none" onchange="ocrFileSelected(this)">
           <div style="color:var(--text-dim);margin-bottom:10px">גרור תמונה לכאן או</div>
           <button type="button" onclick="document.getElementById('ocrFile').click()" style="padding:8px 18px;background:var(--steel-mid);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">📁 בחר קובץ</button>
           <div id="ocrFileName" style="margin-top:8px;font-size:13px;color:var(--text-dim)"></div>
@@ -878,7 +879,7 @@
                display:flex;align-items:center;gap:6px;white-space:nowrap;">
         📷 ייבוא מתמונה
       </button>
-      <input type="file" id="imgUploadInput" accept="image/*" capture="environment" style="display:none"
+      <input type="file" id="imgUploadInput" accept="image/*,.pdf" capture="environment" style="display:none"
              onchange="analyzeOrderImage(this)">
     </div>
     <div class="section-body">
@@ -1106,18 +1107,7 @@ async function parseChannelText(source) {
     if (p.customerPhone) { document.getElementById('customerPhone').value = p.customerPhone; }
     if (p.deliveryAddress) { document.getElementById('deliveryAddress').value = p.deliveryAddress; }
     if (p.deliveryDate) { document.getElementById('deliveryDate').value = p.deliveryDate; }
-    // Auto-fill items if parsed
-    if (p.items && p.items.length > 0) {
-      p.items.forEach(item => {
-        addItem();
-        const rows = document.querySelectorAll('.item-row');
-        const last = rows[rows.length - 1];
-        if (item.shape) { const sel = last.querySelector('.item-shape'); if (sel) sel.value = item.shape; }
-        if (item.diameter) { const inp = last.querySelector('.item-diameter'); if (inp) inp.value = item.diameter; }
-        if (item.qty) { const inp = last.querySelector('.item-qty'); if (inp) inp.value = item.qty; }
-        if (item.length) { const inp = last.querySelector('.item-length'); if (inp) inp.value = item.length; }
-      });
-    }
+    appendParsedItems(p.items);
     resultEl.style.color = 'var(--success)';
     resultEl.textContent = '✅ הטופס מולא אוטומטית! בדוק ועדכן לפי הצורך.';
   } catch(e) {
@@ -1149,17 +1139,7 @@ async function runOCR() {
     if (p.customerPhone) document.getElementById('customerPhone').value = p.customerPhone;
     if (p.deliveryAddress) document.getElementById('deliveryAddress').value = p.deliveryAddress;
     if (p.deliveryDate) document.getElementById('deliveryDate').value = p.deliveryDate;
-    if (p.items && p.items.length > 0) {
-      p.items.forEach(item => {
-        addItem();
-        const rows = document.querySelectorAll('.item-row');
-        const last = rows[rows.length - 1];
-        if (item.shape) { const sel = last.querySelector('.item-shape'); if (sel) sel.value = item.shape; }
-        if (item.diameter) { const inp = last.querySelector('.item-diameter'); if (inp) inp.value = item.diameter; }
-        if (item.qty) { const inp = last.querySelector('.item-qty'); if (inp) inp.value = item.qty; }
-        if (item.length) { const inp = last.querySelector('.item-length'); if (inp) inp.value = item.length; }
-      });
-    }
+    appendParsedItems(p.items);
     resultEl.style.color = 'var(--success)';
     resultEl.textContent = '✅ סריקה הושלמה! בדוק את הנתונים שמולאו.';
   } catch(e) {
@@ -1473,6 +1453,36 @@ function addItem(palletId) {
   renderPallets();
 }
 
+function appendParsedItems(items = []) {
+  if (!Array.isArray(items) || !items.length) return;
+  if (!pallets.length) addPallet();
+  const pallet = pallets[0];
+  items.forEach((item, index) => {
+    const suppliedSides = Array.isArray(item.sides) ? item.sides : [];
+    const sides = suppliedSides.map(Number).filter(length => Number.isFinite(length) && length > 0);
+    const fallbackLength = Number(item.length ?? item.total_length_mm ?? 0);
+    if (!sides.length && fallbackLength > 0) sides.push(fallbackLength);
+    const suppliedAngles = Array.isArray(item.angles) ? item.angles : [];
+    const angles = suppliedAngles.length
+      ? suppliedAngles.map(Number)
+      : Array(Math.max(0, sides.length - 1)).fill(90);
+    const isU = sides.length === 3;
+    pallet.items.push({
+      id: Date.now() + index,
+      shapeId: item.shapeId || item.shape || (isU ? 's3' : 's1'),
+      shapeEmoji: isU ? '∪' : '➖',
+      shapeName: item.shapeName || item.shape || (isU ? 'U - anchor' : 'straight'),
+      shapeSides: sides,
+      shapeAngles: angles,
+      diameter: Number(item.diameter) || 12,
+      length: sides.reduce((sum, length) => sum + length, 0),
+      qty: Number(item.qty ?? item.quantity) || 1,
+      note: item.note || item.notes || '',
+    });
+  });
+  renderPallets();
+}
+
 function removeItem(palletId, itemId) {
   const pallet = pallets.find(p => p.id === palletId);
   if (!pallet) return;
@@ -1680,11 +1690,13 @@ function analyzeOrderImage(input) {
 
   // Show image preview
   var reader = new FileReader();
-  reader.onload = function(e) {
-    document.getElementById('imgPreview').src = e.target.result;
-    document.getElementById('imgPreviewWrap').style.display = 'block';
-  };
-  reader.readAsDataURL(file);
+  if (file.type !== 'application/pdf') {
+    reader.onload = function(e) {
+      document.getElementById('imgPreview').src = e.target.result;
+      document.getElementById('imgPreviewWrap').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
 
   // Upload + analyze
   var fd = new FormData();
@@ -1771,12 +1783,12 @@ function confirmImgItems() {
   toImport.forEach(function(it) {
     // Build sides/angles from segments
     var sides  = (it.segments || []).map(function(s) { return s.length_mm || 500; });
-    var angles = (it.segments || []).map(function(s) { return s.angle_deg != null ? s.angle_deg : 180; });
+    var angles = (it.segments || []).slice(0, -1).map(function(s) { return s.angle_deg != null ? s.angle_deg : 180; });
     if (!sides.length) sides = [it.total_length_mm || 1000];
 
     pallet.items.push({
       id:          Date.now() + Math.random(),
-      shapeId:     'custom',
+      shapeId:     's12',
       shapeEmoji:  '✏️',
       shapeName:   it.shape_name || 'מותאם',
       shapeSides:  sides,

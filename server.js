@@ -1276,15 +1276,24 @@ const createOrderTransaction = db.transaction(createOrderFromPayload);
 
 function intakeToOrderPayload(parsed = {}, source = 'intake') {
   const items = (parsed.items || []).map(item => {
-    const length = Number(item.length ?? item.total_length_mm ?? 0);
+    const sourceSides = Array.isArray(item.sides) ? item.sides : [];
+    const sides = sourceSides.map(Number).filter(length => Number.isFinite(length) && length > 0);
+    const fallbackLength = Number(item.length ?? item.total_length_mm ?? 0);
+    if (!sides.length && fallbackLength > 0) sides.push(fallbackLength);
+    const length = sides.reduce((sum, side) => sum + side, 0);
+    const sourceAngles = Array.isArray(item.angles) ? item.angles : [];
+    const angles = sourceAngles.length
+      ? sourceAngles.map(Number)
+      : Array(Math.max(0, sides.length - 1)).fill(90);
     const qty = Number(item.qty ?? item.quantity ?? 1);
     return {
       diameter: Number(item.diameter),
       length,
-      sides: length ? [length] : [],
+      sides,
+      angles,
       qty,
-      shapeId: item.shapeId || item.shape || 'straight',
-      shapeName: item.shapeName || item.shape || 'straight',
+      shapeId: item.shapeId || item.shape || (sides.length === 3 ? 's3' : 's1'),
+      shapeName: item.shapeName || item.shape || (sides.length === 3 ? 'U - anchor' : 'straight'),
       note: item.notes || item.note || '',
     };
   });
@@ -2587,7 +2596,7 @@ buildTable();
 });
 
 // ── ANALYZE IMAGE (Gemini Vision) ─────────────────────────────────
-app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
+if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (req, res) => {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY לא מוגדר ב-.env' });
   if (!req.file)   return res.status(400).json({ error: 'לא התקבלה תמונה' });
@@ -2648,6 +2657,84 @@ app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
   } catch (err) {
     const msg = err.response?.data?.error?.message || err.message;
     res.status(500).json({ error: 'שגיאה בניתוח התמונה: ' + msg });
+  }
+});
+
+// The reviewed order screen uses OpenAI for image and PDF extraction. Results
+// still return to the existing editable preview before an order is created.
+app.post('/api/analyze-image', requireRole('manager'), upload.single('image'), async (req, res) => {
+  if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
+  if (!req.file) return res.status(400).json({ error: 'Image or PDF is required' });
+  const mime = req.file.mimetype || 'image/jpeg';
+  if (mime !== 'application/pdf' && !mime.startsWith('image/')) {
+    return res.status(400).json({ error: 'Only images and PDFs are supported' });
+  }
+  const fileData = req.file.buffer.toString('base64');
+  const attachment = mime === 'application/pdf'
+    ? { type: 'input_file', filename: req.file.originalname || 'order.pdf', file_data: fileData }
+    : { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' };
+  const schema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            diameter: { type: 'number' },
+            shape_name: { type: 'string' },
+            quantity: { type: 'integer' },
+            segments: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  length_mm: { type: 'number' },
+                  angle_deg: { type: 'number' },
+                },
+                required: ['length_mm', 'angle_deg'],
+              },
+            },
+            total_length_mm: { type: 'number' },
+            material_grade: { type: 'string' },
+            note: { type: 'string' },
+          },
+          required: ['diameter', 'shape_name', 'quantity', 'segments', 'total_length_mm', 'material_grade', 'note'],
+        },
+      },
+    },
+    required: ['items'],
+  };
+  const prompt = `Read this photographed or PDF steel production order carefully.
+Return every printed or handwritten table row as a separate item. Dimensions are usually centimeters: convert them to millimeters.
+Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
+For a fully closed rectangular hoop with the small 90-degree overlap mark, include the full outer rectangle and the two overlap tails as segments.
+For a spiral, name it "ספירלה" and include visible ring diameter and turns in note.
+Use one segment per visible side. angle_deg is the interior angle after that segment: 180 for straight, 90 for a square bend.
+Return JSON that matches the requested schema only.`;
+  try {
+    const response = await require('axios').post('https://api.openai.com/v1/responses', {
+      model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }, attachment] }],
+      text: { format: { type: 'json_schema', name: 'ironbend_order', strict: true, schema } },
+    }, {
+      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      timeout: 60000,
+    });
+    const text = (response.data?.output || [])
+      .flatMap(entry => entry.content || [])
+      .find(entry => entry.type === 'output_text')?.text;
+    const items = JSON.parse(text || '{}').items || [];
+    if (!items.length) return res.status(422).json({ error: 'No steel rows were recognized' });
+    res.json({ success: true, items });
+  } catch (err) {
+    const message = err.response?.data?.error?.message || err.message;
+    res.status(500).json({ error: `Document recognition failed: ${message}` });
   }
 });
 

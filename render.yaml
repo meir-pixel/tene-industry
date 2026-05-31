@@ -27,6 +27,10 @@ services:
         value: false
       - key: INTAKE_AI_ENABLED
         value: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.4-mini
       - key: SESSION_SECRET
         generateValue: true
       - key: GEMINI_API_KEY
