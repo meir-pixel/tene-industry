@@ -141,10 +141,11 @@
     { href:'/kiosk.html',        icon:'🖥️', label:'תחנת עבודה',  id:'kiosk'        },
     { href:'/warehouse.html',    icon:'📦', label:'מחסן',        id:'warehouse'    },
     { href:'/inventory.html',    icon:'🗄️', label:'מלאי',        id:'inventory'    },
-    { href:'/procurement.html',  icon:'🛒', label:'רכש',         id:'procurement'  },
-    { href:'/projects.html',     icon:'🏗️', label:'פרויקטים',    id:'projects'     },
-    { href:'/warroom.html',      icon:'🚨', label:'War Room',    id:'warroom'      },
-    { href:'/maintenance.html',  icon:'🛠️', label:'תחזוקה',      id:'maintenance'  },
+    // BUG-47: stub pages hidden from nav until modules are ready
+    // { href:'/procurement.html',  icon:'🛒', label:'רכש',         id:'procurement'  },
+    // { href:'/projects.html',     icon:'🏗️', label:'פרויקטים',    id:'projects'     },
+    // { href:'/warroom.html',      icon:'🚨', label:'War Room',    id:'warroom'      },
+    // { href:'/maintenance.html',  icon:'🛠️', label:'תחזוקה',      id:'maintenance'  },
     { href:'/quality.html',      icon:'🔍', label:'איכות',       id:'quality'      },
     { href:'/reports.html',      icon:'📈', label:'דוחות',       id:'reports'      },
     { href:'/finance.html',      icon:'💰', label:'פיננסים',     id:'finance'      },
@@ -153,7 +154,7 @@
     { href:'/admin.html',        icon:'⚙️', label:'ניהול',       id:'admin'        },
   ];
 
-  const BOTTOM_IDS = ['dashboard','orders','new','warroom','admin'];
+  const BOTTOM_IDS = ['dashboard','orders','new','admin']; // BUG-47: warroom removed (stub)
   const path     = location.pathname.replace(/^\//, '') || 'dashboard.html';
   const activeId = (LINKS.find(l => l.href.replace('/','') === path) || {}).id || '';
   const ia = id => id === activeId ? 'ib-active' : '';

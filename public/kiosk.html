@@ -598,7 +598,10 @@ function setCurrentOperator(op) {
   currentOp = op;
   document.getElementById('operatorName').textContent = '👤 ' + op.display_name;
   localStorage.setItem('kiosk_op_' + MACHINE_ID, op.id);
-  document.getElementById('btnStop').disabled = false;
+  // BUG-23: stop/cancel action is manager-only; operators can only complete & report waste
+  const isManager = op.role === 'manager' || op.role === 'admin';
+  document.getElementById('btnStop').disabled  = !isManager;
+  document.getElementById('btnStop').style.display = isManager ? '' : 'none';
 }
 
 function getShiftType() {

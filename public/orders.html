@@ -383,8 +383,11 @@ function buildDetailHTML(o, pkgs) {
       <div><div class="info-label">משקל כולל</div><div class="info-value" style="color:var(--accent)">${(o.total_weight||0).toFixed(1)} ק"ג</div></div>
       ${o.delivery_address?`<div style="grid-column:span 2"><div class="info-label">כתובת</div><div class="info-value">${o.delivery_address}</div></div>`:''}
       ${o.driver_notes?`<div style="grid-column:span 2"><div class="info-label">הערות לנהג</div><div class="info-value">${o.driver_notes}</div></div>`:''}
+      ${o.struct_element?`<div><div class="info-label">אלמנט</div><div class="info-value">${o.struct_element}</div></div>`:''}
+      ${o.struct_floor?`<div><div class="info-label">קומה</div><div class="info-value">${o.struct_floor}</div></div>`:''}
+      ${o.sheet_num?`<div><div class="info-label">גיליון</div><div class="info-value">${o.sheet_num}</div></div>`:''}
     </div>
-  </div>`;
+  </div>`; // BUG-25: added struct_element / struct_floor / sheet_num
 
   // ── Status
   const statuses = ['ממתינה לאישור','אושרה','בייצור','הושלם – ממתין לאיסוף','נמסרה'];
