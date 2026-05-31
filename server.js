@@ -2673,7 +2673,7 @@ app.post('/api/analyze-image', requireRole('manager'), upload.single('image'), a
   }
   const fileData = req.file.buffer.toString('base64');
   const attachment = mime === 'application/pdf'
-    ? { type: 'input_file', filename: req.file.originalname || 'order.pdf', file_data: fileData }
+    ? { type: 'input_file', filename: req.file.originalname || 'order.pdf', file_data: `data:application/pdf;base64,${fileData}` }
     : { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' };
   const schema = {
     type: 'object',
