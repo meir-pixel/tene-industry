@@ -10,6 +10,7 @@ module.exports = {
     {
       name: 'ironbend',
       script: 'server.js',
+      cwd: __dirname,
 
       // ── Restart policy ───────────────────────────────────────────
       autorestart:       true,       // הפעל מחדש אחרי קריסה
@@ -27,6 +28,8 @@ module.exports = {
         PORT: 3000,
         DB_PATH:    './ironbend.db',
         BACKUP_DIR: './backups',
+        ALLOW_EMPTY_DB_INIT: 'false',
+        ALLOW_DATABASE_UPLOAD: 'false',
       },
 
       // ── Logs ─────────────────────────────────────────────────────

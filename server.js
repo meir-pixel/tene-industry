@@ -8,10 +8,12 @@ const multer   = require('multer');
 const cron     = require('node-cron');
 const crypto   = require('crypto');
 const { WebSocketServer } = require('ws');
+const { rateLimit } = require('express-rate-limit');
 const modbus   = require('./modbus');
 const priority = require('./priority');
 const intake   = require('./intake');
 const ai       = require('./ai');
+const { createAuthService, ensureAuthSchema, hashPin } = require('./auth-core');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -24,6 +26,7 @@ const PORT   = process.env.PORT || 3000;
 const AI_ENABLED      = process.env.AI_ENABLED      === 'true'; // default: false
 const INTAKE_AI_ENABLED = process.env.INTAKE_AI_ENABLED === 'true'; // default: false
 const PRIORITY_ENABLED  = process.env.PRIORITY_ENABLED  === 'true'; // default: false
+const AUTH_ENFORCEMENT  = process.env.AUTH_ENFORCEMENT  === 'true'; // false until frontend migration passes Gate 1a
 
 app.use(cors());
 app.use(express.json());
@@ -55,8 +58,31 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const DB_PATH = process.env.DB_PATH || './ironbend.db';
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'ironbend.db');
+const fs      = require('fs');
+const DB_EXISTS_AT_STARTUP = fs.existsSync(DB_PATH);
+function snapshotDatabaseFiles(sourcePath, backupBase) {
+  for (const suffix of ['', '-wal', '-shm']) {
+    const source = `${sourcePath}${suffix}`;
+    if (fs.existsSync(source)) fs.copyFileSync(source, `${backupBase}${suffix}`);
+  }
+}
+if (process.env.NODE_ENV === 'production' && !DB_EXISTS_AT_STARTUP && process.env.ALLOW_EMPTY_DB_INIT !== 'true') {
+  throw new Error(`[DB Safety] Refusing to create a new production database at ${DB_PATH}. Verify the persistent disk mount or set ALLOW_EMPTY_DB_INIT=true only for the first intentional initialization.`);
+}
+if (DB_EXISTS_AT_STARTUP) {
+  const startupBackup = `${DB_PATH}.bak.startup`;
+  snapshotDatabaseFiles(DB_PATH, startupBackup);
+  console.log(`[DB Safety] Startup snapshot created: ${startupBackup}`);
+}
 let db = new Database(DB_PATH);
+if (process.env.NODE_ENV === 'production' && DB_EXISTS_AT_STARTUP && process.env.ALLOW_EMPTY_DB_INIT !== 'true') {
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
+  if (!tables.has('orders')) {
+    db.close();
+    throw new Error(`[DB Safety] Refusing to initialize an empty production database at ${DB_PATH}. Verify that the expected persistent database is mounted.`);
+  }
+}
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 modbus.init(db); // pass db so modbus reads machine config live
@@ -741,6 +767,62 @@ addCol('items',      'zone',               'TEXT');             // warehouse zon
 addCol('items',      'machine_id',         'INTEGER');          // FK to machines table
 addCol('items',      'is_3d',              'INTEGER DEFAULT 0'); // 1 = true 3D product (out-of-plane bends)
 addCol('machines',   'can_3d',             'INTEGER DEFAULT 0'); // 1 = machine supports 3D bending
+ensureAuthSchema(db);
+
+const runtimeJwtSecret = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+if (!process.env.JWT_SECRET) {
+  console.warn('[Auth] JWT_SECRET is not configured. Using an ephemeral startup secret; do not enable AUTH_ENFORCEMENT.');
+}
+const authService = createAuthService(db, { jwtSecret: runtimeJwtSecret });
+const authLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+function parseCookies(req) {
+  return Object.fromEntries(
+    String(req.headers.cookie || '')
+      .split(';')
+      .map(part => part.trim())
+      .filter(Boolean)
+      .map(part => {
+        const pos = part.indexOf('=');
+        return pos === -1
+          ? [decodeURIComponent(part), '']
+          : [decodeURIComponent(part.slice(0, pos)), decodeURIComponent(part.slice(pos + 1))];
+      })
+  );
+}
+
+function refreshCookie(token) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  const maxAge = Number(process.env.REFRESH_TOKEN_DAYS || 7) * 24 * 60 * 60;
+  return `refresh_token=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=${maxAge}${secure}`;
+}
+
+function bearerToken(req) {
+  const header = String(req.headers.authorization || '');
+  return header.startsWith('Bearer ') ? header.slice(7) : null;
+}
+
+function optionalAuth(req, _res, next) {
+  const token = bearerToken(req);
+  if (token) {
+    try { req.auth = authService.verifyAccessToken(token); } catch (_) {}
+  }
+  next();
+}
+
+function requireAuth(req, res, next) {
+  optionalAuth(req, res, () => {
+    if (req.auth) return next();
+    return res.status(401).json({ error: 'Authentication required' });
+  });
+}
+
+app.use('/api', optionalAuth);
 
 // ── SEED DOWNTIME REASONS ─────────────────────────────────────────
 db.exec(`
@@ -898,8 +980,11 @@ const ROLE_PERMISSIONS = {
 
 function requireRole(minRole) {
   return (req, res, next) => {
-    const role = req.headers['x-user-role'] || 'operator'; // BUG-19: removed req.query._role bypass
-    const userId = req.headers['x-user-id'] || null;
+    if (AUTH_ENFORCEMENT && !req.auth) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const role = req.auth?.role || (AUTH_ENFORCEMENT ? null : req.headers['x-user-role']) || 'operator';
+    const userId = req.auth?.sub || (AUTH_ENFORCEMENT ? null : req.headers['x-user-id']) || null;
     const perm = ROLE_PERMISSIONS[role];
     if (!perm) return res.status(403).json({ error: 'תפקיד לא מוכר', role });
     const minPerm = typeof minRole === 'string' ? ROLE_PERMISSIONS[minRole] : null;
@@ -3861,6 +3946,31 @@ app.patch('/api/orders/:id/unlock', (req, res) => {
 });
 
 // ── USERS / ROLES
+// Auth Core is introduced alongside the legacy login until frontend rollout passes Gate 1a.
+app.post('/api/auth/login', authLoginLimiter, (req, res) => {
+  const result = authService.authenticate(req.body, {
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.setHeader('Set-Cookie', refreshCookie(result.refreshToken));
+  res.json({ access_token: result.accessToken, user: result.user });
+});
+app.post('/api/auth/refresh', (req, res) => {
+  const result = authService.refresh(parseCookies(req).refresh_token, {
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.setHeader('Set-Cookie', refreshCookie(result.refreshToken));
+  res.json({ access_token: result.accessToken, user: result.user });
+});
+app.post('/api/auth/logout', (req, res) => {
+  authService.logout(parseCookies(req).refresh_token);
+  res.setHeader('Set-Cookie', 'refresh_token=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0');
+  res.json({ success: true });
+});
+
 app.get('/api/users', (req, res) => {
   res.json(db.prepare('SELECT id,username,display_name,role,phone,active,last_login,created_at FROM users ORDER BY role,display_name').all());
 });
@@ -3868,7 +3978,8 @@ app.post('/api/users', (req, res) => {
   const { username, display_name, role, pin, phone } = req.body;
   if (!username||!display_name) return res.status(400).json({ error: 'שם משתמש ושם תצוגה חובה' });
   try {
-    const r = db.prepare('INSERT INTO users (username,display_name,role,pin,phone) VALUES (?,?,?,?,?)').run(username,display_name,role||'operator',pin||null,phone||null);
+    const r = db.prepare('INSERT INTO users (username,display_name,role,pin,pin_hash,phone,password_changed_at) VALUES (?,?,?,?,?,?,?)')
+      .run(username,display_name,role||'operator',pin||null,hashPin(pin),phone||null,pin ? new Date().toISOString() : null);
     res.json({ id: r.lastInsertRowid });
   } catch(e) {
     if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'שם משתמש קיים' });
@@ -3877,8 +3988,8 @@ app.post('/api/users', (req, res) => {
 });
 app.patch('/api/users/:id', (req, res) => {
   const f = req.body;
-  db.prepare('UPDATE users SET display_name=COALESCE(?,display_name),role=COALESCE(?,role),pin=COALESCE(?,pin),phone=COALESCE(?,phone),active=COALESCE(?,active) WHERE id=?')
-    .run(f.display_name||null,f.role||null,f.pin||null,f.phone||null,f.active??null,req.params.id);
+  db.prepare('UPDATE users SET display_name=COALESCE(?,display_name),role=COALESCE(?,role),pin=COALESCE(?,pin),pin_hash=COALESCE(?,pin_hash),phone=COALESCE(?,phone),active=COALESCE(?,active),password_changed_at=CASE WHEN ? IS NULL THEN password_changed_at ELSE ? END WHERE id=?')
+    .run(f.display_name||null,f.role||null,f.pin||null,hashPin(f.pin),f.phone||null,f.active??null,f.pin||null,f.pin ? new Date().toISOString() : null,req.params.id);
   res.json({ success: true });
 });
 app.post('/api/users/login', (req, res) => {
@@ -5467,19 +5578,54 @@ app.get('/api/finance/events', (req, res) => {
 
 // ── Admin Database Migration (Cloud Upload/Download) ──────────────
 // Download active database backup — BUG-20: admin only
-app.get('/api/admin/database/download', requireRole('admin'), (req, res) => {
+app.get('/api/admin/database/download', requireRole('admin'), async (req, res) => {
+  const downloadPath = `${DB_PATH}.download-${Date.now()}.tmp`;
   try {
     if (!fs.existsSync(DB_PATH)) {
       return res.status(404).json({ ok: false, error: 'קובץ בסיס הנתונים לא נמצא' });
     }
-    res.download(DB_PATH, 'ironbend.db');
+    await db.backup(downloadPath);
+    res.download(downloadPath, 'ironbend.db', () => {
+      if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
+    });
   } catch (e) {
+    if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
 
+function validateUploadedDatabase(req, res, next) {
+  if (!req.file) return res.status(400).json({ ok: false, error: 'Database file is required' });
+  const tempPath = `${DB_PATH}.validation-${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, req.file.buffer);
+    const uploadedDb = new Database(tempPath, { readonly: true, fileMustExist: true });
+    try {
+      const integrity = uploadedDb.pragma('integrity_check', { simple: true });
+      if (integrity !== 'ok') throw new Error(`SQLite integrity_check failed: ${integrity}`);
+      const existing = new Set(uploadedDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
+      const missing = ['customers', 'orders', 'pallets', 'items', 'users'].filter(table => !existing.has(table));
+      if (missing.length) throw new Error(`Missing required tables: ${missing.join(', ')}`);
+    } finally {
+      uploadedDb.close();
+    }
+    next();
+  } catch (error) {
+    res.status(400).json({ ok: false, error: `Invalid database upload: ${error.message}` });
+  } finally {
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+  }
+}
+
+function allowDatabaseUpload(req, res, next) {
+  if (process.env.ALLOW_DATABASE_UPLOAD !== 'true') {
+    return res.status(403).json({ ok: false, error: 'Database upload is disabled. Enable ALLOW_DATABASE_UPLOAD only during a supervised maintenance window.' });
+  }
+  next();
+}
+
 // Upload and restore database backup
-app.post('/api/admin/database/upload', requireRole('admin'), upload.single('dbFile'), async (req, res) => { // BUG-20
+app.post('/api/admin/database/upload', requireRole('admin'), allowDatabaseUpload, upload.single('dbFile'), validateUploadedDatabase, async (req, res) => { // BUG-20
   try {
     if (!req.file) {
       return res.status(400).json({ ok: false, error: 'לא הועלה קובץ' });
@@ -5488,6 +5634,7 @@ app.post('/api/admin/database/upload', requireRole('admin'), upload.single('dbFi
     console.log('[Database Migration] מתחיל תהליך שחזור בסיס נתונים מהעלאה...');
 
     // 1. Close current connection safely
+    try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
     try {
       db.close();
       console.log('[Database Migration] 💾 חיבור בסיס הנתונים הישן נסגר בבטחה');
@@ -5497,12 +5644,15 @@ app.post('/api/admin/database/upload', requireRole('admin'), upload.single('dbFi
 
     // 2. Backup old database file just in case
     if (fs.existsSync(DB_PATH)) {
-      const backupPath = `${DB_PATH}.bak`;
-      fs.copyFileSync(DB_PATH, backupPath);
+      const backupPath = `${DB_PATH}.bak.before-upload-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+      snapshotDatabaseFiles(DB_PATH, backupPath);
       console.log(`[Database Migration] 📂 גובה קובץ ישן ל-${backupPath}`);
     }
 
     // 3. Write new uploaded file
+    for (const sidecar of [`${DB_PATH}-wal`, `${DB_PATH}-shm`]) {
+      if (fs.existsSync(sidecar)) fs.unlinkSync(sidecar);
+    }
     fs.writeFileSync(DB_PATH, req.file.buffer);
     console.log(`[Database Migration] 📝 נכתב קובץ בסיס נתונים חדש ל-${DB_PATH}`);
 
@@ -5544,8 +5694,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // ── Auto-backup SQLite ────────────────────────────────────────────
-const BACKUP_DIR = process.env.BACKUP_DIR || './backups';
-const fs         = require('fs');
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, 'backups');
 if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
 cron.schedule('0 2 * * *', () => {        // כל לילה 02:00

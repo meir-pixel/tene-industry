@@ -387,7 +387,6 @@ select{appearance:none;cursor:pointer;}
 <script>
 let pinValue = '';
 
-const DEMO_PINS = { '1234':'admin', '2222':'operator', '3333':'quality', '4444':'warehouse' };
 const ROLE_NAMES = {
   admin:'מנהל מערכת', ceo:'מנכ"ל', factory_mgr:'מנהל מפעל',
   production_mgr:'מנהל ייצור', operator:'מפעיל מכונה', warehouse:'מחסן',
@@ -421,10 +420,18 @@ function hideError() {
   document.getElementById('errBanner').classList.remove('show');
 }
 
-function doLogin() {
+function storeLogin(result, remember) {
+  const storage = remember ? localStorage : sessionStorage;
+  storage.setItem('ib_access_token', result.access_token);
+  storage.setItem('ib_role', result.user.role);
+  storage.setItem('ib_user', result.user.username);
+  localStorage.setItem('ib_role', result.user.role);
+  window.location.href = 'dashboard.html?role=' + result.user.role;
+}
+
+async function doLogin() {
   const u = document.getElementById('username').value.trim();
   const p = document.getElementById('password').value;
-  const role = document.getElementById('roleSelect').value;
   const remember = document.getElementById('rememberDevice').checked;
 
   if (!u) { showError('יש להזין שם משתמש'); return; }
@@ -432,12 +439,19 @@ function doLogin() {
 
   // Demo mode — any non-empty credentials work
   hideError();
-  const storage = remember ? localStorage : sessionStorage;
-  storage.setItem('ib_role', role);
-  storage.setItem('ib_user', u);
-  localStorage.setItem('ib_role', role);
-  localStorage.setItem('ib_user', u);
-  window.location.href = 'dashboard.html?role=' + role;
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, pin: p }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Login failed');
+    storeLogin(result, remember);
+  } catch (_) {
+    showError('שם משתמש או PIN שגויים');
+  }
 }
 
 function pinKey(digit) {
@@ -458,13 +472,18 @@ function updatePinDots() {
     document.getElementById('d' + i).classList.toggle('filled', i < pinValue.length);
   }
 }
-function checkPin() {
-  const role = DEMO_PINS[pinValue];
-  if (role) {
-    localStorage.setItem('ib_role', role);
-    localStorage.setItem('ib_user', 'PIN:' + pinValue);
-    window.location.href = 'dashboard.html?role=' + role;
-  } else {
+async function checkPin() {
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: pinValue }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Login failed');
+    storeLogin(result, true);
+  } catch (_) {
     showError('קוד PIN שגוי. נסה שוב.');
     pinValue = '';
     updatePinDots();

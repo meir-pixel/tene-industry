@@ -19,6 +19,10 @@ services:
         value: /data/ironbend.db
       - key: BACKUP_DIR
         value: /data/backups
+      - key: ALLOW_EMPTY_DB_INIT
+        value: false
+      - key: ALLOW_DATABASE_UPLOAD
+        value: false
       - key: SESSION_SECRET
         generateValue: true
       - key: GEMINI_API_KEY

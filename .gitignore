@@ -5,6 +5,8 @@ ironbend.db
 *.db-journal
 *.db-shm
 *.db-wal
+*.db.bak*
+*.db.validation-*
 
 # Backups & Logs
 backups/
