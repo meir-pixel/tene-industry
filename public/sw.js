@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'ironbend-v3';
+const CACHE_VERSION = 'ironbend-v4';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const API_CACHE     = `${CACHE_VERSION}-api`;
 
@@ -9,6 +9,7 @@ const STATIC_ASSETS = [
   '/machine.html',
   '/offline.html',
   '/manifest.json',
+  '/brand/tene-logo.svg',
   '/offline-db.js',
   'https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap',
 ];

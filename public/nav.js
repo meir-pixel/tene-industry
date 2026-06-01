@@ -52,18 +52,13 @@
     }
     body { padding-top: 56px; }
     #ib-logo {
-      display:flex; align-items:center; gap:8px;
-      font-weight:800; font-size:15px; color:#1a2533;
+      display:flex; align-items:center; gap:10px;
+      font-weight:900; font-size:14px; color:#021A48;
       text-decoration:none; margin-left:16px; flex-shrink:0;
     }
     #ib-logo-icon {
-      width:32px; height:32px;
-      background: linear-gradient(145deg, #df8640 0%, #c9621a 55%, #a4500f 100%);
-      border-radius:8px; display:flex; align-items:center;
-      justify-content:center; font-size:16px; flex-shrink:0;
-      box-shadow: 0 3px 8px rgba(201,98,26,0.40),
-                  inset 0 1px 0 rgba(255,255,255,0.25),
-                  inset 0 -1px 0 rgba(0,0,0,0.15);
+      width:164px; height:38px; flex-shrink:0; object-fit:contain;
+      filter: drop-shadow(0 2px 4px rgba(2,26,72,0.10));
     }
     #ib-links {
       display:flex; gap:2px; flex:1; overflow-x:auto;
@@ -113,6 +108,9 @@
       background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
       gap:10px; flex-shrink:0;
     }
+    #ib-drawer-logo {
+      width:176px; height:42px; object-fit:contain; flex-shrink:0;
+    }
     #ib-drawer-close {
       background:none; border:none; cursor:pointer;
       font-size:20px; color:#8fa0b0; padding:6px;
@@ -151,6 +149,7 @@
     .ib-bn-icon { font-size:20px; line-height:1; }
 
     @media(max-width:768px) {
+      #ib-logo-icon { width:132px; height:34px; }
       #ib-links { display:none; }
       #ib-hamburger { display:flex; align-items:center; }
     }
@@ -205,7 +204,7 @@
   const topnav = document.createElement('nav');
   topnav.id = 'ib-topnav';
   topnav.innerHTML =
-    '<a href="/dashboard.html" id="ib-logo"><div id="ib-logo-icon">🔩</div><span>IronBend</span></a>' +
+    '<a href="/dashboard.html" id="ib-logo"><img id="ib-logo-icon" src="/brand/tene-logo.svg" alt="טנא תעשיות ברזל"></a>' +
     '<div id="ib-links">' +
       LINKS.map(l => '<a href="'+l.href+'" class="ib-link '+ia(l.id)+'">'+l.icon+' '+l.label+'</a>').join('') +
     '</div>' +
@@ -220,8 +219,7 @@
   drawer.id = 'ib-drawer';
   drawer.innerHTML =
     '<div id="ib-drawer-head">' +
-      '<div style="width:32px;height:32px;background:linear-gradient(145deg,#df8640,#c9621a,#a4500f);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;box-shadow:0 2px 6px rgba(201,98,26,0.35),inset 0 1px 0 rgba(255,255,255,0.22)">🔩</div>' +
-      '<span style="font-weight:800;font-size:15px;color:#1a2533">IronBend</span>' +
+      '<img id="ib-drawer-logo" src="/brand/tene-logo.svg" alt="טנא תעשיות ברזל">' +
       '<button id="ib-drawer-close" aria-label="סגור">✕</button>' +
     '</div>' +
     '<div id="ib-drawer-links">' +

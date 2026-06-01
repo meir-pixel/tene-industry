@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" role="img" aria-labelledby="title desc">
+  <title id="title">טנא תעשיות ברזל</title>
+  <desc id="desc">סמל מותג למערכת טנא תעשיות ברזל / IronBend</desc>
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#062170"/>
+      <stop offset="1" stop-color="#021A48"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F08A24"/>
+      <stop offset="1" stop-color="#DF5000"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="180" rx="28" fill="#FFFFFF"/>
+  <g transform="translate(452 28)">
+    <rect x="18" y="8" width="28" height="118" rx="14" fill="url(#steel)"/>
+    <rect x="66" y="8" width="28" height="118" rx="14" fill="url(#steel)"/>
+    <rect x="114" y="8" width="28" height="118" rx="14" fill="url(#steel)"/>
+    <rect x="6" y="36" width="152" height="28" rx="14" fill="url(#orange)"/>
+    <rect x="6" y="84" width="152" height="28" rx="14" fill="#40B900"/>
+    <circle cx="32" cy="50" r="8" fill="#FFFFFF" opacity=".9"/>
+    <circle cx="128" cy="98" r="8" fill="#FFFFFF" opacity=".9"/>
+  </g>
+  <g direction="rtl" font-family="Heebo, Arial, sans-serif" text-anchor="end">
+    <text x="420" y="76" fill="#021A48" font-size="46" font-weight="900">טנא תעשיות ברזל</text>
+    <text x="420" y="116" fill="#DF5000" font-size="24" font-weight="800">ייצור, כיפוף וניהול הזמנות</text>
+    <text x="420" y="145" fill="#526070" font-size="18" font-weight="700">IronBend</text>
+  </g>
+</svg>
