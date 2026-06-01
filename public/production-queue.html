@@ -6,6 +6,7 @@
 <title>תור ייצור – IronBend</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
 <style>
   :root {
     --accent:  #e07b39;
@@ -25,8 +26,8 @@
   body { font-family: 'Heebo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
   /* NAV */
-  .nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px;
-         display: flex; align-items: center; gap: 8px; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .nav { display:none !important; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px;
+         align-items: center; gap: 8px; height: 56px; position: sticky; top: 0; z-index: 100; }
   .nav-brand { margin-left: auto; display:flex; align-items:center; }
   .nav-brand img { width: 156px; height: 42px; object-fit: contain; display:block; filter:drop-shadow(0 2px 6px rgba(2,26,72,.12)); }
   .nav a { color: var(--muted); text-decoration: none; font-size: 13px; padding: 6px 12px;
@@ -164,8 +165,9 @@
   }
 </style>
 <script src="/auth-client.js"></script>
+<script src="/nav.js" defer></script>
 </head>
-<body>
+<body data-page="production-queue">
 
 <!-- NAV -->
 <nav class="nav">
