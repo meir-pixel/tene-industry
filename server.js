@@ -2672,7 +2672,7 @@ if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (
 
 // The reviewed order screen uses OpenAI for image and PDF extraction. Results
 // still return to the existing editable preview before an order is created.
-app.post('/api/analyze-image', imageAnalysisLimiter, upload.single('image'), async (req, res) => {
+app.post('/api/analyze-image', requireRole('manager'), imageAnalysisLimiter, upload.single('image'), async (req, res) => {
   if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
