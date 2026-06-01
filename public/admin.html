@@ -110,13 +110,14 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
 .form-group { display:flex; flex-direction:column; gap:5px; }
 .form-group label { font-size:11px; font-weight:700; color:var(--muted);
   text-transform:uppercase; letter-spacing:.4px; }
-.form-group input, .form-group select {
+.form-group input, .form-group select, .form-group textarea {
   background:#f5f8fb; border:1.5px solid rgba(0,0,0,0.10);
   border-radius:8px; padding:9px 12px;
   color:var(--text); font-family:'Heebo',sans-serif; font-size:14px;
   transition:border-color .2s; width:100%;
 }
-.form-group input:focus, .form-group select:focus {
+.form-group textarea { min-height:86px; resize:vertical; line-height:1.5; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
   outline:none; border-color:var(--accent); background:#fff;
 }
 .form-group input::placeholder { color:var(--muted); }
@@ -264,6 +265,7 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <button class="tab-btn" onclick="showTab('email',this)">📧 מייל</button>
         <button class="tab-btn" onclick="showTab('integrations',this)">🔗 אינטגרציות</button>
         <button class="tab-btn" onclick="showTab('vision',this)">📷 OCR</button>
+        <button class="tab-btn" onclick="showTab('training',this);loadOcrTraining()">🧠 אימון OCR</button>
         <button class="tab-btn" onclick="showTab('machines',this);loadMachinesAdmin()">🔧 מכונות</button>
         <button class="tab-btn" onclick="showTab('workstations',this);loadWorkstations()">🖥️ תחנות עבודה</button>
         <button class="tab-btn" onclick="showTab('drivers',this);loadDriversAdmin()">🚚 נהגים</button>
@@ -501,6 +503,59 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
             <button class="btn btn-primary" onclick="saveSection('vision')">💾 שמור</button>
             <button class="btn btn-outline" onclick="testConn('vision')">🔌 בדוק</button>
             <div class="test-result" id="test-vision"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: OCR TRAINING -->
+      <div id="tab-training" class="tab-pane">
+        <div class="settings-head">
+          <div class="settings-head-left">
+            <span class="settings-head-icon">🧠</span>
+            <div>
+              <div class="settings-head-title">פורטל אימון OCR / AI</div>
+              <div class="settings-head-sub">שמור תיקונים שחוזרים על עצמם. בפענוח הבא המערכת תשתמש בהם כהנחיות.</div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-body">
+          <div style="background:var(--info-bg);border:1px solid rgba(21,96,168,.18);border-radius:12px;padding:12px 14px;color:var(--text-dim);font-size:13px;line-height:1.7">
+            זה לא משנה הזמנות קיימות ולא מוחק נתונים. כל תיקון נשמר כדוגמה, ונשלח ל-AI לפני ניתוח תמונה/PDF חדש.
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>שם קצר לדוגמה</label>
+              <input type="text" id="ocrTrainTitle" placeholder="לדוגמה: טסה - כמות מול משקל">
+            </div>
+            <div class="form-group">
+              <label>סוג מסמך</label>
+              <select id="ocrTrainType">
+                <option value="tassa_pdf">TASSA PDF</option>
+                <option value="handwritten_cards">כרטיסיות בכתב יד</option>
+                <option value="bar_schedule">רשימת ברזל / טבלה</option>
+                <option value="general">כללי</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>מה הוא קרא לא נכון?</label>
+              <textarea id="ocrTrainProblem" placeholder="לדוגמה: במסמך טסה הוא לקח את המשקל 188.76 בתור כמות במקום לקרוא את עמודת כמות."></textarea>
+            </div>
+            <div class="form-group">
+              <label>איך לקרוא נכון בפעם הבאה?</label>
+              <textarea id="ocrTrainCorrection" placeholder="לדוגמה: במסמכי טסה לקחת כמות רק מעמודת כמות, לא ממשקל, לא ממספר שורה ולא מסיכום עמוד."></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" onclick="saveOcrTraining()">💾 שמור תיקון</button>
+            <button class="btn btn-outline" onclick="loadOcrTraining()">🔄 רענן</button>
+          </div>
+          <div>
+            <div class="sec-title" style="margin-top:8px">דוגמאות פעילות</div>
+            <div id="ocrTrainingList" style="display:flex;flex-direction:column;gap:10px">
+              <div style="color:var(--muted);font-size:13px">לחץ רענן לטעינה</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1269,6 +1324,78 @@ async function testConn(service) {
 }
 
 // ── Intake queue (email orders pending approval) ───────────────
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[ch]));
+}
+
+async function loadOcrTraining() {
+  const list = document.getElementById('ocrTrainingList');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--muted);font-size:13px">טוען...</div>';
+  const rows = await fetch('/api/intake/training').then(r => r.json()).catch(() => []);
+  if (!rows.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;background:#fff;border:1px dashed var(--border);border-radius:10px">אין עדיין דוגמאות. שמור תיקון ראשון אחרי פענוח שגוי.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(row => `
+    <div id="ocrTrain_${row.id}" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <div style="min-width:0">
+          <div style="font-size:14px;font-weight:900;color:var(--text)">${escapeHtml(row.title)}</div>
+          <div style="font-size:11px;font-weight:800;color:var(--accent);margin-top:2px">${escapeHtml(row.document_type || 'general')}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="deleteOcrTraining(${row.id})">הסר</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div style="background:#fff7f3;border-radius:10px;padding:10px">
+          <div style="font-size:10px;font-weight:800;color:var(--danger);margin-bottom:4px">נקרא לא נכון</div>
+          <div style="font-size:12px;color:var(--text-dim);line-height:1.55;white-space:pre-wrap">${escapeHtml(row.problem_text)}</div>
+        </div>
+        <div style="background:#f2fbf5;border-radius:10px;padding:10px">
+          <div style="font-size:10px;font-weight:800;color:var(--success);margin-bottom:4px">התיקון</div>
+          <div style="font-size:12px;color:var(--text-dim);line-height:1.55;white-space:pre-wrap">${escapeHtml(row.correction_text)}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function saveOcrTraining() {
+  const payload = {
+    title: document.getElementById('ocrTrainTitle').value,
+    document_type: document.getElementById('ocrTrainType').value,
+    problem_text: document.getElementById('ocrTrainProblem').value,
+    correction_text: document.getElementById('ocrTrainCorrection').value,
+  };
+  if (!payload.title.trim() || !payload.problem_text.trim() || !payload.correction_text.trim()) {
+    toast('צריך למלא שם, מה היה לא נכון ומה התיקון', true);
+    return;
+  }
+  const response = await fetch('/api/intake/training', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    toast('שמירת התיקון נכשלה: ' + (result.error || ''), true);
+    return;
+  }
+  document.getElementById('ocrTrainTitle').value = '';
+  document.getElementById('ocrTrainProblem').value = '';
+  document.getElementById('ocrTrainCorrection').value = '';
+  toast('✓ תיקון נשמר. הוא ישפיע על פענוחים חדשים.');
+  loadOcrTraining();
+}
+
+async function deleteOcrTraining(id) {
+  await fetch('/api/intake/training/' + id, { method:'DELETE' });
+  document.getElementById('ocrTrain_' + id)?.remove();
+  toast('התיקון הוסר מהאימון הפעיל');
+}
+
 async function loadIntakeQueue() {
   const queue = document.getElementById('intakeQueue');
   const list  = document.getElementById('intakeList');

@@ -257,6 +257,16 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS intake_training_examples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    document_type TEXT DEFAULT 'general',
+    problem_text TEXT NOT NULL,
+    correction_text TEXT NOT NULL,
+    active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT,
@@ -2747,6 +2757,21 @@ if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (
 const analyzeImageAuthorization = AUTH_ENFORCEMENT
   ? requireRole('manager')
   : (_req, _res, next) => next();
+
+function getIntakeTrainingGuidance(limit = 12) {
+  const examples = db.prepare(`
+    SELECT document_type, problem_text, correction_text
+    FROM intake_training_examples
+    WHERE active=1
+    ORDER BY id DESC
+    LIMIT ?
+  `).all(limit);
+  if (!examples.length) return '';
+  return `\nOperator correction memory. Apply these corrections when a similar document, table, handwriting pattern, or customer format appears:\n${examples.map((example, index) =>
+    `${index + 1}. Format: ${example.document_type || 'general'}\nProblem previously seen: ${example.problem_text}\nCorrect behavior next time: ${example.correction_text}`
+  ).join('\n')}\n`;
+}
+
 app.post('/api/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, upload.single('image'), async (req, res) => {
   if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -2802,8 +2827,10 @@ app.post('/api/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, 
     },
     required: ['document_type', 'supplier_order_num', 'customer_name', 'customer_phone', 'delivery_date', 'delivery_address', 'notes', 'items'],
   };
+  const trainingGuidance = getIntakeTrainingGuidance();
   const prompt = `Read this photographed or PDF steel production order carefully.
 Return every printed or handwritten table row as a separate item.
+${trainingGuidance}
 First identify the document format. If it is a TASSA / טסה supplier order:
 - Page 1 is usually a cover page. Extract the supplier order number from "הזמנה לספק מס'", the requested delivery date from "מועד אספקה", customer/contact name from "לכבוד" or the handwritten body, and phone from the handwritten body if present.
 - Later pages are "רשימת ברזל לכיפוף" / bending schedules. Extract each numbered table row as a separate item.
@@ -3433,6 +3460,37 @@ app.post('/api/settings/test/:service', async (req, res) => {
   } catch (err) {
     res.json({ ok: false, msg: err.message });
   }
+});
+
+app.get('/api/intake/training', (req, res) => {
+  const rows = db.prepare(`
+    SELECT id, title, document_type, problem_text, correction_text, active, created_at
+    FROM intake_training_examples
+    WHERE active=1
+    ORDER BY id DESC
+    LIMIT 100
+  `).all();
+  res.json(rows);
+});
+
+app.post('/api/intake/training', (req, res) => {
+  const title = String(req.body.title || '').trim();
+  const documentType = String(req.body.document_type || 'general').trim() || 'general';
+  const problemText = String(req.body.problem_text || '').trim();
+  const correctionText = String(req.body.correction_text || '').trim();
+  if (!title || !problemText || !correctionText) {
+    return res.status(400).json({ error: 'title, problem_text and correction_text are required' });
+  }
+  const result = db.prepare(`
+    INSERT INTO intake_training_examples (title, document_type, problem_text, correction_text)
+    VALUES (?, ?, ?, ?)
+  `).run(title.slice(0, 120), documentType.slice(0, 60), problemText.slice(0, 1200), correctionText.slice(0, 1200));
+  res.json({ success: true, id: result.lastInsertRowid });
+});
+
+app.delete('/api/intake/training/:id', (req, res) => {
+  db.prepare('UPDATE intake_training_examples SET active=0 WHERE id=?').run(req.params.id);
+  res.json({ success: true });
 });
 
 // ── COMPANIES ─────────────────────────────────────────────────────
