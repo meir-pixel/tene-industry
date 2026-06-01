@@ -2715,6 +2715,7 @@ Return every printed or handwritten table row as a separate item.
 For handwritten factory cards, visible dimensions are centimeters. Return every visible side in length_cm exactly as written. Return the row's total cut length in total_length_cm exactly as written. Do not convert centimeters to millimeters yourself.
 Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
 Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
+Read every digit after the diameter symbol. A leading 1 is often handwritten very close to the Ø mark: do not read Ø16 as Ø6 just because the 1 touches or overlaps the symbol. Inspect consecutive rows carefully when the same diameter repeats.
 For a fully closed rectangular stirrup with the small 90-degree overlap mark, never return an open hooked bar. Include the full outer rectangle and the two overlap tails as segments.
 When the row gives a total cut length and a rectangular stirrup sketch with outer width W and height H, calculate remaining tail length as (total - 2*W - 2*H) / 2. Return six segments: [W,H,W,H,tail,tail].
 Example: total 215 cm with a 60 by 40 cm closed stirrup becomes [60,40,60,40,7.5,7.5] cm. Total 205 cm with a 60 by 35 cm closed stirrup becomes [60,35,60,35,7.5,7.5] cm.
