@@ -84,7 +84,8 @@
       return generic(seg);
     }
     function closed(s){
-      const top=Number(s[0]?.length_mm||0),side=Number(s[1]?.length_mm||0),bottom=Number(s[2]?.length_mm||top),left=Number(s[3]?.length_mm||side),tail1=Number(s[4]?.length_mm||0),tail2=Number(s[5]?.length_mm||0);
+      const values=s.map(part=>Number(part.length_mm||0)),tailsAtEnds=values.length>=6&&values[0]<values[1]&&values[5]<values[4],outer=tailsAtEnds?values.slice(1,5):values.slice(0,4),tails=tailsAtEnds?[values[0],values[5]]:values.slice(4,6);
+      const top=outer[0]||0,side=outer[1]||0,bottom=outer[2]||top,left=outer[3]||side,tail1=tails[0]||0,tail2=tails[1]||0;
       return `<svg viewBox="0 0 360 190"><rect class="shape" x="74" y="42" width="212" height="106"/><path class="angle" d="M225 42v32h32"/><text class="measure" x="180" y="30" text-anchor="middle">${top}</text><text class="measure" x="180" y="170" text-anchor="middle">${bottom}</text><text class="measure" x="55" y="100" text-anchor="middle">${left}</text><text class="measure" x="307" y="100" text-anchor="middle">${side}</text><text class="detail" x="238" y="91">${tail1}</text><text class="detail" x="260" y="42">${tail2}</text></svg>`
     }
     function spiral(s){
