@@ -13,11 +13,12 @@
     --danger:  #e74c3c;
     --warning: #f39c12;
     --info:    #3498db;
-    --bg:      #0f1117;
-    --card:    #1a1d27;
-    --border:  #2a2d3a;
-    --text:    #e8eaf0;
-    --muted:   #7f8898;
+    --bg:      #eef3f7;
+    --card:    #ffffff;
+    --soft:    #f8fbfd;
+    --border:  #d8e2ec;
+    --text:    #182636;
+    --muted:   #6b7a8b;
     --radius:  12px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -85,11 +86,11 @@
 
   /* QUEUE ITEMS */
   .queue-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
-  .queue-item { background: var(--bg); border-radius: 8px; padding: 12px 14px;
+  .queue-item { background: var(--soft); border-radius: 8px; padding: 12px 14px;
                 border: 1px solid var(--border); cursor: pointer; transition: all .2s;
                 display: flex; flex-direction: column; gap: 6px; }
-  .queue-item:hover { border-color: var(--accent); }
-  .queue-item.active-item { border-color: var(--success); background: rgba(39,174,96,.06); }
+  .queue-item:hover { border-color: var(--accent); box-shadow: 0 8px 20px rgba(24,38,54,.08); transform: translateY(-1px); }
+  .queue-item.active-item { border-color: var(--success); background: #effaf4; }
   .queue-item.active-item .item-status-badge { background: rgba(39,174,96,.2); color: var(--success); }
   .item-top { display: flex; align-items: center; gap: 8px; }
   .item-order { font-size: 13px; font-weight: 700; color: var(--accent); }
@@ -131,7 +132,7 @@
                   display: flex; justify-content: flex-end; gap: 8px; }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   .form-group label { font-size: 13px; color: var(--muted); font-weight: 500; }
-  .form-control { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  .form-control { background: var(--soft); border: 1px solid var(--border); border-radius: 8px;
                   padding: 10px 14px; color: var(--text); font-family: 'Heebo', sans-serif;
                   font-size: 14px; width: 100%; }
   .form-control:focus { outline: none; border-color: var(--accent); }
@@ -462,9 +463,8 @@ function renderQueueItem(item) {
                         item.priority === 'גבוה' ? 'badge-high' : 'badge-normal';
 
   const segments = safeJson(item.segments);
-  const dims = segments && segments.length > 0
-    ? segments.slice(0,3).map(s => typeof s === 'object' ? (s.length || s) : s).join(' / ') + ' מ"מ'
-    : '';
+  const dims = formatSegments(segments);
+  const totalLength = item.total_length_mm || segmentTotal(segments);
 
   return `
     <div class="queue-item ${isActive ? 'active-item' : ''}" onclick="toggleItemActions(${item.id})">
@@ -478,7 +478,8 @@ function renderQueueItem(item) {
         <span class="item-detail"><strong>קוטר</strong> ⌀${item.diameter}</span>
         <span class="item-detail"><strong>כמות</strong> ${item.produced_qty||0}/${item.quantity}</span>
         <span class="item-detail"><strong>משקל</strong> ${Math.round(item.weight||0)} ק"ג</span>
-        ${item.shape_name ? `<span class="item-detail"><strong>צורה</strong> ${item.shape_name}</span>` : ''}
+        ${totalLength ? `<span class="item-detail"><strong>אורך</strong> ${Math.round(totalLength)} מ"מ</span>` : ''}
+        ${item.shape_name ? `<span class="item-detail"><strong>צורה</strong> ${shapeLabel(item.shape_name)}</span>` : ''}
         ${dims ? `<span class="item-detail"><strong>מידות</strong> ${dims}</span>` : ''}
         ${item.delivery_date ? `<span class="item-detail"><strong>אספקה</strong> ${item.delivery_date}</span>` : ''}
       </div>
@@ -497,6 +498,29 @@ function renderQueueItem(item) {
 function safeJson(str) {
   if (!str) return null;
   try { return typeof str === 'string' ? JSON.parse(str) : str; } catch(e) { return null; }
+}
+
+function segmentLength(segment) {
+  if (segment && typeof segment === 'object') return Number(segment.length_mm ?? segment.length ?? 0);
+  return Number(segment || 0);
+}
+
+function segmentTotal(segments) {
+  return Array.isArray(segments) ? segments.reduce((sum, segment) => sum + segmentLength(segment), 0) : 0;
+}
+
+function formatSegments(segments) {
+  if (!Array.isArray(segments) || !segments.length) return '';
+  const values = segments.map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
+  return values.length ? `${values.join(' / ')} מ"מ` : '';
+}
+
+function shapeLabel(shapeName) {
+  const name = String(shapeName || '').toLowerCase();
+  if (name.includes('open u') || name.includes('open bar')) return 'צורת ח פתוחה';
+  if (name.includes('closed') || name.includes('stirrup')) return 'חישוק סגור';
+  if (name.includes('straight')) return 'מוט ישר';
+  return shapeName;
 }
 
 function toggleItemActions(itemId) {
