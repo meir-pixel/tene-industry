@@ -790,6 +790,12 @@ const authLoginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+const imageAnalysisLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 function parseCookies(req) {
   return Object.fromEntries(
@@ -1089,11 +1095,15 @@ app.get('/api/customers', (req, res) => {
   // BUG-26: no portal_token in list response
   const rows = db.prepare(`
     SELECT c.id,c.name,c.phone,c.email,c.address,c.contact_name,c.contact_phone,c.priority_id,c.notes,
-           c.price_tier,c.discount_pct,c.balance,c.credit_limit,c.created_at,
+           c.price_tier,c.discount_pct,
+           COALESCE(cc.open_debt,0) AS balance,
+           COALESCE(cc.credit_limit,0) AS credit_limit,
+           c.created_at,
            COUNT(o.id)        AS order_count,
            COALESCE(SUM(o.total_weight),0) AS total_weight_sum,
            MAX(o.created_at)  AS last_order_at
     FROM customers c
+    LEFT JOIN customer_credit cc ON cc.customer_id = c.id
     LEFT JOIN orders o ON o.customer_id = c.id
     WHERE c.name LIKE ? OR c.phone LIKE ? OR c.priority_id LIKE ?
     GROUP BY c.id
@@ -1104,9 +1114,9 @@ app.get('/api/customers', (req, res) => {
 });
 
 // BUG-26: no portal_token in admin customer detail — use dedicated /token endpoint
-const CUSTOMER_ADMIN_COLS = 'id,name,phone,email,address,contact_name,contact_phone,priority_id,notes,price_tier,discount_pct,balance,credit_limit,created_at';
+const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
 app.get('/api/customers/:id', (req, res) => {
-  const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers WHERE id=?`).get(req.params.id);
+  const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers c LEFT JOIN customer_credit cc ON cc.customer_id=c.id WHERE c.id=?`).get(req.params.id);
   if (!c) return res.status(404).json({ error: 'לא נמצא' });
   c.orders = db.prepare(`
     SELECT id, order_num, status, created_at, total_weight, delivery_date, priority, channel
@@ -2662,7 +2672,7 @@ if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (
 
 // The reviewed order screen uses OpenAI for image and PDF extraction. Results
 // still return to the existing editable preview before an order is created.
-app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
+app.post('/api/analyze-image', imageAnalysisLimiter, upload.single('image'), async (req, res) => {
   if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
@@ -2752,6 +2762,9 @@ Return JSON that matches the requested schema only.`;
       }
       if (![6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40].includes(Number(item.diameter))) {
         notes.push(`Review required: diameter ${item.diameter} mm is not supported; verify the handwritten value.`);
+      }
+      if (Number(item.diameter) === 6) {
+        notes.push('Review required: handwritten Ø6 can overlap visually with Ø16; verify the full diameter before approval.');
       }
       return {
         ...item,
@@ -4483,8 +4496,8 @@ app.get('/api/waste/summary', (req, res) => {
   const toDate   = to   || new Date().toISOString().split('T')[0];
   res.json({
     period: { from:fromDate, to:toDate },
-    byDiameter: db.prepare('SELECT i.diameter,SUM(i.quantity) as items_produced,SUM(i.weight) as net_weight,SUM(i.actual_waste) as actual_waste_g,ROUND(AVG(CAST(i.actual_waste AS REAL)/NULLIF(i.total_length_mm,0)*100),2) as waste_pct FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 GROUP BY i.diameter ORDER BY i.diameter').all(fromDate,toDate),
-    topWaste: db.prepare('SELECT o.order_num,i.diameter,i.actual_waste,i.weight,i.shape_name FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 ORDER BY i.actual_waste DESC LIMIT 20').all(fromDate,toDate),
+    byDiameter: db.prepare('SELECT i.diameter,SUM(i.quantity) as items_produced,SUM(i.total_weight) as net_weight,SUM(i.actual_waste) as actual_waste_g,ROUND(AVG(CAST(i.actual_waste AS REAL)/NULLIF(i.total_length_mm,0)*100),2) as waste_pct FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 GROUP BY i.diameter ORDER BY i.diameter').all(fromDate,toDate),
+    topWaste: db.prepare('SELECT o.order_num,i.diameter,i.actual_waste,i.total_weight AS weight,i.shape_name FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 ORDER BY i.actual_waste DESC LIMIT 20').all(fromDate,toDate),
     rawMaterial: db.prepare('SELECT diameter,SUM(weight_scrapped) as total_scrapped,SUM(weight_received) as total_received,ROUND(100.0*SUM(weight_scrapped)/NULLIF(SUM(weight_received),0),1) as scrap_pct FROM raw_material GROUP BY diameter ORDER BY diameter').all(),
   });
 });
@@ -4687,7 +4700,7 @@ app.get('/api/production-queue', (req, res) => {
   const { machine } = req.query;
   let q = `
     SELECT i.id, i.pallet_id, i.shape_id, i.shape_name, i.diameter,
-           i.quantity, i.produced_qty, i.weight, i.status, i.machine,
+           i.quantity, i.produced_qty, i.total_weight AS weight, i.status, i.machine,
            i.segments, i.note, i.qc_status,
            p.order_id, p.pallet_num,
            o.order_num, o.priority, o.delivery_date, o.customer_id,
@@ -4756,7 +4769,7 @@ app.get('/api/machines/oee', (req, res) => {
 
     // Tons today
     const tonsToday = db.prepare(
-      `SELECT COALESCE(SUM(i.weight),0)/1000 as tons FROM items i WHERE i.machine=? AND DATE(i.completed_at)=?`
+      `SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons FROM items i WHERE i.machine=? AND DATE(i.completed_at)=?`
     ).get(m.name, today).tons;
 
     const oee = Math.round(availability * 1 * quality * 100); // simplified (no performance factor)
@@ -4772,7 +4785,7 @@ app.get('/api/orders/:id/margin', (req, res) => {
 
   // Cost of steel: use steel_price_history (latest per diameter) × weight per diameter
   const itemsByDiam = db.prepare(`
-    SELECT i.diameter, SUM(i.weight) as total_weight
+    SELECT i.diameter, SUM(i.total_weight) as total_weight
     FROM items i JOIN pallets p ON i.pallet_id=p.id
     WHERE p.order_id=?
     GROUP BY i.diameter
@@ -4811,7 +4824,7 @@ app.get('/api/inventory/forecast', (req, res) => {
   // Consumption rate: avg kg/day per diameter over last 30 days
   const consumption = db.prepare(`
     SELECT i.diameter,
-           COALESCE(SUM(i.weight),0) / 30 as avg_daily_kg
+           COALESCE(SUM(i.total_weight),0) / 30 as avg_daily_kg
     FROM items i
     JOIN pallets p ON i.pallet_id=p.id
     JOIN orders o ON p.order_id=o.id
@@ -4856,7 +4869,7 @@ app.get('/api/inventory/forecast', (req, res) => {
 app.get('/api/kpi/tons-today', (req, res) => {
   const today = new Date().toISOString().slice(0,10);
   const r = db.prepare(`
-    SELECT COALESCE(SUM(i.weight),0)/1000 as tons
+    SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons
     FROM items i
     WHERE i.status='הושלם' AND DATE(i.completed_at)=?
   `).get(today);
