@@ -24,7 +24,7 @@
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.card{background:#fff;border:2px solid var(--blue);border-radius:15px;overflow:hidden}
     .card-head{display:grid;grid-template-columns:1.25fr .85fr .7fr .9fr;background:#e4f1f5;padding:10px 12px;gap:8px;align-items:center}.card-head b{font-size:18px}.datum{font-weight:700;text-align:center;white-space:nowrap}.datum strong{font-size:20px}
     .drawing{height:205px;padding:6px;background:#fff}.drawing svg{width:100%;height:100%;display:block}.shape{fill:none;stroke:#0c5475;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}.angle{fill:none;stroke:#0c5475;stroke-width:4}.measure{fill:#062c46;font-size:15px;font-weight:700}.detail{fill:#79510a;font-size:13px;font-weight:700}
-    .card-foot{padding:9px;background:#e8f5ef}.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.actions button{padding:10px 4px;border:1px solid #b8cfd8;border-radius:9px;background:#fff;color:var(--ink);font-size:11px;font-weight:700;cursor:pointer}.actions button.active{background:var(--teal);color:#fff;border-color:var(--teal)}.actions button.done.active{background:var(--done)}.meta{font-size:11px;color:#55737e;margin-top:7px;display:flex;gap:8px;justify-content:space-between}
+    .card-foot{padding:9px;background:#e8f5ef}.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.actions button{padding:10px 4px;border:1px solid #b8cfd8;border-radius:9px;background:#fff;color:var(--ink);font-size:11px;font-weight:700;cursor:pointer}.actions button.active{background:var(--teal);color:#fff;border-color:var(--teal)}.actions button.done.active{background:var(--done)}.actions button.supplied.active{background:var(--supplied)}.meta{font-size:11px;color:#55737e;margin-top:7px;display:flex;gap:8px;justify-content:space-between}
     .empty{background:#fff;border:1px dashed var(--line);padding:38px;border-radius:14px;text-align:center;color:#567784}
     @media(max-width:760px){header h1{font-size:18px}.progress{top:62px;padding:8px;gap:6px}.metric{grid-template-columns:1fr auto}.metric .bar{grid-column:1/-1}.columns{display:block}.tabs{display:flex}.panel{margin-bottom:12px}.panel.mobile-hidden,.stage.mobile-hidden{display:none}#orders{max-height:240px}.grid{grid-template-columns:1fr}.drawing{height:190px}}
   </style>
@@ -46,9 +46,9 @@
   <script src="/auth-client.js"></script>
   <script>
     const state={items:[],selected:null};
-    const statusKey=s=>s==='בייצור'?'production':s==='הושלם'?'done':'waiting';
+    const statusKey=s=>s==='בייצור'?'production':s==='הושלם'?'done':s==='סופק'?'supplied':'waiting';
     const statusText={waiting:'WAITING',production:'IN PRODUCTION',done:'DONE',supplied:'SUPPLIED'};
-    const apiStatus={waiting:'ממתין',production:'בייצור',done:'הושלם'};
+    const apiStatus={waiting:'ממתין',production:'בייצור',done:'הושלם',supplied:'סופק'};
     const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const segments=item=>{try{return JSON.parse(item.segments||'[]')}catch{return[]}};
     const total=item=>Number(item.total_length_mm)||segments(item).reduce((n,s)=>n+Number(s.length_mm||0),0);
@@ -75,7 +75,7 @@
     }
     function card(item,index){
       const key=supplied(item)?'supplied':statusKey(item.status);
-      return `<article class="card"><div class="card-head"><b>ITEM ${index+1}</b><div class="datum"><strong>${Number(item.quantity)||0}</strong> PCS</div><div class="datum">Ø <strong>${esc(item.diameter||'-')}</strong></div><div class="datum">L <strong>${total(item)}</strong> mm</div></div><div class="drawing">${drawing(item)}</div><div class="card-foot"><div class="actions">${['waiting','production','done'].map(k=>`<button class="${k==='done'?'done ':''}${k===key?'active':''}" onclick="setStatus(${item.id},'${k}')">${statusText[k]}</button>`).join('')}</div><div class="meta"><span>${esc(item.machine||'UNASSIGNED')}</span><span>${key==='supplied'?'SUPPLIED':esc(item.shape_name||'SHAPE')}</span></div></div></article>`
+      return `<article class="card"><div class="card-head"><b>ITEM ${index+1}</b><div class="datum"><strong>${Number(item.quantity)||0}</strong> PCS</div><div class="datum">Ø <strong>${esc(item.diameter||'-')}</strong></div><div class="datum">L <strong>${total(item)}</strong> mm</div></div><div class="drawing">${drawing(item)}</div><div class="card-foot"><div class="actions">${['waiting','production','done','supplied'].map(k=>`<button class="${k==='done'?'done ':''}${k==='supplied'?'supplied ':''}${k===key?'active':''}" onclick="setStatus(${item.id},'${k}')">${statusText[k]}</button>`).join('')}</div><div class="meta"><span>${esc(item.machine||'UNASSIGNED')}</span><span>${key==='supplied'?'SUPPLIED':esc(item.shape_name||'SHAPE')}</span></div></div></article>`
     }
     function drawing(item){
       const seg=segments(item),name=String(item.shape_name||'').toLowerCase();
@@ -101,12 +101,12 @@
       const labels=lines.map(l=>`<text class="measure" x="${(ox+(l.x1+l.x2)*scale/2).toFixed(1)}" y="${(oy+(l.y1+l.y2)*scale/2-10).toFixed(1)}" text-anchor="middle">${l.len}</text>`).join('');
       return `<svg viewBox="0 0 360 190"><path class="shape" d="${path}"/>${labels}</svg>`
     }
-    async function setStatus(id,key){await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:apiStatus[key]})});await load()}
+    async function setStatus(id,key){const r=await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:apiStatus[key]})});if(r.ok){const item=state.items.find(item=>item.id===id);if(item)item.status=apiStatus[key];render()}}
     function selectOrder(id){state.selected=id;render();document.querySelector('.panel').classList.add('mobile-hidden');document.querySelector('.stage').classList.remove('mobile-hidden')}
     async function load(){try{const r=await fetch('/api/production-queue?visual=1');if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='LIVE';render()}catch{document.querySelector('#sync').textContent='RECONNECTING'}}
     document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelector('.panel').classList.toggle('mobile-hidden',b.dataset.pane!=='panel');document.querySelector('.stage').classList.toggle('mobile-hidden',b.dataset.pane!=='stage')});
-    function ws(){try{const socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=()=>load();socket.onclose=()=>setTimeout(ws,2000)}catch{}}
-    load();ws();setInterval(load,2000);
+    function ws(){try{const socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=event=>{try{if(['item_status','new_order','order_status'].includes(JSON.parse(event.data).type))load()}catch{}};socket.onclose=()=>setTimeout(ws,2000)}catch{}}
+    load();ws();
   </script>
 </body>
 </html>
