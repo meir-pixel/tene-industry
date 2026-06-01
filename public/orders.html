@@ -106,34 +106,46 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 }
 
 /* ── DETAIL PANEL ── */
-.detail-overlay{position:fixed;inset:0;background:rgba(24,38,54,0.32);z-index:500;
-  display:flex;align-items:flex-start;justify-content:flex-start;
-  opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(1px);}
+.detail-overlay{position:fixed;inset:56px 0 0;background:rgba(2,26,72,0.18);z-index:500;
+  display:flex;align-items:flex-start;justify-content:center;padding:20px;
+  opacity:0;pointer-events:none;transition:opacity .18s;backdrop-filter:blur(3px);}
 .detail-overlay.show{opacity:1;pointer-events:all;}
-.detail-panel{width:720px;max-width:100vw;height:100vh;overflow-y:auto;
-  background:var(--card);border-left:1px solid var(--border);
-  transform:translateX(-24px);transition:transform .22s;
-  box-shadow:0 18px 55px rgba(24,38,54,0.24);}
-.detail-overlay.show .detail-panel{transform:translateX(0);}
-.detail-header{padding:14px 18px;border-bottom:1px solid var(--border);position:sticky;top:0;
-  background:var(--card);z-index:10;display:flex;align-items:center;justify-content:space-between;gap:10px;}
-.detail-order-num{font-size:19px;font-weight:900;color:var(--accent);}
+.detail-panel{width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow-y:auto;
+  background:linear-gradient(180deg,#fff 0%,#f8fafc 100%);border:1px solid rgba(2,26,72,0.12);
+  border-radius:22px;transform:translateY(12px) scale(.985);transition:transform .18s;
+  box-shadow:0 24px 80px rgba(2,26,72,0.26);}
+.detail-overlay.show .detail-panel{transform:translateY(0) scale(1);}
+.detail-header{padding:18px 22px;border-bottom:1px solid rgba(2,26,72,0.10);position:sticky;top:0;
+  background:rgba(255,255,255,0.94);backdrop-filter:blur(10px);z-index:10;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.detail-order-num{font-size:24px;font-weight:900;color:var(--accent);line-height:1;}
 .detail-customer{font-size:13px;color:var(--dim);margin-top:2px;}
 .detail-close{width:38px;height:38px;background:rgba(0,0,0,0.04);border:1px solid var(--border);
   border-radius:8px;color:var(--text);cursor:pointer;font-size:18px;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.detail-body{padding:16px;display:flex;flex-direction:column;gap:14px;}
-.d-section{background:rgba(0,0,0,0.02);border-radius:10px;padding:14px;}
-.d-title{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.info-label{font-size:10px;color:var(--dim);margin-bottom:2px;}
-.info-value{font-size:13px;font-weight:600;}
+.detail-body{padding:18px 22px 24px;display:flex;flex-direction:column;gap:14px;}
+.detail-hero{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;align-items:stretch;}
+.hero-card{background:#fff;border:1px solid rgba(2,26,72,0.10);border-radius:18px;padding:18px;
+  box-shadow:0 8px 28px rgba(2,26,72,0.07);}
+.hero-title{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px;}
+.hero-main{font-size:22px;font-weight:900;color:var(--text);line-height:1.25;}
+.hero-metric{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px;}
+.metric-box{background:#f4f7fb;border-radius:12px;padding:10px 12px;}
+.metric-label{font-size:10px;font-weight:700;color:var(--muted);margin-bottom:2px;}
+.metric-value{font-size:15px;font-weight:900;color:var(--text);}
+.d-section{background:#fff;border:1px solid rgba(2,26,72,0.09);border-radius:16px;padding:16px;
+  box-shadow:0 6px 20px rgba(2,26,72,0.05);}
+.d-title{font-size:12px;font-weight:900;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.info-label{font-size:10px;font-weight:700;color:var(--dim);margin-bottom:3px;}
+.info-value{font-size:14px;font-weight:700;}
 .status-actions{display:flex;gap:6px;flex-wrap:wrap;}
 .status-btn{padding:8px 13px;border-radius:8px;border:1px solid var(--border);background:rgba(0,0,0,0.02);
   color:var(--dim);font-family:'Heebo',sans-serif;font-size:12px;font-weight:600;
   cursor:pointer;transition:all .15s;min-height:40px;-webkit-tap-highlight-color:transparent;}
 .status-btn:hover,.status-btn.cur{border-color:var(--accent);color:var(--accent);background:rgba(224,123,57,0.08);}
-.item-row{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.04);align-items:center;}
+.item-row{display:flex;gap:12px;padding:12px;border:1px solid rgba(2,26,72,0.08);border-radius:12px;
+  margin-bottom:8px;background:#fbfcfe;align-items:center;}
 .item-row:last-child{border-bottom:none;}
 .item-status{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
 .is-wait{background:rgba(122,147,171,0.15);color:var(--dim);}
@@ -141,13 +153,18 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .is-done{background:rgba(26,122,66,0.15);color:var(--success);}
 .prog-bar{height:3px;background:rgba(0,0,0,0.06);border-radius:2px;margin-top:4px;}
 .prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s;}
-.print-btns{display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px;}
+.print-btns{display:flex;gap:10px;flex-wrap:wrap;}
 .print-btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;
-  text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;color:#fff;}
+  text-decoration:none;border-radius:12px;font-size:14px;font-weight:800;font-family:inherit;color:#fff;
+  box-shadow:0 8px 22px rgba(2,26,72,0.12);}
 
 @media(max-width:640px){
-  .detail-panel{width:100vw;border-left:none;}
+  .detail-overlay{inset:56px 0 0;padding:0;background:rgba(2,26,72,0.24);}
+  .detail-panel{width:100vw;max-height:calc(100vh - 56px);border-radius:18px 18px 0 0;border-left:none;border-right:none;border-bottom:none;}
+  .detail-body{padding:14px;}
+  .detail-hero{grid-template-columns:1fr;}
   .info-grid{grid-template-columns:1fr;}
+  .hero-metric{grid-template-columns:1fr 1fr;}
   .print-btns{flex-direction:column;}
   .print-btn{justify-content:center;}
 }
@@ -418,16 +435,41 @@ function needsReview(item) {
 }
 
 function buildDetailHTML(o, pkgs) {
+  const totalItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).length, 0);
+  const reviewItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).filter(needsReview).length, 0);
+  const totalPallets = (o.pallets || []).length;
+
+  const hero = `<div class="detail-hero">
+    <div class="hero-card">
+      <div class="hero-title">לקוח / הזמנה</div>
+      <div class="hero-main">${o.customer_name ?? '—'}</div>
+      <div style="margin-top:8px"><span class="badge ${sBadgeClass(o.status)}">${o.status}</span></div>
+      <div class="hero-metric">
+        <div class="metric-box"><div class="metric-label">אספקה</div><div class="metric-value">${o.delivery_date ?? '—'}</div></div>
+        <div class="metric-box"><div class="metric-label">משקל</div><div class="metric-value" style="color:var(--accent)">${(o.total_weight||0).toFixed(1)} ק"ג</div></div>
+      </div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-title">סיכום ייצור</div>
+      <div class="hero-metric" style="margin-top:0">
+        <div class="metric-box"><div class="metric-label">משטחים</div><div class="metric-value">${totalPallets}</div></div>
+        <div class="metric-box"><div class="metric-label">פריטים</div><div class="metric-value">${totalItems}</div></div>
+        <div class="metric-box"><div class="metric-label">דורש בדיקה</div><div class="metric-value" style="color:${reviewItems ? 'var(--warning)' : 'var(--success)'}">${reviewItems}</div></div>
+        <div class="metric-box"><div class="metric-label">עדיפות</div><div class="metric-value">${o.priority || 'רגיל'}</div></div>
+      </div>
+    </div>
+  </div>`;
+
   // ── Print buttons
   const prints = `<div class="print-btns">
-    <a class="print-btn" href="/api/orders/${o.id}/print-cards" target="_blank" style="background:#1a2332">🖨️ כרטיסיות ייצור</a>
-    <a class="print-btn" href="/api/orders/${o.id}/print-a4" target="_blank" style="background:#1a5c2e">📄 הדפסת A4</a>
-    <a class="print-btn" href="/api/orders/${o.id}/delivery-certificate" target="_blank" style="background:#5c1a6e">📋 תעודת משלוח</a>
+    <a class="print-btn" href="/api/orders/${o.id}/print-cards" target="_blank" style="background:linear-gradient(135deg,#021A48,#17356f)">🖨️ כרטיסיות ייצור</a>
+    <a class="print-btn" href="/api/orders/${o.id}/print-a4" target="_blank" style="background:linear-gradient(135deg,#1a7a42,#0f5a2f)">📄 הדפסת A4</a>
+    <a class="print-btn" href="/api/orders/${o.id}/delivery-certificate" target="_blank" style="background:linear-gradient(135deg,#6d217d,#481652)">📋 תעודת משלוח</a>
   </div>`;
 
   // ── Info
   const info = `<div class="d-section">
-    <div class="d-title">פרטי הזמנה</div>
+    <div class="d-title">📌 פרטי הזמנה</div>
     <div class="info-grid">
       <div><div class="info-label">לקוח</div><div class="info-value">${o.customer_name??'—'}</div></div>
       <div><div class="info-label">ערוץ</div><div class="info-value">${o.channel??'—'}</div></div>
@@ -444,7 +486,7 @@ function buildDetailHTML(o, pkgs) {
   // ── Status
   const statuses = ['ממתינה לאישור','אושרה – ממתין לייצור','בתור ייצור','בייצור','הושלם – ממתין לאיסוף','נשלחה','סופק – אושר'];
   const statusSec = `<div class="d-section">
-    <div class="d-title">עדכון סטטוס</div>
+    <div class="d-title">🔁 עדכון סטטוס</div>
     <div class="status-actions">
       ${statuses.map(s => `<button class="status-btn${o.status===s?' cur':''}"
         onclick="setStatus(${o.id},'${s}').then(ok=>{if(ok)closeDetailPanel()})">${s}</button>`).join('')}
@@ -479,14 +521,14 @@ function buildDetailHTML(o, pkgs) {
       </div>`;
     }).join('');
     return `<div style="margin-bottom:12px">
-      <div style="font-weight:700;font-size:12px;color:var(--dim);margin-bottom:5px">📦 משטח ${pi+1} — ${totalW.toFixed(0)} ק"ג | ${pct}%</div>
+      <div style="font-weight:800;font-size:13px;color:var(--text);margin-bottom:6px">📦 משטח ${pi+1} — ${totalW.toFixed(0)} ק"ג | ${pct}%</div>
       <div class="prog-bar" style="margin-bottom:8px"><div class="prog-fill" style="width:${pct}%"></div></div>
       ${items||'<div style="color:var(--muted);font-size:12px;padding:4px 0">אין פריטים</div>'}
     </div>`;
   }).join('');
 
   const itemsSec = `<div class="d-section">
-    <div class="d-title">פריטים</div>
+    <div class="d-title">📦 פריטים לייצור</div>
     ${palletsHtml||'<div style="color:var(--muted);font-size:13px">אין פריטים</div>'}
   </div>`;
 
@@ -507,10 +549,10 @@ function buildDetailHTML(o, pkgs) {
         </div>
       </div>`;
     }).join('');
-    pkgSec = `<div class="d-section"><div class="d-title">חבילות</div>${pkgRows}</div>`;
+    pkgSec = `<div class="d-section"><div class="d-title">🏷️ חבילות</div>${pkgRows}</div>`;
   }
 
-  return prints + info + statusSec + itemsSec + pkgSec;
+  return hero + prints + info + statusSec + itemsSec + pkgSec;
 }
 
 function closeDetail(e) { if (e.target===document.getElementById('detailOverlay')) closeDetailPanel(); }
