@@ -1639,7 +1639,10 @@ app.get('/api/orders/:id/print-cards', (req, res) => {
   const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
   pallets.forEach(p => {
     p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id);
-    p.items.forEach(item => { item._palletNum = p.pallet_num; });
+    p.items.forEach(item => {
+      item._palletNum = p.pallet_num;
+      item.segments = JSON.stringify(normalizeFactorySegments(item.shape_name, tryParseJSON(item.segments, [])));
+    });
   });
   order.pallets = pallets;
 
@@ -2768,9 +2771,11 @@ For handwritten factory cards, visible dimensions are centimeters. Return every 
 Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
 Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
 Read every digit after the diameter symbol. A leading 1 is often handwritten very close to the Ø mark: do not read Ø16 as Ø6 just because the 1 touches or overlaps the symbol. Inspect consecutive rows carefully when the same diameter repeats.
-For a fully closed rectangular stirrup with the small 90-degree overlap mark, never return an open hooked bar. Include the full outer rectangle and the two overlap tails as segments.
-When the row gives a total cut length and a rectangular stirrup sketch with outer width W and height H, calculate remaining tail length as (total - 2*W - 2*H) / 2. Return six segments: [W,H,W,H,tail,tail].
-Example: total 215 cm with a 60 by 40 cm closed stirrup becomes [60,40,60,40,7.5,7.5] cm. Total 205 cm with a 60 by 35 cm closed stirrup becomes [60,35,60,35,7.5,7.5] cm.
+Trace every shape continuously from one physical end of the bar to the other. Do not group equal dimensions just because they look similar or are written close together.
+For an open U-shaped bar with two equal parallel legs and one base, return [leg,base,leg]. Example: two 80 cm legs and a 60 cm base become [80,60,80], not [80,80,60].
+For a fully closed rectangular stirrup with the small 90-degree overlap mark, never return an open hooked bar. Include the full outer rectangle and the two overlap tails as segments, with one tail at each end of the continuous trace.
+When the row gives a total cut length and a rectangular stirrup sketch with outer width W and height H, calculate remaining tail length as (total - 2*W - 2*H) / 2. Return six segments: [tail,W,H,W,H,tail].
+Example: total 215 cm with a 60 by 40 cm closed stirrup becomes [7.5,60,40,60,40,7.5] cm. Total 205 cm with a 60 by 35 cm closed stirrup becomes [7.5,60,35,60,35,7.5] cm.
 Name this shape "closed stirrup 90-degree overlap". If the sketch does not clearly show a closed rectangle and the small corner overlap, keep the conservative open shape and add a review note.
 For a spiral, name it "ספירלה" and include visible ring diameter and turns in note.
 Use one segment per visible side. angle_deg is the interior angle after that segment: 180 for straight, 90 for a square bend.
@@ -2788,10 +2793,10 @@ Return JSON that matches the requested schema only.`;
       .flatMap(entry => entry.content || [])
       .find(entry => entry.type === 'output_text')?.text;
     const items = (JSON.parse(text || '{}').items || []).map(item => {
-      const segments = (item.segments || []).map(segment => ({
+      const segments = normalizeFactorySegments(item.shape_name, (item.segments || []).map(segment => ({
         length_mm: (Number(segment.length_cm) || 0) * 10,
         angle_deg: Number(segment.angle_deg) || 0,
-      }));
+      })));
       const computedLength = segments.reduce((sum, segment) => sum + segment.length_mm, 0);
       const reportedLength = (Number(item.total_length_cm) || 0) * 10;
       const notes = [];
