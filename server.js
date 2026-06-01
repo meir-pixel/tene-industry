@@ -2711,7 +2711,8 @@ app.post('/api/analyze-image', requireRole('manager'), upload.single('image'), a
     required: ['items'],
   };
   const prompt = `Read this photographed or PDF steel production order carefully.
-Return every printed or handwritten table row as a separate item. Dimensions are usually centimeters: convert them to millimeters.
+Return every printed or handwritten table row as a separate item.
+For handwritten factory cards, visible dimensions are centimeters: always multiply them by 10 to return millimeters. This applies to every side and also to straight bars: a handwritten straight-bar length of 600 means 6000 mm.
 Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
 For a fully closed rectangular hoop with the small 90-degree overlap mark, include the full outer rectangle and the two overlap tails as segments.
 For a spiral, name it "ספירלה" and include visible ring diameter and turns in note.
@@ -2729,7 +2730,28 @@ Return JSON that matches the requested schema only.`;
     const text = (response.data?.output || [])
       .flatMap(entry => entry.content || [])
       .find(entry => entry.type === 'output_text')?.text;
-    const items = JSON.parse(text || '{}').items || [];
+    const items = (JSON.parse(text || '{}').items || []).map(item => {
+      const segments = (item.segments || []).map(segment => ({
+        length_mm: Number(segment.length_mm) || 0,
+        angle_deg: Number(segment.angle_deg) || 0,
+      }));
+      const computedLength = segments.reduce((sum, segment) => sum + segment.length_mm, 0);
+      const reportedLength = Number(item.total_length_mm) || 0;
+      const notes = [];
+      if (item.note) notes.push(item.note);
+      if (reportedLength && reportedLength !== computedLength) {
+        notes.push(`Review required: reported total ${reportedLength} mm differs from segment sum ${computedLength} mm. Segment sum is shown.`);
+      }
+      if (segments.some(segment => segment.length_mm > 0 && segment.length_mm < 1000)) {
+        notes.push('Review required: at least one extracted segment is shorter than 1000 mm; verify cm-to-mm conversion.');
+      }
+      return {
+        ...item,
+        segments,
+        total_length_mm: computedLength,
+        note: notes.join(' '),
+      };
+    });
     if (!items.length) return res.status(422).json({ error: 'No steel rows were recognized' });
     res.json({ success: true, items });
   } catch (err) {
