@@ -2764,6 +2764,13 @@ app.post('/api/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, 
     type: 'object',
     additionalProperties: false,
     properties: {
+      document_type: { type: ['string', 'null'] },
+      supplier_order_num: { type: ['string', 'null'] },
+      customer_name: { type: ['string', 'null'] },
+      customer_phone: { type: ['string', 'null'] },
+      delivery_date: { type: ['string', 'null'] },
+      delivery_address: { type: ['string', 'null'] },
+      notes: { type: ['string', 'null'] },
       items: {
         type: 'array',
         items: {
@@ -2793,10 +2800,19 @@ app.post('/api/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, 
         },
       },
     },
-    required: ['items'],
+    required: ['document_type', 'supplier_order_num', 'customer_name', 'customer_phone', 'delivery_date', 'delivery_address', 'notes', 'items'],
   };
   const prompt = `Read this photographed or PDF steel production order carefully.
 Return every printed or handwritten table row as a separate item.
+First identify the document format. If it is a TASSA / טסה supplier order:
+- Page 1 is usually a cover page. Extract the supplier order number from "הזמנה לספק מס'", the requested delivery date from "מועד אספקה", customer/contact name from "לכבוד" or the handwritten body, and phone from the handwritten body if present.
+- Later pages are "רשימת ברזל לכיפוף" / bending schedules. Extract each numbered table row as a separate item.
+- Do not treat the cover-page free text or phone line as a steel item.
+- Use the quantity from the "כמות" / units column only. Do not confuse weight/משקל, page totals, row numbers, or drawing labels with quantity.
+- Use the bar diameter from the diameter column or Ø mark. Use the row sketch dimensions for segments.
+- If the table gives a straight bar row, use the printed row length as one 180-degree segment.
+For document_type return a short label such as "tassa_pdf", "handwritten_cards", "bar_schedule", or "unknown".
+For supplier_order_num, customer_name, customer_phone, delivery_date, delivery_address, and notes return null when not visible. delivery_date must be YYYY-MM-DD when visible.
 For handwritten factory cards, visible dimensions are centimeters. Return every visible side in length_cm exactly as written. Return the row's total cut length in total_length_cm exactly as written. Do not convert centimeters to millimeters yourself.
 Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
 Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
@@ -2822,7 +2838,8 @@ Return JSON that matches the requested schema only.`;
     const text = (response.data?.output || [])
       .flatMap(entry => entry.content || [])
       .find(entry => entry.type === 'output_text')?.text;
-    const items = (JSON.parse(text || '{}').items || []).map(item => {
+    const parsedDocument = JSON.parse(text || '{}');
+    const items = (parsedDocument.items || []).map(item => {
       const segments = normalizeFactorySegments(item.shape_name, (item.segments || []).map(segment => ({
         length_mm: (Number(segment.length_cm) || 0) * 10,
         angle_deg: Number(segment.angle_deg) || 0,
@@ -2852,7 +2869,17 @@ Return JSON that matches the requested schema only.`;
       };
     });
     if (!items.length) return res.status(422).json({ error: 'No steel rows were recognized' });
-    res.json({ success: true, items });
+    res.json({
+      success: true,
+      document_type: parsedDocument.document_type || null,
+      supplier_order_num: parsedDocument.supplier_order_num || null,
+      customer_name: parsedDocument.customer_name || null,
+      customer_phone: parsedDocument.customer_phone || null,
+      delivery_date: parsedDocument.delivery_date || null,
+      delivery_address: parsedDocument.delivery_address || null,
+      notes: parsedDocument.notes || null,
+      items,
+    });
   } catch (err) {
     const message = err.response?.data?.error?.message || err.message;
     res.status(500).json({ error: `Document recognition failed: ${message}` });

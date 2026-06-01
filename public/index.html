@@ -1639,6 +1639,7 @@ function showToast(msg, isOffline = false) {
 <script>
 // ── IMAGE ANALYSIS ────────────────────────────────────────────────
 var _imgAnalyzedItems = [];
+var _imgAnalyzedMeta = {};
 
 function analyzeOrderImage(input) {
   if (!input.files || !input.files[0]) return;
@@ -1676,6 +1677,8 @@ function analyzeOrderImage(input) {
         return;
       }
       _imgAnalyzedItems = data.items;
+      _imgAnalyzedMeta = data || {};
+      applyAnalyzedMeta(data);
       renderImgItems(data.items);
       document.getElementById('imgResults').style.display = 'block';
     })
@@ -1688,6 +1691,27 @@ function analyzeOrderImage(input) {
 function showImgError(msg) {
   document.getElementById('imgErrorMsg').textContent = msg;
   document.getElementById('imgError').style.display = 'block';
+}
+
+function setIfEmpty(id, value) {
+  var el = document.getElementById(id);
+  if (!el || !value || String(value).trim() === '') return;
+  if (!el.value || !String(el.value).trim()) el.value = value;
+}
+
+function applyAnalyzedMeta(data) {
+  if (!data) return;
+  setIfEmpty('customerSearch', data.customer_name);
+  setIfEmpty('customerPhone', data.customer_phone);
+  setIfEmpty('deliveryDate', data.delivery_date);
+  setIfEmpty('deliveryAddress', data.delivery_address);
+  if (data.notes || data.supplier_order_num || data.document_type) {
+    var parts = [];
+    if (data.document_type) parts.push('מקור: ' + data.document_type);
+    if (data.supplier_order_num) parts.push('הזמנת ספק: ' + data.supplier_order_num);
+    if (data.notes) parts.push(data.notes);
+    setIfEmpty('driverNotes', parts.join(' | '));
+  }
 }
 
 function renderImgItems(items) {
@@ -1739,6 +1763,7 @@ function removeImgItem(i) {
 function confirmImgItems() {
   var toImport = _imgAnalyzedItems.filter(function(it) { return it !== null; });
   if (!toImport.length) { closeImgModal(); return; }
+  applyAnalyzedMeta(_imgAnalyzedMeta);
 
   // Make sure there is at least one pallet
   if (!pallets || !pallets.length) addPallet();
