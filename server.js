@@ -2662,7 +2662,7 @@ if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (
 
 // The reviewed order screen uses OpenAI for image and PDF extraction. Results
 // still return to the existing editable preview before an order is created.
-app.post('/api/analyze-image', requireRole('manager'), upload.single('image'), async (req, res) => {
+app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
   if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
@@ -2694,17 +2694,17 @@ app.post('/api/analyze-image', requireRole('manager'), upload.single('image'), a
                 type: 'object',
                 additionalProperties: false,
                 properties: {
-                  length_mm: { type: 'number' },
+                  length_cm: { type: 'number' },
                   angle_deg: { type: 'number' },
                 },
-                required: ['length_mm', 'angle_deg'],
+                required: ['length_cm', 'angle_deg'],
               },
             },
-            total_length_mm: { type: 'number' },
+            total_length_cm: { type: 'number' },
             material_grade: { type: 'string' },
             note: { type: 'string' },
           },
-          required: ['diameter', 'shape_name', 'quantity', 'segments', 'total_length_mm', 'material_grade', 'note'],
+          required: ['diameter', 'shape_name', 'quantity', 'segments', 'total_length_cm', 'material_grade', 'note'],
         },
       },
     },
@@ -2712,12 +2712,12 @@ app.post('/api/analyze-image', requireRole('manager'), upload.single('image'), a
   };
   const prompt = `Read this photographed or PDF steel production order carefully.
 Return every printed or handwritten table row as a separate item.
-For handwritten factory cards, visible dimensions are centimeters: always multiply them by 10 to return millimeters. This applies to every side and also to straight bars: a handwritten straight-bar length of 600 means 6000 mm.
+For handwritten factory cards, visible dimensions are centimeters. Return every visible side in length_cm exactly as written. Return the row's total cut length in total_length_cm exactly as written. Do not convert centimeters to millimeters yourself.
 Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
 Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
 For a fully closed rectangular stirrup with the small 90-degree overlap mark, never return an open hooked bar. Include the full outer rectangle and the two overlap tails as segments.
 When the row gives a total cut length and a rectangular stirrup sketch with outer width W and height H, calculate remaining tail length as (total - 2*W - 2*H) / 2. Return six segments: [W,H,W,H,tail,tail].
-Example: total 215 cm with a 60 by 40 cm closed stirrup becomes [600,400,600,400,75,75] mm. Total 205 cm with a 60 by 35 cm closed stirrup becomes [600,350,600,350,75,75] mm.
+Example: total 215 cm with a 60 by 40 cm closed stirrup becomes [60,40,60,40,7.5,7.5] cm. Total 205 cm with a 60 by 35 cm closed stirrup becomes [60,35,60,35,7.5,7.5] cm.
 Name this shape "closed stirrup 90-degree overlap". If the sketch does not clearly show a closed rectangle and the small corner overlap, keep the conservative open shape and add a review note.
 For a spiral, name it "ספירלה" and include visible ring diameter and turns in note.
 Use one segment per visible side. angle_deg is the interior angle after that segment: 180 for straight, 90 for a square bend.
@@ -2736,11 +2736,11 @@ Return JSON that matches the requested schema only.`;
       .find(entry => entry.type === 'output_text')?.text;
     const items = (JSON.parse(text || '{}').items || []).map(item => {
       const segments = (item.segments || []).map(segment => ({
-        length_mm: Number(segment.length_mm) || 0,
+        length_mm: (Number(segment.length_cm) || 0) * 10,
         angle_deg: Number(segment.angle_deg) || 0,
       }));
       const computedLength = segments.reduce((sum, segment) => sum + segment.length_mm, 0);
-      const reportedLength = Number(item.total_length_mm) || 0;
+      const reportedLength = (Number(item.total_length_cm) || 0) * 10;
       const notes = [];
       if (item.note) notes.push(item.note);
       if (reportedLength && reportedLength !== computedLength) {
