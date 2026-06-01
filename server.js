@@ -1212,7 +1212,7 @@ app.post('/api/orders/manual', (req, res) => {
 function normalizeFactorySegments(shapeName, sourceSegments) {
   const segments = (sourceSegments || []).map(segment => ({ ...segment }));
   const shape = String(shapeName || '').toLowerCase();
-  const isOpenU = /open|hook|anchor|אנקר|פתוח|צורת ח|\bu\b/.test(shape);
+  const isOpenU = /open|hook|anchor|closed|stirrup|overlap|אנקר|פתוח|צורת ח|חפיפה|אצבה|מסגרת|\bu\b/.test(shape);
   const isClosedOverlap = /closed|stirrup|overlap|חפיפה|אצבה|מסגרת/.test(shape);
 
   // OCR can group equal dimensions visually instead of tracing the bar.
@@ -1243,6 +1243,21 @@ function normalizeFactorySegments(shapeName, sourceSegments) {
   }
 
   return segments;
+}
+
+function normalizeFactoryShapeName(shapeName, segments) {
+  const shape = String(shapeName || '');
+  const lowerShape = shape.toLowerCase();
+  const lengths = (segments || []).map(segment => Number(segment.length_mm) || 0);
+  const factoryShape = /open|hook|anchor|closed|stirrup|overlap|אנקר|פתוח|צורת ח|חפיפה|אצבה|מסגרת|\bu\b/.test(lowerShape);
+
+  if (factoryShape && lengths.length === 3 && lengths[0] === lengths[2]) {
+    return 'open U-shaped bar';
+  }
+  if (factoryShape && lengths.length === 6 && lengths[0] === lengths[5]) {
+    return 'closed stirrup 90-degree overlap';
+  }
+  return shape;
 }
 
 function createOrderFromPayload(payload) {
@@ -1299,6 +1314,7 @@ function createOrderFromPayload(payload) {
         item.shapeName,
         sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }))
       );
+      const shapeName = normalizeFactoryShapeName(item.shapeName, segmentsArr);
       // BUG-38: server-side geometry validation
       const geoCheck = validateShapeGeometry(segmentsArr);
       if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
@@ -1310,7 +1326,7 @@ function createOrderFromPayload(payload) {
 
       db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(pr.lastInsertRowid, item.shapeId, item.shapeName, item.diameter,
+        .run(pr.lastInsertRowid, item.shapeId, shapeName, item.diameter,
              segments, totalLengthMm, item.qty || 1, productionQty,
              weightPerUnit, weightPerUnit * (item.qty || 1),
              item.note, item.structElement, item.structFloor, item.sheetNum, machine,
@@ -1641,7 +1657,9 @@ app.get('/api/orders/:id/print-cards', (req, res) => {
     p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id);
     p.items.forEach(item => {
       item._palletNum = p.pallet_num;
-      item.segments = JSON.stringify(normalizeFactorySegments(item.shape_name, tryParseJSON(item.segments, [])));
+      const segments = normalizeFactorySegments(item.shape_name, tryParseJSON(item.segments, []));
+      item.shape_name = normalizeFactoryShapeName(item.shape_name, segments);
+      item.segments = JSON.stringify(segments);
     });
   });
   order.pallets = pallets;
@@ -2815,6 +2833,7 @@ Return JSON that matches the requested schema only.`;
       }
       return {
         ...item,
+        shape_name: normalizeFactoryShapeName(item.shape_name, segments),
         segments,
         total_length_mm: computedLength,
         note: notes.join(' '),
@@ -4713,7 +4732,7 @@ app.post('/api/delivery-notes', (req, res) => {
 // ── ITEM STATUS / WASTE UPDATE ───────────────────────────────────
 app.patch('/api/items/:id/status', (req, res) => {
   const { status } = req.body;
-  const allowed = ['ממתין','בייצור','הושלם','בהמתנה','בוטל'];
+  const allowed = ['ממתין','בייצור','הושלם','סופק','בהמתנה','בוטל'];
   if (!allowed.includes(status)) return res.status(400).json({ error: 'invalid status' });
   const item = db.prepare('SELECT * FROM items WHERE id=?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'not found' });
@@ -4746,7 +4765,7 @@ app.patch('/api/items/:id', (req, res) => {
 app.get('/api/production-queue', (req, res) => {
   const { machine } = req.query;
   const visibleItemStatuses = req.query.visual === '1'
-    ? "('ממתין','בייצור','הושלם')"
+    ? "('ממתין','בייצור','הושלם','סופק')"
     : "('ממתין','בייצור')";
   let q = `
     SELECT i.id, i.pallet_id, i.shape_id, i.shape_name, i.diameter,
