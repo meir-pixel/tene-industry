@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>IronBend Visual Production</title>
+  <style>
+    :root{--navy:#0b4262;--blue:#0c567a;--teal:#17766d;--ink:#072e49;--line:#c8dce6;--bg:#edf5f7;--soft:#f8fcfd;--wait:#b56c14;--done:#467c3b;--supplied:#625194}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,sans-serif}
+    header{background:var(--navy);color:#fff;padding:14px 20px;display:flex;gap:18px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:4}
+    header h1{margin:0;font-size:24px}.brand small{display:block;letter-spacing:2px;color:#bce0ed;margin-bottom:3px}
+    .live{display:flex;align-items:center;gap:8px;font-weight:700}.dot{width:11px;height:11px;border-radius:50%;background:#4fe083;box-shadow:0 0 0 5px #ffffff18}
+    header a{color:#fff;text-decoration:none;border:1px solid #ffffff55;border-radius:8px;padding:8px 11px;font-weight:700}
+    .progress{background:#073653;padding:9px 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;color:#fff;position:sticky;top:67px;z-index:3}
+    .metric{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:12px;font-weight:700}
+    .bar{height:8px;background:#ffffff2c;border-radius:6px;overflow:hidden}.bar i{height:100%;display:block;background:#7cd8cf;border-radius:6px}
+    main{padding:18px;max-width:1500px;margin:auto}.tabs{display:none;margin-bottom:12px;gap:8px}.tabs button{flex:1;padding:12px;border:1px solid var(--line);background:#fff;border-radius:8px;font-weight:700;color:var(--ink)}
+    .columns{display:grid;grid-template-columns:285px 1fr;gap:16px}.panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .panel h2{font-size:17px;margin:0;padding:15px;border-bottom:1px solid var(--line)}#orders{padding:10px;display:grid;gap:8px;max-height:calc(100vh - 190px);overflow:auto}
+    .order{border:1px solid var(--line);border-radius:10px;padding:11px;text-align:left;background:var(--soft);color:var(--ink);cursor:pointer}.order.active{border:2px solid var(--teal);background:#e5f5f2}
+    .order strong,.order span{display:block}.order span{font-size:12px;margin-top:4px;color:#446777}
+    .stage{min-width:0}.order-head{background:var(--blue);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .order-head h2{font-size:21px;margin:0}.order-head span{display:block;margin-top:4px;font-size:13px;color:#d8f2fa}.order-head .badge{background:#ffffff22;border-radius:20px;padding:7px 12px;font-weight:700}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.card{background:#fff;border:2px solid var(--blue);border-radius:15px;overflow:hidden}
+    .card-head{display:grid;grid-template-columns:1.25fr .85fr .7fr .9fr;background:#e4f1f5;padding:10px 12px;gap:8px;align-items:center}.card-head b{font-size:18px}.datum{font-weight:700;text-align:center;white-space:nowrap}.datum strong{font-size:20px}
+    .drawing{height:205px;padding:6px;background:#fff}.drawing svg{width:100%;height:100%;display:block}.shape{fill:none;stroke:#0c5475;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}.angle{fill:none;stroke:#0c5475;stroke-width:4}.measure{fill:#062c46;font-size:15px;font-weight:700}.detail{fill:#79510a;font-size:13px;font-weight:700}
+    .card-foot{padding:9px;background:#e8f5ef}.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.actions button{padding:10px 4px;border:1px solid #b8cfd8;border-radius:9px;background:#fff;color:var(--ink);font-size:11px;font-weight:700;cursor:pointer}.actions button.active{background:var(--teal);color:#fff;border-color:var(--teal)}.actions button.done.active{background:var(--done)}.meta{font-size:11px;color:#55737e;margin-top:7px;display:flex;gap:8px;justify-content:space-between}
+    .empty{background:#fff;border:1px dashed var(--line);padding:38px;border-radius:14px;text-align:center;color:#567784}
+    @media(max-width:760px){header h1{font-size:18px}.progress{top:62px;padding:8px;gap:6px}.metric{grid-template-columns:1fr auto}.metric .bar{grid-column:1/-1}.columns{display:block}.tabs{display:flex}.panel{margin-bottom:12px}.panel.mobile-hidden,.stage.mobile-hidden{display:none}#orders{max-height:240px}.grid{grid-template-columns:1fr}.drawing{height:190px}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><small>TENE INDUSTRIES · CLOUD</small><h1>VISUAL PRODUCTION QUEUE</h1></div>
+    <div class="live"><i class="dot"></i><span id="sync">SYNCING</span></div>
+    <a href="/production-queue.html">ADVANCED</a>
+  </header>
+  <div class="progress" id="progress"></div>
+  <main>
+    <nav class="tabs"><button data-pane="stage">OPEN ORDER</button><button data-pane="panel">WAITING ORDERS</button></nav>
+    <div class="columns">
+      <aside class="panel"><h2>WAITING ORDERS <span id="count"></span></h2><div id="orders"></div></aside>
+      <section class="stage"><div id="orderHead"></div><div class="grid" id="cards"></div></section>
+    </div>
+  </main>
+  <script src="/auth-client.js"></script>
+  <script>
+    const state={items:[],selected:null};
+    const statusKey=s=>s==='בייצור'?'production':s==='הושלם'?'done':'waiting';
+    const statusText={waiting:'WAITING',production:'IN PRODUCTION',done:'DONE',supplied:'SUPPLIED'};
+    const apiStatus={waiting:'ממתין',production:'בייצור',done:'הושלם'};
+    const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const segments=item=>{try{return JSON.parse(item.segments||'[]')}catch{return[]}};
+    const total=item=>Number(item.total_length_mm)||segments(item).reduce((n,s)=>n+Number(s.length_mm||0),0);
+    const supplied=o=>/סופק|נשלח/.test(o.order_status||'');
+    function grouped(){const map=new Map();state.items.forEach(item=>{if(!map.has(item.order_id))map.set(item.order_id,{...item,items:[]});map.get(item.order_id).items.push(item)});return [...map.values()]}
+    function allProgress(){
+      const orders=grouped(),items=state.items,totalItems=items.length||1;
+      const counts={waiting:0,production:0,done:0,supplied:0};
+      items.forEach(i=>counts[supplied(i)?'supplied':statusKey(i.status)]++);
+      document.querySelector('#progress').innerHTML=Object.keys(counts).map(k=>{
+        const pct=Math.round(counts[k]*100/totalItems);
+        return `<div class="metric"><span>${statusText[k]}</span><span class="bar"><i style="width:${pct}%"></i></span><b>${counts[k]} · ${pct}%</b></div>`
+      }).join('');
+      document.querySelector('#count').textContent=`(${orders.length})`;
+    }
+    function render(){
+      const orders=grouped();
+      if(!orders.some(o=>o.order_id===state.selected))state.selected=orders[0]?.order_id||null;
+      allProgress();
+      document.querySelector('#orders').innerHTML=orders.length?orders.map(o=>`<button class="order ${o.order_id===state.selected?'active':''}" onclick="selectOrder(${o.order_id})"><strong>${esc(o.order_num||`ORDER ${o.order_id}`)}</strong><span>${esc(o.customer_name||'CUSTOMER')} · ${o.items.length} ITEMS</span><span>${o.items.filter(i=>statusKey(i.status)==='done').length}/${o.items.length} DONE</span></button>`).join(''):'<div class="empty">NO WAITING ORDERS</div>';
+      const order=orders.find(o=>o.order_id===state.selected);
+      document.querySelector('#orderHead').innerHTML=order?`<div class="order-head"><div><h2>${esc(order.order_num||`ORDER ${order.order_id}`)}</h2><span>${esc(order.customer_name||'CUSTOMER')} · ${esc(order.priority||'NORMAL')} PRIORITY</span></div><div class="badge">${order.items.length} ITEMS</div></div>`:'';
+      document.querySelector('#cards').innerHTML=order?order.items.map((item,index)=>card(item,index)).join(''):'<div class="empty">NO OPEN ORDER</div>';
+    }
+    function card(item,index){
+      const key=supplied(item)?'supplied':statusKey(item.status);
+      return `<article class="card"><div class="card-head"><b>ITEM ${index+1}</b><div class="datum"><strong>${Number(item.quantity)||0}</strong> PCS</div><div class="datum">Ø <strong>${esc(item.diameter||'-')}</strong></div><div class="datum">L <strong>${total(item)}</strong> mm</div></div><div class="drawing">${drawing(item)}</div><div class="card-foot"><div class="actions">${['waiting','production','done'].map(k=>`<button class="${k==='done'?'done ':''}${k===key?'active':''}" onclick="setStatus(${item.id},'${k}')">${statusText[k]}</button>`).join('')}</div><div class="meta"><span>${esc(item.machine||'UNASSIGNED')}</span><span>${key==='supplied'?'SUPPLIED':esc(item.shape_name||'SHAPE')}</span></div></div></article>`
+    }
+    function drawing(item){
+      const seg=segments(item),name=String(item.shape_name||'').toLowerCase();
+      if(/spiral|ספיר/.test(name))return spiral(seg);
+      if((/closed|stirrup|חישוק/.test(name)||seg.length===6)&&seg.length>=4)return closed(seg);
+      return generic(seg);
+    }
+    function closed(s){
+      const top=Number(s[0]?.length_mm||0),side=Number(s[1]?.length_mm||0),bottom=Number(s[2]?.length_mm||top),left=Number(s[3]?.length_mm||side),tail1=Number(s[4]?.length_mm||0),tail2=Number(s[5]?.length_mm||0);
+      return `<svg viewBox="0 0 360 190"><rect class="shape" x="74" y="42" width="212" height="106"/><path class="angle" d="M225 42v32h32"/><text class="measure" x="180" y="30" text-anchor="middle">${top}</text><text class="measure" x="180" y="170" text-anchor="middle">${bottom}</text><text class="measure" x="55" y="100" text-anchor="middle">${left}</text><text class="measure" x="307" y="100" text-anchor="middle">${side}</text><text class="detail" x="238" y="91">${tail1}</text><text class="detail" x="260" y="42">${tail2}</text></svg>`
+    }
+    function spiral(s){
+      const label=s.map(x=>Number(x.length_mm||0)).filter(Boolean).join(' / ')||'SPIRAL';
+      return `<svg viewBox="0 0 360 190"><polyline class="shape" points="68,150 68,38 292,38 292,150 98,150 98,67 262,67 262,121 128,121 128,92 230,92"/><text class="measure" x="180" y="177" text-anchor="middle">${esc(label)}</text><text class="detail" x="180" y="21" text-anchor="middle">SPIRAL</text></svg>`
+    }
+    function generic(s){
+      if(!s.length)return '<svg viewBox="0 0 360 190"><path class="shape" d="M55 100h250"/><text class="measure" x="180" y="83" text-anchor="middle">LENGTH</text></svg>';
+      let x=0,y=0,angle=0,pts=[{x,y}],lines=[];
+      s.forEach((part,i)=>{const len=Number(part.length_mm||0),rad=angle*Math.PI/180,nx=x+len*Math.cos(rad),ny=y+len*Math.sin(rad);lines.push({x1:x,y1:y,x2:nx,y2:ny,len});pts.push({x:nx,y:ny});x=nx;y=ny;angle+=Number(part.angle_deg||0)});
+      const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),scale=Math.min(260/Math.max(maxX-minX,1),115/Math.max(maxY-minY,1)),ox=180-(minX+maxX)*scale/2,oy=100-(minY+maxY)*scale/2;
+      const path=pts.map((p,i)=>`${i?'L':'M'}${(ox+p.x*scale).toFixed(1)},${(oy+p.y*scale).toFixed(1)}`).join(' ');
+      const labels=lines.map(l=>`<text class="measure" x="${(ox+(l.x1+l.x2)*scale/2).toFixed(1)}" y="${(oy+(l.y1+l.y2)*scale/2-10).toFixed(1)}" text-anchor="middle">${l.len}</text>`).join('');
+      return `<svg viewBox="0 0 360 190"><path class="shape" d="${path}"/>${labels}</svg>`
+    }
+    async function setStatus(id,key){await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:apiStatus[key]})});await load()}
+    function selectOrder(id){state.selected=id;render();document.querySelector('.panel').classList.add('mobile-hidden');document.querySelector('.stage').classList.remove('mobile-hidden')}
+    async function load(){try{const r=await fetch('/api/production-queue?visual=1');if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='LIVE';render()}catch{document.querySelector('#sync').textContent='RECONNECTING'}}
+    document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelector('.panel').classList.toggle('mobile-hidden',b.dataset.pane!=='panel');document.querySelector('.stage').classList.toggle('mobile-hidden',b.dataset.pane!=='stage')});
+    function ws(){try{const socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=()=>load();socket.onclose=()=>setTimeout(ws,2000)}catch{}}
+    load();ws();setInterval(load,2000);
+  </script>
+</body>
+</html>

@@ -1209,6 +1209,42 @@ app.post('/api/orders/manual', (req, res) => {
   res.json({ success: true, orderNum, itemId });
 });
 
+function normalizeFactorySegments(shapeName, sourceSegments) {
+  const segments = (sourceSegments || []).map(segment => ({ ...segment }));
+  const shape = String(shapeName || '').toLowerCase();
+  const isOpenU = /open|hook|anchor|אנקר|פתוח|צורת ח|\bu\b/.test(shape);
+  const isClosedOverlap = /closed|stirrup|overlap|חפיפה|אצבה|מסגרת/.test(shape);
+
+  // OCR can group equal dimensions visually instead of tracing the bar.
+  if (isOpenU && segments.length === 3) {
+    const [a, b, c] = segments.map(segment => Number(segment.length_mm) || 0);
+    if (a === b && b !== c) {
+      return [
+        { ...segments[0], angle_deg: 90 },
+        { ...segments[2], angle_deg: 90 },
+        { ...segments[1], angle_deg: segments[1].angle_deg ?? 0 },
+      ];
+    }
+    if (b === c && a !== b) {
+      return [
+        { ...segments[1], angle_deg: 90 },
+        { ...segments[0], angle_deg: 90 },
+        { ...segments[2], angle_deg: segments[2].angle_deg ?? 0 },
+      ];
+    }
+  }
+
+  // A closed stirrup must be stored end-to-end: tail, perimeter, tail.
+  if (isClosedOverlap && segments.length === 6) {
+    const [a, b, c, d, e, f] = segments.map(segment => Number(segment.length_mm) || 0);
+    if (a === c && b === d && e === f && e < Math.max(a, b)) {
+      return [segments[4], segments[0], segments[1], segments[2], segments[3], segments[5]];
+    }
+  }
+
+  return segments;
+}
+
 function createOrderFromPayload(payload) {
   const { customer = {}, order = {}, pallets = [] } = payload || {};
   if (!customer.name?.trim()) throw Object.assign(new Error('customer.name is required'), { statusCode: 400 });
@@ -1259,7 +1295,10 @@ function createOrderFromPayload(payload) {
       const sides = (item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []);
       const totalLengthMm = sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0;
       const angles = item.angles || [];
-      const segmentsArr = sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }));
+      const segmentsArr = normalizeFactorySegments(
+        item.shapeName,
+        sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }))
+      );
       // BUG-38: server-side geometry validation
       const geoCheck = validateShapeGeometry(segmentsArr);
       if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
@@ -4701,12 +4740,15 @@ app.patch('/api/items/:id', (req, res) => {
 // Returns pending items grouped and sorted by machine, diameter priority
 app.get('/api/production-queue', (req, res) => {
   const { machine } = req.query;
+  const visibleItemStatuses = req.query.visual === '1'
+    ? "('ממתין','בייצור','הושלם')"
+    : "('ממתין','בייצור')";
   let q = `
     SELECT i.id, i.pallet_id, i.shape_id, i.shape_name, i.diameter,
            i.quantity, i.produced_qty, i.total_weight AS weight, i.status, i.machine,
-           i.segments, i.note, i.qc_status,
+           i.segments, i.total_length_mm, i.note, i.qc_status,
            p.order_id, p.pallet_num,
-           o.order_num, o.priority, o.delivery_date, o.customer_id,
+           o.order_num, o.priority, o.delivery_date, o.customer_id, o.status AS order_status,
            c.name as customer_name,
            COALESCE(o.priority='דחוף',0)*100 +
            COALESCE(JULIANDAY('now') - JULIANDAY(o.delivery_date), 0)*10 as priority_score
@@ -4714,7 +4756,7 @@ app.get('/api/production-queue', (req, res) => {
     JOIN pallets p ON i.pallet_id=p.id
     JOIN orders o ON p.order_id=o.id
     LEFT JOIN customers c ON o.customer_id=c.id
-    WHERE i.status IN ('ממתין','בייצור')
+    WHERE i.status IN ${visibleItemStatuses}
     AND o.status NOT IN ('בוטל','נשלח')
   `;
   const params = [];
