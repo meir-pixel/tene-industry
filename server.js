@@ -972,6 +972,18 @@ function isValidOrderTransition(from, to) {
   return VALID_ORDER_TRANSITIONS[from].includes(to);
 }
 
+function normalizeOrderStatus(status) {
+  const aliases = {
+    'אושרה': 'אושרה – ממתין לייצור',
+    'מאושר': 'אושרה – ממתין לייצור',
+    'מאושרת': 'אושרה – ממתין לייצור',
+    'נמסרה': 'סופק – אושר',
+    'סופק': 'סופק – אושר',
+    'בוטל': 'בוטלה',
+  };
+  return aliases[status] || status;
+}
+
 // BUG-35: Machine state machine is implemented at ~line 2569 (MACHINE_STATES + STATE_TRANSITIONS in Hebrew)
 // isValidMachineState helper kept for potential future use
 function isValidMachineState(state) {
@@ -1153,7 +1165,7 @@ app.get('/api/orders', (req, res) => {
   let sql = `SELECT o.*, c.name as customer_name, c.phone as customer_phone
              FROM orders o LEFT JOIN customers c ON o.customer_id = c.id`;
   const params = [], where = [];
-  if (status)   { where.push('o.status = ?');          params.push(status); }
+  if (status)   { where.push('o.status = ?');          params.push(normalizeOrderStatus(status)); }
   if (date)     { where.push('DATE(o.delivery_date)=?'); params.push(date); }
   if (priority) { where.push('o.priority = ?');         params.push(priority); }
   if (where.length) sql += ' WHERE ' + where.join(' AND ');
@@ -4303,24 +4315,25 @@ app.get('/api/audit-log', (req, res) => {
 app.patch('/api/orders/:id/status', (req, res) => {
   const { status, userId, userName } = req.body;
   if (!status) return res.status(400).json({ error: 'חסר סטטוס' });
+  const requestedStatus = normalizeOrderStatus(status);
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'לא נמצא' });
   if (order.locked) return res.status(403).json({ error: 'הזמנה נעולה' });
-  if (!isValidOrderTransition(order.status, status)) {
+  if (!isValidOrderTransition(order.status, requestedStatus)) {
     return res.status(409).json({
       error: 'מעבר סטטוס לא חוקי',
       from: order.status,
-      to: status,
+      to: requestedStatus,
       allowed: VALID_ORDER_TRANSITIONS[order.status] || []
     });
   }
   const old = order.status;
-  db.prepare('UPDATE orders SET status=? WHERE id=?').run(status, order.id);
-  auditLog('order',order.id,order.order_num,'status_change','status',old,status,null,userId,userName);
-  wsBroadcast('order_status',{ id:order.id, status, orderNum:order.order_num });
+  db.prepare('UPDATE orders SET status=? WHERE id=?').run(requestedStatus, order.id);
+  auditLog('order',order.id,order.order_num,'status_change','status',old,requestedStatus,null,userId,userName);
+  wsBroadcast('order_status',{ id:order.id, status: requestedStatus, orderNum:order.order_num });
   if (order.customer_id) {
     const c = db.prepare('SELECT phone FROM customers WHERE id=?').get(order.customer_id);
-    if (c?.phone) intake.notifyOrderStatus(c.phone,order.order_num,status).catch(()=>{});
+    if (c?.phone) intake.notifyOrderStatus(c.phone,order.order_num,requestedStatus).catch(()=>{});
   }
   res.json({ success: true });
 });
@@ -4767,6 +4780,9 @@ app.get('/api/production-queue', (req, res) => {
   const visibleItemStatuses = req.query.visual === '1'
     ? "('ממתין','בייצור','הושלם','סופק')"
     : "('ממתין','בייצור')";
+  const visibleOrderStatuses = req.query.visual === '1'
+    ? "('אושרה – ממתין לייצור','בתור ייצור','בייצור','הושלם – ממתין לאיסוף','נשלחה','סופק – אושר')"
+    : "('אושרה – ממתין לייצור','בתור ייצור','בייצור')";
   let q = `
     SELECT i.id, i.pallet_id, i.shape_id, i.shape_name, i.diameter,
            i.quantity, i.produced_qty, i.total_weight AS weight, i.status, i.machine,
@@ -4781,7 +4797,7 @@ app.get('/api/production-queue', (req, res) => {
     JOIN orders o ON p.order_id=o.id
     LEFT JOIN customers c ON o.customer_id=c.id
     WHERE i.status IN ${visibleItemStatuses}
-    AND o.status NOT IN ('בוטל','נשלח')
+    AND o.status IN ${visibleOrderStatuses}
   `;
   const params = [];
   if (machine) { q += ' AND i.machine=?'; params.push(machine); }

@@ -166,7 +166,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   <div class="filters">
     <button class="filter-btn active" data-status="">הכל</button>
     <button class="filter-btn" data-status="ממתינה לאישור">ממתינות</button>
-    <button class="filter-btn" data-status="אושרה">אושרו</button>
+    <button class="filter-btn" data-status="אושרה – ממתין לייצור">אושרו</button>
     <button class="filter-btn" data-status="בייצור">בייצור</button>
     <button class="filter-btn" data-status="הושלם – ממתין לאיסוף">הושלמו</button>
     <div class="search-wrap">
@@ -270,9 +270,9 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 // ── Badge helpers ──────────────────────────────────────────────────────
 function sBadgeClass(s) {
   if (!s) return 's-wait';
-  if (s.includes('הושלם') || s.includes('נמסרה')) return 's-done';
+  if (s.includes('הושלם') || s.includes('נמסרה') || s.includes('סופק')) return 's-done';
   if (s === 'בייצור') return 's-prod';
-  if (s === 'אושרה')  return 's-approved';
+  if (s.includes('אושרה'))  return 's-approved';
   return 's-wait';
 }
 function urgentLabel(o) {
@@ -283,8 +283,9 @@ function urgentLabel(o) {
 function actionBtns(o, stopProp = true) {
   const sp = stopProp ? 'onclick="event.stopPropagation()"' : '';
   return `<div class="actions" ${sp}>
-    ${o.status==='ממתינה לאישור'?`<button class="btn-sm success" onclick="event.stopPropagation();setStatus(${o.id},'אושרה')">✓ אשר</button>`:''}
-    ${o.status==='אושרה'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בייצור')">▶ ייצור</button>`:''}
+    ${o.status==='ממתינה לאישור'?`<button class="btn-sm success" onclick="event.stopPropagation();setStatus(${o.id},'אושרה – ממתין לייצור')">✓ אשר</button>`:''}
+    ${o.status==='אושרה – ממתין לייצור'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בתור ייצור')">▶ לתור</button>`:''}
+    ${o.status==='בתור ייצור'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בייצור')">▶ ייצור</button>`:''}
     <a class="btn-sm" href="/api/orders/${o.id}/print-cards" target="_blank" title="כרטיסיות">🖨️</a>
     <a class="btn-sm" href="/api/orders/${o.id}/delivery-certificate" target="_blank" title="תעודת משלוח">📋</a>
   </div>`;
@@ -332,8 +333,9 @@ function renderCards(orders) {
         ${o.priority === 'דחוף' ? '<span style="color:var(--danger);font-weight:700">⚡ דחוף</span>' : ''}
       </div>
       <div class="m-card-actions">
-        ${o.status==='ממתינה לאישור'?`<button class="btn-sm success" onclick="event.stopPropagation();setStatus(${o.id},'אושרה')">✓ אשר</button>`:''}
-        ${o.status==='אושרה'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בייצור')">▶ ייצור</button>`:''}
+        ${o.status==='ממתינה לאישור'?`<button class="btn-sm success" onclick="event.stopPropagation();setStatus(${o.id},'אושרה – ממתין לייצור')">✓ אשר</button>`:''}
+        ${o.status==='אושרה – ממתין לייצור'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בתור ייצור')">▶ לתור</button>`:''}
+        ${o.status==='בתור ייצור'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בייצור')">▶ ייצור</button>`:''}
         <a class="btn-sm" href="/api/orders/${o.id}/print-cards" target="_blank" onclick="event.stopPropagation()">🖨️ כרטיסיות</a>
         <a class="btn-sm" href="/api/orders/${o.id}/delivery-certificate" target="_blank" onclick="event.stopPropagation()">📋 תעודה</a>
       </div>
@@ -342,12 +344,19 @@ function renderCards(orders) {
 
 // ── Status update ──────────────────────────────────────────────────────
 async function setStatus(id, status) {
-  await fetch(`/api/orders/${id}/status`, {
+  const response = await fetch(`/api/orders/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status })
   });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    const allowed = result.allowed?.length ? ` אפשרי: ${result.allowed.join(' / ')}` : '';
+    alert((result.error || 'עדכון סטטוס נכשל') + allowed);
+    return false;
+  }
   fetchOrders();
+  return true;
 }
 
 // ── Detail panel ───────────────────────────────────────────────────────
@@ -433,12 +442,12 @@ function buildDetailHTML(o, pkgs) {
   </div>`; // BUG-25: added struct_element / struct_floor / sheet_num
 
   // ── Status
-  const statuses = ['ממתינה לאישור','אושרה','בייצור','הושלם – ממתין לאיסוף','נמסרה'];
+  const statuses = ['ממתינה לאישור','אושרה – ממתין לייצור','בתור ייצור','בייצור','הושלם – ממתין לאיסוף','נשלחה','סופק – אושר'];
   const statusSec = `<div class="d-section">
     <div class="d-title">עדכון סטטוס</div>
     <div class="status-actions">
       ${statuses.map(s => `<button class="status-btn${o.status===s?' cur':''}"
-        onclick="setStatus(${o.id},'${s}');closeDetailPanel()">${s}</button>`).join('')}
+        onclick="setStatus(${o.id},'${s}').then(ok=>{if(ok)closeDetailPanel()})">${s}</button>`).join('')}
     </div>
   </div>`;
 
