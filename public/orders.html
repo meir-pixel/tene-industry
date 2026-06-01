@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/theme.css">
 <script src="/nav.js" defer></script>
+<script src="/shape-renderer.js" defer></script>
 <style>
 :root{
   --accent:#c9621a; --accent-light:#e07b39;
@@ -144,9 +145,22 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   color:var(--dim);font-family:'Heebo',sans-serif;font-size:12px;font-weight:600;
   cursor:pointer;transition:all .15s;min-height:40px;-webkit-tap-highlight-color:transparent;}
 .status-btn:hover,.status-btn.cur{border-color:var(--accent);color:var(--accent);background:rgba(224,123,57,0.08);}
-.item-row{display:flex;gap:12px;padding:12px;border:1px solid rgba(2,26,72,0.08);border-radius:12px;
-  margin-bottom:8px;background:#fbfcfe;align-items:center;}
+.item-row{display:grid;grid-template-columns:230px 1fr auto;gap:14px;padding:14px;border:1px solid rgba(2,26,72,0.08);border-radius:14px;
+  margin-bottom:10px;background:#fbfcfe;align-items:stretch;}
 .item-row:last-child{border-bottom:none;}
+.item-visual{background:#fff;border:1px solid rgba(2,26,72,0.08);border-radius:12px;min-height:126px;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.item-main{display:flex;flex-direction:column;gap:8px;min-width:0;}
+.item-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.item-diameter{font-size:24px;font-weight:900;color:var(--accent);line-height:1;}
+.item-shape{font-size:15px;font-weight:900;color:var(--text);}
+.item-kpis{display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:8px;}
+.item-kpi{background:#f4f7fb;border-radius:10px;padding:8px 10px;}
+.item-kpi-label{font-size:10px;font-weight:800;color:var(--muted);margin-bottom:2px;}
+.item-kpi-value{font-size:14px;font-weight:900;color:var(--text);}
+.item-dims{display:flex;flex-wrap:wrap;gap:5px;}
+.dim-chip{background:#e8f0fb;color:#1a2533;border-radius:8px;padding:4px 8px;font-size:12px;font-weight:800;}
+.note-chip{background:#fff3cd;color:#8a5a00;border-radius:10px;padding:6px 9px;font-size:12px;line-height:1.45;}
 .item-status{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
 .is-wait{background:rgba(122,147,171,0.15);color:var(--dim);}
 .is-prod{background:rgba(224,123,57,0.18);color:var(--accent);}
@@ -165,6 +179,9 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   .detail-hero{grid-template-columns:1fr;}
   .info-grid{grid-template-columns:1fr;}
   .hero-metric{grid-template-columns:1fr 1fr;}
+  .item-row{grid-template-columns:1fr;}
+  .item-visual{min-height:150px;}
+  .item-kpis{grid-template-columns:repeat(2,1fr);}
   .print-btns{flex-direction:column;}
   .print-btn{justify-content:center;}
 }
@@ -388,6 +405,7 @@ async function openDetail(id) {
   document.getElementById('detailCustomer').textContent = o.customer_name ?? '';
   document.getElementById('detailBody').innerHTML = buildDetailHTML(o, pkgs);
   document.getElementById('detailOverlay').classList.add('show');
+  requestAnimationFrame(renderDetailShapes);
   history.replaceState(null, '', `?id=${id}`);
 }
 
@@ -420,6 +438,42 @@ function itemWeight(item) {
 function itemDimensions(item) {
   const values = safeJson(item.segments).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
   return values.length ? values.join(' / ') : '';
+}
+
+function itemSegments(item) {
+  return safeJson(item.segments).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
+}
+
+function itemAngles(item) {
+  const segs = safeJson(item.segments);
+  return segs.slice(0, -1).map(segment => {
+    const angle = segment && typeof segment === 'object' ? Number(segment.angle_deg) : 180;
+    return Number.isFinite(angle) && angle > 0 ? angle : 180;
+  });
+}
+
+function renderDetailShapes() {
+  if (!window.IronBendShapes) {
+    setTimeout(renderDetailShapes, 80);
+    return;
+  }
+  document.querySelectorAll('[data-detail-shape]').forEach(el => {
+    try {
+      const sides = JSON.parse(decodeURIComponent(el.dataset.sides || '%5B%5D'));
+      const angles = JSON.parse(decodeURIComponent(el.dataset.angles || '%5B%5D'));
+      window.IronBendShapes.render2D(el, sides, angles, {
+        width: el.clientWidth || 220,
+        height: 130,
+        padding: 22,
+        color: '#DF5000',
+        strokeWidth: 5,
+        showDimensions: true,
+        bgColor: '#ffffff',
+      });
+    } catch (e) {
+      el.textContent = 'אין צורה';
+    }
+  });
 }
 
 function shapeLabel(shapeName) {
@@ -504,17 +558,30 @@ function buildDetailHTML(o, pkgs) {
       const produced = item.produced_qty||0;
       const length = itemLength(item);
       const weight = itemWeight(item);
-      const dims = itemDimensions(item);
+      const sides = itemSegments(item);
+      const angles = itemAngles(item);
+      const dims = sides.length ? sides.join(' / ') : itemDimensions(item);
       const review = needsReview(item);
       return `<div class="item-row">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px"><strong>⌀${item.diameter}</strong> × ${Math.round(length)} מ"מ × ${qty} יח'
-            <span style="color:var(--muted);font-size:12px">${shapeLabel(item.shape_name)}</span>
+        <div class="item-visual"
+          data-detail-shape="1"
+          data-sides="${encodeURIComponent(JSON.stringify(sides))}"
+          data-angles="${encodeURIComponent(JSON.stringify(angles))}"></div>
+        <div class="item-main">
+          <div class="item-head">
+            <span class="item-diameter">⌀${item.diameter}</span>
+            <span class="item-shape">${shapeLabel(item.shape_name)}</span>
             ${item.is_3d ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px">3D</span>' : ''}
-            ${review ? ' <span style="background:#fff3cd;color:#8a5a00;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px">דורש בדיקה</span>' : ''}
+            ${review ? ' <span style="background:#fff3cd;color:#8a5a00;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">דורש בדיקה</span>' : ''}
           </div>
-          ${dims ? `<div style="font-size:11px;color:var(--dim)">מידות: ${dims} מ"מ</div>` : ''}
-          <div style="font-size:11px;color:var(--muted)">${weight.toFixed(1)} ק"ג${item.note?' | '+item.note:''}</div>
+          <div class="item-kpis">
+            <div class="item-kpi"><div class="item-kpi-label">כמות</div><div class="item-kpi-value">${qty} יח'</div></div>
+            <div class="item-kpi"><div class="item-kpi-label">אורך פתיחה</div><div class="item-kpi-value">${Math.round(length)} מ"מ</div></div>
+            <div class="item-kpi"><div class="item-kpi-label">משקל</div><div class="item-kpi-value">${weight.toFixed(1)} ק"ג</div></div>
+            <div class="item-kpi"><div class="item-kpi-label">יוצר</div><div class="item-kpi-value">${produced}/${qty}</div></div>
+          </div>
+          ${dims ? `<div class="item-dims">${dims.split(' / ').map((d, idx) => `<span class="dim-chip">${String.fromCharCode(0x05D0 + idx)}: ${d} מ"מ</span>`).join('')}</div>` : ''}
+          ${item.note ? `<div class="note-chip">⚠ ${item.note}</div>` : ''}
           ${item.status==='בייצור'&&qty>0?`<div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100,produced/qty*100).toFixed(0)}%"></div></div><div style="font-size:11px;color:var(--muted)">${produced}/${qty}</div>`:''}
         </div>
         <span class="item-status ${ic}">${item.status}</span>
