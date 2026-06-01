@@ -2715,7 +2715,10 @@ Return every printed or handwritten table row as a separate item.
 For handwritten factory cards, visible dimensions are centimeters: always multiply them by 10 to return millimeters. This applies to every side and also to straight bars: a handwritten straight-bar length of 600 means 6000 mm.
 Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
 Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
-For a fully closed rectangular hoop with the small 90-degree overlap mark, include the full outer rectangle and the two overlap tails as segments.
+For a fully closed rectangular stirrup with the small 90-degree overlap mark, never return an open hooked bar. Include the full outer rectangle and the two overlap tails as segments.
+When the row gives a total cut length and a rectangular stirrup sketch with outer width W and height H, calculate remaining tail length as (total - 2*W - 2*H) / 2. Return six segments: [W,H,W,H,tail,tail].
+Example: total 215 cm with a 60 by 40 cm closed stirrup becomes [600,400,600,400,75,75] mm. Total 205 cm with a 60 by 35 cm closed stirrup becomes [600,350,600,350,75,75] mm.
+Name this shape "closed stirrup 90-degree overlap". If the sketch does not clearly show a closed rectangle and the small corner overlap, keep the conservative open shape and add a review note.
 For a spiral, name it "ספירלה" and include visible ring diameter and turns in note.
 Use one segment per visible side. angle_deg is the interior angle after that segment: 180 for straight, 90 for a square bend.
 Return JSON that matches the requested schema only.`;

@@ -782,15 +782,11 @@
         <div id="emailParseResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
       </div>
       <div id="channel-panel-image" class="channel-panel" style="display:none;margin-bottom:16px">
-        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📷 העלה תמונה של הזמנה</label>
+        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📷 קליטת הזמנה מתמונה או PDF</label>
         <div style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;background:var(--steel)">
-          <input type="file" id="ocrFile" accept="image/*,.pdf" style="display:none" onchange="ocrFileSelected(this)">
-          <div style="color:var(--text-dim);margin-bottom:10px">גרור תמונה לכאן או</div>
-          <button type="button" onclick="document.getElementById('ocrFile').click()" style="padding:8px 18px;background:var(--steel-mid);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">📁 בחר קובץ</button>
-          <div id="ocrFileName" style="margin-top:8px;font-size:13px;color:var(--text-dim)"></div>
+          <div style="color:var(--text-dim);margin-bottom:10px">בחר צילום או PDF. המערכת תציג תצוגה מקדימה לפני הוספה לטופס.</div>
+          <label for="imgUploadInput" style="display:inline-block;padding:8px 18px;background:var(--steel-mid);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit">📁 בחר קובץ</label>
         </div>
-        <button type="button" id="ocrRunBtn" onclick="runOCR()" style="margin-top:10px;padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit;display:none">📷 סרוק OCR ← מלא טופס אוטומטית</button>
-        <div id="ocrResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
       </div>
 
       <div class="form-grid form-grid-2">
@@ -905,7 +901,7 @@
       <div id="imgLoading" style="padding:48px;text-align:center;display:none;">
         <div style="font-size:40px;margin-bottom:16px;">🔍</div>
         <div style="font-size:16px;font-weight:700;color:#1a2332;margin-bottom:8px;">מנתח את ההזמנה...</div>
-        <div style="font-size:13px;color:#888;">Gemini AI קורא את הטופס</div>
+        <div style="font-size:13px;color:#888;">AI קורא את הטופס ומכין תצוגה מקדימה</div>
         <div style="margin-top:20px;height:4px;background:#eee;border-radius:2px;overflow:hidden;">
           <div id="imgProgress" style="height:100%;background:linear-gradient(90deg,#1a7a3c,#3ab060);
             animation:loadbar 2s infinite;border-radius:2px;width:60%;"></div>
@@ -1111,38 +1107,6 @@ async function parseChannelText(source) {
     appendParsedItems(p.items);
     resultEl.style.color = 'var(--success)';
     resultEl.textContent = '✅ הטופס מולא אוטומטית! בדוק ועדכן לפי הצורך.';
-  } catch(e) {
-    resultEl.style.color = 'var(--danger)';
-    resultEl.textContent = '❌ ' + e.message;
-  }
-}
-
-function ocrFileSelected(input) {
-  const file = input.files[0];
-  if (!file) return;
-  document.getElementById('ocrFileName').textContent = '📎 ' + file.name;
-  document.getElementById('ocrRunBtn').style.display = 'inline-block';
-}
-
-async function runOCR() {
-  const fileInput = document.getElementById('ocrFile');
-  const resultEl = document.getElementById('ocrResult');
-  if (!fileInput.files[0]) { resultEl.textContent = '⚠️ בחר קובץ תחילה'; return; }
-  resultEl.textContent = '⏳ סורק...';
-  const formData = new FormData();
-  formData.append('image', fileInput.files[0]);
-  try {
-    const r = await fetch('/api/intake/image', { method: 'POST', body: formData });
-    const data = await r.json();
-    if (!data.success) throw new Error(data.error || 'שגיאה בסריקה');
-    const p = data.parsed || {};
-    if (p.customerName) document.getElementById('customerSearch').value = p.customerName;
-    if (p.customerPhone) document.getElementById('customerPhone').value = p.customerPhone;
-    if (p.deliveryAddress) document.getElementById('deliveryAddress').value = p.deliveryAddress;
-    if (p.deliveryDate) document.getElementById('deliveryDate').value = p.deliveryDate;
-    appendParsedItems(p.items);
-    resultEl.style.color = 'var(--success)';
-    resultEl.textContent = '✅ סריקה הושלמה! בדוק את הנתונים שמולאו.';
   } catch(e) {
     resultEl.style.color = 'var(--danger)';
     resultEl.textContent = '❌ ' + e.message;
