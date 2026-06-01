@@ -2714,6 +2714,7 @@ app.post('/api/analyze-image', requireRole('manager'), upload.single('image'), a
 Return every printed or handwritten table row as a separate item.
 For handwritten factory cards, visible dimensions are centimeters: always multiply them by 10 to return millimeters. This applies to every side and also to straight bars: a handwritten straight-bar length of 600 means 6000 mm.
 Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
+Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
 For a fully closed rectangular hoop with the small 90-degree overlap mark, include the full outer rectangle and the two overlap tails as segments.
 For a spiral, name it "ספירלה" and include visible ring diameter and turns in note.
 Use one segment per visible side. angle_deg is the interior angle after that segment: 180 for straight, 90 for a square bend.
@@ -2742,8 +2743,11 @@ Return JSON that matches the requested schema only.`;
       if (reportedLength && reportedLength !== computedLength) {
         notes.push(`Review required: reported total ${reportedLength} mm differs from segment sum ${computedLength} mm. Segment sum is shown.`);
       }
-      if (segments.some(segment => segment.length_mm > 0 && segment.length_mm < 1000)) {
-        notes.push('Review required: at least one extracted segment is shorter than 1000 mm; verify cm-to-mm conversion.');
+      if (segments.length === 1 && segments[0].length_mm > 0 && segments[0].length_mm < 1000) {
+        notes.push('Review required: extracted straight-bar length is shorter than 1000 mm; verify cm-to-mm conversion.');
+      }
+      if (![6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40].includes(Number(item.diameter))) {
+        notes.push(`Review required: diameter ${item.diameter} mm is not supported; verify the handwritten value.`);
       }
       return {
         ...item,
