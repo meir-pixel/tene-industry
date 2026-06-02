@@ -375,6 +375,7 @@ test('admin OCR settings describe OpenAI intake instead of Google Vision', () =>
 test('machine and workstation setup belong to production setup screen', () => {
   const admin = read('public/admin.html');
   const setup = read('public/production-setup.html');
+  const server = read('server.js');
   const nav = read('public/nav.js');
 
   assert.doesNotMatch(admin, /tab-machines/);
@@ -388,6 +389,14 @@ test('machine and workstation setup belong to production setup screen', () => {
   assert.match(setup, /saveMachinesAdmin/);
   assert.match(setup, /loadWorkstations/);
   assert.match(setup, /\/api\/machines/);
+  assert.match(setup, /single_min_diameter/);
+  assert.match(setup, /single_max_diameter/);
+  assert.match(setup, /double_min_diameter/);
+  assert.match(setup, /double_max_diameter/);
+  assert.match(setup, /חוט בודד/);
+  assert.match(setup, /חוט כפול/);
+  assert.match(server, /single_min_diameter/);
+  assert.match(server, /double_max_diameter/);
   assert.match(nav, /\/production-setup\.html/);
 });
 

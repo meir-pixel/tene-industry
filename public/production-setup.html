@@ -108,6 +108,15 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
         <div class="field"><label>קוטר מינ'</label><input id="nm_mind" type="number" value="8"></div>
         <div class="field"><label>קוטר מקס'</label><input id="nm_maxd" type="number" value="32"></div>
       </div>
+      <div class="form-grid">
+        <div class="field"><label>חוט בודד - קוטר מינ'</label><input id="nm_single_min" type="number" value="8"></div>
+        <div class="field"><label>חוט בודד - קוטר מקס'</label><input id="nm_single_max" type="number" value="32"></div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>חוט כפול - קוטר מינ'</label><input id="nm_double_min" type="number" value="8"></div>
+        <div class="field"><label>חוט כפול - קוטר מקס'</label><input id="nm_double_max" type="number" value="16"></div>
+      </div>
+      <div class="meta">טווחי חוט כפול/בודד משמשים לתעדוף עבודות למכונה המתאימה.</div>
       <button class="btn btn-primary" onclick="submitAddMachine()">הוסף מכונה</button>
     </div>
   </div>
@@ -185,6 +194,14 @@ function machineCard(m) {
           <div class="field"><label>קוטר מינ'</label><input id="mmin-${m.id}" type="number" value="${Number(m.min_diameter || 8)}"></div>
           <div class="field"><label>קוטר מקס'</label><input id="mmax-${m.id}" type="number" value="${Number(m.max_diameter || 32)}"></div>
         </div>
+        <div class="form-grid">
+          <div class="field"><label>חוט בודד - קוטר מינ'</label><input id="single_min-${m.id}" type="number" value="${Number(m.single_min_diameter || m.min_diameter || 8)}"></div>
+          <div class="field"><label>חוט בודד - קוטר מקס'</label><input id="single_max-${m.id}" type="number" value="${Number(m.single_max_diameter || m.max_diameter || 32)}"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>חוט כפול - קוטר מינ'</label><input id="double_min-${m.id}" type="number" value="${Number(m.double_min_diameter || m.min_diameter || 8)}"></div>
+          <div class="field"><label>חוט כפול - קוטר מקס'</label><input id="double_max-${m.id}" type="number" value="${Number(m.double_max_diameter || 16)}"></div>
+        </div>
         <div class="actions">
           <button class="btn" onclick="testMachineConn(${m.id})">בדוק חיבור</button>
           <span class="meta" id="mc-test-${m.id}"></span>
@@ -218,6 +235,10 @@ async function saveSingleMachine(id) {
       slave_id: Number(document.getElementById(`slave_id-${id}`).value || 1),
       min_diameter: Number(document.getElementById(`mmin-${id}`).value || 8),
       max_diameter: Number(document.getElementById(`mmax-${id}`).value || 32),
+      single_min_diameter: Number(document.getElementById(`single_min-${id}`).value || document.getElementById(`mmin-${id}`).value || 8),
+      single_max_diameter: Number(document.getElementById(`single_max-${id}`).value || document.getElementById(`mmax-${id}`).value || 32),
+      double_min_diameter: Number(document.getElementById(`double_min-${id}`).value || document.getElementById(`mmin-${id}`).value || 8),
+      double_max_diameter: Number(document.getElementById(`double_max-${id}`).value || 16),
     }),
   });
 }
@@ -249,6 +270,12 @@ function openAddMachineModal() {
   ['nm_name','nm_label','nm_tcp_host','nm_rtu_port'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('nm_tcp_port').value = '502';
   document.getElementById('nm_slave').value = '1';
+  document.getElementById('nm_mind').value = '8';
+  document.getElementById('nm_maxd').value = '32';
+  document.getElementById('nm_single_min').value = '8';
+  document.getElementById('nm_single_max').value = '32';
+  document.getElementById('nm_double_min').value = '8';
+  document.getElementById('nm_double_max').value = '16';
   document.getElementById('nm_conn_type').value = 'tcp';
   toggleAddMachineConn('tcp');
 }
@@ -278,6 +305,10 @@ async function submitAddMachine() {
       slave_id: Number(document.getElementById('nm_slave').value || 1),
       min_diameter: Number(document.getElementById('nm_mind').value || 8),
       max_diameter: Number(document.getElementById('nm_maxd').value || 32),
+      single_min_diameter: Number(document.getElementById('nm_single_min').value || document.getElementById('nm_mind').value || 8),
+      single_max_diameter: Number(document.getElementById('nm_single_max').value || document.getElementById('nm_maxd').value || 32),
+      double_min_diameter: Number(document.getElementById('nm_double_min').value || document.getElementById('nm_mind').value || 8),
+      double_max_diameter: Number(document.getElementById('nm_double_max').value || 16),
     }),
   });
   if (!response.ok) return toast('הוספת מכונה נכשלה', true);

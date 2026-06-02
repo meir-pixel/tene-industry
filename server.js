@@ -186,6 +186,10 @@ db.exec(`
     slave_id INTEGER DEFAULT 1,
     min_diameter REAL DEFAULT 8,
     max_diameter REAL DEFAULT 12,
+    single_min_diameter REAL DEFAULT 8,
+    single_max_diameter REAL DEFAULT 32,
+    double_min_diameter REAL DEFAULT 8,
+    double_max_diameter REAL DEFAULT 16,
     status TEXT DEFAULT 'לא מחובר',
     current_order_num TEXT,
     current_item_id INTEGER,
@@ -762,6 +766,10 @@ addCol('machines',   'label',              'TEXT');
 addCol('machines',   'slave_id',           'INTEGER DEFAULT 1');
 addCol('machines',   'min_diameter',       'REAL DEFAULT 8');
 addCol('machines',   'max_diameter',       'REAL DEFAULT 12');
+addCol('machines',   'single_min_diameter','REAL DEFAULT 8');
+addCol('machines',   'single_max_diameter','REAL DEFAULT 32');
+addCol('machines',   'double_min_diameter','REAL DEFAULT 8');
+addCol('machines',   'double_max_diameter','REAL DEFAULT 16');
 addCol('machines',   'conn_mode',          "TEXT DEFAULT 'tcp'");   // 'tcp' or 'rtu'
 addCol('machines',   'tcp_host',           'TEXT');                  // IP of USR-N510 / gateway
 addCol('machines',   'tcp_port',           'INTEGER DEFAULT 502');   // Modbus TCP port
@@ -3054,14 +3062,22 @@ app.get('/api/machines', requireAnyRole(['production', 'kiosk', 'maintenance', '
 
 // Create new machine
 app.post('/api/machines', requireRole('manager'), (req, res) => {
-  const { name, label, conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, parity, stop_bits, slave_id, min_diameter, max_diameter } = req.body;
+  const {
+    name, label, conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, parity, stop_bits, slave_id,
+    min_diameter, max_diameter,
+    single_min_diameter, single_max_diameter, double_min_diameter, double_max_diameter
+  } = req.body;
   if (!name) return res.status(400).json({ error: 'שם מכונה נדרש' });
-  const result = db.prepare(`INSERT INTO machines (name,label,conn_mode,tcp_host,tcp_port,rtu_port,baud_rate,parity,stop_bits,slave_id,min_diameter,max_diameter)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+  const result = db.prepare(`INSERT INTO machines (name,label,conn_mode,tcp_host,tcp_port,rtu_port,baud_rate,parity,stop_bits,slave_id,min_diameter,max_diameter,single_min_diameter,single_max_diameter,double_min_diameter,double_max_diameter)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(name.trim(), label||name.substring(0,1).toUpperCase(), conn_mode||'tcp',
          tcp_host||null, tcp_port||502, rtu_port||null, baud_rate||9600,
          parity||'none', stop_bits||1,
-         slave_id||1, min_diameter||8, max_diameter||32);
+         slave_id||1, min_diameter||8, max_diameter||32,
+         single_min_diameter || min_diameter || 8,
+         single_max_diameter || max_diameter || 32,
+         double_min_diameter || min_diameter || 8,
+         double_max_diameter || 16);
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
@@ -3094,7 +3110,12 @@ app.post('/api/machines/:id/assign', requireAnyRole(['production', 'manager', 'a
 
 // ── MACHINE CONNECTION CONFIG ─────────────────────────────────────
 app.patch('/api/machines/:id/config', requireRole('manager'), (req, res) => {
-  const { conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, parity, stop_bits, slave_id, min_diameter, max_diameter, name, label, can_3d } = req.body;
+  const {
+    conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, parity, stop_bits, slave_id,
+    min_diameter, max_diameter,
+    single_min_diameter, single_max_diameter, double_min_diameter, double_max_diameter,
+    name, label, can_3d
+  } = req.body;
   const mode = conn_mode || 'tcp';
   db.prepare(`UPDATE machines SET
     conn_mode=?,
@@ -3107,6 +3128,10 @@ app.patch('/api/machines/:id/config', requireRole('manager'), (req, res) => {
     slave_id=COALESCE(?,slave_id),
     min_diameter=COALESCE(?,min_diameter),
     max_diameter=COALESCE(?,max_diameter),
+    single_min_diameter=COALESCE(?,single_min_diameter),
+    single_max_diameter=COALESCE(?,single_max_diameter),
+    double_min_diameter=COALESCE(?,double_min_diameter),
+    double_max_diameter=COALESCE(?,double_max_diameter),
     name=COALESCE(?,name),
     label=COALESCE(?,label),
     can_3d=COALESCE(?,can_3d)
@@ -3118,6 +3143,8 @@ app.patch('/api/machines/:id/config', requireRole('manager'), (req, res) => {
       mode === 'rtu' ? (rtu_port || null) : null,
       baud_rate || null, parity || null, stop_bits || null, slave_id || null,
       min_diameter || null, max_diameter || null,
+      single_min_diameter || null, single_max_diameter || null,
+      double_min_diameter || null, double_max_diameter || null,
       name || null, label || null,
       can_3d != null ? (can_3d ? 1 : 0) : null,
       req.params.id
