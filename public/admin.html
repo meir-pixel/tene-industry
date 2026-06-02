@@ -87,6 +87,114 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
 .settings-head-title { font-size:15px; font-weight:800; }
 .settings-head-sub   { font-size:12px; color:var(--muted); margin-top:1px; }
 .settings-body { padding:20px; display:flex; flex-direction:column; gap:14px; }
+.tab-content-pad { padding:20px; }
+.tab-toolbar {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:16px;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.tab-heading { font-size:16px; font-weight:900; color:var(--text); }
+.tab-subtitle { font-size:12px; color:var(--muted); margin-top:2px; }
+.admin-table-wrap {
+  overflow-x:auto;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+}
+.admin-table { width:100%; border-collapse:collapse; min-width:720px; }
+.admin-table thead tr { border-bottom:2px solid var(--border); }
+.admin-table th {
+  padding:9px 12px;
+  text-align:right;
+  font-size:11px;
+  color:var(--muted);
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  background:#fafbfd;
+}
+.admin-table td { padding:10px 12px; font-size:13px; border-bottom:1px solid rgba(0,0,0,.04); }
+.admin-table tr:last-child td { border-bottom:0; }
+.user-form {
+  display:none;
+  margin-top:16px;
+  background:#f7fafc;
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:16px;
+}
+.user-form-title { font-weight:900; margin-bottom:12px; }
+.user-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.inline-field label {
+  font-size:11px;
+  font-weight:800;
+  color:var(--muted);
+  display:block;
+  margin-bottom:5px;
+}
+.inline-field input, .inline-field select {
+  width:100%;
+  padding:9px 11px;
+  border:1px solid var(--border);
+  border-radius:9px;
+  font-size:13px;
+  font-family:'Heebo',sans-serif;
+  background:#fff;
+}
+.inline-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap; }
+.audit-tools { display:flex; gap:8px; flex-wrap:wrap; }
+.audit-tools select {
+  padding:8px 11px;
+  border:1px solid var(--border);
+  border-radius:9px;
+  font-size:12px;
+  font-family:'Heebo',sans-serif;
+  background:#fff;
+}
+.load-more { text-align:center; padding:12px; display:none; }
+.cloud-intro { color:var(--text-dim); margin-bottom:20px; line-height:1.55; }
+.cloud-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px; }
+.cloud-card {
+  padding:20px;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:14px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:16px;
+  box-shadow:var(--shadow);
+}
+.cloud-title { margin:0 0 10px; color:var(--text); font-weight:900; font-size:15px; }
+.cloud-copy { color:var(--muted); font-size:13px; margin:0; line-height:1.55; }
+.full-width-btn { width:100%; justify-content:center; }
+.db-dropzone {
+  border:2px dashed var(--border);
+  border-radius:14px;
+  padding:28px 18px;
+  text-align:center;
+  cursor:pointer;
+  background:#f7fafc;
+  transition:all .2s;
+}
+.db-dropzone:hover { border-color:var(--accent); background:var(--accent-bg); }
+.db-drop-icon { font-size:34px; display:block; margin-bottom:10px; }
+.db-drop-title { font-size:13px; font-weight:800; display:block; color:var(--text); }
+.db-drop-sub { font-size:11px; color:var(--muted); display:block; margin-top:4px; }
+.hidden-file-input { display:none; }
+.security-note {
+  margin-top:20px;
+  padding:20px;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:var(--shadow);
+}
+.security-note h4 { margin:0 0 10px; color:var(--text); font-weight:900; }
+.security-note ul { color:var(--muted); font-size:13px; margin:0; padding-right:20px; line-height:1.7; }
 
 /* ── FORM ──────────────────────────────────────────────── */
 .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -161,6 +269,7 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
 @media(max-width:700px){
   .quick-nav   { grid-template-columns:repeat(3,1fr); }
   .form-row    { grid-template-columns:1fr; }
+  .user-form-grid { grid-template-columns:1fr; }
   .status-grid { grid-template-columns:1fr 1fr; }
   .tabs        { flex-wrap:wrap; overflow-x:visible; gap:2px; }
   .tab-btn     { flex:1; min-width:80px; text-align:center; font-size:12px; padding:8px 8px; }
@@ -451,49 +560,51 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
       </div>
 
       <!-- TAB: USERS / ROLES -->
-      <div id="tab-users" class="tab-pane" style="padding:20px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div id="tab-users" class="tab-pane tab-content-pad">
+        <div class="tab-toolbar">
           <div>
-            <div style="font-size:16px;font-weight:900">👥 משתמשים ותפקידים</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">כניסה ב-PIN לטאבלט · שליטה בהרשאות</div>
+            <div class="tab-heading">👥 משתמשים ותפקידים</div>
+            <div class="tab-subtitle">כניסה ב-PIN לטאבלט · שליטה בהרשאות</div>
           </div>
           <button class="btn btn-primary" onclick="openAddUser()">+ משתמש חדש</button>
         </div>
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr style="border-bottom:2px solid var(--border)">
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">שם</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">משתמש</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">תפקיד</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">PIN</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">טלפון</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">פעיל</th>
-            <th style="padding:8px 12px"></th>
-          </tr></thead>
-          <tbody id="usersTableBody"></tbody>
-        </table>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr>
+              <th>שם</th>
+              <th>משתמש</th>
+              <th>תפקיד</th>
+              <th>PIN</th>
+              <th>טלפון</th>
+              <th>פעיל</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+        </div>
         <!-- Add/Edit User inline form -->
-        <div id="userFormWrapper" style="display:none;margin-top:16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px">
-          <div style="font-weight:800;margin-bottom:12px" id="userFormTitle">משתמש חדש</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">שם תצוגה *</label>
-              <input id="uDisplayName" type="text" placeholder="ישראל ישראלי" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif"></div>
-            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">שם משתמש *</label>
-              <input id="uUsername" type="text" placeholder="israel" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif"></div>
-            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">תפקיד</label>
-              <select id="uRole" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif">
+        <div id="userFormWrapper" class="user-form">
+          <div class="user-form-title" id="userFormTitle">משתמש חדש</div>
+          <div class="user-form-grid">
+            <div class="inline-field"><label>שם תצוגה *</label>
+              <input id="uDisplayName" type="text" placeholder="ישראל ישראלי"></div>
+            <div class="inline-field"><label>שם משתמש *</label>
+              <input id="uUsername" type="text" placeholder="israel"></div>
+            <div class="inline-field"><label>תפקיד</label>
+              <select id="uRole">
                 <option value="admin">מנהל מערכת</option>
                 <option value="manager">מנהל</option>
                 <option value="operator" selected>מפעיל</option>
                 <option value="driver">נהג</option>
                 <option value="quality">בקרת איכות</option>
               </select></div>
-            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">PIN (4 ספרות)</label>
-              <input id="uPin" type="text" maxlength="4" pattern="[0-9]{4}" placeholder="1234" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif"></div>
-            <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px">טלפון</label>
-              <input id="uPhone" type="tel" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Heebo',sans-serif"></div>
+            <div class="inline-field"><label>PIN (4 ספרות)</label>
+              <input id="uPin" type="text" maxlength="4" pattern="[0-9]{4}" placeholder="1234"></div>
+            <div class="inline-field"><label>טלפון</label>
+              <input id="uPhone" type="tel"></div>
           </div>
           <input type="hidden" id="uId">
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <div class="inline-actions">
             <button class="btn btn-outline" onclick="document.getElementById('userFormWrapper').style.display='none'">ביטול</button>
             <button class="btn btn-primary" onclick="saveUser()">💾 שמור</button>
           </div>
@@ -501,14 +612,14 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
       </div>
 
       <!-- TAB: AUDIT LOG -->
-      <div id="tab-auditlog" class="tab-pane" style="padding:20px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+      <div id="tab-auditlog" class="tab-pane tab-content-pad">
+        <div class="tab-toolbar">
           <div>
-            <div style="font-size:16px;font-weight:900">📋 לוג שינויים (Audit Log)</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">כל שינוי סטטוס, עדכון ופעולה במערכת</div>
+            <div class="tab-heading">📋 לוג שינויים (Audit Log)</div>
+            <div class="tab-subtitle">כל שינוי סטטוס, עדכון ופעולה במערכת</div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <select id="auditEntityType" onchange="loadAuditLog()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'Heebo',sans-serif">
+          <div class="audit-tools">
+            <select id="auditEntityType" onchange="loadAuditLog()">
               <option value="">כל הסוגים</option>
               <option value="order">הזמנות</option>
               <option value="item">פריטים</option>
@@ -519,66 +630,68 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
             <button class="btn btn-outline" onclick="loadAuditLog()">רענן</button>
           </div>
         </div>
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr style="border-bottom:2px solid var(--border)">
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">תאריך</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">סוג</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">ישות</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">פעולה</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">לפני</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">אחרי</th>
-            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">משתמש</th>
-          </tr></thead>
-          <tbody id="auditTableBody"></tbody>
-        </table>
-        <div id="auditLoadMore" style="text-align:center;padding:12px;display:none">
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr>
+              <th>תאריך</th>
+              <th>סוג</th>
+              <th>ישות</th>
+              <th>פעולה</th>
+              <th>לפני</th>
+              <th>אחרי</th>
+              <th>משתמש</th>
+            </tr></thead>
+            <tbody id="auditTableBody"></tbody>
+          </table>
+        </div>
+        <div id="auditLoadMore" class="load-more">
           <button class="btn btn-outline" onclick="loadAuditLog(true)">טען עוד...</button>
         </div>
       </div>
 
       <!-- TAB: CLOUD DEPLOYMENT & DATABASE MIGRATION -->
-      <div id="tab-cloud" class="tab-pane" style="padding:20px">
-        <h3 style="margin-top:0; color:var(--text); font-weight:600;">☁️ ניהול ענן וגיבוי בסיס נתונים</h3>
-        <p style="color:var(--text-muted); margin-bottom:20px;">
+      <div id="tab-cloud" class="tab-pane tab-content-pad">
+        <h3 class="tab-heading">☁️ ניהול ענן וגיבוי בסיס נתונים</h3>
+        <p class="cloud-intro">
           ממשק זה מאפשר לך לסנכרן ולגבות את בסיס הנתונים של המפעל (<code>ironbend.db</code>) בין המחשב המקומי לשרת הענן שלך, על מנת שתוכל להמשיך לעבוד מכל מקום.
         </p>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
+        <div class="cloud-grid">
           
           <!-- Download Backup Card -->
-          <div class="card" style="padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:8px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div class="cloud-card">
             <div>
-              <h4 style="margin:0 0 10px 0; color:var(--text);">📥 גיבוי והורדת נתונים</h4>
-              <p style="color:var(--text-muted); font-size:13px; margin:0 0 20px 0;">
+              <h4 class="cloud-title">📥 גיבוי והורדת נתונים</h4>
+              <p class="cloud-copy">
                 הורד עותק מלא ועדכני של בסיס הנתונים הפעיל כרגע בענן למחשב האישי שלך.
               </p>
             </div>
-            <button class="btn btn-primary" onclick="downloadDatabase()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <button class="btn btn-primary full-width-btn" onclick="downloadDatabase()">
               <span>⬇️ הורד גיבוי (ironbend.db)</span>
             </button>
           </div>
 
           <!-- Upload / Restore Card -->
-          <div class="card" style="padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:8px;">
-            <h4 style="margin:0 0 10px 0; color:var(--text);">📤 העלאה ושחזור נתונים (הגירה לענן)</h4>
-            <p style="color:var(--text-muted); font-size:13px; margin:0 0 20px 0;">
+          <div class="cloud-card">
+            <h4 class="cloud-title">📤 העלאה ושחזור נתונים (הגירה לענן)</h4>
+            <p class="cloud-copy">
               העלה קובץ <code>ironbend.db</code> מהמחשב שלך כדי להחליף את בסיס הנתונים הפעיל בענן.
             </p>
             
-            <div id="db-dropzone" style="border:2px dashed var(--border); border-radius:8px; padding:25px; text-align:center; cursor:pointer; background:rgba(0,0,0,0.02); transition:all 0.2s;" onclick="document.getElementById('db-file-input').click()">
-              <span style="font-size:32px; display:block; margin-bottom:10px;">💾</span>
-              <span style="font-size:13px; font-weight:500; display:block; color:var(--text);" id="dropzone-text">גרור לכאן את קובץ ה-db או לחץ לבחירה</span>
-              <span style="font-size:11px; color:var(--text-muted); display:block; margin-top:4px;">תומך בקבצי .db בלבד</span>
-              <input type="file" id="db-file-input" accept=".db" style="display:none;" onchange="handleDbUpload(this.files[0])">
+            <div id="db-dropzone" class="db-dropzone" onclick="document.getElementById('db-file-input').click()">
+              <span class="db-drop-icon">💾</span>
+              <span class="db-drop-title" id="dropzone-text">גרור לכאן את קובץ ה-db או לחץ לבחירה</span>
+              <span class="db-drop-sub">תומך בקבצי .db בלבד</span>
+              <input type="file" id="db-file-input" accept=".db" class="hidden-file-input" onchange="handleDbUpload(this.files[0])">
             </div>
           </div>
 
         </div>
 
         <!-- Connection Details & Advice -->
-        <div class="card" style="margin-top:20px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:8px;">
-          <h4 style="margin:0 0 10px 0; color:var(--text);">🔒 אבטחה והנחיות עבודה</h4>
-          <ul style="color:var(--text-muted); font-size:13px; margin:0; padding-right:20px; line-height:1.6;">
+        <div class="security-note">
+          <h4>🔒 אבטחה והנחיות עבודה</h4>
+          <ul>
             <li>לפני העלאת בסיס נתונים חדש, מומלץ להוריד גיבוי של בסיס הנתונים הנוכחי באמצעות הכפתור למעלה.</li>
             <li>בעת העלאת בסיס נתונים חדש, השרת יסגור את החיבור הקיים בצורה בטוחה, יחליף את הקובץ ויבצע אתחול חם למערכת תוך שניות בודדות ללא השבתת שירות.</li>
             <li><strong>סנכרון נסיעות:</strong> כשתחזור מהנסיעה למפעל, פשוט הורד את הגיבוי מהענן והחלף את הקובץ המקומי במחשב המפעל כדי להמשיך לעבוד מסונכרן לחלוטין!</li>

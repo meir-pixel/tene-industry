@@ -31,6 +31,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn-danger{background:var(--danger-dim);border-color:rgba(184,50,39,.35);color:var(--danger)}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
+.actions-spaced{margin-bottom:12px}
 .empty{background:#fff;border:1px dashed var(--border);border-radius:10px;padding:28px;text-align:center;color:var(--text-muted)}
 .modal-bg{position:fixed;inset:0;background:rgba(10,20,35,.45);display:none;align-items:center;justify-content:center;z-index:800}
 .modal{width:min(520px,94vw);max-height:90vh;overflow:auto;background:#fff;border-radius:12px;border:1px solid var(--border);box-shadow:0 20px 70px rgba(0,0,0,.22)}
@@ -59,7 +60,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
   </div>
 
   <section id="panel-machines" class="panel active">
-    <div class="actions" style="margin-bottom:12px">
+    <div class="actions actions-spaced">
       <button class="btn btn-primary" onclick="saveMachinesAdmin()">שמור שינויים</button>
       <button class="btn" onclick="loadMachinesAdmin()">רענן</button>
       <span class="meta" id="machinesSaveStatus"></span>
@@ -68,7 +69,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
   </section>
 
   <section id="panel-workstations" class="panel">
-    <div class="actions" style="margin-bottom:12px">
+    <div class="actions actions-spaced">
       <button class="btn btn-primary" onclick="saveWorkstations()">שמור הגדרות תחנות</button>
       <button class="btn" onclick="loadWorkstations()">רענן</button>
       <a class="btn" href="/machine.html" target="_blank">פתח מסך מכונה</a>

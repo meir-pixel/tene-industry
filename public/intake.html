@@ -29,15 +29,24 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:#fbfcfe;color:var(--text)}
 .field textarea{min-height:96px;resize:vertical}
 .empty{color:var(--text-muted);padding:16px;border:1px dashed var(--border);border-radius:10px;text-align:center}
-.intake-card,.train-card{border:1px solid var(--border);border-radius:10px;padding:13px;background:#fff}
+.ocr-list{display:grid;gap:10px}
+.intake-card,.train-card{border:1px solid var(--border);border-radius:14px;padding:14px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05)}
+.card-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.card-title{font-size:15px;font-weight:900;color:var(--text)}
+.card-actions{display:flex;gap:6px;flex-wrap:wrap}
 .meta{font-size:12px;color:var(--text-dim);line-height:1.7}
 .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.chip{background:#e8f0fe;border-radius:6px;padding:2px 8px;font-size:11px}
+.chip{background:#e8f0fe;border:1px solid #d8e4fb;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:800}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 @media(max-width:700px){.split{grid-template-columns:1fr}}
 .bad{background:#fff7f3;border-radius:10px;padding:10px}
 .good{background:#f2fbf5;border-radius:10px;padding:10px}
 .mini-title{font-size:10px;font-weight:900;margin-bottom:4px}
+.mini-title.bad-title{color:var(--danger)}
+.mini-title.good-title{color:var(--success)}
+.raw-details{margin-top:10px}
+.raw-details summary{cursor:pointer}
+.raw-content{white-space:pre-wrap;margin-top:6px;max-height:160px;overflow:auto;background:#f7fafc;border:1px solid var(--border);border-radius:10px;padding:10px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10233f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;opacity:0;transition:.2s;z-index:900}
 </style>
 </head>
@@ -98,7 +107,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
           </div>
         </div>
         <button class="btn btn-primary" onclick="saveOcrTraining()">שמור תיקון</button>
-        <div id="ocrTrainingList" style="display:grid;gap:10px"></div>
+        <div id="ocrTrainingList" class="ocr-list"></div>
       </div>
     </section>
   </section>
@@ -132,19 +141,29 @@ async function loadOcrTraining() {
   }
   list.innerHTML = rows.map(row => `
     <article class="train-card" id="ocrTrain_${row.id}">
-      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+      <div class="card-top">
         <div>
-          <div style="font-weight:900">${escapeHtml(row.title)}</div>
+          <div class="card-title">${escapeHtml(row.title)}</div>
           <div class="meta">${escapeHtml(row.document_type || 'general')}</div>
         </div>
         <button class="btn" onclick="deleteOcrTraining(${row.id})">הסר</button>
       </div>
       <div class="split">
-        <div class="bad"><div class="mini-title" style="color:var(--danger)">נקרא לא נכון</div><div class="meta">${escapeHtml(row.problem_text)}</div></div>
-        <div class="good"><div class="mini-title" style="color:var(--success)">התיקון</div><div class="meta">${escapeHtml(row.correction_text)}</div></div>
+        <div class="bad"><div class="mini-title bad-title">נקרא לא נכון</div><div class="meta">${escapeHtml(row.problem_text)}</div></div>
+        <div class="good"><div class="mini-title good-title">התיקון</div><div class="meta">${escapeHtml(row.correction_text)}</div></div>
       </div>
     </article>
   `).join('');
+}
+
+function formatIntakeItem(item) {
+  const diameter = item.diameter ?? item.diameter_mm ?? item.dia ?? '—';
+  const length = item.length ?? item.length_mm ?? item.total_length_mm ?? item.cut_length_mm ?? '—';
+  const qty = item.qty ?? item.quantity ?? item.pcs ?? item.count ?? '—';
+  const shape = item.shape_name || item.shape || item.type || '';
+  const parts = [`Ø${escapeHtml(diameter)}`, `${escapeHtml(length)} מ"מ`, `${escapeHtml(qty)} יח'`];
+  if (shape) parts.push(escapeHtml(shape));
+  return `<span class="chip">${parts.join(' · ')}</span>`;
 }
 
 async function saveOcrTraining() {
@@ -189,25 +208,23 @@ async function loadIntakeQueue() {
   list.innerHTML = rows.map(row => {
     let parsed = {};
     try { parsed = JSON.parse(row.parsed_data || '{}'); } catch {}
-    const items = (parsed.items || []).map(item => `
-      <span class="chip">Ø${escapeHtml(item.diameter)} x ${escapeHtml(item.length)} x ${escapeHtml(item.qty)}</span>
-    `).join('');
+    const items = (parsed.items || []).map(formatIntakeItem).join('');
     return `
       <article class="intake-card" id="intake_${row.id}">
-        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+        <div class="card-top">
           <div>
-            <div style="font-size:15px;font-weight:900">${escapeHtml(parsed.customer_name || parsed.customerName || 'לקוח לא ידוע')}</div>
+            <div class="card-title">${escapeHtml(parsed.customer_name || parsed.customerName || 'לקוח לא ידוע')}</div>
             <div class="meta">${escapeHtml(row.source || '')} ${parsed.delivery_date || parsed.deliveryDate ? ' · ' + escapeHtml(parsed.delivery_date || parsed.deliveryDate) : ''}</div>
             <div class="chips">${items || '<span class="meta">אין פריטים שזוהו</span>'}</div>
           </div>
-          <div style="display:flex;gap:6px">
+          <div class="card-actions">
             <button class="btn btn-success" onclick="intakeApprove(${row.id})">אשר</button>
             <button class="btn" onclick="intakeReject(${row.id})">דחה</button>
           </div>
         </div>
-        <details style="margin-top:8px">
-          <summary class="meta" style="cursor:pointer">תוכן מקורי</summary>
-          <pre class="meta" style="white-space:pre-wrap;margin-top:6px;max-height:160px;overflow:auto">${escapeHtml(row.raw_content || '')}</pre>
+        <details class="raw-details">
+          <summary class="meta">תוכן מקורי</summary>
+          <pre class="meta raw-content">${escapeHtml(row.raw_content || '')}</pre>
         </details>
       </article>
     `;
