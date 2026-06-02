@@ -1,40 +1,10 @@
 // IronBend – Shared Navigation v3 (3D + RTL drawer)
 (function () {
-  if (!window.__ironBendFetchInstalled) {
-    window.__ironBendFetchInstalled = true;
-    const nativeFetch = window.fetch.bind(window);
-  function accessToken() {
-    return sessionStorage.getItem('ib_access_token') || localStorage.getItem('ib_access_token');
-  }
-  async function refreshAccessToken() {
-    const response = await nativeFetch('/api/auth/refresh', {
-      method: 'POST',
-      credentials: 'same-origin',
-    });
-    if (!response.ok) return null;
-    const result = await response.json();
-    localStorage.setItem('ib_access_token', result.access_token);
-    localStorage.setItem('ib_role', result.user.role);
-    localStorage.setItem('ib_user', result.user.username);
-    return result.access_token;
-  }
-    window.fetch = async function ironBendFetch(input, init = {}) {
-    const url = typeof input === 'string' ? input : input.url;
-    const isApi = url.startsWith('/api/') || url.includes('/api/');
-    const isAuth = url.includes('/api/auth/');
-    const headers = new Headers(init.headers || (typeof input === 'string' ? undefined : input.headers));
-    const token = accessToken();
-    if (isApi && !isAuth && token) headers.set('Authorization', `Bearer ${token}`);
-    let response = await nativeFetch(input, { ...init, headers, credentials: init.credentials || 'same-origin' });
-    if (response.status === 401 && isApi && !isAuth) {
-      const refreshedToken = await refreshAccessToken();
-      if (refreshedToken) {
-        headers.set('Authorization', `Bearer ${refreshedToken}`);
-        response = await nativeFetch(input, { ...init, headers, credentials: init.credentials || 'same-origin' });
-      }
-    }
-    return response;
-    };
+  if (!window.IronBendAuth && !document.querySelector('script[src="/auth-client.js"]')) {
+    const authScript = document.createElement('script');
+    authScript.src = '/auth-client.js';
+    authScript.async = false;
+    document.head.appendChild(authScript);
   }
 
   const CSS = `
@@ -57,7 +27,7 @@
       text-decoration:none; margin-left:16px; flex-shrink:0;
     }
     #ib-logo-icon {
-      width:164px; height:38px; flex-shrink:0; object-fit:contain;
+      width:164px; height:auto; flex-shrink:0; object-fit:contain;
       filter: drop-shadow(0 2px 4px rgba(2,26,72,0.10));
     }
     #ib-links {
@@ -109,7 +79,7 @@
       gap:10px; flex-shrink:0;
     }
     #ib-drawer-logo {
-      width:176px; height:42px; object-fit:contain; flex-shrink:0;
+      width:176px; height:auto; object-fit:contain; flex-shrink:0;
     }
     #ib-drawer-close {
       background:none; border:none; cursor:pointer;
@@ -149,7 +119,7 @@
     .ib-bn-icon { font-size:20px; line-height:1; }
 
     @media(max-width:768px) {
-      #ib-logo-icon { width:132px; height:34px; }
+      #ib-logo-icon { width:132px; height:auto; }
       #ib-links { display:none; }
       #ib-hamburger { display:flex; align-items:center; }
     }
@@ -178,8 +148,8 @@
         border-bottom: 1px solid rgba(255,255,255,0.12);
       }
       #ib-logo-icon {
-        width: 92px;
-        height: 42px;
+        width: 96px;
+        height: auto;
         filter: drop-shadow(0 8px 18px rgba(0,0,0,0.28));
       }
       #ib-links {
@@ -232,25 +202,27 @@
     { href:'/dashboard.html',    icon:'📊', label:'דשבורד',      id:'dashboard'    },
     { href:'/orders.html',       icon:'📋', label:'הזמנות',      id:'orders'       },
     { href:'/index.html',        icon:'➕', label:'הזמנה חדשה',  id:'new'          },
+    { href:'/intake.html',       icon:'📬', label:'קליטה',       id:'intake'       },
     { href:'/customers.html',    icon:'👥', label:'לקוחות',      id:'customers'    },
     { href:'/machine.html',      icon:'🔧', label:'מכונות',      id:'machine'      },
+    { href:'/production-setup.html', icon:'⚙️', label:'הגדרות ייצור', id:'production-setup' },
     { href:'/kiosk.html',        icon:'🖥️', label:'תחנת עבודה',  id:'kiosk'        },
     { href:'/warehouse.html',    icon:'📦', label:'מחסן',        id:'warehouse'    },
     { href:'/inventory.html',    icon:'🗄️', label:'מלאי',        id:'inventory'    },
-    // BUG-47: stub pages hidden from nav until modules are ready
     // { href:'/procurement.html',  icon:'🛒', label:'רכש',         id:'procurement'  },
-    // { href:'/projects.html',     icon:'🏗️', label:'פרויקטים',    id:'projects'     },
-    // { href:'/warroom.html',      icon:'🚨', label:'War Room',    id:'warroom'      },
-    // { href:'/maintenance.html',  icon:'🛠️', label:'תחזוקה',      id:'maintenance'  },
+    { href:'/projects.html',     icon:'🏗️', label:'פרויקטים',    id:'projects'     },
+    { href:'/warroom.html',      icon:'🚨', label:'War Room',    id:'warroom'      },
+    { href:'/maintenance.html',  icon:'🛠️', label:'תחזוקה',      id:'maintenance'  },
     { href:'/quality.html',      icon:'🔍', label:'איכות',       id:'quality'      },
     { href:'/reports.html',      icon:'📈', label:'דוחות',       id:'reports'      },
     { href:'/finance.html',      icon:'💰', label:'פיננסים',     id:'finance'      },
+    { href:'/delivery-admin.html', icon:'🚚', label:'נהגים',       id:'delivery-admin' },
     { href:'/driver.html',       icon:'🚚', label:'נהג',         id:'driver'       },
     { href:'/holdings.html',     icon:'🏢', label:'אחזקות',      id:'holdings'     },
     { href:'/admin.html',        icon:'⚙️', label:'ניהול',       id:'admin'        },
   ];
 
-  const BOTTOM_IDS = ['dashboard','orders','new','admin']; // BUG-47: warroom removed (stub)
+  const BOTTOM_IDS = ['dashboard','orders','new','admin'];
   const path     = location.pathname.replace(/^\//, '') || 'dashboard.html';
   const activeId = (LINKS.find(l => l.href.replace('/','') === path) || {}).id || '';
   const ia = id => id === activeId ? 'ib-active' : '';

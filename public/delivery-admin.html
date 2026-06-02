@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ניהול נהגים - IronBend</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap">
+<link rel="stylesheet" href="/theme.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh}
+.page{max-width:1240px;margin:0 auto;padding:18px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.title{font-size:22px;font-weight:900}
+.sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.btn{border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-family:inherit;font-weight:800;cursor:pointer;background:#fff;color:var(--text)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-danger{color:var(--danger);border-color:rgba(184,50,39,.35);background:var(--danger-dim)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.driver-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));display:flex;flex-direction:column;gap:10px}
+.driver-card.off{opacity:.56}
+.driver-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.driver-name{font-size:16px;font-weight:900}
+.driver-meta{font-size:12px;color:var(--text-dim);line-height:1.8}
+.badge{font-size:11px;font-weight:900;border-radius:999px;padding:3px 9px;background:var(--success-dim);color:var(--success)}
+.badge.off{background:rgba(0,0,0,.06);color:var(--text-muted)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.empty{background:#fff;border:1px solid var(--border);border-radius:10px;padding:36px;text-align:center;color:var(--text-muted)}
+.modal-bg{position:fixed;inset:0;background:rgba(10,20,35,.45);display:none;align-items:center;justify-content:center;z-index:800}
+.modal{width:min(460px,94vw);background:#fff;border-radius:12px;border:1px solid var(--border);box-shadow:0 20px 70px rgba(0,0,0,.22);overflow:hidden}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);font-weight:900}
+.modal-body{padding:18px;display:grid;gap:11px}
+.field{display:grid;gap:4px}
+.field label{font-size:11px;font-weight:900;color:var(--text-muted)}
+.field input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:#fbfcfe;color:var(--text)}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10233f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;opacity:0;transition:.2s;z-index:900}
+</style>
+</head>
+<body data-page="driver">
+<script src="/safe-dom.js"></script>
+<script src="/auth-client.js"></script>
+<script src="/nav.js"></script>
+
+<main class="page">
+  <section class="head">
+    <div>
+      <div class="title">🚚 ניהול נהגים ורכבים</div>
+      <div class="sub">מסך פנימי ללוגיסטיקה: הקמה, עריכה והשבתה של נהגים</div>
+    </div>
+    <button class="btn btn-primary" onclick="openDriverModal()">+ נהג חדש</button>
+  </section>
+
+  <section class="grid" id="driversGrid">
+    <div class="empty">טוען נהגים...</div>
+  </section>
+</main>
+
+<div class="modal-bg" id="driverModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span id="driverModalTitle">נהג חדש</span>
+      <button class="btn" onclick="closeDriverModal()">סגור</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="driverEditId">
+      <div class="field"><label>שם נהג *</label><input id="driverName" type="text"></div>
+      <div class="field"><label>טלפון</label><input id="driverPhone" type="tel"></div>
+      <div class="field"><label>תיאור רכב</label><input id="driverVehicle" type="text"></div>
+      <div class="field"><label>לוחית רישוי</label><input id="driverPlate" type="text"></div>
+      <div class="field"><label>תוקף רישיון</label><input id="driverLicense" type="date"></div>
+      <div class="field"><label>הערות</label><input id="driverNotes" type="text"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeDriverModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveDriver()">שמור</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let drivers = [];
+
+function escapeHtml(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function toast(message) {
+  const el = document.getElementById('toast');
+  el.textContent = message;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.opacity = '0', 2200);
+}
+
+async function loadDriversAdmin() {
+  drivers = await fetch('/api/drivers?all=1').then(r => r.json()).catch(() => []);
+  const grid = document.getElementById('driversGrid');
+  if (!drivers.length) {
+    grid.innerHTML = '<div class="empty">אין נהגים. לחץ "נהג חדש" כדי להוסיף.</div>';
+    return;
+  }
+  grid.innerHTML = drivers.map(driverCard).join('');
+}
+
+function driverCard(d) {
+  const isActive = d.active !== 0;
+  const encoded = encodeURIComponent(JSON.stringify(d));
+  return `
+    <article class="driver-card ${isActive ? '' : 'off'}">
+      <div class="driver-top">
+        <div>
+          <div class="driver-name">${escapeHtml(d.name)}</div>
+          <div class="driver-meta">
+            <div>${escapeHtml(d.phone || 'ללא טלפון')}</div>
+            <div>${escapeHtml(d.vehicle_desc || 'ללא תיאור רכב')}</div>
+            <div>${escapeHtml(d.license_plate || 'ללא לוחית')}</div>
+            ${d.license_expiry ? `<div>רישיון עד ${escapeHtml(d.license_expiry)}</div>` : ''}
+            ${d.notes ? `<div>${escapeHtml(d.notes)}</div>` : ''}
+          </div>
+        </div>
+        <span class="badge ${isActive ? '' : 'off'}">${isActive ? 'פעיל' : 'מושבת'}</span>
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="openDriverModalFromData('${encoded}')">עריכה</button>
+        <button class="btn ${isActive ? 'btn-danger' : ''}" onclick="toggleDriver(${d.id}, ${isActive ? 0 : 1})">${isActive ? 'השבת' : 'הפעל'}</button>
+      </div>
+    </article>
+  `;
+}
+
+function openDriverModalFromData(encoded) {
+  openDriverModal(JSON.parse(decodeURIComponent(encoded)));
+}
+
+function openDriverModal(driver = null) {
+  document.getElementById('driverEditId').value = driver?.id || '';
+  document.getElementById('driverModalTitle').textContent = driver ? 'עריכת נהג' : 'נהג חדש';
+  document.getElementById('driverName').value = driver?.name || '';
+  document.getElementById('driverPhone').value = driver?.phone || '';
+  document.getElementById('driverVehicle').value = driver?.vehicle_desc || '';
+  document.getElementById('driverPlate').value = driver?.license_plate || '';
+  document.getElementById('driverLicense').value = driver?.license_expiry || '';
+  document.getElementById('driverNotes').value = driver?.notes || '';
+  document.getElementById('driverModal').style.display = 'flex';
+  document.getElementById('driverName').focus();
+}
+
+function closeDriverModal() {
+  document.getElementById('driverModal').style.display = 'none';
+}
+
+async function saveDriver() {
+  const id = document.getElementById('driverEditId').value;
+  const body = {
+    name: document.getElementById('driverName').value.trim(),
+    phone: document.getElementById('driverPhone').value.trim(),
+    vehicle_desc: document.getElementById('driverVehicle').value.trim(),
+    license_plate: document.getElementById('driverPlate').value.trim(),
+    license_expiry: document.getElementById('driverLicense').value || null,
+    notes: document.getElementById('driverNotes').value.trim(),
+  };
+  if (!body.name) return toast('יש להזין שם נהג');
+  await fetch(id ? `/api/drivers/${id}` : '/api/drivers', {
+    method: id ? 'PATCH' : 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body),
+  });
+  closeDriverModal();
+  toast('נשמר');
+  loadDriversAdmin();
+}
+
+async function toggleDriver(id, active) {
+  await fetch(`/api/drivers/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ active }),
+  });
+  toast(active ? 'נהג הופעל' : 'נהג הושבת');
+  loadDriversAdmin();
+}
+
+loadDriversAdmin();
+</script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>קליטת הזמנות - IronBend</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap">
+<link rel="stylesheet" href="/theme.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh}
+.page{max-width:1240px;margin:0 auto;padding:18px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.title{font-size:22px;font-weight:900}
+.sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:14px;align-items:start}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+.panel{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fafbfd}
+.panel-title{font-size:15px;font-weight:900}
+.panel-body{padding:16px;display:grid;gap:12px}
+.btn{border:1px solid var(--border);border-radius:8px;padding:8px 13px;font-family:inherit;font-weight:800;cursor:pointer;background:#fff;color:var(--text)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-success{background:var(--success);border-color:var(--success);color:#fff}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
+.field{display:grid;gap:4px}
+.field label{font-size:11px;font-weight:900;color:var(--text-muted)}
+.field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:#fbfcfe;color:var(--text)}
+.field textarea{min-height:96px;resize:vertical}
+.empty{color:var(--text-muted);padding:16px;border:1px dashed var(--border);border-radius:10px;text-align:center}
+.intake-card,.train-card{border:1px solid var(--border);border-radius:10px;padding:13px;background:#fff}
+.meta{font-size:12px;color:var(--text-dim);line-height:1.7}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.chip{background:#e8f0fe;border-radius:6px;padding:2px 8px;font-size:11px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media(max-width:700px){.split{grid-template-columns:1fr}}
+.bad{background:#fff7f3;border-radius:10px;padding:10px}
+.good{background:#f2fbf5;border-radius:10px;padding:10px}
+.mini-title{font-size:10px;font-weight:900;margin-bottom:4px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10233f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;opacity:0;transition:.2s;z-index:900}
+</style>
+</head>
+<body data-page="intake">
+<script src="/safe-dom.js"></script>
+<script src="/auth-client.js"></script>
+<script src="/nav.js"></script>
+
+<main class="page">
+  <section class="head">
+    <div>
+      <div class="title">📬 קליטת הזמנות ו-OCR</div>
+      <div class="sub">תור סקירה, אישור הזמנות נכנסות ואימון פענוח מסמכים</div>
+    </div>
+    <button class="btn btn-primary" onclick="loadIntakeQueue()">רענן תור</button>
+  </section>
+
+  <section class="grid">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">הזמנות ממתינות לאישור</div>
+        <button class="btn" onclick="loadIntakeQueue()">רענן</button>
+      </div>
+      <div class="panel-body" id="intakeList">
+        <div class="empty">טוען...</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">אימון OCR / AI</div>
+        <button class="btn" onclick="loadOcrTraining()">רענן</button>
+      </div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="field">
+            <label>שם קצר לדוגמה</label>
+            <input type="text" id="ocrTrainTitle" placeholder="טסה - כמות מול משקל">
+          </div>
+          <div class="field">
+            <label>סוג מסמך</label>
+            <select id="ocrTrainType">
+              <option value="tassa_pdf">TASSA PDF</option>
+              <option value="handwritten_cards">כרטיסיות בכתב יד</option>
+              <option value="bar_schedule">רשימת ברזל / טבלה</option>
+              <option value="general">כללי</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>מה נקרא לא נכון?</label>
+            <textarea id="ocrTrainProblem"></textarea>
+          </div>
+          <div class="field">
+            <label>איך לקרוא נכון בפעם הבאה?</label>
+            <textarea id="ocrTrainCorrection"></textarea>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveOcrTraining()">שמור תיקון</button>
+        <div id="ocrTrainingList" style="display:grid;gap:10px"></div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function escapeHtml(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function toast(message, err = false) {
+  const el = document.getElementById('toast');
+  el.textContent = message;
+  el.style.background = err ? 'var(--danger)' : 'var(--success)';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.opacity = '0', 2400);
+}
+
+async function loadOcrTraining() {
+  const list = document.getElementById('ocrTrainingList');
+  list.innerHTML = '<div class="empty">טוען...</div>';
+  const rows = await fetch('/api/intake/training').then(r => r.json()).catch(() => []);
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty">אין עדיין דוגמאות אימון.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(row => `
+    <article class="train-card" id="ocrTrain_${row.id}">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <div>
+          <div style="font-weight:900">${escapeHtml(row.title)}</div>
+          <div class="meta">${escapeHtml(row.document_type || 'general')}</div>
+        </div>
+        <button class="btn" onclick="deleteOcrTraining(${row.id})">הסר</button>
+      </div>
+      <div class="split">
+        <div class="bad"><div class="mini-title" style="color:var(--danger)">נקרא לא נכון</div><div class="meta">${escapeHtml(row.problem_text)}</div></div>
+        <div class="good"><div class="mini-title" style="color:var(--success)">התיקון</div><div class="meta">${escapeHtml(row.correction_text)}</div></div>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function saveOcrTraining() {
+  const payload = {
+    title: document.getElementById('ocrTrainTitle').value,
+    document_type: document.getElementById('ocrTrainType').value,
+    problem_text: document.getElementById('ocrTrainProblem').value,
+    correction_text: document.getElementById('ocrTrainCorrection').value,
+  };
+  if (!payload.title.trim() || !payload.problem_text.trim() || !payload.correction_text.trim()) {
+    toast('צריך למלא שם, בעיה ותיקון', true);
+    return;
+  }
+  const response = await fetch('/api/intake/training', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) return toast('שמירת התיקון נכשלה', true);
+  document.getElementById('ocrTrainTitle').value = '';
+  document.getElementById('ocrTrainProblem').value = '';
+  document.getElementById('ocrTrainCorrection').value = '';
+  toast('תיקון נשמר');
+  loadOcrTraining();
+}
+
+async function deleteOcrTraining(id) {
+  await fetch('/api/intake/training/' + id, { method:'DELETE' });
+  document.getElementById('ocrTrain_' + id)?.remove();
+  toast('התיקון הוסר');
+}
+
+async function loadIntakeQueue() {
+  const list = document.getElementById('intakeList');
+  list.innerHTML = '<div class="empty">טוען...</div>';
+  const rows = await fetch('/api/intake/log?status=pending_review').then(r => r.json()).catch(() => []);
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty">אין הזמנות ממתינות לאישור.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(row => {
+    let parsed = {};
+    try { parsed = JSON.parse(row.parsed_data || '{}'); } catch {}
+    const items = (parsed.items || []).map(item => `
+      <span class="chip">Ø${escapeHtml(item.diameter)} x ${escapeHtml(item.length)} x ${escapeHtml(item.qty)}</span>
+    `).join('');
+    return `
+      <article class="intake-card" id="intake_${row.id}">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+          <div>
+            <div style="font-size:15px;font-weight:900">${escapeHtml(parsed.customer_name || parsed.customerName || 'לקוח לא ידוע')}</div>
+            <div class="meta">${escapeHtml(row.source || '')} ${parsed.delivery_date || parsed.deliveryDate ? ' · ' + escapeHtml(parsed.delivery_date || parsed.deliveryDate) : ''}</div>
+            <div class="chips">${items || '<span class="meta">אין פריטים שזוהו</span>'}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-success" onclick="intakeApprove(${row.id})">אשר</button>
+            <button class="btn" onclick="intakeReject(${row.id})">דחה</button>
+          </div>
+        </div>
+        <details style="margin-top:8px">
+          <summary class="meta" style="cursor:pointer">תוכן מקורי</summary>
+          <pre class="meta" style="white-space:pre-wrap;margin-top:6px;max-height:160px;overflow:auto">${escapeHtml(row.raw_content || '')}</pre>
+        </details>
+      </article>
+    `;
+  }).join('');
+}
+
+async function intakeApprove(id) {
+  const response = await fetch(`/api/intake/${id}/approve`, { method:'POST' });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) return toast('אישור נכשל', true);
+  document.getElementById('intake_' + id)?.remove();
+  toast(`הזמנה ${result.orderNum} נוצרה`);
+}
+
+async function intakeReject(id) {
+  await fetch(`/api/intake/${id}/reject`, { method:'POST' });
+  document.getElementById('intake_' + id)?.remove();
+  toast('סומן כדחוי');
+}
+
+loadIntakeQueue();
+loadOcrTraining();
+</script>
+</body>
+</html>

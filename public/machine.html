@@ -211,6 +211,9 @@
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body data-page="machine">
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
+<script src="/status-contracts-client.js"></script>
 <script src="/nav.js"></script>
 
 <nav class="topnav">
@@ -440,6 +443,20 @@ let machines=[], selectedMachineId=null, currentJob=null, selectedQueueItem=null
 // Queue view state
 let queueData={items:[],grouped:{}}, currentShift=null, stopReasons=[], users=[];
 let selectedStopReason=null, currentWasteItemId=null, currentView='machine';
+const ITEM_STATUS = (window.IronBendStatus && window.IronBendStatus.ITEM_STATUS) || {
+  WAITING: 'ממתין',
+  IN_PRODUCTION: 'בייצור',
+  DONE: 'הושלם',
+};
+
+function escHtml(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function jsArg(value) {
+  return JSON.stringify(String(value ?? ''));
+}
 
 let _wsDelay = 1000;
 function connectWS() {
@@ -583,23 +600,22 @@ async function loadQueue() {
   document.getElementById('queueCard').style.display='block';
   document.getElementById('queueList').innerHTML='<div style="color:var(--text-dim);font-size:13px;padding:12px">טוען...</div>';
   try {
-    const r=await fetch('/api/orders?status=אושרה');
-    const orders=await r.json();
-    const items=[];
-    for (const o of orders) {
-      const full=await (await fetch(`/api/orders/${o.id}`)).json();
-      for (const p of full.pallets||[]) for (const item of p.items||[]) {
-        if (item.status==='ממתין') items.push({...item,orderNum:full.order_num,customerName:full.customer_name});
-      }
-    }
+    const data = await fetch('/api/production-queue').then(r=>r.json());
+    const items = (data.items || [])
+      .filter(item => item.status === ITEM_STATUS.WAITING)
+      .map(item => ({
+        ...item,
+        orderNum: item.order_num,
+        customerName: item.customer_name,
+      }));
     if (!items.length) { document.getElementById('queueList').innerHTML='<div style="color:var(--text-dim);font-size:13px;padding:12px">אין פריטים בתור</div>'; return; }
     window._queueItems=items;
     document.getElementById('queueList').innerHTML=items.map(item=>`
-      <div class="queue-item" id="qi-${item.id}" onclick="selectQueueItem(${item.id},'${item.orderNum}',${item.quantity})">
+      <div class="queue-item" id="qi-${item.id}" onclick="selectQueueItem(${item.id},${jsArg(item.orderNum)},${Number(item.quantity)||0})">
         <div style="flex:1">
-          <div class="queue-order">${item.orderNum}</div>
-          <div class="queue-details">⌀${item.diameter} × ${item.length}מ"מ × ${item.quantity}יח' | ${item.shape_name||'ישר'}</div>
-          <div class="queue-details">${item.customerName??''}</div>
+          <div class="queue-order">${escHtml(item.orderNum)}</div>
+          <div class="queue-details">⌀${escHtml(item.diameter)} × ${escHtml(item.length || item.total_length_mm || '')}מ"מ × ${escHtml(item.quantity)}יח' | ${escHtml(item.shape_name||'ישר')}</div>
+          <div class="queue-details">${escHtml(item.customerName??'')}</div>
         </div>
         <div class="queue-weight">${(item.weight*(item.quantity||1)).toFixed(0)}ק"ג</div>
       </div>`).join('');
@@ -724,7 +740,7 @@ function renderFullQueue() {
 }
 
 function renderQItem(item) {
-  const isActive = item.status === 'בייצור';
+  const isActive = item.status === ITEM_STATUS.IN_PRODUCTION;
   const pct = item.quantity>0 ? Math.min(100,Math.round((item.produced_qty||0)/item.quantity*100)) : 0;
   const segs = (() => { try { const s=typeof item.segments==='string'?JSON.parse(item.segments):item.segments; return s&&s.length?s.slice(0,3).map(x=>typeof x==='object'?(x.length||x):x).join('/'):'' } catch{return''} })();
   return `<div class="q-item ${isActive?'q-active':''}" onclick="toggleQActions(${item.id})">
@@ -742,7 +758,7 @@ function renderQItem(item) {
     </div>
     ${isActive?`<div class="q-prog"><div class="q-prog-fill" style="width:${pct}%"></div></div>`:''}
     <div class="q-actions" id="qa-${item.id}" style="display:none">
-      ${item.status==='ממתין'
+      ${item.status===ITEM_STATUS.WAITING
         ?`<button class="qa qa-start" onclick="qStartItem(${item.id},event)">▶ התחל</button>`
         :`<button class="qa qa-done" onclick="qDoneItem(${item.id},event)">✅ הושלם</button>`
       }
@@ -757,11 +773,11 @@ function toggleQActions(id) {
 }
 
 async function qStartItem(id,e) { e&&e.stopPropagation();
-  await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'בייצור'})});
+  await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:ITEM_STATUS.IN_PRODUCTION})});
   loadFullQueue();
 }
 async function qDoneItem(id,e) { e&&e.stopPropagation();
-  await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'הושלם'})});
+  await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:ITEM_STATUS.DONE})});
   loadFullQueue();
 }
 function qOpenWaste(id,orderNum,e) { e&&e.stopPropagation();

@@ -998,7 +998,7 @@
     <div class="success-icon">✅</div>
     <div class="success-title">ההזמנה נשמרה!</div>
     <div class="success-order" id="successOrderNum"></div>
-    <div class="success-sub" id="successSubText">ההזמנה נוצרה ונשלחה לתור הייצור</div>
+    <div class="success-sub" id="successSubText">ההזמנה נוצרה וממתינה לאישור לפני ייצור</div>
     <!-- Quick actions -->
     <div class="success-actions" id="successActions">
       <button class="success-btn primary" onclick="successGoView()">📋 פרטי הזמנה</button>
@@ -1593,7 +1593,7 @@ async function submitOrder() {
 
     if (result.success) {
       document.getElementById('successOrderNum').textContent = result.orderNum;
-      document.getElementById('successSubText').textContent = 'ההזמנה נוצרה ונשלחה לתור הייצור';
+      document.getElementById('successSubText').textContent = 'ההזמנה נוצרה וממתינה לאישור לפני ייצור';
       document.getElementById('successOverlay').setAttribute('data-order-id', result.orderId || '');
       // show/hide cert buttons if online
       const actionsEl = document.getElementById('successActions');

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex,nofollow"><!-- BUG-47: stub page -->
+<meta name="robots" content="noindex,nofollow">
 <title>תחזוקה ותקלות – IronBend</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -122,6 +122,8 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .info-box strong{display:block;font-size:14px;margin-bottom:4px;}
 </style>
 <link rel="stylesheet" href="/theme.css">
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
 </head>
 <body data-page="maintenance">
 <nav class="topnav">
@@ -137,11 +139,6 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     <a href="admin.html" class="nav-link">ניהול</a>
   </div>
 </nav>
-
-<!-- BUG-47: coming soon banner for stub page -->
-<div style="background:#fef3cd;border:1px solid #f5c518;border-radius:10px;padding:16px 24px;margin:16px 24px;text-align:center;font-family:'Heebo',sans-serif;font-size:15px;color:#7a5800">
-  🚧 <strong>מודול תחזוקה — בפיתוח</strong> — ייפתח בגרסה הבאה.
-</div>
 
 <div class="page">
 
@@ -437,7 +434,11 @@ const FREQ_DAYS   = { יומי:1, שבועי:7, חודשי:30, רבעוני:90 }
 
 /* ── utils ── */
 function fmt0(v){ return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:0}); }
-function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escH(s){
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(s)
+    : String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 function dtStr(s){ return s ? new Date(s).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
 function dateStr(s){ return s ? new Date(s).toLocaleDateString('he-IL') : '—'; }
 function elapsed(start){
@@ -472,21 +473,12 @@ function openModal(id) { document.getElementById(id).classList.add('open'); }
    INIT
 ══════════════════════════════════════ */
 async function init() {
-  machines = await fetch('/api/machines').then(r=>r.json()).catch(()=>mockMachines());
+  machines = await fetch('/api/machines').then(r=>r.ok?r.json():[]).catch(()=>[]);
   populateMachineSelects();
   populateWorkerSelects();
   loadStats();
   loadLogs();
   loadLotoKpi();
-}
-
-function mockMachines(){
-  return [
-    {id:1,label:'M-01',name:'כופף CNC ראשי',status:'running'},
-    {id:2,label:'M-02',name:'מחתך פלזמה',status:'running'},
-    {id:3,label:'M-03',name:'מכונת קידוח',status:'idle'},
-    {id:4,label:'M-04',name:'לוח בקרה',status:'running'},
-  ];
 }
 
 function populateMachineSelects(){
@@ -508,7 +500,7 @@ function populateWorkerSelects(){
    MAINTENANCE – STATS & LOGS
 ══════════════════════════════════════ */
 async function loadStats() {
-  const s = await fetch('/api/maintenance/stats').then(r=>r.json()).catch(()=>mockStats());
+  const s = await fetch('/api/maintenance/stats').then(r=>r.ok?r.json():{}).catch(()=>({}));
   document.getElementById('kpiOpen').textContent   = s.open||0;
   document.getElementById('kpiTotal').textContent  = s.breakdowns||0;
   document.getElementById('kpiDowntime').textContent = s.avgDowntime||0;
@@ -527,20 +519,13 @@ async function loadStats() {
   </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">אין נתונים</td></tr>';
 }
 
-function mockStats(){
-  return {open:3,breakdowns:47,avgDowntime:38,mtbf:120,mttr:2,byMachine:[
-    {label:'M-01',name:'כופף CNC ראשי',events:12,total_down:480,mtbf:140,mttr:2},
-    {label:'M-02',name:'מחתך פלזמה',events:8,total_down:290,mtbf:100,mttr:3},
-  ]};
-}
-
 async function loadLogs() {
   const machine = document.getElementById('fMachine').value;
   const status  = document.getElementById('fStatus').value;
   let url = '/api/maintenance?limit=200';
   if (machine) url += '&machine_id='+machine;
   if (status)  url += '&status='+encodeURIComponent(status);
-  logs = await fetch(url).then(r=>r.json()).catch(()=>mockLogs());
+  logs = await fetch(url).then(r=>r.ok?r.json():[]).catch(()=>[]);
   const wip = logs.filter(l=>l.status==='בטיפול').length;
   document.getElementById('kpiWip').textContent = wip;
   const tbody = document.getElementById('logsTable');
@@ -559,13 +544,6 @@ async function loadLogs() {
       ${l.status!=='סגורה'?`<button class="btn btn-sm btn-success" style="margin-right:4px" onclick="closeLog(${l.id})">סגור</button>`:''}
     </td>
   </tr>`).join('');
-}
-
-function mockLogs(){
-  return [
-    {id:1,machine_label:'M-01',machine_name:'כופף CNC ראשי',log_type:'breakdown',description:'שבירת תיל בזמן עיבוד',priority:'דחוף',status:'פתוחה',started_at:'2026-05-18T08:00:00',downtime_min:45,cost:0},
-    {id:2,machine_label:'M-02',machine_name:'מחתך פלזמה',log_type:'preventive',description:'החלפת מסננים חודשית',priority:'רגיל',status:'סגורה',started_at:'2026-05-15T10:00:00',downtime_min:30,cost:200},
-  ];
 }
 
 function openAddModal(){
@@ -628,7 +606,7 @@ async function closeLog(id){
    LOTO
 ══════════════════════════════════════ */
 async function loadLotoKpi(){
-  const data=await fetch('/api/loto').then(r=>r.json()).catch(()=>mockLoto());
+  const data=await fetch('/api/loto').then(r=>r.ok?r.json():[]).catch(()=>[]);
   const active=data.filter(l=>l.status==='active');
   const now=new Date();
   const weekAgo=new Date(now-7*86400000);
@@ -643,16 +621,9 @@ async function loadLotoKpi(){
 }
 
 async function loadLoto(){
-  lotoList=await fetch('/api/loto').then(r=>r.json()).catch(()=>mockLoto());
+  lotoList=await fetch('/api/loto').then(r=>r.ok?r.json():[]).catch(()=>[]);
   renderLotoActive();
   renderLotoHistory();
-}
-
-function mockLoto(){
-  return [
-    {id:1,machine_id:1,machine_label:'M-01',machine_name:'כופף CNC ראשי',locked_by:'ישראל ישראלי',locked_at:'2026-05-18T07:30:00',reason:'תחזוקה מונעת',safety_notes:'כיבוי חשמל ראשי',status:'active',released_by:null,released_at:null,release_notes:null},
-    {id:2,machine_id:2,machine_label:'M-02',machine_name:'מחתך פלזמה',locked_by:'משה כהן',locked_at:'2026-05-17T14:00:00',reason:'תקלה',safety_notes:'גז לחץ – בדוק ניתוק',status:'released',released_by:'דוד לוי',released_at:'2026-05-17T16:30:00',release_notes:'תוקנה האטמה'},
-  ];
 }
 
 function renderLotoActive(){
@@ -767,17 +738,8 @@ async function releaseLoto(){
    PREVENTIVE MAINTENANCE
 ══════════════════════════════════════ */
 async function loadPm(){
-  pmList=await fetch('/api/pm-schedule').then(r=>r.json()).catch(()=>mockPm());
+  pmList=await fetch('/api/pm-schedule').then(r=>r.ok?r.json():[]).catch(()=>[]);
   renderPm();
-}
-
-function mockPm(){
-  const now=new Date();
-  return [
-    {id:1,machine_id:1,machine_label:'M-01',machine_name:'כופף CNC ראשי',pm_type:'שמן הילוכים',frequency:'חודשי',last_date:'2026-04-20',next_date:'2026-05-20',instructions:'החלף שמן SAE 30'},
-    {id:2,machine_id:2,machine_label:'M-02',machine_name:'מחתך פלזמה',pm_type:'פילטר אוויר',frequency:'שבועי',last_date:'2026-05-12',next_date:'2026-05-19',instructions:'שטוף ונקה'},
-    {id:3,machine_id:3,machine_label:'M-03',machine_name:'מכונת קידוח',pm_type:'כיול מדידה',frequency:'רבעוני',last_date:'2026-02-01',next_date:'2026-05-01',instructions:'בדיקת דיוק עם gest-gauge'},
-  ];
 }
 
 function pmStatus(nextDate){
@@ -848,8 +810,8 @@ async function savePm(){
 ══════════════════════════════════════ */
 async function loadHealth(){
   const [machinesData, statsData] = await Promise.all([
-    fetch('/api/machines').then(r=>r.json()).catch(()=>mockMachines()),
-    fetch('/api/maintenance/stats').then(r=>r.json()).catch(()=>mockStats()),
+    fetch('/api/machines').then(r=>r.ok?r.json():[]).catch(()=>[]),
+    fetch('/api/maintenance/stats').then(r=>r.ok?r.json():{}).catch(()=>({})),
   ]);
   const byMachine=statsData.byMachine||[];
   const grid=document.getElementById('healthGrid');

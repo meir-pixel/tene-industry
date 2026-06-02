@@ -1,0 +1,104 @@
+# Entity Registry
+
+Source-of-truth registry required by Volume 10. Current entities are inferred
+from SQLite table creation in `server.js` and `auth-core.js`. This registry is
+the first planning-level ownership map; it is not yet a full schema dictionary.
+
+The original `IronBend_Entity_Registry.docx` defines 46 business entities. This
+markdown registry includes those entities plus implementation extensions found
+in the current codebase, such as auth/session and import-staging tables.
+
+## Platform Core
+
+| Entity/Table | Owner Module | Notes |
+| --- | --- | --- |
+| `users` | Platform Core | Contains legacy `pin` plus `pin_hash`; migration/enforcement incomplete. |
+| `refresh_tokens` | Platform Core | Implementation extension. Created by `auth-core.js`; rotating refresh token storage. |
+| `settings` | Platform Core | Stores service configuration/secrets; admin-only. |
+| `audit_log` | Platform Core | Partial audit trail; should become universal important-action ledger. |
+| `alerts` | Platform Core / Dashboard | Global alerts and contextual alerts. |
+| `companies` | Platform Core / Multi-tenant | Current company/holding basis; future tenant boundary. |
+
+## Orders
+
+| Entity/Table | Owner Module | Notes |
+| --- | --- | --- |
+| `customers` | Orders / CRM | Internal customer record; portal token currently stored here. |
+| `orders` | Orders | Core order lifecycle. |
+| `pallets` | Orders | Order grouping/package planning structure. |
+| `items` | Orders / Production | Shared: order item and production unit. Needs clear contract. |
+| `shapes` | Orders | Rebar shape library. |
+| `order_imports` | Orders | Implementation extension. Staging import previews. |
+| `intake_log` | Orders | WhatsApp/email/OCR intake queue. |
+| `intake_training_examples` | Orders / AI | Implementation extension. OCR/parser training examples. |
+| `projects` | Orders / Finance | Project/site domain. Stub/partial. |
+| `sites` | Orders / Delivery | Delivery sites under projects/customers. |
+
+## Production
+
+| Entity/Table | Owner Module | Notes |
+| --- | --- | --- |
+| `machines` | Production | Machine config and live-ish state. |
+| `workers` | Production | Internal worker/operator list. |
+| `scan_log` | Production | Scan events. |
+| `shifts` | Production | Shift lifecycle. |
+| `downtime_reasons` | Production | Reason catalog. |
+| `machine_stops` | Production | Stop events. |
+| `production_events` | Production | Production event history. |
+| `machine_state_log` | Production | Machine state transitions. |
+
+## Inventory And Procurement
+
+| Entity/Table | Owner Module | Notes |
+| --- | --- | --- |
+| `suppliers` | Inventory | Supplier master data. |
+| `raw_material` | Inventory | Material batches/stock. |
+| `raw_material_usage` | Inventory / Production | Material consumption. |
+| `steel_price_history` | Inventory / Finance | Market/price tracking. |
+| `steel_prices` | Finance / Inventory | Financial steel price table. |
+| `purchase_orders` | Procurement | Procurement module partial/stub. |
+
+## Delivery
+
+| Entity/Table | Owner Module | Notes |
+| --- | --- | --- |
+| `drivers` | Delivery | Driver master data and location. |
+| `deliveries` | Delivery | Delivery lifecycle. |
+| `packages` | Delivery | Package/shipment grouping. |
+| `delivery_notes` | Delivery | Delivery note documents. |
+
+## Finance
+
+| Entity/Table | Owner Module | Notes |
+| --- | --- | --- |
+| `price_list` | Finance | Price list by diameter/tier. |
+| `credit_accounts` | Finance | Credit control model. |
+| `credit_transactions` | Finance | Credit transaction ledger. |
+| `invoices` | Finance | Invoice state. |
+| `order_costs` | Finance | Calculated order costs. |
+| `cost_snapshots` | Finance | Cost history snapshots. |
+| `customer_credit` | Finance | Customer ledger/analytics; overlaps with credit accounts. |
+| `financial_events` | Finance | Financial event stream. |
+
+## Quality, Maintenance, Safety
+
+| Entity/Table | Owner Module | Notes |
+| --- | --- | --- |
+| `quality_checks` | Quality | Item/order quality checks. |
+| `maintenance_logs` | Maintenance | Maintenance activity. |
+| `incidents` | War Room | Incident management. |
+| `ncr` | Quality | Non-conformance records. |
+| `capa` | Quality | Corrective/preventive actions. |
+| `loto` | Maintenance / Safety | Lockout-tagout safety records. |
+| `pm_schedule` | Maintenance | Preventive maintenance schedule. |
+
+## Entity Cleanup Decisions Needed
+
+1. Decide whether `credit_accounts` or `customer_credit` is authoritative for
+   credit limit/payment terms.
+2. Define whether `items` belongs primarily to Orders or Production and what
+   fields each module may mutate.
+3. Move portal access out of `customers.portal_token` or harden its lifecycle.
+4. Define tenant/company boundary before selling to multiple customers.
+5. Replace schema-on-startup changes with a migration framework before serious
+   commercial deployments.

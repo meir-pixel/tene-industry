@@ -14,6 +14,8 @@ const priority = require('./priority');
 const intake   = require('./intake');
 const ai       = require('./ai');
 const { createAuthService, ensureAuthSchema, hashPin } = require('./auth-core');
+const { ROLE_PERMISSIONS, requireAnyRole, requireRole } = require('./permissions');
+const statusContracts = require('./status-contracts');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -21,6 +23,7 @@ const app    = express();
 const server = http.createServer(app);
 const wss    = new WebSocketServer({ server });
 const PORT   = process.env.PORT || 3000;
+const IS_TEST = process.env.NODE_ENV === 'test';
 
 // BUG-44/46: feature flags — disable AI/OCR/Priority until production-ready
 const AI_ENABLED      = process.env.AI_ENABLED      === 'true'; // default: false
@@ -29,7 +32,11 @@ const PRIORITY_ENABLED  = process.env.PRIORITY_ENABLED  === 'true'; // default: 
 const AUTH_ENFORCEMENT  = process.env.AUTH_ENFORCEMENT  === 'true'; // false until frontend migration passes Gate 1a
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  },
+}));
 
 // BUG-16: Attach requestId + timestamp to every response
 app.use((req, res, next) => {
@@ -100,6 +107,18 @@ db.exec(`
     priority_id TEXT,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS customer_portal_otps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER,
+    phone TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    attempts INTEGER DEFAULT 0,
+    consumed_at TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
   );
 
   CREATE TABLE IF NOT EXISTS orders (
@@ -753,6 +772,9 @@ addCol('machines',   'stop_bits',          'INTEGER DEFAULT 1');      // 1 or 2
 addCol('customers',  'company_id',         'INTEGER DEFAULT 1');
 addCol('orders',     'company_id',         'INTEGER DEFAULT 1');
 addCol('customers',  'portal_token',       'TEXT');              // unique link token
+addCol('customers',  'portal_token_created_at',  'TEXT');
+addCol('customers',  'portal_token_expires_at',  'TEXT');
+addCol('customers',  'portal_token_revoked_at',  'TEXT');
 addCol('customers',  'price_tier',         "TEXT DEFAULT 'list'"); // 'list' | 'customer'
 addCol('customers',  'discount_pct',       'REAL DEFAULT 0');    // extra % off
 addCol('orders',     'portal_order',       'INTEGER DEFAULT 0'); // 1 = placed by customer portal
@@ -796,13 +818,31 @@ if (!process.env.JWT_SECRET) {
 const authService = createAuthService(db, { jwtSecret: runtimeJwtSecret });
 const authLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: process.env.NODE_ENV === 'test' ? 100 : 5,
   standardHeaders: true,
   legacyHeaders: false,
 });
 const imageAnalysisLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const customerPortalAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const customerPortalActionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -846,6 +886,23 @@ function requireAuth(req, res, next) {
     if (req.auth) return next();
     return res.status(401).json({ error: 'Authentication required' });
   });
+}
+
+function verifyWhatsAppSignature(req, res, next) {
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  if (!appSecret) return next();
+  const signature = String(req.headers['x-hub-signature-256'] || '');
+  const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+  const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (
+    signatureBuffer.length !== expectedBuffer.length ||
+    !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
+  ) {
+    return res.sendStatus(403);
+  }
+  return next();
 }
 
 app.use('/api', optionalAuth);
@@ -941,13 +998,14 @@ wss.on('connection', ws => {
 });
 
 // Heartbeat – keeps connections alive through Render's 60s nginx timeout
-setInterval(() => {
+const wsHeartbeat = setInterval(() => {
   wss.clients.forEach(ws => {
     if (ws.isAlive === false) { ws.terminate(); return; }
     ws.isAlive = false;
     ws.ping();
   });
 }, 25000);
+wsHeartbeat.unref?.();
 
 modbus.onUpdate((machineId, state) => {
   db.prepare(`UPDATE machines SET status=?, counter=?, last_seen=? WHERE id=?`)
@@ -978,11 +1036,17 @@ const VALID_ORDER_TRANSITIONS = {
 };
 // Returns true if transition is valid (or if fromStatus is unknown — allow for migration data)
 function isValidOrderTransition(from, to) {
+  return statusContracts.isValidOrderTransition(from, to);
+}
+  /*
   if (!VALID_ORDER_TRANSITIONS[from]) return true; // unknown current status — allow
   return VALID_ORDER_TRANSITIONS[from].includes(to);
 }
 
+*/
 function normalizeOrderStatus(status) {
+  return statusContracts.normalizeOrderStatus(status);
+  /*
   const aliases = {
     'אושרה': 'אושרה – ממתין לייצור',
     'מאושר': 'אושרה – ממתין לייצור',
@@ -992,6 +1056,7 @@ function normalizeOrderStatus(status) {
     'בוטל': 'בוטלה',
   };
   return aliases[status] || status;
+  */
 }
 
 // BUG-35: Machine state machine is implemented at ~line 2569 (MACHINE_STATES + STATE_TRANSITIONS in Hebrew)
@@ -1002,44 +1067,9 @@ function isValidMachineState(state) {
 }
 
 // ── PERMISSION ENGINE (כרך ט) ─────────────────────────────────
-const ROLE_PERMISSIONS = {
-  admin:      { level: 10, canApprove: true,  canDelete: true,  finance: true,  config: true  },
-  manager:    { level:  7, canApprove: true,  canDelete: false, finance: true,  config: false },
-  production: { level:  5, canApprove: true,  canDelete: false, finance: false, config: false },
-  operator:   { level:  3, canApprove: false, canDelete: false, finance: false, config: false },
-  quality:    { level:  4, canApprove: true,  canDelete: false, finance: false, config: false },
-  warehouse:  { level:  4, canApprove: false, canDelete: false, finance: false, config: false },
-  driver:     { level:  2, canApprove: false, canDelete: false, finance: false, config: false },
-  finance:    { level:  6, canApprove: true,  canDelete: false, finance: true,  config: false },
-  maintenance:{ level:  4, canApprove: false, canDelete: false, finance: false, config: false },
-  customer:   { level:  1, canApprove: false, canDelete: false, finance: false, config: false },
-  supplier:   { level:  1, canApprove: false, canDelete: false, finance: false, config: false },
-};
-
-function requireRole(minRole) {
-  return (req, res, next) => {
-    if (AUTH_ENFORCEMENT && !req.auth) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    const role = req.auth?.role || (AUTH_ENFORCEMENT ? null : req.headers['x-user-role']) || 'operator';
-    const userId = req.auth?.sub || (AUTH_ENFORCEMENT ? null : req.headers['x-user-id']) || null;
-    const perm = ROLE_PERMISSIONS[role];
-    if (!perm) return res.status(403).json({ error: 'תפקיד לא מוכר', role });
-    const minPerm = typeof minRole === 'string' ? ROLE_PERMISSIONS[minRole] : null;
-    if (minPerm && perm.level < minPerm.level) {
-      return res.status(403).json({
-        error: 'אין הרשאה לביצוע פעולה זו',
-        required_role: minRole,
-        your_role: role,
-        appeal: 'פנה למנהל המערכת לקבלת הרשאה'
-      });
-    }
-    req.userRole = role;
-    req.userId = userId;
-    req.userPerm = perm;
-    next();
-  };
-}
+// Role levels and guards live in permissions.js so route protection can be tested
+// without starting the HTTP server. Protected routes require real JWT auth and
+// never trust x-user-role/x-user-id browser headers.
 
 // BUG-09: logAudit removed — use auditLog() (defined at line ~3697) as the single audit function
 
@@ -1111,7 +1141,7 @@ function checkOrderComplete(orderId) {
 // BUG-04: duplicate /api/health removed — authoritative version is at bottom of file
 
 // ── CUSTOMERS ─────────────────────────────────────────────────────
-app.get('/api/customers', (req, res) => {
+app.get('/api/customers', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
   const q = req.query.q || '';
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   // BUG-26: no portal_token in list response
@@ -1137,7 +1167,7 @@ app.get('/api/customers', (req, res) => {
 
 // BUG-26: no portal_token in admin customer detail — use dedicated /token endpoint
 const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
-app.get('/api/customers/:id', (req, res) => {
+app.get('/api/customers/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
   const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers c LEFT JOIN customer_credit cc ON cc.customer_id=c.id WHERE c.id=?`).get(req.params.id);
   if (!c) return res.status(404).json({ error: 'לא נמצא' });
   c.orders = db.prepare(`
@@ -1154,7 +1184,7 @@ app.get('/api/customers/:id', (req, res) => {
   res.json(c);
 });
 
-app.post('/api/customers', (req, res) => {
+app.post('/api/customers', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const { name, phone, email, address, contactName, contactPhone, priorityId, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'שם חובה' });
   const r = db.prepare(`INSERT INTO customers (name,phone,email,address,contact_name,contact_phone,priority_id,notes) VALUES (?,?,?,?,?,?,?,?)`)
@@ -1162,7 +1192,7 @@ app.post('/api/customers', (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.patch('/api/customers/:id', (req, res) => {
+app.patch('/api/customers/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const { name, phone, email, address, contactName, contactPhone, priorityId, notes } = req.body;
   db.prepare(`UPDATE customers SET name=?,phone=?,email=?,address=?,contact_name=?,contact_phone=?,priority_id=?,notes=? WHERE id=?`)
     .run(name, phone, email, address, contactName, contactPhone, priorityId, notes, req.params.id);
@@ -1170,7 +1200,7 @@ app.patch('/api/customers/:id', (req, res) => {
 });
 
 // ── ORDERS ────────────────────────────────────────────────────────
-app.get('/api/orders', (req, res) => {
+app.get('/api/orders', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
   const { status, date, priority } = req.query;
   let sql = `SELECT o.*, c.name as customer_name, c.phone as customer_phone
              FROM orders o LEFT JOIN customers c ON o.customer_id = c.id`;
@@ -1183,7 +1213,7 @@ app.get('/api/orders', (req, res) => {
   res.json(db.prepare(sql).all(...params));
 });
 
-app.get('/api/orders/:id', (req, res) => {
+app.get('/api/orders/:id', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone
     FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
   if (!order) return res.status(404).json({ error: 'לא נמצא' });
@@ -1194,7 +1224,7 @@ app.get('/api/orders/:id', (req, res) => {
 });
 
 // ── MANUAL WORK (from machine station, no order needed) ───────────
-app.post('/api/orders/manual', (req, res) => {
+app.post('/api/orders/manual', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const { machineId, diameter, qty, totalLengthMm, shape, note } = req.body;
   if (!machineId || !diameter || !qty || !totalLengthMm) {
     return res.status(400).json({ error: 'חסרים פרמטרים' });
@@ -1486,7 +1516,7 @@ function buildOrderImportPreview(buffer) {
   return { orders: [...groups.values()], errors, rowCount: rows.length };
 }
 
-app.post('/api/order-imports/preview', upload.single('file'), (req, res) => {
+app.post('/api/order-imports/preview', requireAnyRole(['office', 'manager', 'admin']), upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, error: 'Spreadsheet file is required' });
   try {
     const preview = buildOrderImportPreview(req.file.buffer);
@@ -1498,7 +1528,7 @@ app.post('/api/order-imports/preview', upload.single('file'), (req, res) => {
   }
 });
 
-app.post('/api/order-imports/:id/approve', (req, res) => {
+app.post('/api/order-imports/:id/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const row = db.prepare('SELECT * FROM order_imports WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ success: false, error: 'Import preview not found' });
   if (row.status === 'approved') return res.json({ success: true, alreadyApproved: true });
@@ -1521,7 +1551,7 @@ app.post('/api/order-imports/:id/approve', (req, res) => {
   }
 });
 
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   try {
     const result = createOrderTransaction(req.body);
     wsBroadcast('new_order', { orderNum: result.orderNum, orderId: result.orderId });
@@ -1669,7 +1699,7 @@ function pcItemCard(it, order, printDate) {
 }
 
 // ── PRINT CARDS ───────────────────────────────────────────────────
-app.get('/api/orders/:id/print-cards', (req, res) => {
+app.get('/api/orders/:id/print-cards', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
     FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
   if (!order) return res.status(404).send('הזמנה לא נמצאה');
@@ -2125,7 +2155,7 @@ function generateCards() {
 });
 
 // ── DELIVERY CERTIFICATE ─────────────────────────────────────────
-app.get('/api/orders/:id/delivery-certificate', (req, res) => {
+app.get('/api/orders/:id/delivery-certificate', requireAnyRole(['office', 'warehouse', 'driver', 'manager', 'admin']), (req, res) => {
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
     FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
   if (!order) return res.status(404).send('הזמנה לא נמצאה');
@@ -2409,7 +2439,7 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
 });
 
 // ── PRINT A4 ──────────────────────────────────────────────────────
-app.get('/api/orders/:id/print-a4', (req, res) => {
+app.get('/api/orders/:id/print-a4', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone
     FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
   if (!order) return res.status(404).send('הזמנה לא נמצאה');
@@ -2754,9 +2784,7 @@ if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (
 
 // The reviewed order screen uses OpenAI for image and PDF extraction. Results
 // still return to the existing editable preview before an order is created.
-const analyzeImageAuthorization = AUTH_ENFORCEMENT
-  ? requireRole('manager')
-  : (_req, _res, next) => next();
+const analyzeImageAuthorization = requireAnyRole(['office', 'manager', 'admin']);
 
 function getIntakeTrainingGuidance(limit = 12) {
   const examples = db.prepare(`
@@ -2914,7 +2942,7 @@ Return JSON that matches the requested schema only.`;
 });
 
 // ── SHAPES ────────────────────────────────────────────────────────
-app.get('/api/shapes', (req, res) => {
+app.get('/api/shapes', requireAnyRole(['office', 'sales', 'production', 'manager', 'admin']), (req, res) => {
   const { bends } = req.query;
   let sql = 'SELECT * FROM shapes WHERE active=1';
   const params = [];
@@ -2923,7 +2951,7 @@ app.get('/api/shapes', (req, res) => {
   res.json(db.prepare(sql).all(...params));
 });
 
-app.post('/api/shapes', (req, res) => {
+app.post('/api/shapes', requireAnyRole(['manager', 'admin']), (req, res) => {
   const { id, name, bends, sidesDefault, anglesDefault, emoji, description } = req.body;
   db.prepare(`INSERT OR REPLACE INTO shapes (id,name,bends,sides_default,angles_default,emoji,description) VALUES (?,?,?,?,?,?,?)`)
     .run(id, name, bends || 0, JSON.stringify(sidesDefault || []), JSON.stringify(anglesDefault || []), emoji || '⬡', description || '');
@@ -2931,7 +2959,7 @@ app.post('/api/shapes', (req, res) => {
 });
 
 // ── SHAPE SEED (standard Israeli rebar catalog) ──────────────────
-app.post('/api/shapes/seed', (req, res) => {
+app.post('/api/shapes/seed', requireAnyRole(['manager', 'admin']), (req, res) => {
   // Standard Israeli rebar shapes (based on IS/BS 8666 catalog)
   // Dimensions in mm, angles in degrees
   const CATALOG = [
@@ -2997,24 +3025,24 @@ app.post('/api/shapes/seed', (req, res) => {
 });
 
 // ── WORKERS ───────────────────────────────────────────────────────
-app.get('/api/workers', (req, res) => {
+app.get('/api/workers', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare('SELECT * FROM workers WHERE active=1 ORDER BY name').all());
 });
 
-app.post('/api/workers', (req, res) => {
+app.post('/api/workers', requireRole('manager'), (req, res) => {
   const { name, role, language } = req.body;
   const r = db.prepare('INSERT INTO workers (name,role,language) VALUES (?,?,?)').run(name, role || 'ייצור', language || 'he');
   res.json({ id: r.lastInsertRowid });
 });
 
-app.patch('/api/workers/:id', (req, res) => {
+app.patch('/api/workers/:id', requireRole('manager'), (req, res) => {
   const { name, role, language, active } = req.body;
   db.prepare('UPDATE workers SET name=?,role=?,language=?,active=? WHERE id=?').run(name, role, language, active ?? 1, req.params.id);
   res.json({ success: true });
 });
 
 // ── MACHINES ──────────────────────────────────────────────────────
-app.get('/api/machines', (req, res) => {
+app.get('/api/machines', requireAnyRole(['production', 'kiosk', 'maintenance', 'office', 'manager', 'admin']), (req, res) => {
   const machines = db.prepare('SELECT * FROM machines ORDER BY id').all();
   const live = modbus.getAllState();
   const merged = machines.map(m => {
@@ -3025,7 +3053,7 @@ app.get('/api/machines', (req, res) => {
 });
 
 // Create new machine
-app.post('/api/machines', (req, res) => {
+app.post('/api/machines', requireRole('manager'), (req, res) => {
   const { name, label, conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, parity, stop_bits, slave_id, min_diameter, max_diameter } = req.body;
   if (!name) return res.status(400).json({ error: 'שם מכונה נדרש' });
   const result = db.prepare(`INSERT INTO machines (name,label,conn_mode,tcp_host,tcp_port,rtu_port,baud_rate,parity,stop_bits,slave_id,min_diameter,max_diameter)
@@ -3038,12 +3066,12 @@ app.post('/api/machines', (req, res) => {
 });
 
 // Delete machine
-app.delete('/api/machines/:id', (req, res) => {
+app.delete('/api/machines/:id', requireRole('manager'), (req, res) => {
   db.prepare('DELETE FROM machines WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
 
-app.post('/api/machines/:id/send-params', async (req, res) => {
+app.post('/api/machines/:id/send-params', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), async (req, res) => {
   const machineId = Number(req.params.id);
   const { diameter, totalLengthMm, productionQty, angles } = req.body;
   try {
@@ -3054,7 +3082,7 @@ app.post('/api/machines/:id/send-params', async (req, res) => {
   }
 });
 
-app.post('/api/machines/:id/assign', (req, res) => {
+app.post('/api/machines/:id/assign', requireAnyRole(['production', 'manager', 'admin']), (req, res) => {
   const { itemId, orderNum } = req.body;
   db.prepare('UPDATE machines SET current_item_id=?,current_order_num=? WHERE id=?')
     .run(itemId, orderNum, req.params.id);
@@ -3065,7 +3093,7 @@ app.post('/api/machines/:id/assign', (req, res) => {
 });
 
 // ── MACHINE CONNECTION CONFIG ─────────────────────────────────────
-app.patch('/api/machines/:id/config', (req, res) => {
+app.patch('/api/machines/:id/config', requireRole('manager'), (req, res) => {
   const { conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, parity, stop_bits, slave_id, min_diameter, max_diameter, name, label, can_3d } = req.body;
   const mode = conn_mode || 'tcp';
   db.prepare(`UPDATE machines SET
@@ -3098,7 +3126,7 @@ app.patch('/api/machines/:id/config', (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/machines/:id/complete', (req, res) => {
+app.post('/api/machines/:id/complete', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
   const machineId = Number(req.params.id);
   const { producedQty } = req.body;
   const machine = db.prepare('SELECT * FROM machines WHERE id=?').get(machineId);
@@ -3130,7 +3158,7 @@ const STATE_TRANSITIONS = {
   'ידני':    ['סרק'],
 };
 
-app.patch('/api/machines/:id/state', (req, res) => {
+app.patch('/api/machines/:id/state', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
   const machineId = Number(req.params.id);
   const { state, reason, operator_id } = req.body;
   if (!MACHINE_STATES.includes(state)) {
@@ -3186,7 +3214,7 @@ app.patch('/api/machines/:id/state', (req, res) => {
   res.json({ ok: true, from: currentState, to: state });
 });
 
-app.get('/api/machines/:id/state-log', (req, res) => {
+app.get('/api/machines/:id/state-log', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
   const rows = db.prepare(`
     SELECT sl.*, u.display_name as operator_name
     FROM machine_state_log sl
@@ -3199,7 +3227,7 @@ app.get('/api/machines/:id/state-log', (req, res) => {
 });
 
 // ── SCAN (QR) ─────────────────────────────────────────────────────
-app.post('/api/scan', (req, res) => {
+app.post('/api/scan', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
   const { qrData, machineId, workerId } = req.body;
   if (!qrData || !machineId) return res.status(400).json({ error: 'חסרים פרמטרים' });
 
@@ -3264,7 +3292,7 @@ app.post('/api/scan', (req, res) => {
 });
 
 // End-of-day: close last item on machine
-app.post('/api/machines/:id/end-of-day', (req, res) => {
+app.post('/api/machines/:id/end-of-day', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
   const machineIdNum = Number(req.params.id);
   const { workerId } = req.body;
   const machine = db.prepare('SELECT * FROM machines WHERE id=?').get(machineIdNum);
@@ -3289,7 +3317,7 @@ app.post('/api/machines/:id/end-of-day', (req, res) => {
 });
 
 // ── DASHBOARD ─────────────────────────────────────────────────────
-app.get('/api/dashboard', (req, res) => {
+app.get('/api/dashboard', requireRole('viewer'), (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   const wasteData = db.prepare(`
     SELECT SUM(actual_waste) as totalWaste, SUM(quantity) as totalQty,
@@ -3320,7 +3348,7 @@ app.get('/api/dashboard', (req, res) => {
 });
 
 // ── REPORTS ───────────────────────────────────────────────────────
-app.get('/api/reports/waste', (req, res) => {
+app.get('/api/reports/waste', requireAnyRole(['production', 'office', 'finance', 'manager', 'admin']), (req, res) => {
   const { from, to } = req.query;
   const rows = db.prepare(`
     SELECT i.machine, i.diameter, i.shape_name,
@@ -3351,11 +3379,11 @@ function createAlert(type, level, message, { orderId, machineId } = {}) {
   wsBroadcast('alert', { type, level, message, orderId, machineId });
 }
 
-app.get('/api/alerts', (req, res) => {
+app.get('/api/alerts', requireRole('viewer'), (req, res) => {
   res.json(db.prepare('SELECT * FROM alerts WHERE resolved=0 ORDER BY created_at DESC LIMIT 50').all());
 });
 
-app.post('/api/alerts', (req, res) => {
+app.post('/api/alerts', requireAnyRole(['office', 'production', 'kiosk', 'maintenance', 'quality', 'manager', 'admin']), (req, res) => {
   const { message, level = 'warning', entity_type, entity_id } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
   const r = db.prepare(`INSERT INTO alerts (type,level,message,resolved) VALUES (?,?,?,0)`)
@@ -3364,7 +3392,7 @@ app.post('/api/alerts', (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.patch('/api/alerts/:id/resolve', (req, res) => {
+app.patch('/api/alerts/:id/resolve', requireAnyRole(['office', 'production', 'maintenance', 'quality', 'manager', 'admin']), (req, res) => {
   db.prepare('UPDATE alerts SET resolved=1 WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
@@ -3376,7 +3404,7 @@ function getSetting(key) {
   return row?.value ?? process.env[key] ?? null;
 }
 
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', requireRole('admin'), (req, res) => {
   const rows = db.prepare('SELECT key, value FROM settings').all();
   const map = {};
   rows.forEach(r => { map[r.key] = r.value; });
@@ -3397,7 +3425,7 @@ app.get('/api/settings', (req, res) => {
   res.json(result);
 });
 
-app.post('/api/settings', (req, res) => {
+app.post('/api/settings', requireRole('admin'), (req, res) => {
   const upsert = db.prepare(
     `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
      ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`
@@ -3411,7 +3439,7 @@ app.post('/api/settings', (req, res) => {
   res.json({ success: true, saved: Object.keys(req.body).length });
 });
 
-app.post('/api/settings/test/:service', async (req, res) => {
+app.post('/api/settings/test/:service', requireRole('admin'), async (req, res) => {
   const svc = req.params.service;
   try {
     if (svc === 'whatsapp') {
@@ -3462,7 +3490,7 @@ app.post('/api/settings/test/:service', async (req, res) => {
   }
 });
 
-app.get('/api/intake/training', (req, res) => {
+app.get('/api/intake/training', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const rows = db.prepare(`
     SELECT id, title, document_type, problem_text, correction_text, active, created_at
     FROM intake_training_examples
@@ -3473,7 +3501,7 @@ app.get('/api/intake/training', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/intake/training', (req, res) => {
+app.post('/api/intake/training', requireAnyRole(['manager', 'admin']), (req, res) => {
   const title = String(req.body.title || '').trim();
   const documentType = String(req.body.document_type || 'general').trim() || 'general';
   const problemText = String(req.body.problem_text || '').trim();
@@ -3488,17 +3516,17 @@ app.post('/api/intake/training', (req, res) => {
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
-app.delete('/api/intake/training/:id', (req, res) => {
+app.delete('/api/intake/training/:id', requireAnyRole(['manager', 'admin']), (req, res) => {
   db.prepare('UPDATE intake_training_examples SET active=0 WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
 
 // ── COMPANIES ─────────────────────────────────────────────────────
-app.get('/api/companies', (req, res) => {
+app.get('/api/companies', requireAnyRole(['office', 'finance', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare('SELECT * FROM companies WHERE active=1 ORDER BY id').all());
 });
 
-app.post('/api/companies', (req, res) => {
+app.post('/api/companies', requireAnyRole(['manager', 'admin']), (req, res) => {
   const { name, short_name, ownership_pct, erp_type, color } = req.body;
   const r = db.prepare(
     'INSERT INTO companies (name, short_name, ownership_pct, erp_type, color) VALUES (?,?,?,?,?)'
@@ -3506,7 +3534,7 @@ app.post('/api/companies', (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.patch('/api/companies/:id', (req, res) => {
+app.patch('/api/companies/:id', requireAnyRole(['manager', 'admin']), (req, res) => {
   const { name, short_name, ownership_pct, erp_type, color } = req.body;
   db.prepare(
     'UPDATE companies SET name=COALESCE(?,name), short_name=COALESCE(?,short_name), ownership_pct=COALESCE(?,ownership_pct), erp_type=COALESCE(?,erp_type), color=COALESCE(?,color) WHERE id=?'
@@ -3515,7 +3543,7 @@ app.patch('/api/companies/:id', (req, res) => {
 });
 
 // ── HOLDINGS DASHBOARD ───────────────────────────────────────────
-app.get('/api/holdings', (req, res) => {
+app.get('/api/holdings', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   const companies = db.prepare('SELECT * FROM companies WHERE active=1').all();
 
@@ -3568,7 +3596,7 @@ app.get('/api/holdings', (req, res) => {
 });
 
 // ── DRIVERS ───────────────────────────────────────────────────────
-app.get('/api/drivers', (req, res) => {
+app.get('/api/drivers', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const all = req.query.all === '1';
   const rows = all
     ? db.prepare('SELECT * FROM drivers ORDER BY name').all()
@@ -3576,7 +3604,7 @@ app.get('/api/drivers', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/drivers', (req, res) => {
+app.post('/api/drivers', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const { name, phone, vehicle_desc, license_plate, license_expiry, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'שם נהג חסר' });
   const r = db.prepare(
@@ -3585,7 +3613,7 @@ app.post('/api/drivers', (req, res) => {
   res.json({ success: true, id: r.lastInsertRowid });
 });
 
-app.patch('/api/drivers/:id', (req, res) => {
+app.patch('/api/drivers/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const { name, phone, vehicle_desc, license_plate, license_expiry, notes, active } = req.body;
   db.prepare(`UPDATE drivers SET
     name=COALESCE(?,name), phone=COALESCE(?,phone),
@@ -3598,12 +3626,12 @@ app.patch('/api/drivers/:id', (req, res) => {
   res.json({ success: true });
 });
 
-app.delete('/api/drivers/:id', (req, res) => {
+app.delete('/api/drivers/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   db.prepare('UPDATE drivers SET active=0 WHERE id=?').run(req.params.id);
   res.json({ success: true });
 });
 
-app.patch('/api/drivers/:id/location', (req, res) => {
+app.patch('/api/drivers/:id/location', requireAnyRole(['driver', 'office', 'manager', 'admin']), (req, res) => {
   const { lat, lng } = req.body;
   db.prepare('UPDATE drivers SET current_lat=?,current_lng=?,last_location_update=? WHERE id=?')
     .run(lat, lng, new Date().toISOString(), req.params.id);
@@ -3612,7 +3640,7 @@ app.patch('/api/drivers/:id/location', (req, res) => {
 });
 
 // ── DELIVERIES ────────────────────────────────────────────────────
-app.get('/api/deliveries', (req, res) => {
+app.get('/api/deliveries', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const { driverId, date, status } = req.query;
   let sql = `SELECT d.*, o.order_num, o.delivery_address, o.total_weight, o.billing_weight,
                c.name as customer_name, c.phone as customer_phone,
@@ -3635,7 +3663,7 @@ app.get('/api/deliveries', (req, res) => {
   res.json(deliveries);
 });
 
-app.post('/api/deliveries', (req, res) => {
+app.post('/api/deliveries', requireAnyRole(['office', 'warehouse', 'manager', 'admin']), (req, res) => {
   const { orderId, driverId, scheduledDate } = req.body;
   const r = db.prepare('INSERT INTO deliveries (order_id,driver_id,scheduled_date) VALUES (?,?,?)')
     .run(orderId, driverId, scheduledDate);
@@ -3645,7 +3673,7 @@ app.post('/api/deliveries', (req, res) => {
 });
 
 // Driver departs — BUG-33: State Machine — only from status 'ממתין'
-app.post('/api/deliveries/:id/depart', (req, res) => {
+app.post('/api/deliveries/:id/depart', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const delivery = db.prepare('SELECT status FROM deliveries WHERE id=?').get(req.params.id);
   if (!delivery) return res.status(404).json({ error: 'משלוח לא נמצא' });
   if (!['ממתין', 'מתוכנן'].includes(delivery.status)) {
@@ -3664,7 +3692,7 @@ app.post('/api/deliveries/:id/depart', (req, res) => {
 });
 
 // Driver confirms delivery — BUG-33: only allowed after depart
-app.post('/api/deliveries/:id/confirm', (req, res) => {
+app.post('/api/deliveries/:id/confirm', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const delivery = db.prepare('SELECT status FROM deliveries WHERE id=?').get(req.params.id);
   if (!delivery) return res.status(404).json({ error: 'משלוח לא נמצא' });
   if (delivery.status !== 'יצא') {
@@ -3688,7 +3716,7 @@ app.post('/api/deliveries/:id/confirm', (req, res) => {
 });
 
 // Driver reports problem — BUG-33: only allowed while in transit, not after confirmed
-app.post('/api/deliveries/:id/problem', (req, res) => {
+app.post('/api/deliveries/:id/problem', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const delivery = db.prepare('SELECT status FROM deliveries WHERE id=?').get(req.params.id);
   if (!delivery) return res.status(404).json({ error: 'משלוח לא נמצא' });
   if (delivery.status === 'סופק') {
@@ -3707,7 +3735,7 @@ app.post('/api/deliveries/:id/problem', (req, res) => {
 
 // ── PRIORITY SYNC ─────────────────────────────────────────────────
 // BUG-45: Priority ERP is Phase 2 — return 501 until PRIORITY_ENABLED=true
-app.post('/api/priority/sync/:orderId', async (req, res) => {
+app.post('/api/priority/sync/:orderId', requireRole('manager'), async (req, res) => {
   if (!PRIORITY_ENABLED) return res.status(501).json({ error: 'סנכרון Priority לא זמין בשלב זה', feature: 'priority' });
   try {
     const order = db.prepare(`SELECT o.*,c.* FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.orderId);
@@ -3728,13 +3756,13 @@ app.post('/api/priority/sync/:orderId', async (req, res) => {
   }
 });
 
-app.get('/api/priority/status', (req, res) => {
+app.get('/api/priority/status', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   res.json({ configured: priority.isConfigured(), enabled: PRIORITY_ENABLED }); // BUG-45
 });
 
 // ── INTAKE – OCR ─────────────────────────────────────────────────
 // BUG-46: OCR/AI intake disabled until INTAKE_AI_ENABLED=true
-app.post('/api/intake/image', upload.single('image'), async (req, res) => {
+app.post('/api/intake/image', requireAnyRole(['office', 'manager', 'admin']), upload.single('image'), async (req, res) => {
   if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'OCR לא זמין בשלב זה', feature: 'intake-ai' });
   if (!req.file) return res.status(400).json({ error: 'לא צורפה תמונה' });
   try {
@@ -3749,7 +3777,7 @@ app.post('/api/intake/image', upload.single('image'), async (req, res) => {
 });
 
 // ── INTAKE – WhatsApp webhook ─────────────────────────────────────
-app.get('/api/intake/whatsapp', (req, res) => {
+app.get('/api/intake/whatsapp', webhookLimiter, (req, res) => {
   // Meta webhook verification
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
@@ -3761,7 +3789,7 @@ app.get('/api/intake/whatsapp', (req, res) => {
   }
 });
 
-app.post('/api/intake/whatsapp', async (req, res) => {
+app.post('/api/intake/whatsapp', webhookLimiter, verifyWhatsAppSignature, async (req, res) => {
   res.sendStatus(200); // acknowledge immediately (Meta requires fast response)
   try {
     const body = req.body;
@@ -3798,7 +3826,7 @@ app.post('/api/intake/whatsapp', async (req, res) => {
 
 // ── INTAKE – Email manual trigger ─────────────────────────────────
 // BUG-46: Email/AI intake disabled until INTAKE_AI_ENABLED=true
-app.post('/api/intake/email/poll', async (req, res) => {
+app.post('/api/intake/email/poll', requireAnyRole(['office', 'manager', 'admin']), async (req, res) => {
   if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'Email intake לא זמין בשלב זה', feature: 'intake-ai' });
   try {
     const results = await intake.pollEmail(db);
@@ -3808,7 +3836,7 @@ app.post('/api/intake/email/poll', async (req, res) => {
   }
 });
 
-app.get('/api/intake/log', (req, res) => {
+app.get('/api/intake/log', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const status = req.query.status; // optional filter: pending_review / approved / rejected
   const sql = status
     ? 'SELECT * FROM intake_log WHERE status=? ORDER BY created_at DESC LIMIT 100'
@@ -3818,7 +3846,7 @@ app.get('/api/intake/log', (req, res) => {
 
 // ── INTAKE – Approve: create order from email ─────────────────────
 // Intake approval uses the same transactional order writer as the manual form.
-app.post('/api/intake/:id/approve', (req, res) => {
+app.post('/api/intake/:id/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Intake row not found' });
   if (row.status === 'approved' && row.order_id) {
@@ -3900,7 +3928,7 @@ if (false) app.post('/api/intake-legacy/:id/approve', (req, res) => {
 });
 
 // ── INTAKE – Reject: mark as not an order ────────────────────────
-app.post('/api/intake/:id/reject', (req, res) => {
+app.post('/api/intake/:id/reject', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const r = db.prepare('UPDATE intake_log SET status=? WHERE id=?').run('rejected', req.params.id);
   if (!r.changes) return res.status(404).json({ error: 'לא נמצא' });
   res.json({ success: true });
@@ -3908,7 +3936,7 @@ app.post('/api/intake/:id/reject', (req, res) => {
 
 // ── INTAKE – Parse text manually (WhatsApp / Email paste) ──────────
 // BUG-44: AI text parsing disabled until AI_ENABLED=true
-app.post('/api/intake/parse-text', (req, res) => {
+app.post('/api/intake/parse-text', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   if (!AI_ENABLED) return res.status(501).json({ error: 'פרסור AI לא זמין בשלב זה', feature: 'ai' });
   const { text, source } = req.body;
   if (!text) return res.status(400).json({ error: 'text required' });
@@ -3922,11 +3950,11 @@ app.post('/api/intake/parse-text', (req, res) => {
 });
 
 // ── PRICE LIST (admin) ────────────────────────────────────────────
-app.get('/api/price-list', (req, res) => {
+app.get('/api/price-list', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare('SELECT * FROM price_list ORDER BY diameter').all());
 });
 
-app.patch('/api/price-list', async (req, res) => {
+app.patch('/api/price-list', requireAnyRole(['finance', 'manager', 'admin']), async (req, res) => {
   const rows = req.body; // [{diameter, price_list, price_cust}, ...]
   const upsert = db.prepare('INSERT OR REPLACE INTO price_list (diameter,price_list,price_cust) VALUES (?,?,?)');
   const tx = db.transaction(() => rows.forEach(r => upsert.run(r.diameter, r.price_list, r.price_cust)));
@@ -3961,19 +3989,30 @@ async function notifyPriceListUpdate(rows) {
 }
 
 // Generate / fetch portal token for a customer
-app.get('/api/customers/:id/token', (req, res) => {
-  let c = db.prepare('SELECT id,name,portal_token FROM customers WHERE id=?').get(req.params.id);
+app.get('/api/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+  let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
   if (!c) return res.status(404).json({ error: 'לא נמצא' });
-  if (!c.portal_token) {
-    const token = crypto.randomBytes(12).toString('hex');
-    db.prepare('UPDATE customers SET portal_token=? WHERE id=?').run(token, c.id);
-    c.portal_token = token;
-  }
-  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-  res.json({ token: c.portal_token, link: `${baseUrl}/customer.html?token=${c.portal_token}` });
+  const result = portalAuthResponse(c);
+  res.json({ token: result.token, link: result.link, expiresAt: result.expiresAt });
 });
 
-app.patch('/api/customers/:id/pricing', (req, res) => {
+app.post('/api/customers/:id/token/rotate', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+  let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'not found' });
+  const result = portalAuthResponse(c, { forceRotate: true });
+  auditLog('customer', c.id, null, 'portal_token_rotate', null, null, null, null, req.userId || null, null);
+  res.json({ token: result.token, link: result.link, expiresAt: result.expiresAt });
+});
+
+app.delete('/api/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+  const c = db.prepare('SELECT id FROM customers WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'not found' });
+  db.prepare('UPDATE customers SET portal_token_revoked_at=CURRENT_TIMESTAMP WHERE id=?').run(c.id);
+  auditLog('customer', c.id, null, 'portal_token_revoke', null, null, null, null, req.userId || null, null);
+  res.json({ success: true });
+});
+
+app.patch('/api/customers/:id/pricing', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const { price_tier, discount_pct } = req.body;
   // BUG-26: validate discount is 0–100
   const discountNum = Number(discount_pct ?? 0);
@@ -3986,38 +4025,139 @@ app.patch('/api/customers/:id/pricing', (req, res) => {
 
 // ── CUSTOMER PORTAL API ───────────────────────────────────────────
 // BUG-41: limited projection — never return sensitive fields via portal resolver
-const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,portal_token,price_tier,discount_pct,balance,credit_limit';
+const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct';
 function resolveCustomer(token, phone) {
-  if (token) return db.prepare(`SELECT ${CUSTOMER_PORTAL_COLS} FROM customers WHERE portal_token=?`).get(token);
+  if (token) return db.prepare(`
+    SELECT ${CUSTOMER_PORTAL_COLS} FROM customers
+    WHERE portal_token=?
+      AND portal_token_revoked_at IS NULL
+      AND (portal_token_expires_at IS NULL OR portal_token_expires_at > ?)
+  `).get(token, new Date().toISOString());
   if (phone) return db.prepare(`SELECT ${CUSTOMER_PORTAL_COLS} FROM customers WHERE phone=?`).get(phone);
   return null;
 }
 
+const PORTAL_OTP_TTL_MINUTES = Number(process.env.PORTAL_OTP_TTL_MINUTES || 10);
+const PORTAL_TOKEN_TTL_DAYS = Number(process.env.PORTAL_TOKEN_TTL_DAYS || 90);
+function normalizePortalPhone(phone) {
+  return String(phone || '').replace(/\D/g, '');
+}
+
+function hashPortalOtp(phone, code) {
+  return crypto.createHash('sha256')
+    .update(`${process.env.JWT_SECRET || 'dev-secret'}:${phone}:${code}`)
+    .digest('hex');
+}
+
+function portalTokenExpiresAt() {
+  return new Date(Date.now() + PORTAL_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function hasActivePortalToken(customer) {
+  if (!customer.portal_token || customer.portal_token_revoked_at) return false;
+  if (!customer.portal_token_expires_at) return true;
+  return new Date(customer.portal_token_expires_at).getTime() > Date.now();
+}
+
+function ensurePortalToken(customer, options = {}) {
+  if (!options.forceRotate && hasActivePortalToken(customer)) return customer.portal_token;
+  const token = crypto.randomBytes(12).toString('hex');
+  const expiresAt = portalTokenExpiresAt();
+  db.prepare(`
+    UPDATE customers
+    SET portal_token=?,
+        portal_token_created_at=CURRENT_TIMESTAMP,
+        portal_token_expires_at=?,
+        portal_token_revoked_at=NULL
+    WHERE id=?
+  `).run(token, expiresAt, customer.id);
+  customer.portal_token = token;
+  customer.portal_token_expires_at = expiresAt;
+  customer.portal_token_revoked_at = null;
+  return token;
+}
+
+function issuePortalOtp(customer) {
+  const phone = normalizePortalPhone(customer.phone);
+  const code = String(crypto.randomInt(100000, 1000000));
+  const expiresAt = new Date(Date.now() + PORTAL_OTP_TTL_MINUTES * 60 * 1000).toISOString();
+  db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE phone=? AND consumed_at IS NULL')
+    .run(phone);
+  db.prepare(`
+    INSERT INTO customer_portal_otps (customer_id,phone,code_hash,expires_at)
+    VALUES (?,?,?,?)
+  `).run(customer.id, phone, hashPortalOtp(phone, code), expiresAt);
+  return { code, expiresAt };
+}
+
+function verifyPortalOtp(phone, code) {
+  const normalizedPhone = normalizePortalPhone(phone);
+  const cleanCode = String(code || '').replace(/\D/g, '');
+  const otp = db.prepare(`
+    SELECT * FROM customer_portal_otps
+    WHERE phone=? AND consumed_at IS NULL
+    ORDER BY id DESC LIMIT 1
+  `).get(normalizedPhone);
+  if (!otp) return { ok: false, status: 401, error: 'Invalid code' };
+  if (new Date(otp.expires_at).getTime() < Date.now()) {
+    db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE id=?').run(otp.id);
+    return { ok: false, status: 401, error: 'Code expired' };
+  }
+  if (Number(otp.attempts || 0) >= 5) return { ok: false, status: 429, error: 'Too many attempts' };
+  if (hashPortalOtp(normalizedPhone, cleanCode) !== otp.code_hash) {
+    db.prepare('UPDATE customer_portal_otps SET attempts=attempts+1 WHERE id=?').run(otp.id);
+    return { ok: false, status: 401, error: 'Invalid code' };
+  }
+  db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE id=?').run(otp.id);
+  return { ok: true, customerId: otp.customer_id };
+}
+
+function portalAuthResponse(customer, options = {}) {
+  const token = ensurePortalToken(customer, options);
+  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+  return {
+    token,
+    link: `${baseUrl}/customer.html?token=${token}`,
+    expiresAt: customer.portal_token_expires_at || null,
+    customer: { id: customer.id, name: customer.name, phone: customer.phone, price_tier: customer.price_tier }
+  };
+}
+
 // Auth: get/create customer by phone (walk-in) or by token
-app.post('/api/c/auth', (req, res) => {
-  const { phone, name } = req.body;
+app.post('/api/c/auth', customerPortalAuthLimiter, (req, res) => {
+  const { name } = req.body;
+  const rawPhone = String(req.body.phone || '').trim();
+  const phone = normalizePortalPhone(rawPhone);
   if (!phone) return res.status(400).json({ error: 'טלפון חובה' });
-  let c = db.prepare('SELECT * FROM customers WHERE phone=?').get(phone);
+  let c = db.prepare('SELECT * FROM customers WHERE phone=? OR phone=?').get(phone, rawPhone);
   if (!c) {
     if (!name) return res.json({ needName: true }); // ask for name first
     const r = db.prepare('INSERT INTO customers (name,phone,price_tier) VALUES (?,?,?)').run(name, phone, 'list');
     c = db.prepare('SELECT * FROM customers WHERE id=?').get(r.lastInsertRowid);
   }
-  if (!c.portal_token) {
-    const token = crypto.randomBytes(12).toString('hex');
-    db.prepare('UPDATE customers SET portal_token=? WHERE id=?').run(token, c.id);
-    c = db.prepare('SELECT * FROM customers WHERE id=?').get(c.id);
+  const otp = issuePortalOtp(c);
+  if (!IS_TEST) {
+    intake.sendWhatsApp(c.phone, `קוד האימות שלך ל-IronBend: ${otp.code}`).catch(e => console.warn('[Portal OTP]', e));
   }
-  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
   res.json({
-    token: c.portal_token,
-    link: `${baseUrl}/customer.html?token=${c.portal_token}`,
-    customer: { id: c.id, name: c.name, phone: c.phone, price_tier: c.price_tier }
+    otpRequired: true,
+    expiresAt: otp.expiresAt,
+    devOtp: IS_TEST || process.env.NODE_ENV !== 'production' ? otp.code : undefined,
+    customer: { id: c.id, name: c.name, phone: c.phone }
   });
 });
 
+app.post('/api/c/auth/verify', customerPortalAuthLimiter, (req, res) => {
+  const phone = normalizePortalPhone(req.body.phone);
+  const verified = verifyPortalOtp(phone, req.body.code);
+  if (!verified.ok) return res.status(verified.status).json({ error: verified.error });
+  const c = db.prepare('SELECT * FROM customers WHERE id=?').get(verified.customerId);
+  if (!c || normalizePortalPhone(c.phone) !== phone) return res.status(401).json({ error: 'Invalid code' });
+  res.json(portalAuthResponse(c));
+});
+
 // Get customer info + recent orders
-app.get('/api/c/me', (req, res) => {
+app.get('/api/c/me', customerPortalActionLimiter, (req, res) => {
   const { token } = req.query;
   const c = resolveCustomer(token);
   if (!c) return res.status(401).json({ error: 'לא מורשה' });
@@ -4029,12 +4169,12 @@ app.get('/api/c/me', (req, res) => {
 });
 
 // Shapes (public)
-app.get('/api/c/shapes', (req, res) => {
+app.get('/api/c/shapes', customerPortalActionLimiter, (req, res) => {
   res.json(db.prepare('SELECT * FROM shapes WHERE active=1 ORDER BY id').all());
 });
 
 // Price list for this customer
-app.get('/api/c/price-list', (req, res) => {
+app.get('/api/c/price-list', customerPortalActionLimiter, (req, res) => {
   const { token } = req.query;
   const c = resolveCustomer(token);
   const tier = c?.price_tier || 'list';
@@ -4048,7 +4188,7 @@ app.get('/api/c/price-list', (req, res) => {
 });
 
 // Quote — calculate price for items before ordering
-app.post('/api/c/quote', (req, res) => {
+app.post('/api/c/quote', customerPortalActionLimiter, (req, res) => {
   const { token, items } = req.body; // items: [{diameter, sides[], qty}]
   const c = resolveCustomer(token);
   const tier = c?.price_tier || 'list';
@@ -4077,15 +4217,9 @@ app.post('/api/c/quote', (req, res) => {
 });
 
 // Submit order from portal
-app.post('/api/c/order', async (req, res) => {
-  const { token, phone, name, items, deliveryDate, deliveryTime, deliveryAddress, notes } = req.body;
-  let c = resolveCustomer(token, phone);
-  if (!c && name && phone) {
-    const r = db.prepare('INSERT INTO customers (name,phone,price_tier) VALUES (?,?,?)').run(name, phone, 'list');
-    const tok = crypto.randomBytes(12).toString('hex');
-    db.prepare('UPDATE customers SET portal_token=? WHERE id=?').run(tok, r.lastInsertRowid);
-    c = db.prepare('SELECT * FROM customers WHERE id=?').get(r.lastInsertRowid);
-  }
+app.post('/api/c/order', customerPortalActionLimiter, async (req, res) => {
+  const { token, items, deliveryDate, deliveryTime, deliveryAddress, notes } = req.body;
+  let c = resolveCustomer(token);
   if (!c) return res.status(401).json({ error: 'נדרש זיהוי' });
   if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
 
@@ -4154,7 +4288,7 @@ app.post('/api/c/order', async (req, res) => {
 });
 
 // Customer order approval (link from WhatsApp)
-app.get('/api/c/approve/:token', (req, res) => {
+app.get('/api/c/approve/:token', customerPortalActionLimiter, (req, res) => {
   const order = db.prepare('SELECT o.*,c.name as customer_name,c.phone FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.confirm_token=?').get(req.params.token);
   if (!order) return res.status(404).send(approvalPage('לא נמצא', 'קישור לא תקין או פג תוקף.', false));
   if (order.status !== 'ממתינה לאישור לקוח') {
@@ -4172,7 +4306,7 @@ app.get('/api/c/approve/:token', (req, res) => {
 });
 
 // Also allow approval from portal (POST)
-app.post('/api/c/approve', (req, res) => {
+app.post('/api/c/approve', customerPortalActionLimiter, (req, res) => {
   const { token, orderId } = req.body;
   const c = resolveCustomer(token);
   if (!c) return res.status(401).json({ error: 'לא מורשה' });
@@ -4209,34 +4343,38 @@ function approvalPage(title, msg, success) {
 }
 
 // Customer order history
-app.get('/api/c/orders/:orderId', (req, res) => {
+app.get('/api/c/orders/:orderId', customerPortalActionLimiter, (req, res) => {
   const { token } = req.query;
   const c = resolveCustomer(token);
   if (!c) return res.status(401).json({ error: 'לא מורשה' });
   // BUG-42: limited projection — no cost/internal fields exposed to portal
   const order = db.prepare(`
-    SELECT id,order_num,status,created_at,delivery_date,delivery_address,delivery_time,notes,
-           total_weight,billing_weight,portal_price,struct_element,struct_floor,sheet_num
+    SELECT id,order_num,status,created_at,delivery_date,delivery_address,delivery_time,
+           general_notes AS notes,total_weight,billing_weight,portal_price
     FROM orders WHERE id=? AND customer_id=?
   `).get(req.params.orderId, c.id);
   if (!order) return res.status(404).json({ error: 'לא נמצא' });
-  const pallets = db.prepare('SELECT id,pallet_num,notes FROM pallets WHERE order_id=?').all(order.id);
+  const pallets = db.prepare("SELECT id,pallet_num,'' AS notes FROM pallets WHERE order_id=?").all(order.id);
   pallets.forEach(p => {
-    p.items = db.prepare('SELECT id,diameter,length,qty,weight_per_unit,total_weight,machine,barcode,segments FROM items WHERE pallet_id=?').all(p.id);
+    p.items = db.prepare(`
+      SELECT id,diameter,total_length_mm,quantity,weight_per_unit,total_weight,
+             machine,segments,struct_element,struct_floor,sheet_num,status
+      FROM items WHERE pallet_id=?
+    `).all(p.id);
   });
   order.pallets = pallets;
   res.json(order);
 });
 
 // ── AI PREDICTION ─────────────────────────────────────────────────
-app.post('/api/ai/predict', (req, res) => {
+app.post('/api/ai/predict', requireAnyRole(['manager', 'admin']), (req, res) => {
   const { items } = req.body;
   if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
   const result = ai.predictProductionTime(items);
   res.json(result);
 });
 
-app.get('/api/ai/predict-order/:orderId', (req, res) => {
+app.get('/api/ai/predict-order/:orderId', requireAnyRole(['manager', 'admin']), (req, res) => {
   const order   = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.orderId);
   if (!order) return res.status(404).json({ error: 'לא נמצא' });
   const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=?').all(order.id);
@@ -4246,17 +4384,17 @@ app.get('/api/ai/predict-order/:orderId', (req, res) => {
   res.json({ prediction, feasibility });
 });
 
-app.get('/api/ai/waste-patterns', (req, res) => {
+app.get('/api/ai/waste-patterns', requireAnyRole(['manager', 'admin']), (req, res) => {
   res.json(ai.analyzeWastePatterns());
 });
 
-app.get('/api/ai/machine-efficiency', (req, res) => {
+app.get('/api/ai/machine-efficiency', requireAnyRole(['manager', 'admin']), (req, res) => {
   const days = Number(req.query.days || 7);
   res.json(ai.getMachineEfficiency(days));
 });
 
 // ── REPORTS ───────────────────────────────────────────────────────
-app.get('/api/reports/summary', (req, res) => {
+app.get('/api/reports/summary', requireAnyRole(['office', 'finance', 'manager', 'admin']), (req, res) => {
   const { from, to } = req.query;
   const fromDate = from || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
   const toDate   = to   || new Date().toISOString().split('T')[0];
@@ -4285,7 +4423,7 @@ app.get('/api/reports/summary', (req, res) => {
 
 // ── BACKGROUND JOBS ───────────────────────────────────────────────
 // Check alerts every 5 minutes
-cron.schedule('*/5 * * * *', () => {
+if (!IS_TEST) cron.schedule('*/5 * * * *', () => {
   // Urgent orders sitting >30 min without production
   const urgentLate = db.prepare(`
     SELECT o.id, o.order_num FROM orders o
@@ -4306,7 +4444,7 @@ cron.schedule('*/5 * * * *', () => {
 });
 
 // Email polling every minute — reads settings from DB (not just .env)
-cron.schedule('* * * * *', async () => {
+if (!IS_TEST) cron.schedule('* * * * *', async () => {
   const host = getSetting('EMAIL_IMAP_HOST');
   if (!host) return;
   try {
@@ -4334,17 +4472,17 @@ cron.schedule('* * * * *', async () => {
 // ══════════════════════════════════════════════════════════════════
 
 // ── SUPPLIERS
-app.get('/api/suppliers', (req, res) => {
+app.get('/api/suppliers', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare('SELECT * FROM suppliers WHERE active=1 ORDER BY name').all());
 });
-app.post('/api/suppliers', (req, res) => {
+app.post('/api/suppliers', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const { name, phone, contact, email, address, payment_terms, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'שם ספק חובה' });
   const r = db.prepare('INSERT INTO suppliers (name,phone,contact,email,address,payment_terms,notes) VALUES (?,?,?,?,?,?,?)')
     .run(name, phone||null, contact||null, email||null, address||null, payment_terms||null, notes||null);
   res.json({ id: r.lastInsertRowid });
 });
-app.patch('/api/suppliers/:id', (req, res) => {
+app.patch('/api/suppliers/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   db.prepare('UPDATE suppliers SET name=COALESCE(?,name),phone=COALESCE(?,phone),contact=COALESCE(?,contact),email=COALESCE(?,email),address=COALESCE(?,address),payment_terms=COALESCE(?,payment_terms),notes=COALESCE(?,notes),active=COALESCE(?,active) WHERE id=?')
     .run(f.name||null,f.phone||null,f.contact||null,f.email||null,f.address||null,f.payment_terms||null,f.notes||null,f.active??null,req.params.id);
@@ -4352,7 +4490,7 @@ app.patch('/api/suppliers/:id', (req, res) => {
 });
 
 // ── RAW MATERIAL INVENTORY
-app.get('/api/inventory', (req, res) => {
+app.get('/api/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const { diameter, supplier_id } = req.query;
   let sql = 'SELECT r.*,s.name as supplier_name,ROUND(r.weight_received-r.weight_used-r.weight_scrapped,2) as weight_available FROM raw_material r LEFT JOIN suppliers s ON r.supplier_id=s.id WHERE r.active=1';
   const params = [];
@@ -4361,17 +4499,17 @@ app.get('/api/inventory', (req, res) => {
   sql += ' ORDER BY r.received_date DESC, r.id DESC';
   res.json(db.prepare(sql).all(...params));
 });
-app.get('/api/inventory/summary', (req, res) => {
+app.get('/api/inventory/summary', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare('SELECT diameter,SUM(weight_received) as total_received,SUM(weight_used) as total_used,SUM(weight_scrapped) as total_scrapped,ROUND(SUM(weight_received-weight_used-weight_scrapped),2) as available,COUNT(*) as batches FROM raw_material WHERE active=1 GROUP BY diameter ORDER BY diameter').all());
 });
-app.post('/api/inventory', (req, res) => {
+app.post('/api/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   if (!f.diameter || !f.weight_received) return res.status(400).json({ error: 'קוטר ומשקל חובה' });
   const r = db.prepare('INSERT INTO raw_material (material_type,diameter,supplier_id,lot_number,certificate_num,grade,received_date,weight_received,purchase_price,warehouse_loc,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
     .run(f.material_type||'coil',f.diameter,f.supplier_id||null,f.lot_number||null,f.certificate_num||null,f.grade||'B500B',f.received_date||new Date().toISOString().split('T')[0],f.weight_received,f.purchase_price||0,f.warehouse_loc||null,f.notes||null);
   res.json({ id: r.lastInsertRowid });
 });
-app.patch('/api/inventory/:id', (req, res) => {
+app.patch('/api/inventory/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   db.prepare('UPDATE raw_material SET weight_used=COALESCE(?,weight_used),weight_scrapped=COALESCE(?,weight_scrapped),warehouse_loc=COALESCE(?,warehouse_loc),notes=COALESCE(?,notes),active=COALESCE(?,active) WHERE id=?')
     .run(f.weight_used??null,f.weight_scrapped??null,f.warehouse_loc||null,f.notes||null,f.active??null,req.params.id);
@@ -4385,7 +4523,7 @@ function auditLog(entityType,entityId,entityRef,action,fieldName,oldVal,newVal,n
       .run(entityType,entityId||null,entityRef||null,action,fieldName||null,oldVal!=null?String(oldVal):null,newVal!=null?String(newVal):null,notes||null,userId||null,userName||null);
   } catch(e) { console.warn('[Audit]',e.message); }
 }
-app.get('/api/audit-log', (req, res) => {
+app.get('/api/audit-log', requireRole('manager'), (req, res) => {
   const { entity_type, entity_id, limit=200, offset=0 } = req.query;
   let sql = 'SELECT * FROM audit_log WHERE 1=1';
   const params = [];
@@ -4397,7 +4535,7 @@ app.get('/api/audit-log', (req, res) => {
 });
 
 // Order status with audit — BUG-34: State Machine validation
-app.patch('/api/orders/:id/status', (req, res) => {
+app.patch('/api/orders/:id/status', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
   const { status, userId, userName } = req.body;
   if (!status) return res.status(400).json({ error: 'חסר סטטוס' });
   const requestedStatus = normalizeOrderStatus(status);
@@ -4409,7 +4547,7 @@ app.patch('/api/orders/:id/status', (req, res) => {
       error: 'מעבר סטטוס לא חוקי',
       from: order.status,
       to: requestedStatus,
-      allowed: VALID_ORDER_TRANSITIONS[order.status] || []
+      allowed: statusContracts.allowedOrderTransitions(order.status)
     });
   }
   const old = order.status;
@@ -4422,7 +4560,7 @@ app.patch('/api/orders/:id/status', (req, res) => {
   }
   res.json({ success: true });
 });
-app.patch('/api/orders/:id/lock', (req, res) => {
+app.patch('/api/orders/:id/lock', requireRole('manager'), (req, res) => {
   const { userId, userName } = req.body;
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'לא נמצא' });
@@ -4430,7 +4568,7 @@ app.patch('/api/orders/:id/lock', (req, res) => {
   auditLog('order',order.id,order.order_num,'lock','locked','0','1','נעילה לאחר שילוח',userId,userName);
   res.json({ success: true });
 });
-app.patch('/api/orders/:id/unlock', (req, res) => {
+app.patch('/api/orders/:id/unlock', requireRole('manager'), (req, res) => {
   const { userId, userName } = req.body;
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'לא נמצא' });
@@ -4460,15 +4598,28 @@ app.post('/api/auth/refresh', (req, res) => {
   res.json({ access_token: result.accessToken, user: result.user });
 });
 app.post('/api/auth/logout', (req, res) => {
-  authService.logout(parseCookies(req).refresh_token);
+  const refreshToken = parseCookies(req).refresh_token;
+  if (!refreshToken && !req.auth) {
+    res.setHeader('Set-Cookie', 'refresh_token=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0');
+    return res.status(401).json({ error: 'Logout requires an active session' });
+  }
+  authService.logout(refreshToken);
   res.setHeader('Set-Cookie', 'refresh_token=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0');
   res.json({ success: true });
 });
 
-app.get('/api/users', (req, res) => {
+app.get('/api/users', requireRole('admin'), (req, res) => {
   res.json(db.prepare('SELECT id,username,display_name,role,phone,active,last_login,created_at FROM users ORDER BY role,display_name').all());
 });
-app.post('/api/users', (req, res) => {
+app.get('/api/kiosk/operators', requireAnyRole(['kiosk', 'production', 'manager', 'admin']), (req, res) => {
+  res.json(db.prepare(`
+    SELECT id,username,display_name,role,active
+    FROM users
+    WHERE active=1 AND role IN ('operator','kiosk','production','manager','admin')
+    ORDER BY role,display_name
+  `).all());
+});
+app.post('/api/users', requireRole('admin'), (req, res) => {
   const { username, display_name, role, pin, phone } = req.body;
   if (!username||!display_name) return res.status(400).json({ error: 'שם משתמש ושם תצוגה חובה' });
   try {
@@ -4480,23 +4631,18 @@ app.post('/api/users', (req, res) => {
     throw e;
   }
 });
-app.patch('/api/users/:id', (req, res) => {
+app.patch('/api/users/:id', requireRole('admin'), (req, res) => {
   const f = req.body;
   db.prepare('UPDATE users SET display_name=COALESCE(?,display_name),role=COALESCE(?,role),pin=COALESCE(?,pin),pin_hash=COALESCE(?,pin_hash),phone=COALESCE(?,phone),active=COALESCE(?,active),password_changed_at=CASE WHEN ? IS NULL THEN password_changed_at ELSE ? END WHERE id=?')
     .run(f.display_name||null,f.role||null,f.pin||null,hashPin(f.pin),f.phone||null,f.active??null,f.pin||null,f.pin ? new Date().toISOString() : null,req.params.id);
   res.json({ success: true });
 });
 app.post('/api/users/login', (req, res) => {
-  const { pin } = req.body;
-  if (!pin) return res.status(400).json({ error: 'חסר PIN' });
-  const user = db.prepare('SELECT id,username,display_name,role FROM users WHERE pin=? AND active=1').get(pin);
-  if (!user) return res.status(401).json({ error: 'PIN שגוי' });
-  db.prepare('UPDATE users SET last_login=? WHERE id=?').run(new Date().toISOString(),user.id);
-  res.json(user);
+  res.status(410).json({ error: 'Legacy login is disabled. Use /api/auth/login.' });
 });
 
 // ── QUALITY CONTROL
-app.get('/api/quality', (req, res) => {
+app.get('/api/quality', requireAnyRole(['quality', 'production', 'office', 'manager', 'admin']), (req, res) => {
   const { order_id, item_id, result, limit=100 } = req.query;
   let sql = 'SELECT q.*,u.display_name as inspector_name FROM quality_checks q LEFT JOIN users u ON q.inspector_id=u.id WHERE 1=1';
   const params = [];
@@ -4506,7 +4652,7 @@ app.get('/api/quality', (req, res) => {
   sql+=' ORDER BY q.checked_at DESC LIMIT ?'; params.push(Number(limit));
   res.json(db.prepare(sql).all(...params));
 });
-app.post('/api/quality', (req, res) => {
+app.post('/api/quality', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   if (!f.item_id) return res.status(400).json({ error: 'item_id חובה' });
   const r = db.prepare('INSERT INTO quality_checks (item_id,order_id,order_num,inspector_id,check_type,sample_qty,pass_qty,fail_qty,deviation_mm,deviation_deg,result,action_taken,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
@@ -4514,7 +4660,7 @@ app.post('/api/quality', (req, res) => {
   db.prepare('UPDATE items SET qc_status=? WHERE id=?').run(f.result==='pass'?'עבר':'נכשל',f.item_id);
   res.json({ id: r.lastInsertRowid });
 });
-app.get('/api/quality/stats', (req, res) => {
+app.get('/api/quality/stats', requireAnyRole(['quality', 'production', 'office', 'manager', 'admin']), (req, res) => {
   res.json({
     total:   db.prepare('SELECT COUNT(*) as c FROM quality_checks').get().c,
     passed:  db.prepare("SELECT COUNT(*) as c FROM quality_checks WHERE result='pass'").get().c,
@@ -4524,7 +4670,7 @@ app.get('/api/quality/stats', (req, res) => {
 });
 
 // ── MAINTENANCE
-app.get('/api/maintenance', (req, res) => {
+app.get('/api/maintenance', requireAnyRole(['maintenance', 'production', 'office', 'manager', 'admin']), (req, res) => {
   const { machine_id, status, limit=100 } = req.query;
   let sql = 'SELECT m.*,mc.name as machine_name,mc.label as machine_label,u.display_name as reported_by_name,u2.display_name as assigned_to_name FROM maintenance_logs m LEFT JOIN machines mc ON m.machine_id=mc.id LEFT JOIN users u ON m.reported_by=u.id LEFT JOIN users u2 ON m.assigned_to=u2.id WHERE 1=1';
   const params = [];
@@ -4533,7 +4679,7 @@ app.get('/api/maintenance', (req, res) => {
   sql+=' ORDER BY m.started_at DESC LIMIT ?'; params.push(Number(limit));
   res.json(db.prepare(sql).all(...params));
 });
-app.post('/api/maintenance', (req, res) => {
+app.post('/api/maintenance', requireAnyRole(['maintenance', 'production', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   if (!f.machine_id||!f.description) return res.status(400).json({ error: 'מכונה ותיאור חובה' });
   if (f.log_type==='breakdown') {
@@ -4544,7 +4690,7 @@ app.post('/api/maintenance', (req, res) => {
     .run(f.machine_id,f.log_type||'breakdown',f.description,f.reported_by||null,f.priority||'רגיל',f.parts_used||null,f.cost||0);
   res.json({ id: r.lastInsertRowid });
 });
-app.patch('/api/maintenance/:id', (req, res) => {
+app.patch('/api/maintenance/:id', requireAnyRole(['maintenance', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   const log = db.prepare('SELECT * FROM maintenance_logs WHERE id=?').get(req.params.id);
   if (!log) return res.status(404).json({ error: 'לא נמצא' });
@@ -4554,7 +4700,7 @@ app.patch('/api/maintenance/:id', (req, res) => {
   if (f.status==='סגורה'&&log.log_type==='breakdown') db.prepare("UPDATE machines SET status='מחובר' WHERE id=?").run(log.machine_id);
   res.json({ success: true });
 });
-app.get('/api/maintenance/stats', (req, res) => {
+app.get('/api/maintenance/stats', requireAnyRole(['maintenance', 'production', 'office', 'manager', 'admin']), (req, res) => {
   res.json({
     open:        db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE status!='סגורה'").get().c,
     breakdowns:  db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE log_type='breakdown'").get().c,
@@ -4564,7 +4710,7 @@ app.get('/api/maintenance/stats', (req, res) => {
 });
 
 // ── PROJECTS & SITES
-app.get('/api/projects', (req, res) => {
+app.get('/api/projects', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
   const { customer_id, status } = req.query;
   let sql = 'SELECT p.*,c.name as customer_name,COUNT(DISTINCT s.id) as site_count,COUNT(DISTINCT o.id) as order_count FROM projects p LEFT JOIN customers c ON p.customer_id=c.id LEFT JOIN sites s ON s.project_id=p.id LEFT JOIN orders o ON o.project_id=p.id WHERE 1=1';
   const params = [];
@@ -4573,28 +4719,28 @@ app.get('/api/projects', (req, res) => {
   sql+=' GROUP BY p.id ORDER BY p.created_at DESC';
   res.json(db.prepare(sql).all(...params));
 });
-app.get('/api/projects/:id', (req, res) => {
+app.get('/api/projects/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
   const p = db.prepare('SELECT p.*,c.name as customer_name FROM projects p LEFT JOIN customers c ON p.customer_id=c.id WHERE p.id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error: 'לא נמצא' });
   p.sites  = db.prepare('SELECT * FROM sites WHERE project_id=? ORDER BY name').all(p.id);
   p.orders = db.prepare('SELECT id,order_num,status,total_weight,created_at FROM orders WHERE project_id=? ORDER BY created_at DESC').all(p.id);
   res.json(p);
 });
-app.post('/api/projects', (req, res) => {
+app.post('/api/projects', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   if (!f.name) return res.status(400).json({ error: 'שם פרויקט חובה' });
   const r = db.prepare('INSERT INTO projects (customer_id,name,project_num,status,start_date,end_date,total_budget,contact_name,contact_phone,notes) VALUES (?,?,?,?,?,?,?,?,?,?)')
     .run(f.customer_id||null,f.name,f.project_num||null,f.status||'פעיל',f.start_date||null,f.end_date||null,f.total_budget||0,f.contact_name||null,f.contact_phone||null,f.notes||null);
   res.json({ id: r.lastInsertRowid });
 });
-app.patch('/api/projects/:id', (req, res) => {
+app.patch('/api/projects/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   db.prepare('UPDATE projects SET name=COALESCE(?,name),project_num=COALESCE(?,project_num),status=COALESCE(?,status),start_date=COALESCE(?,start_date),end_date=COALESCE(?,end_date),total_budget=COALESCE(?,total_budget),contact_name=COALESCE(?,contact_name),contact_phone=COALESCE(?,contact_phone),notes=COALESCE(?,notes) WHERE id=?')
     .run(f.name||null,f.project_num||null,f.status||null,f.start_date||null,f.end_date||null,f.total_budget||null,f.contact_name||null,f.contact_phone||null,f.notes||null,req.params.id);
   res.json({ success: true });
 });
 
-app.get('/api/sites', (req, res) => {
+app.get('/api/sites', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
   const { project_id, customer_id } = req.query;
   let sql = 'SELECT s.*,p.name as project_name,c.name as customer_name FROM sites s LEFT JOIN projects p ON s.project_id=p.id LEFT JOIN customers c ON s.customer_id=c.id WHERE s.active=1';
   const params = [];
@@ -4603,14 +4749,14 @@ app.get('/api/sites', (req, res) => {
   sql+=' ORDER BY s.name';
   res.json(db.prepare(sql).all(...params));
 });
-app.post('/api/sites', (req, res) => {
+app.post('/api/sites', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   if (!f.name) return res.status(400).json({ error: 'שם אתר חובה' });
   const r = db.prepare('INSERT INTO sites (project_id,customer_id,name,address,lat,lng,contact_name,contact_phone,access_notes) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(f.project_id||null,f.customer_id||null,f.name,f.address||null,f.lat||null,f.lng||null,f.contact_name||null,f.contact_phone||null,f.access_notes||null);
   res.json({ id: r.lastInsertRowid });
 });
-app.patch('/api/sites/:id', (req, res) => {
+app.patch('/api/sites/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   db.prepare('UPDATE sites SET name=COALESCE(?,name),address=COALESCE(?,address),lat=COALESCE(?,lat),lng=COALESCE(?,lng),contact_name=COALESCE(?,contact_name),contact_phone=COALESCE(?,contact_phone),access_notes=COALESCE(?,access_notes),active=COALESCE(?,active) WHERE id=?')
     .run(f.name||null,f.address||null,f.lat||null,f.lng||null,f.contact_name||null,f.contact_phone||null,f.access_notes||null,f.active??null,req.params.id);
@@ -4618,23 +4764,23 @@ app.patch('/api/sites/:id', (req, res) => {
 });
 
 // ── CREDIT ACCOUNTS
-app.get('/api/credit', (req, res) => {
+app.get('/api/credit', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare('SELECT ca.*,c.name as customer_name,c.phone as customer_phone FROM credit_accounts ca LEFT JOIN customers c ON ca.customer_id=c.id ORDER BY ca.blocked DESC,ca.current_debt DESC').all());
 });
-app.get('/api/credit/:customerId', (req, res) => {
+app.get('/api/credit/:customerId', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id,credit_limit) VALUES (?,0)').run(req.params.customerId);
   const acc = db.prepare('SELECT ca.*,c.name as customer_name FROM credit_accounts ca LEFT JOIN customers c ON ca.customer_id=c.id WHERE ca.customer_id=?').get(req.params.customerId);
   acc.transactions = db.prepare('SELECT * FROM credit_transactions WHERE customer_id=? ORDER BY created_at DESC LIMIT 50').all(req.params.customerId);
   res.json(acc);
 });
-app.patch('/api/credit/:customerId', (req, res) => {
+app.patch('/api/credit/:customerId', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id) VALUES (?)').run(req.params.customerId);
   db.prepare('UPDATE credit_accounts SET credit_limit=COALESCE(?,credit_limit),payment_terms=COALESCE(?,payment_terms),blocked=COALESCE(?,blocked),block_reason=COALESCE(?,block_reason),notes=COALESCE(?,notes),updated_at=CURRENT_TIMESTAMP WHERE customer_id=?')
     .run(f.credit_limit??null,f.payment_terms||null,f.blocked??null,f.block_reason||null,f.notes||null,req.params.customerId);
   res.json({ success: true });
 });
-app.post('/api/credit/:customerId/transaction', (req, res) => {
+app.post('/api/credit/:customerId/transaction', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const { type, amount, order_id, description } = req.body;
   if (!type||!amount) return res.status(400).json({ error: 'סוג וסכום חובה' });
   db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id) VALUES (?)').run(req.params.customerId);
@@ -4648,13 +4794,13 @@ app.post('/api/credit/:customerId/transaction', (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 // Block status from credit endpoint
-app.get('/api/credit/:customerId/status', (req, res) => {
+app.get('/api/credit/:customerId/status', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const acc = db.prepare('SELECT blocked,block_reason,credit_limit,current_debt FROM credit_accounts WHERE customer_id=?').get(req.params.customerId);
   res.json(acc || { blocked: 0, credit_limit: 0, current_debt: 0 });
 });
 
 // ── WASTE SUMMARY
-app.get('/api/waste/summary', (req, res) => {
+app.get('/api/waste/summary', requireAnyRole(['production', 'office', 'finance', 'manager', 'admin']), (req, res) => {
   const { from, to } = req.query;
   const fromDate = from || new Date(Date.now()-30*86400000).toISOString().split('T')[0];
   const toDate   = to   || new Date().toISOString().split('T')[0];
@@ -4671,7 +4817,7 @@ app.get('/api/waste/summary', (req, res) => {
 // ═══════════════════════════════════════════════════════════════════
 
 // ── SHIFTS ────────────────────────────────────────────────────────
-app.get('/api/shifts', (req, res) => {
+app.get('/api/shifts', requireAnyRole(['production', 'kiosk', 'office', 'manager', 'admin']), (req, res) => {
   const { date, machine_id, limit = 50 } = req.query;
   let q = `SELECT s.*, u.display_name as operator_name, m.name as machine_name
            FROM shifts s
@@ -4686,7 +4832,7 @@ app.get('/api/shifts', (req, res) => {
   res.json(db.prepare(q).all(...params));
 });
 
-app.post('/api/shifts', (req, res) => {
+app.post('/api/shifts', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
   const { shift_type, date, operator_id, machine_id, notes } = req.body;
   const today = date || new Date().toISOString().slice(0, 10);
   const r = db.prepare(`INSERT INTO shifts (shift_type,date,operator_id,machine_id,notes) VALUES (?,?,?,?,?)`)
@@ -4694,7 +4840,7 @@ app.post('/api/shifts', (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.patch('/api/shifts/:id/end', (req, res) => {
+app.patch('/api/shifts/:id/end', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
   const { total_pieces, total_weight, notes } = req.body;
   db.prepare(`UPDATE shifts SET ended_at=CURRENT_TIMESTAMP, total_pieces=?, total_weight=?, notes=COALESCE(?,notes) WHERE id=?`)
     .run(total_pieces || 0, total_weight || 0, notes || null, req.params.id);
@@ -4702,12 +4848,12 @@ app.patch('/api/shifts/:id/end', (req, res) => {
 });
 
 // ── DOWNTIME REASONS ──────────────────────────────────────────────
-app.get('/api/downtime-reasons', (req, res) => {
+app.get('/api/downtime-reasons', requireAnyRole(['production', 'kiosk', 'maintenance', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare('SELECT * FROM downtime_reasons ORDER BY label').all());
 });
 
 // ── MACHINE STOPS ─────────────────────────────────────────────────
-app.get('/api/machine-stops', (req, res) => {
+app.get('/api/machine-stops', requireAnyRole(['production', 'kiosk', 'maintenance', 'manager', 'admin']), (req, res) => {
   const { machine_id, shift_id, active } = req.query;
   let q = `SELECT ms.*, dr.label as reason_label, dr.color as reason_color,
            u.display_name as reported_by_name
@@ -4723,7 +4869,7 @@ app.get('/api/machine-stops', (req, res) => {
   res.json(db.prepare(q).all(...params));
 });
 
-app.post('/api/machine-stops', (req, res) => {
+app.post('/api/machine-stops', requireAnyRole(['production', 'kiosk', 'maintenance', 'manager', 'admin']), (req, res) => {
   const { machine_id, shift_id, reason_code, notes, reported_by } = req.body;
   const r = db.prepare(`INSERT INTO machine_stops (machine_id,shift_id,reason_code,notes,reported_by) VALUES (?,?,?,?,?)`)
     .run(machine_id, shift_id || null, reason_code, notes || null, reported_by || null);
@@ -4733,7 +4879,7 @@ app.post('/api/machine-stops', (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.patch('/api/machine-stops/:id/end', (req, res) => {
+app.patch('/api/machine-stops/:id/end', requireAnyRole(['production', 'kiosk', 'maintenance', 'manager', 'admin']), (req, res) => {
   const stop = db.prepare('SELECT * FROM machine_stops WHERE id=?').get(req.params.id);
   if (!stop) return res.status(404).json({ error: 'not found' });
   const durMin = stop.started_at
@@ -4745,7 +4891,7 @@ app.patch('/api/machine-stops/:id/end', (req, res) => {
 });
 
 // ── STEEL PRICE HISTORY ───────────────────────────────────────────
-app.get('/api/steel-prices', (req, res) => {
+app.get('/api/steel-prices', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
   const { diameter } = req.query;
   let q = `SELECT sph.*, s.name as supplier_name FROM steel_price_history sph
            LEFT JOIN suppliers s ON sph.supplier_id=s.id`;
@@ -4761,7 +4907,7 @@ app.get('/api/steel-prices', (req, res) => {
   }
 });
 
-app.post('/api/steel-prices', (req, res) => {
+app.post('/api/steel-prices', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const { diameter, price_per_ton, supplier_id, effective_date, notes, created_by } = req.body;
   const r = db.prepare(`INSERT INTO steel_price_history (diameter,price_per_ton,supplier_id,effective_date,notes,created_by) VALUES (?,?,?,?,?,?)`)
     .run(diameter, price_per_ton, supplier_id || null, effective_date || new Date().toISOString().slice(0,10), notes || null, created_by || null);
@@ -4769,7 +4915,7 @@ app.post('/api/steel-prices', (req, res) => {
 });
 
 // ── PACKAGES ─────────────────────────────────────────────────────
-app.get('/api/packages', (req, res) => {
+app.get('/api/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const { order_id, status, zone } = req.query;
   let q = `SELECT pk.*, u.display_name as packed_by_name, c.name as customer_name
            FROM packages pk
@@ -4785,7 +4931,7 @@ app.get('/api/packages', (req, res) => {
   res.json(db.prepare(q).all(...params));
 });
 
-app.post('/api/packages', (req, res) => {
+app.post('/api/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const { order_id, order_num, item_ids, quantity, weight, diameter, zone, packed_by } = req.body;
   const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
   const seq = (db.prepare('SELECT COUNT(*)+1 as n FROM packages WHERE package_code LIKE ?').get('PKG-'+dateStr+'%').n || 1);
@@ -4801,14 +4947,14 @@ app.post('/api/packages', (req, res) => {
   res.json({ id: r.lastInsertRowid, package_code });
 });
 
-app.patch('/api/packages/:id/ship', (req, res) => {
+app.patch('/api/packages/:id/ship', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   db.prepare('UPDATE packages SET status=?,shipped_at=CURRENT_TIMESTAMP WHERE id=?')
     .run('shipped', req.params.id);
   res.json({ ok: true });
 });
 
 // ── DELIVERY NOTES ────────────────────────────────────────────────
-app.get('/api/delivery-notes', (req, res) => {
+app.get('/api/delivery-notes', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const { order_id } = req.query;
   const rows = order_id
     ? db.prepare('SELECT * FROM delivery_notes WHERE order_id=? ORDER BY issued_at DESC').all(order_id)
@@ -4816,7 +4962,7 @@ app.get('/api/delivery-notes', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/delivery-notes', (req, res) => {
+app.post('/api/delivery-notes', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const { order_id, order_num, delivery_id, customer_id, packages_json, items_json, total_weight, driver_id } = req.body;
   const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
   const seq = (db.prepare('SELECT COUNT(*)+1 as n FROM delivery_notes WHERE note_num LIKE ?').get('DN-'+dateStr+'%').n || 1);
@@ -4828,8 +4974,9 @@ app.post('/api/delivery-notes', (req, res) => {
 });
 
 // ── ITEM STATUS / WASTE UPDATE ───────────────────────────────────
-app.patch('/api/items/:id/status', (req, res) => {
+app.patch('/api/items/:id/status', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
   const { status } = req.body;
+  if (!statusContracts.isValidItemStatus(status)) return res.status(400).json({ error: 'invalid status', allowed: statusContracts.VALID_ITEM_STATUSES });
   const allowed = ['ממתין','בייצור','הושלם','סופק','בהמתנה','בוטל'];
   if (!allowed.includes(status)) return res.status(400).json({ error: 'invalid status' });
   const item = db.prepare('SELECT * FROM items WHERE id=?').get(req.params.id);
@@ -4843,7 +4990,7 @@ app.patch('/api/items/:id/status', (req, res) => {
   res.json({ ok: true });
 });
 
-app.patch('/api/items/:id', (req, res) => {
+app.patch('/api/items/:id', requireAnyRole(['production', 'kiosk', 'warehouse', 'manager', 'admin']), (req, res) => {
   const { produced_qty, actual_waste, note, status, package_id, zone } = req.body;
   const fields = [], vals = [];
   if (produced_qty !== undefined) { fields.push('produced_qty=?'); vals.push(produced_qty); }
@@ -4860,7 +5007,7 @@ app.patch('/api/items/:id', (req, res) => {
 
 // ── PRODUCTION QUEUE ──────────────────────────────────────────────
 // Returns pending items grouped and sorted by machine, diameter priority
-app.get('/api/production-queue', (req, res) => {
+app.get('/api/production-queue', requireAnyRole(['production', 'kiosk', 'office', 'manager', 'admin']), (req, res) => {
   const { machine } = req.query;
   const visibleItemStatuses = req.query.visual === '1'
     ? "('ממתין','בייצור','הושלם','סופק')"
@@ -4900,7 +5047,7 @@ app.get('/api/production-queue', (req, res) => {
 });
 
 // ── PRODUCTION EVENTS ─────────────────────────────────────────────
-app.get('/api/production-events', (req, res) => {
+app.get('/api/production-events', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
   const { machine_id, event_type, limit = 100 } = req.query;
   let q = `SELECT pe.*, m.name as machine_name, u.display_name as operator_name
            FROM production_events pe
@@ -4916,7 +5063,7 @@ app.get('/api/production-events', (req, res) => {
 });
 
 // ── OEE / MACHINE KPIs ────────────────────────────────────────────
-app.get('/api/machines/oee', (req, res) => {
+app.get('/api/machines/oee', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
   const today = new Date().toISOString().slice(0,10);
   const machines = db.prepare('SELECT * FROM machines').all();
   const result = machines.map(m => {
@@ -4949,7 +5096,7 @@ app.get('/api/machines/oee', (req, res) => {
 });
 
 // ── FINANCIAL MARGIN ──────────────────────────────────────────────
-app.get('/api/orders/:id/margin', (req, res) => {
+app.get('/api/orders/:id/margin', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const order = db.prepare(`SELECT o.*, c.price_tier, c.discount_pct FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
   if (!order) return res.status(404).json({ error: 'not found' });
 
@@ -4990,7 +5137,7 @@ app.get('/api/orders/:id/margin', (req, res) => {
 });
 
 // ── INVENTORY FORECAST ────────────────────────────────────────────
-app.get('/api/inventory/forecast', (req, res) => {
+app.get('/api/inventory/forecast', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   // Consumption rate: avg kg/day per diameter over last 30 days
   const consumption = db.prepare(`
     SELECT i.diameter,
@@ -5036,7 +5183,7 @@ app.get('/api/inventory/forecast', (req, res) => {
 });
 
 // ── TONS PER DAY (dashboard KPI) ─────────────────────────────────
-app.get('/api/kpi/tons-today', (req, res) => {
+app.get('/api/kpi/tons-today', requireRole('viewer'), (req, res) => {
   const today = new Date().toISOString().slice(0,10);
   const r = db.prepare(`
     SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons
@@ -5047,7 +5194,7 @@ app.get('/api/kpi/tons-today', (req, res) => {
 });
 
 // ── MONTHLY KPI (exec dashboard) ─────────────────────────────────
-app.get('/api/kpi/monthly', (req, res) => {
+app.get('/api/kpi/monthly', requireAnyRole(['office', 'finance', 'manager', 'admin']), (req, res) => {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,10);
@@ -5102,7 +5249,7 @@ app.get('/api/kpi/monthly', (req, res) => {
 });
 
 // ── SHIFT SUMMARY (production dashboard) ─────────────────────────
-app.get('/api/kpi/shift-summary', (req, res) => {
+app.get('/api/kpi/shift-summary', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
   const today = new Date().toISOString().slice(0,10);
   const now = new Date();
   const h = now.getHours();
@@ -5157,7 +5304,7 @@ app.get('/api/kpi/shift-summary', (req, res) => {
 ai.init(db);
 
 // ── INCIDENTS (War Room) ───────────────────────────────────────────
-app.get('/api/incidents', (req, res) => {
+app.get('/api/incidents', requireAnyRole(['quality', 'maintenance', 'production', 'office', 'manager', 'admin']), (req, res) => {
   const rows = db.prepare(`
     SELECT i.*, m.name as machine_name
     FROM incidents i
@@ -5169,7 +5316,7 @@ app.get('/api/incidents', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/incidents', (req, res) => {
+app.post('/api/incidents', requireAnyRole(['quality', 'maintenance', 'production', 'manager', 'admin']), (req, res) => {
   const { title, machine_id, severity, description, assigned_to, financial_impact, opened_by } = req.body;
   const r = db.prepare(`
     INSERT INTO incidents (title,machine_id,severity,description,assigned_to,financial_impact,opened_by,timeline)
@@ -5182,7 +5329,7 @@ app.post('/api/incidents', (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.patch('/api/incidents/:id', (req, res) => {
+app.patch('/api/incidents/:id', requireAnyRole(['quality', 'maintenance', 'manager', 'admin']), (req, res) => {
   const { status, update_text, assigned_to, financial_impact } = req.body;
   const inc = db.prepare('SELECT * FROM incidents WHERE id=?').get(req.params.id);
   if (!inc) return res.status(404).json({ error: 'not found' });
@@ -5202,7 +5349,7 @@ app.patch('/api/incidents/:id', (req, res) => {
 });
 
 // ── NCR – Non-Conformance Reports ─────────────────────────────────
-app.get('/api/ncr', (req, res) => {
+app.get('/api/ncr', requireAnyRole(['quality', 'production', 'manager', 'admin']), (req, res) => {
   const rows = db.prepare(`
     SELECT n.*, m.name as machine_name
     FROM ncr n
@@ -5212,7 +5359,7 @@ app.get('/api/ncr', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/ncr', (req, res) => {
+app.post('/api/ncr', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
   const seq = db.prepare('SELECT COUNT(*)+1 as n FROM ncr').get().n;
   const num = 'NCR-' + new Date().getFullYear() + '-' + String(seq).padStart(4, '0');
   const { order_id, order_num, machine_id, description, severity, root_cause,
@@ -5227,7 +5374,7 @@ app.post('/api/ncr', (req, res) => {
   res.json({ id: r.lastInsertRowid, ncr_num: num });
 });
 
-app.patch('/api/ncr/:id', (req, res) => {
+app.patch('/api/ncr/:id', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE ncr
@@ -5247,7 +5394,7 @@ app.patch('/api/ncr/:id', (req, res) => {
 });
 
 // ── CAPA – Corrective & Preventive Actions ────────────────────────
-app.get('/api/capa', (req, res) => {
+app.get('/api/capa', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare(`
     SELECT c.*, n.ncr_num
     FROM capa c
@@ -5256,7 +5403,7 @@ app.get('/api/capa', (req, res) => {
   `).all());
 });
 
-app.post('/api/capa', (req, res) => {
+app.post('/api/capa', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
   const seq = db.prepare('SELECT COUNT(*)+1 as n FROM capa').get().n;
   const num = 'CAPA-' + new Date().getFullYear() + '-' + String(seq).padStart(4, '0');
   const { ncr_id, title, type, problem_description, root_cause,
@@ -5271,7 +5418,7 @@ app.post('/api/capa', (req, res) => {
   res.json({ id: r.lastInsertRowid, capa_num: num });
 });
 
-app.patch('/api/capa/:id', (req, res) => {
+app.patch('/api/capa/:id', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE capa
@@ -5279,16 +5426,21 @@ app.patch('/api/capa/:id', (req, res) => {
         completion_pct = COALESCE(?, completion_pct),
         actions        = COALESCE(?, actions),
         owner          = COALESCE(?, owner),
-        due_date       = COALESCE(?, due_date)
+        due_date       = COALESCE(?, due_date),
+        problem_description = COALESCE(?, problem_description),
+        root_cause     = COALESCE(?, root_cause),
+        verification_method = COALESCE(?, verification_method)
     WHERE id = ?
   `).run(f.status || null, f.completion_pct ?? null,
-         f.actions ? JSON.stringify(f.actions) : null,
-         f.owner || null, f.due_date || null, req.params.id);
+          f.actions ? JSON.stringify(f.actions) : null,
+          f.owner || null, f.due_date || null,
+          f.problem_description || null, f.root_cause || null,
+          f.verification_method || null, req.params.id);
   res.json({ ok: true });
 });
 
 // ── LOTO – Lockout / Tagout ───────────────────────────────────────
-app.get('/api/loto', (req, res) => {
+app.get('/api/loto', requireAnyRole(['maintenance', 'production', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare(`
     SELECT l.*, m.name as machine_name
     FROM loto l
@@ -5297,7 +5449,7 @@ app.get('/api/loto', (req, res) => {
   `).all());
 });
 
-app.post('/api/loto', (req, res) => {
+app.post('/api/loto', requireAnyRole(['maintenance', 'manager', 'admin']), (req, res) => {
   const { machine_id, locked_by, reason, reason_detail, safety_notes } = req.body;
   const existing = db.prepare("SELECT id FROM loto WHERE machine_id=? AND status='פעיל'").get(machine_id);
   if (existing) return res.status(409).json({ error: 'המכונה כבר נעולה' });
@@ -5309,7 +5461,7 @@ app.post('/api/loto', (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.patch('/api/loto/:id/release', (req, res) => {
+app.patch('/api/loto/:id/release', requireAnyRole(['maintenance', 'manager', 'admin']), (req, res) => {
   const { released_by, release_notes } = req.body;
   const loto = db.prepare('SELECT * FROM loto WHERE id=?').get(req.params.id);
   if (!loto) return res.status(404).json({ error: 'not found' });
@@ -5324,7 +5476,7 @@ app.patch('/api/loto/:id/release', (req, res) => {
 });
 
 // ── PREVENTIVE MAINTENANCE SCHEDULE ──────────────────────────────
-app.get('/api/pm-schedule', (req, res) => {
+app.get('/api/pm-schedule', requireAnyRole(['maintenance', 'production', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare(`
     SELECT p.*, m.name as machine_name
     FROM pm_schedule p
@@ -5334,7 +5486,7 @@ app.get('/api/pm-schedule', (req, res) => {
   `).all());
 });
 
-app.post('/api/pm-schedule', (req, res) => {
+app.post('/api/pm-schedule', requireAnyRole(['maintenance', 'manager', 'admin']), (req, res) => {
   const { machine_id, pm_type, frequency, last_done, next_due, instructions } = req.body;
   db.prepare(`
     INSERT OR REPLACE INTO pm_schedule (machine_id,pm_type,frequency,last_done,next_due,instructions)
@@ -5344,7 +5496,7 @@ app.post('/api/pm-schedule', (req, res) => {
 });
 
 // ── PURCHASE ORDERS ───────────────────────────────────────────────
-app.get('/api/purchase-orders', (req, res) => {
+app.get('/api/purchase-orders', requireAnyRole(['warehouse', 'office', 'finance', 'manager', 'admin']), (req, res) => {
   res.json(db.prepare(`
     SELECT po.*, s.name as supplier_name
     FROM purchase_orders po
@@ -5353,23 +5505,23 @@ app.get('/api/purchase-orders', (req, res) => {
   `).all());
 });
 
-app.post('/api/purchase-orders', (req, res) => {
+app.post('/api/purchase-orders', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const seq = db.prepare('SELECT COUNT(*)+1 as n FROM purchase_orders').get().n;
   const num = 'PO-' + new Date().getFullYear() + '-' + String(seq).padStart(4, '0');
   const { supplier_id, diameter, material_type, quantity_ton,
-          price_per_ton, expected_date, notes, created_by } = req.body;
+          price_per_ton, expected_date, notes, created_by, status } = req.body;
   const total = (quantity_ton || 0) * (price_per_ton || 0);
   const r = db.prepare(`
     INSERT INTO purchase_orders
-      (po_num,supplier_id,diameter,material_type,quantity_ton,price_per_ton,total_amount,expected_date,notes,created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?)
+      (po_num,supplier_id,diameter,material_type,quantity_ton,price_per_ton,total_amount,expected_date,status,notes,created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)
   `).run(num, supplier_id || null, diameter || null, material_type || 'coil',
-         quantity_ton || 0, price_per_ton || 0, total,
-         expected_date || '', notes || '', created_by || '');
+          quantity_ton || 0, price_per_ton || 0, total,
+          expected_date || '', status || 'pending', notes || '', created_by || '');
   res.json({ id: r.lastInsertRowid, po_num: num });
 });
 
-app.patch('/api/purchase-orders/:id', (req, res) => {
+app.patch('/api/purchase-orders/:id', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE purchase_orders
@@ -5380,7 +5532,7 @@ app.patch('/api/purchase-orders/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-app.patch('/api/purchase-orders/:id/receive', (req, res) => {
+app.patch('/api/purchase-orders/:id/receive', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const { heat_number, certificate_num, received_weight, notes } = req.body;
   const po = db.prepare('SELECT * FROM purchase_orders WHERE id=?').get(req.params.id);
   if (!po) return res.status(404).json({ error: 'not found' });
@@ -5404,7 +5556,7 @@ app.patch('/api/purchase-orders/:id/receive', (req, res) => {
 });
 
 // ── GLOBAL SEARCH (כרך ט) ────────────────────────────────────────
-app.get('/api/search', (req, res) => {
+app.get('/api/search', requireRole('viewer'), (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return res.json({ results: [] });
   const like = `%${q}%`;
@@ -5463,7 +5615,7 @@ app.get('/api/search', (req, res) => {
 });
 
 // ── INVOICES (כרך ט) ─────────────────────────────────────────────
-app.get('/api/invoices', (req, res) => {
+app.get('/api/invoices', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const { customer_id, status, order_id } = req.query;
   const wheres = [], params = [];
   if (customer_id) { wheres.push('i.customer_id=?'); params.push(customer_id); }
@@ -5474,7 +5626,7 @@ app.get('/api/invoices', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/invoices', (req, res) => {
+app.post('/api/invoices', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const { order_id, customer_id, items_json, subtotal, vat_rate, notes, invoice_type, created_by } = req.body;
   const year = new Date().getFullYear();
   const seq = db.prepare("SELECT COUNT(*)+1 as n FROM invoices WHERE invoice_num LIKE ?").get(`INV-${year}-%`).n;
@@ -5494,7 +5646,7 @@ app.post('/api/invoices', (req, res) => {
   res.json({ id: r.lastInsertRowid, invoice_num, total });
 });
 
-app.patch('/api/invoices/:id/pay', (req, res) => {  // BUG-36: cannot pay cancelled invoice
+app.patch('/api/invoices/:id/pay', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {  // BUG-36: cannot pay cancelled invoice
   const { paid_amount, payment_method, payment_ref } = req.body;
   const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(req.params.id);
   if (!inv) return res.status(404).json({ error: 'not found' });
@@ -5506,7 +5658,7 @@ app.patch('/api/invoices/:id/pay', (req, res) => {  // BUG-36: cannot pay cancel
   res.json({ ok: true, status, paid_amount: newPaid });
 });
 
-app.patch('/api/invoices/:id/cancel', (req, res) => {
+app.patch('/api/invoices/:id/cancel', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   db.prepare("UPDATE invoices SET status='ביטול' WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
@@ -5522,7 +5674,7 @@ function toCSV(rows, cols) {
   return '﻿' + [header, ...lines].join('\r\n'); // BOM for Hebrew Excel
 }
 
-app.get('/api/export/orders', (req, res) => {
+app.get('/api/export/orders', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const rows = db.prepare(`
     SELECT o.order_num, c.name as customer, o.delivery_date, o.status, o.total_weight,
            o.priority, o.channel, o.created_at
@@ -5544,7 +5696,7 @@ app.get('/api/export/orders', (req, res) => {
   res.send(toCSV(rows, cols));
 });
 
-app.get('/api/export/packages', (req, res) => {
+app.get('/api/export/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const rows = db.prepare(`
     SELECT pk.package_code, pk.order_num, pk.status, pk.weight, pk.diameter, pk.zone, pk.packed_at, pk.shipped_at
     FROM packages pk ORDER BY pk.packed_at DESC LIMIT 5000
@@ -5564,7 +5716,7 @@ app.get('/api/export/packages', (req, res) => {
   res.send(toCSV(rows, cols));
 });
 
-app.get('/api/export/inventory', (req, res) => {
+app.get('/api/export/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
   const rows = db.prepare(`
     SELECT r.material_type, r.diameter, s.name as supplier, r.lot_number, r.certificate_num,
            r.grade, r.received_date, r.weight_received, r.weight_used, r.warehouse_loc
@@ -5662,7 +5814,7 @@ function parseBVBS(content) {
   return { header, items, total_weight: items.reduce((s, i) => s + i.total_weight, 0) };
 }
 
-app.post('/api/bvbs/parse', upload.single('file'), (req, res) => {
+app.post('/api/bvbs/parse', requireAnyRole(['office', 'manager', 'admin']), upload.single('file'), (req, res) => {
   try {
     const content = req.file
       ? req.file.buffer.toString('utf-8')
@@ -5677,7 +5829,7 @@ app.post('/api/bvbs/parse', upload.single('file'), (req, res) => {
 });
 
 // Convert parsed BVBS data to an IronBend order
-app.post('/api/bvbs/create-order', (req, res) => {
+app.post('/api/bvbs/create-order', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
   const { bvbs_result, customer_id, delivery_date, priority } = req.body;
   if (!bvbs_result?.items?.length) return res.status(400).json({ error: 'No items' });
   const orderNum = generateOrderNum();
@@ -5858,7 +6010,7 @@ function calculateOrderCost(orderId) {
 }
 
 // GET /api/orders/:id/costs
-app.get('/api/orders/:id/costs', (req, res) => {
+app.get('/api/orders/:id/costs', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const orderId = Number(req.params.id);
   let existing = db.prepare('SELECT * FROM order_costs WHERE order_id=?').get(orderId);
   if (!existing) {
@@ -5877,7 +6029,7 @@ app.get('/api/orders/:id/costs', (req, res) => {
 });
 
 // POST /api/orders/:id/costs/recalculate
-app.post('/api/orders/:id/costs/recalculate', (req, res) => {
+app.post('/api/orders/:id/costs/recalculate', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const orderId = Number(req.params.id);
   const locked = db.prepare('SELECT locked FROM order_costs WHERE order_id=?').get(orderId);
   if (locked && locked.locked) return res.status(403).json({ error: 'עלויות נעולות – נדרש מנהל לביטול הנעילה' });
@@ -5916,7 +6068,7 @@ app.patch('/api/orders/:id/costs/lock', requireRole('manager'), (req, res) => {
 });
 
 // GET /api/orders/:id/costs/snapshots
-app.get('/api/orders/:id/costs/snapshots', (req, res) => {
+app.get('/api/orders/:id/costs/snapshots', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const snaps = db.prepare('SELECT * FROM cost_snapshots WHERE order_id=? ORDER BY created_at DESC LIMIT 20')
     .all(req.params.id);
   res.json(snaps.map(s => ({ ...s, snapshot: JSON.parse(s.snapshot) })));
@@ -5925,7 +6077,7 @@ app.get('/api/orders/:id/costs/snapshots', (req, res) => {
 // ── CUSTOMER LEDGER ────────────────────────────────────────────
 
 // GET /api/customers/:id/ledger
-app.get('/api/customers/:id/ledger', (req, res) => {
+app.get('/api/customers/:id/ledger', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const customerId = Number(req.params.id);
   const customer = db.prepare('SELECT * FROM customers WHERE id=?').get(customerId);
   if (!customer) return res.status(404).json({ error: 'לקוח לא נמצא' });
@@ -5988,7 +6140,7 @@ app.get('/api/customers/:id/ledger', (req, res) => {
 });
 
 // PATCH /api/customers/:id/credit
-app.patch('/api/customers/:id/credit', requireRole('manager'), (req, res) => {
+app.patch('/api/customers/:id/credit', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const { credit_limit, payment_terms, notes } = req.body;
   db.prepare(`INSERT OR REPLACE INTO customer_credit (customer_id,credit_limit,payment_terms,notes,updated_at)
     VALUES (?,?,?,?,datetime('now'))`).run(req.params.id, credit_limit, payment_terms || 30, notes || '');
@@ -6000,7 +6152,7 @@ app.patch('/api/customers/:id/credit', requireRole('manager'), (req, res) => {
 
 // ── FINANCIAL DASHBOARD KPIs ──────────────────────────────────
 
-app.get('/api/finance/kpis', (req, res) => {
+app.get('/api/finance/kpis', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const { period } = req.query; // 'week', 'month', 'quarter'
   const daysBack = period === 'quarter' ? 90 : period === 'week' ? 7 : 30;
   const since = new Date(Date.now() - daysBack * 86400000).toISOString().slice(0,10);
@@ -6069,7 +6221,7 @@ app.get('/api/finance/kpis', (req, res) => {
 
 // ── FINANCIAL EVENTS LOG ──────────────────────────────────────
 
-app.get('/api/finance/events', (req, res) => {
+app.get('/api/finance/events', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
   const { limit = 50, offset = 0 } = req.query;
   const events = db.prepare('SELECT * FROM financial_events ORDER BY created_at DESC LIMIT ? OFFSET ?')
     .all(Number(limit), Number(offset));
@@ -6186,8 +6338,8 @@ app.post('/api/admin/database/upload', requireRole('admin'), allowDatabaseUpload
 // ── Health check ──────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   try {
-    const row = db.prepare('SELECT COUNT(*) AS cnt FROM orders').get();
-    res.json({ ok: true, orders: row.cnt, ts: new Date().toISOString() });
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true, ts: new Date().toISOString() });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
@@ -6197,7 +6349,7 @@ app.get('/api/health', (req, res) => {
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, 'backups');
 if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
-cron.schedule('0 2 * * *', () => {        // כל לילה 02:00
+if (!IS_TEST) cron.schedule('0 2 * * *', () => {        // כל לילה 02:00
   try {
     const stamp = new Date().toISOString().slice(0, 10);
     const dest  = `${BACKUP_DIR}/ironbend-${stamp}.db`;
@@ -6227,11 +6379,14 @@ function gracefulShutdown(signal) {
   });
   setTimeout(() => { console.error('[Shutdown] ⏱ timeout – יוצא'); process.exit(1); }, 8000);
 }
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+if (require.main === module) {
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+}
 
 // ── Start ────────────────────────────────────────────────────────
-server.listen(PORT, '0.0.0.0', () => {
+function startServer(port = PORT, host = '0.0.0.0') {
+  return server.listen(port, host, () => {
   // הצג IP מקומי כדי שעמדות אחרות ידעו לאן להתחבר
   const nets = require('os').networkInterfaces();
   const localIP = Object.values(nets).flat()
@@ -6251,4 +6406,30 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`──────────────────────────────────────────────`);
   console.log(`💾  DB:        ${DB_PATH}`);
   console.log(`🗂️  Backups:   ${BACKUP_DIR}  (יומי 02:00)\n`);
-});
+  });
+}
+
+if (require.main === module) startServer();
+
+function closeServer(callback = () => {}) {
+  let doneCalled = false;
+  const done = (error) => {
+    if (doneCalled) return;
+    doneCalled = true;
+    callback(error);
+  };
+
+  clearInterval(wsHeartbeat);
+  for (const client of wss.clients) client.terminate();
+  try {
+    wss.close();
+  } catch (error) {
+    if (error.code !== 'ERR_SERVER_NOT_RUNNING') throw error;
+  }
+
+  server.closeAllConnections?.();
+  if (server.listening) return server.close(done);
+  done();
+}
+
+module.exports = { app, server, startServer, closeServer, db };

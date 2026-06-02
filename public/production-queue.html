@@ -88,12 +88,15 @@
 
   /* QUEUE ITEMS */
   .queue-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 600px; overflow-y: auto; }
-  .queue-item { background: var(--soft); border-radius: 8px; padding: 12px 14px;
+  .queue-item { background: var(--soft); border-radius: 12px; padding: 10px;
                 border: 1px solid var(--border); cursor: pointer; transition: all .2s;
-                display: flex; flex-direction: column; gap: 6px; }
+                display: grid; grid-template-columns: 118px 1fr; gap: 10px; align-items: stretch; }
   .queue-item:hover { border-color: var(--accent); box-shadow: 0 8px 20px rgba(24,38,54,.08); transform: translateY(-1px); }
   .queue-item.active-item { border-color: var(--success); background: #effaf4; }
   .queue-item.active-item .item-status-badge { background: rgba(39,174,96,.2); color: var(--success); }
+  .queue-shape { min-height: 92px; border-radius: 10px; border: 1px solid rgba(2,26,72,.08);
+                 background: #fff; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .queue-info { min-width: 0; display:flex; flex-direction:column; gap:7px; }
   .item-top { display: flex; align-items: center; gap: 8px; }
   .item-order { font-size: 13px; font-weight: 700; color: var(--accent); }
   .item-customer { font-size: 12px; color: var(--muted); }
@@ -119,6 +122,10 @@
   /* PROGRESS BAR */
   .item-progress { height: 4px; background: var(--border); border-radius: 2px; margin-top: 2px; overflow: hidden; }
   .item-progress-fill { height: 100%; background: var(--success); border-radius: 2px; transition: width .3s; }
+  @media (max-width: 520px) {
+    .queue-item { grid-template-columns: 1fr; }
+    .queue-shape { min-height: 120px; }
+  }
 
   /* MODALS */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 1000;
@@ -165,6 +172,9 @@
   }
 </style>
 <script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
+<script src="/status-contracts-client.js"></script>
+<script src="/shape-renderer.js" defer></script>
 <script src="/nav.js" defer></script>
 </head>
 <body data-page="production-queue">
@@ -332,6 +342,20 @@ let currentShift = null;
 let selectedReason = null;
 let currentMachineFilter = 'all';
 let currentWasteItemId = null;
+const ITEM_STATUS = (window.IronBendStatus && window.IronBendStatus.ITEM_STATUS) || {
+  WAITING: 'ממתין',
+  IN_PRODUCTION: 'בייצור',
+  DONE: 'הושלם',
+};
+
+function escHtml(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function jsArg(value) {
+  return JSON.stringify(String(value ?? ''));
+}
 
 // ── INIT ──────────────────────────────────────────────────────────
 async function init() {
@@ -398,7 +422,9 @@ async function loadTonsToday() {
   try {
     const data = await fetch(`${API}/api/kpi/tons-today`).then(r=>r.json());
     document.getElementById('shift-tons').textContent = data.tons + ' ט';
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('shift-tons').textContent = 'שגיאה';
+  }
 }
 
 // ── FILTER ────────────────────────────────────────────────────────
@@ -427,6 +453,7 @@ function renderQueue() {
     const col = createMachineColumn(machineKey, machineInfo, items);
     grid.appendChild(col);
   });
+  requestAnimationFrame(renderQueueShapes);
 
   // Update shift pieces count
   const totalPending = queueData.items ? queueData.items.length : 0;
@@ -439,7 +466,7 @@ function createMachineColumn(machineName, machineInfo, items) {
 
   const isConnected = machineInfo && machineInfo.status === 'מחובר';
   const dotClass = isConnected ? 'dot-green' : machineInfo ? 'dot-gray' : 'dot-gray';
-  const activeItems = items.filter(i => i.status === 'בייצור');
+  const activeItems = items.filter(i => i.status === ITEM_STATUS.IN_PRODUCTION);
 
   col.innerHTML = `
     <div class="machine-col-header">
@@ -460,7 +487,7 @@ function createMachineColumn(machineName, machineInfo, items) {
 }
 
 function renderQueueItem(item) {
-  const isActive = item.status === 'בייצור';
+  const isActive = item.status === ITEM_STATUS.IN_PRODUCTION;
   const pct = item.quantity > 0 ? Math.min(100, Math.round((item.produced_qty || 0) / item.quantity * 100)) : 0;
   const priorityBadge = item.priority === 'דחוף' ? 'badge-urgent' :
                         item.priority === 'גבוה' ? 'badge-high' : 'badge-normal';
@@ -468,31 +495,39 @@ function renderQueueItem(item) {
   const segments = safeJson(item.segments);
   const dims = formatSegments(segments);
   const totalLength = item.total_length_mm || segmentTotal(segments);
+  const sides = itemSegments(segments);
+  const angles = itemAngles(segments);
 
   return `
     <div class="queue-item ${isActive ? 'active-item' : ''}" onclick="toggleItemActions(${item.id})">
-      <div class="item-top">
-        <span class="item-order">${item.order_num || ''}</span>
-        <span class="item-customer">${item.customer_name || ''}</span>
-        <span class="item-priority-badge ${priorityBadge}">${item.priority || 'רגיל'}</span>
-        <span class="item-status-badge">${item.status}</span>
-      </div>
-      <div class="item-details">
-        <span class="item-detail"><strong>קוטר</strong> ⌀${item.diameter}</span>
-        <span class="item-detail"><strong>כמות</strong> ${item.produced_qty||0}/${item.quantity}</span>
-        <span class="item-detail"><strong>משקל</strong> ${Math.round(item.weight||0)} ק"ג</span>
-        ${totalLength ? `<span class="item-detail"><strong>אורך</strong> ${Math.round(totalLength)} מ"מ</span>` : ''}
-        ${item.shape_name ? `<span class="item-detail"><strong>צורה</strong> ${shapeLabel(item.shape_name)}</span>` : ''}
-        ${dims ? `<span class="item-detail"><strong>מידות</strong> ${dims}</span>` : ''}
-        ${item.delivery_date ? `<span class="item-detail"><strong>אספקה</strong> ${item.delivery_date}</span>` : ''}
-      </div>
-      ${isActive ? `<div class="item-progress"><div class="item-progress-fill" style="width:${pct}%"></div></div>` : ''}
-      <div class="item-actions" id="actions-${item.id}" style="display:none">
-        ${item.status === 'ממתין'
-          ? `<button class="item-btn item-btn-start" onclick="startItem(${item.id},event)">▶ התחל</button>`
-          : `<button class="item-btn item-btn-done" onclick="completeItem(${item.id},event)">✅ הושלם</button>`
-        }
-        <button class="item-btn item-btn-waste" onclick="openWaste(${item.id},'${item.order_num}',event)">📊 פחת</button>
+      <div class="queue-shape"
+        data-queue-shape="1"
+        data-sides="${encodeURIComponent(JSON.stringify(sides))}"
+        data-angles="${encodeURIComponent(JSON.stringify(angles))}"></div>
+      <div class="queue-info">
+        <div class="item-top">
+          <span class="item-order">${escHtml(item.order_num || '')}</span>
+          <span class="item-customer">${escHtml(item.customer_name || '')}</span>
+          <span class="item-priority-badge ${priorityBadge}">${escHtml(item.priority || 'רגיל')}</span>
+          <span class="item-status-badge">${escHtml(item.status)}</span>
+        </div>
+        <div class="item-details">
+          <span class="item-detail"><strong>קוטר</strong> ⌀${escHtml(item.diameter)}</span>
+          <span class="item-detail"><strong>כמות</strong> ${item.produced_qty||0}/${item.quantity}</span>
+          <span class="item-detail"><strong>משקל</strong> ${Math.round(item.weight||0)} ק"ג</span>
+          ${totalLength ? `<span class="item-detail"><strong>אורך</strong> ${Math.round(totalLength)} מ"מ</span>` : ''}
+          ${item.shape_name ? `<span class="item-detail"><strong>צורה</strong> ${escHtml(shapeLabel(item.shape_name))}</span>` : ''}
+          ${dims ? `<span class="item-detail"><strong>מידות</strong> ${escHtml(dims)}</span>` : ''}
+          ${item.delivery_date ? `<span class="item-detail"><strong>אספקה</strong> ${escHtml(item.delivery_date)}</span>` : ''}
+        </div>
+        ${isActive ? `<div class="item-progress"><div class="item-progress-fill" style="width:${pct}%"></div></div>` : ''}
+        <div class="item-actions" id="actions-${item.id}" style="display:none">
+          ${item.status === ITEM_STATUS.WAITING
+            ? `<button class="item-btn item-btn-start" onclick="startItem(${item.id},event)">▶ התחל</button>`
+            : `<button class="item-btn item-btn-done" onclick="completeItem(${item.id},event)">✅ הושלם</button>`
+          }
+          <button class="item-btn item-btn-waste" onclick="openWaste(${item.id},${jsArg(item.order_num)},event)">📊 פחת</button>
+        </div>
       </div>
     </div>
   `;
@@ -518,6 +553,43 @@ function formatSegments(segments) {
   return values.length ? `${values.join(' / ')} מ"מ` : '';
 }
 
+function itemSegments(segments) {
+  if (!Array.isArray(segments)) return [];
+  return segments.map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
+}
+
+function itemAngles(segments) {
+  if (!Array.isArray(segments)) return [];
+  return segments.slice(0, -1).map(segment => {
+    const angle = segment && typeof segment === 'object' ? Number(segment.angle_deg) : 180;
+    return Number.isFinite(angle) && angle > 0 ? angle : 180;
+  });
+}
+
+function renderQueueShapes() {
+  if (!window.IronBendShapes) {
+    setTimeout(renderQueueShapes, 80);
+    return;
+  }
+  document.querySelectorAll('[data-queue-shape]').forEach(el => {
+    try {
+      const sides = JSON.parse(decodeURIComponent(el.dataset.sides || '%5B%5D'));
+      const angles = JSON.parse(decodeURIComponent(el.dataset.angles || '%5B%5D'));
+      window.IronBendShapes.render2D(el, sides, angles, {
+        width: el.clientWidth || 116,
+        height: el.clientHeight || 92,
+        padding: 16,
+        color: '#DF5000',
+        strokeWidth: 4,
+        showDimensions: true,
+        bgColor: '#ffffff',
+      });
+    } catch (e) {
+      el.textContent = 'אין צורה';
+    }
+  });
+}
+
 function shapeLabel(shapeName) {
   const name = String(shapeName || '').toLowerCase();
   if (name.includes('open u') || name.includes('open bar')) return 'צורת ח פתוחה';
@@ -538,7 +610,7 @@ async function startItem(itemId, e) {
   await fetch(`${API}/api/items/${itemId}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'בייצור' })
+    body: JSON.stringify({ status: ITEM_STATUS.IN_PRODUCTION })
   });
   loadQueue();
 }
@@ -548,7 +620,7 @@ async function completeItem(itemId, e) {
   await fetch(`${API}/api/items/${itemId}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'הושלם' })
+    body: JSON.stringify({ status: ITEM_STATUS.DONE })
   });
   loadQueue();
 }

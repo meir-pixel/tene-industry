@@ -109,6 +109,9 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .driver-item:active{background:rgba(224,123,57,0.1);}
 </style>
 <link rel="stylesheet" href="/theme.css">
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
+<script src="/status-contracts-client.js"></script>
 <script src="/nav.js"></script></head>
 <body data-page="driver">
 
@@ -199,6 +202,27 @@ let currentDeliveryId = null;
 let sigCanvas, sigCtx, sigDrawing = false;
 let lastPos = null;
 
+const DELIVERY_STATUS = {
+  WAITING: 'ממתין',
+  PLANNED: 'מתוכנן',
+  DEPARTED: 'יצא',
+  DELIVERED: 'סופק',
+  PROBLEM: 'בעיה',
+  CANCELLED: 'ביטול',
+};
+
+function escHtml(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function escAttr(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeAttr(value)
+    : escHtml(value).replace(/`/g, '&#96;');
+}
+
 // ── INIT ──────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   const today = new Date().toISOString().split('T')[0];
@@ -226,9 +250,16 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadDrivers() {
-  const res  = await fetch('/api/drivers');
-  const list = await res.json();
-  const el   = document.getElementById('driverList');
+  const el = document.getElementById('driverList');
+  let list = [];
+  try {
+    const res = await fetch('/api/drivers');
+    if (!res.ok) throw new Error('drivers unavailable');
+    list = await res.json();
+  } catch {
+    el.innerHTML = `<div style="padding:20px;color:var(--danger);text-align:center">לא ניתן לטעון נהגים. התחבר מחדש או פנה למשרד.</div>`;
+    return;
+  }
 
   if (!list.length) {
     el.innerHTML = `<div style="padding:20px;color:var(--text-dim);text-align:center">אין נהגים מוגדרים במערכת</div>`;
@@ -236,18 +267,18 @@ async function loadDrivers() {
   }
 
   el.innerHTML = list.map(d => `
-    <div class="driver-item" onclick="selectDriver(${JSON.stringify(JSON.stringify(d))})">
+    <div class="driver-item" onclick="selectDriverFromData('${escAttr(encodeURIComponent(JSON.stringify(d)))}')">
       <span style="font-size:24px">🚚</span>
       <div>
-        <div>${d.name}</div>
-        <div style="font-size:12px;color:var(--text-dim)">${d.phone || ''}</div>
+        <div>${escHtml(d.name)}</div>
+        <div style="font-size:12px;color:var(--text-dim)">${escHtml(d.phone || '')}</div>
       </div>
     </div>
   `).join('');
 }
 
-function selectDriver(jsonStr) {
-  currentDriver = JSON.parse(jsonStr);
+function selectDriverFromData(encoded) {
+  currentDriver = JSON.parse(decodeURIComponent(encoded));
   document.getElementById('driverNameDisplay').textContent = currentDriver.name;
   document.getElementById('driverOverlay').style.display = 'none';
   loadDeliveries();
@@ -261,8 +292,16 @@ function showDriverSelect() {
 async function loadDeliveries() {
   if (!currentDriver) return;
   const date = document.getElementById('deliveryDate').value;
-  const res  = await fetch(`/api/deliveries?driverId=${currentDriver.id}&date=${date}`);
-  const list = await res.json();
+  let list = [];
+  try {
+    const res = await fetch(`/api/deliveries?driverId=${encodeURIComponent(currentDriver.id)}&date=${encodeURIComponent(date)}`);
+    if (!res.ok) throw new Error('deliveries unavailable');
+    list = await res.json();
+  } catch {
+    document.getElementById('deliveryList').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">⚠️</div><div>לא ניתן לטעון משלוחים</div></div>`;
+    return;
+  }
   renderDeliveries(list);
 }
 
@@ -277,15 +316,17 @@ function renderDeliveries(list) {
 
 function deliveryCard(d, num) {
   const statusBadge = {
-    'ממתין':  ['badge-pending',  'ממתין'],
-    'יצא':    ['badge-departed', 'בדרך'],
-    'סופק':   ['badge-done',     'סופק ✓'],
-    'בעיה':   ['badge-problem',  'בעיה ⚠️'],
+    [DELIVERY_STATUS.WAITING]:  ['badge-pending',  'ממתין'],
+    [DELIVERY_STATUS.PLANNED]:  ['badge-pending',  'מתוכנן'],
+    [DELIVERY_STATUS.DEPARTED]: ['badge-departed', 'בדרך'],
+    [DELIVERY_STATUS.DELIVERED]: ['badge-done',    'סופק'],
+    [DELIVERY_STATUS.PROBLEM]:  ['badge-problem',  'בעיה'],
   }[d.status] || ['badge-pending', d.status];
 
-  const isDone    = ['סופק','ביטול'].includes(d.status);
-  const departed  = d.status === 'יצא';
-  const canDepart = d.status === 'ממתין';
+  const isDone    = [DELIVERY_STATUS.DELIVERED, DELIVERY_STATUS.CANCELLED, 'בוטל'].includes(d.status);
+  const departed  = d.status === DELIVERY_STATUS.DEPARTED;
+  const canDepart = [DELIVERY_STATUS.WAITING, DELIVERY_STATUS.PLANNED].includes(d.status);
+  const deliveryId = Number(d.id);
 
   const wazeUrl  = `https://waze.com/ul?q=${encodeURIComponent(d.delivery_address || '')}`;
   const mapsUrl  = `https://maps.google.com/?q=${encodeURIComponent(d.delivery_address || '')}`;
@@ -294,33 +335,33 @@ function deliveryCard(d, num) {
   <div class="delivery-card ${isDone ? 'done' : ''}">
     <div class="dc-header">
       <div>
-        <div class="dc-num">אספקה #${num}</div>
-        <div class="dc-order">${d.order_num}</div>
-        <div class="dc-customer">${d.customer_name || ''}</div>
+        <div class="dc-num">אספקה #${escHtml(num)}</div>
+        <div class="dc-order">${escHtml(d.order_num)}</div>
+        <div class="dc-customer">${escHtml(d.customer_name || '')}</div>
       </div>
-      <span class="dc-badge ${statusBadge[0]}">${statusBadge[1]}</span>
+      <span class="dc-badge ${escAttr(statusBadge[0])}">${escHtml(statusBadge[1])}</span>
     </div>
     <div class="dc-address">
       <strong>📍 כתובת:</strong>
-      ${d.delivery_address || 'לא הוזנה'}
+      ${escHtml(d.delivery_address || 'לא הוזנה')}
     </div>
     <div class="dc-details">
-      <div class="dc-detail">📦 <strong>${d.pallets_count}</strong> משטחים</div>
+      <div class="dc-detail">📦 <strong>${escHtml(d.pallets_count)}</strong> משטחים</div>
       <div class="dc-detail">⚖️ <strong>${(d.billing_weight || d.total_weight || 0).toFixed(1)}</strong> ק"ג</div>
-      <div class="dc-detail">📞 <strong>${d.customer_phone || '—'}</strong></div>
+      <div class="dc-detail">📞 <strong>${escHtml(d.customer_phone || '—')}</strong></div>
     </div>
     <div class="dc-actions">
       ${!isDone ? `
-        <button class="btn btn-nav btn-sm" onclick="navigate('${wazeUrl}')">🗺️ Waze</button>
-        <button class="btn btn-nav btn-sm" onclick="navigate('${mapsUrl}')">📍 Maps</button>
-        ${d.customer_phone ? `<button class="btn btn-nav btn-sm" onclick="callCustomer('${d.customer_phone}')">📞</button>` : ''}
+        <button class="btn btn-nav btn-sm" onclick="navigate('${escAttr(wazeUrl)}')">🗺️ Waze</button>
+        <button class="btn btn-nav btn-sm" onclick="navigate('${escAttr(mapsUrl)}')">📍 Maps</button>
+        ${d.customer_phone ? `<button class="btn btn-nav btn-sm" onclick="callCustomer('${escAttr(d.customer_phone)}')">📞</button>` : ''}
       ` : ''}
-      ${canDepart ? `<button class="btn btn-primary" onclick="depart(${d.id})">🚚 יצאתי – בדרך</button>` : ''}
+      ${canDepart ? `<button class="btn btn-primary" onclick="depart(${deliveryId})">🚚 יצאתי – בדרך</button>` : ''}
       ${departed ? `
-        <button class="btn btn-success" onclick="openConfirm(${d.id})">✅ אישור מסירה</button>
-        <button class="btn btn-danger btn-sm" onclick="openProblem(${d.id})">⚠️ בעיה</button>
+        <button class="btn btn-success" onclick="openConfirm(${deliveryId})">✅ אישור מסירה</button>
+        <button class="btn btn-danger btn-sm" onclick="openProblem(${deliveryId})">⚠️ בעיה</button>
       ` : ''}
-      ${isDone && d.status === 'סופק' ? `<div style="color:var(--success);font-size:13px;padding:4px 0">✅ סופק ב-${formatTime(d.delivered_at)}</div>` : ''}
+      ${isDone && d.status === DELIVERY_STATUS.DELIVERED ? `<div style="color:var(--success);font-size:13px;padding:4px 0">✅ סופק ב-${escHtml(formatTime(d.delivered_at))}</div>` : ''}
     </div>
   </div>`;
 }
@@ -328,7 +369,8 @@ function deliveryCard(d, num) {
 // ── ACTIONS ───────────────────────────────────────────────────────
 async function depart(deliveryId) {
   if (!confirm('לאשר יציאה לאספקה?')) return;
-  await fetch(`/api/deliveries/${deliveryId}/depart`, { method: 'POST' });
+  const res = await fetch(`/api/deliveries/${deliveryId}/depart`, { method: 'POST' });
+  if (!res.ok) return alert('לא ניתן לעדכן יציאה לאספקה');
   loadDeliveries();
 }
 
@@ -351,11 +393,12 @@ async function submitConfirm() {
     lng = pos.coords.longitude;
   } catch {}
 
-  await fetch(`/api/deliveries/${currentDeliveryId}/confirm`, {
+  const res = await fetch(`/api/deliveries/${currentDeliveryId}/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ signatureData: sig, notes, lat, lng }),
   });
+  if (!res.ok) return alert('לא ניתן לאשר מסירה');
   closeModal('confirmModal');
   loadDeliveries();
 }
@@ -368,11 +411,12 @@ function openProblem(deliveryId) {
 async function submitProblem() {
   const problemType  = document.getElementById('problemType').value;
   const problemNotes = document.getElementById('problemNotes').value;
-  await fetch(`/api/deliveries/${currentDeliveryId}/problem`, {
+  const res = await fetch(`/api/deliveries/${currentDeliveryId}/problem`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ problemType, problemNotes }),
   });
+  if (!res.ok) return alert('לא ניתן לדווח בעיה');
   closeModal('problemModal');
   loadDeliveries();
 }

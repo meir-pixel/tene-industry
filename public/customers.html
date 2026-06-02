@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>לקוחות – IronBend</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="/safe-dom.js" defer></script>
 <script src="/nav.js" defer></script>
 <style>
 :root {
@@ -853,7 +854,9 @@ function statusBadge(s) {
 }
 
 function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(s)
+    : String(s||'').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
 function initials(name) {
@@ -1035,6 +1038,8 @@ function renderDetail(c) {
       '<p>שלח ללקוח קישור אישי להגשת הזמנות ומעקב</p>' +
     '</div>' +
     '<button class="btn-action" onclick="getPortalLink('+c.id+')">🔑 קבל קישור</button>' +
+    '<button class="btn-action" onclick="rotatePortalLink('+c.id+')">↻ קישור חדש</button>' +
+    '<button class="btn-action" onclick="revokePortalLink('+c.id+')">⛔ בטל גישה</button>' +
   '</div>';
 
   // ── Orders table ──
@@ -1115,6 +1120,45 @@ async function getPortalLink(id) {
     }
   } catch(e) {
     window.showToast && window.showToast('שגיאה בקבלת קישור', true);
+  }
+}
+
+async function rotatePortalLink(id) {
+  if (!confirm('להחליף את הקישור? הקישור הישן יפסיק לעבוד.')) return;
+  try {
+    const r = await fetch('/api/customers/' + id + '/token/rotate', { method: 'POST' });
+    const d = await r.json();
+    if (d.link) {
+      await navigator.clipboard.writeText(d.link).catch(() => {});
+      window.showToast && window.showToast('קישור חדש הועתק ✓');
+      const ps = document.querySelector('.portal-section');
+      if (ps) {
+        const existing = ps.querySelector('.portal-link-box');
+        if (existing) existing.remove();
+        const box = document.createElement('div');
+        box.className = 'portal-link-box';
+        box.title = 'לחץ להעתקה';
+        box.textContent = d.link;
+        box.onclick = () => { navigator.clipboard.writeText(d.link).catch(()=>{}); window.showToast && window.showToast('הועתק ✓'); };
+        ps.appendChild(box);
+      }
+    }
+  } catch(e) {
+    window.showToast && window.showToast('שגיאה ביצירת קישור חדש', true);
+  }
+}
+
+async function revokePortalLink(id) {
+  if (!confirm('לבטל את גישת הלקוח לפורטל?')) return;
+  try {
+    const r = await fetch('/api/customers/' + id + '/token', { method: 'DELETE' });
+    if (!r.ok) throw new Error('revoke failed');
+    const ps = document.querySelector('.portal-section');
+    const existing = ps && ps.querySelector('.portal-link-box');
+    if (existing) existing.remove();
+    window.showToast && window.showToast('הגישה בוטלה');
+  } catch(e) {
+    window.showToast && window.showToast('שגיאה בביטול גישה', true);
   }
 }
 

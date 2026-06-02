@@ -287,6 +287,7 @@ tr:hover td{background:rgba(0,0,0,0.02);}
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body data-page="dashboard">
+<script src="/safe-dom.js"></script>
 <script src="/nav.js"></script>
 
 <nav class="topnav">
@@ -697,12 +698,16 @@ function updateTime() {
 // ── Fetch dashboard ──────────────────────────────────────────────────
 async function fetchDashboard() {
   try {
-    const r = await fetch('/api/dashboard');
-    dashData = await r.json();
+    const [dashboardRes, queueRes] = await Promise.all([
+      fetch('/api/dashboard'),
+      fetch('/api/production-queue')
+    ]);
+    dashData = await dashboardRes.json();
+    const productionQueue = await queueRes.json().catch(() => ({ items: [] }));
     renderKPIs(dashData);
     renderMachines(dashData.machines);
     renderOrdersTable(dashData.recentOrders);
-    renderProdQueue(dashData.recentOrders);
+    renderProdQueue(productionQueue.items || []);
     renderWasteByMachine(dashData.wasteByMachine);
   } catch { /* offline – SW cache */ }
 }
@@ -914,26 +919,25 @@ async function resolveAllAlerts() {
 }
 
 // ── Production Queue ──────────────────────────────────────────────────
-function renderProdQueue(orders) {
-  const inProd = (orders || []).filter(o =>
-    o.status === 'בייצור' || o.status === 'ממתינה לאישור' || o.status === 'בתור ייצור'
-  );
-  document.getElementById('prodQueueCount').textContent = inProd.length;
-  if (!inProd.length) {
+function renderProdQueue(items) {
+  const queueItems = items || [];
+  document.getElementById('prodQueueCount').textContent = queueItems.length;
+  if (!queueItems.length) {
     document.getElementById('prodQueueBody').innerHTML = '<div class="empty-state">אין הזמנות בתור ייצור</div>';
     return;
   }
   document.getElementById('prodQueueBody').innerHTML = `<table style="width:100%">
-    <thead><tr><th>מספר</th><th>לקוח</th><th>אספקה</th><th>סטטוס</th></tr></thead>
-    <tbody>${inProd.map(o => {
-      const daysLeft = daysUntilDelivery(o.delivery_date);
+    <thead><tr><th>מספר</th><th>לקוח</th><th>אספקה</th><th>פריט</th><th>סטטוס</th></tr></thead>
+    <tbody>${queueItems.map(item => {
+      const daysLeft = daysUntilDelivery(item.delivery_date);
       const dateCls  = daysLeft !== null ? (daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : daysLeft <= 2 ? 'due-soon' : '') : '';
-      const urgentHtml = o.priority === 'דחוף' ? '<span class="urgent-flag"></span>' : '';
-      return `<tr onclick="location.href='/orders.html?id=${o.id}'" style="cursor:pointer">
-        <td><span class="order-num">${o.order_num}</span>${urgentHtml}</td>
-        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.customer_name||'—'}</td>
-        <td class="${dateCls}">${formatDeliveryDate(o.delivery_date, daysLeft)}</td>
-        <td><span class="status-badge ${statusBadgeClass(o.status)}">${o.status}</span></td>
+      const urgentHtml = item.priority === 'דחוף' ? '<span class="urgent-flag"></span>' : '';
+      return `<tr onclick="location.href='/orders.html?id=${item.order_id}'" style="cursor:pointer">
+        <td><span class="order-num">${escHtml(item.order_num)}</span>${urgentHtml}</td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.customer_name||'—')}</td>
+        <td class="${dateCls}">${formatDeliveryDate(item.delivery_date, daysLeft)}</td>
+        <td>${escHtml(item.shape_name || item.diameter || '—')}</td>
+        <td><span class="status-badge ${statusBadgeClass(item.status)}">${escHtml(item.status)}</span></td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
@@ -988,7 +992,9 @@ function formatDeliveryDate(dateStr, daysLeft) {
 }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(s)
+    : String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
 // ── EXEC DASHBOARD ───────────────────────────────────────────────

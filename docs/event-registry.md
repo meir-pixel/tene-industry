@@ -1,0 +1,69 @@
+# Event Registry
+
+Source-of-truth registry required by Volume 10. Current realtime events are sent
+through `wsBroadcast(type, data)` in `server.js`; audit events are separately
+written through `auditLog(...)`. The spec requires these concepts to converge
+into a universal event/audit model.
+
+## Current Realtime Event Types
+
+| Event Type | Owner Module | Current Producer Context | Notes |
+| --- | --- | --- | --- |
+| `machines_state` | Production | WebSocket connection initial state | Snapshot, not business event. |
+| `machine_update` | Production | Modbus/machine update, maintenance fault | Needs event contract. |
+| `machine_assign` | Production | Machine assignment routes | Should audit operator/user and reason. |
+| `machine_complete` | Production | Machine complete route | Should tie to item/order/worker/shift. |
+| `machine_state` | Production | Machine state route | Needs state machine audit. |
+| `end_of_day` | Production | Machine end of day | Shift/day lifecycle event. |
+| `order_complete` | Orders / Production | Order completion helper | Should be formal order lifecycle event. |
+| `new_order` | Orders | Order creation/import/portal/BVBS | Multiple producers; needs source/channel field. |
+| `order_status` | Orders | Status approval/update routes | Must be audited and state-machine checked. |
+| `item_status` | Orders / Production | Item status route | Must be tied to order production state. |
+| `alert` | Platform Core | Alert routes/helper | Should also become persisted alert/event. |
+| `driver_location` | Delivery | Driver location update | External portal auth needed. |
+| `delivery_depart` | Delivery | Delivery depart route | Delivery state machine. |
+| `delivery_confirm` | Delivery | Delivery confirm route | Delivery state machine. |
+| `new_intake` | Orders | WhatsApp intake | External source, unsafe content. |
+| `new_intake_email` | Orders | Email polling | External source, unsafe content. |
+| `new_invoice` | Finance | Invoice creation | Sensitive financial event. |
+| `cost_update` | Finance | Cost recalculation | Sensitive financial event. |
+
+## Current Audit Actions Seen
+
+| Audit Action | Owner Module | Notes |
+| --- | --- | --- |
+| `status_change` | Orders | Used for order status changes. |
+| `lock` | Orders | Order lock after shipment. |
+| `unlock` | Orders | Unlock action. |
+
+## Required Event Contract
+
+Every important event should eventually include:
+
+- `eventId`
+- `eventType`
+- `module`
+- `entityType`
+- `entityId`
+- `entityRef`
+- `actorUserId`
+- `actorRole`
+- `source`
+- `device`
+- `oldValue`
+- `newValue`
+- `reasonCode`
+- `createdAt`
+- `result`
+- `kpiImpact`
+
+## Recovery Decisions
+
+1. Keep `wsBroadcast` for realtime transport, but stop treating it as the event
+   system.
+2. Define a persisted event table or extend `audit_log` before broad module
+   refactors.
+3. Every status/state transition must create both a persisted event and a
+   realtime notification when relevant.
+4. External-source events must preserve raw source and sanitized display value.
+5. AI events stay frozen until governance fields are available.

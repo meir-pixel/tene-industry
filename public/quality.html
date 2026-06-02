@@ -115,6 +115,8 @@ tr.clickable:hover td{background:rgba(0,0,0,0.02);}
 .cai-del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:0 4px;}
 </style>
 <link rel="stylesheet" href="/theme.css">
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
 </head>
 <body data-page="quality">
 <nav class="topnav">
@@ -525,7 +527,10 @@ function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function dtStr(s) { return s ? new Date(s).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
 function dtDate(s) { return s ? new Date(s).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—'; }
-function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escH(s) {
+  if (window.IronBendSafe?.escapeHtml) return window.IronBendSafe.escapeHtml(s);
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
 /* -------- QC -------- */
 let checks = [];
@@ -613,24 +618,6 @@ const SEV_LBL = { critical:'קריטי', high:'גבוה', medium:'בינוני',
 const SEV_CLS = { critical:'sev-critical', high:'sev-high', medium:'sev-medium', low:'sev-low' };
 const DISP_LBL = { release:'שחרור', reject:'פסילה', rework:'עיבוד מחדש', return:'החזרה לספק' };
 
-// Generate local IDs for demo
-let _ncrSeq = 100;
-let _capaSeq = 200;
-
-// Demo seed data (will be replaced by API data when available)
-function seedNCR() {
-  if (ncrList.length) return;
-  const now = new Date();
-  const d = (days) => new Date(now - days*86400000).toISOString();
-  ncrList = [
-    { id:'NCR-101', date:d(12), machine:'CNC-01', order:'HZ-2026-043', desc:'סטייה אורך מעל 3 מ"מ ב-15 חתיכות', severity:'high', status:'inprog', owner:'יוסי כהן', root_cause:'שחיקת כלי', disposition:'rework', timeline:[{ts:d(12),msg:'NCR נפתח'},{ts:d(10),msg:'הועבר לטיפול – יוסי כהן'}], files:[] },
-    { id:'NCR-102', date:d(3), machine:'Bend-03', order:'HZ-2026-051', desc:'זווית כיפוף שגויה – 92° במקום 90°', severity:'critical', status:'open', owner:'רחל לוי', root_cause:'', disposition:'rework', timeline:[{ts:d(3),msg:'NCR נפתח'}], files:[] },
-    { id:'NCR-103', date:d(20), machine:'Cut-04', order:'HZ-2026-031', desc:'עקמומיות בחתך – ריצה של 2 מ"מ', severity:'medium', status:'closed', owner:'מוטי אברהם', root_cause:'ניתיב שגוי', disposition:'reject', timeline:[{ts:d(20),msg:'NCR נפתח'},{ts:d(18),msg:'בטיפול'},{ts:d(15),msg:'ממתין אישור'},{ts:d(12),msg:'סגור – פסילה'}], files:[] },
-    { id:'NCR-104', date:d(1), machine:'Press-05', order:'HZ-2026-055', desc:'פגמי ויזואל – שריטות על פני השטח', severity:'low', status:'pending', owner:'דנה שפירא', root_cause:'', disposition:'release', timeline:[{ts:d(1),msg:'NCR נפתח'},{ts:d(0.5),msg:'ממתין אישור'}], files:[] },
-  ];
-  _ncrSeq = 104;
-}
-
 function ncrKpiCalc() {
   const open = ncrList.filter(n=>n.status==='open').length;
   const pending = ncrList.filter(n=>n.status==='pending').length;
@@ -652,12 +639,47 @@ function ncrKpiCalc() {
   document.getElementById('ncrKpiAvgDays').textContent = avgDays;
 }
 
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function normalizeNCR(row) {
+  const label = row.ncr_num || row.id || '';
+  return {
+    id: String(row.id || row.ncr_num || ''),
+    label: String(label),
+    date: row.created_at || row.closed_at || '',
+    machine: row.machine_name || row.machine || row.machine_id || '',
+    order: row.order_num || row.order || '',
+    desc: row.description || row.desc || '',
+    severity: row.severity || 'medium',
+    status: row.status || 'open',
+    owner: row.assigned_to || row.owner || '',
+    root_cause: row.root_cause || '',
+    disposition: row.disposition || '',
+    diam: row.diameter || row.diam || '',
+    qty: row.quantity_affected || row.qty || 0,
+    notes: row.notes || '',
+    timeline: parseJsonArray(row.timeline),
+    files: parseJsonArray(row.files)
+  };
+}
+
 async function loadNCR() {
   try {
-    const data = await fetch('/api/ncr').then(r=>r.json());
-    ncrList = data;
+    const r = await fetch('/api/ncr');
+    if (!r.ok) throw new Error('NCR API failed');
+    const data = await r.json();
+    ncrList = Array.isArray(data) ? data.map(normalizeNCR) : [];
   } catch(e) {
-    seedNCR();
+    ncrList = [];
   }
   ncrKpiCalc();
   populateNcrMachineFilter();
@@ -697,8 +719,8 @@ function renderNCR() {
     return;
   }
   tbody.innerHTML = list.map(n=>`
-    <tr class="clickable" onclick="openNcrPanel('${n.id}')">
-      <td><strong>${escH(n.id)}</strong></td>
+    <tr class="clickable" onclick="openNcrPanel('${escH(n.id)}')">
+      <td><strong>${escH(n.label||n.id)}</strong></td>
       <td style="font-size:12px">${dtDate(n.date)}</td>
       <td>${escH(n.machine||'—')}</td>
       <td style="font-size:12px">${escH(n.order||'—')}</td>
@@ -706,7 +728,7 @@ function renderNCR() {
       <td><span class="badge ${SEV_CLS[n.severity]||''}">${SEV_LBL[n.severity]||n.severity}</span></td>
       <td><span class="badge ${NCR_STATUS_CLS[n.status]||''}">${NCR_STATUS_LBL[n.status]||n.status}</span></td>
       <td style="font-size:12px">${escH(n.owner||'—')}</td>
-      <td><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openNcrPanel('${n.id}')">פרטים</button></td>
+      <td><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openNcrPanel('${escH(n.id)}')">פרטים</button></td>
     </tr>
   `).join('');
 }
@@ -714,32 +736,27 @@ function renderNCR() {
 function openNcrModal() { openModal('ncrModal'); }
 
 async function saveNCR() {
-  const newNCR = {
-    id: 'NCR-' + (++_ncrSeq),
-    date: new Date().toISOString(),
-    machine: document.getElementById('ncrMachine').value,
-    order: document.getElementById('ncrOrd').value,
-    desc: document.getElementById('ncrDesc').value,
+  const body = {
+    order_num: document.getElementById('ncrOrd').value,
+    machine_id: Number(document.getElementById('ncrMachine').value) || null,
+    description: document.getElementById('ncrDesc').value,
     severity: document.getElementById('ncrSev').value,
-    status: 'open',
-    owner: document.getElementById('ncrOwner').value,
+    assigned_to: document.getElementById('ncrOwner').value,
     root_cause: document.getElementById('ncrRootCause').value,
     disposition: document.getElementById('ncrDisp').value,
-    diam: document.getElementById('ncrDiam').value,
-    qty: document.getElementById('ncrQty').value,
-    timeline: [{ ts: new Date().toISOString(), msg: 'NCR נפתח' }],
-    files: []
+    diameter: Number(document.getElementById('ncrDiam').value) || null,
+    quantity_affected: Number(document.getElementById('ncrQty').value) || 0
   };
-  if (!newNCR.desc) return alert('נדרש תיאור הממצא');
+  if (!body.description) return alert('נדרש תיאור הממצא');
   try {
-    const r = await fetch('/api/ncr', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(newNCR) });
-    if (r.ok) { const saved = await r.json(); newNCR.id = saved.id || newNCR.id; }
-  } catch(e) {}
-  ncrList.unshift(newNCR);
+    const r = await fetch('/api/ncr', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    if (!r.ok) throw new Error('NCR save failed');
+  } catch(e) {
+    alert('שגיאה בשמירת NCR. הרשומה לא נוספה מקומית.');
+    return;
+  }
   closeModal('ncrModal');
-  ncrKpiCalc();
-  renderNCR();
-  populateCapaNcrSelect();
+  await loadNCR();
 }
 
 /* NCR Panel */
@@ -747,7 +764,7 @@ function openNcrPanel(id) {
   const n = ncrList.find(x=>x.id===id);
   if (!n) return;
   ncrActiveId = id;
-  document.getElementById('spNcrTitle').textContent = n.id + ' – ' + (n.machine||'');
+  document.getElementById('spNcrTitle').textContent = (n.label||n.id) + ' – ' + (n.machine||'');
   document.getElementById('spNcrStatus').innerHTML = `<span class="badge ${NCR_STATUS_CLS[n.status]||''}">${NCR_STATUS_LBL[n.status]||n.status}</span>`;
   document.getElementById('spNcrSev').innerHTML = `<span class="badge ${SEV_CLS[n.severity]||''}">${SEV_LBL[n.severity]||n.severity}</span>`;
   document.getElementById('spNcrMachine').textContent = n.machine||'—';
@@ -785,40 +802,53 @@ function handleNcrFiles(evt) {
   fl.innerHTML = n.files.map(f=>`<span class="file-chip">📎 ${escH(f)}</span>`).join('');
 }
 
-function updateNcrStatus(status) {
+async function updateNcrStatus(status) {
   const n = ncrList.find(x=>x.id===ncrActiveId);
   if (!n) return;
-  n.status = status;
-  n.timeline.push({ ts: new Date().toISOString(), msg: NCR_STATUS_LBL[status] || status });
-  patchNCR(n);
+  const ok = await patchNCR({ ...n, status });
+  if (!ok) return alert('שגיאה בעדכון סטטוס NCR');
+  await loadNCR();
   openNcrPanel(ncrActiveId);
-  ncrKpiCalc();
-  renderNCR();
 }
 
-function closeNCR() {
+async function closeNCR() {
   const n = ncrList.find(x=>x.id===ncrActiveId);
   if (!n) return;
   const summary = document.getElementById('spNcrCloseSummary').value.trim();
-  n.status = 'closed';
-  n.timeline.push({ ts: new Date().toISOString(), msg: 'NCR נסגר' + (summary ? ' – ' + summary : '') });
-  patchNCR(n);
+  const ok = await patchNCR({ ...n, status: 'closed', notes: summary || n.notes || '' });
+  if (!ok) return alert('שגיאה בסגירת NCR');
   closeNcrPanel();
-  ncrKpiCalc();
-  renderNCR();
+  await loadNCR();
 }
 
-function saveNcrDetails() {
+async function saveNcrDetails() {
   const n = ncrList.find(x=>x.id===ncrActiveId);
   if (!n) return;
-  n.root_cause = document.getElementById('spNcrRootCause').value;
-  n.disposition = document.getElementById('spNcrDisp').value;
-  patchNCR(n);
+  const ok = await patchNCR({
+    ...n,
+    root_cause: document.getElementById('spNcrRootCause').value,
+    disposition: document.getElementById('spNcrDisp').value
+  });
+  if (!ok) return alert('שגיאה בשמירת פרטי NCR');
+  await loadNCR();
   alert('פרטי NCR נשמרו');
 }
 
 async function patchNCR(n) {
-  try { await fetch('/api/ncr/'+n.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(n) }); } catch(e) {}
+  const body = {
+    status: n.status,
+    severity: n.severity,
+    root_cause: n.root_cause,
+    disposition: n.disposition,
+    assigned_to: n.owner,
+    notes: n.notes
+  };
+  try {
+    const r = await fetch('/api/ncr/'+encodeURIComponent(n.id), { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    return r.ok;
+  } catch(e) {
+    return false;
+  }
 }
 
 /* -------- CAPA DATA -------- */
@@ -830,21 +860,34 @@ const CAPA_STATUS_LBL = { open:'פתוח', inprog:'בביצוע', verify:'אימ
 const CAPA_STATUS_CLS = { open:'badge-open', inprog:'badge-inprog', verify:'badge-verify', closed:'badge-closed' };
 const CAPA_TYPE_LBL = { corrective:'מתקן', preventive:'מונע' };
 
-function seedCAPA() {
-  if (capaList.length) return;
-  capaList = [
-    { id:'CAPA-201', ncr:'NCR-101', title:'החלפת כלי כיסוח CNC-01', type:'corrective', status:'inprog', owner:'יוסי כהן', due:'2026-06-01', pct:60, desc:'כלי שחוק גורם לסטיות אורך', root_cause:'מעקב שחיקת כלי לא תקין', actions:[{text:'בדיקת כלי שבועית',done:true},{text:'הגדרת threshold שחיקה',done:false},{text:'הדרכת מפעיל',done:false}], verify:'מדידת 50 חתיכות לאחר החלפה', effect:'' },
-    { id:'CAPA-202', ncr:'', title:'בדיקת כיול מכבש Bend-03', type:'preventive', status:'open', owner:'רחל לוי', due:'2026-05-30', pct:0, desc:'מניעת שגיאות זווית עתידיות', root_cause:'חוסר בלוח כיול', actions:[{text:'יצירת לוח כיול חודשי',done:false},{text:'הכשרת מפעילים',done:false}], verify:'ביצוע כיול מלא ואישור', effect:'' },
-  ];
-  _capaSeq = 202;
+function normalizeCAPA(row) {
+  const label = row.capa_num || row.id || '';
+  return {
+    id: String(row.id || row.capa_num || ''),
+    label: String(label),
+    ncr: row.ncr_num || row.ncr_id || '',
+    title: row.title || '',
+    type: row.type || 'corrective',
+    status: row.status || 'open',
+    owner: row.owner || '',
+    due: row.due_date || row.due || '',
+    pct: Number(row.completion_pct ?? row.pct ?? 0),
+    desc: row.problem_description || row.desc || '',
+    root_cause: row.root_cause || '',
+    actions: parseJsonArray(row.actions),
+    verify: row.verification_method || row.verify || '',
+    effect: row.effect || ''
+  };
 }
 
 async function loadCAPA() {
   try {
-    const data = await fetch('/api/capa').then(r=>r.json());
-    capaList = data;
+    const r = await fetch('/api/capa');
+    if (!r.ok) throw new Error('CAPA API failed');
+    const data = await r.json();
+    capaList = Array.isArray(data) ? data.map(normalizeCAPA) : [];
   } catch(e) {
-    seedCAPA();
+    capaList = [];
   }
   renderCAPA();
 }
@@ -856,8 +899,8 @@ function renderCAPA() {
     return;
   }
   tbody.innerHTML = capaList.map(c=>`
-    <tr class="clickable" onclick="openCapaPanel('${c.id}')">
-      <td><strong>${escH(c.id)}</strong></td>
+    <tr class="clickable" onclick="openCapaPanel('${escH(c.id)}')">
+      <td><strong>${escH(c.label||c.id)}</strong></td>
       <td style="font-size:12px">${c.ncr ? escH(c.ncr) : '—'}</td>
       <td>${escH(c.title)}</td>
       <td><span class="badge ${c.type==='corrective'?'badge-inprog':'badge-open'}">${CAPA_TYPE_LBL[c.type]||c.type}</span></td>
@@ -875,7 +918,7 @@ function renderCAPA() {
 function populateCapaNcrSelect() {
   const sel = document.getElementById('capaNCR');
   const openNCRs = ncrList.filter(n=>n.status!=='closed');
-  sel.innerHTML = '<option value="">ללא NCR קשור</option>' + openNCRs.map(n=>`<option value="${escH(n.id)}">${escH(n.id)} – ${escH(n.desc.substring(0,30))}</option>`).join('');
+  sel.innerHTML = '<option value="">ללא NCR קשור</option>' + openNCRs.map(n=>`<option value="${escH(n.id)}">${escH(n.label||n.id)} – ${escH(n.desc.substring(0,30))}</option>`).join('');
 }
 
 function openCapaModal() {
@@ -907,29 +950,27 @@ function renderCapaModalActions() {
 }
 
 async function saveCapa() {
-  const newCapa = {
-    id: 'CAPA-' + (++_capaSeq),
-    ncr: document.getElementById('capaNCR').value,
+  const body = {
+    ncr_id: Number(document.getElementById('capaNCR').value) || null,
     title: document.getElementById('capaTitle').value,
     type: document.getElementById('capaType').value,
-    status: 'open',
-    owner: document.getElementById('capaOwner').value,
-    due: document.getElementById('capaDue').value,
-    pct: 0,
-    desc: document.getElementById('capaDesc').value,
+    problem_description: document.getElementById('capaDesc').value,
     root_cause: document.getElementById('capaRoot').value,
     actions: _capaNewActions.slice(),
-    verify: '',
-    effect: ''
+    owner: document.getElementById('capaOwner').value,
+    due_date: document.getElementById('capaDue').value,
+    verification_method: ''
   };
-  if (!newCapa.title) return alert('נדרשת כותרת לפעולה');
+  if (!body.title) return alert('נדרשת כותרת לפעולה');
   try {
-    const r = await fetch('/api/capa', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(newCapa) });
-    if (r.ok) { const saved = await r.json(); newCapa.id = saved.id || newCapa.id; }
-  } catch(e) {}
-  capaList.unshift(newCapa);
+    const r = await fetch('/api/capa', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    if (!r.ok) throw new Error('CAPA save failed');
+  } catch(e) {
+    alert('שגיאה בשמירת CAPA. הרשומה לא נוספה מקומית.');
+    return;
+  }
   closeModal('capaModal');
-  renderCAPA();
+  await loadCAPA();
 }
 
 /* CAPA Panel */
@@ -937,7 +978,7 @@ function openCapaPanel(id) {
   const c = capaList.find(x=>x.id===id);
   if (!c) return;
   capaActiveId = id;
-  document.getElementById('spCapaTitle').textContent = c.id + ' – ' + c.title;
+  document.getElementById('spCapaTitle').textContent = (c.label||c.id) + ' – ' + c.title;
   document.getElementById('spCapaStatus').innerHTML = `<span class="badge ${CAPA_STATUS_CLS[c.status]||''}">${CAPA_STATUS_LBL[c.status]||c.status}</span>`;
   document.getElementById('spCapaType').innerHTML = `<span class="badge ${c.type==='corrective'?'badge-inprog':'badge-open'}">${CAPA_TYPE_LBL[c.type]||c.type}</span>`;
   document.getElementById('spCapaOwner').textContent = c.owner||'—';
@@ -964,13 +1005,15 @@ function renderPanelCapaActions(c) {
   recalcCapaPct(c);
 }
 
-function toggleCapaAction(i, done) {
+async function toggleCapaAction(i, done) {
   const c = capaList.find(x=>x.id===capaActiveId);
   if (!c) return;
-  c.actions[i].done = done;
-  recalcCapaPct(c);
-  document.getElementById('spCapaPct').textContent = (c.pct||0) + '%';
-  renderCAPA();
+  const next = { ...c, actions: (c.actions || []).map((a, idx)=>idx===i ? { ...a, done } : a) };
+  recalcCapaPct(next);
+  const ok = await patchCAPA(next);
+  if (!ok) return alert('שגיאה בעדכון פעולה');
+  await loadCAPA();
+  openCapaPanel(capaActiveId);
 }
 
 function recalcCapaPct(c) {
@@ -978,40 +1021,62 @@ function recalcCapaPct(c) {
   c.pct = Math.round(c.actions.filter(a=>a.done).length / c.actions.length * 100);
 }
 
-function addPanelCapaAction() {
+async function addPanelCapaAction() {
   const inp = document.getElementById('spCapaNewAction');
   const txt = inp.value.trim();
   if (!txt) return;
   const c = capaList.find(x=>x.id===capaActiveId);
   if (!c) return;
-  c.actions = c.actions || [];
-  c.actions.push({text:txt, done:false});
+  const next = { ...c, actions: [...(c.actions || []), { text: txt, done: false }] };
+  recalcCapaPct(next);
+  const ok = await patchCAPA(next);
+  if (!ok) return alert('שגיאה בהוספת פעולה');
   inp.value = '';
-  renderPanelCapaActions(c);
-  renderCAPA();
-}
-
-function updateCapaStatus(status) {
-  const c = capaList.find(x=>x.id===capaActiveId);
-  if (!c) return;
-  c.status = status;
-  if (status==='closed') c.pct = 100;
-  patchCAPA(c);
+  await loadCAPA();
   openCapaPanel(capaActiveId);
-  renderCAPA();
 }
 
-function saveCapaDetails() {
+async function updateCapaStatus(status) {
   const c = capaList.find(x=>x.id===capaActiveId);
   if (!c) return;
-  c.verify = document.getElementById('spCapaVerify').value;
-  c.effect = document.getElementById('spCapaEffect').value;
-  patchCAPA(c);
+  const next = { ...c, status };
+  if (status==='closed') next.pct = 100;
+  const ok = await patchCAPA(next);
+  if (!ok) return alert('שגיאה בעדכון סטטוס CAPA');
+  await loadCAPA();
+  openCapaPanel(capaActiveId);
+}
+
+async function saveCapaDetails() {
+  const c = capaList.find(x=>x.id===capaActiveId);
+  if (!c) return;
+  const ok = await patchCAPA({
+    ...c,
+    verify: document.getElementById('spCapaVerify').value,
+    effect: document.getElementById('spCapaEffect').value
+  });
+  if (!ok) return alert('שגיאה בשמירת פרטי CAPA');
+  await loadCAPA();
   alert('פרטי CAPA נשמרו');
 }
 
 async function patchCAPA(c) {
-  try { await fetch('/api/capa/'+c.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(c) }); } catch(e) {}
+  const body = {
+    status: c.status,
+    completion_pct: c.pct,
+    actions: c.actions || [],
+    owner: c.owner,
+    due_date: c.due,
+    verification_method: c.verify,
+    problem_description: c.desc,
+    root_cause: c.root_cause
+  };
+  try {
+    const r = await fetch('/api/capa/'+encodeURIComponent(c.id), { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    return r.ok;
+  } catch(e) {
+    return false;
+  }
 }
 
 function closeCapaPanel() {

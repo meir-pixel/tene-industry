@@ -148,6 +148,10 @@
       <label>שם מלא</label>
       <input type="text" id="authName" placeholder="שם ושם משפחה"/>
     </div>
+    <div class="field" id="authOtpField" style="display:none">
+      <label>קוד אימות</label>
+      <input type="text" id="authOtp" placeholder="6 ספרות" inputmode="numeric" maxlength="6"/>
+    </div>
     <button class="btn btn-primary" onclick="doAuth()">כניסה ←</button>
   </div>
 </div>
@@ -274,9 +278,23 @@ async function loadPriceList() {
 // Auth
 // ──────────────────────────────────────────────────────
 let _needName = false;
+let _otpRequested = false;
+let _pendingOtpPhone = '';
 async function doAuth() {
   const phone = document.getElementById('authPhone').value.replace(/\D/g,'');
   if (phone.length < 9) { toast('הכנס מספר טלפון תקין', true); return; }
+
+  if (_otpRequested) {
+    const code = document.getElementById('authOtp').value.replace(/\D/g,'');
+    if (code.length !== 6) { toast('הכנס קוד אימות בן 6 ספרות', true); return; }
+    const data = await fetch('/api/c/auth/verify', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ phone: _pendingOtpPhone || phone, code })
+    }).then(async r => ({ ok: r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+    if (!data) { toast('שגיאה בחיבור לשרת', true); return; }
+    if (!data.ok) { toast('קוד האימות שגוי או פג תוקף', true); return; }
+    await completeAuth(data.data);
+    return;
+  }
 
   const body = { phone };
   if (_needName) {
@@ -299,6 +317,20 @@ async function doAuth() {
     return;
   }
 
+  if (data.otpRequired) {
+    _otpRequested = true;
+    _pendingOtpPhone = phone;
+    document.getElementById('authOtpField').style.display = '';
+    if (data.devOtp) document.getElementById('authOtp').value = data.devOtp;
+    document.getElementById('authOtp').focus();
+    toast('שלחנו לך קוד אימות');
+    return;
+  }
+
+  await completeAuth(data);
+}
+
+async function completeAuth(data) {
   TOKEN = data.token;
   ME    = data.customer;
   localStorage.setItem('ib_token', TOKEN);

@@ -446,9 +446,11 @@ tr:hover td{background:rgba(0,0,0,0.015);}
   </div>
 </div>
 
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
 <script>
 // ─── UTILS ───────────────────────────────────────────────────────────
-function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escH(s){return (window.SafeDOM?.escapeHTML || (value => String(value||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')))(s);}
 function fmt0(v){return(+v||0).toLocaleString('he-IL',{maximumFractionDigits:0});}
 function fmt1(v){return(+v||0).toLocaleString('he-IL',{maximumFractionDigits:1});}
 function today(){return new Date().toISOString().split('T')[0];}
@@ -484,8 +486,8 @@ async function loadKPI(){
     const pkgs=await fetch('/api/packages').then(r=>r.json());
     allPackages=pkgs||[];
   } catch(e){
-    // Use mock data when API not available
-    allPackages=getMockPackages();
+    allPackages=[];
+    showAlert('scanAlert','שגיאה בטעינת חבילות. בדוק הרשאות או חיבור שרת.');
   }
   const ready   = allPackages.filter(p=>p.status==='ready');
   const packed  = allPackages.filter(p=>p.status==='packed');
@@ -499,33 +501,6 @@ async function loadKPI(){
   document.getElementById('kpiWaiting').textContent = waiting;
 
   renderPackages(allPackages);
-}
-
-// ─── MOCK DATA (when API not available) ──────────────────────────────
-function getMockPackages(){
-  return [
-    {id:1,package_code:'PKG-20260101-001',order_num:'ORD-2026-0042',customer_name:'ישראל בנייה בע"מ',diameter:12,quantity:150,weight:1340,zone:'A',status:'ready',shipped_at:null},
-    {id:2,package_code:'PKG-20260101-002',order_num:'ORD-2026-0042',customer_name:'ישראל בנייה בע"מ',diameter:16,quantity:80,weight:2100,zone:'A',status:'packed',shipped_at:null},
-    {id:3,package_code:'PKG-20260102-003',order_num:'ORD-2026-0051',customer_name:'בניית כרמל',diameter:10,quantity:200,weight:890,zone:'B',status:'ready',shipped_at:null},
-    {id:4,package_code:'PKG-20260102-004',order_num:'ORD-2026-0055',customer_name:'מבנה חורב',diameter:8,quantity:300,weight:750,zone:'C',status:'shipped',shipped_at:today()+'T09:30:00'},
-    {id:5,package_code:'PKG-20260103-005',order_num:'ORD-2026-0055',customer_name:'מבנה חורב',diameter:20,quantity:50,weight:3200,zone:'B',status:'ready',shipped_at:null},
-    {id:6,package_code:'PKG-20260103-006',order_num:'ORD-2026-0060',customer_name:'אשדוד קונסטרקשן',diameter:12,quantity:100,weight:890,zone:'D',status:'packed',shipped_at:null},
-    {id:7,package_code:'PKG-20260104-007',order_num:'ORD-2026-0061',customer_name:'נגב פיתוח',diameter:14,quantity:120,weight:1670,zone:'A',status:'ready',shipped_at:null},
-    {id:8,package_code:'PKG-20260104-008',order_num:'ORD-2026-0062',customer_name:'תל אביב עיריה',diameter:25,quantity:40,weight:4400,zone:'C',status:'shipped',shipped_at:today()+'T11:15:00'},
-  ];
-}
-
-function getMockDeliveries(){
-  return [
-    {id:1,delivery_num:'DEL-001',driver:'מוחמד חאלד',vehicle:'TRK-001',packages:['PKG-20260101-001','PKG-20260101-002']},
-    {id:2,delivery_num:'DEL-002',driver:'דוד כהן',vehicle:'TRK-002',packages:['PKG-20260103-005','PKG-20260104-007']},
-  ];
-}
-
-function getMockSuppliers(){
-  return [
-    {id:1,name:'ברזל שרון בע"מ'},{id:2,name:'קיסרי ברזל'},{id:3,name:'כרמל פלדות'},
-  ];
 }
 
 // ─── PACKAGES TABLE ───────────────────────────────────────────────────
@@ -614,7 +589,8 @@ async function markShipped(id){
     const r=await fetch(`/api/packages/${id}/ship`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({shipped_at:new Date().toISOString()})});
     if(!r.ok)throw new Error();
   }catch(e){
-    // mock: update local state
+    showAlert('scanAlert','שגיאה בסימון חבילה כנשלחה');
+    return;
   }
   const pkg=allPackages.find(x=>x.id===id);
   if(pkg){pkg.status='shipped';pkg.shipped_at=new Date().toISOString();}
@@ -630,7 +606,8 @@ async function loadDeliveries(){
   try{
     deliveries=await fetch('/api/deliveries').then(r=>r.json());
   }catch(e){
-    deliveries=getMockDeliveries();
+    deliveries=[];
+    showAlert('scanAlert','שגיאה בטעינת משלוחים');
   }
   const sel=document.getElementById('deliverySelect');
   sel.innerHTML='<option value="">— בחר משלוח —</option>'+
@@ -642,7 +619,7 @@ async function loadDeliveries(){
 function selectDelivery(){
   const sel=document.getElementById('deliverySelect');
   const id=sel.value;
-  const deliveries=sel._deliveries||getMockDeliveries();
+  const deliveries=sel._deliveries||[];
   currentDelivery=deliveries.find(d=>String(d.id)===String(id))||null;
   scannedCodes=[];
 
@@ -752,7 +729,8 @@ async function loadSuppliers(){
   try{
     suppliers=await fetch('/api/suppliers').then(r=>r.json());
   }catch(e){
-    suppliers=getMockSuppliers();
+    suppliers=[];
+    showAlert('receiptError','שגיאה בטעינת ספקים');
   }
   const sel=document.getElementById('rSupplier');
   sel.innerHTML='<option value="">— בחר ספק —</option>'+
@@ -788,7 +766,8 @@ async function submitReceipt(){
     const r=await fetch('/api/inventory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok)throw new Error('server error');
   }catch(e){
-    // Mock success when no server
+    showAlert('receiptError','שגיאה בשמירת קבלת חומר');
+    return;
   }
 
   showAlert('receiptSuccess','✅ קבלת חומר נשמרה בהצלחה!');
@@ -803,7 +782,7 @@ async function loadReceipts(){
   try{
     rows=await fetch('/api/inventory').then(r=>r.json());
   }catch(e){
-    rows=getMockReceipts();
+    rows=[];
   }
   // Show last 10 by date desc
   rows=rows.slice().sort((a,b)=>(b.received_date||'').localeCompare(a.received_date||'')).slice(0,10);
@@ -820,14 +799,6 @@ async function loadReceipts(){
     <td>${fmt0(r.weight_received)} ק"ג</td>
     <td style="font-size:12px;color:var(--text-dim)">${escH(r.warehouse_loc||'—')}</td>
   </tr>`).join('');
-}
-
-function getMockReceipts(){
-  return [
-    {received_date:today(),supplier_name:'ברזל שרון בע"מ',diameter:12,lot_number:'H-2026-001',weight_received:5000,warehouse_loc:'מדף A3'},
-    {received_date:today(),supplier_name:'קיסרי ברזל',diameter:16,lot_number:'H-2026-002',weight_received:3200,warehouse_loc:'מדף B1'},
-    {received_date:'2026-05-17',supplier_name:'כרמל פלדות',diameter:10,lot_number:'H-2026-003',weight_received:7500,warehouse_loc:'מדף C2'},
-  ];
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────

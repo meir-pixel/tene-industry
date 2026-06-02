@@ -141,6 +141,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 }
 </style>
 <script src="/auth-client.js"></script>
+<script src="/status-contracts-client.js"></script>
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
@@ -329,6 +330,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 // ── CONFIG ────────────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
 const MACHINE_ID = parseInt(params.get('machine') || params.get('m') || '1');
+const ITEM_STATUS = (window.IronBendStatus && window.IronBendStatus.ITEM_STATUS) || {
+  DONE: 'הושלם',
+};
 
 let machineData  = null;
 let activeItem   = null;
@@ -357,7 +361,7 @@ async function loadBaseData() {
     const [machines, reasons, users] = await Promise.all([
       fetch('/api/machines').then(r=>r.json()),
       fetch('/api/downtime-reasons').then(r=>r.json()),
-      fetch('/api/users').then(r=>r.json()),
+      fetch('/api/kiosk/operators').then(r=>r.json()),
     ]);
 
     machineData = machines.find(m => m.id === MACHINE_ID) || machines[0] || { id:1, name:'מכונה', status:'לא מחובר', counter:0 };
@@ -384,7 +388,7 @@ async function loadBaseData() {
 function buildOperatorSelect() {
   const sel = document.getElementById('operatorSelect');
   sel.innerHTML = '<option value="">בחר מפעיל...</option>' +
-    operators.map(u => `<option value="${u.id}">${u.display_name} (${ROLE_HE[u.role]||u.role})</option>`).join('');
+    operators.map(u => `<option value="${u.id}">${escHtml(u.display_name)} (${escHtml(ROLE_HE[u.role]||u.role)})</option>`).join('');
 }
 const ROLE_HE = { operator:'מפעיל', admin:'מנהל', manager:'מנהל', quality:'איכות', driver:'נהג' };
 
@@ -392,9 +396,9 @@ function buildReasonGrid() {
   const colors = { SETUP:'#3498db', BREAKDOWN:'#e74c3c', MATERIAL:'#f39c12', QUALITY:'#9b59b6', BREAK:'#27ae60', OTHER:'#7f8c8d' };
   document.getElementById('reasonGrid').innerHTML = stopReasons.map(r => {
     const col = r.color || colors[r.code] || '#7f8c8d';
-    return `<button class="reason-pill" data-code="${r.code}" style="border-color:${col}20"
-      onclick="selectReason(this,'${r.code}',this.style.borderColor='${col}',this.style.background='${col}20',this.style.color='${col}')">
-      ${r.label}</button>`;
+    return `<button class="reason-pill" data-code="${escHtml(r.code)}" style="border-color:${escHtml(col)}20"
+      onclick="selectReason(this,${jsArg(r.code)},this.style.borderColor=${jsArg(col)},this.style.background=${jsArg(col + '20')},this.style.color=${jsArg(col)})">
+      ${escHtml(r.label)}</button>`;
   }).join('');
 }
 
@@ -560,8 +564,18 @@ async function pinConfirm() {
   const op = operators.find(u => u.id === opId);
   if (!op) return;
 
-  // If operator has PIN, verify it
-  if (op.pin && op.pin !== pinBuffer) {
+  let authUser = op;
+  try {
+    const response = await fetch('/api/auth/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username: op.username, pin: pinBuffer })
+    });
+    if (!response.ok) throw new Error('Invalid PIN');
+    const result = await response.json();
+    if (window.IronBendAuth?.storeSession) window.IronBendAuth.storeSession(result, true);
+    authUser = result.user || op;
+  } catch(e) {
     document.getElementById('pinDisplay').textContent = '✗ PIN שגוי';
     document.getElementById('pinDisplay').style.color = 'var(--danger)';
     pinBuffer = '';
@@ -572,7 +586,7 @@ async function pinConfirm() {
     return;
   }
 
-  setCurrentOperator(op);
+  setCurrentOperator({ ...op, ...authUser });
 
   // Open shift if none exists
   if (!activeShift) {
@@ -682,7 +696,7 @@ async function reportComplete() {
     await fetch(`/api/items/${activeItem.id}/status`, {
       method:'PATCH',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ status:'הושלם', produced_qty: machineData.counter || activeItem.quantity })
+      body: JSON.stringify({ status: ITEM_STATUS.DONE, produced_qty: machineData.counter || activeItem.quantity })
     });
     showKioskToast('✅ יחידה הושלמה!', 'success');
     await refreshMachineState();
@@ -750,6 +764,15 @@ function connectWS() {
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────
+const escHtml = window.SafeDOM?.escapeHTML || (value => String(value ?? '').replace(/[&<>"']/g, ch => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}[ch])));
+const jsArg = value => JSON.stringify(String(value ?? '')).replace(/</g, '\\u003c');
+
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 

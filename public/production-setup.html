@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>הגדרות ייצור - IronBend</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap">
+<link rel="stylesheet" href="/theme.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh}
+.page{max-width:1280px;margin:0 auto;padding:18px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.title{font-size:22px;font-weight:900}
+.sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tab{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:999px;padding:8px 15px;font-family:inherit;font-weight:900;cursor:pointer}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.panel{display:none}.panel.active{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.card{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));overflow:hidden}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid var(--border);background:#fafbfd}
+.card-title{font-size:15px;font-weight:900}
+.meta{font-size:12px;color:var(--text-dim)}
+.body{padding:14px;display:grid;gap:11px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:grid;gap:4px}
+.field label{font-size:11px;font-weight:900;color:var(--text-muted)}
+.field input,.field select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:#fbfcfe;color:var(--text)}
+.btn{border:1px solid var(--border);border-radius:8px;padding:8px 13px;font-family:inherit;font-weight:800;cursor:pointer;background:#fff;color:var(--text)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-danger{background:var(--danger-dim);border-color:rgba(184,50,39,.35);color:var(--danger)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.empty{background:#fff;border:1px dashed var(--border);border-radius:10px;padding:28px;text-align:center;color:var(--text-muted)}
+.modal-bg{position:fixed;inset:0;background:rgba(10,20,35,.45);display:none;align-items:center;justify-content:center;z-index:800}
+.modal{width:min(520px,94vw);max-height:90vh;overflow:auto;background:#fff;border-radius:12px;border:1px solid var(--border);box-shadow:0 20px 70px rgba(0,0,0,.22)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);font-weight:900}
+.modal-body{padding:18px;display:grid;gap:12px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10233f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;opacity:0;transition:.2s;z-index:900}
+</style>
+</head>
+<body data-page="production-setup">
+<script src="/safe-dom.js"></script>
+<script src="/auth-client.js"></script>
+<script src="/nav.js"></script>
+
+<main class="page">
+  <section class="head">
+    <div>
+      <div class="title">🔧 הגדרות ייצור ותחנות עבודה</div>
+      <div class="sub">בעלות Production / Maintenance: חיבור מכונות, Modbus ותחנות עבודה</div>
+    </div>
+    <button class="btn btn-primary" onclick="openAddMachineModal()">+ מכונה חדשה</button>
+  </section>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showSetupTab('machines',this)">מכונות</button>
+    <button class="tab" onclick="showSetupTab('workstations',this)">תחנות עבודה</button>
+  </div>
+
+  <section id="panel-machines" class="panel active">
+    <div class="actions" style="margin-bottom:12px">
+      <button class="btn btn-primary" onclick="saveMachinesAdmin()">שמור שינויים</button>
+      <button class="btn" onclick="loadMachinesAdmin()">רענן</button>
+      <span class="meta" id="machinesSaveStatus"></span>
+    </div>
+    <div class="grid" id="machinesCards"><div class="empty">טוען מכונות...</div></div>
+  </section>
+
+  <section id="panel-workstations" class="panel">
+    <div class="actions" style="margin-bottom:12px">
+      <button class="btn btn-primary" onclick="saveWorkstations()">שמור הגדרות תחנות</button>
+      <button class="btn" onclick="loadWorkstations()">רענן</button>
+      <a class="btn" href="/machine.html" target="_blank">פתח מסך מכונה</a>
+      <span class="meta" id="wsSaveStatus"></span>
+    </div>
+    <div class="grid" id="workstationsGrid"><div class="empty">טוען תחנות...</div></div>
+  </section>
+</main>
+
+<div class="modal-bg" id="addMachineModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>מכונה חדשה</span>
+      <button class="btn" onclick="document.getElementById('addMachineModal').style.display='none'">סגור</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>שם מכונה *</label><input id="nm_name" placeholder="מכונה A"></div>
+        <div class="field"><label>תווית</label><input id="nm_label" placeholder="A" maxlength="4"></div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>סוג חיבור</label><select id="nm_conn_type" onchange="toggleAddMachineConn(this.value)"><option value="tcp">TCP/IP</option><option value="rtu">RTU Serial</option></select></div>
+        <div class="field"><label>Slave ID</label><input id="nm_slave" type="number" value="1" min="1" max="247"></div>
+      </div>
+      <div id="nm_tcp_fields" class="form-grid">
+        <div class="field"><label>כתובת IP</label><input id="nm_tcp_host" placeholder="192.168.1.10"></div>
+        <div class="field"><label>TCP Port</label><input id="nm_tcp_port" type="number" value="502"></div>
+      </div>
+      <div id="nm_rtu_fields" class="form-grid" style="display:none">
+        <div class="field"><label>COM Port</label><input id="nm_rtu_port" placeholder="COM3"></div>
+        <div class="field"><label>Baud Rate</label><input id="nm_baud" type="number" value="9600"></div>
+        <div class="field"><label>Parity</label><select id="nm_parity"><option value="none">None</option><option value="even">Even</option><option value="odd">Odd</option></select></div>
+        <div class="field"><label>Stop Bits</label><select id="nm_stop_bits"><option value="1">1</option><option value="2">2</option></select></div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>קוטר מינ'</label><input id="nm_mind" type="number" value="8"></div>
+        <div class="field"><label>קוטר מקס'</label><input id="nm_maxd" type="number" value="32"></div>
+      </div>
+      <button class="btn btn-primary" onclick="submitAddMachine()">הוסף מכונה</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let machines = [];
+
+function escapeHtml(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function toast(message, err = false) {
+  const el = document.getElementById('toast');
+  el.textContent = message;
+  el.style.background = err ? 'var(--danger)' : 'var(--success)';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.opacity = '0', 2400);
+}
+
+function showSetupTab(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'workstations') loadWorkstations();
+}
+
+async function loadMachinesAdmin() {
+  machines = await fetch('/api/machines').then(r => r.json()).catch(() => []);
+  const cards = document.getElementById('machinesCards');
+  if (!machines.length) {
+    cards.innerHTML = '<div class="empty">אין מכונות מוגדרות.</div>';
+    return;
+  }
+  cards.innerHTML = machines.map(machineCard).join('');
+}
+
+function machineCard(m) {
+  const mode = m.conn_mode || 'tcp';
+  const isTcp = mode === 'tcp';
+  return `
+    <article class="card" id="mc-${m.id}">
+      <div class="card-head">
+        <div>
+          <div class="card-title">${escapeHtml(m.name)}</div>
+          <div class="meta">${escapeHtml(m.status || 'לא מחובר')} · counter ${Number(m.counter || 0)}</div>
+        </div>
+        <button class="btn btn-danger" onclick="deleteMachine(${m.id}, '${escapeHtml(m.name)}')">מחק</button>
+      </div>
+      <div class="body">
+        <div class="form-grid">
+          <div class="field"><label>שם</label><input id="mname-${m.id}" value="${escapeHtml(m.name || '')}"></div>
+          <div class="field"><label>תווית</label><input id="mlabel-${m.id}" value="${escapeHtml(m.label || '')}"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>סוג חיבור</label><select id="mconn-${m.id}" onchange="renderMachineMode(${m.id})"><option value="tcp" ${isTcp?'selected':''}>TCP/IP</option><option value="rtu" ${!isTcp?'selected':''}>RTU Serial</option></select></div>
+          <div class="field"><label>Slave ID</label><input id="slave_id-${m.id}" type="number" value="${Number(m.slave_id || 1)}"></div>
+        </div>
+        <div class="form-grid" id="tcp-fields-${m.id}" style="display:${isTcp?'grid':'none'}">
+          <div class="field"><label>IP</label><input id="tcp_host-${m.id}" value="${escapeHtml(m.tcp_host || '')}"></div>
+          <div class="field"><label>TCP Port</label><input id="tcp_port-${m.id}" type="number" value="${Number(m.tcp_port || 502)}"></div>
+        </div>
+        <div class="form-grid" id="rtu-fields-${m.id}" style="display:${isTcp?'none':'grid'}">
+          <div class="field"><label>COM Port</label><input id="rtu_port-${m.id}" value="${escapeHtml(m.rtu_port || '')}"></div>
+          <div class="field"><label>Baud Rate</label><input id="baud_rate-${m.id}" type="number" value="${Number(m.baud_rate || 9600)}"></div>
+          <div class="field"><label>Parity</label><input id="parity-${m.id}" value="${escapeHtml(m.parity || 'none')}"></div>
+          <div class="field"><label>Stop Bits</label><input id="stop_bits-${m.id}" type="number" value="${Number(m.stop_bits || 1)}"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>קוטר מינ'</label><input id="mmin-${m.id}" type="number" value="${Number(m.min_diameter || 8)}"></div>
+          <div class="field"><label>קוטר מקס'</label><input id="mmax-${m.id}" type="number" value="${Number(m.max_diameter || 32)}"></div>
+        </div>
+        <div class="actions">
+          <button class="btn" onclick="testMachineConn(${m.id})">בדוק חיבור</button>
+          <span class="meta" id="mc-test-${m.id}"></span>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderMachineMode(id) {
+  const mode = document.getElementById(`mconn-${id}`).value;
+  document.getElementById(`tcp-fields-${id}`).style.display = mode === 'tcp' ? 'grid' : 'none';
+  document.getElementById(`rtu-fields-${id}`).style.display = mode === 'rtu' ? 'grid' : 'none';
+}
+
+async function saveSingleMachine(id) {
+  const mode = document.getElementById(`mconn-${id}`).value;
+  await fetch(`/api/machines/${id}/config`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      name: document.getElementById(`mname-${id}`).value.trim(),
+      label: document.getElementById(`mlabel-${id}`).value.trim(),
+      conn_mode: mode,
+      tcp_host: mode === 'tcp' ? document.getElementById(`tcp_host-${id}`).value.trim() : null,
+      tcp_port: mode === 'tcp' ? Number(document.getElementById(`tcp_port-${id}`).value || 502) : null,
+      rtu_port: mode === 'rtu' ? document.getElementById(`rtu_port-${id}`).value.trim() : null,
+      baud_rate: mode === 'rtu' ? Number(document.getElementById(`baud_rate-${id}`).value || 9600) : null,
+      parity: mode === 'rtu' ? document.getElementById(`parity-${id}`).value.trim() : null,
+      stop_bits: mode === 'rtu' ? Number(document.getElementById(`stop_bits-${id}`).value || 1) : null,
+      slave_id: Number(document.getElementById(`slave_id-${id}`).value || 1),
+      min_diameter: Number(document.getElementById(`mmin-${id}`).value || 8),
+      max_diameter: Number(document.getElementById(`mmax-${id}`).value || 32),
+    }),
+  });
+}
+
+async function saveMachinesAdmin() {
+  for (const machine of machines) await saveSingleMachine(machine.id);
+  document.getElementById('machinesSaveStatus').textContent = 'נשמר';
+  toast('הגדרות מכונות נשמרו');
+}
+
+async function testMachineConn(id) {
+  const el = document.getElementById(`mc-test-${id}`);
+  el.textContent = 'בודק...';
+  await saveSingleMachine(id);
+  const response = await fetch(`/api/machines/${id}/send-params`, { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+  el.textContent = response.ok ? 'מחובר' : 'נכשל';
+}
+
+async function deleteMachine(id, name) {
+  if (!confirm(`למחוק את "${name}"?`)) return;
+  await fetch(`/api/machines/${id}`, { method:'DELETE' });
+  document.getElementById(`mc-${id}`)?.remove();
+  machines = machines.filter(m => m.id !== id);
+  toast('מכונה נמחקה');
+}
+
+function openAddMachineModal() {
+  document.getElementById('addMachineModal').style.display = 'flex';
+  ['nm_name','nm_label','nm_tcp_host','nm_rtu_port'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nm_tcp_port').value = '502';
+  document.getElementById('nm_slave').value = '1';
+  document.getElementById('nm_conn_type').value = 'tcp';
+  toggleAddMachineConn('tcp');
+}
+
+function toggleAddMachineConn(mode) {
+  document.getElementById('nm_tcp_fields').style.display = mode === 'tcp' ? 'grid' : 'none';
+  document.getElementById('nm_rtu_fields').style.display = mode === 'rtu' ? 'grid' : 'none';
+}
+
+async function submitAddMachine() {
+  const name = document.getElementById('nm_name').value.trim();
+  if (!name) return toast('שם מכונה חובה', true);
+  const mode = document.getElementById('nm_conn_type').value;
+  const response = await fetch('/api/machines', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      name,
+      label: document.getElementById('nm_label').value.trim() || name.slice(0, 1),
+      conn_mode: mode,
+      tcp_host: mode === 'tcp' ? document.getElementById('nm_tcp_host').value.trim() : null,
+      tcp_port: mode === 'tcp' ? Number(document.getElementById('nm_tcp_port').value || 502) : null,
+      rtu_port: mode === 'rtu' ? document.getElementById('nm_rtu_port').value.trim() : null,
+      baud_rate: mode === 'rtu' ? Number(document.getElementById('nm_baud').value || 9600) : null,
+      parity: mode === 'rtu' ? document.getElementById('nm_parity').value : null,
+      stop_bits: mode === 'rtu' ? Number(document.getElementById('nm_stop_bits').value || 1) : null,
+      slave_id: Number(document.getElementById('nm_slave').value || 1),
+      min_diameter: Number(document.getElementById('nm_mind').value || 8),
+      max_diameter: Number(document.getElementById('nm_maxd').value || 32),
+    }),
+  });
+  if (!response.ok) return toast('הוספת מכונה נכשלה', true);
+  document.getElementById('addMachineModal').style.display = 'none';
+  toast('מכונה נוספה');
+  loadMachinesAdmin();
+}
+
+async function loadWorkstations() {
+  const rows = await fetch('/api/machines').then(r => r.json()).catch(() => []);
+  const host = window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+  const grid = document.getElementById('workstationsGrid');
+  if (!rows.length) {
+    grid.innerHTML = '<div class="empty">אין מכונות מוגדרות.</div>';
+    return;
+  }
+  grid.innerHTML = rows.map(m => {
+    const url = `http://${host}/machine.html?machine=${m.id}`;
+    const label = localStorage.getItem('ws_label_' + m.id) || m.name;
+    const pin = localStorage.getItem('ws_pin_' + m.id) || '';
+    return `
+      <article class="card">
+        <div class="card-head"><div><div class="card-title">${escapeHtml(m.name)}</div><div class="meta">${url}</div></div><a class="btn" href="${url}" target="_blank">פתח</a></div>
+        <div class="body">
+          <div class="form-grid">
+            <div class="field"><label>תווית תחנה</label><input id="ws_label_${m.id}" value="${escapeHtml(label)}"></div>
+            <div class="field"><label>PIN תחנה</label><input id="ws_pin_${m.id}" maxlength="4" value="${escapeHtml(pin)}"></div>
+          </div>
+          <button class="btn" onclick="copyWsUrl('${url}', this)">העתק כתובת</button>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function saveWorkstations() {
+  document.querySelectorAll('[id^="ws_label_"],[id^="ws_pin_"]').forEach(input => localStorage.setItem(input.id, input.value));
+  document.getElementById('wsSaveStatus').textContent = 'נשמר בדפדפן';
+  toast('הגדרות תחנות נשמרו');
+}
+
+function copyWsUrl(url, btn) {
+  navigator.clipboard.writeText(url).then(() => {
+    btn.textContent = 'הועתק';
+    setTimeout(() => btn.textContent = 'העתק כתובת', 1600);
+  });
+}
+
+loadMachinesAdmin();
+</script>
+</body>
+</html>

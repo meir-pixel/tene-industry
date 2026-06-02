@@ -1,0 +1,87 @@
+# Screen Registry
+
+Source-of-truth registry required by Volume 10. Every screen must have one
+module owner, one purpose, one auth mode, and one status. Screens not listed here
+must not be expanded until they are registered.
+
+Status values:
+
+- `active`: used by the current product.
+- `partial`: exists but needs module cleanup or consistency work.
+- `stub`: visible/implemented as placeholder or coming soon.
+- `external`: user outside the internal staff context.
+- `shared`: platform-level screen or asset.
+
+## Internal Platform
+
+| Screen | Module Owner | Status | Auth Mode | Notes |
+| --- | --- | --- | --- | --- |
+| `login.html` | Platform Core | active | public login | Uses `/api/auth/login`; comment still says demo but calls real endpoint. |
+| `admin.html` | Platform Core | partial | internal admin | Mixed responsibilities: settings, users, DB, intake, machines, drivers, prices. Needs splitting by module. |
+| `help.html` | Platform Core | shared | internal | Does not currently load shared nav/auth in inventory check. |
+| `offline.html` | Platform Core | shared | public/offline | PWA fallback. |
+
+## Dashboard And Reporting
+
+| Screen | Module Owner | Status | Auth Mode | Notes |
+| --- | --- | --- | --- | --- |
+| `dashboard.html` | Dashboard / Reports | partial | internal | Duplicates production queue logic from recent orders; must read production module source. |
+| `reports.html` | Dashboard / Reports | partial | internal | API-backed reporting screen with auth/safe helpers and smoke coverage; read-only ownership, still needs role-specific report visibility policy. |
+| `holdings.html` | Dashboard / Reports | partial | internal | Company/holding overview. |
+| `docs.html` | Dashboard / Reports | partial | internal | Needs purpose verification against spec. |
+
+## Orders
+
+| Screen | Module Owner | Status | Auth Mode | Notes |
+| --- | --- | --- | --- | --- |
+| `orders.html` | Orders | partial | internal | Core order list/detail; unsafe rendering risk; needs shared status model. |
+| `index.html` | Orders | partial | internal | Order creation/intake screen. Confirm role and future placement. |
+| `customers.html` | Orders / Platform CRM | partial | internal | Customer management; should be separated from portal token admin. |
+
+## Production
+
+| Screen | Module Owner | Status | Auth Mode | Notes |
+| --- | --- | --- | --- | --- |
+| `production-queue.html` | Production | active | internal production | Should be production queue source of truth. |
+| `machine.html` | Production | partial | internal production | Machine assignment/state. Needs state contract. |
+| `kiosk.html` | Production | partial | shop-floor auth TBD | Does not load shared nav in inventory check; needs auth decision. |
+| `worker.html` | Production | partial | shop-floor auth TBD | Very small wrapper/entry point. |
+| `worker-visual.html` | Production | partial | shop-floor auth TBD | Visual worker flow; needs auth and shared status model. |
+
+## Inventory, Procurement, Delivery
+
+| Screen | Module Owner | Status | Auth Mode | Notes |
+| --- | --- | --- | --- | --- |
+| `inventory.html` | Inventory | partial | internal warehouse | API-backed raw material inventory and suppliers with auth/safe helpers; still needs receiving policy split from Warehouse. |
+| `warehouse.html` | Inventory / Delivery | partial | internal warehouse | API-backed packages/loading/receiving; still mixed ownership and should be split by responsibility. |
+| `procurement.html` | Inventory | partial | internal procurement | API-backed MVP for purchase orders, suppliers, and steel prices; still needs full workflow policy and supplier portal separation. |
+| `driver.html` | Delivery / Portals | partial | internal driver/auth TBD | Loads shared auth/nav and aligns with delivery statuses; still needs dedicated external driver auth model before commercial portal use. |
+
+## Finance, Quality, Maintenance
+
+| Screen | Module Owner | Status | Auth Mode | Notes |
+| --- | --- | --- | --- | --- |
+| `finance.html` | Finance | partial | finance/manager | Sensitive finance workspace with auth/safe helpers; price list and cost tools API-backed, still needs role-specific finance visibility policy. |
+| `projects.html` | Projects / Sites | partial | internal office/sales | API-backed projects/sites MVP; finance credit workflow removed back to Finance ownership. |
+| `quality.html` | Quality | partial | internal quality | API-backed quality checks and NCR/CAPA MVP; local demo fallbacks removed, still needs workflow state policy before commercial release. |
+| `maintenance.html` | Maintenance | partial | internal maintenance | API-backed maintenance/LOTO/PM screen; mock fallbacks removed, still needs workflow policy and navigation/role polish before commercial release. |
+| `warroom.html` | Quality / Maintenance | partial | internal quality/maintenance | API-backed incident/machine monitor; mock incident fallback removed, still needs incident policy and escalation reporting before commercial release. |
+
+## External Portals
+
+| Screen | Module Owner | Status | Auth Mode | Notes |
+| --- | --- | --- | --- | --- |
+| `customer.html` | Portals | external partial | portal token / phone currently | Active customer portal; ownership tests cover order detail/approval. Phone bootstrap still needs OTP/token lifecycle hardening. |
+| `portal.html` | Portals | deprecated | no internal API lookup | Deprecated until rebuilt on a scoped public endpoint or removed. |
+| `supplier.html` | Portals | frozen | supplier portal TBD | Demo supplier data removed; frozen until supplier auth and external purchase-order contract are defined. |
+
+## Screen Rebuild Order
+
+1. `login.html`, `admin.html` auth/user/settings surfaces.
+2. `dashboard.html` queue and KPI consistency.
+3. `orders.html` status/source-of-truth and safe rendering.
+4. `production-queue.html`, `machine.html`, `kiosk.html`, `worker-visual.html`.
+5. `inventory.html`, `warehouse.html`.
+6. `customer.html`, `portal.html`, `supplier.html`, `driver.html`.
+7. `finance.html`.
+8. `quality.html`, `maintenance.html`, `warroom.html`.

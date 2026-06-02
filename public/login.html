@@ -383,13 +383,14 @@ select{appearance:none;cursor:pointer;}
       <button class="pin-key wide" onclick="pinKey('0')">0</button>
     </div>
     <div class="pin-hint" style="color:var(--text-muted);font-size:11px;">
-      דמו: PIN 1234 = כניסה כמנהל מערכת
+      הכניסה מאומתת לפי משתמש פעיל במערכת
     </div>
   </div>
 
   <div class="footer-note">טנא תעשיות ברזל · IronBend ERP v2.0 — כל הזכויות שמורות</div>
 </div>
 
+<script src="/auth-client.js"></script>
 <script>
 let pinValue = '';
 
@@ -427,11 +428,7 @@ function hideError() {
 }
 
 function storeLogin(result, remember) {
-  const storage = remember ? localStorage : sessionStorage;
-  storage.setItem('ib_access_token', result.access_token);
-  storage.setItem('ib_role', result.user.role);
-  storage.setItem('ib_user', result.user.username);
-  localStorage.setItem('ib_role', result.user.role);
+  window.IronBendAuth.storeSession(result, remember);
   window.location.href = 'dashboard.html?role=' + result.user.role;
 }
 
@@ -443,7 +440,6 @@ async function doLogin() {
   if (!u) { showError('יש להזין שם משתמש'); return; }
   if (!p) { showError('יש להזין סיסמה'); return; }
 
-  // Demo mode — any non-empty credentials work
   hideError();
   try {
     const response = await fetch('/api/auth/login', {

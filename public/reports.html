@@ -85,6 +85,8 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .btn-export:hover{border-color:var(--accent);color:var(--accent);}
 </style>
 <link rel="stylesheet" href="/theme.css">
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
 <script src="/nav.js"></script></head>
 <body data-page="reports">
 
@@ -209,6 +211,16 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 let charts = {};
 let reportData = null;
 
+function escH(value) {
+  if (window.IronBendSafe?.escapeHtml) return window.IronBendSafe.escapeHtml(value);
+  return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function num(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const today = new Date();
   const from  = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000); // last 30 days
@@ -239,10 +251,13 @@ async function loadAll() {
 }
 
 function renderKPIs(data) {
-  const totalOrders   = data.orders.reduce((s, d) => s + d.count, 0);
-  const totalWeight   = data.orders.reduce((s, d) => s + (d.weight || 0), 0);
-  const avgWaste      = data.waste.length ? (data.waste.reduce((s, w) => s + parseFloat(w.waste_pct || 0), 0) / data.waste.length).toFixed(1) : 0;
-  const customers     = data.topCustomers.length;
+  const orders = Array.isArray(data.orders) ? data.orders : [];
+  const waste = Array.isArray(data.waste) ? data.waste : [];
+  const topCustomers = Array.isArray(data.topCustomers) ? data.topCustomers : [];
+  const totalOrders   = orders.reduce((s, d) => s + num(d.count), 0);
+  const totalWeight   = orders.reduce((s, d) => s + num(d.weight), 0);
+  const avgWaste      = waste.length ? (waste.reduce((s, w) => s + num(w.waste_pct), 0) / waste.length).toFixed(1) : 0;
+  const customers     = topCustomers.length;
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi"><div class="kpi-val">${totalOrders}</div><div class="kpi-lbl">הזמנות</div></div>
@@ -267,31 +282,35 @@ function makeChart(id, type, data, options = {}) {
 }
 
 function renderOrdersChart(orders) {
+  orders = Array.isArray(orders) ? orders : [];
   makeChart('ordersChart', 'bar', {
-    labels: orders.map(d => d.date.slice(5)),
-    datasets: [{ label: 'הזמנות', data: orders.map(d => d.count), backgroundColor: 'rgba(224,123,57,0.6)', borderColor: '#e07b39', borderWidth: 1 }],
+    labels: orders.map(d => String(d.date || '').slice(5)),
+    datasets: [{ label: 'הזמנות', data: orders.map(d => num(d.count)), backgroundColor: 'rgba(224,123,57,0.6)', borderColor: '#e07b39', borderWidth: 1 }],
   });
 }
 
 function renderWeightChart(orders) {
+  orders = Array.isArray(orders) ? orders : [];
   makeChart('weightChart', 'line', {
-    labels: orders.map(d => d.date.slice(5)),
-    datasets: [{ label: 'ק"ג', data: orders.map(d => Math.round(d.weight || 0)), borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,0.1)', tension: 0.3, fill: true }],
+    labels: orders.map(d => String(d.date || '').slice(5)),
+    datasets: [{ label: 'ק"ג', data: orders.map(d => Math.round(num(d.weight))), borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,0.1)', tension: 0.3, fill: true }],
   });
 }
 
 function renderStatusChart(byStatus) {
+  byStatus = Array.isArray(byStatus) ? byStatus : [];
   const statusColors = {
     'ממתינה לאישור': '#f39c12', 'בתור ייצור': '#3498db', 'בייצור': '#9b59b6',
     'הושלם – ממתין לאיסוף': '#27ae60', 'בדרך ללקוח': '#e07b39', 'סופק – אושר': '#1abc9c', 'בוטל': '#e74c3c',
   };
   makeChart('statusChart', 'doughnut', {
-    labels: byStatus.map(s => s.status),
-    datasets: [{ data: byStatus.map(s => s.count), backgroundColor: byStatus.map(s => statusColors[s.status] || '#555'), borderWidth: 0 }],
+    labels: byStatus.map(s => String(s.status || '—')),
+    datasets: [{ data: byStatus.map(s => num(s.count)), backgroundColor: byStatus.map(s => statusColors[s.status] || '#555'), borderWidth: 0 }],
   }, { scales: {} });
 }
 
 function renderWasteChart(waste) {
+  waste = Array.isArray(waste) ? waste : [];
   const byMachine = {};
   waste.forEach(w => {
     if (!byMachine[w.machine]) byMachine[w.machine] = [];
@@ -308,17 +327,19 @@ function renderWasteChart(waste) {
 }
 
 function renderMachineEfficiency(eff) {
+  eff = Array.isArray(eff) ? eff : [];
   const mcColors = { A: '#3498db', B: '#27ae60', C: '#9b59b6', D: '#e74c3c' };
   document.getElementById('machineGrid').innerHTML = eff.length ? eff.map(m => {
-    const w    = parseFloat(m.waste_pct || 0);
+    const w    = num(m.waste_pct);
     const wCls = w > 5 ? '#e74c3c' : w > 3 ? '#f39c12' : '#27ae60';
+    const machine = escH(m.machine || '—');
     return `
     <div class="machine-card">
-      <div class="machine-label" style="color:${mcColors[m.machine] || '#e07b39'}">מכונה ${m.machine}</div>
-      <div class="machine-stat">פריטים הושלמו: <strong>${m.completed_items}</strong></div>
-      <div class="machine-stat">יחידות יוצרו: <strong>${m.total_units}</strong></div>
-      <div class="machine-stat">סה"כ משקל: <strong>${((m.total_weight_kg || 0) / 1000).toFixed(2)} טון</strong></div>
-      <div class="machine-stat">זמן מחזור ממוצע: <strong>${m.avg_cycle_min || '—'} דק'</strong></div>
+      <div class="machine-label" style="color:${mcColors[m.machine] || '#e07b39'}">מכונה ${machine}</div>
+      <div class="machine-stat">פריטים הושלמו: <strong>${num(m.completed_items)}</strong></div>
+      <div class="machine-stat">יחידות יוצרו: <strong>${num(m.total_units)}</strong></div>
+      <div class="machine-stat">סה"כ משקל: <strong>${(num(m.total_weight_kg) / 1000).toFixed(2)} טון</strong></div>
+      <div class="machine-stat">זמן מחזור ממוצע: <strong>${m.avg_cycle_min ? escH(m.avg_cycle_min) : '—'} דק'</strong></div>
       <div class="waste-bar-wrap">
         <div class="machine-stat">פחת: <strong style="color:${wCls}">${w}%</strong></div>
         <div class="waste-bar-bg"><div class="waste-bar-fill" style="width:${Math.min(w * 10, 100)}%;background:${wCls}"></div></div>
@@ -328,27 +349,29 @@ function renderMachineEfficiency(eff) {
 }
 
 function renderWasteTable(waste) {
+  waste = Array.isArray(waste) ? waste : [];
   document.getElementById('wasteTable').innerHTML = waste.map(w => {
-    const pct  = parseFloat(w.waste_pct || 0);
+    const pct  = num(w.waste_pct);
     const cls  = pct > 5 ? 'pill-danger' : pct > 3 ? 'pill-warning' : 'pill-success';
     return `<tr>
-      <td><strong>מכונה ${w.machine}</strong></td>
-      <td>Ø${w.diameter}</td>
-      <td>${w.shape_name || '—'}</td>
-      <td>${w.item_count}</td>
-      <td>${w.total_ordered}</td>
-      <td>${w.total_waste}</td>
+      <td><strong>מכונה ${escH(w.machine || '—')}</strong></td>
+      <td>Ø${escH(w.diameter || '—')}</td>
+      <td>${escH(w.shape_name || '—')}</td>
+      <td>${num(w.item_count)}</td>
+      <td>${num(w.total_ordered)}</td>
+      <td>${num(w.total_waste)}</td>
       <td><span class="pill ${cls}">${pct}%</span></td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px">אין נתוני פחת</td></tr>';
 }
 
 function renderCustomersTable(customers) {
+  customers = Array.isArray(customers) ? customers : [];
   document.getElementById('customersTable').innerHTML = customers.map((c, i) => `
     <tr>
-      <td>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.'} ${c.name || '—'}</td>
-      <td>${c.order_count}</td>
-      <td>${((c.total_weight || 0) / 1000).toFixed(2)} טון</td>
+      <td>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.'} ${escH(c.name || '—')}</td>
+      <td>${num(c.order_count)}</td>
+      <td>${(num(c.total_weight) / 1000).toFixed(2)} טון</td>
     </tr>
   `).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:20px">אין נתונים</td></tr>';
 }
@@ -370,11 +393,11 @@ async function loadMarginTable() {
       const mpct = m.margin_pct || 0;
       const cls = mpct >= 20 ? 'color:var(--success)' : mpct >= 10 ? 'color:var(--warning)' : 'color:var(--danger)';
       return `<tr>
-        <td><strong>${m.order_num}</strong></td>
-        <td>₪${(m.cost_material||0).toLocaleString()}</td>
-        <td>₪${(m.cost_labor||0).toLocaleString()}</td>
-        <td>₪${(m.sale_price||0).toLocaleString()}</td>
-        <td style="${m.gross_profit>=0?'color:var(--success)':'color:var(--danger)'}">₪${(m.gross_profit||0).toLocaleString()}</td>
+        <td><strong>${escH(m.order_num || '—')}</strong></td>
+        <td>₪${num(m.cost_material).toLocaleString()}</td>
+        <td>₪${num(m.cost_labor).toLocaleString()}</td>
+        <td>₪${num(m.sale_price).toLocaleString()}</td>
+        <td style="${num(m.gross_profit)>=0?'color:var(--success)':'color:var(--danger)'}">₪${num(m.gross_profit).toLocaleString()}</td>
         <td><strong style="${cls}">${mpct}%</strong></td>
       </tr>`;
     }).join('');
@@ -387,17 +410,17 @@ async function loadOEE() {
     const grid = document.getElementById('oeeGrid');
     if (!data.length) { grid.innerHTML = '<div style="color:var(--text-muted)">אין נתוני OEE</div>'; return; }
     grid.innerHTML = data.map(m => {
-      const oee = m.oee || 0;
+      const oee = num(m.oee);
       const cls = oee >= 85 ? 'var(--success)' : oee >= 65 ? 'var(--warning)' : 'var(--danger)';
       return `<div style="background:white;border:1px solid var(--border);border-radius:var(--radius);padding:16px">
-        <div style="font-size:13px;font-weight:700;color:var(--text-dim);margin-bottom:8px">${m.name}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text-dim);margin-bottom:8px">${escH(m.name || '—')}</div>
         <div style="font-size:28px;font-weight:900;color:${cls}">${oee}%</div>
         <div style="font-size:11px;color:var(--text-muted)">OEE</div>
         <div style="margin-top:8px;font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:4px">
-          <div>זמינות: <strong>${m.availability||0}%</strong></div>
-          <div>איכות: <strong>${m.quality||0}%</strong></div>
-          <div>עצירות: <strong>${m.downtime_min||0} דק'</strong></div>
-          <div>טון: <strong>${(m.tons_today||0).toFixed(2)}</strong></div>
+          <div>זמינות: <strong>${num(m.availability)}%</strong></div>
+          <div>איכות: <strong>${num(m.quality)}%</strong></div>
+          <div>עצירות: <strong>${num(m.downtime_min)} דק'</strong></div>
+          <div>טון: <strong>${num(m.tons_today).toFixed(2)}</strong></div>
         </div>
       </div>`;
     }).join('');

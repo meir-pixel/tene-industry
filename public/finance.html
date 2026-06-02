@@ -67,6 +67,9 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .price-form input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;background:var(--steel);color:var(--text)}
 .price-form .btn-sm{padding:7px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;background:var(--steel-mid);color:var(--text-dim)}
 .price-form .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.price-list-input{width:96px;text-align:center;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;background:var(--steel);color:var(--text)}
+.card-actions{display:flex;align-items:center;gap:8px}
+.save-status{font-size:12px;color:var(--text-muted)}
 
 /* ── Customer ledger ── */
 .ledger-search{display:flex;gap:8px;padding:12px 16px}
@@ -86,6 +89,8 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 </style>
 </head>
 <body>
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
 <script src="/nav.js"></script>
 
 <div class="page-wrap" id="app">
@@ -171,6 +176,29 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 
   </div>
 
+  <!-- Customer selling price list -->
+  <div class="table-card" style="margin-bottom:20px">
+    <h3 style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <span>💰 מחירון מכירה ללקוחות</span>
+      <span class="card-actions">
+        <span class="save-status" id="price-list-status"></span>
+        <button class="btn-sm btn-primary" id="save-price-list-btn" onclick="saveSalesPriceList()">שמור מחירון</button>
+      </span>
+    </h3>
+    <table class="finance-table" id="sales-price-table">
+      <thead>
+        <tr>
+          <th>קוטר (מ"מ)</th>
+          <th>מחיר מחירון (₪/ק"ג)</th>
+          <th>מחיר לקוח קבוע (₪/ק"ג)</th>
+        </tr>
+      </thead>
+      <tbody id="sales-price-body">
+        <tr><td colspan="3"><div class="skeleton-row"></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
   <!-- Customer ledger -->
   <div class="table-card" style="margin-bottom:20px">
     <h3>📒 כרטסת לקוח</h3>
@@ -186,6 +214,12 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 
 <script>
 let currentPeriod = 'week';
+let salesPriceRows = [];
+
+function escH(value) {
+  if (window.IronBendSafe?.escapeHtml) return window.IronBendSafe.escapeHtml(value);
+  return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 function fmt(n) {
   if (!n && n !== 0) return '–';
@@ -257,7 +291,7 @@ async function loadKPIs() {
     } else {
       cBody.innerHTML = d.top_customers.map(c => `
         <tr>
-          <td><b>${c.name}</b></td>
+          <td><b>${escH(c.name || '—')}</b></td>
           <td>${fmtILS(c.revenue)}</td>
           <td style="color:${c.margin>=0?'var(--success)':'var(--danger)'}">${fmtILS(c.margin)}</td>
           <td><span class="${marginClass(c.margin_pct)}">${fmtPct(c.margin_pct)}</span></td>
@@ -272,15 +306,18 @@ async function loadKPIs() {
     } else {
       lBody.innerHTML = d.low_margin_orders.map(o => `
         <tr>
-          <td><a href="/orders.html" style="color:var(--accent);font-weight:700">${o.order_num}</a></td>
-          <td>${o.customer}</td>
+          <td><a href="/orders.html" style="color:var(--accent);font-weight:700">${escH(o.order_num || '—')}</a></td>
+          <td>${escH(o.customer || '—')}</td>
           <td style="color:${o.gross_margin>=0?'var(--success)':'var(--danger)'}">${fmtILS(o.gross_margin)}</td>
           <td><span class="${marginClass(o.margin_pct)}">${fmtPct(o.margin_pct)}</span></td>
         </tr>
       `).join('');
     }
 
-  } catch(e) { console.error('KPI error:', e); }
+  } catch(e) {
+    console.error('KPI error:', e);
+    document.getElementById('alert-zone').innerHTML = '<div class="alert-banner critical">שגיאה בטעינת נתוני פיננסים</div>';
+  }
 }
 
 async function loadSteelPrices() {
@@ -300,6 +337,61 @@ async function loadSteelPrices() {
       </tr>
     `).join('');
   } catch(e) {}
+}
+
+async function loadSalesPriceList() {
+  const tbody = document.getElementById('sales-price-body');
+  try {
+    salesPriceRows = await fetch('/api/price-list').then(r=>r.json());
+    if (!Array.isArray(salesPriceRows)) throw new Error('Invalid price-list response');
+    if (!salesPriceRows.length) {
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:12px;">אין מחירים רשומים</td></tr>';
+      return;
+    }
+    tbody.innerHTML = salesPriceRows.map(row => `
+      <tr>
+        <td><b>Ø${row.diameter}</b></td>
+        <td>
+          <input class="price-list-input" type="number" step="0.1" min="0"
+            value="${Number(row.price_list || 0)}"
+            onchange="updateSalesPriceRow(${Number(row.diameter)}, 'price_list', this.value)">
+        </td>
+        <td>
+          <input class="price-list-input" type="number" step="0.1" min="0"
+            value="${Number(row.price_cust || 0)}"
+            onchange="updateSalesPriceRow(${Number(row.diameter)}, 'price_cust', this.value)">
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--danger);padding:12px;">שגיאה בטעינת מחירון</td></tr>';
+  }
+}
+
+function updateSalesPriceRow(diameter, field, value) {
+  const row = salesPriceRows.find(r => Number(r.diameter) === Number(diameter));
+  if (row) row[field] = Number(value || 0);
+}
+
+async function saveSalesPriceList() {
+  const btn = document.getElementById('save-price-list-btn');
+  const status = document.getElementById('price-list-status');
+  btn.disabled = true;
+  btn.textContent = 'שומר...';
+  status.textContent = '';
+  const result = await fetch('/api/price-list', {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(salesPriceRows)
+  }).then(r => r.json()).catch(() => null);
+  btn.disabled = false;
+  btn.textContent = 'שמור מחירון';
+  if (result?.success) {
+    status.textContent = 'נשמר';
+    loadSalesPriceList();
+  } else {
+    status.textContent = 'שגיאה בשמירה';
+  }
 }
 
 async function loadOrders() {
@@ -327,10 +419,11 @@ async function submitSteelPrice() {
   const body = { price_per_ton: Number(val), grade: 'B500B',
     effective_date: new Date().toISOString().slice(0,10), source: 'manual' };
   if (diam) body.diameter = Number(diam);
-  await fetch('/api/steel-prices', {
-    method:'POST', headers:{'Content-Type':'application/json','x-user-role':'manager'},
+  const r = await fetch('/api/steel-prices', {
+    method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(body)
   });
+  if (!r.ok) return alert('שגיאה בשמירת מחיר פלדה');
   document.getElementById('new-price-val').value = '';
   document.getElementById('new-price-diam').value = '';
   loadSteelPrices();
@@ -342,7 +435,7 @@ async function calcOrderCost() {
   if (!orderId) return;
   document.getElementById('order-cost-result').innerHTML = '<div class="skeleton-row" style="margin:12px 16px"></div>';
   const data = await fetch(`/api/orders/${orderId}/costs/recalculate`, {
-    method:'POST', headers:{'Content-Type':'application/json','x-user-role':'manager'},
+    method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({reason:'חישוב ידני'})
   }).then(r=>r.json());
 
@@ -416,8 +509,8 @@ async function loadLedger(customerId) {
           <tbody>
             ${d.orders.slice(0,15).map((o,i) => `<tr>
               <td style="color:var(--text-muted)">${i+1}</td>
-              <td><a href="/orders.html" style="color:var(--accent);font-weight:700">${o.order_num}</a></td>
-              <td><span class="status-badge">${o.status}</span></td>
+              <td><a href="/orders.html" style="color:var(--accent);font-weight:700">${escH(o.order_num || '—')}</a></td>
+              <td><span class="status-badge">${escH(o.status || '—')}</span></td>
               <td>${o.revenue ? fmtILS(o.revenue) : '–'}</td>
               <td style="color:${(o.gross_margin||0)>=0?'var(--success)':'var(--danger)'}">${o.gross_margin ? fmtILS(o.gross_margin) : '–'}</td>
               <td>${o.margin_pct ? '<span class="'+marginClass(o.margin_pct)+'">'+fmtPct(o.margin_pct)+'</span>' : '–'}</td>
@@ -433,6 +526,109 @@ async function loadLedger(customerId) {
   }
 }
 
+async function loadSteelPricesSafe() {
+  const tbody = document.getElementById('steel-price-body');
+  try {
+    const r = await fetch('/api/steel-prices');
+    if (!r.ok) throw new Error('steel prices failed');
+    const prices = await r.json();
+    if (!Array.isArray(prices) || !prices.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:12px;">אין מחירים רשומים</td></tr>';
+      return;
+    }
+    tbody.innerHTML = prices.slice(0, 8).map(p => `
+      <tr>
+        <td>${escH(p.effective_date || '—')}</td>
+        <td>${escH(p.supplier_name || 'ידני')}</td>
+        <td>${escH(p.diameter || 'כל')}</td>
+        <td><b>${(Number(p.price_per_ton) || 0).toFixed(0)} ₪</b></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:12px;">שגיאה בטעינת מחירי פלדה</td></tr>';
+  }
+}
+
+async function loadOrdersSafe() {
+  const sel = document.getElementById('cost-order-sel');
+  try {
+    const r = await fetch('/api/orders');
+    if (!r.ok) throw new Error('orders failed');
+    const data = await r.json();
+    const orders = Array.isArray(data) ? data : (data.orders || []);
+    sel.innerHTML = '<option value="">בחר הזמנה...</option>' +
+      orders.map(o => `<option value="${Number(o.id)}">${escH(o.order_num || '—')} - ${escH(o.customer_name || '')}</option>`).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">שגיאה בטעינת הזמנות</option>';
+  }
+}
+
+async function loadCustomersSafe() {
+  const sel = document.getElementById('ledger-cust-sel');
+  try {
+    const r = await fetch('/api/customers');
+    if (!r.ok) throw new Error('customers failed');
+    const data = await r.json();
+    const customers = Array.isArray(data) ? data : (data.customers || []);
+    sel.innerHTML = '<option value="">בחר לקוח...</option>' +
+      customers.map(c => `<option value="${Number(c.id)}">${escH(c.name || '—')}</option>`).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">שגיאה בטעינת לקוחות</option>';
+  }
+}
+
+async function calcOrderCostSafe() {
+  const orderId = document.getElementById('cost-order-sel').value;
+  if (!orderId) return;
+  const resultEl = document.getElementById('order-cost-result');
+  resultEl.innerHTML = '<div class="skeleton-row" style="margin:12px 16px"></div>';
+  let data;
+  try {
+    const r = await fetch(`/api/orders/${encodeURIComponent(orderId)}/costs/recalculate`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ reason:'manual finance recalculation' })
+    });
+    if (!r.ok) throw new Error('cost recalculation failed');
+    data = await r.json();
+  } catch (e) {
+    resultEl.innerHTML = '<div style="padding:16px;color:var(--danger)">שגיאה בחישוב עלות הזמנה</div>';
+    return;
+  }
+
+  const marginPct = Number(data.margin_pct) || 0;
+  const barColor  = marginColor(marginPct);
+  const barWidth  = Math.max(0, Math.min(100, marginPct));
+  resultEl.innerHTML = `
+    <div class="margin-bar-wrap">
+      <div class="margin-info">
+        <span>עלות כוללת: <b>${fmtILS(data.total_cost)}</b></span>
+        <span>מרווח: <b style="color:${barColor}">${fmtPct(data.margin_pct)}</b></span>
+      </div>
+      <div class="margin-bar-track">
+        <div class="margin-bar-fill" style="width:${barWidth}%;background:${barColor}"></div>
+      </div>
+    </div>
+    <div class="cost-grid">
+      <div class="cost-cell"><div class="cost-label">חומרי גלם</div><div class="cost-val">${fmtILS(data.material_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">עבודה</div><div class="cost-val">${fmtILS(data.labor_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">מכונות</div><div class="cost-val">${fmtILS(data.machine_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">פסולת</div><div class="cost-val">${fmtILS(data.scrap_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">תקורה 15%</div><div class="cost-val">${fmtILS(data.overhead_cost)}</div></div>
+      <div class="cost-cell"><div class="cost-label">טונות</div><div class="cost-val">${(Number(data.tons_delivered)||0).toFixed(2)} ט</div><div class="cost-pct">${fmtILS(data.cost_per_ton)}/ט</div></div>
+    </div>
+    <div style="padding:8px 16px;font-size:11px;color:var(--text-muted)">
+      רמת ביטחון: <b style="color:${data.confidence==='high'?'var(--success)':'var(--warning)'}">${data.confidence==='high'?'גבוהה':'נמוכה'}</b>
+      ${data.confidence!=='high' ? ' - הזן מחיר פלדה לדיוק' : ''}
+    </div>
+  `;
+}
+
+loadSteelPrices = loadSteelPricesSafe;
+loadOrders = loadOrdersSafe;
+loadCustomers = loadCustomersSafe;
+calcOrderCost = calcOrderCostSafe;
+
 function setPeriod(p) {
   currentPeriod = p;
   document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.textContent.includes({week:'שבוע',month:'חודש',quarter:'רבעון'}[p])));
@@ -447,6 +643,7 @@ function setPeriod(p) {
 // Init
 loadKPIs();
 loadSteelPrices();
+loadSalesPriceList();
 loadOrders();
 loadCustomers();
 </script>

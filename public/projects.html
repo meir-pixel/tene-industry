@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex,nofollow"><!-- BUG-47: stub page -->
+<meta name="robots" content="noindex,nofollow">
 <title>פרויקטים ואתרים – IronBend</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -61,7 +61,10 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .credit-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px;}
 .credit-fill{height:100%;border-radius:3px;}
 </style>
-<script src="/nav.js"></script><link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/theme.css">
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
+<script src="/nav.js"></script>
 </head>
 <body data-page="projects">
 <nav class="topnav">
@@ -76,15 +79,10 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     <a href="admin.html" class="nav-link">ניהול</a>
   </div>
 </nav>
-<!-- BUG-47: coming soon banner for stub page -->
-<div style="background:#fef3cd;border:1px solid #f5c518;border-radius:10px;padding:16px 24px;margin:16px 24px;text-align:center;font-family:'Heebo',sans-serif;font-size:15px;color:#7a5800">
-  🚧 <strong>מודול פרויקטים — בפיתוח</strong> — ייפתח בגרסה הבאה.
-</div>
 <div class="page">
   <div class="tabs">
     <button class="tab-btn active" onclick="showTab('projects')">🏗️ פרויקטים</button>
     <button class="tab-btn" onclick="showTab('sites')">📍 אתרים</button>
-    <button class="tab-btn" onclick="showTab('credit')">💳 מסגרות אשראי</button>
   </div>
 
   <!-- PROJECTS -->
@@ -133,23 +131,6 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     </div>
   </div>
 
-  <!-- CREDIT -->
-  <div id="tab-credit" class="tab-panel">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">💳 מסגרות אשראי לקוחות</span>
-        <div class="filters">
-          <input type="text" id="fCreditSearch" placeholder="חיפוש לקוח..." oninput="renderCredit()">
-        </div>
-      </div>
-      <table>
-        <thead><tr>
-          <th>לקוח</th><th>מסגרת</th><th>יתרת חוב</th><th>ניצול</th><th>תנאי תשלום</th><th>סטטוס</th><th>פעולות</th>
-        </tr></thead>
-        <tbody id="creditTable">טוען...</tbody>
-      </table>
-    </div>
-  </div>
 </div>
 
 <!-- PROJECT MODAL -->
@@ -212,63 +193,27 @@ tr:hover td{background:rgba(0,0,0,0.015);}
   </div>
 </div>
 
-<!-- CREDIT MODAL -->
-<div class="modal-overlay" id="creditModal">
-  <div class="modal">
-    <h2 id="creditModalTitle">💳 עריכת מסגרת אשראי</h2>
-    <input type="hidden" id="creditCustomerId">
-    <div class="form-row"><label>שם לקוח</label><input id="creditName" type="text" readonly style="background:var(--steel-light)"></div>
-    <div class="form-grid">
-      <div class="form-row"><label>מסגרת אשראי (₪)</label><input id="creditLimit" type="number" min="0" step="1000"></div>
-      <div class="form-row"><label>תנאי תשלום (ימים)</label><input id="creditTerms" type="number" min="0" value="30"></div>
-    </div>
-    <div class="form-row"><label>חסום?</label>
-      <select id="creditBlocked">
-        <option value="0">לא חסום</option>
-        <option value="1">חסום</option>
-      </select>
-    </div>
-    <div class="form-row"><label>סיבת חסימה</label><input id="creditBlockReason" type="text"></div>
-    <div class="form-row"><label>הערות</label><textarea id="creditNotes" rows="2"></textarea></div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
-    <h3 style="font-size:14px;font-weight:800;margin-bottom:12px">📥 רישום תנועה</h3>
-    <div class="form-grid">
-      <div class="form-row"><label>סוג</label>
-        <select id="txType">
-          <option value="charge">חיוב</option>
-          <option value="payment">תשלום</option>
-          <option value="credit_note">זיכוי</option>
-        </select>
-      </div>
-      <div class="form-row"><label>סכום (₪)</label><input id="txAmount" type="number" min="0" step="100" placeholder="0"></div>
-    </div>
-    <div class="form-row"><label>הסבר</label><input id="txDesc" type="text" placeholder="חשבונית 1234..."></div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeCreditModal()">ביטול</button>
-      <button class="btn btn-outline" onclick="addTransaction()">+ תנועה</button>
-      <button class="btn btn-primary" onclick="saveCredit()">שמור הגדרות</button>
-    </div>
-  </div>
-</div>
-
 <script>
-let projects=[], sites=[], credit=[], customers=[];
+let projects=[], sites=[], customers=[];
 
 const STATUS_CLS = { פעיל:'badge-active', הושלם:'badge-done', עצור:'badge-stop', ביטול:'badge-cancel' };
 function fmt0(v){ return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:0}); }
-function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escH(s){
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(s)
+    : String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
 function showTab(id) {
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.textContent.includes(id==='projects'?'פרויקטים':id==='sites'?'אתרים':'אשראי')));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.textContent.includes(id==='projects'?'פרויקטים':'אתרים')));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   if (id==='sites')   loadSites();
-  if (id==='credit')  loadCredit();
 }
 
 // ── CUSTOMERS dropdown ───────────────────────────────────────────
 async function loadCustomersDropdown() {
-  customers = await fetch('/api/customers?q=').then(r=>r.json()).catch(()=>[]);
+  customers = await fetch('/api/customers?q=').then(r=>r.ok?r.json():[]).catch(()=>[]);
   const opts = '<option value="">— לא משויך —</option>' + customers.map(c=>`<option value="${c.id}">${escH(c.name)}</option>`).join('');
   ['projCustomer','siteCustomer'].forEach(id=>{ document.getElementById(id).innerHTML = opts; });
 }
@@ -279,7 +224,7 @@ async function loadProjects() {
   const search = document.getElementById('fProjSearch').value.toLowerCase();
   let url = '/api/projects';
   if (status) url += '?status=' + encodeURIComponent(status);
-  projects = await fetch(url).then(r=>r.json()).catch(()=>[]);
+  projects = await fetch(url).then(r=>r.ok?r.json():[]).catch(()=>[]);
   if (search) projects = projects.filter(p=>(p.name||'').toLowerCase().includes(search)||(p.customer_name||'').toLowerCase().includes(search));
   // Populate project dropdown for sites
   const projOpts = '<option value="">— לא משויך —</option>' + projects.map(p=>`<option value="${p.id}">${escH(p.name)}</option>`).join('');
@@ -354,7 +299,7 @@ async function saveProject() {
 // ── SITES ─────────────────────────────────────────────────────────
 async function loadSites() {
   const search = document.getElementById('fSiteSearch').value.toLowerCase();
-  sites = await fetch('/api/sites').then(r=>r.json()).catch(()=>[]);
+  sites = await fetch('/api/sites').then(r=>r.ok?r.json():[]).catch(()=>[]);
   if (search) sites = sites.filter(s=>(s.name||'').toLowerCase().includes(search)||(s.address||'').toLowerCase().includes(search));
   const tbody = document.getElementById('siteTable');
   if (!sites.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">אין אתרים</td></tr>'; return; }
@@ -411,85 +356,6 @@ async function saveSite() {
   if (!r.ok) return alert('שגיאה בשמירה');
   closeSiteModal();
   loadSites();
-}
-
-// ── CREDIT ────────────────────────────────────────────────────────
-async function loadCredit() {
-  credit = await fetch('/api/credit').then(r=>r.json()).catch(()=>[]);
-  renderCredit();
-}
-function renderCredit() {
-  const search = document.getElementById('fCreditSearch').value.toLowerCase();
-  let rows = credit;
-  if (search) rows = rows.filter(c=>(c.customer_name||'').toLowerCase().includes(search));
-  const tbody = document.getElementById('creditTable');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">אין נתוני אשראי – בצע הגדרה לכל לקוח</td></tr>'; return; }
-  tbody.innerHTML = rows.map(c=>{
-    const pct = c.credit_limit > 0 ? Math.min(100, Math.round(c.current_debt/c.credit_limit*100)) : 0;
-    const barColor = pct >= 90 ? 'var(--danger)' : pct >= 70 ? 'var(--warning)' : 'var(--success)';
-    return `<tr>
-      <td><strong>${escH(c.customer_name||'—')}</strong></td>
-      <td>${c.credit_limit > 0 ? '₪'+fmt0(c.credit_limit) : '<span style="color:var(--text-muted)">ללא הגבלה</span>'}</td>
-      <td style="font-weight:700;color:${c.current_debt>0?'var(--danger)':'var(--text)'}">${c.current_debt > 0 ? '₪'+fmt0(c.current_debt) : '—'}</td>
-      <td style="min-width:100px">
-        ${c.credit_limit > 0 ? `<div style="font-size:11px;margin-bottom:2px">${pct}%</div><div class="credit-bar"><div class="credit-fill" style="width:${pct}%;background:${barColor}"></div></div>` : '—'}
-      </td>
-      <td>${c.payment_terms||30} ימים</td>
-      <td><span class="badge ${c.blocked ? 'badge-block' : 'badge-ok'}">${c.blocked ? '🔒 חסום' : '✅ פעיל'}</span></td>
-      <td><button class="btn btn-sm btn-outline" onclick="openCreditModal(${c.customer_id})">עריכה</button></td>
-    </tr>`;
-  }).join('');
-}
-
-let editingCreditId = null;
-async function openCreditModal(customerId) {
-  editingCreditId = customerId;
-  const data = await fetch(`/api/credit/${customerId}`).then(r=>r.json()).catch(()=>({}));
-  document.getElementById('creditModalTitle').textContent = '💳 ' + (data.customer_name||'לקוח');
-  document.getElementById('creditCustomerId').value = customerId;
-  document.getElementById('creditName').value = data.customer_name||'';
-  document.getElementById('creditLimit').value = data.credit_limit||0;
-  document.getElementById('creditTerms').value = data.payment_terms||30;
-  document.getElementById('creditBlocked').value = data.blocked ? '1' : '0';
-  document.getElementById('creditBlockReason').value = data.block_reason||'';
-  document.getElementById('creditNotes').value = data.notes||'';
-  document.getElementById('txAmount').value = '';
-  document.getElementById('txDesc').value = '';
-  document.getElementById('creditModal').classList.add('open');
-}
-function closeCreditModal() { document.getElementById('creditModal').classList.remove('open'); }
-async function saveCredit() {
-  const body = {
-    credit_limit: Number(document.getElementById('creditLimit').value)||0,
-    payment_terms: Number(document.getElementById('creditTerms').value)||30,
-    blocked: Number(document.getElementById('creditBlocked').value),
-    block_reason: document.getElementById('creditBlockReason').value,
-    notes: document.getElementById('creditNotes').value,
-  };
-  await fetch(`/api/credit/${editingCreditId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  closeCreditModal();
-  loadCredit();
-}
-async function addTransaction() {
-  const amount = Number(document.getElementById('txAmount').value);
-  const type   = document.getElementById('txType').value;
-  const desc   = document.getElementById('txDesc').value;
-  if (!amount) return alert('נדרש סכום');
-  await fetch(`/api/credit/${editingCreditId}/transaction`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,amount,description:desc})});
-  document.getElementById('txAmount').value = '';
-  document.getElementById('txDesc').value = '';
-  alert('תנועה נרשמה!');
-  loadCredit();
-}
-
-// Also load credit for all customers button
-async function loadAllCredit() {
-  // Trigger credit account creation for all customers
-  const cs = await fetch('/api/customers?q=').then(r=>r.json()).catch(()=>[]);
-  for (const c of cs.slice(0,50)) {
-    await fetch(`/api/credit/${c.id}`).catch(()=>{});
-  }
-  loadCredit();
 }
 
 // ── INIT ─────────────────────────────────────────────────────────

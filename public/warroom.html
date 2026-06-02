@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex,nofollow"><!-- BUG-47: stub page -->
+<meta name="robots" content="noindex,nofollow">
 <title>War Room – IronBend</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -212,11 +212,6 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
-<!-- BUG-47: coming soon banner for stub page -->
-<div style="background:#fef3cd;border:1px solid #f5c518;padding:12px 24px;text-align:center;font-family:'Heebo',sans-serif;font-size:14px;color:#7a5800;position:fixed;top:0;left:0;right:0;z-index:9999">
-  🚧 <strong>War Room — בפיתוח</strong> — ייפתח בגרסה הבאה.
-</div>
-
 <!-- Status Bar -->
 <div class="status-bar">
   <div class="status-bar-top">
@@ -388,9 +383,9 @@ tr:hover td{background:rgba(0,0,0,0.015);}
       <div class="form-group">
         <label>סטטוס חדש</label>
         <select id="sm-status">
-          <option value="open">פתוח</option>
-          <option value="in_progress">בטיפול</option>
-          <option value="monitoring">במעקב</option>
+          <option value="פתוח">פתוח</option>
+          <option value="בטיפול">בטיפול</option>
+          <option value="במעקב">במעקב</option>
         </select>
       </div>
       <div class="form-group">
@@ -405,6 +400,8 @@ tr:hover td{background:rgba(0,0,0,0.015);}
   </div>
 </div>
 
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
 <script src="/nav.js"></script>
 <script>
 // ── State ─────────────────────────────────────────────────
@@ -412,49 +409,6 @@ let incidents = [];
 let machines = [];
 let oeeData = {};
 let currentStatusIncidentId = null;
-
-// ── Mock data (fallback if API not available) ─────────────
-const MOCK_MACHINES = [
-  {id:'m1', name:'כופף 1', status:'running', currentOrder:'IB-2341', stoppedMinutes:0},
-  {id:'m2', name:'כופף 2', status:'fault',   currentOrder:'IB-2342', stoppedMinutes:0},
-  {id:'m3', name:'כופף 3', status:'stopped', currentOrder:null,      stoppedMinutes:75},
-  {id:'m4', name:'גליל 1', status:'running', currentOrder:'IB-2343', stoppedMinutes:0},
-  {id:'m5', name:'גליל 2', status:'offline', currentOrder:null,      stoppedMinutes:180},
-  {id:'m6', name:'חיתוך',  status:'running', currentOrder:'IB-2345', stoppedMinutes:0},
-];
-const MOCK_OEE = {m1:82,m2:0,m3:0,m4:77,m5:0,m6:88};
-const MOCK_INCIDENTS = [
-  {
-    id:'i1', title:'כופף 2 – שבר ציר הסיבוב',
-    machine:'כופף 2', severity:'critical',
-    desc:'הציר הראשי נשבר במהלך עבודה. המכונה מושבתת לחלוטין.',
-    assignedTo:'דוד כהן', financialImpact:3200,
-    openedAt: new Date(Date.now()-55*60000).toISOString(),
-    timeline:[
-      {ts: new Date(Date.now()-55*60000).toISOString(), text:'אירוע נפתח'},
-      {ts: new Date(Date.now()-50*60000).toISOString(), text:'הזמנת חלף דחופה'},
-    ],
-    status:'open',
-  },
-  {
-    id:'i2', title:'גליל 2 – תקלת חשמל',
-    machine:'גליל 2', severity:'high',
-    desc:'נפל מפסק ראשי. חשמלאי בדרך.',
-    assignedTo:'יוסי לוי', financialImpact:1100,
-    openedAt: new Date(Date.now()-120*60000).toISOString(),
-    timeline:[
-      {ts: new Date(Date.now()-120*60000).toISOString(), text:'אירוע נפתח'},
-      {ts: new Date(Date.now()-110*60000).toISOString(), text:'חשמלאי יידע'},
-      {ts: new Date(Date.now()-90*60000).toISOString(), text:'חשמלאי הגיע לאתר'},
-    ],
-    status:'in_progress',
-  },
-];
-const MOCK_RESOLVED = [
-  {id:'r1',title:'חיתוך – להב שחוק',machine:'חיתוך',severity:'medium',openedAt:new Date(Date.now()-5*3600000).toISOString(),closedAt:new Date(Date.now()-4*3600000).toISOString(),financialImpact:400},
-  {id:'r2',title:'כופף 3 – סנכרון PLC',machine:'כופף 3',severity:'high',openedAt:new Date(Date.now()-8*3600000).toISOString(),closedAt:new Date(Date.now()-6.5*3600000).toISOString(),financialImpact:900},
-  {id:'r3',title:'גליל 1 – שמן הידראולי',machine:'גליל 1',severity:'low',openedAt:new Date(Date.now()-24*3600000).toISOString(),closedAt:new Date(Date.now()-23.5*3600000).toISOString(),financialImpact:80},
-];
 
 // ── Clock ─────────────────────────────────────────────────
 function updateClock(){
@@ -487,14 +441,14 @@ async function loadMachines(){
   try{
     machines = await fetchJSON('/api/machines');
   } catch(e){
-    machines = MOCK_MACHINES;
+    machines = [];
   }
   try{
     const oee = await fetchJSON('/api/machines/oee');
     oeeData = {};
     (oee||[]).forEach(o=>{ oeeData[o.id||o.machineId] = o.oee||o.value||0; });
   } catch(e){
-    oeeData = MOCK_OEE;
+    oeeData = {};
   }
   renderMachineDots();
   renderMachineCards();
@@ -505,16 +459,40 @@ async function loadMachines(){
 async function loadIncidents(){
   try{
     const data = await fetchJSON('/api/incidents');
-    incidents = (data||[]).filter(i=>i.status!=='resolved'&&i.status!=='closed');
-    const resolved = (data||[]).filter(i=>i.status==='resolved'||i.status==='closed').slice(-10).reverse();
+    const normalized = (data||[]).map(normalizeIncident);
+    incidents = normalized.filter(i=>!isClosedStatus(i.status));
+    const resolved = normalized.filter(i=>isClosedStatus(i.status)).slice(-10).reverse();
     renderResolvedTable(resolved);
   } catch(e){
-    incidents = MOCK_INCIDENTS;
-    renderResolvedTable(MOCK_RESOLVED);
+    incidents = [];
+    renderResolvedTable([]);
   }
   renderIncidents();
   updateKPIs();
   populateMachineSelect();
+}
+
+function normalizeIncident(row){
+  let timeline = [];
+  if (Array.isArray(row.timeline)) {
+    timeline = row.timeline;
+  } else {
+    try { timeline = JSON.parse(row.timeline || '[]'); } catch { timeline = []; }
+  }
+  return {
+    ...row,
+    machine: row.machine || row.machine_name || row.machineName || '',
+    desc: row.desc || row.description || '',
+    assignedTo: row.assignedTo || row.assigned_to || row.assigned || '',
+    financialImpact: row.financialImpact ?? row.financial_impact ?? 0,
+    openedAt: row.openedAt || row.created_at || row.opened_at || '',
+    closedAt: row.closedAt || row.resolved_at || row.closed_at || '',
+    timeline,
+  };
+}
+
+function isClosedStatus(status){
+  return ['סגור','resolved','closed'].includes(String(status || ''));
 }
 
 // ── Render machine dots (status bar) ─────────────────────
@@ -524,7 +502,7 @@ function renderMachineDots(){
   el.innerHTML = machines.map(m=>`
     <div class="machine-dot-item">
       <div class="dot ${m.status||'offline'}"></div>
-      <div class="dot-name">${m.name}</div>
+      <div class="dot-name">${escHtml(m.name)}</div>
     </div>
   `).join('');
 }
@@ -543,14 +521,14 @@ function renderMachineCards(){
     return `
     <div class="machine-card ${isEscalated?'escalated-machine':''}">
       <div class="machine-card-header">
-        <div class="machine-name">${m.name}</div>
+        <div class="machine-name">${escHtml(m.name)}</div>
         <div style="display:flex;align-items:center;gap:6px;">
           ${isEscalated?'<span class="escalation-badge">⚠️ Escalation</span>':''}
           <span class="machine-status-badge ${statusClass}">${statusLabel}</span>
         </div>
       </div>
       <div class="machine-info">
-        ${m.currentOrder ? `<div>הזמנה: <strong>${m.currentOrder}</strong></div>` : '<div style="color:var(--text-muted)">אין הזמנה פעילה</div>'}
+        ${m.currentOrder ? `<div>הזמנה: <strong>${escHtml(m.currentOrder)}</strong></div>` : '<div style="color:var(--text-muted)">אין הזמנה פעילה</div>'}
         ${oee!==null ? `<div>OEE: <strong style="color:${oeeColor}">${oee}%</strong></div>` : ''}
         ${stopHours ? `<div style="color:var(--danger);">הושבת: <strong>${m.stoppedMinutes} דק׳</strong></div>` : ''}
       </div>
@@ -567,12 +545,13 @@ function renderIncidents(){
     return;
   }
   el.innerHTML = incidents.map(inc => {
-    const openedMs = Date.now() - new Date(inc.openedAt).getTime();
+    const openedAt = inc.openedAt || new Date().toISOString();
+    const openedMs = Date.now() - new Date(openedAt).getTime();
     const openedMin = Math.floor(openedMs/60000);
     const openedLabel = openedMin>=60 ? `${Math.floor(openedMin/60)} שעות ${openedMin%60} דק׳` : `${openedMin} דק׳`;
-    const lastUpdate = inc.timeline?.length ? new Date(inc.timeline[inc.timeline.length-1].ts).getTime() : new Date(inc.openedAt).getTime();
+    const lastUpdate = inc.timeline?.length ? new Date(inc.timeline[inc.timeline.length-1].ts).getTime() : new Date(openedAt).getTime();
     const minSinceUpdate = Math.floor((Date.now()-lastUpdate)/60000);
-    const isEscalated = minSinceUpdate>=30 && inc.status!=='monitoring';
+    const isEscalated = minSinceUpdate>=30 && inc.status!=='במעקב';
     const sevClass = {critical:'sev-critical',high:'sev-high',medium:'sev-medium',low:'sev-low'}[inc.severity]||'sev-medium';
     const sevLabel = {critical:'🔴 קריטי',high:'🟠 גבוה',medium:'🟡 בינוני',low:'🟢 נמוך'}[inc.severity]||inc.severity;
     const timeline = (inc.timeline||[]).map(t=>`
@@ -644,7 +623,7 @@ function updateKPIs(){
   // Open incidents
   document.getElementById('kpi-open').textContent = incidents.length;
 
-  // Avg resolution — from resolved (mock: not tracked live; show placeholder)
+  // Avg resolution is not yet aggregated by the API.
   document.getElementById('kpi-avg-resolve').textContent = '—';
 
   // Machines OK / total
@@ -677,7 +656,7 @@ function populateMachineSelect(){
   sel.innerHTML = '<option value="">בחר מכונה...</option>';
   machines.forEach(m=>{
     const opt = document.createElement('option');
-    opt.value = m.name||m.id;
+    opt.value = m.id || '';
     opt.textContent = m.name;
     sel.appendChild(opt);
   });
@@ -701,26 +680,20 @@ async function submitIncident(){
   if(!title){ alert('יש להזין כותרת'); return; }
   const payload = {
     title,
-    machine: document.getElementById('f-machine').value,
+    machine_id: document.getElementById('f-machine').value || null,
     severity: document.getElementById('f-severity').value,
-    desc: document.getElementById('f-desc').value.trim(),
-    assignedTo: document.getElementById('f-assigned').value.trim(),
-    financialImpact: Number(document.getElementById('f-impact').value)||0,
-    openedAt: new Date().toISOString(),
-    status: 'open',
-    timeline: [{ts:new Date().toISOString(), text:'אירוע נפתח'}],
+    description: document.getElementById('f-desc').value.trim(),
+    assigned_to: document.getElementById('f-assigned').value.trim(),
+    financial_impact: Number(document.getElementById('f-impact').value)||0,
   };
   try{
-    const created = await postJSON('/api/incidents', payload);
-    incidents.unshift(created);
+    await postJSON('/api/incidents', payload);
+    await loadIncidents();
   } catch(e){
-    // API not available – add locally
-    payload.id = 'local-'+Date.now();
-    incidents.unshift(payload);
+    alert('שגיאה בפתיחת אירוע');
+    return;
   }
   closeIncidentModal();
-  renderIncidents();
-  updateKPIs();
 }
 
 // ── Status modal ──────────────────────────────────────────
@@ -740,15 +713,14 @@ async function submitStatusUpdate(){
   if(!note){ alert('יש להוסיף הערה'); return; }
   const inc = incidents.find(i=>i.id===currentStatusIncidentId);
   if(!inc) return;
-  const entry = {ts:new Date().toISOString(), text:note};
-  if(!inc.timeline) inc.timeline=[];
-  inc.timeline.push(entry);
-  inc.status = status;
   try{
-    await patchJSON(`/api/incidents/${inc.id}`,{status, timelineEntry:entry});
-  } catch(e){}
+    await patchJSON(`/api/incidents/${inc.id}`,{status, update_text:note});
+  } catch(e){
+    alert('שגיאה בעדכון אירוע');
+    return;
+  }
   closeStatusModal();
-  renderIncidents();
+  loadIncidents();
 }
 
 // ── Inline update form ────────────────────────────────────
@@ -762,13 +734,13 @@ async function addUpdate(id){
   if(!text){ alert('יש להזין עדכון'); return; }
   const inc = incidents.find(i=>i.id===id);
   if(!inc) return;
-  const entry = {ts:new Date().toISOString(), text};
-  if(!inc.timeline) inc.timeline=[];
-  inc.timeline.push(entry);
   try{
-    await patchJSON(`/api/incidents/${id}`,{timelineEntry:entry});
-  } catch(e){}
-  renderIncidents();
+    await patchJSON(`/api/incidents/${id}`,{update_text:text});
+  } catch(e){
+    alert('שגיאה בהוספת עדכון');
+    return;
+  }
+  loadIncidents();
 }
 
 // ── Close incident ────────────────────────────────────────
@@ -776,23 +748,20 @@ async function closeIncident(id){
   if(!confirm('לסגור את האירוע?')) return;
   const inc = incidents.find(i=>i.id===id);
   if(!inc) return;
-  const entry = {ts:new Date().toISOString(), text:'אירוע נסגר'};
-  if(!inc.timeline) inc.timeline=[];
-  inc.timeline.push(entry);
-  inc.status='resolved';
-  inc.closedAt = new Date().toISOString();
   try{
-    await patchJSON(`/api/incidents/${id}`,{status:'resolved', closedAt:inc.closedAt, timelineEntry:entry});
-  } catch(e){}
-  incidents = incidents.filter(i=>i.id!==id);
-  renderIncidents();
-  updateKPIs();
+    await patchJSON(`/api/incidents/${id}`,{status:'סגור', update_text:'אירוע נסגר'});
+  } catch(e){
+    alert('שגיאה בסגירת אירוע');
+    return;
+  }
+  loadIncidents();
 }
 
 // ── Util ──────────────────────────────────────────────────
 function escHtml(s){
-  if(!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(s)
+    : String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function fmtTime(iso){
   try{ return new Date(iso).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}); }

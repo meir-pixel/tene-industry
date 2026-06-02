@@ -43,11 +43,13 @@
     </div>
   </main>
   <script src="/auth-client.js"></script>
+  <script src="/status-contracts-client.js"></script>
   <script>
     const state={items:[],selected:null};
-    const statusKey=s=>s==='בייצור'?'production':s==='הושלם'?'done':s==='סופק'?'supplied':'waiting';
+    const ITEM_STATUS=(window.IronBendStatus&&window.IronBendStatus.ITEM_STATUS)||{WAITING:'ממתין',IN_PRODUCTION:'בייצור',DONE:'הושלם',DELIVERED:'סופק'};
+    const statusKey=s=>s===ITEM_STATUS.IN_PRODUCTION?'production':s===ITEM_STATUS.DONE?'done':s===ITEM_STATUS.DELIVERED?'supplied':'waiting';
     const statusText={waiting:'WAITING',production:'IN PRODUCTION',done:'DONE',supplied:'SUPPLIED'};
-    const apiStatus={waiting:'ממתין',production:'בייצור',done:'הושלם',supplied:'סופק'};
+    const apiStatus={waiting:ITEM_STATUS.WAITING,production:ITEM_STATUS.IN_PRODUCTION,done:ITEM_STATUS.DONE,supplied:ITEM_STATUS.DELIVERED};
     const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const segments=item=>{try{return JSON.parse(item.segments||'[]')}catch{return[]}};
     const total=item=>Number(item.total_length_mm)||segments(item).reduce((n,s)=>n+Number(s.length_mm||0),0);

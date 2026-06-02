@@ -407,17 +407,17 @@ body{
       <div class="entry-icon">🏭</div>
       <div class="entry-title">כניסת ספק</div>
       <div class="entry-sub">
-        הזן את קוד הספק שלך כדי לצפות בהזמנות הפתוחות שלך,<br>
-        לעדכן מועדי הגעה ולהעלות תעודות חומר.
+        פורטל הספקים מוקפא עד להגדרת הרשאות ספקים מאובטחות.<br>
+        עבודה מול ספקים מתבצעת כרגע דרך מסך הרכש הפנימי.
       </div>
       <div class="entry-field">
         <label>קוד ספק</label>
-        <input class="entry-input" id="supplierCodeInput" placeholder="לדוגמה: SUP-042"
+        <input class="entry-input" id="supplierCodeInput" placeholder="קוד ספק"
           onkeydown="if(event.key==='Enter')lookupSupplier()">
       </div>
       <button class="btn-primary" onclick="lookupSupplier()">כניסה לפורטל</button>
-      <div class="entry-hint">קוד הספק נשלח אליך בדוא"ל מ-IronBend בעת הרישום</div>
-      <div class="entry-error" id="entryError">קוד ספק לא נמצא. פנה לרכש של IronBend.</div>
+      <div class="entry-hint">יש להשתמש במסך הרכש הפנימי להזמנות, ספקים וקבלת חומר עד לפתיחת פורטל ספקים אמיתי</div>
+      <div class="entry-error" id="entryError">פורטל הספקים עדיין לא פעיל. פנה לרכש של IronBend.</div>
     </div>
   </div>
 
@@ -499,27 +499,6 @@ body{
 <div class="toast" id="toast"></div>
 
 <script>
-// Demo supplier data
-const DEMO_SUPPLIERS = {
-  'SUP-042': {
-    name: 'פרופילים המרכז בע"מ',
-    code: 'SUP-042',
-    pos: [
-      { id:'PO-2026-0881', item:'פרופיל IPE200 S355 L=12m', qty:80, unit:'יח׳', eta:'20/05/2026', status:'open', overdue:false },
-      { id:'PO-2026-0892', item:'זווית 100×100×10 S275', qty:200, unit:'ק"ג', eta:'22/05/2026', status:'partial', overdue:false },
-      { id:'PO-2026-0901', item:'פלטה 300×20 S355', qty:40, unit:'יח׳', eta:'12/05/2026', status:'open', overdue:true },
-    ]
-  },
-  'SUP-017': {
-    name: 'גולן סגסוגות מתכת',
-    code: 'SUP-017',
-    pos: [
-      { id:'PO-2026-0855', item:'נירוסטה 304 צינור 60×3', qty:150, unit:'מטר', eta:'18/05/2026', status:'open', overdue:false },
-      { id:'PO-2026-0867', item:'אלומיניום 6061 פרופיל C', qty:60, unit:'יח׳', eta:'25/05/2026', status:'open', overdue:false },
-    ]
-  }
-};
-
 const STATUS_LABELS = { open:'פתוחה', partial:'סופקה חלקית', received:'סופקה במלואה', overdue:'באיחור' };
 const STATUS_CLASSES = { open:'status-open', partial:'status-partial', received:'status-received', overdue:'status-overdue' };
 
@@ -527,27 +506,7 @@ let currentSupplier = null;
 let activePO = null;
 
 function lookupSupplier() {
-  const code = document.getElementById('supplierCodeInput').value.trim().toUpperCase();
-  document.getElementById('entryError').classList.remove('show');
-
-  const supplier = DEMO_SUPPLIERS[code];
-  if (!supplier) {
-    fetchSupplier(code);
-    return;
-  }
-  showSupplier(supplier);
-}
-
-async function fetchSupplier(code) {
-  try {
-    const res = await fetch('/api/purchase-orders?supplier_code=' + encodeURIComponent(code));
-    if (!res.ok) throw new Error('not found');
-    const data = await res.json();
-    if (!data || !data.supplier) throw new Error('empty');
-    showSupplier(data);
-  } catch {
-    document.getElementById('entryError').classList.add('show');
-  }
+  document.getElementById('entryError').classList.add('show');
 }
 
 function showSupplier(supplier) {
@@ -629,27 +588,8 @@ function closeEtaModal() {
   activePO = null;
 }
 async function saveEta() {
-  const dateVal = document.getElementById('etaDate').value;
-  const notes = document.getElementById('etaNotes').value.trim();
-  if (!dateVal) { alert('בחר תאריך'); return; }
-
-  try {
-    await fetch('/api/purchase-orders/' + activePO + '/eta', {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ eta: dateVal, notes })
-    });
-  } catch {}
-
-  // Update UI optimistically
-  const d = new Date(dateVal);
-  const formatted = d.toLocaleDateString('he-IL');
-  const key = activePO.replace(/[^a-z0-9]/gi,'_');
-  const etaEl = document.getElementById('eta-' + key);
-  if (etaEl) etaEl.textContent = formatted;
-
   closeEtaModal();
-  showToast('✅ ETA עודכן ל-' + formatted);
+  showToast('פורטל הספקים מוקפא עד להגדרת הרשאות ספקים');
 }
 
 // CERT MODAL
@@ -688,32 +628,8 @@ function handleDrop(e) {
   }
 }
 async function saveCert() {
-  const heatNum = document.getElementById('certHeatNum').value.trim();
-  const certNum = document.getElementById('certCertNum').value.trim();
-  const fileInp = document.getElementById('certFile');
-
-  if (!heatNum) { alert('הזן מספר חום'); return; }
-  if (!certNum) { alert('הזן מספר תעודה'); return; }
-
-  try {
-    const fd = new FormData();
-    fd.append('heat_number', heatNum);
-    fd.append('certificate_num', certNum);
-    if (fileInp.files[0]) fd.append('file', fileInp.files[0]);
-
-    await fetch('/api/purchase-orders/' + activePO + '/receive', {
-      method: 'POST',
-      body: fd
-    });
-  } catch {}
-
-  // Update UI
-  const key = activePO.replace(/[^a-z0-9]/gi,'_');
-  const uploadEl = document.getElementById('uploaded-' + key);
-  if (uploadEl) uploadEl.classList.add('show');
-
   closeCertModal();
-  showToast('✅ תעודת חומר הועלתה בהצלחה');
+  showToast('פורטל הספקים מוקפא עד להגדרת הרשאות ספקים');
 }
 
 // TOAST

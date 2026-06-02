@@ -11,6 +11,8 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/theme.css">
+<script src="/status-contracts-client.js"></script>
+<script src="/safe-dom.js" defer></script>
 <script src="/nav.js" defer></script>
 <script src="/shape-renderer.js" defer></script>
 <style>
@@ -198,11 +200,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 
   <!-- FILTERS -->
   <div class="filters">
-    <button class="filter-btn active" data-status="">הכל</button>
-    <button class="filter-btn" data-status="ממתינה לאישור">ממתינות</button>
-    <button class="filter-btn" data-status="אושרה – ממתין לייצור">אושרו</button>
-    <button class="filter-btn" data-status="בייצור">בייצור</button>
-    <button class="filter-btn" data-status="הושלם – ממתין לאיסוף">הושלמו</button>
+    <span id="statusFilterButtons" style="display:contents"></span>
     <div class="search-wrap">
       <input class="search-box" id="searchBox" placeholder="🔍 חיפוש..." oninput="applyFilter()">
     </div>
@@ -248,6 +246,35 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 
 <script>
 let allOrders = [], activeStatus = '', ws, _wsDelay = 1000;
+const STATUS_CONTRACT = window.IronBendStatus || {};
+const ORDER_STATUS = STATUS_CONTRACT.ORDER_STATUS || {};
+const allowedOrderTransitions = STATUS_CONTRACT.allowedOrderTransitions || (() => []);
+const ORDER_ACTION_LABELS = new Map([
+  [ORDER_STATUS.APPROVED_WAITING_PRODUCTION, '✓ אשר'],
+  [ORDER_STATUS.PRODUCTION_QUEUE, '▶ לתור'],
+  [ORDER_STATUS.IN_PRODUCTION, '▶ ייצור'],
+  [ORDER_STATUS.DONE_WAITING_PICKUP, '✓ הושלם'],
+  [ORDER_STATUS.ON_THE_WAY, '🚚 בדרך'],
+  [ORDER_STATUS.SENT, '📤 נשלחה'],
+  [ORDER_STATUS.DELIVERED_CONFIRMED, '✓ סופק'],
+  [ORDER_STATUS.CANCELLED, 'בטל'],
+]);
+const ORDER_STATUS_FILTERS = [
+  { label: 'הכל', status: '' },
+  { label: 'ממתינות', status: ORDER_STATUS.PENDING_APPROVAL },
+  { label: 'אושרו', status: ORDER_STATUS.APPROVED_WAITING_PRODUCTION },
+  { label: 'בייצור', status: ORDER_STATUS.IN_PRODUCTION },
+  { label: 'הושלמו', status: ORDER_STATUS.DONE_WAITING_PICKUP },
+];
+
+function escHtml(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function jsArg(value) {
+  return JSON.stringify(String(value ?? ''));
+}
 
 // ── WebSocket ──────────────────────────────────────────────────────────
 function connectWS() {
@@ -292,14 +319,21 @@ function applyFilter() {
   renderCards(list);
 }
 
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeStatus = btn.dataset.status;
-    fetchOrders();
+function renderStatusFilters() {
+  const target = document.getElementById('statusFilterButtons');
+  target.innerHTML = ORDER_STATUS_FILTERS.map((filter, index) =>
+    `<button class="filter-btn${index === 0 ? ' active' : ''}" data-status="${filter.status}">${filter.label}</button>`
+  ).join('');
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeStatus = btn.dataset.status;
+      fetchOrders();
+    });
   });
-});
+}
 
 // ── Badge helpers ──────────────────────────────────────────────────────
 function sBadgeClass(s) {
@@ -314,14 +348,21 @@ function urgentLabel(o) {
     ? '<span style="color:var(--danger);font-weight:700">⚡ דחוף</span>'
     : '<span style="color:var(--muted)">רגיל</span>';
 }
-function actionBtns(o, stopProp = true) {
+function actionBtns(o, stopProp = true, includePrints = true) {
   const sp = stopProp ? 'onclick="event.stopPropagation()"' : '';
-  return `<div class="actions" ${sp}>
-    ${o.status==='ממתינה לאישור'?`<button class="btn-sm success" onclick="event.stopPropagation();setStatus(${o.id},'אושרה – ממתין לייצור')">✓ אשר</button>`:''}
-    ${o.status==='אושרה – ממתין לייצור'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בתור ייצור')">▶ לתור</button>`:''}
-    ${o.status==='בתור ייצור'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בייצור')">▶ ייצור</button>`:''}
+  const transitions = allowedOrderTransitions(o.status).filter(status => status !== ORDER_STATUS.CANCELLED);
+  const transitionButtons = transitions.map(status => {
+    const label = ORDER_ACTION_LABELS.get(status) || status;
+    const cls = status === ORDER_STATUS.APPROVED_WAITING_PRODUCTION ? 'btn-sm success' : 'btn-sm';
+    return `<button class="${cls}" onclick="event.stopPropagation();setStatus(${o.id},${jsArg(status)})">${escHtml(label)}</button>`;
+  }).join('');
+  const printButtons = includePrints ? `
     <a class="btn-sm" href="/api/orders/${o.id}/print-cards" target="_blank" title="כרטיסיות">🖨️</a>
     <a class="btn-sm" href="/api/orders/${o.id}/delivery-certificate" target="_blank" title="תעודת משלוח">📋</a>
+  ` : '';
+  return `<div class="actions" ${sp}>
+    ${transitionButtons}
+    ${printButtons}
   </div>`;
 }
 
@@ -334,12 +375,12 @@ function renderTable(orders) {
   }
   body.innerHTML = orders.map(o => `
     <tr onclick="openDetail(${o.id})">
-      <td><span class="order-num">${o.order_num}</span></td>
-      <td>${o.customer_name ?? '—'}</td>
-      <td style="white-space:nowrap">${o.delivery_date ?? '—'}</td>
+      <td><span class="order-num">${escHtml(o.order_num)}</span></td>
+      <td>${escHtml(o.customer_name ?? '—')}</td>
+      <td style="white-space:nowrap">${escHtml(o.delivery_date ?? '—')}</td>
       <td>${urgentLabel(o)}</td>
       <td class="weight-tag">${(o.total_weight||0).toFixed(0)} ק"ג</td>
-      <td><span class="badge ${sBadgeClass(o.status)}">${o.status}</span></td>
+      <td><span class="badge ${sBadgeClass(o.status)}">${escHtml(o.status)}</span></td>
       <td style="color:var(--muted);font-size:12px">${new Date(o.created_at).toLocaleDateString('he-IL')}</td>
       <td>${actionBtns(o)}</td>
     </tr>`).join('');
@@ -356,20 +397,18 @@ function renderCards(orders) {
     <div class="m-card" onclick="openDetail(${o.id})">
       <div class="m-card-top">
         <div>
-          <div class="m-card-num">${o.order_num}</div>
-          <div class="m-card-customer">${o.customer_name ?? '—'}</div>
+          <div class="m-card-num">${escHtml(o.order_num)}</div>
+          <div class="m-card-customer">${escHtml(o.customer_name ?? '—')}</div>
         </div>
-        <span class="badge ${sBadgeClass(o.status)}">${o.status}</span>
+        <span class="badge ${sBadgeClass(o.status)}">${escHtml(o.status)}</span>
       </div>
       <div class="m-card-meta">
-        ${o.delivery_date ? `<span>📅 ${o.delivery_date}</span>` : ''}
+        ${o.delivery_date ? `<span>📅 ${escHtml(o.delivery_date)}</span>` : ''}
         <span>⚖️ ${(o.total_weight||0).toFixed(0)} ק"ג</span>
         ${o.priority === 'דחוף' ? '<span style="color:var(--danger);font-weight:700">⚡ דחוף</span>' : ''}
       </div>
       <div class="m-card-actions">
-        ${o.status==='ממתינה לאישור'?`<button class="btn-sm success" onclick="event.stopPropagation();setStatus(${o.id},'אושרה – ממתין לייצור')">✓ אשר</button>`:''}
-        ${o.status==='אושרה – ממתין לייצור'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בתור ייצור')">▶ לתור</button>`:''}
-        ${o.status==='בתור ייצור'?`<button class="btn-sm" onclick="event.stopPropagation();setStatus(${o.id},'בייצור')">▶ ייצור</button>`:''}
+        ${actionBtns(o, false, false)}
         <a class="btn-sm" href="/api/orders/${o.id}/print-cards" target="_blank" onclick="event.stopPropagation()">🖨️ כרטיסיות</a>
         <a class="btn-sm" href="/api/orders/${o.id}/delivery-certificate" target="_blank" onclick="event.stopPropagation()">📋 תעודה</a>
       </div>
@@ -496,10 +535,10 @@ function buildDetailHTML(o, pkgs) {
   const hero = `<div class="detail-hero">
     <div class="hero-card">
       <div class="hero-title">לקוח / הזמנה</div>
-      <div class="hero-main">${o.customer_name ?? '—'}</div>
-      <div style="margin-top:8px"><span class="badge ${sBadgeClass(o.status)}">${o.status}</span></div>
+      <div class="hero-main">${escHtml(o.customer_name ?? '—')}</div>
+      <div style="margin-top:8px"><span class="badge ${sBadgeClass(o.status)}">${escHtml(o.status)}</span></div>
       <div class="hero-metric">
-        <div class="metric-box"><div class="metric-label">אספקה</div><div class="metric-value">${o.delivery_date ?? '—'}</div></div>
+        <div class="metric-box"><div class="metric-label">אספקה</div><div class="metric-value">${escHtml(o.delivery_date ?? '—')}</div></div>
         <div class="metric-box"><div class="metric-label">משקל</div><div class="metric-value" style="color:var(--accent)">${(o.total_weight||0).toFixed(1)} ק"ג</div></div>
       </div>
     </div>
@@ -509,7 +548,7 @@ function buildDetailHTML(o, pkgs) {
         <div class="metric-box"><div class="metric-label">משטחים</div><div class="metric-value">${totalPallets}</div></div>
         <div class="metric-box"><div class="metric-label">פריטים</div><div class="metric-value">${totalItems}</div></div>
         <div class="metric-box"><div class="metric-label">דורש בדיקה</div><div class="metric-value" style="color:${reviewItems ? 'var(--warning)' : 'var(--success)'}">${reviewItems}</div></div>
-        <div class="metric-box"><div class="metric-label">עדיפות</div><div class="metric-value">${o.priority || 'רגיל'}</div></div>
+        <div class="metric-box"><div class="metric-label">עדיפות</div><div class="metric-value">${escHtml(o.priority || 'רגיל')}</div></div>
       </div>
     </div>
   </div>`;
@@ -525,25 +564,27 @@ function buildDetailHTML(o, pkgs) {
   const info = `<div class="d-section">
     <div class="d-title">📌 פרטי הזמנה</div>
     <div class="info-grid">
-      <div><div class="info-label">לקוח</div><div class="info-value">${o.customer_name??'—'}</div></div>
-      <div><div class="info-label">ערוץ</div><div class="info-value">${o.channel??'—'}</div></div>
-      <div><div class="info-label">תאריך אספקה</div><div class="info-value">${o.delivery_date??'—'}</div></div>
+      <div><div class="info-label">לקוח</div><div class="info-value">${escHtml(o.customer_name??'—')}</div></div>
+      <div><div class="info-label">ערוץ</div><div class="info-value">${escHtml(o.channel??'—')}</div></div>
+      <div><div class="info-label">תאריך אספקה</div><div class="info-value">${escHtml(o.delivery_date??'—')}</div></div>
       <div><div class="info-label">משקל כולל</div><div class="info-value" style="color:var(--accent)">${(o.total_weight||0).toFixed(1)} ק"ג</div></div>
-      ${o.delivery_address?`<div style="grid-column:span 2"><div class="info-label">כתובת</div><div class="info-value">${o.delivery_address}</div></div>`:''}
-      ${o.driver_notes?`<div style="grid-column:span 2"><div class="info-label">הערות לנהג</div><div class="info-value">${o.driver_notes}</div></div>`:''}
-      ${o.struct_element?`<div><div class="info-label">אלמנט</div><div class="info-value">${o.struct_element}</div></div>`:''}
-      ${o.struct_floor?`<div><div class="info-label">קומה</div><div class="info-value">${o.struct_floor}</div></div>`:''}
-      ${o.sheet_num?`<div><div class="info-label">גיליון</div><div class="info-value">${o.sheet_num}</div></div>`:''}
+      ${o.delivery_address?`<div style="grid-column:span 2"><div class="info-label">כתובת</div><div class="info-value">${escHtml(o.delivery_address)}</div></div>`:''}
+      ${o.driver_notes?`<div style="grid-column:span 2"><div class="info-label">הערות לנהג</div><div class="info-value">${escHtml(o.driver_notes)}</div></div>`:''}
+      ${o.struct_element?`<div><div class="info-label">אלמנט</div><div class="info-value">${escHtml(o.struct_element)}</div></div>`:''}
+      ${o.struct_floor?`<div><div class="info-label">קומה</div><div class="info-value">${escHtml(o.struct_floor)}</div></div>`:''}
+      ${o.sheet_num?`<div><div class="info-label">גיליון</div><div class="info-value">${escHtml(o.sheet_num)}</div></div>`:''}
     </div>
   </div>`; // BUG-25: added struct_element / struct_floor / sheet_num
 
   // ── Status
-  const statuses = ['ממתינה לאישור','אושרה – ממתין לייצור','בתור ייצור','בייצור','הושלם – ממתין לאיסוף','נשלחה','סופק – אושר'];
+  const statuses = [o.status, ...allowedOrderTransitions(o.status)]
+    .filter((status, index, list) => status && list.indexOf(status) === index);
   const statusSec = `<div class="d-section">
     <div class="d-title">🔁 עדכון סטטוס</div>
     <div class="status-actions">
       ${statuses.map(s => `<button class="status-btn${o.status===s?' cur':''}"
-        onclick="setStatus(${o.id},'${s}').then(ok=>{if(ok)closeDetailPanel()})">${s}</button>`).join('')}
+        ${o.status===s?'disabled':''}
+        onclick="setStatus(${o.id},${jsArg(s)}).then(ok=>{if(ok)closeDetailPanel()})">${escHtml(s)}</button>`).join('')}
     </div>
   </div>`;
 
@@ -569,8 +610,8 @@ function buildDetailHTML(o, pkgs) {
           data-angles="${encodeURIComponent(JSON.stringify(angles))}"></div>
         <div class="item-main">
           <div class="item-head">
-            <span class="item-diameter">⌀${item.diameter}</span>
-            <span class="item-shape">${shapeLabel(item.shape_name)}</span>
+            <span class="item-diameter">⌀${escHtml(item.diameter)}</span>
+            <span class="item-shape">${escHtml(shapeLabel(item.shape_name))}</span>
             ${item.is_3d ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px">3D</span>' : ''}
             ${review ? ' <span style="background:#fff3cd;color:#8a5a00;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">דורש בדיקה</span>' : ''}
           </div>
@@ -581,10 +622,10 @@ function buildDetailHTML(o, pkgs) {
             <div class="item-kpi"><div class="item-kpi-label">יוצר</div><div class="item-kpi-value">${produced}/${qty}</div></div>
           </div>
           ${dims ? `<div class="item-dims">${dims.split(' / ').map((d, idx) => `<span class="dim-chip">${String.fromCharCode(0x05D0 + idx)}: ${d} מ"מ</span>`).join('')}</div>` : ''}
-          ${item.note ? `<div class="note-chip">⚠ ${item.note}</div>` : ''}
+          ${item.note ? `<div class="note-chip">⚠ ${escHtml(item.note)}</div>` : ''}
           ${item.status==='בייצור'&&qty>0?`<div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100,produced/qty*100).toFixed(0)}%"></div></div><div style="font-size:11px;color:var(--muted)">${produced}/${qty}</div>`:''}
         </div>
-        <span class="item-status ${ic}">${item.status}</span>
+        <span class="item-status ${ic}">${escHtml(item.status)}</span>
       </div>`;
     }).join('');
     return `<div style="margin-bottom:12px">
@@ -607,12 +648,12 @@ function buildDetailHTML(o, pkgs) {
       const col = p.status==='shipped'?'var(--success)':p.status==='staged'?'var(--warning)':'var(--accent)';
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.04)">
         <div>
-          <div style="font-weight:700;font-size:13px">📦 ${p.package_code}</div>
-          <div style="font-size:11px;color:var(--muted)">${(p.weight||0).toFixed(0)} ק"ג${p.diameter?' | ⌀'+p.diameter:''}${p.zone?' | אזור '+p.zone:''}</div>
+          <div style="font-weight:700;font-size:13px">📦 ${escHtml(p.package_code)}</div>
+          <div style="font-size:11px;color:var(--muted)">${(p.weight||0).toFixed(0)} ק"ג${p.diameter?' | ⌀'+escHtml(p.diameter):''}${p.zone?' | אזור '+escHtml(p.zone):''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:11px;font-weight:700;color:${col}">${label}</span>
-          <button class="btn-sm" onclick="printQR('${p.package_code}','${p.order_num||''}',${p.weight||0},${p.diameter||0})">🖨️ QR</button>
+          <span style="font-size:11px;font-weight:700;color:${col}">${escHtml(label)}</span>
+          <button class="btn-sm" onclick="printQR(${jsArg(p.package_code)},${jsArg(p.order_num)},${Number(p.weight)||0},${Number(p.diameter)||0})">🖨️ QR</button>
         </div>
       </div>`;
     }).join('');
@@ -630,18 +671,21 @@ function closeDetailPanel() {
 
 function printQR(code, orderNum, weight, diameter) {
   const w = window.open('', '_blank', 'width=400,height=350');
+  const safeCode = escHtml(code);
+  const safeOrderNum = escHtml(orderNum);
+  const qrPayload = JSON.stringify(String(code ?? ''));
   w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
-  <title>QR - ${code}</title>
+  <title>QR - ${safeCode}</title>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
   <style>body{font-family:'Heebo',sans-serif;text-align:center;padding:20px}
   h2{font-size:18px;margin:0 0 4px}p{font-size:12px;color:#526070;margin:2px 0}
   canvas{margin:12px auto;display:block}@media print{button{display:none}}</style>
   </head><body>
-  <h2>📦 ${code}</h2><p>הזמנה: ${orderNum}</p>
+  <h2>📦 ${safeCode}</h2><p>הזמנה: ${safeOrderNum}</p>
   <p>${weight.toFixed(0)} ק"ג${diameter?' | ⌀'+diameter:''}</p>
   <canvas id="qrCanvas"></canvas><br>
   <button onclick="window.print()">🖨️ הדפס</button>
-  <script>QRCode.toCanvas(document.getElementById('qrCanvas'),'${code}',{width:200,margin:1},function(){});<\/script>
+  <script>QRCode.toCanvas(document.getElementById('qrCanvas'),${qrPayload},{width:200,margin:1},function(){});<\/script>
   </body></html>`);
   w.document.close();
 }
@@ -650,6 +694,7 @@ function printQR(code, orderNum, weight, diameter) {
 const urlId = new URLSearchParams(location.search).get('id');
 if (urlId) openDetail(urlId);
 
+renderStatusFilters();
 connectWS();
 fetchOrders();
 setInterval(fetchOrders, 20000);

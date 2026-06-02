@@ -63,7 +63,7 @@ body { background: radial-gradient(circle at top right, rgba(167,236,255,0.20), 
 }
 #ib-logo img, #ib-drawer-logo {
   display: block;
-  height: 34px;
+  height: auto;
   width: auto;
 }
 .ib-link.ib-active, .ib-dl.ib-active, .ib-bn.ib-active {
@@ -72,6 +72,30 @@ body { background: radial-gradient(circle at top right, rgba(167,236,255,0.20), 
 .ib-link.ib-active {
   background: rgba(223,80,0,0.10) !important;
   box-shadow: inset 0 -2px 0 var(--brand-orange) !important;
+}
+
+@media(min-width:1024px) {
+  #ib-topnav {
+    background: linear-gradient(180deg, #071c3b 0%, #021A48 58%, #00112f 100%) !important;
+    border-bottom: none !important;
+    border-right: 1px solid rgba(255,255,255,0.10) !important;
+    box-shadow: 8px 0 32px rgba(2,26,72,0.20) !important;
+  }
+  #ib-logo {
+    color: #ffffff !important;
+  }
+  #ib-topnav .ib-link {
+    color: rgba(255,255,255,0.82) !important;
+  }
+  #ib-topnav .ib-link:hover {
+    background: rgba(255,255,255,0.10) !important;
+    color: #ffffff !important;
+  }
+  #ib-topnav .ib-link.ib-active {
+    background: linear-gradient(135deg, rgba(223,80,0,0.96), rgba(240,138,36,0.88)) !important;
+    color: #ffffff !important;
+    box-shadow: 0 10px 24px rgba(223,80,0,0.25) !important;
+  }
 }
 
 /* ── Day bar ───────────────────────────────────────────── */

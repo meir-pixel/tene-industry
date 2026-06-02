@@ -1,0 +1,483 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.join(__dirname, '..');
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+test('client auth contract has a single fetch wrapper source', () => {
+  const authClient = read('public/auth-client.js');
+  const nav = read('public/nav.js');
+
+  assert.match(authClient, /window\.IronBendAuth/);
+  assert.match(authClient, /window\.fetch = authFetch/);
+  assert.doesNotMatch(nav, /window\.fetch\s*=/);
+  assert.match(nav, /auth-client\.js/);
+});
+
+test('browser clients do not send spoofable role headers', () => {
+  const publicFiles = fs.readdirSync(path.join(root, 'public'))
+    .filter(file => /\.(html|js)$/.test(file))
+    .map(file => `public/${file}`);
+
+  const offenders = publicFiles
+    .filter(file => file !== 'public/auth-client.js')
+    .filter(file => /x-user-role|x-user-id/.test(read(file)));
+
+  assert.deepEqual(offenders, []);
+
+  const authClient = read('public/auth-client.js');
+  assert.match(authClient, /headers\.delete\('x-user-role'\)/);
+  assert.match(authClient, /headers\.delete\('x-user-id'\)/);
+});
+
+test('login stores sessions through IronBendAuth', () => {
+  const login = read('public/login.html');
+
+  assert.match(login, /src="\/auth-client\.js"/);
+  assert.match(login, /IronBendAuth\.storeSession/);
+  assert.doesNotMatch(login, /setItem\('ib_access_token'/);
+  assert.doesNotMatch(login, /Demo mode/i);
+  assert.doesNotMatch(login, /דמו/);
+  assert.doesNotMatch(login, /PIN 1234/);
+});
+
+test('public portal does not query internal order search', () => {
+  const portal = read('public/portal.html');
+
+  assert.doesNotMatch(portal, /\/api\/orders\?order_num=/);
+  assert.match(portal, /customer-scoped portal token/);
+});
+
+test('customer portal UI uses OTP verification before storing token', () => {
+  const customer = read('public/customer.html');
+
+  assert.match(customer, /id="authOtpField"/);
+  assert.match(customer, /\/api\/c\/auth\/verify/);
+  assert.match(customer, /otpRequired/);
+  assert.match(customer, /completeAuth\(data\.data\)/);
+});
+
+test('customer CRM can rotate and revoke portal links', () => {
+  const customers = read('public/customers.html');
+  const admin = read('public/admin.html');
+
+  assert.match(customers, /rotatePortalLink/);
+  assert.match(customers, /revokePortalLink/);
+  assert.match(customers, /\/api\/customers\/' \+ id \+ '\/token\/rotate/);
+  assert.match(customers, /method: 'DELETE'/);
+  assert.doesNotMatch(admin, /customerLinksList/);
+  assert.doesNotMatch(admin, /copyCustomerLink/);
+});
+
+test('high-risk screens load shared safe DOM helper', () => {
+  const files = [
+    'public/admin.html',
+    'public/customers.html',
+    'public/dashboard.html',
+    'public/reports.html',
+    'public/finance.html',
+    'public/machine.html',
+    'public/orders.html',
+  ];
+
+  for (const file of files) {
+    assert.match(read(file), /\/safe-dom\.js/, file);
+  }
+
+  assert.match(read('public/safe-dom.js'), /window\.IronBendSafe/);
+});
+
+test('high-risk admin and reporting surfaces load auth client before shared navigation', () => {
+  for (const file of ['public/admin.html', 'public/finance.html', 'public/reports.html']) {
+    const html = read(file);
+    const authIndex = html.indexOf('src="/auth-client.js"');
+    const navIndex = html.indexOf('src="/nav.js"');
+
+    assert.notEqual(authIndex, -1, `${file} should load auth-client.js`);
+    assert.notEqual(navIndex, -1, `${file} should load nav.js`);
+    assert.ok(authIndex < navIndex, `${file} should load auth before nav`);
+  }
+});
+
+test('shared navigation preserves Tene logo aspect ratio', () => {
+  const nav = read('public/nav.js');
+  const theme = read('public/theme.css');
+
+  assert.match(nav, /#ib-logo-icon \{[\s\S]*height:auto/);
+  assert.match(nav, /#ib-drawer-logo \{[\s\S]*height:auto/);
+  assert.doesNotMatch(nav, /#ib-logo-icon \{[\s\S]*height:\s*42px/);
+  assert.match(theme, /#ib-logo img, #ib-drawer-logo \{[\s\S]*height: auto/);
+});
+
+test('dashboard production queue uses production queue API source', () => {
+  const dashboard = read('public/dashboard.html');
+
+  assert.match(dashboard, /\/api\/production-queue/);
+  assert.doesNotMatch(dashboard, /renderProdQueue\(dashData\.recentOrders\)/);
+  assert.match(dashboard, /renderProdQueue\(productionQueue\.items \|\| \[\]\)/);
+});
+
+test('reports screen uses authenticated APIs and escapes API-sourced table fields', () => {
+  const reports = read('public/reports.html');
+
+  assert.match(reports, /src="\/auth-client\.js"/);
+  assert.match(reports, /src="\/safe-dom\.js"/);
+  assert.match(reports, /\/api\/reports\/summary/);
+  assert.match(reports, /\/api\/machines\/oee/);
+  assert.match(reports, /escH\(w\.shape_name/);
+  assert.match(reports, /escH\(c\.name/);
+  assert.match(reports, /escH\(m\.order_num/);
+  assert.match(reports, /escH\(m\.name/);
+  assert.doesNotMatch(reports, /\$\{w\.shape_name/);
+  assert.doesNotMatch(reports, /\$\{c\.name/);
+  assert.doesNotMatch(reports, /\$\{m\.order_num/);
+});
+
+test('orders screen uses shared status transition contract', () => {
+  const orders = read('public/orders.html');
+  const statusClient = read('public/status-contracts-client.js');
+
+  assert.match(statusClient, /window\.IronBendStatus/);
+  assert.match(orders, /\/status-contracts-client\.js/);
+  assert.match(orders, /allowedOrderTransitions\(o\.status\)/);
+  assert.doesNotMatch(orders, /const statuses = \['/);
+});
+
+test('orders screen escapes API-sourced detail fields before innerHTML rendering', () => {
+  const orders = read('public/orders.html');
+
+  assert.match(orders, /escHtml\(o\.customer_name/);
+  assert.match(orders, /escHtml\(o\.delivery_address\)/);
+  assert.match(orders, /escHtml\(o\.driver_notes\)/);
+  assert.match(orders, /escHtml\(item\.note\)/);
+  assert.match(orders, /escHtml\(p\.package_code\)/);
+  assert.match(orders, /jsArg\(p\.package_code\)/);
+  assert.doesNotMatch(orders, /\$\{o\.driver_notes\}/);
+  assert.doesNotMatch(orders, /\$\{item\.note\}/);
+});
+
+test('order creation success copy does not promise production before approval', () => {
+  const index = read('public/index.html');
+
+  assert.match(index, /ממתינה לאישור לפני ייצור/);
+  assert.doesNotMatch(index, /נשלחה לתור הייצור/);
+});
+
+test('machine assignment queue uses production queue source of truth', () => {
+  const machine = read('public/machine.html');
+
+  assert.match(machine, /src="\/auth-client\.js"/);
+  assert.match(machine, /src="\/safe-dom\.js"/);
+  assert.match(machine, /\/status-contracts-client\.js/);
+  assert.match(machine, /ITEM_STATUS\.WAITING/);
+  assert.match(machine, /ITEM_STATUS\.IN_PRODUCTION/);
+  assert.match(machine, /ITEM_STATUS\.DONE/);
+  assert.match(machine, /\/api\/production-queue/);
+  assert.doesNotMatch(machine, /\/api\/orders\?status=/);
+  assert.doesNotMatch(machine, /fetch\(`\/api\/orders\/\$\{o\.id\}`/);
+  assert.match(machine, /escHtml\(item\.customerName/);
+  assert.match(machine, /jsArg\(item\.orderNum\)/);
+});
+
+test('production queue screen uses shared item status contract', () => {
+  const productionQueue = read('public/production-queue.html');
+
+  assert.match(productionQueue, /\/status-contracts-client\.js/);
+  assert.match(productionQueue, /src="\/safe-dom\.js"/);
+  assert.match(productionQueue, /ITEM_STATUS\.WAITING/);
+  assert.match(productionQueue, /ITEM_STATUS\.IN_PRODUCTION/);
+  assert.match(productionQueue, /ITEM_STATUS\.DONE/);
+  assert.match(productionQueue, /shift-tons'\)\.textContent = 'שגיאה'/);
+  assert.doesNotMatch(productionQueue, /status:\s*'בייצור'/);
+  assert.doesNotMatch(productionQueue, /status:\s*'הושלם'/);
+  assert.match(productionQueue, /escHtml\(item\.customer_name/);
+  assert.match(productionQueue, /jsArg\(item\.order_num\)/);
+});
+
+test('shop floor screens use shared item status values', () => {
+  const kiosk = read('public/kiosk.html');
+  const workerVisual = read('public/worker-visual.html');
+
+  assert.match(kiosk, /\/status-contracts-client\.js/);
+  assert.match(kiosk, /ITEM_STATUS\.DONE/);
+  assert.match(kiosk, /\/api\/kiosk\/operators/);
+  assert.match(kiosk, /\/api\/auth\/login/);
+  assert.match(kiosk, /IronBendAuth\.storeSession/);
+  assert.match(kiosk, /username:\s*op\.username/);
+  assert.doesNotMatch(kiosk, /\/api\/users/);
+  assert.doesNotMatch(kiosk, /op\.pin/);
+  assert.doesNotMatch(kiosk, /status:'הושלם'/);
+
+  assert.match(workerVisual, /\/status-contracts-client\.js/);
+  assert.match(workerVisual, /ITEM_STATUS\.IN_PRODUCTION/);
+  assert.match(workerVisual, /ITEM_STATUS\.DONE/);
+  assert.match(workerVisual, /ITEM_STATUS\.DELIVERED/);
+});
+
+test('price list management belongs to finance screen', () => {
+  const admin = read('public/admin.html');
+  const finance = read('public/finance.html');
+
+  assert.doesNotMatch(admin, /tab-pricelist/);
+  assert.doesNotMatch(admin, /loadPriceList/);
+  assert.doesNotMatch(admin, /savePriceList/);
+  assert.match(finance, /src="\/auth-client\.js"/);
+  assert.match(finance, /src="\/safe-dom\.js"/);
+  assert.match(finance, /loadSalesPriceList/);
+  assert.match(finance, /saveSalesPriceList/);
+  assert.match(finance, /\/api\/price-list/);
+  assert.match(finance, /loadSteelPricesSafe/);
+  assert.match(finance, /loadOrdersSafe/);
+  assert.match(finance, /loadCustomersSafe/);
+  assert.match(finance, /calcOrderCostSafe/);
+  assert.match(finance, /escH\(c\.name/);
+  assert.match(finance, /escH\(o\.order_num/);
+});
+
+test('driver management belongs to delivery admin screen', () => {
+  const admin = read('public/admin.html');
+  const deliveryAdmin = read('public/delivery-admin.html');
+  const nav = read('public/nav.js');
+
+  assert.doesNotMatch(admin, /tab-drivers/);
+  assert.doesNotMatch(admin, /loadDriversAdmin/);
+  assert.doesNotMatch(admin, /openDriverModal/);
+  assert.doesNotMatch(admin, /driverModal/);
+  assert.match(deliveryAdmin, /loadDriversAdmin/);
+  assert.match(deliveryAdmin, /\/api\/drivers\?all=1/);
+  assert.match(deliveryAdmin, /\/api\/drivers/);
+  assert.match(nav, /\/delivery-admin\.html/);
+});
+
+test('intake review and OCR training belong to intake screen', () => {
+  const admin = read('public/admin.html');
+  const intake = read('public/intake.html');
+  const nav = read('public/nav.js');
+
+  assert.doesNotMatch(admin, /tab-training/);
+  assert.doesNotMatch(admin, /loadOcrTraining/);
+  assert.doesNotMatch(admin, /saveOcrTraining/);
+  assert.doesNotMatch(admin, /loadIntakeQueue/);
+  assert.doesNotMatch(admin, /intakeApprove/);
+  assert.doesNotMatch(admin, /intakeReject/);
+  assert.match(intake, /loadOcrTraining/);
+  assert.match(intake, /saveOcrTraining/);
+  assert.match(intake, /loadIntakeQueue/);
+  assert.match(intake, /\/api\/intake\/training/);
+  assert.match(intake, /\/api\/intake\/log\?status=pending_review/);
+  assert.match(nav, /\/intake\.html/);
+});
+
+test('machine and workstation setup belong to production setup screen', () => {
+  const admin = read('public/admin.html');
+  const setup = read('public/production-setup.html');
+  const nav = read('public/nav.js');
+
+  assert.doesNotMatch(admin, /tab-machines/);
+  assert.doesNotMatch(admin, /tab-workstations/);
+  assert.doesNotMatch(admin, /loadMachinesAdmin/);
+  assert.doesNotMatch(admin, /saveMachinesAdmin/);
+  assert.doesNotMatch(admin, /openAddMachineModal/);
+  assert.doesNotMatch(admin, /loadWorkstations/);
+  assert.doesNotMatch(admin, /saveWorkstations/);
+  assert.match(setup, /loadMachinesAdmin/);
+  assert.match(setup, /saveMachinesAdmin/);
+  assert.match(setup, /loadWorkstations/);
+  assert.match(setup, /\/api\/machines/);
+  assert.match(nav, /\/production-setup\.html/);
+});
+
+test('platform admin quick links target module admin surfaces', () => {
+  const admin = read('public/admin.html');
+
+  assert.match(admin, /\/intake\.html/);
+  assert.match(admin, /\/customers\.html/);
+  assert.match(admin, /\/finance\.html/);
+  assert.match(admin, /\/delivery-admin\.html/);
+  assert.match(admin, /\/production-setup\.html/);
+  assert.doesNotMatch(admin, /href="\/machine\.html"/);
+  assert.doesNotMatch(admin, /href="\/kiosk\.html"/);
+  assert.doesNotMatch(admin, /href="\/driver\.html"/);
+  assert.doesNotMatch(admin, /class="topnav"/);
+  assert.doesNotMatch(admin, /\.machines-table/);
+  assert.doesNotMatch(admin, /\.ws-card/);
+});
+
+test('platform admin ERP connectors do not advertise unavailable demo actions', () => {
+  const admin = read('public/admin.html');
+
+  assert.doesNotMatch(admin, /placeholder="demo"/);
+  assert.doesNotMatch(admin, /alert\('בפיתוח'\)/);
+  assert.match(admin, /id="erp-sap" disabled/);
+  assert.match(admin, /id="erp-maven" disabled/);
+  assert.match(admin, /מחבר רשמי בתכנון/);
+});
+
+test('procurement screen is API-backed and no longer a demo stub', () => {
+  const procurement = read('public/procurement.html');
+
+  assert.match(procurement, /src="\/auth-client\.js"/);
+  assert.match(procurement, /src="\/safe-dom\.js"/);
+  assert.match(procurement, /loadProcurementData/);
+  assert.match(procurement, /\/api\/purchase-orders/);
+  assert.match(procurement, /\/api\/suppliers/);
+  assert.match(procurement, /\/api\/steel-prices/);
+  assert.match(procurement, /normalizePO/);
+  assert.match(procurement, /normalizeSupplier/);
+  assert.doesNotMatch(procurement, /BUG-47/);
+  assert.doesNotMatch(procurement, /coming soon banner/);
+  assert.doesNotMatch(procurement, /demo data/);
+  assert.doesNotMatch(procurement, /fallback to demo/i);
+});
+
+test('warehouse screen is API-backed and does not mask failures with mock logistics data', () => {
+  const warehouse = read('public/warehouse.html');
+
+  assert.match(warehouse, /src="\/auth-client\.js"/);
+  assert.match(warehouse, /src="\/safe-dom\.js"/);
+  assert.match(warehouse, /\/api\/packages/);
+  assert.match(warehouse, /\/api\/deliveries/);
+  assert.match(warehouse, /\/api\/suppliers/);
+  assert.match(warehouse, /\/api\/inventory/);
+  assert.doesNotMatch(warehouse, /getMockPackages/);
+  assert.doesNotMatch(warehouse, /getMockDeliveries/);
+  assert.doesNotMatch(warehouse, /getMockSuppliers/);
+  assert.doesNotMatch(warehouse, /getMockReceipts/);
+  assert.doesNotMatch(warehouse, /Mock success/i);
+  assert.doesNotMatch(warehouse, /Use mock data/i);
+});
+
+test('inventory screen is authenticated and covered by safe API loading', () => {
+  const inventory = read('public/inventory.html');
+
+  assert.match(inventory, /src="\/auth-client\.js"/);
+  assert.match(inventory, /src="\/safe-dom\.js"/);
+  assert.match(inventory, /\/api\/inventory\/summary/);
+  assert.match(inventory, /\/api\/inventory/);
+  assert.match(inventory, /\/api\/suppliers/);
+  assert.match(inventory, /\/api\/waste\/summary/);
+  assert.match(inventory, /IronBendSafe\.escapeHtml/);
+  assert.match(inventory, /שגיאה בטעינת ספקים/);
+  assert.doesNotMatch(inventory, /mock[A-Z]/);
+  assert.doesNotMatch(inventory, /demo data/i);
+});
+
+test('supplier portal is frozen instead of serving demo supplier data', () => {
+  const supplier = read('public/supplier.html');
+
+  assert.match(supplier, /פורטל הספקים מוקפא/);
+  assert.match(supplier, /מסך הרכש הפנימי/);
+  assert.doesNotMatch(supplier, /DEMO_SUPPLIERS/);
+  assert.doesNotMatch(supplier, /SUP-042/);
+  assert.doesNotMatch(supplier, /supplier_code/);
+  assert.doesNotMatch(supplier, /\/api\/purchase-orders\/' \+ activePO \+ '\/eta/);
+  assert.doesNotMatch(supplier, /method: 'POST',\s*body: fd/);
+});
+
+test('driver portal uses authenticated API calls and server delivery statuses', () => {
+  const driver = read('public/driver.html');
+
+  const authIndex = driver.indexOf('src="/auth-client.js"');
+  const safeIndex = driver.indexOf('src="/safe-dom.js"');
+  const navIndex = driver.indexOf('src="/nav.js"');
+
+  assert.notEqual(authIndex, -1, 'driver should load auth-client.js');
+  assert.notEqual(safeIndex, -1, 'driver should load safe-dom.js');
+  assert.notEqual(navIndex, -1, 'driver should load nav.js');
+  assert.ok(authIndex < navIndex, 'driver should load auth before nav');
+  assert.match(driver, /DELIVERY_STATUS/);
+  assert.match(driver, /PLANNED: 'מתוכנן'/);
+  assert.match(driver, /\[DELIVERY_STATUS\.WAITING, DELIVERY_STATUS\.PLANNED\]\.includes/);
+  assert.match(driver, /escHtml\(d\.order_num\)/);
+  assert.match(driver, /escHtml\(d\.delivery_address \|\| 'לא הוזנה'\)/);
+  assert.doesNotMatch(driver, /selectDriver\(\$\{JSON\.stringify/);
+});
+
+test('maintenance screen is API-backed and no longer falls back to mock maintenance data', () => {
+  const maintenance = read('public/maintenance.html');
+
+  assert.match(maintenance, /src="\/auth-client\.js"/);
+  assert.match(maintenance, /src="\/safe-dom\.js"/);
+  assert.match(maintenance, /\/api\/maintenance/);
+  assert.match(maintenance, /\/api\/loto/);
+  assert.match(maintenance, /\/api\/pm-schedule/);
+  assert.doesNotMatch(maintenance, /BUG-47/);
+  assert.doesNotMatch(maintenance, /coming soon banner/);
+  assert.doesNotMatch(maintenance, /mockMachines/);
+  assert.doesNotMatch(maintenance, /mockStats/);
+  assert.doesNotMatch(maintenance, /mockLogs/);
+  assert.doesNotMatch(maintenance, /mockLoto/);
+  assert.doesNotMatch(maintenance, /mockPm/);
+});
+
+test('projects screen is API-backed and no longer owns finance credit workflows', () => {
+  const projects = read('public/projects.html');
+
+  assert.match(projects, /src="\/auth-client\.js"/);
+  assert.match(projects, /src="\/safe-dom\.js"/);
+  assert.match(projects, /\/api\/projects/);
+  assert.match(projects, /\/api\/sites/);
+  assert.doesNotMatch(projects, /BUG-47/);
+  assert.doesNotMatch(projects, /coming soon banner/);
+  assert.doesNotMatch(projects, /\/api\/credit/);
+  assert.doesNotMatch(projects, /creditTable/);
+  assert.doesNotMatch(projects, /openCreditModal/);
+  assert.doesNotMatch(projects, /מסגרות אשראי/);
+});
+
+test('war room is API-backed and does not fall back to local mock incidents', () => {
+  const warroom = read('public/warroom.html');
+
+  assert.match(warroom, /src="\/auth-client\.js"/);
+  assert.match(warroom, /src="\/safe-dom\.js"/);
+  assert.match(warroom, /\/api\/incidents/);
+  assert.match(warroom, /\/api\/machines/);
+  assert.match(warroom, /normalizeIncident/);
+  assert.match(warroom, /update_text/);
+  assert.doesNotMatch(warroom, /BUG-47/);
+  assert.doesNotMatch(warroom, /coming soon banner/);
+  assert.doesNotMatch(warroom, /MOCK_/);
+  assert.doesNotMatch(warroom, /local-\'+Date\.now/);
+  assert.doesNotMatch(warroom, /API not available/);
+  assert.doesNotMatch(warroom, /timelineEntry/);
+});
+
+test('quality screen is API-backed and does not fall back to local NCR or CAPA demo data', () => {
+  const quality = read('public/quality.html');
+  const server = read('server.js');
+
+  assert.match(quality, /src="\/auth-client\.js"/);
+  assert.match(quality, /src="\/safe-dom\.js"/);
+  assert.match(quality, /\/api\/quality/);
+  assert.match(quality, /\/api\/ncr/);
+  assert.match(quality, /\/api\/capa/);
+  assert.match(quality, /normalizeNCR/);
+  assert.match(quality, /normalizeCAPA/);
+  assert.match(quality, /return false/);
+  assert.doesNotMatch(quality, /Generate local IDs for demo/);
+  assert.doesNotMatch(quality, /seedNCR/);
+  assert.doesNotMatch(quality, /seedCAPA/);
+  assert.doesNotMatch(quality, /_ncrSeq/);
+  assert.doesNotMatch(quality, /_capaSeq/);
+  assert.doesNotMatch(quality, /NCR-101/);
+  assert.doesNotMatch(quality, /CAPA-201/);
+  assert.doesNotMatch(quality, /ncrList\.unshift/);
+  assert.doesNotMatch(quality, /capaList\.unshift/);
+  assert.match(server, /verification_method = COALESCE/);
+});
+
+test('shared navigation exposes modules converted from stubs', () => {
+  const nav = read('public/nav.js');
+
+  assert.match(nav, /\/projects\.html/);
+  assert.match(nav, /\/warroom\.html/);
+  assert.match(nav, /\/maintenance\.html/);
+  assert.match(nav, /\/quality\.html/);
+  assert.doesNotMatch(nav, /warroom removed \(stub\)/);
+  assert.doesNotMatch(nav, /stub pages hidden/);
+});

@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex,nofollow"><!-- BUG-47: stub page -->
 <title>רכש – IronBend</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -163,11 +162,6 @@ svg.line-chart{width:100%;height:120px;overflow:visible;}
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
-
-<!-- BUG-47: coming soon banner for stub page -->
-<div style="background:#fef3cd;border:1px solid #f5c518;border-radius:10px;padding:16px 24px;margin:80px 24px 0;text-align:center;font-family:'Heebo',sans-serif;font-size:15px;color:#7a5800">
-  🚧 <strong>מודול רכש — בפיתוח</strong> — ייפתח בגרסה הבאה.
-</div>
 
 <div class="page">
   <div class="page-header">
@@ -526,45 +520,84 @@ svg.line-chart{width:100%;height:120px;overflow:visible;}
   </div>
 </div>
 
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js"></script>
 <script src="/nav.js"></script>
 <script>
 // ════════════════════════════════════════════════════
-// DATA STORE (demo data – replace with real API calls)
+// DATA STORE
 // ════════════════════════════════════════════════════
-let POs = [
-  {id:'PO-2025-001',supplier:'אחים כהן ברזל',diameter:16,materialType:'coil',qty:8.5,pricePerTon:3200,deliveryDate:'2025-06-10',status:'arrived',notes:'',arrivedDate:'2025-06-08'},
-  {id:'PO-2025-002',supplier:'מטלורג בע"מ',diameter:12,materialType:'coil',qty:5,pricePerTon:3350,deliveryDate:'2025-06-18',status:'transit',notes:''},
-  {id:'PO-2025-003',supplier:'ברזל ישיר',diameter:20,materialType:'straight',qty:3,pricePerTon:3450,deliveryDate:'2025-06-25',status:'approved',notes:''},
-  {id:'PO-2025-004',supplier:'אחים כהן ברזל',diameter:10,materialType:'coil',qty:6,pricePerTon:3150,deliveryDate:'2025-07-01',status:'pending',notes:'נדרש אישור מנהל'},
-  {id:'PO-2025-005',supplier:'מטלורג בע"מ',diameter:25,materialType:'straight',qty:2.5,pricePerTon:3600,deliveryDate:'2025-07-05',status:'pending',notes:''},
-  {id:'PO-2025-006',supplier:'סגסוגות מתקדמות',diameter:32,materialType:'straight',qty:1.2,pricePerTon:3900,deliveryDate:'2025-07-10',status:'draft',notes:''},
-  {id:'PO-2025-007',supplier:'ברזל ישיר',diameter:8,materialType:'coil',qty:10,pricePerTon:3050,deliveryDate:'2025-05-30',status:'arrived',arrivedDate:'2025-05-28',notes:''},
-  {id:'PO-2025-008',supplier:'סגסוגות מתקדמות',diameter:40,materialType:'straight',qty:0.8,pricePerTon:4200,deliveryDate:'2025-06-30',status:'cancelled',notes:'ספק לא זמין'},
-];
-
-let Suppliers = [
-  {id:'s1',name:'אחים כהן ברזל',contact:'יוסי כהן',phone:'052-1234567',email:'yossi@cohen-iron.co.il',address:'אזור תעשייה רמת גן',payment:'30',notes:'ספק ראשי',suppliedTons:340,avgDeliveryDays:5,onTimePct:92,qualityPct:97,score:4.5,risk:'low',diameters:[10,12,16,20]},
-  {id:'s2',name:'מטלורג בע"מ',contact:'רחל לוי',phone:'054-7654321',email:'rachel@metalurg.co.il',address:'אשדוד, שכונת תעשייה',payment:'60',notes:'טוב לקטרים גדולים',suppliedTons:180,avgDeliveryDays:7,onTimePct:85,qualityPct:94,score:3.8,risk:'medium',diameters:[20,25,32]},
-  {id:'s3',name:'ברזל ישיר',contact:'מוטי ברק',phone:'050-9876543',email:'moti@iron-direct.co.il',address:'פתח תקווה',payment:'45',notes:'מחירים תחרותיים',suppliedTons:220,avgDeliveryDays:4,onTimePct:96,qualityPct:99,score:4.8,risk:'low',diameters:[6,8,10,12]},
-  {id:'s4',name:'סגסוגות מתקדמות',contact:'אבי שמש',phone:'053-1122334',email:'avi@alloys.co.il',address:'קרית גת',payment:'30',notes:'ספק יחיד לקוטר 40',suppliedTons:45,avgDeliveryDays:12,onTimePct:70,qualityPct:88,score:2.5,risk:'high',diameters:[36,40]},
-];
-
-let SteelPrices = [
-  {date:'2024-07-01',price:2950,source:'ספק ראשי'},
-  {date:'2024-08-01',price:3000,source:'בורסה'},
-  {date:'2024-09-01',price:3100,source:'ספק ראשי'},
-  {date:'2024-10-01',price:3050,source:'בורסה'},
-  {date:'2024-11-01',price:3200,source:'ספק ראשי'},
-  {date:'2024-12-01',price:3180,source:'בורסה'},
-  {date:'2025-01-01',price:3250,source:'ספק ראשי'},
-  {date:'2025-02-01',price:3300,source:'בורסה'},
-  {date:'2025-03-01',price:3150,source:'ספק ראשי'},
-  {date:'2025-04-01',price:3280,source:'בורסה'},
-  {date:'2025-05-01',price:3350,source:'ספק ראשי'},
-  {date:'2025-06-01',price:3420,source:'ספק ראשי'},
-];
+let POs = [];
+let Suppliers = [];
+let SteelPrices = [];
 
 let currentReceivePOId = null;
+const escHtml = window.SafeDOM?.escapeHTML || (value => String(value ?? '').replace(/[&<>"']/g, ch => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}[ch])));
+const jsArg = value => JSON.stringify(String(value ?? '')).replace(/</g, '\\u003c');
+
+function normalizePO(row){
+  return {
+    rawId: row.id,
+    id: row.po_num || row.id,
+    supplierId: row.supplier_id,
+    supplier: row.supplier_name || '—',
+    diameter: Number(row.diameter || 0),
+    materialType: row.material_type || 'coil',
+    qty: Number(row.quantity_ton || 0),
+    pricePerTon: Number(row.price_per_ton || 0),
+    deliveryDate: row.expected_date || '',
+    status: normalizePOStatus(row.status),
+    notes: row.notes || '',
+    arrivedDate: row.received_at ? String(row.received_at).slice(0,10) : '',
+  };
+}
+
+function normalizeSupplier(row){
+  return {
+    id: row.id,
+    name: row.name || '—',
+    contact: row.contact || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    address: row.address || '',
+    payment: row.payment_terms || '',
+    notes: row.notes || '',
+    suppliedTons: 0,
+    avgDeliveryDays: 0,
+    onTimePct: 0,
+    qualityPct: 0,
+    score: 0,
+    risk: 'low',
+    diameters: [],
+  };
+}
+
+function normalizeSteelPrice(row){
+  return {
+    date: row.effective_date || row.date || row.created_at?.slice(0,10) || '',
+    price: Number(row.price_per_ton || row.price || 0),
+    source: row.supplier_name || row.source || row.notes || '—',
+  };
+}
+
+function normalizePOStatus(status){
+  const s = String(status || '').trim();
+  if (!s) return 'draft';
+  if (['draft','pending','approved','transit','arrived','cancelled'].includes(s)) return s;
+  if (s.includes('טיוט')) return 'draft';
+  if (s.includes('ממת') || s.includes('אישור')) return 'pending';
+  if (s.includes('מאושר')) return 'approved';
+  if (s.includes('דרך')) return 'transit';
+  if (s.includes('הגיע')) return 'arrived';
+  if (s.includes('בוט')) return 'cancelled';
+  return s;
+}
 
 // ════════════════════════════════════════════════════
 // TABS
@@ -625,8 +658,8 @@ function renderPOTable(){
 
   let rows = POs.filter(p=>{
     if(statusF && p.status!==statusF) return false;
-    if(supplierF && p.supplier!==supplierF) return false;
-    if(search && !p.id.toLowerCase().includes(search) && !p.supplier.toLowerCase().includes(search)) return false;
+    if(supplierF && String(p.supplierId)!==String(supplierF)) return false;
+    if(search && !String(p.id).toLowerCase().includes(search) && !String(p.supplier).toLowerCase().includes(search)) return false;
     return true;
   });
 
@@ -640,18 +673,18 @@ function renderPOTable(){
     const st = STATUS_MAP[p.status]||{label:p.status,cls:'badge-draft'};
     const total = p.qty*p.pricePerTon;
     let actions = '';
-    if(p.status==='pending') actions+=`<button class="btn btn-sm btn-info" onclick="approvePO('${p.id}')">אשר</button> `;
-    if(['approved','transit'].includes(p.status)) actions+=`<button class="btn btn-sm btn-success" onclick="openReceiveModal('${p.id}')">קבל סחורה</button> `;
-    if(p.status!=='cancelled'&&p.status!=='arrived') actions+=`<button class="btn btn-sm btn-danger" onclick="cancelPO('${p.id}')">בטל</button>`;
+    if(['draft','pending'].includes(p.status)) actions+=`<button class="btn btn-sm btn-info" onclick="approvePO(${jsArg(p.rawId)})">אשר</button> `;
+    if(['approved','transit'].includes(p.status)) actions+=`<button class="btn btn-sm btn-success" onclick="openReceiveModal(${jsArg(p.rawId)})">קבל סחורה</button> `;
+    if(p.status!=='cancelled'&&p.status!=='arrived') actions+=`<button class="btn btn-sm btn-danger" onclick="cancelPO(${jsArg(p.rawId)})">בטל</button>`;
     return `<tr>
-      <td><strong>${p.id}</strong></td>
-      <td>${p.supplier}</td>
+      <td><strong>${escHtml(p.id)}</strong></td>
+      <td>${escHtml(p.supplier)}</td>
       <td>∅${p.diameter} מ"מ</td>
       <td>${p.qty.toFixed(1)}</td>
       <td>${p.pricePerTon.toLocaleString('he-IL')} ₪</td>
       <td><strong>${formatMoney(total)}</strong></td>
       <td>${formatDate(p.deliveryDate)}</td>
-      <td><span class="badge ${st.cls}">${st.label}</span></td>
+      <td><span class="badge ${st.cls}">${escHtml(st.label)}</span></td>
       <td><div class="action-group">${actions}</div></td>
     </tr>`;
   }).join('');
@@ -660,18 +693,20 @@ function renderPOTable(){
 function populateSupplierFilter(){
   const sel = document.getElementById('po-filter-supplier');
   const po_sel = document.getElementById('po-supplier-sel');
+  sel.innerHTML = '<option value="">כל הספקים</option>';
+  po_sel.innerHTML = '<option value="">— בחר ספק —</option>';
   Suppliers.forEach(s=>{
     const o1 = document.createElement('option');
-    o1.value = s.name; o1.textContent = s.name;
+    o1.value = s.id; o1.textContent = s.name;
     sel.appendChild(o1);
     const o2 = document.createElement('option');
-    o2.value = s.name; o2.textContent = s.name;
+    o2.value = s.id; o2.textContent = s.name;
     po_sel.appendChild(o2);
   });
 }
 
 function approvePO(id){
-  const po = POs.find(p=>p.id===id);
+  const po = POs.find(p=>String(p.rawId)===String(id));
   if(!po) return;
   po.status = 'approved';
   updateKPIs();
@@ -682,7 +717,7 @@ function approvePO(id){
 
 function cancelPO(id){
   if(!confirm('לבטל את ההזמנה?')) return;
-  const po = POs.find(p=>p.id===id);
+  const po = POs.find(p=>String(p.rawId)===String(id));
   if(!po) return;
   po.status = 'cancelled';
   updateKPIs();
@@ -728,27 +763,34 @@ function submitNewPO(){
     return;
   }
 
-  const newId = 'PO-'+new Date().getFullYear()+'-'+(String(POs.length+1).padStart(3,'0'));
-  const newPO = {id:newId,supplier,diameter,materialType,qty,pricePerTon:price,deliveryDate,status:'pending',notes};
-  POs.unshift(newPO);
-  updateKPIs();
-  renderPOTable();
-  closeModal('modal-new-po');
-
-  fetch('/api/purchase-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(newPO)}).catch(()=>{});
+  const payload = {
+    supplier_id: Number(supplier),
+    diameter,
+    material_type: materialType,
+    quantity_ton: qty,
+    price_per_ton: price,
+    expected_date: deliveryDate,
+    status: 'pending',
+    notes,
+  };
+  fetch('/api/purchase-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>r.ok?r.json():Promise.reject(new Error('PO create failed')))
+    .then(()=>loadProcurementData())
+    .then(()=>closeModal('modal-new-po'))
+    .catch(()=>alert('שגיאה ביצירת הזמנת רכש'));
 }
 
 // ════════════════════════════════════════════════════
 // RECEIVE MODAL
 // ════════════════════════════════════════════════════
 function openReceiveModal(id){
-  const po = POs.find(p=>p.id===id);
+  const po = POs.find(p=>String(p.rawId)===String(id));
   if(!po) return;
   currentReceivePOId = id;
 
   document.getElementById('receive-po-info').innerHTML = `
-    <div class="po-detail-item"><span class="lbl">מספר PO</span><span class="val">${po.id}</span></div>
-    <div class="po-detail-item"><span class="lbl">ספק</span><span class="val">${po.supplier}</span></div>
+    <div class="po-detail-item"><span class="lbl">מספר PO</span><span class="val">${escHtml(po.id)}</span></div>
+    <div class="po-detail-item"><span class="lbl">ספק</span><span class="val">${escHtml(po.supplier)}</span></div>
     <div class="po-detail-item"><span class="lbl">קוטר</span><span class="val">∅${po.diameter} מ"מ</span></div>
     <div class="po-detail-item"><span class="lbl">כמות מוזמנת</span><span class="val">${po.qty.toFixed(1)} טון</span></div>
     <div class="po-detail-item"><span class="lbl">סה"כ</span><span class="val">${formatMoney(po.qty*po.pricePerTon)} ₪</span></div>
@@ -771,7 +813,7 @@ function submitReceive(){
     return;
   }
 
-  const po = POs.find(p=>p.id===currentReceivePOId);
+  const po = POs.find(p=>String(p.rawId)===String(currentReceivePOId));
   if(po){
     po.status='arrived';
     po.arrivedDate = new Date().toISOString().slice(0,10);
@@ -783,9 +825,8 @@ function submitReceive(){
   renderPOTable();
   closeModal('modal-receive');
 
-  const payload = {heatNumber:heatNum,actualWeightKg:weight,certNumber:cert,notes};
+  const payload = {heat_number:heatNum,received_weight:weight,certificate_num:cert,notes};
   fetch(`/api/purchase-orders/${currentReceivePOId}/receive`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
-  fetch('/api/inventory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,poId:currentReceivePOId})}).catch(()=>{});
 }
 
 // ════════════════════════════════════════════════════
@@ -808,7 +849,7 @@ function renderSuppliers(){
 
     html += `<tr class="supplier-row" onclick="toggleSupplier('s-expand-${idx}')">
       <td style="color:var(--text-muted);font-size:12px;">▶</td>
-      <td><strong>${s.name}</strong> ${singleBadge}</td>
+      <td><strong>${escHtml(s.name)}</strong> ${singleBadge}</td>
       <td>${s.suppliedTons} טון</td>
       <td>${s.avgDeliveryDays} ימים</td>
       <td>
@@ -828,8 +869,8 @@ function renderSuppliers(){
         </div>
       </td>
       <td>${stars}</td>
-      <td><span class="badge ${riskCls}">${riskLabel}</span></td>
-      <td><button class="btn btn-sm btn-outline" onclick="event.stopPropagation();editSupplier('${s.id}')">עריכה</button></td>
+      <td><span class="badge ${riskCls}">${escHtml(riskLabel)}</span></td>
+      <td><button class="btn btn-sm btn-outline" onclick="event.stopPropagation();editSupplier(${jsArg(s.id)})">עריכה</button></td>
     </tr>
     <tr class="supplier-expand" id="s-expand-${idx}">
       <td colspan="9">
@@ -845,9 +886,9 @@ function renderSuppliers(){
             <h4>היסטוריית ביצועים</h4>
             <div class="bar-chart">${generateBarChart(s)}</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
-              📞 ${s.phone} &nbsp;·&nbsp; ✉️ ${s.email}<br>
-              📍 ${s.address} &nbsp;·&nbsp; 💳 שוטף +${s.payment}<br>
-              💬 ${s.notes||'—'}
+              📞 ${escHtml(s.phone)} &nbsp;·&nbsp; ✉️ ${escHtml(s.email)}<br>
+              📍 ${escHtml(s.address)} &nbsp;·&nbsp; 💳 ${escHtml(s.payment)}<br>
+              💬 ${escHtml(s.notes||'—')}
             </div>
           </div>
         </div>
@@ -867,7 +908,7 @@ function getSupplierLastPOs(name){
   if(!rows.length) return '<tr><td colspan="4" style="color:var(--text-muted);font-size:11px;padding:8px 10px;">אין הזמנות</td></tr>';
   return rows.map(p=>{
     const st=STATUS_MAP[p.status]||{label:p.status,cls:'badge-draft'};
-    return `<tr><td>${p.id}</td><td>∅${p.diameter}</td><td>${p.qty}</td><td><span class="badge ${st.cls}" style="font-size:10px;">${st.label}</span></td></tr>`;
+    return `<tr><td>${escHtml(p.id)}</td><td>∅${p.diameter}</td><td>${p.qty}</td><td><span class="badge ${st.cls}" style="font-size:10px;">${escHtml(st.label)}</span></td></tr>`;
   }).join('');
 }
 
@@ -931,20 +972,25 @@ function submitSupplier(){
     phone:document.getElementById('sup-phone').value,
     email:document.getElementById('sup-email').value,
     address:document.getElementById('sup-address').value,
-    payment:document.getElementById('sup-payment').value,
+    payment_terms:document.getElementById('sup-payment').value,
     notes:document.getElementById('sup-notes').value,
   };
 
   if(id){
-    const s = Suppliers.find(x=>x.id===id);
-    if(s) Object.assign(s,data);
+    fetch(`/api/suppliers/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+      .then(r=>r.ok?r.json():Promise.reject(new Error('Supplier update failed')))
+      .then(()=>loadProcurementData())
+      .then(()=>closeModal('modal-supplier'))
+      .catch(()=>alert('שגיאה בעדכון ספק'));
+    return;
   } else {
-    Suppliers.push({id:'s'+Date.now(),...data,suppliedTons:0,avgDeliveryDays:0,onTimePct:0,qualityPct:0,score:0,risk:'low',diameters:[]});
+    fetch('/api/suppliers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+      .then(r=>r.ok?r.json():Promise.reject(new Error('Supplier create failed')))
+      .then(()=>loadProcurementData())
+      .then(()=>closeModal('modal-supplier'))
+      .catch(()=>alert('שגיאה ביצירת ספק'));
+    return;
   }
-
-  renderSuppliers();
-  closeModal('modal-supplier');
-  fetch('/api/suppliers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(()=>{});
 }
 
 // ════════════════════════════════════════════════════
@@ -1055,10 +1101,15 @@ function submitPrice(){
   const price = parseInt(document.getElementById('price-value-input').value);
   const source = document.getElementById('price-source-input').value||'—';
   if(!date||!price){alert('נא למלא תאריך ומחיר');return;}
-  SteelPrices.push({date,price,source});
-  closeModal('modal-price');
-  renderPrices();
-  fetch('/api/steel-prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,price,source})}).catch(()=>{});
+  fetch('/api/steel-prices',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ effective_date:date, price_per_ton:price, notes:source })
+  })
+    .then(r=>r.ok?r.json():Promise.reject(new Error('Steel price update failed')))
+    .then(()=>loadProcurementData())
+    .then(()=>closeModal('modal-price'))
+    .catch(()=>alert('שגיאה בעדכון מחיר ברזל'));
 }
 
 // ════════════════════════════════════════════════════
@@ -1088,24 +1139,45 @@ function formatDate(d){
 // ════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════
-function init(){
+async function loadProcurementData(){
+  const [poResponse, supplierResponse, priceResponse] = await Promise.all([
+    fetch('/api/purchase-orders'),
+    fetch('/api/suppliers'),
+    fetch('/api/steel-prices'),
+  ]);
+  if (!poResponse.ok || !supplierResponse.ok || !priceResponse.ok) throw new Error('Procurement API failed');
+
+  const [poData, supplierData, priceData] = await Promise.all([
+    poResponse.json(),
+    supplierResponse.json(),
+    priceResponse.json(),
+  ]);
+
+  POs = Array.isArray(poData) ? poData.map(normalizePO) : [];
+  Suppliers = Array.isArray(supplierData) ? supplierData.map(normalizeSupplier) : [];
+  SteelPrices = Array.isArray(priceData) ? priceData.map(normalizeSteelPrice).filter(p=>p.date && p.price) : [];
+
   populateSupplierFilter();
   updateKPIs();
   renderPOTable();
   renderSuppliers();
+  renderPrices();
+}
 
-  // Try real API, fallback to demo data
-  fetch('/api/purchase-orders').then(r=>r.json()).then(data=>{
-    if(Array.isArray(data)&&data.length){POs=data;updateKPIs();renderPOTable();}
-  }).catch(()=>{});
-
-  fetch('/api/suppliers').then(r=>r.json()).then(data=>{
-    if(Array.isArray(data)&&data.length){Suppliers=data;renderSuppliers();updateKPIs();}
-  }).catch(()=>{});
-
-  fetch('/api/steel-prices').then(r=>r.json()).then(data=>{
-    if(Array.isArray(data)&&data.length){SteelPrices=data;}
-  }).catch(()=>{});
+async function init(){
+  try {
+    await loadProcurementData();
+  } catch(e) {
+    POs = [];
+    Suppliers = [];
+    SteelPrices = [];
+    populateSupplierFilter();
+    updateKPIs();
+    renderPOTable();
+    renderSuppliers();
+    renderPrices();
+    alert('שגיאה בטעינת נתוני רכש. בדוק הרשאות או חיבור שרת.');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
