@@ -11,6 +11,12 @@
     "pm2:logs": "pm2 logs ironbend",
     "pm2:save": "pm2 save",
     "test": "node --test test/*.test.js",
+    "test:auth": "node test/auth-core.test.js && node test/permissions.test.js",
+    "test:client": "node test/client-auth-contract.test.js",
+    "test:intake": "node test/intake-parser.test.js",
+    "test:security": "node test/security-routes.test.js",
+    "test:smoke": "node test/app-smoke.test.js",
+    "test:status": "node test/status-contracts.test.js",
     "auth:migrate:dry-run": "node scripts/migrate-auth.js",
     "auth:migrate": "node scripts/migrate-auth.js --apply"
   },

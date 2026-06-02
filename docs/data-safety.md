@@ -2,6 +2,9 @@
 
 IronBend must not silently create a blank production database during deployment.
 
+For the full change gate used before modules, fixes, and deployments, see
+`docs/change-control-protocol.md`.
+
 ## Production Startup Guard
 
 - Production uses `DB_PATH=/data/ironbend.db`.

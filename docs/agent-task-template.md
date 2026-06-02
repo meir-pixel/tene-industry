@@ -7,6 +7,7 @@ is to prevent broad, overlapping, or speculative work.
 
 - Task ID:
 - Module owner:
+- Data level: `D0` / `D1` / `D2` / `D3` / `D4` from `docs/change-control-protocol.md`
 - Agent type: `explorer` or `worker`
 - Code edits allowed: `yes` / `no`
 - Branch/worktree:
@@ -68,7 +69,10 @@ For worker tasks:
 
 ## Acceptance Checks
 
-- 
+- Targeted tests:
+- Full tests required: `yes` / `no`
+- Data audit required: `yes` / `no`
+- Rollback note:
 
 ## Handoff Notes
 
