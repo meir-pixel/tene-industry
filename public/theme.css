@@ -362,14 +362,72 @@ input:focus, select:focus, textarea:focus, .form-control:focus, .search-box:focu
 }
 
 .btn, .btn-sm, .filter-btn, .status-btn, .machine-tab, .new-order-btn,
-button, a.print-btn {
+button, a.print-btn, .submit-btn, .channel-btn, .priority-btn, .add-pallet-btn,
+.add-item-btn, .delete-btn, .tab-btn, .btn-new, .btn-save, .btn-cancel,
+.action-btn, .item-btn, .period-btn, .go-btn, .alert-resolve {
   font-family: 'Heebo', sans-serif !important;
 }
 
-.btn-primary, .new-order-btn, .print-btn, button[type=submit] {
+.btn, .btn-sm, .filter-btn, .status-btn, .machine-tab, .channel-btn,
+.priority-btn, .tab-btn, .btn-new, .btn-save, .btn-cancel, .item-btn,
+.period-btn, .go-btn, .alert-resolve {
+  min-height: 36px !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease, color .14s ease !important;
+}
+
+.btn:hover, .btn-sm:hover, .filter-btn:hover, .status-btn:hover, .machine-tab:hover,
+.channel-btn:hover, .priority-btn:hover, .tab-btn:hover, .btn-new:hover, .btn-save:hover,
+.btn-cancel:hover, .item-btn:hover, .period-btn:hover, .go-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 8px 20px rgba(2,26,72,0.10) !important;
+}
+
+.btn-primary, .new-order-btn, .print-btn, button[type=submit], .submit-btn,
+.btn-save, .btn-new, .add-pallet-btn, .add-item-btn, .action-btn.start,
+.action-btn.finish {
   background: linear-gradient(135deg, var(--app-orange), #f08a24) !important;
   color: #fff !important;
   border-color: transparent !important;
+}
+
+.btn-outline, .btn-cancel, .filter-btn, .status-btn, .machine-tab, .channel-btn,
+.priority-btn, .period-btn, .go-btn, .action-btn.cancel {
+  background: #ffffff !important;
+  color: var(--app-muted) !important;
+  border: 1px solid var(--app-line) !important;
+}
+
+.filter-btn.active, .status-btn.cur, .machine-tab.active, .tab-btn.active,
+.channel-btn.active, .period-btn.active {
+  background: rgba(223,80,0,0.10) !important;
+  border-color: rgba(223,80,0,0.45) !important;
+  color: var(--app-orange) !important;
+  box-shadow: inset 0 -2px 0 var(--app-orange) !important;
+}
+
+.btn-success, .item-btn-start, .item-btn-done {
+  background: rgba(26,122,66,0.12) !important;
+  color: #1a7a42 !important;
+  border: 1px solid rgba(26,122,66,0.35) !important;
+}
+
+.btn-danger, .delete-btn, .item-btn-waste {
+  background: rgba(184,50,39,0.10) !important;
+  color: #b83227 !important;
+  border: 1px solid rgba(184,50,39,0.35) !important;
+}
+
+.btn-warning {
+  background: rgba(168,107,0,0.12) !important;
+  color: #a86b00 !important;
+  border: 1px solid rgba(168,107,0,0.35) !important;
+}
+
+.actions, .item-actions, .modal-footer, .modal-actions, .status-actions,
+.header-actions, .success-actions {
+  gap: 8px !important;
 }
 
 .section-title, .d-title, .page-title {

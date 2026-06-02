@@ -109,11 +109,11 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 }
 
 /* ── DETAIL PANEL ── */
-.detail-overlay{position:fixed;inset:56px 0 0;background:rgba(2,26,72,0.18);z-index:500;
-  display:flex;align-items:flex-start;justify-content:center;padding:20px;
-  opacity:0;pointer-events:none;transition:opacity .18s;backdrop-filter:blur(3px);}
+.detail-overlay{position:fixed;inset:56px 0 0;background:rgba(2,26,72,0.34);z-index:500;
+  display:flex;align-items:flex-start;justify-content:center;padding:22px;
+  opacity:0;pointer-events:none;transition:opacity .18s;backdrop-filter:blur(5px);}
 .detail-overlay.show{opacity:1;pointer-events:all;}
-.detail-panel{width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow-y:auto;
+.detail-panel{width:min(1040px,calc(100vw - 44px));max-height:calc(100vh - 104px);overflow-y:auto;
   background:linear-gradient(180deg,#fff 0%,#f8fafc 100%);border:1px solid rgba(2,26,72,0.12);
   border-radius:22px;transform:translateY(12px) scale(.985);transition:transform .18s;
   box-shadow:0 24px 80px rgba(2,26,72,0.26);}
@@ -169,10 +169,14 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .is-done{background:rgba(26,122,66,0.15);color:var(--success);}
 .prog-bar{height:3px;background:rgba(0,0,0,0.06);border-radius:2px;margin-top:4px;}
 .prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s;}
-.print-btns{display:flex;gap:10px;flex-wrap:wrap;}
+.print-btns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
 .print-btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;
-  text-decoration:none;border-radius:12px;font-size:14px;font-weight:800;font-family:inherit;color:#fff;
-  box-shadow:0 8px 22px rgba(2,26,72,0.12);}
+  justify-content:center;text-decoration:none;border-radius:12px;font-size:14px;font-weight:800;font-family:inherit;color:#fff;
+  border:1px solid transparent;box-shadow:0 8px 22px rgba(2,26,72,0.12);transition:transform .16s ease,box-shadow .16s ease;}
+.print-btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(2,26,72,0.16);}
+.print-btn.cards{background:linear-gradient(135deg,#021A48,#17356f) !important;}
+.print-btn.a4{background:linear-gradient(135deg,#1a7a42,#0f5a2f) !important;}
+.print-btn.delivery{background:linear-gradient(135deg,#6d217d,#481652) !important;}
 
 @media(max-width:640px){
   .detail-overlay{inset:56px 0 0;padding:0;background:rgba(2,26,72,0.24);}
@@ -185,6 +189,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   .item-visual{min-height:150px;}
   .item-kpis{grid-template-columns:repeat(2,1fr);}
   .print-btns{flex-direction:column;}
+  .print-btns{display:flex;}
   .print-btn{justify-content:center;}
 }
 </style>
@@ -555,9 +560,9 @@ function buildDetailHTML(o, pkgs) {
 
   // ── Print buttons
   const prints = `<div class="print-btns">
-    <a class="print-btn" href="/api/orders/${o.id}/print-cards" target="_blank" style="background:linear-gradient(135deg,#021A48,#17356f)">🖨️ כרטיסיות ייצור</a>
-    <a class="print-btn" href="/api/orders/${o.id}/print-a4" target="_blank" style="background:linear-gradient(135deg,#1a7a42,#0f5a2f)">📄 הדפסת A4</a>
-    <a class="print-btn" href="/api/orders/${o.id}/delivery-certificate" target="_blank" style="background:linear-gradient(135deg,#6d217d,#481652)">📋 תעודת משלוח</a>
+    <a class="print-btn cards" href="/api/orders/${o.id}/print-cards" target="_blank">🖨️ כרטיסיות ייצור</a>
+    <a class="print-btn a4" href="/api/orders/${o.id}/print-a4" target="_blank">📄 הדפסת A4</a>
+    <a class="print-btn delivery" href="/api/orders/${o.id}/delivery-certificate" target="_blank">📋 תעודת משלוח</a>
   </div>`;
 
   // ── Info
