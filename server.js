@@ -2801,8 +2801,8 @@ function getIntakeTrainingGuidance(limit = 12) {
 }
 
 app.post('/api/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, upload.single('image'), async (req, res) => {
-  if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
-  const openaiKey = process.env.OPENAI_API_KEY;
+  if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
+  const openaiKey = getSetting('OPENAI_API_KEY');
   if (!openaiKey) return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
   if (!req.file) return res.status(400).json({ error: 'Image or PDF is required' });
   const mime = req.file.mimetype || 'image/jpeg';
@@ -2883,7 +2883,7 @@ Use one segment per visible side. angle_deg is the interior angle after that seg
 Return JSON that matches the requested schema only.`;
   try {
     const response = await require('axios').post('https://api.openai.com/v1/responses', {
-      model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+      model: getSetting('OPENAI_MODEL') || 'gpt-5.4-mini',
       input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }, attachment] }],
       text: { format: { type: 'json_schema', name: 'ironbend_order', strict: true, schema } },
     }, {
@@ -3427,6 +3427,7 @@ app.get('/api/settings', requireRole('admin'), (req, res) => {
     'EMAIL_IMAP_HOST','EMAIL_IMAP_PORT','EMAIL_IMAP_USER','EMAIL_IMAP_PASS',
     'PRIORITY_BASE_URL','PRIORITY_USER','PRIORITY_PASS','PRIORITY_COMPANY',
     'MAVEN_API_URL','MAVEN_API_TOKEN',
+    'OPENAI_API_KEY','OPENAI_MODEL','INTAKE_AI_ENABLED',
     'GOOGLE_VISION_API_KEY',
     'MODULE_MACHINES','MODULE_WHATSAPP','MODULE_EMAIL','MODULE_OCR',
     'MODULE_PRIORITY','MODULE_MAVEN','MODULE_AI','MODULE_ALERTS',
@@ -3493,7 +3494,8 @@ app.post('/api/settings/test/:service', requireRole('admin'), async (req, res) =
       return res.json({ ok: true, msg: `Priority מגיב (${r.status})` });
     }
     if (svc === 'vision') {
-      const key = getSetting('GOOGLE_VISION_API_KEY');
+      const key = getSetting('OPENAI_API_KEY');
+      if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.json({ ok: false, msg: 'OpenAI OCR מוגדר אבל כבוי' });
       if (!key) return res.json({ ok: false, msg: 'API Key חסר' });
       return res.json({ ok: true, msg: 'API Key הוגדר ✓ (בדיקה אמיתית דורשת תמונה)' });
     }

@@ -358,6 +358,20 @@ test('intake review and OCR training belong to intake screen', () => {
   assert.match(nav, /\/intake\.html/);
 });
 
+test('admin OCR settings describe OpenAI intake instead of Google Vision', () => {
+  const admin = read('public/admin.html');
+  const server = read('server.js');
+
+  assert.match(admin, /OpenAI \/ GPT OCR/);
+  assert.match(admin, /OPENAI_API_KEY/);
+  assert.match(admin, /OPENAI_MODEL/);
+  assert.match(admin, /INTAKE_AI_ENABLED/);
+  assert.doesNotMatch(admin, /Google Vision OCR/);
+  assert.doesNotMatch(admin, /Google Vision API Key/);
+  assert.match(server, /'OPENAI_API_KEY','OPENAI_MODEL','INTAKE_AI_ENABLED'/);
+  assert.match(server, /getSetting\('OPENAI_API_KEY'\)/);
+});
+
 test('machine and workstation setup belong to production setup screen', () => {
   const admin = read('public/admin.html');
   const setup = read('public/production-setup.html');

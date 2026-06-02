@@ -533,23 +533,36 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         </div>
       </div>
 
-      <!-- TAB: VISION OCR -->
+      <!-- TAB: OPENAI OCR -->
       <div id="tab-vision" class="tab-pane">
         <div class="settings-head">
           <div class="settings-head-left">
-            <span class="settings-head-icon">📷</span>
+            <span class="settings-head-icon">🤖</span>
             <div>
-              <div class="settings-head-title">Google Vision OCR</div>
-              <div class="settings-head-sub">זיהוי טקסט מתמונות וסריקות PDF של הזמנות</div>
+              <div class="settings-head-title">OpenAI / GPT OCR</div>
+              <div class="settings-head-sub">קריאת תמונות ו-PDF של הזמנות דרך GPT Vision</div>
             </div>
           </div>
           <span class="conn-badge conn-off" id="visionBadge">לא מוגדר</span>
         </div>
         <div class="settings-body">
           <div class="form-group">
-            <label>Google Vision API Key</label>
-            <input type="password" id="vision_key" placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxx">
-            <div class="form-hint">מ: Google Cloud Console → APIs & Services → Credentials</div>
+            <label>OpenAI API Key</label>
+            <input type="password" id="vision_key" placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx">
+            <div class="form-hint">מומלץ להגדיר ב-Render כ-OPENAI_API_KEY. אם מוגדר שם, יוצג כאן כמוגדר בלי לחשוף את המפתח.</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>OpenAI Model</label>
+              <input type="text" id="vision_model" placeholder="gpt-5.4-mini">
+            </div>
+            <div class="form-group">
+              <label>הפעלת קליטת AI</label>
+              <select id="vision_enabled">
+                <option value="true">פעיל</option>
+                <option value="false">כבוי</option>
+              </select>
+            </div>
           </div>
           <div class="form-actions">
             <button class="btn btn-primary" onclick="saveSection('vision')">💾 שמור</button>
@@ -845,9 +858,11 @@ function fillForms(s) {
   setVal('pri_company',s.PRIORITY_COMPANY);
   updateBadge('priorityBadge', s.PRIORITY_BASE_URL && s.PRIORITY_USER);
 
-  // Vision
-  setVal('vision_key', s.GOOGLE_VISION_API_KEY, true);
-  updateBadge('visionBadge', !!s.GOOGLE_VISION_API_KEY);
+  // OpenAI / GPT OCR
+  setVal('vision_key', s.OPENAI_API_KEY, true);
+  setVal('vision_model', s.OPENAI_MODEL || 'gpt-5.4-mini');
+  setVal('vision_enabled', s.INTAKE_AI_ENABLED || 'false');
+  updateVisionBadge(!!s.OPENAI_API_KEY, s.INTAKE_AI_ENABLED === 'true');
 }
 
 function setVal(id, val, masked) {
@@ -862,6 +877,21 @@ function updateBadge(id, configured) {
   if (!el) return;
   el.className = 'conn-badge ' + (configured ? 'conn-ok' : 'conn-warn');
   el.textContent = configured ? 'מוגדר ✓' : 'לא מוגדר';
+}
+
+function updateVisionBadge(hasKey, enabled) {
+  const el = document.getElementById('visionBadge');
+  if (!el) return;
+  if (hasKey && enabled) {
+    el.className = 'conn-badge conn-ok';
+    el.textContent = 'OpenAI פעיל ✓';
+  } else if (hasKey) {
+    el.className = 'conn-badge conn-warn';
+    el.textContent = 'מוגדר אבל כבוי';
+  } else {
+    el.className = 'conn-badge conn-warn';
+    el.textContent = 'OPENAI_API_KEY חסר';
+  }
 }
 
 // ── Status cards ──────────────────────────────────────────────
@@ -892,7 +922,7 @@ const MODULES = [
   { id:'MODULE_MACHINES', icon:'🔧', name:'מכונות Modbus RTU', desc:'קריאת counter + שליחת פרמטרים למכונות A/B/C/D' },
   { id:'MODULE_WHATSAPP', icon:'💬', name:'WhatsApp',          desc:'שליחת עדכוני סטטוס ללקוחות + קבלת הזמנות' },
   { id:'MODULE_EMAIL',    icon:'📧', name:'אימייל IMAP',        desc:'בדיקת תיבת דואר אחת לדקה לקבלת הזמנות' },
-  { id:'MODULE_OCR',      icon:'📷', name:'OCR – זיהוי תמונות', desc:'עיבוד תמונות/PDF דרך Google Vision API' },
+  { id:'MODULE_OCR',      icon:'📷', name:'OCR / GPT – זיהוי הזמנות', desc:'עיבוד תמונות/PDF דרך OpenAI Vision' },
   { id:'MODULE_PRIORITY', icon:'🏭', name:'Priority ERP',       desc:'סנכרון לקוחות, הזמנות, חשבוניות' },
   { id:'MODULE_MAVEN',    icon:'📒', name:'Maven הנהלת חשבונות',desc:'ייצוא נתונים לתוכנת Maven – הרי מדבר (בקרוב)' },
   { id:'MODULE_AI',       icon:'🤖', name:'AI תחזיות ייצור',    desc:'חיזוי זמן ייצור וניתוח פחת מהיסטוריה' },
@@ -961,7 +991,9 @@ async function saveSection(section) {
     data.PRIORITY_COMPANY  = document.getElementById('pri_company').value;
   } else if (section === 'vision') {
     const key = document.getElementById('vision_key').value;
-    if (key && key !== '••••••••') data.GOOGLE_VISION_API_KEY = key;
+    if (key && key !== '••••••••') data.OPENAI_API_KEY = key;
+    data.OPENAI_MODEL = document.getElementById('vision_model').value || 'gpt-5.4-mini';
+    data.INTAKE_AI_ENABLED = document.getElementById('vision_enabled').value || 'false';
   }
 
   const r = await fetch('/api/settings', {
