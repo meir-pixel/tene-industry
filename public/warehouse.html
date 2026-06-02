@@ -57,6 +57,17 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
 .card-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
 .card-title{font-size:15px;font-weight:800;}
+.card-body{padding:20px;}
+.card-narrow{max-width:720px;}
+.card-wide{max-width:900px;}
+.select-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.delivery-select{padding:8px 14px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);}
+.delivery-info{padding:14px 20px;color:var(--text-muted);font-size:13px;}
+.hidden-card{display:none;}
+.mini-title{margin-bottom:10px;font-size:13px;font-weight:900}
+.mini-title.danger{color:var(--danger)}
+.empty-inline{color:var(--text-muted);font-size:13px;padding:8px}
+.confirm-row{margin-top:20px;text-align:left}
 
 /* FILTER / SEARCH ROW */
 .filter-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
@@ -101,6 +112,12 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .modal-overlay.open{display:flex;}
 .modal{background:var(--steel-mid);border-radius:var(--radius);padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto;}
 .modal-sm{max-width:380px;}
+.modal-md{max-width:580px;}
+.modal-centered{text-align:center}
+.modal-note{font-size:11px;color:var(--text-muted);margin-bottom:20px}
+.modal-info{font-size:13px;color:var(--text-dim);margin-bottom:16px}
+.modal-qr-wrap{display:flex;justify-content:center;margin-bottom:16px}
+.modal-footer.center{justify-content:center}
 .modal h2{font-size:18px;font-weight:900;margin-bottom:20px;}
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
 
@@ -258,21 +275,21 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     <div class="card">
       <div class="card-header">
         <span class="card-title">🚛 בחר משלוח / משאית</span>
-        <div style="display:flex;gap:10px;align-items:center;">
-          <select id="deliverySelect" style="padding:8px 14px;border:1px solid var(--border-bright);border-radius:var(--radius-sm);font-family:'Heebo',sans-serif;font-size:13px;background:var(--steel);color:var(--text);" onchange="selectDelivery()">
+        <div class="select-actions">
+          <select id="deliverySelect" class="delivery-select" onchange="selectDelivery()">
             <option value="">— בחר משלוח —</option>
           </select>
         </div>
       </div>
-      <div id="deliveryInfo" style="padding:14px 20px;color:var(--text-muted);font-size:13px;">בחר משלוח כדי להתחיל בטעינה</div>
+      <div id="deliveryInfo" class="delivery-info">בחר משלוח כדי להתחיל בטעינה</div>
     </div>
 
     <!-- Scanner -->
-    <div class="card" id="scannerCard" style="display:none;">
+    <div class="card hidden-card" id="scannerCard">
       <div class="card-header">
         <span class="card-title">📷 סריקת חבילות</span>
       </div>
-      <div style="padding:20px;">
+      <div class="card-body">
         <div class="alert alert-danger" id="scanAlert"></div>
         <div class="alert alert-success" id="scanSuccess"></div>
 
@@ -293,16 +310,16 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
         <div class="two-col">
           <div>
-            <div class="card-title" style="margin-bottom:10px;font-size:13px;">חבילות שנטענו ✅</div>
-            <div class="scanned-list" id="scannedList"><div style="color:var(--text-muted);font-size:13px;padding:8px">אין חבילות עדיין</div></div>
+            <div class="mini-title">חבילות שנטענו ✅</div>
+            <div class="scanned-list" id="scannedList"><div class="empty-inline">אין חבילות עדיין</div></div>
           </div>
           <div>
-            <div class="card-title" style="margin-bottom:10px;font-size:13px;color:var(--danger);">חסרות ⏳</div>
-            <div id="missingList"><div style="color:var(--text-muted);font-size:13px;padding:8px">—</div></div>
+            <div class="mini-title danger">חסרות ⏳</div>
+            <div id="missingList"><div class="empty-inline">—</div></div>
           </div>
         </div>
 
-        <div style="margin-top:20px;text-align:left;">
+        <div class="confirm-row">
           <button class="btn btn-success" id="btnConfirmShip" disabled onclick="confirmShipment()">אשר יציאה</button>
         </div>
       </div>
@@ -311,11 +328,11 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
   <!-- ══ TAB: RECEIPT ════════════════════════════════════════════════ -->
   <div id="tab-receipt" class="tab-panel">
-    <div class="card" style="max-width:720px;">
+    <div class="card card-narrow">
       <div class="card-header">
         <span class="card-title">📥 קבלת חומר גלם</span>
       </div>
-      <div style="padding:20px;">
+      <div class="card-body">
         <div class="alert alert-success" id="receiptSuccess"></div>
         <div class="alert alert-danger" id="receiptError"></div>
         <div class="form-grid">
@@ -375,7 +392,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     </div>
 
     <!-- RECENT RECEIPTS TABLE -->
-    <div class="card" style="max-width:900px;">
+    <div class="card card-wide">
       <div class="card-header">
         <span class="card-title">📋 קבלות אחרונות (10)</span>
         <button class="btn btn-outline btn-sm" onclick="loadReceipts()">רענן</button>
@@ -396,14 +413,14 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
 <!-- ══ MODAL: QR CODE ══════════════════════════════════════════════ -->
 <div class="modal-overlay" id="modalQR">
-  <div class="modal modal-sm" style="text-align:center;">
+  <div class="modal modal-sm modal-centered">
     <h2>🔍 קוד QR – חבילה</h2>
-    <div id="qrPkgInfo" style="font-size:13px;color:var(--text-dim);margin-bottom:16px;"></div>
-    <div style="display:flex;justify-content:center;margin-bottom:16px;">
+    <div id="qrPkgInfo" class="modal-info"></div>
+    <div class="modal-qr-wrap">
       <div class="qr-box" id="qrCodeDisplay">—</div>
     </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:20px;">סרוק את הקוד לאישור זיהוי החבילה</div>
-    <div class="modal-footer" style="justify-content:center;">
+    <div class="modal-note">סרוק את הקוד לאישור זיהוי החבילה</div>
+    <div class="modal-footer center">
       <button class="btn btn-outline" onclick="closeModal('modalQR')">סגור</button>
       <button class="btn btn-primary" onclick="printQR()">הדפס</button>
     </div>
@@ -412,7 +429,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
 <!-- ══ MODAL: LABEL PRINT ════════════════════════════════════════════ -->
 <div class="modal-overlay" id="modalLabel">
-  <div class="modal" style="max-width:580px;">
+  <div class="modal modal-md">
     <h2>🖨️ תווית חבילה</h2>
     <div class="label-print-area">
       <div class="label-preview" id="labelPreview">
