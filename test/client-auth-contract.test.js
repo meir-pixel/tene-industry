@@ -264,6 +264,8 @@ test('production queue screen uses shared item status contract', () => {
 test('shop floor screens use shared item status values', () => {
   const kiosk = read('public/kiosk.html');
   const workerVisual = read('public/worker-visual.html');
+  const nav = read('public/nav.js');
+  const productionQueue = read('public/production-queue.html');
 
   assert.match(kiosk, /\/status-contracts-client\.js/);
   assert.match(kiosk, /ITEM_STATUS\.DONE/);
@@ -279,6 +281,12 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /ITEM_STATUS\.IN_PRODUCTION/);
   assert.match(workerVisual, /ITEM_STATUS\.DONE/);
   assert.match(workerVisual, /ITEM_STATUS\.DELIVERED/);
+  assert.match(workerVisual, /דשבורד איסוף כרטיסים/);
+  assert.match(workerVisual, /הזמנות ממתינות/);
+  assert.match(workerVisual, /כרטיסים/);
+  assert.match(nav, /\/worker-visual\.html/);
+  assert.match(nav, /דשבורד איסוף/);
+  assert.match(productionQueue, /\/worker-visual\.html/);
 });
 
 test('price list management belongs to finance screen', () => {

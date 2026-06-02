@@ -222,6 +222,7 @@
     { group:'ראשי', href:'/customers.html', icon:'👥', label:'לקוחות', id:'customers' },
 
     { group:'ייצור', href:'/production-queue.html', icon:'🏭', label:'תור ייצור', id:'production-queue' },
+    { group:'ייצור', href:'/worker-visual.html', icon:'🧾', label:'דשבורד איסוף', id:'worker-visual' },
     { group:'ייצור', href:'/machine.html', icon:'🔧', label:'מכונות', id:'machine' },
     { group:'ייצור', href:'/kiosk.html', icon:'🖥️', label:'תחנת עבודה', id:'kiosk' },
     { group:'ייצור', href:'/production-setup.html', icon:'⚙️', label:'הגדרות ייצור', id:'production-setup' },
