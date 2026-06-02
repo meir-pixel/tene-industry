@@ -114,6 +114,18 @@ test('shared navigation preserves Tene logo aspect ratio', () => {
   assert.match(theme, /#ib-logo img, #ib-drawer-logo \{[\s\S]*height: auto/);
 });
 
+test('shared desktop navigation is right aligned for RTL layout', () => {
+  const nav = read('public/nav.js');
+  const theme = read('public/theme.css');
+
+  assert.match(nav, /padding-right:\s*156px/);
+  assert.match(nav, /inset:\s*0 0 0 auto/);
+  assert.match(nav, /border-left:\s*1px solid/);
+  assert.match(nav, /#ib-drawer \{[\s\S]*right:0/);
+  assert.match(nav, /transform:translateX\(100%\)/);
+  assert.match(theme, /border-left:\s*1px solid/);
+});
+
 test('dashboard production queue uses production queue API source', () => {
   const dashboard = read('public/dashboard.html');
 

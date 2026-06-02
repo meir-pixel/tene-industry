@@ -68,14 +68,14 @@
     }
     #ib-overlay.open { display:block; }
 
-    /* ── DRAWER — slides from LEFT (RTL "far" side) ── */
+    /* ── DRAWER — slides from RIGHT for Hebrew RTL navigation ── */
     #ib-drawer {
-      position:fixed; top:0; left:0; bottom:0; width:270px;
+      position:fixed; top:0; right:0; bottom:0; width:270px;
       background:#ffffff; z-index:401;
-      transform:translateX(-100%);
+      transform:translateX(100%);
       transition:transform .27s cubic-bezier(.4,0,.2,1);
       display:flex; flex-direction:column;
-      box-shadow: 4px 0 28px rgba(0,0,0,0.14);
+      box-shadow: -4px 0 28px rgba(0,0,0,0.14);
       font-family:'Heebo',sans-serif;
     }
     #ib-drawer.open { transform:translateX(0); }
@@ -140,10 +140,11 @@
     @media(min-width:1024px) {
       body {
         padding-top: 0 !important;
-        padding-left: 156px !important;
+        padding-right: 156px !important;
+        padding-left: 0 !important;
       }
       #ib-topnav {
-        inset: 0 auto 0 0;
+        inset: 0 0 0 auto;
         width: 156px;
         height: 100vh;
         padding: 16px 10px;
@@ -152,8 +153,8 @@
         gap: 14px;
         background: linear-gradient(180deg, #071c3b 0%, #021A48 58%, #00112f 100%);
         border-bottom: none;
-        border-right: 1px solid rgba(255,255,255,0.10);
-        box-shadow: 8px 0 32px rgba(2,26,72,0.20);
+        border-left: 1px solid rgba(255,255,255,0.10);
+        box-shadow: -8px 0 32px rgba(2,26,72,0.20);
       }
       #ib-logo {
         justify-content: center;
@@ -275,7 +276,7 @@
   const overlay = document.createElement('div');
   overlay.id = 'ib-overlay';
 
-  // ── drawer (slides from LEFT) ──
+  // ── drawer (slides from RIGHT) ──
   const drawer = document.createElement('div');
   drawer.id = 'ib-drawer';
   drawer.innerHTML =

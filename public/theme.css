@@ -78,8 +78,9 @@ body { background: radial-gradient(circle at top right, rgba(167,236,255,0.20), 
   #ib-topnav {
     background: linear-gradient(180deg, #071c3b 0%, #021A48 58%, #00112f 100%) !important;
     border-bottom: none !important;
-    border-right: 1px solid rgba(255,255,255,0.10) !important;
-    box-shadow: 8px 0 32px rgba(2,26,72,0.20) !important;
+    border-left: 1px solid rgba(255,255,255,0.10) !important;
+    border-right: none !important;
+    box-shadow: -8px 0 32px rgba(2,26,72,0.20) !important;
   }
   #ib-logo {
     color: #ffffff !important;
