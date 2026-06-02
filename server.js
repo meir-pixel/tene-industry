@@ -14,7 +14,7 @@ const priority = require('./priority');
 const intake   = require('./intake');
 const ai       = require('./ai');
 const { createAuthService, ensureAuthSchema, hashPin } = require('./auth-core');
-const { ROLE_PERMISSIONS, requireAnyRole, requireRole } = require('./permissions');
+const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
 const statusContracts = require('./status-contracts');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -881,11 +881,30 @@ function bearerToken(req) {
   return header.startsWith('Bearer ') ? header.slice(7) : null;
 }
 
+const AUTH_BYPASS_ENABLED = process.env.AUTH_BYPASS === 'true';
+const AUTH_BYPASS_ROLE = getRolePermission(process.env.AUTH_BYPASS_ROLE || 'admin')?.role || 'admin';
+let authBypassWarned = false;
+
+function applyAuthBypass(req) {
+  if (!AUTH_BYPASS_ENABLED || req.auth) return;
+  if (!authBypassWarned) {
+    console.warn(`[AUTH] AUTH_BYPASS=true is enabled. All API requests run as ${AUTH_BYPASS_ROLE}. Disable after setup/testing.`);
+    authBypassWarned = true;
+  }
+  req.auth = {
+    sub: 'auth-bypass',
+    username: 'auth-bypass',
+    role: AUTH_BYPASS_ROLE,
+  };
+  req.authBypass = true;
+}
+
 function optionalAuth(req, _res, next) {
   const token = bearerToken(req);
   if (token) {
     try { req.auth = authService.verifyAccessToken(token); } catch (_) {}
   }
+  applyAuthBypass(req);
   next();
 }
 
