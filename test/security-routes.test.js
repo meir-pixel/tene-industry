@@ -15,6 +15,7 @@ process.env.AUTH_ENFORCEMENT = 'false';
 
 const { closeServer, db, server } = require('../server');
 const { hashPin } = require('../auth-core');
+const statusContracts = require('../status-contracts');
 
 let baseUrl;
 
@@ -484,6 +485,24 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   await t.test('dashboard reports and KPI routes require internal reporting roles', async () => {
     assert.equal((await request('/api/dashboard')).status, 401);
     assert.equal((await request('/api/dashboard', { headers: authHeaders(production) })).status, 200);
+
+    const customerId = seedCustomer();
+    const orderId = seedInternalOrder(customerId, 'DASH-KPI-CONSISTENCY');
+    db.prepare('UPDATE orders SET total_weight=? WHERE id=?').run(9999, orderId);
+    const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,?,?)')
+      .run(orderId, 1, 25).lastInsertRowid;
+    db.prepare(`
+      INSERT INTO items (pallet_id,shape_id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,status,completed_at,machine)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    `).run(palletId, 's1', 'straight', 12, 1000, 3, 0.888, 25, statusContracts.ITEM_STATUS.DONE, new Date().toISOString(), 'A');
+
+    const dashboardResponse = await request('/api/dashboard', { headers: authHeaders(production) });
+    assert.equal(dashboardResponse.status, 200);
+    const dashboard = await dashboardResponse.json();
+    assert.equal(dashboard.producedWeightToday, 25);
+    assert.equal(dashboard.producedTonsToday, 0);
+    assert.ok(dashboard.totalWeightToday >= 9999);
+    assert.notEqual(dashboard.producedWeightToday, dashboard.totalWeightToday);
 
     assert.equal((await request('/api/reports/waste')).status, 401);
     assert.equal((await request('/api/reports/waste', { headers: authHeaders(finance) })).status, 200);

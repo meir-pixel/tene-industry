@@ -722,18 +722,23 @@ async function fetchAlerts() {
 
 // ── KPIs ─────────────────────────────────────────────────────────────
 function renderKPIs(d) {
+  const producedWeightToday = Number(d.producedWeightToday || 0);
+  const producedTonsToday = Number(d.producedTonsToday || 0);
+  const completedItemsToday = Number(d.itemsDone ?? d.completedToday ?? 0);
+
   document.getElementById('kpiOrdersToday').textContent = d.ordersToday;
-  document.getElementById('kpiWeightToday').textContent = (d.totalWeightToday||0).toFixed(0) + ' ק"ג';
+  document.getElementById('kpiWeightToday').textContent = producedWeightToday.toFixed(0) + ' ק"ג יוצרו';
   document.getElementById('kpiInProd').textContent      = d.inProduction;
   document.getElementById('kpiItemsProd').textContent   = (d.itemsInProduction||0) + ' פריטים';
-  document.getElementById('kpiDone').textContent        = d.completedToday;
-  document.getElementById('kpiItemsDone').textContent   = (d.itemsDone||0) + ' פריטים';
+  document.getElementById('kpiDone').textContent        = completedItemsToday;
+  document.getElementById('kpiItemsDone').textContent   = completedItemsToday + ' פריטים';
   document.getElementById('kpiUrgent').textContent      = d.urgentOpen || 0;
   document.getElementById('kpiWaste').textContent       = (d.wasteAvgPct||0) + '%';
   document.getElementById('kpiPending').textContent     = d.pending;
 
   // Progress bars
-  const completionPct = d.ordersToday > 0 ? Math.min(100, (d.completedToday / d.ordersToday) * 100) : 0;
+  const productionTotal = completedItemsToday + Number(d.itemsInProduction || 0);
+  const completionPct = productionTotal > 0 ? Math.min(100, (completedItemsToday / productionTotal) * 100) : 0;
   document.getElementById('kpiDoneBar').style.width = completionPct + '%';
   const wastePct = Math.min(100, (d.wasteAvgPct || 0) * 5); // scale: 20% waste = full bar
   document.getElementById('kpiWasteBar').style.width = wastePct + '%';
@@ -747,10 +752,11 @@ function renderKPIs(d) {
     urgentBadge.classList.remove('show');
   }
 
-  document.getElementById('qsWeight').textContent = (d.totalWeightToday||0).toFixed(0) + ' ק"ג';
+  document.getElementById('qsWeight').textContent = producedWeightToday.toFixed(0) + ' ק"ג';
+  document.getElementById('kpiTonsToday').textContent = producedTonsToday + ' ט';
 
-  // Tons today (separate endpoint)
-  fetchTonsToday();
+  // Keep the dashboard internally consistent: produced kg and tons come from
+  // the same completed-items source returned by /api/dashboard.
 }
 
 async function fetchTonsToday() {

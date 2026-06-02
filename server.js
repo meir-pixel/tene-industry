@@ -3319,27 +3319,40 @@ app.post('/api/machines/:id/end-of-day', requireAnyRole(['production', 'kiosk', 
 // ── DASHBOARD ─────────────────────────────────────────────────────
 app.get('/api/dashboard', requireRole('viewer'), (req, res) => {
   const today = new Date().toISOString().split('T')[0];
+  const doneItemStatus = statusContracts.ITEM_STATUS.DONE;
+  const completedOrderStatus = statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP;
   const wasteData = db.prepare(`
     SELECT SUM(actual_waste) as totalWaste, SUM(quantity) as totalQty,
            COUNT(*) as completedItems
-    FROM items WHERE DATE(completed_at)=? AND status='הושלם'
-  `).get(today);
+    FROM items WHERE DATE(completed_at)=? AND status=?
+  `).get(today, doneItemStatus);
+
+  const productionToday = db.prepare(`
+    SELECT COUNT(*) as completedItems,
+           COALESCE(SUM(total_weight),0) as producedWeightToday,
+           COALESCE(SUM(total_weight),0)/1000 as producedTonsToday
+    FROM items
+    WHERE DATE(completed_at)=? AND status=?
+  `).get(today, doneItemStatus);
 
   const wasteByMachine = db.prepare(`
     SELECT i.machine, SUM(i.actual_waste) as waste, SUM(i.quantity) as qty
-    FROM items i WHERE DATE(i.completed_at)=? AND i.status='הושלם'
+    FROM items i WHERE DATE(i.completed_at)=? AND i.status=?
     GROUP BY i.machine
-  `).all(today);
+  `).all(today, doneItemStatus);
 
   res.json({
     ordersToday:      db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=?").get(today).c,
-    completedToday:   db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=? AND status='הושלם – ממתין לאיסוף'").get(today).c,
-    inProduction:     db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='בייצור'").get().c,
-    pending:          db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='ממתינה לאישור'").get().c,
-    urgentOpen:       db.prepare("SELECT COUNT(*) as c FROM orders WHERE priority='דחוף' AND status NOT IN ('סופק – אושר','בוטל')").get().c,
+    completedOrdersToday: db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=? AND status=?").get(today, completedOrderStatus).c,
+    completedToday:   productionToday.completedItems || 0,
+    inProduction:     db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.IN_PRODUCTION).c,
+    pending:          db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.PENDING_APPROVAL).c,
+    urgentOpen:       db.prepare("SELECT COUNT(*) as c FROM orders WHERE priority='דחוף' AND status NOT IN (?,?)").get(statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED, statusContracts.ORDER_STATUS.CANCELLED).c,
     totalWeightToday: db.prepare("SELECT SUM(total_weight) as w FROM orders WHERE DATE(created_at)=?").get(today).w || 0,
-    itemsInProduction:db.prepare("SELECT COUNT(*) as c FROM items WHERE status='בייצור'").get().c,
-    itemsDone:        db.prepare("SELECT COUNT(*) as c FROM items WHERE DATE(completed_at)=? AND status='הושלם'").get(today).c,
+    producedWeightToday: productionToday.producedWeightToday || 0,
+    producedTonsToday: Math.round((productionToday.producedTonsToday || 0) * 10) / 10,
+    itemsInProduction:db.prepare("SELECT COUNT(*) as c FROM items WHERE status=?").get(statusContracts.ITEM_STATUS.IN_PRODUCTION).c,
+    itemsDone:        productionToday.completedItems || 0,
     wasteAvgPct:      wasteData.totalQty > 0 ? ((wasteData.totalWaste / wasteData.totalQty) * 100).toFixed(1) : '0',
     wasteByMachine,
     recentOrders:     db.prepare(`SELECT o.*,c.name as customer_name FROM orders o LEFT JOIN customers c ON o.customer_id=c.id ORDER BY o.created_at DESC LIMIT 10`).all(),

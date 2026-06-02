@@ -134,6 +134,17 @@ test('dashboard production queue uses production queue API source', () => {
   assert.match(dashboard, /renderProdQueue\(productionQueue\.items \|\| \[\]\)/);
 });
 
+test('dashboard production KPIs use completed production weight, not order-created weight', () => {
+  const dashboard = read('public/dashboard.html');
+
+  assert.match(dashboard, /producedWeightToday/);
+  assert.match(dashboard, /producedTonsToday/);
+  assert.match(dashboard, /kpiWeightToday'\)\.textContent = producedWeightToday\.toFixed\(0\)/);
+  assert.match(dashboard, /qsWeight'\)\.textContent = producedWeightToday\.toFixed\(0\)/);
+  assert.doesNotMatch(dashboard, /kpiWeightToday'\)\.textContent = \(d\.totalWeightToday\|\|0\)/);
+  assert.doesNotMatch(dashboard, /qsWeight'\)\.textContent = \(d\.totalWeightToday\|\|0\)/);
+});
+
 test('reports screen uses authenticated APIs and escapes API-sourced table fields', () => {
   const reports = read('public/reports.html');
 
