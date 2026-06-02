@@ -146,6 +146,28 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.match(await response.text(), /Database upload is disabled/);
   });
 
+  await t.test('data audit is manager scoped and reports order item counts', async () => {
+    const customerId = seedCustomer();
+    const orderId = seedInternalOrder(customerId, 'AUDIT-ORDER-1');
+    const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,?,?)')
+      .run(orderId, 1, 12.5).lastInsertRowid;
+    db.prepare(`
+      INSERT INTO items (pallet_id,shape_id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,status,machine)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
+    `).run(palletId, 's1', 'straight', 12, 1000, 2, 0.888, 1.776, 'ממתין', 'A');
+
+    assert.equal((await request('/api/admin/data-audit')).status, 401);
+    assert.equal((await request('/api/admin/data-audit', { headers: authHeaders(office) })).status, 403);
+    assert.equal((await request('/api/admin/data-audit', { headers: authHeaders(manager) })).status, 200);
+
+    const response = await request('/api/admin/data-audit?limit=5', { headers: authHeaders(admin) });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.ok(body.summary.orders >= 1);
+    assert.ok(body.recent_orders.some(order => order.order_num === 'AUDIT-ORDER-1' && order.item_count === 1));
+  });
+
   await t.test('auth logout requires an active session signal', async () => {
     assert.equal((await request('/api/auth/logout', { method: 'POST' })).status, 401);
     assert.equal((await request('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${admin}` } })).status, 200);

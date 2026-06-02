@@ -6230,6 +6230,114 @@ app.get('/api/finance/events', requireAnyRole(['finance', 'manager', 'admin']), 
 
 // ── Admin Database Migration (Cloud Upload/Download) ──────────────
 // Download active database backup — BUG-20: admin only
+// Read-only data integrity audit for diagnosing missing orders/items.
+app.get('/api/admin/data-audit', requireAnyRole(['manager', 'admin']), (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
+
+  const summary = {
+    orders: db.prepare('SELECT COUNT(*) as c FROM orders').get().c,
+    pallets: db.prepare('SELECT COUNT(*) as c FROM pallets').get().c,
+    items: db.prepare('SELECT COUNT(*) as c FROM items').get().c,
+    packages: db.prepare('SELECT COUNT(*) as c FROM packages').get().c,
+  };
+
+  const recentOrders = db.prepare(`
+    SELECT o.id, o.order_num, o.status, o.created_at, c.name AS customer_name,
+           COUNT(i.id) AS item_count,
+           COALESCE(SUM(i.quantity), 0) AS qty_total,
+           ROUND(COALESCE(SUM(i.total_weight), 0), 3) AS item_weight,
+           ROUND(COALESCE(o.total_weight, 0), 3) AS order_weight
+    FROM orders o
+    LEFT JOIN customers c ON c.id = o.customer_id
+    LEFT JOIN pallets p ON p.order_id = o.id
+    LEFT JOIN items i ON i.pallet_id = p.id
+    GROUP BY o.id
+    ORDER BY o.created_at DESC, o.id DESC
+    LIMIT ?
+  `).all(limit);
+
+  const ordersWithoutItems = db.prepare(`
+    SELECT o.id, o.order_num, o.status, o.created_at, c.name AS customer_name,
+           ROUND(COALESCE(o.total_weight, 0), 3) AS order_weight
+    FROM orders o
+    LEFT JOIN customers c ON c.id = o.customer_id
+    LEFT JOIN pallets p ON p.order_id = o.id
+    LEFT JOIN items i ON i.pallet_id = p.id
+    GROUP BY o.id
+    HAVING COUNT(i.id) = 0
+    ORDER BY o.created_at DESC, o.id DESC
+    LIMIT ?
+  `).all(limit);
+
+  const palletsWithoutOrders = db.prepare(`
+    SELECT p.id, p.order_id, p.pallet_num, p.total_weight, p.status
+    FROM pallets p
+    LEFT JOIN orders o ON o.id = p.order_id
+    WHERE o.id IS NULL
+    ORDER BY p.id DESC
+    LIMIT ?
+  `).all(limit);
+
+  const itemsWithoutPallets = db.prepare(`
+    SELECT i.id, i.pallet_id, i.shape_name, i.diameter, i.quantity, i.status, i.machine
+    FROM items i
+    LEFT JOIN pallets p ON p.id = i.pallet_id
+    WHERE p.id IS NULL
+    ORDER BY i.id DESC
+    LIMIT ?
+  `).all(limit);
+
+  const palletsWithoutItems = db.prepare(`
+    SELECT p.id, p.order_id, p.pallet_num, p.total_weight, p.status, o.order_num
+    FROM pallets p
+    LEFT JOIN orders o ON o.id = p.order_id
+    LEFT JOIN items i ON i.pallet_id = p.id
+    GROUP BY p.id
+    HAVING COUNT(i.id) = 0
+    ORDER BY p.id DESC
+    LIMIT ?
+  `).all(limit);
+
+  const itemsMissingMachine = db.prepare(`
+    SELECT i.id, o.order_num, i.shape_name, i.diameter, i.quantity, i.status
+    FROM items i
+    JOIN pallets p ON p.id = i.pallet_id
+    JOIN orders o ON o.id = p.order_id
+    WHERE (i.machine IS NULL OR i.machine = '')
+      AND i.status IN (?, ?)
+    ORDER BY i.id DESC
+    LIMIT ?
+  `).all(statusContracts.ITEM_STATUS.WAITING, statusContracts.ITEM_STATUS.IN_PRODUCTION, limit);
+
+  const orderStatus = db.prepare(`
+    SELECT status, COUNT(*) AS count
+    FROM orders
+    GROUP BY status
+    ORDER BY count DESC
+  `).all();
+
+  const itemStatus = db.prepare(`
+    SELECT status, COUNT(*) AS count
+    FROM items
+    GROUP BY status
+    ORDER BY count DESC
+  `).all();
+
+  res.json({
+    ok: true,
+    summary,
+    recent_orders: recentOrders,
+    anomalies: {
+      orders_without_items: ordersWithoutItems,
+      pallets_without_orders: palletsWithoutOrders,
+      pallets_without_items: palletsWithoutItems,
+      items_without_pallets: itemsWithoutPallets,
+      items_missing_machine: itemsMissingMachine,
+    },
+    status_breakdown: { orders: orderStatus, items: itemStatus },
+  });
+});
+
 app.get('/api/admin/database/download', requireRole('admin'), async (req, res) => {
   const downloadPath = `${DB_PATH}.download-${Date.now()}.tmp`;
   try {
