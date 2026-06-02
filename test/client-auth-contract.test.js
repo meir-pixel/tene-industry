@@ -173,6 +173,17 @@ test('dashboard business widgets have data identity contracts', () => {
   }
 });
 
+test('kiosk distinguishes missing work from untrusted machine state', () => {
+  const kiosk = read('public/kiosk.html');
+
+  assert.match(kiosk, /let stateHealth\s*=/);
+  assert.match(kiosk, /async function apiJson/);
+  assert.match(kiosk, /אין אמון בנתוני התחנה/);
+  assert.match(kiosk, /canTrustState\s*\?\s*'אין עבודה פעילה'\s*:\s*'אין אמון בנתוני התחנה'/);
+  assert.match(kiosk, /btnComplete'\)\.disabled = !hasJob \|\| !canTrustState/);
+  assert.match(kiosk, /btnStop'\)\.disabled\s+= !activeShift \|\| !canTrustState/);
+});
+
 test('reports screen uses authenticated APIs and escapes API-sourced table fields', () => {
   const reports = read('public/reports.html');
 

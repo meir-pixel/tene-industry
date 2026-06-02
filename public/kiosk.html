@@ -130,6 +130,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   text-align:center;opacity:.7;}
 .nojob-icon{font-size:64px;}
 .nojob-text{font-size:20px;font-weight:700;color:var(--text-dim);}
+.nojob.error{opacity:1;color:var(--danger);}
+.nojob.error .nojob-text{color:var(--danger);}
+.nojob.error .nojob-hint{color:#f3a7a0;}
+.kbar-status.untrusted{color:var(--danger);}
 
 /* ── MOBILE (portrait tablet) ─────────────────────────────────── */
 @media(max-width:700px),(max-height:600px){
@@ -172,9 +176,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <!-- Counter panel -->
       <div class="counter-panel" id="counterPanel" style="flex:1">
         <div id="noJobState" class="nojob">
-          <div class="nojob-icon">⏸</div>
-          <div class="nojob-text">אין עבודה פעילה</div>
-          <div style="font-size:13px;color:var(--text-dim)">ממתין להקצאת עבודה</div>
+          <div class="nojob-icon" id="noJobIcon">⏸</div>
+          <div class="nojob-text" id="noJobTitle">אין עבודה פעילה</div>
+          <div class="nojob-hint" id="noJobHint" style="font-size:13px;color:var(--text-dim)">ממתין להקצאת עבודה</div>
         </div>
         <div id="activeJobState" style="display:none;width:100%;height:100%;flex-direction:column;align-items:center;justify-content:center;gap:8px">
           <div class="counter-label">יחידות</div>
@@ -343,8 +347,16 @@ let currentOp    = null;
 let pinBuffer    = '';
 let activeStop   = null;
 let ws;
+let stateHealth  = { ok:true, message:'' };
 
 const WS_URL = () => `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+async function apiJson(url, options) {
+  const res = await fetch(url, options);
+  if (!res.ok) throw new Error(`${url} failed: ${res.status}`);
+  return res.json();
+}
+const isRunningStatus = s => ['בייצור', 'ריצה', 'עובדת'].includes(s);
+const isOfflineStatus = s => !s || s === 'לא מחובר' || s === 'offline';
 
 // ── INIT ──────────────────────────────────────────────────────
 async function init() {
@@ -359,9 +371,9 @@ async function init() {
 async function loadBaseData() {
   try {
     const [machines, reasons, users] = await Promise.all([
-      fetch('/api/machines').then(r=>r.json()),
-      fetch('/api/downtime-reasons').then(r=>r.json()),
-      fetch('/api/kiosk/operators').then(r=>r.json()),
+      apiJson('/api/machines'),
+      apiJson('/api/downtime-reasons'),
+      apiJson('/api/kiosk/operators'),
     ]);
 
     machineData = machines.find(m => m.id === MACHINE_ID) || machines[0] || { id:1, name:'מכונה', status:'לא מחובר', counter:0 };
@@ -382,7 +394,14 @@ async function loadBaseData() {
       const op = operators.find(u => u.id === parseInt(savedOp));
       if (op) setCurrentOperator(op);
     }
-  } catch(e) { console.warn('init error', e); }
+  } catch(e) {
+    console.warn('init error', e);
+    stateHealth = { ok:false, message:'שגיאה בטעינת נתוני התחנה' };
+    activeStop = null;
+    renderMachineState();
+    renderJobInfo();
+    renderStopState();
+  }
 }
 
 function buildOperatorSelect() {
@@ -418,13 +437,15 @@ function updateClock() {
 // ── MACHINE STATE ──────────────────────────────────────────────
 async function refreshMachineState() {
   try {
-    const machines = await fetch('/api/machines').then(r=>r.json());
+    stateHealth = { ok:true, message:'' };
+    const machines = await apiJson('/api/machines');
     machineData = machines.find(m => m.id === MACHINE_ID) || machineData;
+    if (!machineData) throw new Error('machine not found: ' + MACHINE_ID);
     renderMachineState();
 
     // Fetch active item if exists
     if (machineData.current_item_id) {
-      const items = await fetch(`/api/production-queue?machine=${MACHINE_ID}`).then(r=>r.json()).catch(()=>[]);
+      const items = await apiJson(`/api/production-queue?machine=${MACHINE_ID}`);
       activeItem = items.find(it => it.id === machineData.current_item_id) || null;
     } else {
       activeItem = null;
@@ -435,39 +456,57 @@ async function refreshMachineState() {
     await refreshShift();
 
     // Fetch active stop
-    const stops = await fetch('/api/machine-stops?machine_id=' + MACHINE_ID + '&active=1').then(r=>r.json()).catch(()=>[]);
+    const stops = await apiJson('/api/machine-stops?machine_id=' + MACHINE_ID + '&active=1');
     activeStop = stops.find(s => !s.ended_at) || null;
     renderStopState();
-  } catch(e) { console.warn('state refresh error', e); }
+  } catch(e) {
+    console.warn('state refresh error', e);
+    stateHealth = { ok:false, message:'לא ניתן לאמת את מצב המכונה' };
+    activeItem = null;
+    activeStop = null;
+    renderMachineState();
+    renderJobInfo();
+    renderStopState();
+  }
 }
 
 function renderMachineState() {
-  if (!machineData) return;
   const dot = document.getElementById('statusDot');
   const statusEl = document.getElementById('machineStatus');
-  const s = machineData.status || 'לא מחובר';
-  statusEl.textContent = s;
-  dot.className = 'status-dot ' + (s==='בייצור'?'running':s.includes('תקלה')?'error':'');
+  const statusWrap = document.querySelector('.kbar-status');
+  const s = machineData?.status || 'לא מחובר';
+  const unhealthy = !stateHealth.ok || isOfflineStatus(s);
+  statusEl.textContent = stateHealth.ok ? s : 'שגיאת טעינה';
+  dot.className = 'status-dot ' + (isRunningStatus(s) && stateHealth.ok ? 'running' : unhealthy || s.includes('תקלה') ? 'error' : '');
+  statusWrap.classList.toggle('untrusted', unhealthy);
 
-  document.getElementById('counterVal').textContent = machineData.counter || 0;
+  document.getElementById('counterVal').textContent = machineData?.counter || 0;
   updateCounterColor();
 }
 
 function renderJobInfo() {
   const noJob = document.getElementById('noJobState');
   const activeJob = document.getElementById('activeJobState');
-  const hasJob = !!activeItem;
+  const hasJob = !!activeItem && stateHealth.ok;
+  const canTrustState = stateHealth.ok && !!machineData;
 
   noJob.style.display    = hasJob ? 'none' : 'flex';
   activeJob.style.display = hasJob ? 'flex' : 'none';
+  noJob.classList.toggle('error', !canTrustState);
 
-  document.getElementById('btnComplete').disabled = !hasJob;
-  document.getElementById('btnStop').disabled     = !activeShift;
-  document.getElementById('btnWaste').disabled    = !hasJob;
+  document.getElementById('noJobIcon').textContent = canTrustState ? '⏸' : '⚠️';
+  document.getElementById('noJobTitle').textContent = canTrustState ? 'אין עבודה פעילה' : 'אין אמון בנתוני התחנה';
+  document.getElementById('noJobHint').textContent = canTrustState
+    ? 'ממתין להקצאת עבודה'
+    : (stateHealth.message || 'בדוק חיבור, הרשאה או שרת לפני דיווח ייצור');
+
+  document.getElementById('btnComplete').disabled = !hasJob || !canTrustState;
+  document.getElementById('btnStop').disabled     = !activeShift || !canTrustState;
+  document.getElementById('btnWaste').disabled    = !hasJob || !canTrustState;
 
   if (hasJob) {
     const qty = activeItem.quantity || 1;
-    const done = machineData.counter || 0;
+    const done = machineData?.counter || 0;
     const pct  = Math.min(100, Math.round((done / qty) * 100));
 
     document.getElementById('counterTarget').textContent = '/ ' + qty + ' יחידות (' + pct + '%)';
