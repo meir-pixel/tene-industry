@@ -288,6 +288,7 @@ tr:hover td{background:rgba(0,0,0,0.02);}
 </head>
 <body data-page="dashboard">
 <script src="/safe-dom.js"></script>
+<script src="/data-contracts-client.js"></script>
 <script src="/nav.js"></script>
 
 <nav class="topnav">
@@ -660,6 +661,12 @@ tr:hover td{background:rgba(0,0,0,0.02);}
 const WS_URL = () => `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
 let ws, dashData = null, alertsData = [], _wsDelay = 1000;
 const TODAY = new Date().toISOString().split('T')[0];
+
+function applyDataContractBadges() {
+  if (window.IronBendDataContracts) {
+    window.IronBendDataContracts.applyDataContracts(document);
+  }
+}
 
 // ── WebSocket ────────────────────────────────────────────────────────
 function connectWS() {
@@ -1187,6 +1194,7 @@ function setRole(role) {
   setRole(saved === 'all' ? 'exec' : saved);
 })();
 
+applyDataContractBadges();
 connectWS();
 fetchDashboard();
 fetchAlerts();

@@ -145,6 +145,34 @@ test('dashboard production KPIs use completed production weight, not order-creat
   assert.doesNotMatch(dashboard, /qsWeight'\)\.textContent = \(d\.totalWeightToday\|\|0\)/);
 });
 
+test('dashboard business widgets have data identity contracts', () => {
+  const dashboard = read('public/dashboard.html');
+  const contracts = require(path.join(root, 'public', 'data-contracts-client.js')).WIDGET_CONTRACTS;
+  const requiredElements = [
+    'kpiOrdersToday',
+    'kpiWeightToday',
+    'kpiInProd',
+    'kpiDone',
+    'kpiUrgent',
+    'kpiWaste',
+    'kpiPending',
+    'kpiTonsToday',
+    'qsWeight',
+  ];
+
+  assert.match(dashboard, /\/data-contracts-client\.js/);
+  assert.match(dashboard, /applyDataContractBadges\(\)/);
+
+  for (const elementId of requiredElements) {
+    assert.match(dashboard, new RegExp(`id="${elementId}"`), `${elementId} should exist in dashboard`);
+    const ownerContract = Object.values(contracts).find(contract => contract.consumers.includes(elementId));
+    assert.ok(ownerContract, `${elementId} should have a data contract`);
+    assert.ok(ownerContract.source.api, `${elementId} contract should name source API`);
+    assert.ok(ownerContract.source.fields.length, `${elementId} contract should name source fields`);
+    assert.ok(ownerContract.meaning, `${elementId} contract should explain meaning`);
+  }
+});
+
 test('reports screen uses authenticated APIs and escapes API-sourced table fields', () => {
   const reports = read('public/reports.html');
 

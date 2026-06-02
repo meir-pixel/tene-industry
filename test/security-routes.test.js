@@ -16,6 +16,7 @@ process.env.AUTH_ENFORCEMENT = 'false';
 const { closeServer, db, server } = require('../server');
 const { hashPin } = require('../auth-core');
 const statusContracts = require('../status-contracts');
+const dataContracts = require('../public/data-contracts-client.js');
 
 let baseUrl;
 
@@ -503,6 +504,14 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(dashboard.producedTonsToday, 0);
     assert.ok(dashboard.totalWeightToday >= 9999);
     assert.notEqual(dashboard.producedWeightToday, dashboard.totalWeightToday);
+
+    const dashboardContracts = Object.values(dataContracts.WIDGET_CONTRACTS)
+      .filter(contract => contract.source.api === '/api/dashboard');
+    for (const contract of dashboardContracts) {
+      for (const field of contract.source.fields) {
+        assert.ok(Object.hasOwn(dashboard, field), `dashboard response should include contracted field ${field}`);
+      }
+    }
 
     assert.equal((await request('/api/reports/waste')).status, 401);
     assert.equal((await request('/api/reports/waste', { headers: authHeaders(finance) })).status, 200);

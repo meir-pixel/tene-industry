@@ -14,6 +14,8 @@ No change is ready unless it has:
 4. A targeted test set.
 5. A rollback note.
 6. A handoff note for the next thread or agent.
+7. A widget/data contract update when any visible KPI, badge, chart, icon, or
+   document value reads business data.
 
 If any item is unknown, the change is not ready to deploy.
 
@@ -45,6 +47,15 @@ Before editing code, classify the change:
 | D4 | Drops/renames/deletes data | Forbidden until explicit migration plan and verified backup |
 
 Default to the higher level when unsure.
+
+## Widget Data Identity
+
+Any visual element that displays business data needs a contract. This includes
+KPIs, icons, badges, charts, order cards, print cards, and warning chips.
+
+Contracts live in `public/data-contracts-client.js` and are documented in
+`docs/widget-data-contracts.md`. When a source API, field name, meaning, or
+consumer changes, update the contract in the same commit.
 
 ## Database Rules
 
