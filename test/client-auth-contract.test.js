@@ -230,6 +230,21 @@ test('order creation success copy does not promise production before approval', 
   assert.doesNotMatch(index, /נשלחה לתור הייצור/);
 });
 
+test('shape side count picker uses clear canonical silhouettes', () => {
+  const editor = read('public/shape-editor.js');
+
+  assert.match(editor, /function countPickerShapeSVG/);
+  assert.match(editor, /1:\s*'קו ישר'/);
+  assert.match(editor, /2:\s*'צורת L'/);
+  assert.match(editor, /3:\s*'צורת ח'/);
+  assert.match(editor, /4:\s*'ריבוע \/ מלבן'/);
+  assert.match(editor, /5:\s*'מחומש'/);
+  assert.match(editor, /6:\s*'משושה'/);
+  assert.match(editor, /if \(n === 3\)[\s\S]*aria-label="צורת ח"/);
+  assert.match(editor, /if \(n === 4\)[\s\S]*<rect/);
+  assert.doesNotMatch(editor, /const ex = SHAPE_PRESETS\.find\(s => s\.sides\.length == n\)/);
+});
+
 test('machine assignment queue uses production queue source of truth', () => {
   const machine = read('public/machine.html');
 

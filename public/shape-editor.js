@@ -51,6 +51,39 @@ function calcShapePoints(sides, angles) {
   return pts;
 }
 
+const COUNT_PICKER_NAMES = {
+  1: 'קו ישר',
+  2: 'צורת L',
+  3: 'צורת ח',
+  4: 'ריבוע / מלבן',
+  5: 'מחומש',
+  6: 'משושה',
+  7: 'שבע צלעות',
+  8: 'שמונה צלעות'
+};
+
+function countPickerShapeSVG(count) {
+  const n = Number(count);
+  const style = 'fill:none;stroke:#0c567a;stroke-width:9;stroke-linecap:round;stroke-linejoin:round';
+  const guide = 'fill:none;stroke:#d9e5ee;stroke-width:2;stroke-dasharray:4 5';
+  const dot = p => `<circle cx="${p[0]}" cy="${p[1]}" r="4.5" fill="#22a85a"/>`;
+  const path = pts => `<path d="${pts.map((p,i)=>(i?'L':'M')+p[0]+' '+p[1]).join(' ')}" style="${style}"/>` + pts.map(dot).join('');
+
+  if (n === 1) return `<svg viewBox="0 0 112 80" aria-label="קו ישר">${path([[22,40],[90,40]])}</svg>`;
+  if (n === 2) return `<svg viewBox="0 0 112 80" aria-label="צורת L">${path([[26,22],[26,58],[84,58]])}</svg>`;
+  if (n === 3) return `<svg viewBox="0 0 112 80" aria-label="צורת ח">${path([[24,18],[24,58],[88,58],[88,18]])}</svg>`;
+  if (n === 4) return `<svg viewBox="0 0 112 80" aria-label="ריבוע"><rect x="27" y="16" width="58" height="48" rx="3" style="${style}"/><rect x="27" y="16" width="58" height="48" rx="3" style="${guide}"/></svg>`;
+
+  const sides = Math.max(5, n);
+  const r = sides <= 6 ? 27 : 29;
+  const cx = 56, cy = 40;
+  const pts = Array.from({ length:sides }, (_, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / sides;
+    return [Math.round(cx + r * Math.cos(a)), Math.round(cy + r * Math.sin(a))];
+  });
+  return `<svg viewBox="0 0 112 80" aria-label="${COUNT_PICKER_NAMES[n] || `${n} צלעות`}">${path([...pts, pts[0]])}</svg>`;
+}
+
 // ── TRUE 3D GEOMETRY (azimuth + elevation per segment) ────────────
 // azAngles[i]: rotation in XY plane from +X axis (degrees, 0=right, 90=forward)
 // elAngles[i]: tilt from XY plane toward +Z (degrees, 0=flat, 90=straight up)
@@ -437,11 +470,13 @@ class ShapeEditorModal {
 /* ── Count picker buttons ── */
 .se-count-btn{padding:16px 20px;border-radius:14px;border:2px solid #dde4ed;
   background:#fff;cursor:pointer;font-family:'Heebo',sans-serif;text-align:center;
-  min-width:110px;transition:all 0.15s;display:flex;flex-direction:column;align-items:center;gap:4px;}
+  min-width:142px;transition:all 0.15s;display:flex;flex-direction:column;align-items:center;gap:6px;}
 .se-count-btn:hover{border-color:#e07b39;background:rgba(224,123,57,0.05);
   transform:translateY(-2px);box-shadow:0 4px 16px rgba(224,123,57,0.2);}
 .se-count-btn .cnt-num{font-size:28px;font-weight:900;color:#1a2332;}
 .se-count-btn .cnt-lbl{font-size:11px;color:#7a93ab;}
+.se-count-btn .cnt-name{font-size:13px;font-weight:900;color:#1a2332;}
+.se-count-btn svg{width:112px;height:80px;display:block;margin:0 auto;}
 .se-row-active td{background:rgba(41,121,255,0.07)!important;border-bottom:1px solid rgba(41,121,255,0.2)!important;}
 .se-row-active td:first-child{border-right:3px solid #2979ff!important;}
 .se-row-active .se-seg-label{background:#2979ff!important;}
@@ -758,11 +793,11 @@ class ShapeEditorModal {
     cont.innerHTML = Object.entries(counts)
       .sort(([a],[b]) => Number(a)-Number(b))
       .map(([n, total]) => {
-        const ex = SHAPE_PRESETS.find(s => s.sides.length == n);
-        const svgStr = ex ? shape3DSVG(ex.sides, ex.angles||[], 80, 54, 8, {showAxes:false,showDims:false,dark:false}) : '';
+        const shapeName = COUNT_PICKER_NAMES[Number(n)] || n + ' צלעות';
         return '<button class="se-count-btn" data-count="'+n+'">'
-          + '<svg viewBox="0 0 80 54" width="80" height="54" style="display:block;margin:0 auto">'+svgStr+'</svg>'
+          + countPickerShapeSVG(n)
           + '<div class="cnt-num">'+n+'</div>'
+          + '<div class="cnt-name">'+shapeName+'</div>'
           + '<div class="cnt-lbl">צלעות</div>'
           + '</button>';
       }).join('');
