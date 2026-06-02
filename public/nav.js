@@ -35,6 +35,14 @@
       scrollbar-width:none; -ms-overflow-style:none;
     }
     #ib-links::-webkit-scrollbar { display:none; }
+    .ib-group-label {
+      display:none;
+      color:rgba(255,255,255,0.42);
+      font-size:10px;
+      font-weight:900;
+      letter-spacing:.5px;
+      padding:10px 10px 4px;
+    }
     .ib-link {
       padding:6px 11px; border-radius:7px; text-decoration:none;
       color:#526070; font-size:12.5px; font-weight:600;
@@ -90,6 +98,12 @@
     #ib-drawer-close:hover { background:rgba(0,0,0,0.06); color:#526070; }
 
     #ib-drawer-links { flex:1; overflow-y:auto; padding:8px; }
+    .ib-drawer-group {
+      padding:12px 10px 5px;
+      color:#8fa0b0;
+      font-size:11px;
+      font-weight:900;
+    }
     .ib-dl {
       display:flex; align-items:center; gap:12px;
       padding:11px 14px; border-radius:9px; text-decoration:none;
@@ -126,11 +140,11 @@
     @media(min-width:1024px) {
       body {
         padding-top: 0 !important;
-        padding-left: 124px !important;
+        padding-left: 156px !important;
       }
       #ib-topnav {
         inset: 0 auto 0 0;
-        width: 124px;
+        width: 156px;
         height: 100vh;
         padding: 16px 10px;
         flex-direction: column;
@@ -148,7 +162,7 @@
         border-bottom: 1px solid rgba(255,255,255,0.12);
       }
       #ib-logo-icon {
-        width: 96px;
+        width: 118px;
         height: auto;
         filter: drop-shadow(0 8px 18px rgba(0,0,0,0.28));
       }
@@ -160,6 +174,7 @@
         overflow-y: auto;
         padding: 0 2px 10px;
       }
+      .ib-group-label { display:block; }
       .ib-link {
         display: flex;
         align-items: center;
@@ -199,33 +214,47 @@
   `;
 
   const LINKS = [
-    { href:'/dashboard.html',    icon:'📊', label:'דשבורד',      id:'dashboard'    },
-    { href:'/orders.html',       icon:'📋', label:'הזמנות',      id:'orders'       },
-    { href:'/index.html',        icon:'➕', label:'הזמנה חדשה',  id:'new'          },
-    { href:'/intake.html',       icon:'📬', label:'קליטה',       id:'intake'       },
-    { href:'/customers.html',    icon:'👥', label:'לקוחות',      id:'customers'    },
-    { href:'/machine.html',      icon:'🔧', label:'מכונות',      id:'machine'      },
-    { href:'/production-setup.html', icon:'⚙️', label:'הגדרות ייצור', id:'production-setup' },
-    { href:'/kiosk.html',        icon:'🖥️', label:'תחנת עבודה',  id:'kiosk'        },
-    { href:'/warehouse.html',    icon:'📦', label:'מחסן',        id:'warehouse'    },
-    { href:'/inventory.html',    icon:'🗄️', label:'מלאי',        id:'inventory'    },
-    // { href:'/procurement.html',  icon:'🛒', label:'רכש',         id:'procurement'  },
-    { href:'/projects.html',     icon:'🏗️', label:'פרויקטים',    id:'projects'     },
-    { href:'/warroom.html',      icon:'🚨', label:'War Room',    id:'warroom'      },
-    { href:'/maintenance.html',  icon:'🛠️', label:'תחזוקה',      id:'maintenance'  },
-    { href:'/quality.html',      icon:'🔍', label:'איכות',       id:'quality'      },
-    { href:'/reports.html',      icon:'📈', label:'דוחות',       id:'reports'      },
-    { href:'/finance.html',      icon:'💰', label:'פיננסים',     id:'finance'      },
-    { href:'/delivery-admin.html', icon:'🚚', label:'נהגים',       id:'delivery-admin' },
-    { href:'/driver.html',       icon:'🚚', label:'נהג',         id:'driver'       },
-    { href:'/holdings.html',     icon:'🏢', label:'אחזקות',      id:'holdings'     },
-    { href:'/admin.html',        icon:'⚙️', label:'ניהול',       id:'admin'        },
+    { group:'ראשי', href:'/dashboard.html', icon:'📊', label:'דשבורד', id:'dashboard' },
+    { group:'ראשי', href:'/orders.html', icon:'📋', label:'הזמנות', id:'orders' },
+    { group:'ראשי', href:'/index.html', icon:'➕', label:'הזמנה חדשה', id:'new' },
+    { group:'ראשי', href:'/intake.html', icon:'📬', label:'קליטת הזמנות', id:'intake' },
+    { group:'ראשי', href:'/customers.html', icon:'👥', label:'לקוחות', id:'customers' },
+
+    { group:'ייצור', href:'/production-queue.html', icon:'🏭', label:'תור ייצור', id:'production-queue' },
+    { group:'ייצור', href:'/machine.html', icon:'🔧', label:'מכונות', id:'machine' },
+    { group:'ייצור', href:'/kiosk.html', icon:'🖥️', label:'תחנת עבודה', id:'kiosk' },
+    { group:'ייצור', href:'/production-setup.html', icon:'⚙️', label:'הגדרות ייצור', id:'production-setup' },
+
+    { group:'תפעול', href:'/warehouse.html', icon:'📦', label:'מחסן', id:'warehouse' },
+    { group:'תפעול', href:'/inventory.html', icon:'🗄️', label:'מלאי', id:'inventory' },
+    { group:'תפעול', href:'/procurement.html', icon:'🛒', label:'רכש', id:'procurement' },
+    { group:'תפעול', href:'/delivery-admin.html', icon:'🚚', label:'ניהול נהגים', id:'delivery-admin' },
+    { group:'תפעול', href:'/driver.html', icon:'🚚', label:'מסך נהג', id:'driver' },
+
+    { group:'בקרה', href:'/quality.html', icon:'🔍', label:'איכות', id:'quality' },
+    { group:'בקרה', href:'/maintenance.html', icon:'🛠️', label:'תחזוקה', id:'maintenance' },
+    { group:'בקרה', href:'/warroom.html', icon:'🚨', label:'War Room', id:'warroom' },
+    { group:'בקרה', href:'/reports.html', icon:'📈', label:'דוחות', id:'reports' },
+
+    { group:'ניהול', href:'/finance.html', icon:'💰', label:'פיננסים', id:'finance' },
+    { group:'ניהול', href:'/projects.html', icon:'🏗️', label:'פרויקטים', id:'projects' },
+    { group:'ניהול', href:'/holdings.html', icon:'🏢', label:'אחזקות', id:'holdings' },
+    { group:'ניהול', href:'/admin.html', icon:'⚙️', label:'ניהול מערכת', id:'admin' },
   ];
 
   const BOTTOM_IDS = ['dashboard','orders','new','admin'];
   const path     = location.pathname.replace(/^\//, '') || 'dashboard.html';
   const activeId = (LINKS.find(l => l.href.replace('/','') === path) || {}).id || '';
   const ia = id => id === activeId ? 'ib-active' : '';
+  function renderNavLinks(linkClass, groupClass) {
+    let currentGroup = '';
+    return LINKS.map(l => {
+      const heading = l.group !== currentGroup
+        ? (currentGroup = l.group, '<div class="'+groupClass+'">'+l.group+'</div>')
+        : '';
+      return heading + '<a href="'+l.href+'" class="'+linkClass+' '+ia(l.id)+'">'+l.icon+' '+l.label+'</a>';
+    }).join('');
+  }
 
   // ── inject styles ──
   const styleEl = document.createElement('style');
@@ -238,7 +267,7 @@
   topnav.innerHTML =
     '<a href="/dashboard.html" id="ib-logo"><img id="ib-logo-icon" src="/brand/tene-logo.svg" alt="טנא תעשיות ברזל"></a>' +
     '<div id="ib-links">' +
-      LINKS.map(l => '<a href="'+l.href+'" class="ib-link '+ia(l.id)+'">'+l.icon+' '+l.label+'</a>').join('') +
+      renderNavLinks('ib-link', 'ib-group-label') +
     '</div>' +
     '<button id="ib-hamburger" aria-label="תפריט">☰</button>';
 
@@ -255,11 +284,7 @@
       '<button id="ib-drawer-close" aria-label="סגור">✕</button>' +
     '</div>' +
     '<div id="ib-drawer-links">' +
-      LINKS.map(l =>
-        '<a href="'+l.href+'" class="ib-dl '+ia(l.id)+'">' +
-          '<span class="ib-dl-icon">'+l.icon+'</span>'+l.label+
-        '</a>'
-      ).join('') +
+      renderNavLinks('ib-dl', 'ib-drawer-group') +
     '</div>';
 
   // ── bottom nav ──

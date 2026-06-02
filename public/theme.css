@@ -314,7 +314,7 @@ body {
 
 @media(min-width:1024px) {
   .page, .content, main, .main {
-    width: min(1480px, calc(100vw - 152px)) !important;
+    width: min(1480px, calc(100vw - 184px)) !important;
   }
 }
 
