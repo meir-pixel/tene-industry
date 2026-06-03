@@ -105,8 +105,32 @@
     function drawing(item){
       const seg=segments(item),name=String(item.shape_name||'').toLowerCase();
       if(/spiral|ספיר/.test(name))return spiral(seg);
+      if(isOpenUShape(seg))return openU(seg);
       if((/closed|stirrup|חישוק/.test(name)||seg.length===6)&&seg.length>=4)return closed(seg);
       return generic(seg);
+    }
+    function rightAngle(value){return Math.abs(Number(value)-90)<0.1}
+    function isOpenUShape(s){
+      if(!Array.isArray(s)||s.length!==3)return false;
+      const lengths=s.map(part=>Number(part.length_mm||0));
+      const [left,bridge,right]=lengths;
+      if(!(left>0&&bridge>0&&right>0))return false;
+      const legsSimilar=Math.abs(left-right)<=Math.max(left,right)*0.25;
+      const bridgeDominant=bridge>=Math.max(left,right)*1.5;
+      return legsSimilar&&bridgeDominant&&rightAngle(s[0].angle_deg)&&rightAngle(s[1].angle_deg);
+    }
+    function openU(s){
+      const left=Number(s[0].length_mm||0),bridge=Number(s[1].length_mm||0),right=Number(s[2].length_mm||0);
+      return `<svg data-shape-kind="worker-open-u" viewBox="0 0 360 190">
+        <path class="shape" d="M84 152 L84 48 L276 48 L276 152"/>
+        <text class="measure" x="84" y="104" text-anchor="middle">${left}</text>
+        <text class="measure" x="180" y="35" text-anchor="middle">${bridge}</text>
+        <text class="measure" x="276" y="104" text-anchor="middle">${right}</text>
+        <circle cx="84" cy="48" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
+        <text class="detail" x="84" y="53" text-anchor="middle">90°</text>
+        <circle cx="276" cy="48" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
+        <text class="detail" x="276" y="53" text-anchor="middle">90°</text>
+      </svg>`
     }
     function closed(s){
       const values=s.map(part=>Number(part.length_mm||0)),tailsAtEnds=values.length>=6&&values[0]<values[1]&&values[5]<values[4],outer=tailsAtEnds?values.slice(1,5):values.slice(0,4),tails=tailsAtEnds?[values[0],values[5]]:values.slice(4,6);

@@ -395,6 +395,8 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /ITEM_STATUS\.IN_PRODUCTION/);
   assert.match(workerVisual, /ITEM_STATUS\.DONE/);
   assert.match(workerVisual, /ITEM_STATUS\.DELIVERED/);
+  assert.match(workerVisual, /isOpenUShape/);
+  assert.match(workerVisual, /data-shape-kind="worker-open-u"/);
   assert.match(workerVisual, /דשבורד איסוף כרטיסים/);
   assert.match(workerVisual, /הזמנות ממתינות/);
   assert.match(workerVisual, /כרטיסים/);
