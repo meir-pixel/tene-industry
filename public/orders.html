@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/theme.css">
+<script src="/auth-client.js"></script>
 <script src="/status-contracts-client.js"></script>
 <script src="/safe-dom.js" defer></script>
 <script src="/nav.js" defer></script>
@@ -307,8 +308,13 @@ function connectWS() {
 async function fetchOrders() {
   try {
     const url = '/api/orders' + (activeStatus ? '?status=' + encodeURIComponent(activeStatus) : '');
-    allOrders = await (await fetch(url)).json();
-  } catch {}
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`orders ${response.status}`);
+    allOrders = await response.json();
+  } catch (error) {
+    console.error('fetchOrders failed', error);
+    allOrders = [];
+  }
   applyFilter();
 }
 
@@ -428,6 +434,12 @@ async function setStatus(id, status) {
     body: JSON.stringify({ status })
   });
   const result = await response.json().catch(() => ({}));
+  if (response.status === 401 || response.status === 403) {
+    alert(response.status === 401
+      ? 'נדרשת התחברות מחדש כדי לאשר הזמנה.'
+      : 'אין למשתמש הנוכחי הרשאה לאשר הזמנה.');
+    return false;
+  }
   if (!response.ok || !result.success) {
     const allowed = result.allowed?.length ? ` אפשרי: ${result.allowed.join(' / ')}` : '';
     alert((result.error || 'עדכון סטטוס נכשל') + allowed);

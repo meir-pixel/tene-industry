@@ -247,9 +247,12 @@ test('orders screen uses shared status transition contract', () => {
   const statusClient = read('public/status-contracts-client.js');
 
   assert.match(statusClient, /window\.IronBendStatus/);
+  assert.match(orders, /src="\/auth-client\.js"/);
   assert.match(orders, /\/status-contracts-client\.js/);
   assert.match(orders, /allowedOrderTransitions\(o\.status\)/);
   assert.match(orders, /setStatusAndClose/);
+  assert.match(orders, /נדרשת התחברות מחדש כדי לאשר הזמנה/);
+  assert.match(orders, /אין למשתמש הנוכחי הרשאה לאשר הזמנה/);
   assert.doesNotMatch(orders, /ok=>\{if\(ok\)closeDetailPanel/);
   assert.doesNotMatch(orders, /const statuses = \['/);
 });
