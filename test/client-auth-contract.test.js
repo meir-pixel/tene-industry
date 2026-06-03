@@ -15,6 +15,9 @@ test('client auth contract has a single fetch wrapper source', () => {
 
   assert.match(authClient, /window\.IronBendAuth/);
   assert.match(authClient, /window\.fetch = authFetch/);
+  assert.match(authClient, /showAuthNotice/);
+  assert.match(authClient, /השרת עובד/);
+  assert.match(authClient, /\/login\.html\?next=/);
   assert.doesNotMatch(nav, /window\.fetch\s*=/);
   assert.match(nav, /auth-client\.js/);
 });
@@ -51,6 +54,18 @@ test('public portal does not query internal order search', () => {
 
   assert.doesNotMatch(portal, /\/api\/orders\?order_num=/);
   assert.match(portal, /customer-scoped portal token/);
+});
+
+test('production card split keeps item cards and master card in sync', () => {
+  const productionCardsRoute = read('routes/productionCards.js');
+
+  assert.match(productionCardsRoute, /function cardPlan\(\)/);
+  assert.match(productionCardsRoute, /function buildSplitMaster\(\)/);
+  assert.match(productionCardsRoute, /d\.innerHTML = buildSplitMaster\(\)/);
+  assert.match(productionCardsRoute, /buildCard\(row\.item, row\.subQty, row\.totalCards, row\.cardIdx\)/);
+  assert.match(productionCardsRoute, /function printCards\(\)[\s\S]*generateCards\(\);[\s\S]*window\.print\(\);/);
+  assert.match(productionCardsRoute, /'-C' \+ \(cardIdx\+1\) \+ 'OF' \+ totalCards/);
+  assert.match(productionCardsRoute, /להדפיס גם מאסטר מעודכן/);
 });
 
 test('customer portal UI uses OTP verification before storing token', () => {
@@ -126,6 +141,19 @@ test('shared desktop navigation is right aligned for RTL layout', () => {
   assert.match(theme, /border-left:\s*1px solid/);
 });
 
+test('shared navigation module icons are clickable links', () => {
+  const nav = read('public/nav.js');
+
+  assert.match(nav, /escapeAttr\(l\.href\)/);
+  assert.match(nav, /title=".*escapeAttr\(l\.label\)/);
+  assert.match(nav, /aria-label=".*escapeAttr\(l\.label\)/);
+  assert.match(nav, /ib-link-icon/);
+  assert.match(nav, /ib-link-label/);
+  assert.match(nav, /ib-bn-icon/);
+  assert.match(nav, /ib-bn-label/);
+  assert.match(nav, /<a href="\/dashboard\.html" title="דשבורד" aria-label="דשבורד"><img id="ib-drawer-logo"/);
+});
+
 test('dashboard production queue uses production queue API source', () => {
   const dashboard = read('public/dashboard.html');
 
@@ -184,6 +212,17 @@ test('kiosk distinguishes missing work from untrusted machine state', () => {
   assert.match(kiosk, /btnStop'\)\.disabled\s+= !activeShift \|\| !canTrustState/);
 });
 
+test('kiosk uses the light operational design language', () => {
+  const kiosk = read('public/kiosk.html');
+
+  assert.match(kiosk, /--bg:#f4f7fb/);
+  assert.match(kiosk, /--panel:#ffffff/);
+  assert.match(kiosk, /--panel-soft:#f8fafc/);
+  assert.match(kiosk, /apple-mobile-web-app-status-bar-style" content="default"/);
+  assert.doesNotMatch(kiosk, /--bg:#0d1117/);
+  assert.doesNotMatch(kiosk, /black-translucent/);
+});
+
 test('reports screen uses authenticated APIs and escapes API-sourced table fields', () => {
   const reports = read('public/reports.html');
 
@@ -207,6 +246,8 @@ test('orders screen uses shared status transition contract', () => {
   assert.match(statusClient, /window\.IronBendStatus/);
   assert.match(orders, /\/status-contracts-client\.js/);
   assert.match(orders, /allowedOrderTransitions\(o\.status\)/);
+  assert.match(orders, /setStatusAndClose/);
+  assert.doesNotMatch(orders, /ok=>\{if\(ok\)closeDetailPanel/);
   assert.doesNotMatch(orders, /const statuses = \['/);
 });
 
@@ -243,6 +284,35 @@ test('shape side count picker uses clear canonical silhouettes', () => {
   assert.match(editor, /if \(n === 3\)[\s\S]*aria-label="צורת ח"/);
   assert.match(editor, /if \(n === 4\)[\s\S]*<rect/);
   assert.doesNotMatch(editor, /const ex = SHAPE_PRESETS\.find\(s => s\.sides\.length == n\)/);
+});
+
+test('shape editor opens in clean 2D mode and keeps 3D uncluttered', () => {
+  const editor = read('public/shape-editor.js');
+
+  assert.match(editor, /window\._seViewMode = '2d'/);
+  assert.match(editor, /showBends: false/);
+  assert.match(editor, /compactLabels: true/);
+  assert.match(editor, /seReal3DToggle/);
+  assert.match(editor, /_setReal3D/);
+  assert.match(editor, /setPointerCapture/);
+  assert.match(editor, /releasePointerCapture/);
+  assert.match(editor, /lostpointercapture/);
+  assert.doesNotMatch(editor, /3D XYZ/);
+});
+
+test('order OCR upload refreshes auth and shows localized permission errors', () => {
+  const index = read('public/index.html');
+
+  assert.match(index, /ensureOcrSession/);
+  assert.match(index, /IronBendAuth\.refreshAccessToken/);
+  assert.match(index, /OCR_AUTH_REQUIRED/);
+  assert.match(index, /OCR_FORBIDDEN/);
+  assert.match(index, /נדרשת התחברות מחדש לפני ניתוח תמונה/);
+  assert.match(index, /אין למשתמש הנוכחי הרשאה לניתוח תמונה/);
+  assert.match(index, /img-review-workspace/);
+  assert.match(index, /img-source-canvas/);
+  assert.match(index, /זוהו \$\{items\.length\} פריטים/);
+  assert.doesNotMatch(index, /showImgError\('שגיאת תקשורת: ' \+ err\.message\)/);
 });
 
 test('machine assignment queue uses production queue source of truth', () => {
@@ -333,9 +403,21 @@ test('driver management belongs to delivery admin screen', () => {
   assert.doesNotMatch(admin, /loadDriversAdmin/);
   assert.doesNotMatch(admin, /openDriverModal/);
   assert.doesNotMatch(admin, /driverModal/);
-  assert.match(deliveryAdmin, /loadDriversAdmin/);
+  assert.match(deliveryAdmin, /loadFleet/);
+  assert.match(deliveryAdmin, /\/api\/vehicles\?all=1/);
+  assert.match(deliveryAdmin, /\/api\/vehicles\/'\+id\+'\/documents/);
+  assert.match(deliveryAdmin, /vehicleDocumentModal/);
+  assert.match(deliveryAdmin, /driverVehicleId/);
   assert.match(deliveryAdmin, /\/api\/drivers\?all=1/);
   assert.match(deliveryAdmin, /\/api\/drivers/);
+  assert.match(deliveryAdmin, /fleetKpis/);
+  assert.match(deliveryAdmin, /vehicleSide/);
+  assert.match(deliveryAdmin, /testExpiry/);
+  assert.match(deliveryAdmin, /insuranceExpiry/);
+  assert.match(deliveryAdmin, /nextServiceDate/);
+  assert.match(deliveryAdmin, /\/events/);
+  assert.match(deliveryAdmin, /expense_total/);
+  assert.match(deliveryAdmin, /income_total/);
   assert.match(nav, /\/delivery-admin\.html/);
 });
 
@@ -353,23 +435,88 @@ test('intake review and OCR training belong to intake screen', () => {
   assert.match(intake, /loadOcrTraining/);
   assert.match(intake, /saveOcrTraining/);
   assert.match(intake, /loadIntakeQueue/);
+  assert.match(intake, /מרכז קליטת הזמנות/);
+  assert.match(intake, /הכנסה ידנית לתור/);
+  assert.match(intake, /saveManualIntake/);
+  assert.match(intake, /manualIntakeText/);
+  assert.match(intake, /תור לאישור לפי דחיפות/);
+  assert.match(intake, /urgencyInfo/);
+  assert.match(intake, /sortIntakeRows/);
+  assert.match(intake, /order-metrics/);
+  assert.match(intake, /סינון לפי מקור/);
+  assert.match(intake, /customer_match/);
+  assert.match(intake, /searchCustomerForIntake/);
+  assert.match(intake, /\/api\/customers\?q=/);
+  assert.match(intake, /customer_id/);
   assert.match(intake, /\/api\/intake\/training/);
   assert.match(intake, /\/api\/intake\/log\?status=pending_review/);
   assert.match(nav, /\/intake\.html/);
 });
 
+test('intake OCR review requires source-versus-parsed comparison', () => {
+  const intake = read('public/intake.html');
+  const route = read('routes/intake.js');
+  const server = read('server.js');
+
+  assert.match(intake, /intakeCompareModal/);
+  assert.match(intake, /openIntakeCompare/);
+  assert.match(intake, /intakeSourceHtml/);
+  assert.match(intake, /intakeReviewTable/);
+  assert.match(intake, /השוואה במסך מלא/);
+  assert.match(intake, /אשר אחרי בדיקה/);
+  assert.match(route, /original_data_url/);
+  assert.match(route, /original_mime/);
+  assert.match(server, /addCol\('intake_log', 'original_data_url'/);
+});
+
 test('admin OCR settings describe OpenAI intake instead of Google Vision', () => {
   const admin = read('public/admin.html');
+  const adminRoute = read('routes/admin.js');
   const server = read('server.js');
 
   assert.match(admin, /OpenAI \/ GPT OCR/);
   assert.match(admin, /OPENAI_API_KEY/);
+  assert.match(admin, /OPENAI_API_KEY_LOCAL/);
   assert.match(admin, /OPENAI_MODEL/);
   assert.match(admin, /INTAKE_AI_ENABLED/);
   assert.doesNotMatch(admin, /Google Vision OCR/);
   assert.doesNotMatch(admin, /Google Vision API Key/);
-  assert.match(server, /'OPENAI_API_KEY','OPENAI_MODEL','INTAKE_AI_ENABLED'/);
-  assert.match(server, /getSetting\('OPENAI_API_KEY'\)/);
+  assert.match(adminRoute, /'OPENAI_API_KEY','OPENAI_MODEL','INTAKE_AI_ENABLED'/);
+  assert.match(server, /function getOpenAiApiKey/);
+  assert.match(server, /OPENAI_API_KEY_LOCAL/);
+});
+
+test('order numbers are allocated from a DB sequence instead of order count', () => {
+  const server = read('server.js');
+  const orderNumbers = read('services/orderNumbers.js');
+  const generateOrderNumStart = server.indexOf('const generateOrderNum');
+  const generateOrderNumEnd = server.indexOf('function checkOrderComplete', generateOrderNumStart);
+  const generateOrderNumSource = server.slice(generateOrderNumStart, generateOrderNumEnd);
+
+  assert.match(server, /CREATE TABLE IF NOT EXISTS order_sequences/);
+  assert.match(server, /createOrderNumberAllocator\(db\)/);
+  assert.match(orderNumbers, /function ensureOrderSequence/);
+  assert.match(orderNumbers, /const nextOrderNumTx = db\.transaction/);
+  assert.match(orderNumbers, /UPDATE order_sequences\s+SET next_value=next_value\+1/);
+  assert.doesNotMatch(generateOrderNumSource, /COUNT\(\*\).*FROM orders/s);
+});
+
+test('large operational list endpoints use server-side pagination', () => {
+  const server = read('server.js');
+  const orderRoutes = read('routes/orders.js');
+  const ordersStart = orderRoutes.indexOf("router.get('/orders'");
+  const ordersEnd = orderRoutes.indexOf("router.get('/orders/:id'", ordersStart);
+  const ordersSource = orderRoutes.slice(ordersStart, ordersEnd);
+  const inventoryRoutes = read('routes/inventory.js');
+  const inventoryStart = inventoryRoutes.indexOf("router.get('/inventory'");
+  const inventoryEnd = inventoryRoutes.indexOf("router.get('/inventory/summary'", inventoryStart);
+  const inventorySource = inventoryRoutes.slice(inventoryStart, inventoryEnd);
+
+  assert.match(server, /function listPage/);
+  assert.match(ordersSource, /listPage\(req\.query/);
+  assert.match(ordersSource, /LIMIT \? OFFSET \?/);
+  assert.match(inventorySource, /listPage\(req\.query/);
+  assert.match(inventorySource, /LIMIT \? OFFSET \?/);
 });
 
 test('machine and workstation setup belong to production setup screen', () => {
@@ -414,6 +561,41 @@ test('platform admin quick links target module admin surfaces', () => {
   assert.doesNotMatch(admin, /class="topnav"/);
   assert.doesNotMatch(admin, /\.machines-table/);
   assert.doesNotMatch(admin, /\.ws-card/);
+});
+
+test('platform admin exposes role permission management', () => {
+  const admin = read('public/admin.html');
+
+  assert.match(admin, /tab-permissions/);
+  assert.match(admin, /ניהול הרשאות/);
+  assert.match(admin, /PERMISSION_ROLES/);
+  assert.match(admin, /openInitialTabFromUrl/);
+  for (const role of ['admin', 'manager', 'office', 'warehouse', 'production', 'kiosk', 'sales', 'finance', 'quality', 'maintenance', 'driver']) {
+    assert.match(admin, new RegExp(`value="${role}"|role:'${role}'`));
+  }
+});
+
+test('platform admin exposes module maturity control board', () => {
+  const admin = read('public/admin.html');
+
+  assert.match(admin, /בקרת מודולים/);
+  assert.match(admin, /moduleStatusGrid/);
+  assert.match(admin, /module-card/);
+  assert.match(admin, /status:'partial'/);
+  assert.match(admin, /status:'frozen'/);
+  assert.match(admin, /risk:'high'/);
+  assert.match(admin, /MODULE_PLATFORM_CORE/);
+  assert.match(admin, /MODULE_VENDOR_CONTROL/);
+  assert.match(admin, /Vendor Control \/ בקרה מרחוק/);
+  assert.match(admin, /אין גישה חופשית לנתוני לקוח/);
+  assert.match(admin, /MODULE_ORDERS/);
+  assert.match(admin, /MODULE_PRODUCTION/);
+  assert.match(admin, /MODULE_INVENTORY/);
+  assert.match(admin, /MODULE_FLEET/);
+  assert.match(admin, /MODULE_FINANCE/);
+  assert.match(admin, /MODULE_QUALITY/);
+  assert.match(admin, /MODULE_PORTALS/);
+  assert.match(admin, /הפעלה טכנית לא אומרת שהמודול בשל למכירה/);
 });
 
 test('platform admin ERP connectors do not advertise unavailable demo actions', () => {
@@ -462,6 +644,8 @@ test('warehouse screen is API-backed and does not mask failures with mock logist
 
 test('inventory screen is authenticated and covered by safe API loading', () => {
   const inventory = read('public/inventory.html');
+  const intake = read('public/intake.html');
+  const inventoryRoutes = read('routes/inventory.js');
 
   assert.match(inventory, /src="\/auth-client\.js"/);
   assert.match(inventory, /src="\/safe-dom\.js"/);
@@ -469,10 +653,44 @@ test('inventory screen is authenticated and covered by safe API loading', () => 
   assert.match(inventory, /\/api\/inventory/);
   assert.match(inventory, /\/api\/suppliers/);
   assert.match(inventory, /\/api\/waste\/summary/);
+  assert.match(inventory, /value="bent"/);
+  assert.match(inventory, /bending_shape_segments/);
+  assert.match(inventory, /\/api\/inventory\/analyze-bending-shape/);
+  assert.match(inventory, /\/api\/inventory\/receipt-reviews/);
+  assert.match(inventory, /receiptSourcePreview/);
+  assert.match(inventory, /receiptCompareModal/);
+  assert.match(inventory, /openReceiptCompare/);
+  assert.match(inventory, /receipt-fullscreen/);
+  assert.match(inventory, /השוואה במסך מלא/);
+  assert.match(inventory, /approveReceiptReview/);
+  assert.match(inventory, /parseBendingShapeSegments/);
+  assert.match(inventory, /renderShapePreview/);
+  assert.match(inventory, /ocrSetupMessage/);
+  assert.match(inventory, /insufficient_quota/);
+  assert.match(inventory, /Billing ב-OpenAI/);
+  assert.match(intake, /value="bending_shape"/);
+  assert.match(inventoryRoutes, /getIntakeTrainingGuidance\(12, \['bending_shape', 'bar_schedule', 'general'\]\)/);
+  assert.match(inventory, /חסר OpenAI API Key/);
+  assert.match(inventory, /OCR כבוי/);
   assert.match(inventory, /IronBendSafe\.escapeHtml/);
   assert.match(inventory, /שגיאה בטעינת ספקים/);
   assert.doesNotMatch(inventory, /mock[A-Z]/);
   assert.doesNotMatch(inventory, /demo data/i);
+});
+
+test('local server command skips startup snapshot outside production', () => {
+  const server = read('server.js');
+  const pkg = JSON.parse(read('package.json'));
+  const localStart = read('scripts/start-local.js');
+
+  assert.match(server, /SKIP_STARTUP_DB_SNAPSHOT/);
+  assert.match(server, /process\.env\.NODE_ENV !== 'production'/);
+  assert.match(server, /AUTH_BYPASS.*NODE_ENV !== 'production'/);
+  assert.equal(pkg.scripts['start:local'], 'node scripts/start-local.js');
+  assert.match(localStart, /PORT.*3100/);
+  assert.match(localStart, /SKIP_STARTUP_DB_SNAPSHOT/);
+  assert.match(localStart, /AUTH_BYPASS/);
+  assert.match(localStart, /AUTH_BYPASS_ROLE/);
 });
 
 test('supplier portal is frozen instead of serving demo supplier data', () => {
@@ -557,7 +775,7 @@ test('war room is API-backed and does not fall back to local mock incidents', ()
 
 test('quality screen is API-backed and does not fall back to local NCR or CAPA demo data', () => {
   const quality = read('public/quality.html');
-  const server = read('server.js');
+  const qualityRoute = read('routes/quality.js');
 
   assert.match(quality, /src="\/auth-client\.js"/);
   assert.match(quality, /src="\/safe-dom\.js"/);
@@ -576,7 +794,7 @@ test('quality screen is API-backed and does not fall back to local NCR or CAPA d
   assert.doesNotMatch(quality, /CAPA-201/);
   assert.doesNotMatch(quality, /ncrList\.unshift/);
   assert.doesNotMatch(quality, /capaList\.unshift/);
-  assert.match(server, /verification_method = COALESCE/);
+  assert.match(qualityRoute, /verification_method = COALESCE/);
 });
 
 test('shared navigation exposes modules converted from stubs', () => {

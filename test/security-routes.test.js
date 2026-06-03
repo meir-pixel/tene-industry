@@ -11,7 +11,6 @@ process.env.JWT_SECRET = 'test-secret';
 process.env.BCRYPT_ROUNDS = '4';
 process.env.DB_PATH = path.join(tmpDir, 'test.db');
 process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
-process.env.AUTH_ENFORCEMENT = 'false';
 
 const { closeServer, db, server } = require('../server');
 const { hashPin } = require('../auth-core');
@@ -83,6 +82,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   seedUser('production', 'production', '1004');
   seedUser('finance', 'finance', '1005');
   seedUser('kiosk', 'operator', '1006');
+  seedUser('warehouse', 'warehouse', '1007');
 
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -99,6 +99,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   const production = await token('production', '1004');
   const finance = await token('finance', '1005');
   const kiosk = await token('kiosk', '1006');
+  const warehouse = await token('warehouse', '1007');
 
   await t.test('users require admin', async () => {
     assert.equal((await request('/api/users')).status, 401);
@@ -282,7 +283,9 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     const emptyBody = JSON.stringify({});
     assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: emptyBody })).status, 401);
     assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
-    assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 501);
+    assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 400);
+    const textBody = JSON.stringify({ source: 'phone', text: '12 6000 4' });
+    assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: authHeaders(office), body: textBody })).status, 200);
 
     assert.equal((await request('/api/intake/training')).status, 401);
     assert.equal((await request('/api/intake/training', { headers: authHeaders(production) })).status, 403);
@@ -296,9 +299,30 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   });
 
   await t.test('intake file and BVBS endpoints require office role before disabled or parse gates', async () => {
-    assert.equal((await request('/api/analyze-image', { method: 'POST' })).status, 401);
-    assert.equal((await request('/api/analyze-image', { method: 'POST', headers: authHeaders(production) })).status, 403);
+    const anonymousAnalyzeImage = await request('/api/analyze-image', { method: 'POST' });
+    assert.equal(anonymousAnalyzeImage.status, 401);
+    const anonymousAnalyzeImageBody = await anonymousAnalyzeImage.json();
+    assert.equal(anonymousAnalyzeImageBody.error, 'נדרשת התחברות מחדש לפני ניתוח תמונה');
+    assert.equal(anonymousAnalyzeImageBody.code, 'ocr_auth_required');
+
+    const productionAnalyzeImage = await request('/api/analyze-image', { method: 'POST', headers: authHeaders(production) });
+    assert.equal(productionAnalyzeImage.status, 403);
+    const productionAnalyzeImageBody = await productionAnalyzeImage.json();
+    assert.equal(productionAnalyzeImageBody.error, 'אין למשתמש הנוכחי הרשאה לניתוח תמונה');
+    assert.equal(productionAnalyzeImageBody.code, 'ocr_forbidden');
     assert.equal((await request('/api/analyze-image', { method: 'POST', headers: { Authorization: `Bearer ${office}` } })).status, 501);
+    assert.equal((await request('/api/inventory/analyze-bending-shape', { method: 'POST' })).status, 401);
+    assert.equal((await request('/api/inventory/analyze-bending-shape', { method: 'POST', headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/inventory/analyze-bending-shape', { method: 'POST', headers: { Authorization: `Bearer ${warehouse}` } })).status, 501);
+    assert.equal((await request('/api/inventory/analyze-bending-shape', { method: 'POST', headers: { Authorization: `Bearer ${office}` } })).status, 501);
+    assert.equal((await request('/api/inventory/receipt-reviews')).status, 401);
+    assert.equal((await request('/api/inventory/receipt-reviews', { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/inventory/receipt-reviews', { headers: authHeaders(warehouse) })).status, 200);
+    assert.equal((await request('/api/inventory/receipt-reviews/analyze', { method: 'POST' })).status, 401);
+    assert.equal((await request('/api/inventory/receipt-reviews/analyze', { method: 'POST', headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/inventory/receipt-reviews/analyze', { method: 'POST', headers: { Authorization: `Bearer ${warehouse}` } })).status, 501);
+    assert.equal((await request('/api/inventory/receipt-reviews/1/approve', { method: 'POST', headers: authHeaders(warehouse) })).status, 403);
+    assert.equal((await request('/api/inventory/receipt-reviews/1/reject', { method: 'POST', headers: authHeaders(warehouse) })).status, 403);
 
     assert.equal((await request('/api/intake/image', { method: 'POST' })).status, 401);
     assert.equal((await request('/api/intake/image', { method: 'POST', headers: authHeaders(production) })).status, 403);
@@ -629,8 +653,28 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request('/api/drivers', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
     assert.equal((await request('/api/drivers', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 400);
 
+    assert.equal((await request('/api/vehicles')).status, 401);
+    assert.equal((await request('/api/vehicles', { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/vehicles', { headers: authHeaders(office) })).status, 200);
+    assert.equal((await request('/api/vehicles', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
+    assert.equal((await request('/api/vehicles', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 400);
+    assert.equal((await request('/api/vehicles/1/events')).status, 401);
+    assert.equal((await request('/api/vehicles/1/events', { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/vehicles/1/events', { headers: authHeaders(office) })).status, 200);
+    assert.equal((await request('/api/vehicles/1/events', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
+    assert.equal((await request('/api/vehicles/1/events', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 400);
+    assert.equal((await request('/api/vehicles/1/documents')).status, 401);
+    assert.equal((await request('/api/vehicles/1/documents', { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/vehicles/1/documents', { headers: authHeaders(office) })).status, 200);
+
     assert.equal((await request('/api/drivers/1/location', { method: 'PATCH', headers: authHeaders(production), body: emptyBody })).status, 403);
     assert.equal((await request('/api/drivers/1/location', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 200);
+
+    assert.equal((await request('/api/drivers/1/vehicle-events')).status, 401);
+    assert.equal((await request('/api/drivers/1/vehicle-events', { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/drivers/1/vehicle-events', { headers: authHeaders(office) })).status, 200);
+    assert.equal((await request('/api/drivers/1/vehicle-events', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
+    assert.equal((await request('/api/drivers/1/vehicle-events', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 400);
 
     assert.equal((await request('/api/deliveries')).status, 401);
     assert.equal((await request('/api/deliveries', { headers: authHeaders(production) })).status, 403);
