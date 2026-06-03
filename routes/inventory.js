@@ -153,6 +153,113 @@ Do not invent unreadable numbers.`;
     res.json(rows);
   });
 
+  // ── סריקת תווית → הוספה מהירה למלאי ─────────────────────────
+  // מסלול מהיר: צלם תווית → AI ממלא → עובד מאשר → raw_material
+  // AI קרא מה שהצליח — אם לא קרא שדה, מחזיר null (לא שגיאה)
+  router.post('/inventory/scan-label', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), imageAnalysisLimiter, upload.single('image'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'נדרשת תמונה' });
+    if (getSetting('INTAKE_AI_ENABLED') !== 'true') {
+      // AI מושבת — מחזיר טופס ריק לעובד למלא ידנית
+      return res.json({ success: true, aiUsed: false, data: { diameter: null, lot_number: null, weight_kg: null, grade: 'B500B', material_type: 'coil', certificate_num: null, notes: null } });
+    }
+    const openaiKey = getOpenAiApiKey();
+    if (!openaiKey) {
+      return res.json({ success: true, aiUsed: false, data: { diameter: null, lot_number: null, weight_kg: null, grade: 'B500B', material_type: 'coil', certificate_num: null, notes: null } });
+    }
+
+    const mime     = req.file.mimetype || 'image/jpeg';
+    const fileData = req.file.buffer.toString('base64');
+    const schema   = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        diameter:        { type: ['number',  'null'] },
+        lot_number:      { type: ['string',  'null'] },
+        weight_kg:       { type: ['number',  'null'] },
+        grade:           { type: ['string',  'null'] },
+        material_type:   { type: ['string',  'null'] },
+        certificate_num: { type: ['string',  'null'] },
+        supplier_name:   { type: ['string',  'null'] },
+        notes:           { type: ['string',  'null'] },
+        confidence:      { type: ['number',  'null'] },
+      },
+      required: ['diameter', 'lot_number', 'weight_kg', 'grade', 'material_type', 'certificate_num', 'supplier_name', 'notes', 'confidence'],
+    };
+
+    const prompt = `You are reading a steel bar or coil label in a factory warehouse.
+Extract ONLY what is clearly visible. Return null for any field you cannot read confidently.
+
+Fields to extract:
+- diameter: bar diameter in mm (integer: 6,8,10,12,14,16,20,25,32 etc.)
+- lot_number: lot or heat number (text on label, often "LOT", "חום", "לוט", or a code)
+- weight_kg: net weight in kg (number only, ignore "ק\"ג" or "KG" suffix)
+- grade: steel grade (B500B, B500C, or similar — default B500B if not visible)
+- material_type: "coil" for coils/ملف, "straight" for straight bars/ישר
+- certificate_num: material certificate number if visible
+- supplier_name: supplier name if visible on label
+- notes: any other relevant text (heat treatment, standard, etc.)
+- confidence: 0.0–1.0 overall confidence in the reading
+
+IMPORTANT:
+- If weight is not on the label, return null for weight_kg (do not guess)
+- Diameter is critical — if unclear, return null
+- lot_number is critical — if unclear, return null
+Return JSON matching the schema only.`;
+
+    try {
+      const response = await axios.post('https://api.openai.com/v1/responses', {
+        model: getSetting('OPENAI_MODEL') || 'gpt-4o-mini',
+        input: [{
+          role: 'user',
+          content: [
+            { type: 'input_text', text: prompt },
+            { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' },
+          ],
+        }],
+        text: { format: { type: 'json_schema', name: 'label_scan', strict: true, schema } },
+      }, {
+        headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        timeout: 30000,
+      });
+
+      const text   = (response.data?.output || []).flatMap(e => e.content || []).find(e => e.type === 'output_text')?.text;
+      const parsed = JSON.parse(text || '{}');
+
+      // נסה לזהות ספק לפי שם
+      let supplierId = null;
+      if (parsed.supplier_name) {
+        const s = db.prepare('SELECT id FROM suppliers WHERE name LIKE ? LIMIT 1').get(`%${parsed.supplier_name}%`);
+        if (s) supplierId = s.id;
+      }
+
+      res.json({
+        success:    true,
+        aiUsed:     true,
+        confidence: parsed.confidence ?? null,
+        data: {
+          diameter:        parsed.diameter        ?? null,
+          lot_number:      parsed.lot_number      ?? null,
+          weight_kg:       parsed.weight_kg       ?? null,
+          grade:           parsed.grade           || 'B500B',
+          material_type:   parsed.material_type   || 'coil',
+          certificate_num: parsed.certificate_num ?? null,
+          supplier_name:   parsed.supplier_name   ?? null,
+          supplier_id:     supplierId,
+          notes:           parsed.notes           ?? null,
+        },
+      });
+    } catch (err) {
+      // AI נכשל — מחזיר טופס ריק, לא שגיאה
+      console.warn('[scan-label] AI failed:', err.message);
+      res.json({
+        success: true,
+        aiUsed:  false,
+        aiError: err.message,
+        data: { diameter: null, lot_number: null, weight_kg: null, grade: 'B500B', material_type: 'coil', certificate_num: null, supplier_name: null, supplier_id: null, notes: null },
+      });
+    }
+  });
+
   router.post('/inventory/receipt-reviews/analyze', analyzeBendingShapeAuthorization, imageAnalysisLimiter, upload.single('image'), async (req, res) => {
     if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
     const openaiKey = getOpenAiApiKey();
