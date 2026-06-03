@@ -154,6 +154,28 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .qr-box-center{display:flex;justify-content:center;padding:8px;}
 .qr-box-center canvas,.qr-box-center img{width:72px!important;height:72px!important;}
 
+@media screen and (max-width: 760px){
+  body{padding:8px;overflow-x:hidden;}
+  .toolbar{gap:8px;}
+  .print-btn,.gen-btn{width:100%;padding:11px 14px;}
+  .setup-panel{padding:10px;border-radius:8px;overflow-x:auto;}
+  .setup-title{font-size:14px;}
+  .setup-tbl{min-width:620px;}
+  .cards-grid{display:grid;grid-template-columns:1fr;gap:10px;}
+  .prod-card{width:100%;max-width:100%;font-size:10px;}
+  .pc-head{gap:8px;padding:8px;align-items:center;}
+  .pc-title{font-size:12px;}
+  .bc-font-top{font-size:34px;max-height:36px;}
+  .bc-font-mid{font-size:28px;max-height:30px;}
+  .pc-wq-row,.pc-spec-row{flex-wrap:wrap;gap:6px;}
+  .pc-wq-cell,.pc-spec-cell{min-width:42%;flex:1 1 42%;}
+  .pc-wq-sep,.pc-spec-sep{display:none;}
+  .pc-shape-area{min-height:130px;padding:10px;}
+  .pc-shape-area svg{max-height:128px!important;}
+  .master-card{overflow-x:auto;}
+  .master-table{min-width:560px;}
+}
+
 @media print{
   body{background:#fff;padding:0;}
   .screen-only{display:none!important;}

@@ -6,26 +6,49 @@
   <title>דשבורד איסוף כרטיסים – IronBend</title>
   <style>
     :root{--navy:#0b4262;--blue:#0c567a;--teal:#17766d;--ink:#072e49;--line:#c8dce6;--bg:#edf5f7;--soft:#f8fcfd;--wait:#b56c14;--done:#467c3b;--supplied:#625194}
-    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,sans-serif;direction:rtl}
-    header{background:var(--navy);color:#fff;padding:14px 20px;display:flex;gap:18px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:4}
-    header h1{margin:0;font-size:24px}.brand small{display:block;letter-spacing:2px;color:#bce0ed;margin-bottom:3px}
+    *{box-sizing:border-box}html{min-width:0}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,sans-serif;direction:rtl;min-width:0;overflow-x:hidden}
+    header{background:var(--navy);color:#fff;padding:14px 20px;display:flex;gap:18px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:4;min-width:0}
+    header h1{margin:0;font-size:24px}.brand{min-width:0}.brand small{display:block;letter-spacing:2px;color:#bce0ed;margin-bottom:3px}
     .live{display:flex;align-items:center;gap:8px;font-weight:700}.dot{width:11px;height:11px;border-radius:50%;background:#4fe083;box-shadow:0 0 0 5px #ffffff18}
     .progress{background:#073653;padding:9px 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;color:#fff;position:sticky;top:67px;z-index:3}
     .metric{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:12px;font-weight:700}
     .bar{height:8px;background:#ffffff2c;border-radius:6px;overflow:hidden}.bar i{height:100%;display:block;background:#7cd8cf;border-radius:6px}
     main{padding:18px;max-width:1500px;margin:auto}.tabs{display:none;margin-bottom:12px;gap:8px}.tabs button{flex:1;padding:12px;border:1px solid var(--line);background:#fff;border-radius:8px;font-weight:700;color:var(--ink)}
-    .columns{display:grid;grid-template-columns:285px 1fr;gap:16px}.panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .columns{display:grid;grid-template-columns:minmax(240px,285px) minmax(0,1fr);gap:16px;min-width:0}.panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:0}
     .panel h2{font-size:17px;margin:0;padding:15px;border-bottom:1px solid var(--line)}#orders{padding:10px;display:grid;gap:8px;max-height:calc(100vh - 190px);overflow:auto}
     .order{border:1px solid var(--line);border-radius:10px;padding:11px;text-align:right;background:var(--soft);color:var(--ink);cursor:pointer}.order.active{border:2px solid var(--teal);background:#e5f5f2}
     .order strong,.order span{display:block}.order span{font-size:12px;margin-top:4px;color:#446777}
     .stage{min-width:0}.order-head{background:var(--blue);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
     .order-head h2{font-size:21px;margin:0}.order-head span{display:block;margin-top:4px;font-size:13px;color:#d8f2fa}.order-head .badge{background:#ffffff22;border-radius:20px;padding:7px 12px;font-weight:700}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.card{background:#fff;border:2px solid var(--blue);border-radius:15px;overflow:hidden}
-    .card-head{display:grid;grid-template-columns:1.25fr .85fr .7fr .9fr;background:#e4f1f5;padding:10px 12px;gap:8px;align-items:center}.card-head b{font-size:18px}.datum{font-weight:700;text-align:center;white-space:nowrap}.datum strong{font-size:20px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;min-width:0}.card{background:#fff;border:2px solid var(--blue);border-radius:15px;overflow:hidden;min-width:0}
+    .card-head{display:grid;grid-template-columns:1.25fr .85fr .7fr .9fr;background:#e4f1f5;padding:10px 12px;gap:8px;align-items:center;min-width:0}.card-head b{font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis}.datum{font-weight:700;text-align:center;white-space:nowrap;min-width:0}.datum strong{font-size:20px}
     .drawing{height:205px;padding:6px;background:#fff}.drawing svg{width:100%;height:100%;display:block}.shape{fill:none;stroke:#0c5475;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}.angle{fill:none;stroke:#0c5475;stroke-width:4}.measure{fill:#062c46;font-size:15px;font-weight:700}.detail{fill:#79510a;font-size:13px;font-weight:700}
     .card-foot{padding:9px;background:#e8f5ef}.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.actions button{padding:10px 4px;border:1px solid #b8cfd8;border-radius:9px;background:#fff;color:var(--ink);font-size:11px;font-weight:700;cursor:pointer}.actions button.active{background:var(--teal);color:#fff;border-color:var(--teal)}.actions button.done.active{background:var(--done)}.actions button.supplied.active{background:var(--supplied)}.meta{font-size:11px;color:#55737e;margin-top:7px;display:flex;gap:8px;justify-content:space-between}
     .empty{background:#fff;border:1px dashed var(--line);padding:38px;border-radius:14px;text-align:center;color:#567784}
-    @media(max-width:760px){header h1{font-size:18px}.progress{top:62px;padding:8px;gap:6px}.metric{grid-template-columns:1fr auto}.metric .bar{grid-column:1/-1}.columns{display:block}.tabs{display:flex}.panel{margin-bottom:12px}.panel.mobile-hidden,.stage.mobile-hidden{display:none}#orders{max-height:240px}.grid{grid-template-columns:1fr}.drawing{height:190px}}
+    @media(max-width:760px){
+      header{padding:10px 12px;gap:10px;align-items:flex-start}
+      header h1{font-size:17px;line-height:1.15}
+      .brand small{font-size:10px;letter-spacing:.8px}
+      header a{padding:7px 9px!important;font-size:12px;white-space:nowrap}
+      .live{font-size:12px;white-space:nowrap}
+      .progress{top:58px;padding:8px;gap:6px;grid-template-columns:repeat(2,minmax(0,1fr))}
+      .metric{grid-template-columns:1fr auto;font-size:11px;min-width:0}
+      .metric .bar{grid-column:1/-1}
+      main{padding:10px}
+      .columns{display:block}
+      .tabs{display:flex;position:sticky;top:122px;z-index:2}
+      .panel{margin-bottom:12px}
+      .panel.mobile-hidden,.stage.mobile-hidden{display:none}
+      #orders{max-height:calc(100dvh - 225px)}
+      .order-head{padding:12px;margin-bottom:10px}
+      .order-head h2{font-size:18px}
+      .grid{grid-template-columns:1fr;gap:10px}
+      .card-head{grid-template-columns:1fr 1fr;gap:6px}
+      .card-head b{grid-column:1/-1;font-size:17px}
+      .drawing{height:170px}
+      .actions{grid-template-columns:repeat(2,1fr)}
+      .actions button{font-size:12px;padding:12px 6px}
+    }
   </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
