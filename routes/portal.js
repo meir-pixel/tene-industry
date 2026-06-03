@@ -17,6 +17,7 @@ module.exports = function createPortalRouter(deps) {
   const generateOrderNum = required('generateOrderNum', deps.generateOrderNum);
   const autoAssignMachine = required('autoAssignMachine', deps.autoAssignMachine);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
+  const pricer = required('pricer', deps.pricer);
   const PORT = required('PORT', deps.PORT);
   const IS_TEST = Boolean(deps.IS_TEST);
 
@@ -209,43 +210,29 @@ module.exports = function createPortalRouter(deps) {
   router.get('/c/price-list', customerPortalActionLimiter, (req, res) => {
     const { token } = req.query;
     const c = resolveCustomer(token);
-    const tier = c?.price_tier || 'list';
-    const discount = c?.discount_pct || 0;
-    const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
-    const result = pl.map(row => ({
-      diameter: row.diameter,
-      price_per_kg: ((tier === 'customer' ? row.price_cust : row.price_list) * (1 - discount / 100)).toFixed(2)
-    }));
-    res.json(result);
+    const priceMap = pricer.buildPriceMap({
+      tier:        c?.price_tier  || 'list',
+      discountPct: c?.discount_pct || 0,
+    });
+    res.json(Object.entries(priceMap).map(([diameter, price_per_kg]) => ({
+      diameter: Number(diameter),
+      price_per_kg: +price_per_kg.toFixed(2),
+    })));
   });
 
   // Quote — calculate price for items before ordering
   router.post('/c/quote', customerPortalActionLimiter, (req, res) => {
     const { token, items } = req.body; // items: [{diameter, sides[], qty}]
     const c = resolveCustomer(token);
-    const tier = c?.price_tier || 'list';
-    const discount = c?.discount_pct || 0;
-    const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
-    const priceMap = {};
-    pl.forEach(r => {
-      priceMap[r.diameter] = (tier === 'customer' ? r.price_cust : r.price_list) * (1 - discount / 100);
+
+    const priceItems = (items || []).map(item => {
+      const totalLengthMm = (item.sides || []).reduce((s, v) => s + v, 0);
+      const totalWeight   = (totalLengthMm / 1000) * rebarKgPerMeter(item.diameter) * (item.qty || 1);
+      return { diameter: item.diameter, totalWeight };
     });
-    let totalWeight = 0, totalPrice = 0;
-    const breakdown = (items || []).map(item => {
-      const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
-      const kgPerM = rebarKgPerMeter(item.diameter);
-      const weight = (totalLengthMm / 1000) * kgPerM * (item.qty || 1);
-      const ppu = priceMap[item.diameter] || 0;
-      const price = weight * ppu;
-      totalWeight += weight;
-      totalPrice += price;
-      return { diameter: item.diameter, weight: +weight.toFixed(3), price_per_kg: +ppu.toFixed(2), price: +price.toFixed(2) };
-    });
-    // Add 3% waste
-    const waste = 0.03;
-    const billingWeight = totalWeight * (1 + waste);
-    const billingPrice  = totalPrice  * (1 + waste);
-    res.json({ breakdown, totalWeight: +totalWeight.toFixed(2), billingWeight: +billingWeight.toFixed(2), totalPrice: +totalPrice.toFixed(2), billingPrice: +billingPrice.toFixed(2), currency: '₪' });
+
+    const result = pricer.calcOrderPriceForCustomer(priceItems, c);
+    res.json(result);
   });
 
   // Submit order from portal
@@ -255,12 +242,11 @@ module.exports = function createPortalRouter(deps) {
     if (!c) return res.status(401).json({ error: 'נדרש זיהוי' });
     if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
 
-    // Calculate price
-    const tier = c.price_tier || 'list';
-    const discount = c.discount_pct || 0;
-    const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
-    const priceMap = {};
-    pl.forEach(r => { priceMap[r.diameter] = (tier === 'customer' ? r.price_cust : r.price_list) * (1 - discount / 100); });
+    // Calculate price via pricer service
+    const priceMap = pricer.buildPriceMap({
+      tier:        c.price_tier  || 'list',
+      discountPct: c.discount_pct || 0,
+    });
     let totalWeight = 0, totalPrice = 0;
     const orderNum = generateOrderNum();
     const wastePct = 3;

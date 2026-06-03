@@ -1,8 +1,9 @@
-require('dotenv').config();
 const express  = require('express');
 const cors     = require('cors');
 const Database = require('better-sqlite3');
 const path     = require('path');
+require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: false });
 const http     = require('http');
 const multer   = require('multer');
 const cron     = require('node-cron');
@@ -14,8 +15,50 @@ const priority = require('./priority');
 const intake   = require('./intake');
 const ai       = require('./ai');
 const { createAuthService, ensureAuthSchema, hashPin } = require('./auth-core');
+const { createLicenseService } = require('./services/license');
+const { createBackupService }  = require('./services/backup');
+const { createPricer }         = require('./services/pricer');
 const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
 const statusContracts = require('./status-contracts');
+const constants = require('./constants');
+const productionCards = require('./services/productionCards');
+const { createOrderNumberAllocator } = require('./services/orderNumbers');
+const ordersService = require('./services/orders');
+const intakeWorkflow = require('./services/intakeWorkflow');
+const fleetService = require('./services/fleet');
+const createInventoryRouter = require('./routes/inventory');
+const createOrdersRouter = require('./routes/orders');
+const createProductionCardsRouter = require('./routes/productionCards');
+const createFinanceRouter = require('./routes/finance');
+const createFleetRouter = require('./routes/fleet');
+const createProductionRouter = require('./routes/production');
+const createQualityRouter = require('./routes/quality');
+const createCustomersRouter = require('./routes/customers');
+const createAuthRouter = require('./routes/auth');
+const createAdminRouter = require('./routes/admin');
+const createPortalRouter = require('./routes/portal');
+const createWarehouseRouter = require('./routes/warehouse');
+const createReportsRouter = require('./routes/reports');
+const createCatalogRouter = require('./routes/catalog');
+const createIntakeRouter = require('./routes/intake');
+const createAlertsRouter = require('./routes/alerts');
+const createCompaniesRouter = require('./routes/companies');
+const createPriorityRouter = require('./routes/priority');
+const createAiRouter = require('./routes/ai');
+const createSearchRouter = require('./routes/search');
+const createBvbsRouter = require('./routes/bvbs');
+const {
+  REBAR_WEIGHTS,
+  MACHINE_STATES,
+  STATE_TRANSITIONS,
+  rebarKgPerMeter,
+} = constants;
+const {
+  autoAssignMachine,
+  normalizeFactorySegments,
+  normalizeFactoryShapeName,
+  createOrderFactory,
+} = ordersService;
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -29,7 +72,6 @@ const IS_TEST = process.env.NODE_ENV === 'test';
 const AI_ENABLED      = process.env.AI_ENABLED      === 'true'; // default: false
 const INTAKE_AI_ENABLED = process.env.INTAKE_AI_ENABLED === 'true'; // default: false
 const PRIORITY_ENABLED  = process.env.PRIORITY_ENABLED  === 'true'; // default: false
-const AUTH_ENFORCEMENT  = process.env.AUTH_ENFORCEMENT  === 'true'; // false until frontend migration passes Gate 1a
 
 app.use(cors());
 app.use(express.json({
@@ -68,6 +110,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'ironbend.db');
 const fs      = require('fs');
 const DB_EXISTS_AT_STARTUP = fs.existsSync(DB_PATH);
+const SKIP_STARTUP_DB_SNAPSHOT = process.env.SKIP_STARTUP_DB_SNAPSHOT === 'true' && process.env.NODE_ENV !== 'production';
 function snapshotDatabaseFiles(sourcePath, backupBase) {
   for (const suffix of ['', '-wal', '-shm']) {
     const source = `${sourcePath}${suffix}`;
@@ -77,12 +120,15 @@ function snapshotDatabaseFiles(sourcePath, backupBase) {
 if (process.env.NODE_ENV === 'production' && !DB_EXISTS_AT_STARTUP && process.env.ALLOW_EMPTY_DB_INIT !== 'true') {
   throw new Error(`[DB Safety] Refusing to create a new production database at ${DB_PATH}. Verify the persistent disk mount or set ALLOW_EMPTY_DB_INIT=true only for the first intentional initialization.`);
 }
-if (DB_EXISTS_AT_STARTUP) {
+if (DB_EXISTS_AT_STARTUP && !SKIP_STARTUP_DB_SNAPSHOT) {
   const startupBackup = `${DB_PATH}.bak.startup`;
   snapshotDatabaseFiles(DB_PATH, startupBackup);
   console.log(`[DB Safety] Startup snapshot created: ${startupBackup}`);
+} else if (DB_EXISTS_AT_STARTUP && SKIP_STARTUP_DB_SNAPSHOT) {
+  console.log('[DB Safety] Startup snapshot skipped for local development.');
 }
 let db = new Database(DB_PATH);
+const pricer = createPricer(db);
 if (process.env.NODE_ENV === 'production' && DB_EXISTS_AT_STARTUP && process.env.ALLOW_EMPTY_DB_INIT !== 'true') {
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
   if (!tables.has('orders')) {
@@ -140,6 +186,12 @@ db.exec(`
     created_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS order_sequences (
+    prefix TEXT PRIMARY KEY,
+    next_value INTEGER NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS pallets (
@@ -240,6 +292,55 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS vehicles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle_desc TEXT,
+    license_plate TEXT UNIQUE,
+    vehicle_make TEXT,
+    vehicle_model TEXT,
+    vehicle_year INTEGER,
+    test_expiry TEXT,
+    insurance_expiry TEXT,
+    next_service_date TEXT,
+    next_service_km INTEGER,
+    odometer_km INTEGER DEFAULT 0,
+    vehicle_status TEXT DEFAULT 'active',
+    active INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS vehicle_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    driver_id INTEGER,
+    vehicle_id INTEGER,
+    event_type TEXT NOT NULL,
+    event_date TEXT NOT NULL,
+    odometer_km INTEGER,
+    amount REAL DEFAULT 0,
+    vendor TEXT,
+    reference TEXT,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (driver_id) REFERENCES drivers(id),
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS vehicle_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle_id INTEGER NOT NULL,
+    document_type TEXT NOT NULL,
+    title TEXT,
+    file_name TEXT,
+    mime_type TEXT,
+    data_url TEXT,
+    expiry_date TEXT,
+    notes TEXT,
+    uploaded_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+  );
+
   CREATE TABLE IF NOT EXISTS deliveries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id INTEGER,
@@ -275,6 +376,9 @@ db.exec(`
     source TEXT,
     raw_content TEXT,
     parsed_data JSON,
+    original_filename TEXT,
+    original_mime TEXT,
+    original_data_url TEXT,
     order_id INTEGER,
     status TEXT DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -288,6 +392,25 @@ db.exec(`
     correction_text TEXT NOT NULL,
     active INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS inventory_receipt_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_type TEXT DEFAULT 'supplier_delivery_note',
+    original_filename TEXT,
+    original_mime TEXT,
+    original_data_url TEXT,
+    supplier_id INTEGER,
+    supplier_name TEXT,
+    delivery_note_num TEXT,
+    parsed_data JSON,
+    status TEXT DEFAULT 'pending_review',
+    raw_material_ids TEXT,
+    reviewed_by INTEGER,
+    review_notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME,
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
   );
 
   CREATE TABLE IF NOT EXISTS settings (
@@ -329,7 +452,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS raw_material (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    material_type   TEXT DEFAULT 'coil',  -- 'coil' | 'straight'
+    material_type   TEXT DEFAULT 'coil',  -- 'coil' | 'straight' | 'bent'
     diameter        INTEGER NOT NULL,
     supplier_id     INTEGER,
     lot_number      TEXT,
@@ -341,6 +464,10 @@ db.exec(`
     weight_scrapped REAL DEFAULT 0,       -- kg scrapped/waste
     purchase_price  REAL DEFAULT 0,       -- ₪/ton
     warehouse_loc   TEXT,                 -- e.g. "מדף A3"
+    bending_shape_name TEXT,
+    bending_shape_segments TEXT,
+    bending_shape_source TEXT,
+    bending_shape_confidence REAL,
     notes           TEXT,
     active          INTEGER DEFAULT 1,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -751,6 +878,30 @@ addCol('drivers',    'vehicle_desc',       'TEXT');       // e.g. "משאית מ
 addCol('drivers',    'license_plate',      'TEXT');       // plate number
 addCol('drivers',    'license_expiry',     'TEXT');       // YYYY-MM-DD
 addCol('drivers',    'notes',              'TEXT');
+addCol('drivers',    'vehicle_make',       'TEXT');
+addCol('drivers',    'vehicle_model',      'TEXT');
+addCol('drivers',    'vehicle_year',       'INTEGER');
+addCol('drivers',    'test_expiry',        'TEXT');
+addCol('drivers',    'insurance_expiry',   'TEXT');
+addCol('drivers',    'next_service_date',  'TEXT');
+addCol('drivers',    'next_service_km',    'INTEGER');
+addCol('drivers',    'odometer_km',        'INTEGER DEFAULT 0');
+addCol('drivers',    'vehicle_status',     "TEXT DEFAULT 'active'");
+addCol('drivers',    'vehicle_id',         'INTEGER');
+addCol('vehicles',   'vehicle_desc',       'TEXT');
+addCol('vehicles',   'license_plate',      'TEXT');
+addCol('vehicles',   'vehicle_make',       'TEXT');
+addCol('vehicles',   'vehicle_model',      'TEXT');
+addCol('vehicles',   'vehicle_year',       'INTEGER');
+addCol('vehicles',   'test_expiry',        'TEXT');
+addCol('vehicles',   'insurance_expiry',   'TEXT');
+addCol('vehicles',   'next_service_date',  'TEXT');
+addCol('vehicles',   'next_service_km',    'INTEGER');
+addCol('vehicles',   'odometer_km',        'INTEGER DEFAULT 0');
+addCol('vehicles',   'vehicle_status',     "TEXT DEFAULT 'active'");
+addCol('vehicles',   'active',             'INTEGER DEFAULT 1');
+addCol('vehicles',   'notes',              'TEXT');
+addCol('vehicle_events', 'vehicle_id',      'INTEGER');
 addCol('orders',     'waste_pct_charged',  'REAL DEFAULT 3');
 addCol('orders',     'billing_weight',     'REAL DEFAULT 0');
 addCol('orders',     'priority_order_id',  'TEXT');
@@ -802,11 +953,109 @@ addCol('machines',   'tons_today',         'REAL DEFAULT 0');   // tons produced
 addCol('orders',     'cost_material',      'REAL DEFAULT 0');   // cost of steel used
 addCol('orders',     'cost_labor',         'REAL DEFAULT 0');   // estimated labor cost
 addCol('orders',     'sale_price',         'REAL DEFAULT 0');   // actual sale price ILS
+addCol('intake_log', 'original_filename',  'TEXT');
+addCol('intake_log', 'original_mime',      'TEXT');
+addCol('intake_log', 'original_data_url',  'TEXT');
 addCol('items',      'package_id',         'INTEGER');          // package assignment
 addCol('items',      'zone',               'TEXT');             // warehouse zone
 addCol('items',      'machine_id',         'INTEGER');          // FK to machines table
 addCol('items',      'is_3d',              'INTEGER DEFAULT 0'); // 1 = true 3D product (out-of-plane bends)
 addCol('machines',   'can_3d',             'INTEGER DEFAULT 0'); // 1 = machine supports 3D bending
+addCol('raw_material','bending_shape_name','TEXT');
+addCol('raw_material','bending_shape_segments','TEXT');
+addCol('raw_material','bending_shape_source','TEXT');
+addCol('raw_material','bending_shape_confidence','REAL');
+
+function ensureVehicleEventsSchema() {
+  const cols = db.pragma('table_info(vehicle_events)');
+  const driverId = cols.find(c => c.name === 'driver_id');
+  if (!driverId || !driverId.notnull) return;
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.exec(`
+      BEGIN;
+      CREATE TABLE vehicle_events_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        driver_id INTEGER,
+        vehicle_id INTEGER,
+        event_type TEXT NOT NULL,
+        event_date TEXT NOT NULL,
+        odometer_km INTEGER,
+        amount REAL DEFAULT 0,
+        vendor TEXT,
+        reference TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (driver_id) REFERENCES drivers(id),
+        FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+      );
+      INSERT INTO vehicle_events_new
+        (id,driver_id,vehicle_id,event_type,event_date,odometer_km,amount,vendor,reference,notes,created_at)
+      SELECT id,driver_id,vehicle_id,event_type,event_date,odometer_km,amount,vendor,reference,notes,created_at
+      FROM vehicle_events;
+      DROP TABLE vehicle_events;
+      ALTER TABLE vehicle_events_new RENAME TO vehicle_events;
+      COMMIT;
+    `);
+    console.log('[DB] Migration: vehicle_events.driver_id made nullable for independent vehicles');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch (_) {}
+    throw err;
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
+}
+
+function migrateDriverVehicleRows() {
+  const rows = db.prepare(`
+    SELECT *
+    FROM drivers
+    WHERE vehicle_id IS NULL
+      AND (
+        COALESCE(vehicle_desc,'') <> ''
+        OR COALESCE(license_plate,'') <> ''
+        OR COALESCE(vehicle_make,'') <> ''
+        OR COALESCE(vehicle_model,'') <> ''
+      )
+  `).all();
+  const insertVehicle = db.prepare(`
+    INSERT INTO vehicles
+      (vehicle_desc,license_plate,vehicle_make,vehicle_model,vehicle_year,test_expiry,insurance_expiry,next_service_date,next_service_km,odometer_km,vehicle_status,active,notes)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `);
+  const findByPlate = db.prepare('SELECT id FROM vehicles WHERE license_plate=?');
+  const setDriverVehicle = db.prepare('UPDATE drivers SET vehicle_id=? WHERE id=?');
+  const setEventVehicle = db.prepare('UPDATE vehicle_events SET vehicle_id=? WHERE driver_id=? AND vehicle_id IS NULL');
+  const migrateOne = db.transaction((driver) => {
+    let vehicleId = null;
+    const plate = String(driver.license_plate || '').trim();
+    if (plate) vehicleId = findByPlate.get(plate)?.id || null;
+    if (!vehicleId) {
+      const r = insertVehicle.run(
+        driver.vehicle_desc || null,
+        plate || null,
+        driver.vehicle_make || null,
+        driver.vehicle_model || null,
+        driver.vehicle_year || null,
+        driver.test_expiry || null,
+        driver.insurance_expiry || null,
+        driver.next_service_date || null,
+        driver.next_service_km || null,
+        driver.odometer_km || 0,
+        driver.vehicle_status || 'active',
+        driver.active ?? 1,
+        driver.notes || null
+      );
+      vehicleId = r.lastInsertRowid;
+    }
+    setDriverVehicle.run(vehicleId, driver.id);
+    setEventVehicle.run(vehicleId, driver.id);
+  });
+  rows.forEach(migrateOne);
+}
+
+ensureVehicleEventsSchema();
+migrateDriverVehicleRows();
 db.exec(`
   CREATE TABLE IF NOT EXISTS order_imports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -821,7 +1070,7 @@ ensureAuthSchema(db);
 
 const runtimeJwtSecret = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 if (!process.env.JWT_SECRET) {
-  console.warn('[Auth] JWT_SECRET is not configured. Using an ephemeral startup secret; do not enable AUTH_ENFORCEMENT.');
+  console.warn('[Auth] JWT_SECRET is not configured. Using an ephemeral startup secret; configure JWT_SECRET before staging or production.');
 }
 const authService = createAuthService(db, { jwtSecret: runtimeJwtSecret });
 const authLoginLimiter = rateLimit({
@@ -855,33 +1104,13 @@ const webhookLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-function parseCookies(req) {
-  return Object.fromEntries(
-    String(req.headers.cookie || '')
-      .split(';')
-      .map(part => part.trim())
-      .filter(Boolean)
-      .map(part => {
-        const pos = part.indexOf('=');
-        return pos === -1
-          ? [decodeURIComponent(part), '']
-          : [decodeURIComponent(part.slice(0, pos)), decodeURIComponent(part.slice(pos + 1))];
-      })
-  );
-}
-
-function refreshCookie(token) {
-  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  const maxAge = Number(process.env.REFRESH_TOKEN_DAYS || 7) * 24 * 60 * 60;
-  return `refresh_token=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=${maxAge}${secure}`;
-}
 
 function bearerToken(req) {
   const header = String(req.headers.authorization || '');
   return header.startsWith('Bearer ') ? header.slice(7) : null;
 }
 
-const AUTH_BYPASS_ENABLED = process.env.AUTH_BYPASS === 'true';
+const AUTH_BYPASS_ENABLED = process.env.AUTH_BYPASS === 'true' && process.env.NODE_ENV !== 'production';
 const AUTH_BYPASS_ROLE = getRolePermission(process.env.AUTH_BYPASS_ROLE || 'admin')?.role || 'admin';
 let authBypassWarned = false;
 
@@ -1046,51 +1275,17 @@ modbus.onUpdate((machineId, state) => {
 
 // modbus.startPolling(5000); // uncomment when hardware connected
 
-// ── STATE MACHINES (BUG-34, BUG-35) ──────────────────────────────
-// Order status valid transitions — any key can only move to its listed values
-const VALID_ORDER_TRANSITIONS = {
-  'ממתינה לאישור':        ['אושרה – ממתין לייצור', 'בוטלה'],
-  'ממתינה לאישור לקוח':   ['אושרה – ממתין לייצור', 'בוטלה'],
-  'אושרה – ממתין לייצור': ['בתור ייצור', 'בייצור', 'בוטלה'],
-  'בתור ייצור':           ['בייצור', 'בוטלה'],
-  'בייצור':               ['הושלם – ממתין לאיסוף', 'בוטלה'],
-  'הושלם – ממתין לאיסוף': ['בדרך ללקוח', 'נשלחה'],
-  'בדרך ללקוח':           ['סופק – אושר', 'בעיה באספקה'],
-  'בעיה באספקה':          ['בדרך ללקוח', 'בוטלה'],
-  'סופק – אושר':          [], // terminal
-  'נשלחה':                ['סופק – אושר'],
-  'בוטלה':                [], // terminal
-};
-// Returns true if transition is valid (or if fromStatus is unknown — allow for migration data)
+// State contracts live in status-contracts.js.
+// Returns true if transition is valid.
 function isValidOrderTransition(from, to) {
   return statusContracts.isValidOrderTransition(from, to);
 }
-  /*
-  if (!VALID_ORDER_TRANSITIONS[from]) return true; // unknown current status — allow
-  return VALID_ORDER_TRANSITIONS[from].includes(to);
-}
-
-*/
 function normalizeOrderStatus(status) {
   return statusContracts.normalizeOrderStatus(status);
-  /*
-  const aliases = {
-    'אושרה': 'אושרה – ממתין לייצור',
-    'מאושר': 'אושרה – ממתין לייצור',
-    'מאושרת': 'אושרה – ממתין לייצור',
-    'נמסרה': 'סופק – אושר',
-    'סופק': 'סופק – אושר',
-    'בוטל': 'בוטלה',
-  };
-  return aliases[status] || status;
-  */
 }
 
-// BUG-35: Machine state machine is implemented at ~line 2569 (MACHINE_STATES + STATE_TRANSITIONS in Hebrew)
-// isValidMachineState helper kept for potential future use
 function isValidMachineState(state) {
-  // Delegates to MACHINE_STATES defined at ~line 2569
-  return typeof state === 'string' && state.length > 0;
+  return MACHINE_STATES.includes(state);
 }
 
 // ── PERMISSION ENGINE (כרך ט) ─────────────────────────────────
@@ -1100,55 +1295,20 @@ function isValidMachineState(state) {
 
 // BUG-09: logAudit removed — use auditLog() (defined at line ~3697) as the single audit function
 
-// BUG-38: Server-side geometry validation for rebar shapes
-function validateShapeGeometry(segments) {
-  if (!Array.isArray(segments) || segments.length === 0) {
-    return { valid: false, error: 'חסרים קטעים (segments)' };
-  }
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    if (typeof seg.length_mm !== 'number' || seg.length_mm <= 0) {
-      return { valid: false, error: `קטע ${i + 1}: אורך חייב להיות מספר חיובי (קיבלנו: ${seg.length_mm})` };
-    }
-    if (seg.length_mm > 20000) {
-      return { valid: false, error: `קטע ${i + 1}: אורך ${seg.length_mm}mm חורג מ-20,000mm` };
-    }
-    if (typeof seg.angle_deg !== 'number') {
-      return { valid: false, error: `קטע ${i + 1}: זווית חייבת להיות מספר` };
-    }
-    if (seg.angle_deg < 0 || seg.angle_deg > 180) {
-      return { valid: false, error: `קטע ${i + 1}: זווית ${seg.angle_deg}° חייבת להיות בין 0° ל-180°` };
-    }
-  }
-  if (segments.length > 30) {
-    return { valid: false, error: `יותר מדי קטעים: ${segments.length} (מקסימום 30)` };
-  }
-  return { valid: true };
+// Order geometry, factory normalization, machine assignment and weight calculation live in services/orders.js.
+
+function listPage(query = {}, defaults = {}) {
+  const defaultLimit = Number(defaults.limit || 100);
+  const maxLimit = Number(defaults.max || 500);
+  const requestedLimit = Number(query.limit);
+  const requestedOffset = Number(query.offset);
+  return {
+    limit: Math.min(Math.max(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : defaultLimit, 1), maxLimit),
+    offset: Math.max(Number.isFinite(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0, 0),
+  };
 }
 
-// ── HELPERS ──────────────────────────────────────────────────────
-
-// BUG-05: Single source of truth for rebar weights (kg/m)
-// Replace ALL inline WEIGHTS / PC_KG / REBAR_KG / weightKgPerM definitions with this constant
-const REBAR_WEIGHTS = { 5:0.154,6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,20:2.47,22:2.98,25:3.85,28:4.83,32:6.31,36:7.99,40:9.86 };
-
-// BUG-06: Single auto-assign machine logic (diameter → machine label)
-function autoAssignMachine(diameter) {
-  if (diameter <= 12) return 'A';
-  if (diameter <= 20) return 'B';
-  return 'D';
-}
-
-function calcWeightPerUnit(diameter, totalLengthMm) {
-  const kgPerM = REBAR_WEIGHTS[diameter] ?? (diameter * diameter * 0.00617);
-  return (totalLengthMm / 1000) * kgPerM;
-}
-
-function generateOrderNum() {
-  const year  = new Date().getFullYear();
-  const count = db.prepare('SELECT COUNT(*) as c FROM orders').get().c;
-  return `HZ-${year}-${String(count + 1).padStart(3, '0')}`;
-}
+const generateOrderNum = createOrderNumberAllocator(db);
 
 function checkOrderComplete(orderId) {
   const pending = db.prepare(`
@@ -1168,1581 +1328,150 @@ function checkOrderComplete(orderId) {
 // BUG-04: duplicate /api/health removed — authoritative version is at bottom of file
 
 // ── CUSTOMERS ─────────────────────────────────────────────────────
-app.get('/api/customers', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
-  const q = req.query.q || '';
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
-  // BUG-26: no portal_token in list response
-  const rows = db.prepare(`
-    SELECT c.id,c.name,c.phone,c.email,c.address,c.contact_name,c.contact_phone,c.priority_id,c.notes,
-           c.price_tier,c.discount_pct,
-           COALESCE(cc.open_debt,0) AS balance,
-           COALESCE(cc.credit_limit,0) AS credit_limit,
-           c.created_at,
-           COUNT(o.id)        AS order_count,
-           COALESCE(SUM(o.total_weight),0) AS total_weight_sum,
-           MAX(o.created_at)  AS last_order_at
-    FROM customers c
-    LEFT JOIN customer_credit cc ON cc.customer_id = c.id
-    LEFT JOIN orders o ON o.customer_id = c.id
-    WHERE c.name LIKE ? OR c.phone LIKE ? OR c.priority_id LIKE ?
-    GROUP BY c.id
-    ORDER BY c.name
-    LIMIT ?
-  `).all(`%${q}%`, `%${q}%`, `%${q}%`, limit);
-  res.json(rows);
-});
-
-// BUG-26: no portal_token in admin customer detail — use dedicated /token endpoint
-const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
-app.get('/api/customers/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
-  const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers c LEFT JOIN customer_credit cc ON cc.customer_id=c.id WHERE c.id=?`).get(req.params.id);
-  if (!c) return res.status(404).json({ error: 'לא נמצא' });
-  c.orders = db.prepare(`
-    SELECT id, order_num, status, created_at, total_weight, delivery_date, priority, channel
-    FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 30
-  `).all(c.id);
-  const stats = db.prepare(`
-    SELECT COUNT(*) AS order_count,
-           COALESCE(SUM(total_weight),0) AS total_weight_sum,
-           MAX(created_at) AS last_order_at
-    FROM orders WHERE customer_id=?
-  `).get(c.id);
-  c.stats = stats;
-  res.json(c);
-});
-
-app.post('/api/customers', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const { name, phone, email, address, contactName, contactPhone, priorityId, notes } = req.body;
-  if (!name) return res.status(400).json({ error: 'שם חובה' });
-  const r = db.prepare(`INSERT INTO customers (name,phone,email,address,contact_name,contact_phone,priority_id,notes) VALUES (?,?,?,?,?,?,?,?)`)
-    .run(name, phone, email, address, contactName, contactPhone, priorityId, notes);
-  res.json({ id: r.lastInsertRowid });
-});
-
-app.patch('/api/customers/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const { name, phone, email, address, contactName, contactPhone, priorityId, notes } = req.body;
-  db.prepare(`UPDATE customers SET name=?,phone=?,email=?,address=?,contact_name=?,contact_phone=?,priority_id=?,notes=? WHERE id=?`)
-    .run(name, phone, email, address, contactName, contactPhone, priorityId, notes, req.params.id);
-  res.json({ success: true });
-});
+// Customer, project, and site routes live in routes/customers.js.
 
 // ── ORDERS ────────────────────────────────────────────────────────
-app.get('/api/orders', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
-  const { status, date, priority } = req.query;
-  let sql = `SELECT o.*, c.name as customer_name, c.phone as customer_phone
-             FROM orders o LEFT JOIN customers c ON o.customer_id = c.id`;
-  const params = [], where = [];
-  if (status)   { where.push('o.status = ?');          params.push(normalizeOrderStatus(status)); }
-  if (date)     { where.push('DATE(o.delivery_date)=?'); params.push(date); }
-  if (priority) { where.push('o.priority = ?');         params.push(priority); }
-  if (where.length) sql += ' WHERE ' + where.join(' AND ');
-  sql += ' ORDER BY o.created_at DESC';
-  res.json(db.prepare(sql).all(...params));
+// Core order API routes live in routes/orders.js.
+
+const { createOrderFromPayload, createOrderTransaction, calcWeightPerUnit } = createOrderFactory(db, {
+  generateOrderNum,
+  rebarKgPerMeter,
 });
 
-app.get('/api/orders/:id', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
-  const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone
-    FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
-  if (!order) return res.status(404).json({ error: 'לא נמצא' });
-  const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
-  pallets.forEach(p => { p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id); });
-  order.pallets = pallets;
-  res.json(order);
-});
-
-// ── MANUAL WORK (from machine station, no order needed) ───────────
-app.post('/api/orders/manual', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const { machineId, diameter, qty, totalLengthMm, shape, note } = req.body;
-  if (!machineId || !diameter || !qty || !totalLengthMm) {
-    return res.status(400).json({ error: 'חסרים פרמטרים' });
-  }
-  const orderNum = 'MAN-' + Date.now().toString(36).toUpperCase();
-  const kgPerM = REBAR_WEIGHTS[diameter] ?? (diameter*diameter*0.00617); // BUG-05
-  const totalWeight = (totalLengthMm / 1000) * kgPerM * qty;
-
-  const orderRow = db.prepare(
-    `INSERT INTO orders (order_num,channel,delivery_date,delivery_address,priority,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)
-     VALUES (?,?,date('now'),?,?,?,?,3,?,?)`
-  ).run(orderNum,'ידני','מפעל',note||'עבודה ידנית','רגיל',totalWeight,totalWeight*1.03,null);
-
-  const orderId = orderRow.lastInsertRowid;
-  const palletRow = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight,total_weight) VALUES (?,1,9999,?)').run(orderId, totalWeight);
-  const palletId = palletRow.lastInsertRowid;
-
-  const segments = JSON.stringify([{ length_mm: totalLengthMm, angle_deg: 0 }]);
-  const itemRow = db.prepare(
-    `INSERT INTO items (pallet_id,order_id,shape_id,shape_name,diameter,quantity,production_qty,segments,total_length_mm,weight_per_unit,status,machine_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(palletId, orderId, shape||'straight', shape||'ישר', diameter, qty, qty, segments, totalLengthMm, totalWeight/qty, 'בייצור', machineId);
-
-  const itemId = itemRow.lastInsertRowid;
-  db.prepare('UPDATE machines SET current_item_id=?,current_order_num=?,status=? WHERE id=?')
-    .run(itemId, orderNum, 'בייצור', machineId);
-  db.prepare('UPDATE items SET started_at=? WHERE id=?').run(new Date().toISOString(), itemId);
-
-  const machineState = modbus.getState(machineId);
-  if (machineState) {
-    modbus.writeParams(machineId, { diameter, totalLengthMm, productionQty: qty, angles: [] }).catch(()=>{});
-  }
-  wsBroadcast('machine_assign', { machineId: Number(machineId), itemId, orderNum });
-  res.json({ success: true, orderNum, itemId });
-});
-
-function normalizeFactorySegments(shapeName, sourceSegments) {
-  const segments = (sourceSegments || []).map(segment => ({ ...segment }));
-  const shape = String(shapeName || '').toLowerCase();
-  const isOpenU = /open|hook|anchor|closed|stirrup|overlap|אנקר|פתוח|צורת ח|חפיפה|אצבה|מסגרת|\bu\b/.test(shape);
-  const isClosedOverlap = /closed|stirrup|overlap|חפיפה|אצבה|מסגרת/.test(shape);
-
-  // OCR can group equal dimensions visually instead of tracing the bar.
-  if (isOpenU && segments.length === 3) {
-    const [a, b, c] = segments.map(segment => Number(segment.length_mm) || 0);
-    if (a === b && b !== c) {
-      return [
-        { ...segments[0], angle_deg: 90 },
-        { ...segments[2], angle_deg: 90 },
-        { ...segments[1], angle_deg: segments[1].angle_deg ?? 0 },
-      ];
-    }
-    if (b === c && a !== b) {
-      return [
-        { ...segments[1], angle_deg: 90 },
-        { ...segments[0], angle_deg: 90 },
-        { ...segments[2], angle_deg: segments[2].angle_deg ?? 0 },
-      ];
-    }
-  }
-
-  // A closed stirrup must be stored end-to-end: tail, perimeter, tail.
-  if (isClosedOverlap && segments.length === 6) {
-    const [a, b, c, d, e, f] = segments.map(segment => Number(segment.length_mm) || 0);
-    if (a === c && b === d && e === f && e < Math.max(a, b)) {
-      return [segments[4], segments[0], segments[1], segments[2], segments[3], segments[5]];
-    }
-  }
-
-  return segments;
-}
-
-function normalizeFactoryShapeName(shapeName, segments) {
-  const shape = String(shapeName || '');
-  const lowerShape = shape.toLowerCase();
-  const lengths = (segments || []).map(segment => Number(segment.length_mm) || 0);
-  const factoryShape = /open|hook|anchor|closed|stirrup|overlap|אנקר|פתוח|צורת ח|חפיפה|אצבה|מסגרת|\bu\b/.test(lowerShape);
-
-  if (factoryShape && lengths.length === 3 && lengths[0] === lengths[2]) {
-    return 'open U-shaped bar';
-  }
-  if (factoryShape && lengths.length === 6 && lengths[0] === lengths[5]) {
-    return 'closed stirrup 90-degree overlap';
-  }
-  return shape;
-}
-
-function createOrderFromPayload(payload) {
-  const { customer = {}, order = {}, pallets = [] } = payload || {};
-  if (!customer.name?.trim()) throw Object.assign(new Error('customer.name is required'), { statusCode: 400 });
-  if (!pallets.length || !pallets.some(pallet => pallet.items?.length)) {
-    throw Object.assign(new Error('At least one order item is required'), { statusCode: 400 });
-  }
-
-  let customerId;
-  // Lookup: prefer phone (unique), fallback to name if phone is empty
-  const phone = (customer.phone || '').trim();
-  const name  = (customer.name  || '').trim();
-  let existing = null;
-  if (phone) {
-    existing = db.prepare('SELECT id FROM customers WHERE phone=?').get(phone);
-  }
-  if (!existing && name) {
-    existing = db.prepare("SELECT id FROM customers WHERE name=? AND (phone IS NULL OR phone='') ORDER BY id DESC LIMIT 1").get(name);
-  }
-  if (existing) {
-    customerId = existing.id;
-    db.prepare('UPDATE customers SET name=?,phone=?,address=?,contact_name=?,contact_phone=? WHERE id=?')
-      .run(name || customer.name, phone || null, customer.address, customer.contactName, customer.contactPhone, customerId);
-  } else {
-    const r = db.prepare('INSERT INTO customers (name,phone,address,contact_name,contact_phone) VALUES (?,?,?,?,?)')
-      .run(name || customer.name, phone || null, customer.address, customer.contactName, customer.contactPhone);
-    customerId = r.lastInsertRowid;
-  }
-
-  const orderNum = order.orderNum || generateOrderNum();
-  const wastePct = order.wastePctCharged ?? 3;
-  const totalWeight = order.totalWeight ?? 0;
-  const billingWeight = totalWeight * (1 + wastePct / 100);
-
-  const orderResult = db.prepare(`
-    INSERT INTO orders (order_num,customer_id,channel,delivery_date,delivery_time,delivery_address,priority,driver_notes,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-  `).run(orderNum, customerId, order.channel, order.deliveryDate, order.deliveryTime,
-         order.deliveryAddress, order.priority, order.driverNotes, order.generalNotes,
-         totalWeight, wastePct, billingWeight, order.createdBy || null);
-
-  const orderId = orderResult.lastInsertRowid;
-
-  (pallets || []).forEach((pallet, idx) => {
-    const pr = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight,total_weight) VALUES (?,?,?,?)')
-      .run(orderId, idx + 1, pallet.maxWeight || 500, pallet.totalWeight || 0);
-
-    (pallet.items || []).forEach(item => {
-      const sides = (item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []);
-      const totalLengthMm = sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0;
-      const angles = item.angles || [];
-      const segmentsArr = normalizeFactorySegments(
-        item.shapeName,
-        sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }))
-      );
-      const shapeName = normalizeFactoryShapeName(item.shapeName, segmentsArr);
-      // BUG-38: server-side geometry validation
-      const geoCheck = validateShapeGeometry(segmentsArr);
-      if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
-      const segments = JSON.stringify(segmentsArr);
-      const weightPerUnit = calcWeightPerUnit(item.diameter, totalLengthMm);
-      const productionQty = Math.ceil((item.qty || 1) * (1 + wastePct / 100));
-
-      const machine = autoAssignMachine(item.diameter); // BUG-06
-
-      db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(pr.lastInsertRowid, item.shapeId, shapeName, item.diameter,
-             segments, totalLengthMm, item.qty || 1, productionQty,
-             weightPerUnit, weightPerUnit * (item.qty || 1),
-             item.note, item.structElement, item.structFloor, item.sheetNum, machine,
-             item.is_3d ? 1 : 0);
-    });
+function resolveIntakeCustomer(parsed = {}, rawContent = '') {
+  return intakeWorkflow.resolveIntakeCustomer(parsed, rawContent, {
+    byPhone: phone => db.prepare("SELECT id,name,phone,email,priority_id FROM customers WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '(', ''), ')', ''), '+972', '0')=? LIMIT 1").get(phone),
+    byEmail: email => db.prepare('SELECT id,name,phone,email,priority_id FROM customers WHERE LOWER(email)=? LIMIT 1').get(email),
+    byPriorityId: priorityId => db.prepare('SELECT id,name,phone,email,priority_id FROM customers WHERE priority_id=? LIMIT 1').get(priorityId),
+    byName: name => db.prepare('SELECT id,name,phone,email,priority_id FROM customers WHERE name=? LIMIT 1').get(name),
   });
-
-  return { success: true, orderNum, orderId };
 }
 
-const createOrderTransaction = db.transaction(createOrderFromPayload);
-
-function intakeToOrderPayload(parsed = {}, source = 'intake') {
-  const items = (parsed.items || []).map(item => {
-    const sourceSides = Array.isArray(item.sides) ? item.sides : [];
-    const sides = sourceSides.map(Number).filter(length => Number.isFinite(length) && length > 0);
-    const fallbackLength = Number(item.length ?? item.total_length_mm ?? 0);
-    if (!sides.length && fallbackLength > 0) sides.push(fallbackLength);
-    const length = sides.reduce((sum, side) => sum + side, 0);
-    const sourceAngles = Array.isArray(item.angles) ? item.angles : [];
-    const angles = sourceAngles.length
-      ? sourceAngles.map(Number)
-      : Array(Math.max(0, sides.length - 1)).fill(90);
-    const qty = Number(item.qty ?? item.quantity ?? 1);
-    return {
-      diameter: Number(item.diameter),
-      length,
-      sides,
-      angles,
-      qty,
-      shapeId: item.shapeId || item.shape || (sides.length === 3 ? 's3' : 's1'),
-      shapeName: item.shapeName || item.shape || (sides.length === 3 ? 'U - anchor' : 'straight'),
-      note: item.notes || item.note || '',
-    };
-  });
+function enrichIntakeRow(row) {
+  let parsed = {};
+  try { parsed = JSON.parse(row.parsed_data || '{}'); } catch {}
   return {
-    customer: {
-      name: parsed.customer_name || parsed.customerName || 'Unidentified customer',
-      phone: parsed.customer_phone || parsed.customerPhone || '',
-      address: parsed.delivery_address || parsed.deliveryAddress || '',
-    },
-    order: {
-      channel: source,
-      deliveryDate: parsed.delivery_date || parsed.deliveryDate || null,
-      deliveryAddress: parsed.delivery_address || parsed.deliveryAddress || '',
-      priority: parsed.priority || 'regular',
-      generalNotes: parsed.notes || '',
-      totalWeight: items.reduce((sum, item) => sum + calcWeightPerUnit(item.diameter, item.length) * item.qty, 0),
-    },
-    pallets: [{ maxWeight: 9999, items }],
+    ...row,
+    parsed,
+    customer_match: resolveIntakeCustomer(parsed, row.raw_content || ''),
   };
 }
 
-function importCell(row, aliases) {
-  const normalized = Object.fromEntries(
-    Object.entries(row).map(([key, value]) => [String(key).trim().toLowerCase().replace(/[\s_-]+/g, ''), value])
-  );
-  for (const alias of aliases) {
-    const value = normalized[String(alias).toLowerCase().replace(/[\s_-]+/g, '')];
-    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
-  }
-  return '';
-}
-
-function parseDelimitedRows(buffer) {
-  const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
-  const delimiter = text.split(/\r?\n/, 1)[0].includes('\t') ? '\t' : ',';
-  const records = [];
-  let row = [], cell = '', quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (char === '"') {
-      if (quoted && text[index + 1] === '"') { cell += '"'; index += 1; }
-      else quoted = !quoted;
-    } else if (char === delimiter && !quoted) {
-      row.push(cell); cell = '';
-    } else if ((char === '\n' || char === '\r') && !quoted) {
-      if (char === '\r' && text[index + 1] === '\n') index += 1;
-      row.push(cell); cell = '';
-      if (row.some(value => String(value).trim())) records.push(row);
-      row = [];
-    } else {
-      cell += char;
-    }
-  }
-  row.push(cell);
-  if (row.some(value => String(value).trim())) records.push(row);
-  if (!records.length) throw Object.assign(new Error('CSV file is empty'), { statusCode: 400 });
-  const headers = records.shift().map(header => String(header).trim());
-  return records.map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])));
+function intakeToOrderPayload(parsed = {}, source = 'intake', customerOverride = null, rawContent = '') {
+  return intakeWorkflow.buildIntakeOrderPayload(parsed, {
+    source,
+    customerOverride,
+    rawContent,
+    findCustomerById: id => db.prepare('SELECT id,name,phone,email FROM customers WHERE id=?').get(id),
+    resolveCustomer: (payload, content) => resolveIntakeCustomer(payload, content).customer,
+    calcWeightPerUnit,
+  });
 }
 
 function buildOrderImportPreview(buffer) {
-  const rows = parseDelimitedRows(buffer);
-  const groups = new Map();
-  const errors = [];
-
-  rows.forEach((row, index) => {
-    const sourceOrderNum = String(importCell(row, ['order_num', 'ordernum', 'order', 'מספרהזמנה', 'הזמנה']) || '').trim();
-    const customerName = String(importCell(row, ['customer_name', 'customer', 'client', 'לקוח', 'שםלקוח']) || '').trim();
-    const customerPhone = String(importCell(row, ['customer_phone', 'phone', 'טלפון', 'טלפוןלקוח']) || '').trim();
-    const deliveryDate = String(importCell(row, ['delivery_date', 'deliverydate', 'אספקה', 'תאריךאספקה']) || '').trim();
-    const deliveryAddress = String(importCell(row, ['delivery_address', 'address', 'כתובת', 'כתובתאספקה']) || '').trim();
-    const diameter = Number(importCell(row, ['diameter', 'dia', 'קוטר']));
-    const length = Number(importCell(row, ['length', 'length_mm', 'אורך', 'אורךממ']));
-    const qty = Number(importCell(row, ['qty', 'quantity', 'כמות']));
-    const shape = String(importCell(row, ['shape', 'shape_name', 'צורה']) || 'straight').trim();
-    const notes = String(importCell(row, ['notes', 'note', 'הערות']) || '').trim();
-    const rowErrors = [];
-    if (!customerName) rowErrors.push('customer is required');
-    if (!(diameter > 0)) rowErrors.push('diameter is required');
-    if (!(length > 0)) rowErrors.push('length is required');
-    if (!(qty > 0)) rowErrors.push('quantity is required');
-    if (rowErrors.length) {
-      errors.push({ row: index + 2, errors: rowErrors });
-      return;
-    }
-    const groupKey = sourceOrderNum || `${customerName}|${deliveryDate}|${deliveryAddress}`;
-    if (!groups.has(groupKey)) {
-      groups.set(groupKey, {
-        sourceOrderNum,
-        duplicate: Boolean(sourceOrderNum && db.prepare('SELECT 1 FROM orders WHERE order_num=?').get(sourceOrderNum)),
-        payload: {
-          customer: { name: customerName, phone: customerPhone, address: deliveryAddress },
-          order: { orderNum: sourceOrderNum || undefined, channel: 'spreadsheet', deliveryDate, deliveryAddress, priority: 'regular' },
-          pallets: [{ maxWeight: 9999, items: [] }],
-        },
-      });
-    }
-    groups.get(groupKey).payload.pallets[0].items.push({
-      diameter, length, sides: [length], qty, shapeId: shape, shapeName: shape, note: notes,
-    });
+  return intakeWorkflow.buildOrderImportPreview(buffer, {
+    orderExists: orderNum => Boolean(db.prepare('SELECT 1 FROM orders WHERE order_num=?').get(orderNum)),
   });
-
-  return { orders: [...groups.values()], errors, rowCount: rows.length };
 }
 
-app.post('/api/order-imports/preview', requireAnyRole(['office', 'manager', 'admin']), upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ success: false, error: 'Spreadsheet file is required' });
-  try {
-    const preview = buildOrderImportPreview(req.file.buffer);
-    const result = db.prepare('INSERT INTO order_imports (filename,preview_data,status) VALUES (?,?,?)')
-      .run(req.file.originalname || 'orders.xlsx', JSON.stringify(preview), 'preview');
-    res.json({ success: true, importId: result.lastInsertRowid, preview });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({ success: false, error: error.message });
-  }
-});
+app.use('/api', createOrdersRouter({
+  db,
+  requireAnyRole,
+  requireRole,
+  upload,
+  modbus,
+  intake,
+  listPage,
+  rebarKgPerMeter,
+  normalizeOrderStatus,
+  isValidOrderTransition,
+  allowedOrderTransitions: statusContracts.allowedOrderTransitions,
+  createOrderFromPayload,
+  createOrderTransaction,
+  buildOrderImportPreview,
+  wsBroadcast,
+  auditLog,
+}));
+
+app.use('/api', createProductionCardsRouter({
+  db,
+  requireAnyRole,
+  productionCards,
+  REBAR_WEIGHTS,
+  rebarKgPerMeter,
+  tryParseJSON,
+  normalizeFactorySegments,
+  normalizeFactoryShapeName,
+}));
+
+app.use('/api', createFinanceRouter({
+  db,
+  requireAnyRole,
+  requireRole,
+  wsBroadcast,
+  rebarKgPerMeter,
+}));
+
+app.use('/api', createFleetRouter({
+  db,
+  requireAnyRole,
+  wsBroadcast,
+  auditLog,
+  upload,
+  intakeNotify: intake.notifyOrderStatus.bind(intake),
+  priorityUpdate: priority.updateOrderStatus.bind(priority),
+  createAlert,
+}));
+
+app.use('/api', createProductionRouter({
+  db,
+  requireAnyRole,
+  requireRole,
+  wsBroadcast,
+  modbus,
+  statusContracts,
+  MACHINE_STATES,
+  STATE_TRANSITIONS,
+  checkOrderComplete,
+  tryParseJSON,
+}));
+
+app.use('/api', createQualityRouter({
+  db,
+  requireAnyRole,
+  wsBroadcast,
+}));
+
+app.use('/api', createCustomersRouter({
+  db,
+  requireAnyRole,
+}));
+app.use('/api', createAuthRouter({
+  authService,
+  authLoginLimiter,
+}));
+app.use('/api', createAdminRouter({
+  getDb: () => db,
+  setDb: nextDb => { db = nextDb; },
+  Database,
+  fs,
+  requireRole,
+  requireAnyRole,
+  hashPin,
+  getOpenAiApiKey,
+  getSetting,
+  upload,
+  DB_PATH,
+  snapshotDatabaseFiles,
+  modbus,
+  ai,
+  statusContracts,
+}));
+
+// Dashboard production KPI: inventory forecast lives in routes/inventory.js.
+// Production routes live in routes/production.js.
 
-app.post('/api/order-imports/:id/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const row = db.prepare('SELECT * FROM order_imports WHERE id=?').get(req.params.id);
-  if (!row) return res.status(404).json({ success: false, error: 'Import preview not found' });
-  if (row.status === 'approved') return res.json({ success: true, alreadyApproved: true });
-  try {
-    const preview = JSON.parse(row.preview_data || '{}');
-    if (preview.errors?.length) throw Object.assign(new Error('Resolve spreadsheet validation errors before approval'), { statusCode: 400 });
-    if (preview.orders?.some(order => order.duplicate)) {
-      throw Object.assign(new Error('Resolve duplicate order numbers before approval'), { statusCode: 409 });
-    }
-    const approve = db.transaction(() => {
-      const created = (preview.orders || []).map(order => createOrderFromPayload(order.payload));
-      db.prepare("UPDATE order_imports SET status='approved',approved_at=CURRENT_TIMESTAMP WHERE id=?").run(row.id);
-      return created;
-    });
-    const created = approve();
-    created.forEach(order => wsBroadcast('new_order', { orderNum: order.orderNum, orderId: order.orderId }));
-    res.json({ success: true, created });
-  } catch (error) {
-    res.status(error.statusCode || 400).json({ success: false, error: error.message });
-  }
-});
 
-app.post('/api/orders', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  try {
-    const result = createOrderTransaction(req.body);
-    wsBroadcast('new_order', { orderNum: result.orderNum, orderId: result.orderId });
-    res.json(result);
-  } catch (error) {
-    res.status(error.statusCode || 400).json({ success: false, error: error.message });
-  }
-});
-
-// BUG-03: duplicate PATCH /api/orders/:id/status removed — authoritative version (with audit) is ~line 3715
-
-// ── PRINT CARDS: server-side helpers ──────────────────────────────
-const PC_KG = REBAR_WEIGHTS; // BUG-05: alias to single source of truth
-
-function pcEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-function pcShapeSVG(segsRaw) {
-  try {
-    const segs = tryParseJSON(segsRaw, []);
-    const W=220, H=100, PAD=18;
-    if (!segs || !segs.length) {
-      return '<svg viewBox="0 0 220 60" style="width:100%;max-height:80px">' +
-        '<line x1="12" y1="30" x2="208" y2="30" stroke="#1a2332" stroke-width="3" stroke-linecap="round"/>' +
-        '<circle cx="12" cy="30" r="3" fill="#1a2332"/><circle cx="208" cy="30" r="3" fill="#1a2332"/></svg>';
-    }
-    const sides = segs.map(s => +(s.length_mm||0));
-    const angs  = segs.map(s => s.angle_deg);
-    const pts   = [[0,0]]; let dir=0;
-    for (let i=0; i<sides.length; i++) {
-      const p=pts[pts.length-1], rad=dir*Math.PI/180;
-      pts.push([p[0]+sides[i]*Math.cos(rad), p[1]+sides[i]*Math.sin(rad)]);
-      if (i<angs.length-1 && angs[i]!=null) dir-=(180-angs[i]);
-    }
-    const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
-    const mnX=Math.min(...xs),mxX=Math.max(...xs),mnY=Math.min(...ys),mxY=Math.max(...ys);
-    const rX=mxX-mnX||1, rY=mxY-mnY||1;
-    const sc=Math.min((W-PAD*2)/rX,(H-PAD*2)/rY);
-    const oX=PAD+((W-PAD*2)-rX*sc)/2, oY=PAD+((H-PAD*2)-rY*sc)/2;
-    const mp=p=>[+(oX+(p[0]-mnX)*sc).toFixed(1), +(oY+(p[1]-mnY)*sc).toFixed(1)];
-    const mpts=pts.map(mp);
-    const pd='M '+mpts.map(p=>p.join(',')).join(' L ');
-    let s='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
-    s+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
-    for (let i=0; i<mpts.length-1; i++) {
-      const [x1,y1]=mpts[i],[x2,y2]=mpts[i+1];
-      const mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,ln=Math.sqrt(dx*dx+dy*dy)||1;
-      const nx=-dy/ln*10,ny=dx/ln*10;
-      s+='<rect x="'+(mx+nx-14).toFixed(1)+'" y="'+(my+ny-6).toFixed(1)+'" width="28" height="12" rx="2" fill="white" fill-opacity="0.9"/>';
-      s+='<text x="'+(mx+nx).toFixed(1)+'" y="'+(my+ny).toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
-    }
-    for (let i=1; i<mpts.length-1; i++) {
-      const a=angs[i-1];
-      if (a!=null && a!==180) {
-        const [x,y]=mpts[i];
-        s+='<circle cx="'+x+'" cy="'+y+'" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
-        s+='<text x="'+x+'" y="'+y+'" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">'+a+'\xb0</text>';
-      }
-    }
-    return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:100px">'+s+'</svg>';
-  } catch(e) {
-    return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
-  }
-}
-
-function pcMasterCard(allItems, order, printDate, delivDate, numPallets) {
-  let rows='';
-  allItems.forEach((it,i)=>{
-    rows+='<tr>'+
-      '<td>'+(i+1)+'</td>'+
-      '<td><b>\xd8'+pcEsc(String(it.diameter||'?'))+'</b></td>'+
-      '<td>'+pcEsc(it.shape_name||'–')+'</td>'+
-      '<td class="master-shape-cell">'+pcShapeSVG(it.segments)+'</td>'+
-      '<td>'+Math.round((it.total_length_mm||0)/10)+'</td>'+
-      '<td><b>'+(it.quantity||1)+'</b></td>'+
-      '<td>'+(+(it.total_weight)||0).toFixed(1)+'</td>'+
-      '<td class="check-cell">◯</td>'+
-    '</tr>';
-  });
-  return '<div class="prod-card master-card">'+
-    '<div class="pc-head" style="background:#1a2332;color:#fff;padding:8px 12px;">'+
-      '<div><div class="pc-title" style="color:#e07b39;font-size:14px;">★ כרטיסיית מאסטר</div>'+
-      '<div class="pc-date" style="color:#8aa;">'+pcEsc(printDate)+'</div></div>'+
-      '<div style="text-align:left"><div style="font-size:16px;font-weight:900;">'+pcEsc(order.order_num||'')+'</div>'+
-      '<div style="font-size:10px;color:#8aa;">'+(delivDate?'מסירה: '+pcEsc(delivDate):'')+'</div></div></div>'+
-    '<div style="padding:6px 10px;font-size:12px;font-weight:700;border-bottom:1px solid #eee;">'+pcEsc(order.customer_name||'')+'</div>'+
-    '<table class="master-table"><thead><tr><th>#</th><th>\xd8</th><th>צורה</th><th>תרשים</th><th>אורך</th><th>כמות</th><th>ק"ג</th><th>✓</th></tr></thead>'+
-    '<tbody>'+rows+'</tbody></table>'+
-    '<div class="master-totals">סה"כ: <b>'+(+(order.total_weight)||0).toFixed(1)+' ק"ג</b> \xb7 '+numPallets+' משטחים \xb7 '+allItems.length+' פריטים</div>'+
-    '<div class="pc-footer" style="background:#1a2332;color:#8aa;font-size:9px;text-align:center;padding:4px;">★ כרטיסיית מאסטר – לא לאיבוד! \xb7 '+pcEsc(order.order_num||'')+'</div>'+
-  '</div>';
-}
-
-function pcItemCard(it, order, printDate) {
-  const barData = (order.order_num||'')+'-'+String(it.id).padStart(6,'0');
-  const segs = tryParseJSON(it.segments, []);
-  const title = it.shape_name ? ('כרטיס כיפוף – '+it.shape_name) : 'כרטיס כיפוף';
-  const kgm = PC_KG[Math.round(it.diameter||0)];
-  const wt = (it.total_weight && it.total_weight>0)
-    ? (+it.total_weight).toFixed(2)
-    : (kgm ? (Math.round((it.total_length_mm||0)/1000*kgm*(it.quantity||1)*10)/10).toFixed(2) : '0.00');
-  let dimHtml='';
-  for (let i=0;i<segs.length;i++){
-    const lbl=String.fromCharCode(0x05D0+i);
-    dimHtml+='<span class="dim-seg">'+lbl+': <b>'+pcEsc(String(segs[i].length_mm||''))+'</b></span>';
-    if (i<segs.length-1 && segs[i].angle_deg && segs[i].angle_deg!==180)
-      dimHtml+='<span class="dim-ang">'+pcEsc(String(segs[i].angle_deg))+'\xb0</span>';
-  }
-  return '<div class="prod-card">'+
-    '<div class="pc-head">'+
-      '<div><div class="pc-title">'+pcEsc(title)+'</div><div class="pc-date">'+pcEsc(printDate)+'</div></div>'+
-      '<div class="pc-top-barcode">'+
-        '<div class="bc-font-top">'+pcEsc(barData)+'</div>'+
-        '<div class="bc-label">'+pcEsc(barData)+'</div>'+
-      '</div>'+
-    '</div>'+
-    '<div class="pc-order-row">'+
-      '<div class="pc-order-label">הזמנה מס\' :</div>'+
-      '<div class="pc-order-barcode">'+
-        '<div class="bc-font-mid">'+pcEsc(order.order_num||'')+'</div>'+
-        '<div class="bc-ord-text">'+pcEsc(order.order_num||'')+'</div>'+
-      '</div>'+
-      '<div class="pc-pallet">משטח: <b>'+(it._palletNum||1)+'</b></div>'+
-    '</div>'+
-    '<div class="pc-wq-row">'+
-      '<div class="pc-wq-cell"><span class="wq-lbl">ק"ג:</span> <span class="wq-val">'+wt+'</span></div>'+
-      '<div class="pc-wq-sep"></div>'+
-      '<div class="pc-wq-cell"><span class="wq-lbl">כמות:</span> <span class="wq-val">'+(it.quantity||1)+'</span> יח\'</div>'+
-      '<div class="pc-wq-sep"></div>'+
-      '<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">'+pcEsc(order.customer_name||'')+'</span></div>'+
-    '</div>'+
-    '<div class="pc-shape-area">'+pcShapeSVG(it.segments)+'</div>'+
-    (dimHtml?'<div class="pc-dims">'+dimHtml+'</div>':'')+
-    '<div class="pc-spec-row">'+
-      '<div class="pc-spec-cell"><span class="spec-lbl">נ\':</span> <b>\xd8'+pcEsc(String(it.diameter||'?'))+'</b></div>'+
-      '<div class="pc-spec-sep"></div>'+
-      '<div class="pc-spec-cell"><span class="spec-lbl">אורך פיתוח:</span> <b>'+(it.total_length_mm||0)+'</b> מ"מ</div>'+
-      (it.struct_element?'<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> '+pcEsc(it.struct_element)+'</div>':'')+
-    '</div>'+
-    (it.note?'<div class="pc-note">⚠ '+pcEsc(it.note)+'</div>':'')+
-    '<div class="pc-footer">'+
-      '<div class="bc-font-footer">'+pcEsc(barData)+'</div>'+
-      '<div class="pc-brand">SYNTA<br><span class="pc-brand-num">'+(it._palletNum||1)+'</span></div>'+
-    '</div>'+
-  '</div>';
-}
-
-// ── PRINT CARDS ───────────────────────────────────────────────────
-app.get('/api/orders/:id/print-cards', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
-  const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
-    FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
-  if (!order) return res.status(404).send('הזמנה לא נמצאה');
-
-  const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
-  pallets.forEach(p => {
-    p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id);
-    p.items.forEach(item => {
-      item._palletNum = p.pallet_num;
-      const segments = normalizeFactorySegments(item.shape_name, tryParseJSON(item.segments, []));
-      item.shape_name = normalizeFactoryShapeName(item.shape_name, segments);
-      item.segments = JSON.stringify(segments);
-    });
-  });
-  order.pallets = pallets;
-
-  const allItems = pallets.flatMap(p => p.items);
-
-  // Format date dd-mm-yyyy
-  const today = new Date();
-  const fmtDate = d => {
-    const dt = d ? new Date(d) : today;
-    return `${String(dt.getDate()).padStart(2,'0')}-${String(dt.getMonth()+1).padStart(2,'0')}-${dt.getFullYear()}`;
-  };
-  const printDate = fmtDate(order.created_at);
-  const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '';
-
-  // Server-side rendered setup rows and cards
-  const setupRowsHtml = allItems.map((it,i) =>
-    '<tr><td>'+(i+1)+'</td><td>'+pcEsc(it.shape_name||'–')+'</td>' +
-    '<td><b>\xd8'+(+it.diameter||'?')+'</b></td><td><b>'+(it.quantity||1)+'</b></td>' +
-    '<td><input class="split-inp" type="number" min="1" max="'+(it.quantity||1)+'" value="1" id="sp-'+it.id+'" oninput="onSplitChange('+it.id+','+(it.quantity||1)+')"></td>' +
-    '<td><div class="split-detail" id="sd-'+it.id+'">כרטיסייה אחת – כל הכמות</div></td></tr>'
-  ).join('');
-
-  const serverCardsHtml = (allItems.length
-    ? pcMasterCard(allItems, order, printDate, delivDate, pallets.length) +
-      allItems.map(it => pcItemCard(it, order, printDate)).join('')
-    : '<div style="padding:40px;text-align:center;color:#888;">אין פריטים בהזמנה זו</div>'
-  );
-
-  console.log('[print-cards] order', req.params.id, '→', allItems.length, 'items server-rendered');
-
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(`<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<title>כרטיסיות ייצור – ${order.order_num}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&family=Libre+Barcode+128&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direction:rtl;}
-
-/* ── Screen-only UI ── */
-.screen-only{margin-bottom:14px;}
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
-.print-btn{padding:9px 22px;background:#1a2332;color:#fff;border:none;border-radius:6px;
-  cursor:pointer;font-size:14px;font-family:inherit;}
-.print-btn:hover{background:#c9621a;}
-.gen-btn{padding:9px 22px;background:#1a7a3c;color:#fff;border:none;border-radius:6px;
-  cursor:pointer;font-size:14px;font-family:inherit;}
-.gen-btn:hover{background:#0f5a2a;}
-
-/* Setup panel */
-.setup-panel{background:#fff;border-radius:10px;padding:14px 18px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.12);margin-bottom:16px;}
-.setup-title{font-size:15px;font-weight:900;color:#1a2332;margin-bottom:12px;}
-.setup-tbl{width:100%;border-collapse:collapse;font-size:12px;}
-.setup-tbl th{background:#f0f4f8;padding:7px 10px;border:1px solid #dce3ea;
-  font-weight:700;color:#1a2332;text-align:right;}
-.setup-tbl td{padding:6px 10px;border:1px solid #dce3ea;color:#333;vertical-align:middle;}
-.setup-tbl tr:hover td{background:#f8fbff;}
-.split-inp{width:52px;text-align:center;border:1px solid #bbc;border-radius:5px;
-  padding:4px 6px;font-size:13px;font-family:inherit;}
-.split-detail{font-size:11px;color:#666;margin-top:3px;}
-
-/* ── Cards ── */
-.cards-grid{display:flex;flex-wrap:wrap;gap:8px;}
-.prod-card{width:148mm;background:#fff;border:1.5px solid #bbb;border-radius:4px;
-  overflow:hidden;page-break-inside:avoid;display:flex;flex-direction:column;
-  font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,0.12);}
-.pc-head{display:flex;justify-content:space-between;align-items:flex-start;
-  padding:7px 10px 5px;border-bottom:2px solid #1a2332;background:#fff;}
-.pc-title{font-size:13px;font-weight:900;color:#1a2332;line-height:1.2;}
-.pc-date{font-size:10px;color:#666;margin-top:2px;}
-.pc-top-barcode{text-align:center;min-width:90px;}
-.bc-font-top{font-family:'Libre Barcode 128',cursive;font-size:46px;line-height:1;max-height:48px;overflow:hidden;letter-spacing:0;color:#000;}
-.bc-font-mid{font-family:'Libre Barcode 128',cursive;font-size:36px;line-height:1;max-height:38px;overflow:hidden;letter-spacing:0;color:#000;}
-.bc-font-footer{font-family:'Libre Barcode 128',cursive;font-size:30px;line-height:1;max-height:32px;overflow:hidden;letter-spacing:0;color:#fff;flex:1;}
-.bc-label{font-size:7px;color:#555;margin-top:1px;text-align:center;font-family:monospace;}
-.bc-ord-text{font-size:9px;color:#333;font-family:monospace;text-align:center;}
-.master-shape-cell{width:90px;padding:2px 4px!important;}
-.master-shape-cell svg{width:88px;max-height:44px;}
-.split-badge{display:inline-block;background:#e07b39;color:#fff;border-radius:4px;
-  font-size:11px;font-weight:900;padding:1px 6px;margin-left:5px;white-space:nowrap;}
-.pc-order-row{display:flex;align-items:center;gap:8px;padding:4px 10px;
-  border-bottom:1px solid #eee;background:#fafafa;}
-.pc-order-label{font-size:10px;color:#555;white-space:nowrap;}
-.pc-order-barcode{flex:1;}
-.pc-pallet{font-size:11px;color:#333;white-space:nowrap;border-right:1px solid #ddd;padding-right:8px;}
-.pc-wq-row{display:flex;align-items:center;padding:5px 10px;gap:4px;
-  border-bottom:1px solid #eee;background:#fff;}
-.pc-wq-cell{display:flex;align-items:baseline;gap:3px;flex:1;}
-.wq-lbl{font-size:10px;color:#666;}
-.wq-val{font-size:15px;font-weight:900;color:#1a2332;}
-.wq-cust{font-size:10px;font-weight:700;color:#333;}
-.pc-wq-sep{width:1px;height:18px;background:#ddd;}
-.pc-shape-area{flex:1;min-height:105px;display:flex;align-items:center;
-  justify-content:center;padding:6px 8px;background:#fafbfc;border-bottom:1px solid #eee;}
-.pc-shape-svg{width:100%;max-height:120px;}
-.pc-dims{display:flex;flex-wrap:wrap;gap:4px;padding:4px 10px;
-  border-bottom:1px solid #eee;background:#f5f8fb;}
-.dim-seg{font-size:10px;background:#e8f0fb;border-radius:3px;padding:2px 5px;color:#1a2332;}
-.dim-ang{font-size:10px;background:#fff3e0;border-radius:3px;padding:2px 5px;color:#c9621a;font-weight:700;}
-.pc-spec-row{display:flex;align-items:center;gap:0;padding:5px 10px;
-  border-bottom:1px solid #eee;background:#fff;}
-.pc-spec-cell{font-size:11px;color:#1a2332;flex:1;}
-.spec-lbl{color:#666;font-size:10px;}
-.pc-spec-sep{width:1px;height:16px;background:#ddd;margin:0 6px;}
-.pc-note{padding:3px 10px;background:#fff3cd;font-size:10px;color:#856404;border-bottom:1px solid #f0d060;}
-.pc-footer{display:flex;align-items:center;justify-content:space-between;
-  padding:5px 10px;background:#1a2332;}
-.pc-brand{color:#e07b39;font-weight:900;font-size:12px;line-height:1.1;text-align:center;}
-.pc-brand-num{font-size:18px;font-weight:900;color:#fff;}
-.master-card{min-height:auto;}
-.master-table{width:100%;border-collapse:collapse;font-size:10px;}
-.master-table th,.master-table td{border:1px solid #ddd;padding:3px 5px;text-align:center;}
-.master-table th{background:#f0f0f0;font-weight:700;}
-.check-cell{font-size:14px;color:#aaa;}
-.master-totals{padding:5px 10px;font-size:11px;color:#333;background:#f5f5f5;border-top:1px solid #ddd;}
-.qr-box-center{display:flex;justify-content:center;padding:8px;}
-.qr-box-center canvas,.qr-box-center img{width:72px!important;height:72px!important;}
-
-@media print{
-  body{background:#fff;padding:0;}
-  .screen-only{display:none!important;}
-  .cards-grid{display:block!important;gap:0;}
-  .prod-card{display:block!important;margin:2mm;box-shadow:none;break-inside:avoid;page-break-inside:avoid;}
-  @page{margin:8mm;}
-}
-</style>
-</head>
-<body>
-
-<!-- ── Screen toolbar ── -->
-<div class="screen-only">
-  <div class="toolbar">
-    <button class="print-btn" onclick="window.print()">🖨️ הדפס כרטיסיות</button>
-    <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${order.customer_name || ''} · ${allItems.length} פריטים</span>
-  </div>
-
-  <!-- Setup / split panel -->
-  <div class="setup-panel">
-    <div class="setup-title">✂️ הגדר חלוקת כרטיסיות לפני הדפסה</div>
-    <table class="setup-tbl">
-      <thead><tr>
-        <th>#</th><th>צורה</th><th>⌀</th><th>כמות</th><th>מס' כרטיסיות</th><th>חלוקה</th>
-      </tr></thead>
-      <tbody id="setupBody">${setupRowsHtml}</tbody>
-    </table>
-    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
-      <button class="gen-btn" onclick="generateCards()">✅ עדכן כרטיסיות</button>
-      <span style="font-size:12px;color:#888;">שנה כמות כרטיסיות ולחץ לעדכון</span>
-    </div>
-  </div>
-</div>
-
-<!-- ── Card grid – server-rendered, barcodes added by JS ── -->
-<div class="cards-grid" id="cardsGrid">${serverCardsHtml}</div>
-
-<script>
-// ── Server data ───────────────────────────────────────────────────
-var ORDER_NUM     = ${JSON.stringify(order.order_num || '')};
-var CUSTOMER      = ${JSON.stringify(order.customer_name || '')};
-var PRINT_DATE    = ${JSON.stringify(printDate)};
-var DELIV_DATE    = ${JSON.stringify(delivDate)};
-var TOTAL_WEIGHT  = ${(order.total_weight||0).toFixed(1)};
-var TOTAL_PALLETS = ${pallets.length};
-var allItems      = ${JSON.stringify(allItems.map(it => ({
-  id:             it.id,
-  shape_name:     it.shape_name  || '',
-  diameter:       it.diameter    || 12,
-  quantity:       it.quantity    || 1,
-  total_length_mm:it.total_length_mm || 0,
-  total_weight:   +(it.total_weight  || 0),
-  weight_per_unit:+(it.weight_per_unit || 0),
-  segments:       tryParseJSON(it.segments, []),
-  note:           it.note        || '',
-  struct_element: it.struct_element || '',
-  pallet_num:     it._palletNum  || 1,
-  material_grade: it.material_grade || 'B500B',
-  is_3d:          it.is_3d       || 0
-})))};
-
-// ── Split config: item id -> number of sub-cards ──────────────────
-var splitCfg = {};
-
-// ── Setup panel ───────────────────────────────────────────────────
-function initSetup() {
-  var tbody = document.getElementById('setupBody');
-  for (var i = 0; i < allItems.length; i++) {
-    var item = allItems[i];
-    splitCfg[item.id] = 1;
-    var tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td>' + (i+1) + '</td>' +
-      '<td>' + (item.shape_name || '–') + '</td>' +
-      '<td><b>Ø' + item.diameter + '</b></td>' +
-      '<td><b>' + item.quantity + '</b></td>' +
-      '<td><input class="split-inp" type="number" min="1" max="' + item.quantity + '" value="1"' +
-        ' id="sp-' + item.id + '" oninput="onSplitChange(' + item.id + ',' + item.quantity + ')"></td>' +
-      '<td><div class="split-detail" id="sd-' + item.id + '">כרטיסייה אחת – כל הכמות</div></td>';
-    tbody.appendChild(tr);
-  }
-}
-
-function onSplitChange(itemId, qty) {
-  var inp = document.getElementById('sp-' + itemId);
-  var n = Math.max(1, Math.min(qty, parseInt(inp.value) || 1));
-  inp.value = n;
-  splitCfg[itemId] = n;
-  var el = document.getElementById('sd-' + itemId);
-  if (n === 1) {
-    el.textContent = 'כרטיסייה אחת – כל הכמות';
-  } else {
-    var subs = splitQty(qty, n);
-    el.textContent = subs.join(' + ') + ' יח\'';
-  }
-}
-
-function splitQty(total, n) {
-  var base = Math.floor(total / n);
-  var rem  = total % n;
-  var arr  = [];
-  for (var i = 0; i < n; i++) arr.push(base + (i < rem ? 1 : 0));
-  return arr;
-}
-
-// ── Shape drawing ─────────────────────────────────────────────────
-function drawShape(svgEl, segments) {
-  if (!segments || !segments.length) return;
-  var sides  = segments.map(function(s){ return s.length_mm; });
-  var angles = segments.map(function(s){ return s.angle_deg; }).slice(0, -1);
-  var pts = [[0,0]];
-  var dir = 0;
-  for (var i = 0; i < sides.length; i++) {
-    var rad = dir * Math.PI / 180;
-    var p = pts[pts.length-1];
-    pts.push([p[0] + sides[i]*Math.cos(rad), p[1] + sides[i]*Math.sin(rad)]);
-    if (i < angles.length) dir -= (180 - angles[i]);
-  }
-  var PAD=28, W=220, H=130;
-  var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
-  var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs);
-  var minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
-  var rX=maxX-minX||1, rY=maxY-minY||1;
-  var sc=Math.min((W-PAD*2)/rX,(H-PAD*2)/rY);
-  var oX=PAD+((W-PAD*2)-rX*sc)/2, oY=PAD+((H-PAD*2)-rY*sc)/2;
-  var mp=function(p){return [oX+(p[0]-minX)*sc, oY+(p[1]-minY)*sc];};
-  var mapped=pts.map(mp);
-  var pd='M '+mapped.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' L ');
-  var svg='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
-  svg+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
-  for (var i=0; i<mapped.length-1; i++) {
-    var x1=mapped[i][0],y1=mapped[i][1],x2=mapped[i+1][0],y2=mapped[i+1][1];
-    var mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
-    var nx=-dy/len*10,ny=dx/len*10,lx=mx+nx,ly=my+ny;
-    svg+='<rect x="'+(lx-14).toFixed(1)+'" y="'+(ly-7).toFixed(1)+'" width="28" height="12" rx="2" fill="white" fill-opacity="0.85"/>';
-    svg+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
-  }
-  for (var i=1; i<mapped.length-1; i++) {
-    var x=mapped[i][0],y=mapped[i][1];
-    if (angles[i-1] !== undefined && angles[i-1] !== 180) {
-      svg+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
-      svg+='<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">'+angles[i-1]+'&deg;</text>';
-    }
-  }
-  var ep=mapped[mapped.length-1];
-  svg+='<circle cx="'+mapped[0][0].toFixed(1)+'" cy="'+mapped[0][1].toFixed(1)+'" r="3" fill="#1a2332"/>';
-  svg+='<circle cx="'+ep[0].toFixed(1)+'" cy="'+ep[1].toFixed(1)+'" r="3" fill="#1a2332"/>';
-  svgEl.innerHTML = svg;
-}
-
-// ── Build shape SVG string (client-side mirror of pcShapeSVG) ─────
-function buildShapeSVG(segments) {
-  try {
-    if (!segments || !segments.length) {
-      return '<svg viewBox="0 0 220 60" style="width:100%;max-height:80px">' +
-        '<line x1="12" y1="30" x2="208" y2="30" stroke="#1a2332" stroke-width="3" stroke-linecap="round"/>' +
-        '<circle cx="12" cy="30" r="3" fill="#1a2332"/><circle cx="208" cy="30" r="3" fill="#1a2332"/></svg>';
-    }
-    var W=220, H=100, PAD=18;
-    var sides = segments.map(function(s){ return +(s.length_mm||0); });
-    var angs  = segments.map(function(s){ return s.angle_deg; });
-    var pts=[[0,0]], dir=0;
-    for (var i=0; i<sides.length; i++) {
-      var p=pts[pts.length-1], rad=dir*Math.PI/180;
-      pts.push([p[0]+sides[i]*Math.cos(rad), p[1]+sides[i]*Math.sin(rad)]);
-      if (i<angs.length-1 && angs[i]!=null) dir-=(180-angs[i]);
-    }
-    var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
-    var mnX=Math.min.apply(null,xs), mxX=Math.max.apply(null,xs);
-    var mnY=Math.min.apply(null,ys), mxY=Math.max.apply(null,ys);
-    var rX=mxX-mnX||1, rY=mxY-mnY||1;
-    var sc=Math.min((W-PAD*2)/rX,(H-PAD*2)/rY);
-    var oX=PAD+((W-PAD*2)-rX*sc)/2, oY=PAD+((H-PAD*2)-rY*sc)/2;
-    var mpts=pts.map(function(p){return [+(oX+(p[0]-mnX)*sc).toFixed(1), +(oY+(p[1]-mnY)*sc).toFixed(1)];});
-    var pd='M '+mpts.map(function(p){return p.join(',');}).join(' L ');
-    var s='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
-    s+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
-    for (var i=0; i<mpts.length-1; i++) {
-      var x1=mpts[i][0],y1=mpts[i][1],x2=mpts[i+1][0],y2=mpts[i+1][1];
-      var mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,ln=Math.sqrt(dx*dx+dy*dy)||1;
-      var nx=-dy/ln*10,ny=dx/ln*10;
-      s+='<rect x="'+(mx+nx-14).toFixed(1)+'" y="'+(my+ny-6).toFixed(1)+'" width="28" height="12" rx="2" fill="white" fill-opacity="0.9"/>';
-      s+='<text x="'+(mx+nx).toFixed(1)+'" y="'+(my+ny).toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
-    }
-    for (var i=1; i<mpts.length-1; i++) {
-      var a=angs[i-1];
-      if (a!=null && a!==180) {
-        var x=mpts[i][0], y=mpts[i][1];
-        s+='<circle cx="'+x+'" cy="'+y+'" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
-        s+='<text x="'+x+'" y="'+y+'" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">'+a+'\xb0</text>';
-      }
-    }
-    return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:100px">'+s+'</svg>';
-  } catch(e) {
-    return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
-  }
-}
-
-// ── Build one item card ───────────────────────────────────────────
-function buildCard(item, subQty, totalCards, cardIdx) {
-  var cardNum = totalCards > 1 ? (cardIdx+1) + '/' + totalCards : '';
-  var uid     = 'g' + item.id + (totalCards > 1 ? 'c' + (cardIdx+1) : '');
-  var barData = ORDER_NUM + '-' + String(item.id).padStart(6,'0');
-  var segs    = item.segments || [];
-  var wProp   = item.quantity > 0 ? (item.total_weight * subQty / item.quantity).toFixed(2) : '0.00';
-  var title   = item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף';
-  var badge   = cardNum ? '<span class="split-badge">'+cardNum+'</span>' : '';
-
-  var dimHtml = '';
-  for (var i=0; i<segs.length; i++) {
-    var lbl = String.fromCharCode(0x05D0+i);
-    dimHtml += '<span class="dim-seg">'+lbl+': <b>'+segs[i].length_mm+'</b></span>';
-    if (i < segs.length-1 && segs[i].angle_deg && segs[i].angle_deg !== 180)
-      dimHtml += '<span class="dim-ang">'+segs[i].angle_deg+'&deg;</span>';
-  }
-
-  var h = '<div class="prod-card">';
-  h += '<div class="pc-head">';
-  h += '<div><div class="pc-title">'+badge+title+'</div><div class="pc-date">'+PRINT_DATE+'</div></div>';
-  h += '<div class="pc-top-barcode"><div class="bc-font-top">'+barData+'</div><div class="bc-label">'+barData+'</div></div>';
-  h += '</div>';
-  h += '<div class="pc-order-row">';
-  h += '<div class="pc-order-label">הזמנה מס\' :</div>';
-  h += '<div class="pc-order-barcode"><div class="bc-font-mid">'+ORDER_NUM+'</div><div class="bc-ord-text">'+ORDER_NUM+'</div></div>';
-  h += '<div class="pc-pallet">משטח: <b>'+item.pallet_num+'</b></div>';
-  h += '</div>';
-  h += '<div class="pc-wq-row">';
-  h += '<div class="pc-wq-cell"><span class="wq-lbl">ק"ג:</span> <span class="wq-val">'+wProp+'</span></div>';
-  h += '<div class="pc-wq-sep"></div>';
-  h += '<div class="pc-wq-cell"><span class="wq-lbl">כמות:</span> <span class="wq-val">'+subQty+'</span> יח\'</div>';
-  h += '<div class="pc-wq-sep"></div>';
-  h += '<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">'+CUSTOMER+'</span></div>';
-  h += '</div>';
-  h += '<div class="pc-shape-area">'+buildShapeSVG(segs)+'</div>';
-  if (dimHtml) h += '<div class="pc-dims">'+dimHtml+'</div>';
-  h += '<div class="pc-spec-row">';
-  h += '<div class="pc-spec-cell"><span class="spec-lbl">נ\':</span> <b>\xd8'+item.diameter+'</b></div>';
-  h += '<div class="pc-spec-sep"></div>';
-  h += '<div class="pc-spec-cell"><span class="spec-lbl">כיתה:</span> <b>'+(item.material_grade||'B500B')+'</b></div>';
-  h += '<div class="pc-spec-sep"></div>';
-  h += '<div class="pc-spec-cell"><span class="spec-lbl">אורך:</span> <b>'+item.total_length_mm+'</b> מ"מ</div>';
-  if (item.struct_element) h += '<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> '+item.struct_element+'</div>';
-  h += '</div>';
-  if (item.note) h += '<div class="pc-note">⚠ '+item.note+'</div>';
-  h += '<div class="pc-footer">';
-  h += '<div class="bc-font-footer">'+barData+'</div>';
-  h += '<div class="pc-brand">SYNTA<br><span class="pc-brand-num">'+item.pallet_num+'</span></div>';
-  h += '</div>';
-  h += '</div>';
-  return h;
-}
-
-// ── Build master card ─────────────────────────────────────────────
-function buildMaster() {
-  var rows = '';
-  for (var i=0; i<allItems.length; i++) {
-    var it = allItems[i];
-    rows += '<tr>'+
-      '<td>'+(i+1)+'</td>'+
-      '<td><b>\xd8'+it.diameter+'</b></td>'+
-      '<td>'+(it.shape_name||'–')+'</td>'+
-      '<td class="master-shape-cell">'+buildShapeSVG(it.segments)+'</td>'+
-      '<td>'+Math.round((it.total_length_mm||0)/10)+'</td>'+
-      '<td><b>'+it.quantity+'</b></td>'+
-      '<td>'+(+(it.total_weight)||0).toFixed(1)+'</td>'+
-      '<td class="check-cell">◯</td>'+
-    '</tr>';
-  }
-  var h = '<div class="prod-card master-card">';
-  h += '<div class="pc-head" style="background:#1a2332;color:#fff;padding:8px 12px;">';
-  h += '<div><div class="pc-title" style="color:#e07b39;font-size:14px;">★ כרטיסיית מאסטר</div>';
-  h += '<div class="pc-date" style="color:#8aa;">'+PRINT_DATE+'</div></div>';
-  h += '<div style="text-align:left"><div style="font-size:16px;font-weight:900;">'+ORDER_NUM+'</div>';
-  h += '<div style="font-size:10px;color:#8aa;">'+(DELIV_DATE?'מסירה: '+DELIV_DATE:'')+'</div></div></div>';
-  h += '<div style="padding:6px 10px;font-size:12px;font-weight:700;border-bottom:1px solid #eee;">'+CUSTOMER+'</div>';
-  h += '<table class="master-table"><thead><tr><th>#</th><th>\xd8</th><th>צורה</th><th>תרשים</th><th>אורך</th><th>כמות</th><th>ק"ג</th><th>✓</th></tr></thead>';
-  h += '<tbody>'+rows+'</tbody></table>';
-  h += '<div class="master-totals">סה"כ: <b>'+TOTAL_WEIGHT+' ק"ג</b> · '+TOTAL_PALLETS+' משטחים · '+allItems.length+' פריטים</div>';
-  h += '<div class="pc-footer" style="background:#1a2332;color:#8aa;font-size:9px;text-align:center;padding:4px;">★ כרטיסיית מאסטר – לא לאיבוד! · '+ORDER_NUM+'</div>';
-  h += '</div>';
-  return h;
-}
-
-// ── Generate & render all cards ───────────────────────────────────
-function generateCards() {
-  var grid = document.getElementById('cardsGrid');
-  grid.innerHTML = '';
-  // Master
-  try {
-    var d = document.createElement('div');
-    d.innerHTML = buildMaster();
-    if (d.firstElementChild) grid.appendChild(d.firstElementChild);
-  } catch(e) { console.error('buildMaster:', e); }
-  // Items
-  for (var i=0; i<allItems.length; i++) {
-    var item = allItems[i];
-    var n    = splitCfg[item.id] || 1;
-    var subs = splitQty(item.quantity, n);
-    for (var ci=0; ci<n; ci++) {
-      try {
-        var d2 = document.createElement('div');
-        d2.innerHTML = buildCard(item, subs[ci], n, ci);
-        if (d2.firstElementChild) grid.appendChild(d2.firstElementChild);
-      } catch(e2) { console.error('buildCard item', item.id, e2); }
-    }
-  }
-}
-
-// ── Init: read split config from server-rendered rows ────────────
-(function() {
-  document.querySelectorAll('[id^="sp-"]').forEach(function(inp) {
-    splitCfg[inp.id.replace('sp-','')] = 1;
-  });
-})();
-</script>
-</body>
-</html>`);
-});
-
-// ── DELIVERY CERTIFICATE ─────────────────────────────────────────
-app.get('/api/orders/:id/delivery-certificate', requireAnyRole(['office', 'warehouse', 'driver', 'manager', 'admin']), (req, res) => {
-  const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
-    FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
-  if (!order) return res.status(404).send('הזמנה לא נמצאה');
-
-  const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
-  pallets.forEach(p => { p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id); });
-  const allItems = pallets.flatMap(p => p.items);
-
-  const fmtDate = d => {
-    const dt = d ? new Date(d) : new Date();
-    return `${String(dt.getDate()).padStart(2,'0')}-${String(dt.getMonth()+1).padStart(2,'0')}-${dt.getFullYear()}`;
-  };
-  const today = fmtDate();
-  const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '—';
-
-  // Classify each item: מכופף or ישר
-  const parseSegs = raw => { try { return JSON.parse(raw) || []; } catch { return []; } };
-  const isBent = item => {
-    const segs = parseSegs(item.segments);
-    const angles = segs.map(s => s.angle_deg).filter(a => a !== undefined);
-    return angles.some(a => a < 175);
-  };
-
-  const calcItemWeight = it => { // BUG-05: uses global REBAR_WEIGHTS
-    if (it.total_weight && it.total_weight > 0) return it.total_weight;
-    const kgm = REBAR_WEIGHTS[Math.round(it.diameter)];
-    if (!kgm) return 0;
-    return Math.round((it.total_length_mm / 1000) * kgm * (it.quantity || 1) * 10) / 10;
-  };
-
-  // Weight totals
-  let wBent = 0, wStraight = 0;
-  allItems.forEach(item => {
-    const w = calcItemWeight(item);
-    if (isBent(item)) wBent += w; else wStraight += w;
-  });
-  const wTotal = wBent + wStraight;
-  const fmt1 = v => v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const fmtTon = v => (v / 1000).toFixed(2);
-
-  // Position range label
-  const bentCount = allItems.filter(isBent).length;
-  const posLabel = allItems.length > 0
-    ? `ריכוז קומפלט: ברזל מכופף (פוז' 1-${bentCount}) ותוספות מוטות ישרים`
-    : 'ריכוז קומפלט';
-
-  // Build table rows
-  let rows = '';
-  allItems.forEach((item, idx) => {
-    const segs   = parseSegs(item.segments);
-    const bent   = isBent(item);
-    const posNum = idx + 1;
-    const diam   = item.diameter || '–';
-    const type   = bent ? "מכופף (ח')" : 'ישר';
-    const lenCm  = item.total_length_mm ? Math.round(item.total_length_mm / 10) : '–';
-    const qty    = item.quantity || 1;
-    const wt     = fmt1(calcItemWeight(item));
-    const notes  = [item.struct_element, item.struct_floor, item.sheet_num, item.note].filter(Boolean).join(' · ') || '–';
-
-    // Inline SVG shape (80×52)
-    const svgShape = (() => {
-      if (!segs.length) {
-        // Straight bar — show a simple horizontal line with length label
-        const lenLabel = item.total_length_mm ? Math.round(item.total_length_mm) + '' : '–';
-        return `<line x1="8" y1="26" x2="72" y2="26" stroke="#1a2332" stroke-width="2.5" stroke-linecap="round"/>
-                <circle cx="8" cy="26" r="2.5" fill="#1a2332"/>
-                <circle cx="72" cy="26" r="2.5" fill="#1a2332"/>
-                <rect x="25" y="16" width="30" height="9" rx="1.5" fill="white" fill-opacity="0.9"/>
-                <text x="40" y="23" text-anchor="middle" dominant-baseline="middle" font-size="6.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">${lenLabel}</text>`;
-      }
-      const sides  = segs.map(s => s.length_mm);
-      const angles = segs.map(s => s.angle_deg).slice(0, -1);
-      const pts    = [[0, 0]];
-      let dir = 0;
-      for (let i = 0; i < sides.length; i++) {
-        const rad = dir * Math.PI / 180;
-        const p   = pts[pts.length - 1];
-        pts.push([p[0] + sides[i] * Math.cos(rad), p[1] + sides[i] * Math.sin(rad)]);
-        if (i < angles.length) dir -= (180 - angles[i]);
-      }
-      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-      const minX = Math.min(...xs), maxX = Math.max(...xs);
-      const minY = Math.min(...ys), maxY = Math.max(...ys);
-      const W = 80, H = 52, PAD = 10;
-      const rX = maxX - minX || 1, rY = maxY - minY || 1;
-      const sc = Math.min((W - PAD * 2) / rX, (H - PAD * 2) / rY);
-      const oX = PAD + ((W - PAD * 2) - rX * sc) / 2;
-      const oY = PAD + ((H - PAD * 2) - rY * sc) / 2;
-      const mp = p => [oX + (p[0] - minX) * sc, oY + (p[1] - minY) * sc];
-      const mapped = pts.map(mp);
-      const pd = 'M ' + mapped.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' L ');
-      let svg = `<path d="${pd}" fill="none" stroke="#1a2332" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
-      // Segment length labels
-      for (let i = 0; i < mapped.length - 1; i++) {
-        const [x1,y1] = mapped[i], [x2,y2] = mapped[i+1];
-        const mx=(x1+x2)/2, my=(y1+y2)/2;
-        const len=Math.sqrt((x2-x1)**2+(y2-y1)**2)||1;
-        const nx=-(y2-y1)/len*8, ny=(x2-x1)/len*8;
-        svg += `<rect x="${(mx+nx-11).toFixed(1)}" y="${(my+ny-4.5).toFixed(1)}" width="22" height="9" rx="1.5" fill="white" fill-opacity="0.9"/>`;
-        svg += `<text x="${(mx+nx).toFixed(1)}" y="${(my+ny+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="6.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">${sides[i]}</text>`;
-      }
-      // Angle labels
-      for (let i = 1; i < mapped.length - 1; i++) {
-        const [x,y] = mapped[i];
-        const a = angles[i-1];
-        if (a !== undefined && a < 175) {
-          svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="white" stroke="#c9621a" stroke-width="1"/>`;
-          svg += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="5.5" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">${a}°</text>`;
-        }
-      }
-      return svg;
-    })();
-
-    rows += `
-      <tr>
-        <td class="c">${posNum}</td>
-        <td class="c"><b>Ø${diam}</b></td>
-        <td class="c">${type}</td>
-        <td class="c">${lenCm}</td>
-        <td class="c">${qty}</td>
-        <td class="c"><b>${wt}</b></td>
-        <td class="shape-cell">
-          <svg viewBox="0 0 80 52" width="80" height="52" xmlns="http://www.w3.org/2000/svg">${svgShape}</svg>
-        </td>
-        <td>${notes}</td>
-      </tr>`;
-  });
-
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(`<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<title>ריכוז תעודת משלוח – ${order.order_num}</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap');
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Heebo',Arial,sans-serif;direction:rtl;background:#f0f2f5;padding:18px;color:#1a2332;}
-
-/* ── Screen toolbar ── */
-.toolbar{margin-bottom:14px;display:flex;gap:10px;align-items:center;}
-.btn-print{padding:9px 22px;background:#1a2332;color:#fff;border:none;border-radius:6px;
-  cursor:pointer;font-size:14px;font-family:inherit;font-weight:700;}
-.btn-print:hover{background:#c9621a;}
-.btn-back{padding:9px 16px;background:#eee;color:#1a2332;border:1px solid #ccc;
-  border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;text-decoration:none;display:inline-block;}
-
-/* ── A4 page ── */
-.page{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:14mm 12mm;
-  box-shadow:0 4px 20px rgba(0,0,0,0.15);}
-
-/* ── Header ── */
-.doc-title{text-align:center;font-size:22px;font-weight:900;color:#1a2332;letter-spacing:0.5px;margin-bottom:4px;}
-.doc-subtitle{text-align:center;font-size:12px;color:#555;font-style:italic;margin-bottom:14px;}
-.meta-row{display:flex;justify-content:space-between;font-size:11px;color:#444;
-  border-top:1px solid #ddd;border-bottom:1px solid #ddd;padding:6px 4px;margin-bottom:14px;}
-.meta-item{display:flex;gap:5px;}
-.meta-lbl{color:#888;}
-.meta-val{font-weight:700;}
-
-/* ── Summary box ── */
-.summary-box{background:#f0f4f8;border:1.5px solid #1a2332;border-radius:6px;
-  padding:10px 16px;margin-bottom:16px;display:inline-block;float:left;}
-.summary-title{font-size:11px;font-weight:900;color:#1a2332;margin-bottom:7px;text-align:center;}
-.sum-row{display:flex;justify-content:space-between;gap:24px;font-size:11.5px;margin-bottom:4px;}
-.sum-lbl{color:#444;}
-.sum-val{font-weight:700;color:#1a2332;}
-.sum-total{border-top:1.5px solid #1a2332;margin-top:6px;padding-top:6px;}
-.sum-total .sum-val{font-size:14px;color:#c9621a;}
-.clearfix::after{content:'';display:table;clear:both;}
-
-/* ── Table ── */
-.section-title{font-size:13px;font-weight:900;color:#1a2332;margin-bottom:8px;
-  border-bottom:2px solid #1a2332;padding-bottom:4px;}
-table{width:100%;border-collapse:collapse;font-size:10.5px;}
-thead th{background:#1a2332;color:#fff;padding:7px 5px;text-align:center;font-weight:700;
-  border:1px solid #1a2332;}
-tbody tr:nth-child(even){background:#f7f9fc;}
-tbody tr:hover{background:#eaf2ff;}
-tbody td{padding:5px 5px;border:1px solid #d0d8e4;vertical-align:middle;}
-td.c{text-align:center;}
-.shape-cell{text-align:center;padding:2px 4px;}
-tfoot td{background:#1a2332;color:#fff;font-weight:900;padding:8px 6px;
-  border:1px solid #1a2332;text-align:center;}
-tfoot .total-val{font-size:14px;color:#f0a060;}
-
-/* ── Footer ── */
-.doc-footer{margin-top:18px;border-top:1px solid #ddd;padding-top:8px;
-  display:flex;justify-content:space-between;font-size:10px;color:#888;}
-.company-name{font-weight:900;color:#1a2332;font-size:12px;}
-
-@media print{
-  body{background:#fff;padding:0;}
-  .toolbar{display:none!important;}
-  .page{box-shadow:none;padding:10mm 10mm;width:100%;}
-  @page{size:A4 portrait;margin:8mm;}
-}
-</style>
-</head>
-<body>
-
-<div class="toolbar">
-  <a href="/orders.html" class="btn-back">← חזור להזמנות</a>
-  <button class="btn-print" onclick="window.print()">🖨️ הדפס / שמור PDF</button>
-  <span style="font-size:13px;color:#666;">הזמנה ${order.order_num} · ${order.customer_name || ''}</span>
-</div>
-
-<div class="page">
-
-  <!-- Header -->
-  <div class="doc-title">ריכוז תעודת משלוח וסיכום משקלים סופי</div>
-  <div class="doc-subtitle">${posLabel}</div>
-
-  <div class="meta-row">
-    <div class="meta-item"><span class="meta-lbl">לקוח:</span><span class="meta-val">${order.customer_name || '—'}</span></div>
-    <div class="meta-item"><span class="meta-lbl">הזמנה מס':</span><span class="meta-val">${order.order_num}</span></div>
-    <div class="meta-item"><span class="meta-lbl">תאריך אספקה:</span><span class="meta-val">${delivDate}</span></div>
-    <div class="meta-item"><span class="meta-lbl">תאריך הפקה:</span><span class="meta-val">${today}</span></div>
-  </div>
-
-  <!-- Summary box -->
-  <div class="clearfix">
-    <div class="summary-box">
-      <div class="summary-title">סיכום משקלי משלוח קומפלט</div>
-      <div class="sum-row">
-        <span class="sum-lbl">סה"כ משקל ברזל מכופף:</span>
-        <span class="sum-val">${fmt1(wBent)} ק"ג (${fmtTon(wBent)} טון)</span>
-      </div>
-      <div class="sum-row">
-        <span class="sum-lbl">סה"כ משקל ברזל ישר:</span>
-        <span class="sum-val">${fmt1(wStraight)} ק"ג (${fmtTon(wStraight)} טון)</span>
-      </div>
-      <div class="sum-row sum-total">
-        <span class="sum-lbl"><b>סך הכל משקל כללי:</b></span>
-        <span class="sum-val"><b>${fmt1(wTotal)} ק"ג (כ-${fmtTon(wTotal)} טון)</b></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Detail table -->
-  <div class="section-title">טבלת פירוט אלמנטים מלאה ומאוחדת</div>
-  <table>
-    <thead>
-      <tr>
-        <th>פוזיציה</th>
-        <th>קוטר<br>(מ"מ)</th>
-        <th>סוג ברזל</th>
-        <th>אורך<br>(ס"מ)</th>
-        <th>כמות<br>(יח')</th>
-        <th>משקל<br>(ק"ג)</th>
-        <th>צורה</th>
-        <th>מקור המידע / הערות</th>
-      </tr>
-    </thead>
-    <tbody>${rows}</tbody>
-    <tfoot>
-      <tr>
-        <td colspan="5" style="text-align:right;">משקל כולל סופי ומאושר לעסקה</td>
-        <td class="total-val">${fmt1(wTotal)}</td>
-        <td></td>
-        <td>סה"כ כללי קומפלט · ${allItems.length} פריטים</td>
-      </tr>
-    </tfoot>
-  </table>
-
-  <!-- Footer -->
-  <div class="doc-footer">
-    <div>
-      <div class="company-name">טנא תעשיות ברזל בע"מ</div>
-      <div>תעודה זו מהווה אישור לפרטי המשלוח המפורטים לעיל</div>
-    </div>
-    <div style="text-align:left;">
-      <div>חתימה ואישור: _______________</div>
-      <div style="margin-top:4px;">תאריך קבלה: _______________</div>
-    </div>
-  </div>
-
-</div><!-- /page -->
-</body>
-</html>`);
-});
-
-// ── PRINT A4 ──────────────────────────────────────────────────────
-app.get('/api/orders/:id/print-a4', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
-  const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone
-    FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
-  if (!order) return res.status(404).send('הזמנה לא נמצאה');
-
-  const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
-  pallets.forEach(p => {
-    p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id);
-    p.items.forEach(item => { item._palletNum = p.pallet_num; });
-  });
-  const allItems = pallets.flatMap(p => p.items);
-
-  const fmtDate = d => {
-    const dt = d ? new Date(d) : new Date();
-    return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
-  };
-  const printDate = fmtDate(order.created_at);
-  const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '—';
-
-  const allItemsJson = JSON.stringify(allItems.map((it, idx) => ({
-    rowNum:         idx + 1,
-    segments:       tryParseJSON(it.segments, []),
-    diameter:       it.diameter || '',
-    shape_name:     it.shape_name || '',
-    quantity:       it.quantity || 1,
-    total_length_mm:it.total_length_mm || 0,
-    total_length_cm:(Math.round((it.total_length_mm||0)/10)),
-    total_weight:   it.total_weight || 0,
-    material_grade: it.material_grade || 'B500B',
-    struct_element: it.struct_element || '',
-    note:           it.note || '',
-    pallet_num:     it._palletNum || 1,
-  })));
-
-  const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const totalWeight  = (order.total_weight || 0).toFixed(1);
-
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(`<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<title>הדפסת A4 – ${order.order_num}</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap');
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direction:rtl;padding:14px;}
-
-/* Screen toolbar */
-.no-print{margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-.btn-print{padding:9px 24px;background:#1a2332;color:#fff;border:none;border-radius:7px;
-  cursor:pointer;font-size:14px;font-family:inherit;font-weight:700;}
-.btn-print:hover{background:#c9621a;}
-
-/* Page wrapper */
-.page{background:#fff;max-width:210mm;margin:0 auto;padding:14mm 12mm 12mm;
-  box-shadow:0 2px 12px rgba(0,0,0,0.12);}
-
-/* Header */
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;
-  border-bottom:3px solid #1a2332;padding-bottom:10px;margin-bottom:12px;}
-.hdr-title{font-size:22px;font-weight:900;color:#1a2332;}
-.hdr-sub{font-size:13px;color:#555;margin-top:3px;}
-.hdr-right{text-align:left;}
-.order-num{font-size:28px;font-weight:900;color:#c9621a;line-height:1;}
-.hdr-meta{font-size:11px;color:#666;margin-top:4px;line-height:1.6;}
-
-/* Summary row */
-.summary{display:flex;gap:0;margin-bottom:12px;border:1px solid #ddd;border-radius:6px;overflow:hidden;}
-.sum-cell{flex:1;padding:8px 12px;border-left:1px solid #ddd;text-align:center;}
-.sum-cell:last-child{border-left:none;}
-.sum-label{font-size:10px;color:#888;margin-bottom:2px;}
-.sum-val{font-size:16px;font-weight:900;color:#1a2332;}
-
-/* Table */
-.items-table{width:100%;border-collapse:collapse;font-size:11px;}
-.items-table th{background:#1a2332;color:#fff;padding:7px 6px;text-align:center;
-  font-size:11px;font-weight:700;border:1px solid #1a2332;}
-.items-table td{padding:5px 5px;border:1px solid #d0d7e0;vertical-align:middle;text-align:center;}
-.items-table tr:nth-child(even) td{background:#f7f9fc;}
-.items-table tr:hover td{background:#eef3fb;}
-.row-num{font-weight:900;font-size:13px;color:#1a2332;min-width:20px;}
-.diam{font-weight:900;font-size:13px;color:#c9621a;}
-.shape-td{min-width:120px;max-width:180px;padding:3px!important;}
-.shape-svg{display:block;margin:0 auto;}
-.dims-td{text-align:right;font-size:10px;line-height:1.7;min-width:90px;}
-.seg-dim{white-space:nowrap;}
-.seg-lbl{font-weight:700;color:#1a2332;}
-.seg-ang{color:#c9621a;font-size:9px;}
-.len-val{font-size:13px;font-weight:900;}
-.qty-val{font-size:15px;font-weight:900;color:#1a2332;}
-.wt-val{font-size:12px;font-weight:700;}
-.note-row td{background:#fff8e1!important;color:#856404;font-size:10px;padding:3px 8px!important;text-align:right!important;}
-.check-box{width:18px;height:18px;border:1.5px solid #aaa;border-radius:3px;display:inline-block;}
-
-/* Totals */
-.totals-row{background:#1a2332!important;}
-.totals-row td{color:#fff!important;font-weight:900;font-size:12px;padding:7px 6px!important;
-  border-color:#1a2332!important;}
-
-/* Footer */
-.footer{margin-top:14px;display:flex;justify-content:space-between;align-items:center;
-  border-top:2px solid #1a2332;padding-top:8px;font-size:10px;color:#888;}
-.footer-brand{font-weight:900;color:#c9621a;font-size:13px;}
-
-@media print{
-  body{background:#fff;padding:0;}
-  .no-print{display:none!important;}
-  .page{box-shadow:none;padding:8mm 8mm 8mm;max-width:100%;}
-  @page{size:A4 portrait;margin:0;}
-}
-</style>
-</head>
-<body>
-
-<div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ הדפס A4</button>
-  <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${safeCustomer} · ${allItems.length} פריטים</span>
-</div>
-
-<div class="page">
-  <!-- Header -->
-  <div class="hdr">
-    <div>
-      <div class="hdr-title">טופס ייצור – כיפוף ברזל</div>
-      <div class="hdr-sub">IronBend Production Sheet</div>
-    </div>
-    <div class="hdr-right">
-      <div class="order-num">${order.order_num}</div>
-      <div class="hdr-meta">
-        לקוח: <b>${safeCustomer}</b><br>
-        תאריך הזמנה: <b>${printDate}</b><br>
-        תאריך מסירה: <b>${delivDate}</b>
-      </div>
-    </div>
-  </div>
-
-  <!-- Summary -->
-  <div class="summary">
-    <div class="sum-cell"><div class="sum-label">סה"כ פריטים</div><div class="sum-val">${allItems.length}</div></div>
-    <div class="sum-cell"><div class="sum-label">סה"כ ק"ג</div><div class="sum-val">${totalWeight}</div></div>
-    <div class="sum-cell"><div class="sum-label">משטחים</div><div class="sum-val">${pallets.length}</div></div>
-    <div class="sum-cell"><div class="sum-label">הזמנה</div><div class="sum-val">${order.order_num}</div></div>
-  </div>
-
-  <!-- Items table -->
-  <table class="items-table" id="itemsTable">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>⌀ נ'</th>
-        <th>צורה</th>
-        <th>מידות (מ"מ)</th>
-        <th>L סה"כ<br>(ס"מ)</th>
-        <th>כמות</th>
-        <th>ק"ג</th>
-        <th>✓</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
-  </table>
-
-  <!-- Footer -->
-  <div class="footer">
-    <div>הודפס: ${printDate} · IronBend</div>
-    <div class="footer-brand">הזמנה ${order.order_num}</div>
-    <div>חתימה: _______________</div>
-  </div>
-</div>
-
-<script>
-var allItems = ${allItemsJson};
-
-function drawShape2D(svgEl, segments, W, H) {
-  if (!segments || !segments.length) {
-    svgEl.innerHTML = '<text x="'+W/2+'" y="'+H/2+'" text-anchor="middle" font-size="10" fill="#aaa">ישר</text>';
-    return;
-  }
-  var sides  = segments.map(function(s){ return s.length_mm || 0; });
-  // angle_deg in DB = bend angle (e.g. 90° = right-angle bend), stored per-segment but used between segments
-  var bendAngs = segments.map(function(s){ return s.angle_deg != null ? s.angle_deg : 180; });
-  var pts = [[0,0]];
-  var dir = 0; // current direction in degrees (0=right, positive=clockwise on screen)
-  for (var i = 0; i < sides.length; i++) {
-    var rad = dir * Math.PI / 180;
-    var p = pts[pts.length-1];
-    pts.push([p[0] + sides[i]*Math.cos(rad), p[1] + sides[i]*Math.sin(rad)]);
-    // Apply turn: bend angle 90° = turn 90° (dir decreases by 180-angle)
-    if (i < bendAngs.length - 1) dir -= (180 - bendAngs[i+1]);
-  }
-  var PAD=16;
-  var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
-  var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs);
-  var minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
-  var rX=maxX-minX||1, rY=maxY-minY||1;
-  var sc=Math.min((W-PAD*2)/rX,(H-PAD*2)/rY);
-  var oX=PAD+((W-PAD*2)-rX*sc)/2, oY=PAD+((H-PAD*2)-rY*sc)/2;
-  var mp=function(p){return [(oX+(p[0]-minX)*sc).toFixed(1),(oY+(p[1]-minY)*sc).toFixed(1)];};
-  var mapped=pts.map(mp);
-  var pd='M '+mapped.map(function(p){return p[0]+','+p[1];}).join(' L ');
-  var svg='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
-  // Segment length labels
-  for (var i=0; i<mapped.length-1; i++) {
-    var x1=parseFloat(mapped[i][0]),y1=parseFloat(mapped[i][1]);
-    var x2=parseFloat(mapped[i+1][0]),y2=parseFloat(mapped[i+1][1]);
-    var mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
-    if (len < 6) continue;
-    var nx=(-dy/len)*9, ny=(dx/len)*9;
-    svg+='<rect x="'+(mx+nx-14).toFixed(1)+'" y="'+(my+ny-6).toFixed(1)+'" width="28" height="11" rx="2" fill="white" fill-opacity="0.9"/>';
-    svg+='<text x="'+(mx+nx).toFixed(1)+'" y="'+(my+ny).toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
-  }
-  svgEl.setAttribute('viewBox','0 0 '+W+' '+H);
-  svgEl.innerHTML = svg;
-}
-
-function buildDimsHtml(segments) {
-  if (!segments || !segments.length) return '<span style="color:#aaa;font-size:10px;">—</span>';
-  var html = '';
-  for (var i=0; i<segments.length; i++) {
-    var lbl = String.fromCharCode(0x05D0+i); // א,ב,ג...
-    html += '<div class="seg-dim"><span class="seg-lbl">'+lbl+':</span> '+segments[i].length_mm+'</div>';
-    if (i < segments.length-1 && segments[i].angle_deg != null && segments[i].angle_deg !== 180) {
-      html += '<div class="seg-ang">∠ '+segments[i].angle_deg+'°</div>';
-    }
-  }
-  return html;
-}
-
-function buildTable() {
-  var tbody = document.getElementById('tableBody');
-  var totalQty = 0, totalWt = 0;
-  for (var i=0; i<allItems.length; i++) {
-    var it = allItems[i];
-    totalQty += it.quantity;
-    totalWt  += it.total_weight;
-    var SVG_W = 130, SVG_H = 55;
-    var uid = 'sv'+i;
-    var row = document.createElement('tr');
-    row.innerHTML =
-      '<td class="row-num">'+it.rowNum+'</td>'+
-      '<td class="diam">Ø'+it.diameter+'</td>'+
-      '<td class="shape-td"><svg id="'+uid+'" class="shape-svg" width="'+SVG_W+'" height="'+SVG_H+'" viewBox="0 0 '+SVG_W+' '+SVG_H+'"></svg></td>'+
-      '<td class="dims-td">'+buildDimsHtml(it.segments)+'</td>'+
-      '<td><span class="len-val">'+it.total_length_cm+'</span></td>'+
-      '<td><span class="qty-val">'+it.quantity+'</span></td>'+
-      '<td><span class="wt-val">'+(it.total_weight||0).toFixed(1)+'</span></td>'+
-      '<td><span class="check-box"></span></td>';
-    tbody.appendChild(row);
-    if (it.note) {
-      var noteRow = document.createElement('tr');
-      noteRow.className = 'note-row';
-      noteRow.innerHTML = '<td colspan="8">⚠ '+it.note+'</td>';
-      tbody.appendChild(noteRow);
-    }
-  }
-  // Totals row
-  var totRow = document.createElement('tr');
-  totRow.className = 'totals-row';
-  totRow.innerHTML =
-    '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ</td>'+
-    '<td>'+totalQty+'</td>'+
-    '<td>'+totalWt.toFixed(1)+'</td>'+
-    '<td></td>';
-  tbody.appendChild(totRow);
-
-  // Draw shapes
-  for (var j=0; j<allItems.length; j++) {
-    var svgEl = document.getElementById('sv'+j);
-    if (svgEl) drawShape2D(svgEl, allItems[j].segments, 130, 55);
-  }
-}
-
-buildTable();
-</script>
-</body>
-</html>`);
-});
 
 // ── ANALYZE IMAGE (Gemini Vision) ─────────────────────────────────
 if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (req, res) => {
@@ -2811,620 +1540,136 @@ if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (
 
 // The reviewed order screen uses OpenAI for image and PDF extraction. Results
 // still return to the existing editable preview before an order is created.
-const analyzeImageAuthorization = requireAnyRole(['office', 'manager', 'admin']);
+const ANALYZE_IMAGE_ROLES = ['office', 'manager', 'admin'];
+const analyzeImageAllowedRoles = new Set(ANALYZE_IMAGE_ROLES);
+function imageRoleAuthorization(roles) {
+  const allowedRoles = new Set(roles);
+  return (req, res, next) => {
+    if (!req.auth) {
+      return res.status(401).json({
+        error: 'נדרשת התחברות מחדש לפני ניתוח תמונה',
+        code: 'ocr_auth_required',
+      });
+    }
+    const actual = getRolePermission(req.auth.role);
+    if (!actual || !allowedRoles.has(actual.role)) {
+      return res.status(403).json({
+        error: 'אין למשתמש הנוכחי הרשאה לניתוח תמונה',
+        code: 'ocr_forbidden',
+        allowed_roles: roles,
+        your_role: actual?.role || req.auth.role,
+      });
+    }
+    req.userRole = actual.role;
+    req.userId = req.auth.sub || null;
+    req.userPerm = actual.permission;
+    return next();
+  };
+}
+const analyzeImageAuthorization = imageRoleAuthorization(ANALYZE_IMAGE_ROLES);
+const analyzeBendingShapeAuthorization = imageRoleAuthorization(['warehouse', 'office', 'manager', 'admin']);
 
-function getIntakeTrainingGuidance(limit = 12) {
+function getIntakeTrainingGuidance(limit = 12, documentTypes = []) {
+  const types = Array.isArray(documentTypes) ? documentTypes.filter(Boolean) : [];
+  const where = types.length ? `AND document_type IN (${types.map(() => '?').join(',')})` : '';
   const examples = db.prepare(`
     SELECT document_type, problem_text, correction_text
     FROM intake_training_examples
     WHERE active=1
+      ${where}
     ORDER BY id DESC
     LIMIT ?
-  `).all(limit);
+  `).all(...types, limit);
   if (!examples.length) return '';
   return `\nOperator correction memory. Apply these corrections when a similar document, table, handwriting pattern, or customer format appears:\n${examples.map((example, index) =>
     `${index + 1}. Format: ${example.document_type || 'general'}\nProblem previously seen: ${example.problem_text}\nCorrect behavior next time: ${example.correction_text}`
   ).join('\n')}\n`;
 }
 
-app.post('/api/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, upload.single('image'), async (req, res) => {
-  if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
-  const openaiKey = getSetting('OPENAI_API_KEY');
-  if (!openaiKey) return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
-  if (!req.file) return res.status(400).json({ error: 'Image or PDF is required' });
-  const mime = req.file.mimetype || 'image/jpeg';
-  if (mime !== 'application/pdf' && !mime.startsWith('image/')) {
-    return res.status(400).json({ error: 'Only images and PDFs are supported' });
-  }
-  const fileData = req.file.buffer.toString('base64');
-  const attachment = mime === 'application/pdf'
-    ? { type: 'input_file', filename: req.file.originalname || 'order.pdf', file_data: `data:application/pdf;base64,${fileData}` }
-    : { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' };
-  const schema = {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      document_type: { type: ['string', 'null'] },
-      supplier_order_num: { type: ['string', 'null'] },
-      customer_name: { type: ['string', 'null'] },
-      customer_phone: { type: ['string', 'null'] },
-      delivery_date: { type: ['string', 'null'] },
-      delivery_address: { type: ['string', 'null'] },
-      notes: { type: ['string', 'null'] },
-      items: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            diameter: { type: 'number' },
-            shape_name: { type: 'string' },
-            quantity: { type: 'integer' },
-            segments: {
-              type: 'array',
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  length_cm: { type: 'number' },
-                  angle_deg: { type: 'number' },
-                },
-                required: ['length_cm', 'angle_deg'],
-              },
-            },
-            total_length_cm: { type: 'number' },
-            material_grade: { type: 'string' },
-            note: { type: 'string' },
-          },
-          required: ['diameter', 'shape_name', 'quantity', 'segments', 'total_length_cm', 'material_grade', 'note'],
-        },
-      },
-    },
-    required: ['document_type', 'supplier_order_num', 'customer_name', 'customer_phone', 'delivery_date', 'delivery_address', 'notes', 'items'],
-  };
-  const trainingGuidance = getIntakeTrainingGuidance();
-  const prompt = `Read this photographed or PDF steel production order carefully.
-Return every printed or handwritten table row as a separate item.
-${trainingGuidance}
-First identify the document format. If it is a TASSA / טסה supplier order:
-- Page 1 is usually a cover page. Extract the supplier order number from "הזמנה לספק מס'", the requested delivery date from "מועד אספקה", customer/contact name from "לכבוד" or the handwritten body, and phone from the handwritten body if present.
-- Later pages are "רשימת ברזל לכיפוף" / bending schedules. Extract each numbered table row as a separate item.
-- Do not treat the cover-page free text or phone line as a steel item.
-- Use the quantity from the "כמות" / units column only. Do not confuse weight/משקל, page totals, row numbers, or drawing labels with quantity.
-- Use the bar diameter from the diameter column or Ø mark. Use the row sketch dimensions for segments.
-- If the table gives a straight bar row, use the printed row length as one 180-degree segment.
-For document_type return a short label such as "tassa_pdf", "handwritten_cards", "bar_schedule", or "unknown".
-For supplier_order_num, customer_name, customer_phone, delivery_date, delivery_address, and notes return null when not visible. delivery_date must be YYYY-MM-DD when visible.
-For handwritten factory cards, visible dimensions are centimeters. Return every visible side in length_cm exactly as written. Return the row's total cut length in total_length_cm exactly as written. Do not convert centimeters to millimeters yourself.
-Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
-Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
-Read every digit after the diameter symbol. A leading 1 is often handwritten very close to the Ø mark: do not read Ø16 as Ø6 just because the 1 touches or overlaps the symbol. Inspect consecutive rows carefully when the same diameter repeats.
-Trace every shape continuously from one physical end of the bar to the other. Do not group equal dimensions just because they look similar or are written close together.
-For an open U-shaped bar with two equal parallel legs and one base, return [leg,base,leg]. Example: two 80 cm legs and a 60 cm base become [80,60,80], not [80,80,60].
-For a fully closed rectangular stirrup with the small 90-degree overlap mark, never return an open hooked bar. Include the full outer rectangle and the two overlap tails as segments, with one tail at each end of the continuous trace.
-When the row gives a total cut length and a rectangular stirrup sketch with outer width W and height H, calculate remaining tail length as (total - 2*W - 2*H) / 2. Return six segments: [tail,W,H,W,H,tail].
-Example: total 215 cm with a 60 by 40 cm closed stirrup becomes [7.5,60,40,60,40,7.5] cm. Total 205 cm with a 60 by 35 cm closed stirrup becomes [7.5,60,35,60,35,7.5] cm.
-Name this shape "closed stirrup 90-degree overlap". If the sketch does not clearly show a closed rectangle and the small corner overlap, keep the conservative open shape and add a review note.
-For a spiral, name it "ספירלה" and include visible ring diameter and turns in note.
-Use one segment per visible side. angle_deg is the interior angle after that segment: 180 for straight, 90 for a square bend.
-Return JSON that matches the requested schema only.`;
-  try {
-    const response = await require('axios').post('https://api.openai.com/v1/responses', {
-      model: getSetting('OPENAI_MODEL') || 'gpt-5.4-mini',
-      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }, attachment] }],
-      text: { format: { type: 'json_schema', name: 'ironbend_order', strict: true, schema } },
-    }, {
-      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-      timeout: 60000,
-    });
-    const text = (response.data?.output || [])
-      .flatMap(entry => entry.content || [])
-      .find(entry => entry.type === 'output_text')?.text;
-    const parsedDocument = JSON.parse(text || '{}');
-    const items = (parsedDocument.items || []).map(item => {
-      const segments = normalizeFactorySegments(item.shape_name, (item.segments || []).map(segment => ({
-        length_mm: (Number(segment.length_cm) || 0) * 10,
-        angle_deg: Number(segment.angle_deg) || 0,
-      })));
-      const computedLength = segments.reduce((sum, segment) => sum + segment.length_mm, 0);
-      const reportedLength = (Number(item.total_length_cm) || 0) * 10;
-      const notes = [];
-      if (item.note) notes.push(item.note);
-      if (reportedLength && reportedLength !== computedLength) {
-        notes.push(`Review required: reported total ${reportedLength} mm differs from segment sum ${computedLength} mm. Segment sum is shown.`);
-      }
-      if (segments.length === 1 && segments[0].length_mm > 0 && segments[0].length_mm < 1000) {
-        notes.push('Review required: extracted straight-bar length is shorter than 1000 mm; verify cm-to-mm conversion.');
-      }
-      if (![6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40].includes(Number(item.diameter))) {
-        notes.push(`Review required: diameter ${item.diameter} mm is not supported; verify the handwritten value.`);
-      }
-      if (Number(item.diameter) === 6) {
-        notes.push('Review required: handwritten Ø6 can overlap visually with Ø16; verify the full diameter before approval.');
-      }
-      return {
-        ...item,
-        shape_name: normalizeFactoryShapeName(item.shape_name, segments),
-        segments,
-        total_length_mm: computedLength,
-        note: notes.join(' '),
-      };
-    });
-    if (!items.length) return res.status(422).json({ error: 'No steel rows were recognized' });
-    res.json({
-      success: true,
-      document_type: parsedDocument.document_type || null,
-      supplier_order_num: parsedDocument.supplier_order_num || null,
-      customer_name: parsedDocument.customer_name || null,
-      customer_phone: parsedDocument.customer_phone || null,
-      delivery_date: parsedDocument.delivery_date || null,
-      delivery_address: parsedDocument.delivery_address || null,
-      notes: parsedDocument.notes || null,
-      items,
-    });
-  } catch (err) {
-    const message = err.response?.data?.error?.message || err.message;
-    res.status(500).json({ error: `Document recognition failed: ${message}` });
-  }
-});
+// Intake route moved to routes/intake.js: post('/api/analyze-image'
+
 
 // ── SHAPES ────────────────────────────────────────────────────────
-app.get('/api/shapes', requireAnyRole(['office', 'sales', 'production', 'manager', 'admin']), (req, res) => {
-  const { bends } = req.query;
-  let sql = 'SELECT * FROM shapes WHERE active=1';
-  const params = [];
-  if (bends !== undefined) { sql += ' AND bends=?'; params.push(Number(bends)); }
-  sql += ' ORDER BY sort_order, bends, name';
-  res.json(db.prepare(sql).all(...params));
-});
+app.use('/api', createInventoryRouter({
+  db,
+  requireAnyRole,
+  analyzeBendingShapeAuthorization,
+  imageAnalysisLimiter,
+  upload,
+  getSetting,
+  getOpenAiApiKey,
+  getIntakeTrainingGuidance,
+  wsBroadcast,
+  auditLog,
+  listPage,
+}));
 
-app.post('/api/shapes', requireAnyRole(['manager', 'admin']), (req, res) => {
-  const { id, name, bends, sidesDefault, anglesDefault, emoji, description } = req.body;
-  db.prepare(`INSERT OR REPLACE INTO shapes (id,name,bends,sides_default,angles_default,emoji,description) VALUES (?,?,?,?,?,?,?)`)
-    .run(id, name, bends || 0, JSON.stringify(sidesDefault || []), JSON.stringify(anglesDefault || []), emoji || '⬡', description || '');
-  res.json({ success: true });
-});
+app.use('/api', createIntakeRouter({
+  db,
+  requireAnyRole,
+  analyzeImageAuthorization,
+  imageAnalysisLimiter,
+  upload,
+  getSetting,
+  getOpenAiApiKey,
+  getIntakeTrainingGuidance,
+  normalizeFactorySegments,
+  normalizeFactoryShapeName,
+  INTAKE_AI_ENABLED,
+  intake,
+  webhookLimiter,
+  verifyWhatsAppSignature,
+  wsBroadcast,
+  enrichIntakeRow,
+  createOrderFromPayload,
+  intakeToOrderPayload,
+  intakeWorkflow,
+}));
+app.use('/api', createPortalRouter({
+  db,
+  requireAnyRole,
+  customerPortalAuthLimiter,
+  customerPortalActionLimiter,
+  crypto,
+  intake,
+  auditLog,
+  rebarKgPerMeter,
+  generateOrderNum,
+  autoAssignMachine,
+  wsBroadcast,
+  pricer,
+  PORT,
+  IS_TEST,
+}));
+app.use('/api', createWarehouseRouter({
+  db,
+  requireAnyRole,
+}));
+app.use('/api', createReportsRouter({
+  db,
+  requireRole,
+  requireAnyRole,
+  statusContracts,
+  ai,
+}));
 
-// ── SHAPE SEED (standard Israeli rebar catalog) ──────────────────
-app.post('/api/shapes/seed', requireAnyRole(['manager', 'admin']), (req, res) => {
-  // Standard Israeli rebar shapes (based on IS/BS 8666 catalog)
-  // Dimensions in mm, angles in degrees
-  const CATALOG = [
-    // ── 0 Bends ──────────────────────────────────────────────────
-    { id:'s00', name:'ישר',               bends:0, sides:[3000],                          angles:[],                  emoji:'➖', sort:1,  desc:'מוט ישר ללא כיפופים' },
-    // ── 1 Bend ───────────────────────────────────────────────────
-    { id:'s01', name:'L – זווית 90°',     bends:1, sides:[500,200],                        angles:[90],                emoji:'⌐', sort:2,  desc:'כיפוף L בזווית ישרה' },
-    { id:'s02', name:'L – זווית 45°',     bends:1, sides:[500,200],                        angles:[45],                emoji:'⌐', sort:3,  desc:'כיפוף L בזווית 45°' },
-    { id:'s03', name:'L – זווית 135°',    bends:1, sides:[500,200],                        angles:[135],               emoji:'⌐', sort:4,  desc:'כיפוף L בזווית 135°' },
-    // ── 2 Bends ──────────────────────────────────────────────────
-    { id:'s10', name:'U – אנקר 90°',      bends:2, sides:[150,1250,150],                   angles:[90,90],             emoji:'∪', sort:5,  desc:'אנקר U כיפוף 90°' },
-    { id:'s11', name:'U – אנקר רחב',      bends:2, sides:[150,6000,150],                   angles:[90,90],             emoji:'∪', sort:6,  desc:'אנקר U רחב' },
-    { id:'s12', name:'Z – הזזה',           bends:2, sides:[300,400,300],                    angles:[135,135],           emoji:'Z', sort:7,  desc:'הזזה Z' },
-    { id:'s13', name:'S – כפול',           bends:2, sides:[300,400,300],                    angles:[45,45],             emoji:'S', sort:8,  desc:'כיפוף S כפול' },
-    { id:'s14', name:'שלב פתוח',           bends:2, sides:[600,200,600],                    angles:[45,135],            emoji:'⊂', sort:9,  desc:'שלב פתוח עם זוויות' },
-    // ── 3 Bends ──────────────────────────────────────────────────
-    { id:'s20', name:'קרס – אוברל',        bends:3, sides:[200,400,400,200],                angles:[90,180,90],         emoji:'⎡', sort:10, desc:'קרס overlap עם כיפוף 180°' },
-    { id:'s21', name:'אסדה פתוחה',         bends:3, sides:[200,500,500,200],                angles:[90,90,90],          emoji:'⬓', sort:11, desc:'אסדה פתוחה 3 כיפופים' },
-    { id:'s22', name:'T – רגל',            bends:3, sides:[250,600,250,100],                angles:[90,90,90],          emoji:'⊤', sort:12, desc:'צורת T עם רגל' },
-    // ── 4 Bends ──────────────────────────────────────────────────
-    { id:'s30', name:'מסגרת מלבנית',       bends:4, sides:[400,200,400,200,100],            angles:[90,90,90,90],       emoji:'▭', sort:13, desc:'אצבה מלבנית – stirrup' },
-    { id:'s31', name:'מסגרת ריבועית',      bends:4, sides:[300,300,300,300,100],            angles:[90,90,90,90],       emoji:'□', sort:14, desc:'אצבה ריבועית' },
-    { id:'s32', name:'מסגרת גדולה',        bends:4, sides:[600,400,600,400,100],            angles:[90,90,90,90],       emoji:'▬', sort:15, desc:'מסגרת גדולה' },
-    { id:'s33', name:'מסגרת עם אלכסון',    bends:4, sides:[300,300,300,300,100],            angles:[45,135,45,135],     emoji:'◇', sort:16, desc:'מסגרת עם כיפופים אלכסוניים' },
-    // ── 5 Bends ──────────────────────────────────────────────────
-    { id:'s40', name:'חמישה כיפופים',      bends:5, sides:[150,200,400,200,400,150],        angles:[90,90,90,90,90],    emoji:'⌂', sort:17, desc:'מוט עם 5 כיפופים' },
-    { id:'s41', name:'W – גלי',            bends:5, sides:[200,300,200,300,200,200],        angles:[45,135,45,135,45],  emoji:'〜', sort:18, desc:'מוט גלי W' },
-    // ── 6 Bends ──────────────────────────────────────────────────
-    { id:'s50', name:'ששה כיפופים',        bends:6, sides:[150,150,400,150,400,150,150],    angles:[90,90,90,90,90,90], emoji:'⬡', sort:19, desc:'מוט עם 6 כיפופים' },
-    { id:'s51', name:'ספירלה מלבנית',      bends:6, sides:[300,200,300,200,300,200,300],    angles:[90,90,90,90,90,90], emoji:'🌀', sort:20, desc:'ספירלה עם 6+ כיפופים' },
-    // ── Special ──────────────────────────────────────────────────
-    { id:'s60', name:'אנקר U – קצר',       bends:2, sides:[100,800,100],                    angles:[90,90],             emoji:'∪', sort:21, desc:'אנקר U קצר' },
-    { id:'s61', name:'אנקר U – ארוך',      bends:2, sides:[200,2000,200],                   angles:[90,90],             emoji:'∪', sort:22, desc:'אנקר U ארוך' },
-    { id:'s62', name:'ראש עוגן',           bends:2, sides:[300,1500,300],                    angles:[90,90],             emoji:'⚓', sort:23, desc:'ראש עוגן – U רחב' },
-    { id:'s63', name:'U – עם זוויות 45°',  bends:2, sides:[200,800,200],                    angles:[45,45],             emoji:'∪', sort:24, desc:'U כיפוף בזוויות 45°' },
-    { id:'s70', name:'מסגרת 6 צלעות',      bends:5, sides:[200,400,200,400,200,400],        angles:[60,120,60,120,60],  emoji:'⬡', sort:25, desc:'מסגרת משושה' },
-    { id:'s80', name:'רשת – mesh',          bends:0, sides:[6000],                            angles:[],                  emoji:'⊞', sort:26, desc:'רשת ברזל – mesh' },
-    { id:'s90', name:'מותאם אישית',        bends:0, sides:[1000],                            angles:[],                  emoji:'✏️', sort:99, desc:'כיפוף חופשי', custom:true },
-  ];
+app.use('/api', createCatalogRouter({
+  db,
+  requireAnyRole,
+  intake,
+  PORT,
+}));
 
-  // Ensure sort_order column exists (add if missing)
-  try {
-    db.prepare('ALTER TABLE shapes ADD COLUMN sort_order INTEGER DEFAULT 99').run();
-  } catch(e) { /* column already exists */ }
+app.use('/api', createAlertsRouter({ db, requireRole, requireAnyRole, wsBroadcast }));
+app.use('/api', createCompaniesRouter({ db, requireAnyRole }));
+app.use('/api', createPriorityRouter({ db, requireRole, requireAnyRole, priority, PRIORITY_ENABLED }));
+app.use('/api', createAiRouter({ db, requireAnyRole, ai }));
+app.use('/api', createSearchRouter({ db, requireRole }));
+app.use('/api', createBvbsRouter({ db, requireAnyRole, upload, rebarKgPerMeter, generateOrderNum, wsBroadcast }));
 
-  const insert = db.prepare(`INSERT OR REPLACE INTO shapes
-    (id,name,bends,sides_default,angles_default,emoji,description,sort_order,active)
-    VALUES (?,?,?,?,?,?,?,?,1)`);
+// Catalog and price-list routes live in routes/catalog.js.
 
-  const runAll = db.transaction(() => {
-    CATALOG.forEach(s => {
-      insert.run(
-        s.id, s.name, s.bends,
-        JSON.stringify(s.sides),
-        JSON.stringify(s.angles),
-        s.emoji, s.desc || '', s.sort || 99
-      );
-    });
-  });
-  runAll();
 
-  res.json({ success: true, count: CATALOG.length, shapes: CATALOG.map(s => s.id) });
-});
-
-// ── WORKERS ───────────────────────────────────────────────────────
-app.get('/api/workers', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare('SELECT * FROM workers WHERE active=1 ORDER BY name').all());
-});
-
-app.post('/api/workers', requireRole('manager'), (req, res) => {
-  const { name, role, language } = req.body;
-  const r = db.prepare('INSERT INTO workers (name,role,language) VALUES (?,?,?)').run(name, role || 'ייצור', language || 'he');
-  res.json({ id: r.lastInsertRowid });
-});
-
-app.patch('/api/workers/:id', requireRole('manager'), (req, res) => {
-  const { name, role, language, active } = req.body;
-  db.prepare('UPDATE workers SET name=?,role=?,language=?,active=? WHERE id=?').run(name, role, language, active ?? 1, req.params.id);
-  res.json({ success: true });
-});
-
-// ── MACHINES ──────────────────────────────────────────────────────
-app.get('/api/machines', requireAnyRole(['production', 'kiosk', 'maintenance', 'office', 'manager', 'admin']), (req, res) => {
-  const machines = db.prepare('SELECT * FROM machines ORDER BY id').all();
-  const live = modbus.getAllState();
-  const merged = machines.map(m => {
-    const ls = live.find(l => l.id === m.id);
-    return ls ? { ...m, ...ls } : m;
-  });
-  res.json(merged);
-});
-
-// Create new machine
-app.post('/api/machines', requireRole('manager'), (req, res) => {
-  const {
-    name, label, conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, parity, stop_bits, slave_id,
-    min_diameter, max_diameter,
-    single_min_diameter, single_max_diameter, double_min_diameter, double_max_diameter
-  } = req.body;
-  if (!name) return res.status(400).json({ error: 'שם מכונה נדרש' });
-  const result = db.prepare(`INSERT INTO machines (name,label,conn_mode,tcp_host,tcp_port,rtu_port,baud_rate,parity,stop_bits,slave_id,min_diameter,max_diameter,single_min_diameter,single_max_diameter,double_min_diameter,double_max_diameter)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(name.trim(), label||name.substring(0,1).toUpperCase(), conn_mode||'tcp',
-         tcp_host||null, tcp_port||502, rtu_port||null, baud_rate||9600,
-         parity||'none', stop_bits||1,
-         slave_id||1, min_diameter||8, max_diameter||32,
-         single_min_diameter || min_diameter || 8,
-         single_max_diameter || max_diameter || 32,
-         double_min_diameter || min_diameter || 8,
-         double_max_diameter || 16);
-  res.json({ success: true, id: result.lastInsertRowid });
-});
-
-// Delete machine
-app.delete('/api/machines/:id', requireRole('manager'), (req, res) => {
-  db.prepare('DELETE FROM machines WHERE id=?').run(req.params.id);
-  res.json({ success: true });
-});
-
-app.post('/api/machines/:id/send-params', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), async (req, res) => {
-  const machineId = Number(req.params.id);
-  const { diameter, totalLengthMm, productionQty, angles } = req.body;
-  try {
-    await modbus.writeParams(machineId, { diameter, totalLengthMm, productionQty, angles: angles || [] });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/machines/:id/assign', requireAnyRole(['production', 'manager', 'admin']), (req, res) => {
-  const { itemId, orderNum } = req.body;
-  db.prepare('UPDATE machines SET current_item_id=?,current_order_num=? WHERE id=?')
-    .run(itemId, orderNum, req.params.id);
-  db.prepare('UPDATE items SET status=?,started_at=?,machine_id=? WHERE id=?')
-    .run('בייצור', new Date().toISOString(), req.params.id, itemId);
-  wsBroadcast('machine_assign', { machineId: Number(req.params.id), itemId, orderNum });
-  res.json({ success: true });
-});
-
-// ── MACHINE CONNECTION CONFIG ─────────────────────────────────────
-app.patch('/api/machines/:id/config', requireRole('manager'), (req, res) => {
-  const {
-    conn_mode, tcp_host, tcp_port, rtu_port, baud_rate, parity, stop_bits, slave_id,
-    min_diameter, max_diameter,
-    single_min_diameter, single_max_diameter, double_min_diameter, double_max_diameter,
-    name, label, can_3d
-  } = req.body;
-  const mode = conn_mode || 'tcp';
-  db.prepare(`UPDATE machines SET
-    conn_mode=?,
-    tcp_host=?,
-    tcp_port=?,
-    rtu_port=?,
-    baud_rate=COALESCE(?,baud_rate),
-    parity=COALESCE(?,parity),
-    stop_bits=COALESCE(?,stop_bits),
-    slave_id=COALESCE(?,slave_id),
-    min_diameter=COALESCE(?,min_diameter),
-    max_diameter=COALESCE(?,max_diameter),
-    single_min_diameter=COALESCE(?,single_min_diameter),
-    single_max_diameter=COALESCE(?,single_max_diameter),
-    double_min_diameter=COALESCE(?,double_min_diameter),
-    double_max_diameter=COALESCE(?,double_max_diameter),
-    name=COALESCE(?,name),
-    label=COALESCE(?,label),
-    can_3d=COALESCE(?,can_3d)
-    WHERE id=?`)
-    .run(
-      mode,
-      mode === 'tcp' ? (tcp_host || null) : null,
-      mode === 'tcp' ? (tcp_port || 502)  : null,
-      mode === 'rtu' ? (rtu_port || null) : null,
-      baud_rate || null, parity || null, stop_bits || null, slave_id || null,
-      min_diameter || null, max_diameter || null,
-      single_min_diameter || null, single_max_diameter || null,
-      double_min_diameter || null, double_max_diameter || null,
-      name || null, label || null,
-      can_3d != null ? (can_3d ? 1 : 0) : null,
-      req.params.id
-    );
-  if (modbus) modbus.reconfigMachine(req.params.id).catch(()=>{});
-  res.json({ success: true });
-});
-
-app.post('/api/machines/:id/complete', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
-  const machineId = Number(req.params.id);
-  const { producedQty } = req.body;
-  const machine = db.prepare('SELECT * FROM machines WHERE id=?').get(machineId);
-  if (!machine?.current_item_id) return res.status(400).json({ error: 'אין פריט פעיל' });
-
-  const item       = db.prepare('SELECT * FROM items WHERE id=?').get(machine.current_item_id);
-  const actualWaste = Math.max(0, (producedQty || 0) - (item?.quantity || 0));
-
-  db.prepare('UPDATE items SET status=?,completed_at=?,produced_qty=?,actual_waste=? WHERE id=?')
-    .run('הושלם', new Date().toISOString(), producedQty, actualWaste, machine.current_item_id);
-  db.prepare('UPDATE machines SET current_item_id=NULL,current_order_num=NULL,counter=0 WHERE id=?').run(machineId);
-
-  const pallet = item ? db.prepare('SELECT order_id FROM pallets WHERE id=?').get(item.pallet_id) : null;
-  if (pallet) checkOrderComplete(pallet.order_id);
-
-  wsBroadcast('machine_complete', { machineId });
-  res.json({ success: true, actualWaste });
-});
-
-// ── MACHINE STATE MACHINE ────────────────────────────────────────
-const MACHINE_STATES = ['ריצה', 'סרק', 'הכנה', 'תקלה', 'תחזוקה', 'ידני', 'לא מחובר'];
-const STATE_TRANSITIONS = {
-  'לא מחובר': ['סרק'],
-  'סרק':     ['ריצה', 'הכנה', 'ידני', 'לא מחובר'],
-  'ריצה':    ['סרק', 'תקלה'],
-  'הכנה':    ['סרק', 'ריצה'],
-  'תקלה':    ['תחזוקה', 'סרק'],
-  'תחזוקה':  ['סרק'],
-  'ידני':    ['סרק'],
-};
-
-app.patch('/api/machines/:id/state', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
-  const machineId = Number(req.params.id);
-  const { state, reason, operator_id } = req.body;
-  if (!MACHINE_STATES.includes(state)) {
-    return res.status(400).json({ error: `מצב לא תקין: ${state}. מצבים אפשריים: ${MACHINE_STATES.join(', ')}` });
-  }
-  const machine = db.prepare('SELECT * FROM machines WHERE id=?').get(machineId);
-  if (!machine) return res.status(404).json({ error: 'מכונה לא נמצאה' });
-
-  const currentState = machine.status || 'לא מחובר';
-  const allowed = STATE_TRANSITIONS[currentState] || [];
-  if (!allowed.includes(state)) {
-    return res.status(409).json({
-      error: `מעבר לא חוקי: ${currentState} → ${state}`,
-      current: currentState,
-      allowed
-    });
-  }
-
-  // Block transition to ריצה if machine has active LOTO lock
-  if (state === 'ריצה') {
-    const activeLock = db.prepare("SELECT id FROM loto WHERE machine_id=? AND status='פעיל'").get(machineId);
-    if (activeLock) {
-      return res.status(409).json({ error: 'לא ניתן להפעיל מכונה עם נעילת LOTO פעילה', loto_id: activeLock.id });
-    }
-  }
-
-  // Update machine status
-  db.prepare('UPDATE machines SET status=? WHERE id=?').run(state, machineId);
-
-  // Log the transition
-  db.prepare('INSERT INTO machine_state_log (machine_id,from_state,to_state,reason,operator_id) VALUES (?,?,?,?,?)')
-    .run(machineId, currentState, state, reason || null, operator_id || null);
-
-  // Insert production event
-  const eventMap = {
-    'ריצה':   'MachineStarted',
-    'תקלה':   'MachineStopped',
-    'תחזוקה': 'MachineStopped',
-    'לא מחובר': 'MachineStopped',
-  };
-  if (eventMap[state]) {
-    db.prepare('INSERT INTO production_events (event_type,machine_id,payload) VALUES (?,?,?)')
-      .run(eventMap[state], machineId, JSON.stringify({ from: currentState, to: state, reason }));
-  }
-
-  // If fault or maintenance, create alert
-  if (state === 'תקלה') {
-    db.prepare("INSERT INTO alerts (type,level,message,machine_id) VALUES (?,?,?,?)")
-      .run('machine_fault', 'critical', `מכונה ${machine.name} עברה לתקלה${reason ? ': ' + reason : ''}`, machineId);
-  }
-
-  wsBroadcast('machine_state', { machineId, from: currentState, to: state, reason });
-  res.json({ ok: true, from: currentState, to: state });
-});
-
-app.get('/api/machines/:id/state-log', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
-  const rows = db.prepare(`
-    SELECT sl.*, u.display_name as operator_name
-    FROM machine_state_log sl
-    LEFT JOIN users u ON sl.operator_id = u.id
-    WHERE sl.machine_id = ?
-    ORDER BY sl.created_at DESC
-    LIMIT 100
-  `).all(req.params.id);
-  res.json(rows);
-});
-
-// ── SCAN (QR) ─────────────────────────────────────────────────────
-app.post('/api/scan', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
-  const { qrData, machineId, workerId } = req.body;
-  if (!qrData || !machineId) return res.status(400).json({ error: 'חסרים פרמטרים' });
-
-  const [orderNum, itemId] = qrData.split('|');
-  const itemIdNum = Number(itemId);
-  const machineIdNum = Number(machineId);
-
-  if (isNaN(itemIdNum)) return res.status(400).json({ error: 'QR לא תקין' });
-
-  const machine = db.prepare('SELECT * FROM machines WHERE id=?').get(machineIdNum);
-  if (!machine) return res.status(404).json({ error: 'מכונה לא נמצאה' });
-
-  const item = db.prepare(`
-    SELECT i.*, p.order_id FROM items i JOIN pallets p ON i.pallet_id=p.id WHERE i.id=?
-  `).get(itemIdNum);
-  if (!item) return res.status(404).json({ error: 'פריט לא נמצא' });
-
-  const now = new Date().toISOString();
-
-  // Close previous item on this machine
-  if (machine.current_item_id && machine.current_item_id !== itemIdNum) {
-    const liveCounter = modbus.getState(machineIdNum)?.counter ?? machine.counter ?? 0;
-    const prevItem = db.prepare('SELECT * FROM items WHERE id=?').get(machine.current_item_id);
-    const actualWaste = Math.max(0, liveCounter - (prevItem?.quantity || 0));
-
-    db.prepare('UPDATE items SET status=?,completed_at=?,produced_qty=?,actual_waste=? WHERE id=?')
-      .run('הושלם', now, liveCounter, actualWaste, machine.current_item_id);
-
-    db.prepare('INSERT INTO scan_log (machine_id,worker_id,item_id,order_num,action,counter_at_scan,waste_calculated) VALUES (?,?,?,?,?,?,?)')
-      .run(machineIdNum, workerId, machine.current_item_id, machine.current_order_num, 'close_prev', liveCounter, actualWaste);
-
-    const prevPallet = prevItem ? db.prepare('SELECT order_id FROM pallets WHERE id=?').get(prevItem.pallet_id) : null;
-    if (prevPallet) checkOrderComplete(prevPallet.order_id);
-  }
-
-  // Start new item
-  db.prepare('UPDATE items SET status=?,started_at=?,worker_id=? WHERE id=?')
-    .run('בייצור', now, workerId, itemIdNum);
-  db.prepare('UPDATE machines SET current_item_id=?,current_order_num=?,counter=0 WHERE id=?')
-    .run(itemIdNum, orderNum, machineIdNum);
-
-  // Auto-update order status to 'בייצור'
-  db.prepare("UPDATE orders SET status='בייצור' WHERE id=? AND status IN ('בתור ייצור','ממתינה לאישור')")
-    .run(item.order_id);
-
-  // Send params to machine via Modbus
-  const segments = tryParseJSON(item.segments, []);
-  const angles   = segments.slice(1).map(s => s.angle_deg || 0);
-  modbus.writeParams(machineIdNum, {
-    diameter:       item.diameter,
-    totalLengthMm:  item.total_length_mm,
-    productionQty:  item.production_qty || item.quantity,
-    angles,
-  }).catch(() => {}); // non-blocking
-
-  db.prepare('INSERT INTO scan_log (machine_id,worker_id,item_id,order_num,action,counter_at_scan) VALUES (?,?,?,?,?,?)')
-    .run(machineIdNum, workerId, itemIdNum, orderNum, 'start', 0);
-
-  wsBroadcast('machine_assign', { machineId: machineIdNum, itemId: itemIdNum, orderNum, workerId });
-
-  res.json({ success: true, item, orderNum, machineLabel: machine.label });
-});
-
-// End-of-day: close last item on machine
-app.post('/api/machines/:id/end-of-day', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
-  const machineIdNum = Number(req.params.id);
-  const { workerId } = req.body;
-  const machine = db.prepare('SELECT * FROM machines WHERE id=?').get(machineIdNum);
-  if (!machine?.current_item_id) return res.json({ success: true, message: 'אין פריט פעיל' });
-
-  const liveCounter = modbus.getState(machineIdNum)?.counter ?? machine.counter ?? 0;
-  const prevItem    = db.prepare('SELECT * FROM items WHERE id=?').get(machine.current_item_id);
-  const actualWaste = Math.max(0, liveCounter - (prevItem?.quantity || 0));
-
-  db.prepare('UPDATE items SET status=?,completed_at=?,produced_qty=?,actual_waste=? WHERE id=?')
-    .run('הושלם', new Date().toISOString(), liveCounter, actualWaste, machine.current_item_id);
-  db.prepare('UPDATE machines SET current_item_id=NULL,current_order_num=NULL,counter=0 WHERE id=?').run(machineIdNum);
-
-  db.prepare('INSERT INTO scan_log (machine_id,worker_id,item_id,order_num,action,counter_at_scan,waste_calculated) VALUES (?,?,?,?,?,?,?)')
-    .run(machineIdNum, workerId, machine.current_item_id, machine.current_order_num, 'end_of_day', liveCounter, actualWaste);
-
-  const prevPallet = prevItem ? db.prepare('SELECT order_id FROM pallets WHERE id=?').get(prevItem.pallet_id) : null;
-  if (prevPallet) checkOrderComplete(prevPallet.order_id);
-
-  wsBroadcast('end_of_day', { machineId: machineIdNum });
-  res.json({ success: true, producedQty: liveCounter, actualWaste });
-});
-
-// ── DASHBOARD ─────────────────────────────────────────────────────
-app.get('/api/dashboard', requireRole('viewer'), (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-  const doneItemStatus = statusContracts.ITEM_STATUS.DONE;
-  const completedOrderStatus = statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP;
-  const wasteData = db.prepare(`
-    SELECT SUM(actual_waste) as totalWaste, SUM(quantity) as totalQty,
-           COUNT(*) as completedItems
-    FROM items WHERE DATE(completed_at)=? AND status=?
-  `).get(today, doneItemStatus);
-
-  const productionToday = db.prepare(`
-    SELECT COUNT(*) as completedItems,
-           COALESCE(SUM(total_weight),0) as producedWeightToday,
-           COALESCE(SUM(total_weight),0)/1000 as producedTonsToday
-    FROM items
-    WHERE DATE(completed_at)=? AND status=?
-  `).get(today, doneItemStatus);
-
-  const wasteByMachine = db.prepare(`
-    SELECT i.machine, SUM(i.actual_waste) as waste, SUM(i.quantity) as qty
-    FROM items i WHERE DATE(i.completed_at)=? AND i.status=?
-    GROUP BY i.machine
-  `).all(today, doneItemStatus);
-
-  res.json({
-    ordersToday:      db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=?").get(today).c,
-    completedOrdersToday: db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=? AND status=?").get(today, completedOrderStatus).c,
-    completedToday:   productionToday.completedItems || 0,
-    inProduction:     db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.IN_PRODUCTION).c,
-    pending:          db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.PENDING_APPROVAL).c,
-    urgentOpen:       db.prepare("SELECT COUNT(*) as c FROM orders WHERE priority='דחוף' AND status NOT IN (?,?)").get(statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED, statusContracts.ORDER_STATUS.CANCELLED).c,
-    totalWeightToday: db.prepare("SELECT SUM(total_weight) as w FROM orders WHERE DATE(created_at)=?").get(today).w || 0,
-    producedWeightToday: productionToday.producedWeightToday || 0,
-    producedTonsToday: Math.round((productionToday.producedTonsToday || 0) * 10) / 10,
-    itemsInProduction:db.prepare("SELECT COUNT(*) as c FROM items WHERE status=?").get(statusContracts.ITEM_STATUS.IN_PRODUCTION).c,
-    itemsDone:        productionToday.completedItems || 0,
-    wasteAvgPct:      wasteData.totalQty > 0 ? ((wasteData.totalWaste / wasteData.totalQty) * 100).toFixed(1) : '0',
-    wasteByMachine,
-    recentOrders:     db.prepare(`SELECT o.*,c.name as customer_name FROM orders o LEFT JOIN customers c ON o.customer_id=c.id ORDER BY o.created_at DESC LIMIT 10`).all(),
-    machines:         db.prepare('SELECT * FROM machines ORDER BY id').all(),
-  });
-});
-
-// ── REPORTS ───────────────────────────────────────────────────────
-app.get('/api/reports/waste', requireAnyRole(['production', 'office', 'finance', 'manager', 'admin']), (req, res) => {
-  const { from, to } = req.query;
-  const rows = db.prepare(`
-    SELECT i.machine, i.diameter, i.shape_name,
-           SUM(i.actual_waste) as total_waste, SUM(i.quantity) as total_ordered,
-           ROUND(100.0 * SUM(i.actual_waste) / MAX(SUM(i.quantity),1), 1) as waste_pct,
-           COUNT(*) as item_count
-    FROM items i
-    WHERE i.status='הושלם'
-      ${from ? "AND DATE(i.completed_at) >= '" + from + "'" : ''}
-      ${to   ? "AND DATE(i.completed_at) <= '" + to + "'"   : ''}
-    GROUP BY i.machine, i.diameter, i.shape_name
-    ORDER BY waste_pct DESC
-  `).all();
-  res.json(rows);
-});
-
-// ── UTILS ─────────────────────────────────────────────────────────
 function tryParseJSON(val, fallback = null) {
   if (!val) return fallback;
   if (typeof val === 'object') return val;
@@ -3438,23 +1683,14 @@ function createAlert(type, level, message, { orderId, machineId } = {}) {
   wsBroadcast('alert', { type, level, message, orderId, machineId });
 }
 
-app.get('/api/alerts', requireRole('viewer'), (req, res) => {
-  res.json(db.prepare('SELECT * FROM alerts WHERE resolved=0 ORDER BY created_at DESC LIMIT 50').all());
-});
+// alerts route moved to routes/alerts.js: get('/api/alerts'
 
-app.post('/api/alerts', requireAnyRole(['office', 'production', 'kiosk', 'maintenance', 'quality', 'manager', 'admin']), (req, res) => {
-  const { message, level = 'warning', entity_type, entity_id } = req.body;
-  if (!message) return res.status(400).json({ error: 'message required' });
-  const r = db.prepare(`INSERT INTO alerts (type,level,message,resolved) VALUES (?,?,?,0)`)
-    .run(entity_type || 'system', level, message);
-  wsBroadcast('alert', { id: r.lastInsertRowid, level, message });
-  res.json({ id: r.lastInsertRowid });
-});
 
-app.patch('/api/alerts/:id/resolve', requireAnyRole(['office', 'production', 'maintenance', 'quality', 'manager', 'admin']), (req, res) => {
-  db.prepare('UPDATE alerts SET resolved=1 WHERE id=?').run(req.params.id);
-  res.json({ success: true });
-});
+// alerts route moved to routes/alerts.js: post('/api/alerts'
+
+
+// alerts route moved to routes/alerts.js: patch('/api/alerts/:id/resolve'
+
 
 // ── SETTINGS ─────────────────────────────────────────────
 // Helper: get setting from DB (falls back to process.env)
@@ -3463,471 +1699,71 @@ function getSetting(key) {
   return row?.value ?? process.env[key] ?? null;
 }
 
-app.get('/api/settings', requireRole('admin'), (req, res) => {
-  const rows = db.prepare('SELECT key, value FROM settings').all();
-  const map = {};
-  rows.forEach(r => { map[r.key] = r.value; });
-  // Merge with env defaults (don't expose actual secrets, just whether they're set)
-  const keys = [
-    'WHATSAPP_TOKEN','WHATSAPP_PHONE_ID','WHATSAPP_VERIFY_TOKEN','WHATSAPP_NOTIFY_PHONE',
-    'EMAIL_IMAP_HOST','EMAIL_IMAP_PORT','EMAIL_IMAP_USER','EMAIL_IMAP_PASS',
-    'PRIORITY_BASE_URL','PRIORITY_USER','PRIORITY_PASS','PRIORITY_COMPANY',
-    'MAVEN_API_URL','MAVEN_API_TOKEN',
-    'OPENAI_API_KEY','OPENAI_MODEL','INTAKE_AI_ENABLED',
-    'GOOGLE_VISION_API_KEY',
-    'MODULE_MACHINES','MODULE_WHATSAPP','MODULE_EMAIL','MODULE_OCR',
-    'MODULE_PRIORITY','MODULE_MAVEN','MODULE_AI','MODULE_ALERTS',
-  ];
-  const result = {};
-  keys.forEach(k => {
-    result[k] = map[k] ?? process.env[k] ?? '';
-  });
-  res.json(result);
-});
-
-app.post('/api/settings', requireRole('admin'), (req, res) => {
-  const upsert = db.prepare(
-    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
-     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`
-  );
-  const save = db.transaction(entries => {
-    for (const [k, v] of Object.entries(entries)) {
-      upsert.run(k, v ?? '');
-    }
-  });
-  save(req.body);
-  res.json({ success: true, saved: Object.keys(req.body).length });
-});
-
-app.post('/api/settings/test/:service', requireRole('admin'), async (req, res) => {
-  const svc = req.params.service;
-  try {
-    if (svc === 'whatsapp') {
-      const token   = getSetting('WHATSAPP_TOKEN');
-      const phoneId = getSetting('WHATSAPP_PHONE_ID');
-      if (!token || !phoneId) return res.json({ ok: false, msg: 'Token ו-Phone ID חסרים' });
-      const axios = require('axios');
-      const r = await axios.get(
-        `https://graph.facebook.com/v18.0/${phoneId}`,
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
-      );
-      return res.json({ ok: true, msg: `מחובר: ${r.data?.display_phone_number || r.data?.id}` });
-    }
-    if (svc === 'email') {
-      const host = getSetting('EMAIL_IMAP_HOST');
-      const user = getSetting('EMAIL_IMAP_USER');
-      const pass = getSetting('EMAIL_IMAP_PASS');
-      if (!host || !user || !pass) return res.json({ ok: false, msg: 'Host/User/Pass חסרים' });
-      let ImapFlow;
-      try { ImapFlow = require('imapflow'); } catch { return res.json({ ok: false, msg: 'imapflow לא מותקן (npm install imapflow)' }); }
-      const client = new ImapFlow.ImapFlow({
-        host, port: Number(getSetting('EMAIL_IMAP_PORT') || 993),
-        secure: true, auth: { user, pass }, logger: false,
-      });
-      await client.connect();
-      await client.logout();
-      return res.json({ ok: true, msg: `מחובר לתיבה: ${user}` });
-    }
-    if (svc === 'priority') {
-      const base = getSetting('PRIORITY_BASE_URL');
-      const user = getSetting('PRIORITY_USER');
-      const pass = getSetting('PRIORITY_PASS');
-      if (!base) return res.json({ ok: false, msg: 'Base URL חסר' });
-      const axios = require('axios');
-      const r = await axios.get(`${base}/CUSTOMERS?$top=1`, {
-        auth: { username: user, password: pass }, timeout: 8000,
-      });
-      return res.json({ ok: true, msg: `Priority מגיב (${r.status})` });
-    }
-    if (svc === 'vision') {
-      const key = getSetting('OPENAI_API_KEY');
-      if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.json({ ok: false, msg: 'OpenAI OCR מוגדר אבל כבוי' });
-      if (!key) return res.json({ ok: false, msg: 'API Key חסר' });
-      return res.json({ ok: true, msg: 'API Key הוגדר ✓ (בדיקה אמיתית דורשת תמונה)' });
-    }
-    res.json({ ok: false, msg: 'שירות לא מוכר' });
-  } catch (err) {
-    res.json({ ok: false, msg: err.message });
+function getOpenAiApiKey() {
+  const row = db.prepare('SELECT value FROM settings WHERE key=?').get('OPENAI_API_KEY');
+  if (row?.value) return row.value;
+  if (process.env.NODE_ENV !== 'production' && process.env.OPENAI_API_KEY_LOCAL) {
+    return process.env.OPENAI_API_KEY_LOCAL;
   }
-});
+  return process.env.OPENAI_API_KEY ?? null;
+}
 
-app.get('/api/intake/training', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const rows = db.prepare(`
-    SELECT id, title, document_type, problem_text, correction_text, active, created_at
-    FROM intake_training_examples
-    WHERE active=1
-    ORDER BY id DESC
-    LIMIT 100
-  `).all();
-  res.json(rows);
-});
+// Settings and admin routes live in routes/admin.js.
 
-app.post('/api/intake/training', requireAnyRole(['manager', 'admin']), (req, res) => {
-  const title = String(req.body.title || '').trim();
-  const documentType = String(req.body.document_type || 'general').trim() || 'general';
-  const problemText = String(req.body.problem_text || '').trim();
-  const correctionText = String(req.body.correction_text || '').trim();
-  if (!title || !problemText || !correctionText) {
-    return res.status(400).json({ error: 'title, problem_text and correction_text are required' });
-  }
-  const result = db.prepare(`
-    INSERT INTO intake_training_examples (title, document_type, problem_text, correction_text)
-    VALUES (?, ?, ?, ?)
-  `).run(title.slice(0, 120), documentType.slice(0, 60), problemText.slice(0, 1200), correctionText.slice(0, 1200));
-  res.json({ success: true, id: result.lastInsertRowid });
-});
+// Intake route moved to routes/intake.js: get('/api/intake/training'
 
-app.delete('/api/intake/training/:id', requireAnyRole(['manager', 'admin']), (req, res) => {
-  db.prepare('UPDATE intake_training_examples SET active=0 WHERE id=?').run(req.params.id);
-  res.json({ success: true });
-});
+
+// Intake route moved to routes/intake.js: post('/api/intake/training'
+
+
+// Intake route moved to routes/intake.js: delete('/api/intake/training/:id'
+
 
 // ── COMPANIES ─────────────────────────────────────────────────────
-app.get('/api/companies', requireAnyRole(['office', 'finance', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare('SELECT * FROM companies WHERE active=1 ORDER BY id').all());
-});
+// companies route moved to routes/companies.js: get('/api/companies'
 
-app.post('/api/companies', requireAnyRole(['manager', 'admin']), (req, res) => {
-  const { name, short_name, ownership_pct, erp_type, color } = req.body;
-  const r = db.prepare(
-    'INSERT INTO companies (name, short_name, ownership_pct, erp_type, color) VALUES (?,?,?,?,?)'
-  ).run(name, short_name || name, ownership_pct ?? 100, erp_type || 'none', color || '#e07b39');
-  res.json({ id: r.lastInsertRowid });
-});
 
-app.patch('/api/companies/:id', requireAnyRole(['manager', 'admin']), (req, res) => {
-  const { name, short_name, ownership_pct, erp_type, color } = req.body;
-  db.prepare(
-    'UPDATE companies SET name=COALESCE(?,name), short_name=COALESCE(?,short_name), ownership_pct=COALESCE(?,ownership_pct), erp_type=COALESCE(?,erp_type), color=COALESCE(?,color) WHERE id=?'
-  ).run(name, short_name, ownership_pct, erp_type, color, req.params.id);
-  res.json({ success: true });
-});
+// companies route moved to routes/companies.js: post('/api/companies'
+
+
+// companies route moved to routes/companies.js: patch('/api/companies/:id'
+
 
 // ── HOLDINGS DASHBOARD ───────────────────────────────────────────
-app.get('/api/holdings', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-  const companies = db.prepare('SELECT * FROM companies WHERE active=1').all();
+// companies route moved to routes/companies.js: get('/api/holdings'
 
-  const rows = companies.map(co => {
-    const pct = co.ownership_pct / 100;
-    const ordersToday    = db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=? AND company_id=?").get(today, co.id).c;
-    const weightToday    = db.prepare("SELECT COALESCE(SUM(total_weight),0) as w FROM orders WHERE DATE(created_at)=? AND company_id=?").get(today, co.id).w;
-    const inProduction   = db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='בייצור' AND company_id=?").get(co.id).c;
-    const completedToday = db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=? AND status='הושלם – ממתין לאיסוף' AND company_id=?").get(today, co.id).c;
-    const pending        = db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='ממתינה לאישור' AND company_id=?").get(co.id).c;
-    const urgentOpen     = db.prepare("SELECT COUNT(*) as c FROM orders WHERE priority='דחוף' AND status NOT IN ('סופק – אושר','בוטל') AND company_id=?").get(co.id).c;
 
-    // Last 30 days revenue estimate (billing_weight as proxy)
-    const revenueProxy = db.prepare(
-      "SELECT COALESCE(SUM(billing_weight),0) as r FROM orders WHERE DATE(created_at) >= date('now','-30 days') AND company_id=?"
-    ).get(co.id).r;
-
-    return {
-      ...co,
-      ordersToday,
-      weightToday,
-      inProduction,
-      completedToday,
-      pending,
-      urgentOpen,
-      revenueProxy,
-      // Weighted values (ownership %)
-      weighted: {
-        ordersToday:    ordersToday * pct,
-        weightToday:    weightToday * pct,
-        inProduction:   inProduction * pct,
-        completedToday: completedToday * pct,
-        urgentOpen:     urgentOpen * pct,
-        revenueProxy:   revenueProxy * pct,
-      }
-    };
-  });
-
-  // Consolidated totals
-  const consolidated = {
-    ordersToday:    rows.reduce((s,r) => s + r.weighted.ordersToday, 0),
-    weightToday:    rows.reduce((s,r) => s + r.weighted.weightToday, 0),
-    inProduction:   rows.reduce((s,r) => s + r.weighted.inProduction, 0),
-    completedToday: rows.reduce((s,r) => s + r.weighted.completedToday, 0),
-    urgentOpen:     rows.reduce((s,r) => s + r.weighted.urgentOpen, 0),
-    revenueProxy:   rows.reduce((s,r) => s + r.weighted.revenueProxy, 0),
-  };
-
-  res.json({ companies: rows, consolidated });
-});
-
-// ── DRIVERS ───────────────────────────────────────────────────────
-app.get('/api/drivers', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const all = req.query.all === '1';
-  const rows = all
-    ? db.prepare('SELECT * FROM drivers ORDER BY name').all()
-    : db.prepare('SELECT * FROM drivers WHERE active=1 ORDER BY name').all();
-  res.json(rows);
-});
-
-app.post('/api/drivers', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const { name, phone, vehicle_desc, license_plate, license_expiry, notes } = req.body;
-  if (!name) return res.status(400).json({ error: 'שם נהג חסר' });
-  const r = db.prepare(
-    'INSERT INTO drivers (name,phone,vehicle_desc,license_plate,license_expiry,notes) VALUES (?,?,?,?,?,?)'
-  ).run(name, phone||null, vehicle_desc||null, license_plate||null, license_expiry||null, notes||null);
-  res.json({ success: true, id: r.lastInsertRowid });
-});
-
-app.patch('/api/drivers/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const { name, phone, vehicle_desc, license_plate, license_expiry, notes, active } = req.body;
-  db.prepare(`UPDATE drivers SET
-    name=COALESCE(?,name), phone=COALESCE(?,phone),
-    vehicle_desc=COALESCE(?,vehicle_desc), license_plate=COALESCE(?,license_plate),
-    license_expiry=COALESCE(?,license_expiry), notes=COALESCE(?,notes),
-    active=COALESCE(?,active)
-    WHERE id=?`)
-    .run(name||null, phone||null, vehicle_desc||null, license_plate||null,
-         license_expiry||null, notes||null, active??null, req.params.id);
-  res.json({ success: true });
-});
-
-app.delete('/api/drivers/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  db.prepare('UPDATE drivers SET active=0 WHERE id=?').run(req.params.id);
-  res.json({ success: true });
-});
-
-app.patch('/api/drivers/:id/location', requireAnyRole(['driver', 'office', 'manager', 'admin']), (req, res) => {
-  const { lat, lng } = req.body;
-  db.prepare('UPDATE drivers SET current_lat=?,current_lng=?,last_location_update=? WHERE id=?')
-    .run(lat, lng, new Date().toISOString(), req.params.id);
-  wsBroadcast('driver_location', { driverId: Number(req.params.id), lat, lng });
-  res.json({ success: true });
-});
-
-// ── DELIVERIES ────────────────────────────────────────────────────
-app.get('/api/deliveries', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const { driverId, date, status } = req.query;
-  let sql = `SELECT d.*, o.order_num, o.delivery_address, o.total_weight, o.billing_weight,
-               c.name as customer_name, c.phone as customer_phone,
-               dr.name as driver_name
-             FROM deliveries d
-             JOIN orders o ON d.order_id = o.id
-             LEFT JOIN customers c ON o.customer_id = c.id
-             LEFT JOIN drivers dr ON d.driver_id = dr.id`;
-  const where = [], params = [];
-  if (driverId) { where.push('d.driver_id=?'); params.push(driverId); }
-  if (date)     { where.push('d.scheduled_date=?'); params.push(date); }
-  if (status)   { where.push('d.status=?'); params.push(status); }
-  if (where.length) sql += ' WHERE ' + where.join(' AND ');
-  sql += ' ORDER BY d.scheduled_date, d.id';
-  const deliveries = db.prepare(sql).all(...params);
-  // Attach pallets count
-  deliveries.forEach(d => {
-    d.pallets_count = db.prepare('SELECT COUNT(*) as c FROM pallets WHERE order_id=?').get(d.order_id)?.c || 0;
-  });
-  res.json(deliveries);
-});
-
-app.post('/api/deliveries', requireAnyRole(['office', 'warehouse', 'manager', 'admin']), (req, res) => {
-  const { orderId, driverId, scheduledDate } = req.body;
-  const r = db.prepare('INSERT INTO deliveries (order_id,driver_id,scheduled_date) VALUES (?,?,?)')
-    .run(orderId, driverId, scheduledDate);
-  // Update order status
-  db.prepare("UPDATE orders SET status='בתור ייצור' WHERE id=? AND status='ממתינה לאישור'").run(orderId);
-  res.json({ id: r.lastInsertRowid });
-});
-
-// Driver departs — BUG-33: State Machine — only from status 'ממתין'
-app.post('/api/deliveries/:id/depart', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const delivery = db.prepare('SELECT status FROM deliveries WHERE id=?').get(req.params.id);
-  if (!delivery) return res.status(404).json({ error: 'משלוח לא נמצא' });
-  if (!['ממתין', 'מתוכנן'].includes(delivery.status)) {
-    return res.status(409).json({ error: `לא ניתן לצאת מסטטוס: ${delivery.status}` });
-  }
-  db.prepare("UPDATE deliveries SET status='יצא',departed_at=? WHERE id=?")
-    .run(new Date().toISOString(), req.params.id);
-  const del = db.prepare('SELECT order_id FROM deliveries WHERE id=?').get(req.params.id);
-  if (del) {
-    db.prepare("UPDATE orders SET status='בדרך ללקוח' WHERE id=?").run(del.order_id);
-    const o = db.prepare('SELECT o.*,c.phone FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?').get(del.order_id);
-    if (o?.phone) intake.notifyOrderStatus(o.phone, o.order_num, 'בדרך ללקוח').catch(() => {});
-    wsBroadcast('delivery_depart', { deliveryId: Number(req.params.id), orderId: del.order_id });
-  }
-  res.json({ success: true });
-});
-
-// Driver confirms delivery — BUG-33: only allowed after depart
-app.post('/api/deliveries/:id/confirm', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const delivery = db.prepare('SELECT status FROM deliveries WHERE id=?').get(req.params.id);
-  if (!delivery) return res.status(404).json({ error: 'משלוח לא נמצא' });
-  if (delivery.status !== 'יצא') {
-    return res.status(409).json({ error: `לא ניתן לאשר ממצב: ${delivery.status}. נדרש מצב: יצא` });
-  }
-  const { signatureData, photoUrl, notes, lat, lng } = req.body;
-  db.prepare(`UPDATE deliveries SET status='סופק',delivered_at=?,signature_data=?,photo_url=?,notes=?,delivery_lat=?,delivery_lng=? WHERE id=?`)
-    .run(new Date().toISOString(), signatureData, photoUrl, notes, lat, lng, req.params.id);
-  const del = db.prepare('SELECT order_id FROM deliveries WHERE id=?').get(req.params.id);
-  if (del) {
-    db.prepare("UPDATE orders SET status='סופק – אושר' WHERE id=?").run(del.order_id);
-    const o = db.prepare('SELECT o.*,c.phone FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?').get(del.order_id);
-    if (o?.phone) intake.notifyOrderStatus(o.phone, o.order_num, 'סופק – אושר').catch(() => {});
-    // Sync to Priority
-    if (o?.priority_order_id) {
-      priority.updateOrderStatus(o.priority_order_id, 'סופק – אושר').catch(() => {});
-    }
-    wsBroadcast('delivery_confirm', { deliveryId: Number(req.params.id), orderId: del.order_id });
-  }
-  res.json({ success: true });
-});
-
-// Driver reports problem — BUG-33: only allowed while in transit, not after confirmed
-app.post('/api/deliveries/:id/problem', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const delivery = db.prepare('SELECT status FROM deliveries WHERE id=?').get(req.params.id);
-  if (!delivery) return res.status(404).json({ error: 'משלוח לא נמצא' });
-  if (delivery.status === 'סופק') {
-    return res.status(409).json({ error: 'לא ניתן לדווח על בעיה — משלוח כבר סופק' });
-  }
-  const { problemType, problemNotes } = req.body;
-  db.prepare("UPDATE deliveries SET status='בעיה',problem_type=?,problem_notes=? WHERE id=?")
-    .run(problemType, problemNotes, req.params.id);
-  const del = db.prepare('SELECT order_id FROM deliveries WHERE id=?').get(req.params.id);
-  if (del) {
-    const o = db.prepare('SELECT order_num FROM orders WHERE id=?').get(del.order_id);
-    createAlert('delivery_problem', 'danger', `בעיה באספקה ${o?.order_num}: ${problemType}`, { orderId: del.order_id });
-  }
-  res.json({ success: true });
-});
-
-// ── PRIORITY SYNC ─────────────────────────────────────────────────
 // BUG-45: Priority ERP is Phase 2 — return 501 until PRIORITY_ENABLED=true
-app.post('/api/priority/sync/:orderId', requireRole('manager'), async (req, res) => {
-  if (!PRIORITY_ENABLED) return res.status(501).json({ error: 'סנכרון Priority לא זמין בשלב זה', feature: 'priority' });
-  try {
-    const order = db.prepare(`SELECT o.*,c.* FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.orderId);
-    if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
+// priorityRoutes route moved to routes/priorityRoutes.js: post('/api/priority/sync/:orderId'
 
-    const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=?').all(order.id);
-    const items   = pallets.flatMap(p => db.prepare('SELECT * FROM items WHERE pallet_id=?').all(p.id));
 
-    const customer = { name: order.name, phone: order.phone, address: order.address, contactName: order.contact_name, contactPhone: order.contact_phone };
-    const result   = await priority.createOrder(order, customer, items);
+// priorityRoutes route moved to routes/priorityRoutes.js: get('/api/priority/status'
 
-    if (result.ORDNAME) {
-      db.prepare('UPDATE orders SET priority_order_id=? WHERE id=?').run(result.ORDNAME, order.id);
-    }
-    res.json({ success: true, priorityOrderId: result.ORDNAME, mocked: result.mocked });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/priority/status', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  res.json({ configured: priority.isConfigured(), enabled: PRIORITY_ENABLED }); // BUG-45
-});
 
 // ── INTAKE – OCR ─────────────────────────────────────────────────
 // BUG-46: OCR/AI intake disabled until INTAKE_AI_ENABLED=true
-app.post('/api/intake/image', requireAnyRole(['office', 'manager', 'admin']), upload.single('image'), async (req, res) => {
-  if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'OCR לא זמין בשלב זה', feature: 'intake-ai' });
-  if (!req.file) return res.status(400).json({ error: 'לא צורפה תמונה' });
-  try {
-    const ocrResult = await intake.runOCR(req.file.buffer, { apiKey: getSetting('GOOGLE_VISION_API_KEY') });
-    const parsed    = intake.parseOCRText(ocrResult.fullText);
-    const log = db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
-      .run('ocr', ocrResult.fullText.slice(0, 2000), JSON.stringify(parsed), 'pending_review');
-    res.json({ success: true, intakeId: log.lastInsertRowid, parsed, fullText: ocrResult.fullText });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Intake route moved to routes/intake.js: post('/api/intake/image'
+
 
 // ── INTAKE – WhatsApp webhook ─────────────────────────────────────
-app.get('/api/intake/whatsapp', webhookLimiter, (req, res) => {
-  // Meta webhook verification
-  const mode      = req.query['hub.mode'];
-  const token     = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-    res.send(challenge);
-  } else {
-    res.sendStatus(403);
-  }
-});
+// Intake route moved to routes/intake.js: get('/api/intake/whatsapp'
 
-app.post('/api/intake/whatsapp', webhookLimiter, verifyWhatsAppSignature, async (req, res) => {
-  res.sendStatus(200); // acknowledge immediately (Meta requires fast response)
-  try {
-    const body = req.body;
-    const entry = body.entry?.[0]?.changes?.[0]?.value;
-    if (!entry?.messages) return;
 
-    for (const msg of entry.messages) {
-      const fromPhone = msg.from;
-      let parsed = null;
+// Intake route moved to routes/intake.js: post('/api/intake/whatsapp'
 
-      if (msg.type === 'text') {
-        parsed = intake.parseWhatsAppMessage(msg.text.body);
-        parsed.source = 'whatsapp';
-        parsed.customerPhone = fromPhone;
-      } else if (msg.type === 'image' || msg.type === 'document') {
-        // Image/PDF - would need to download via WhatsApp API then OCR
-        // Mark for manual review
-        db.prepare('INSERT INTO intake_log (source,raw_content,status) VALUES (?,?,?)')
-          .run('whatsapp_media', `media:${msg.type} from:${fromPhone}`, 'pending_review');
-        await intake.sendWhatsApp(fromPhone, 'קיבלנו את התמונה, ניצור קשר בהקדם!');
-        continue;
-      }
-
-      if (parsed) {
-        db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
-          .run('whatsapp', msg.text?.body || '', JSON.stringify(parsed), 'pending');
-        wsBroadcast('new_intake', { source: 'whatsapp', phone: fromPhone, parsed });
-      }
-    }
-  } catch (err) {
-    console.error('[WhatsApp webhook]', err.message);
-  }
-});
 
 // ── INTAKE – Email manual trigger ─────────────────────────────────
 // BUG-46: Email/AI intake disabled until INTAKE_AI_ENABLED=true
-app.post('/api/intake/email/poll', requireAnyRole(['office', 'manager', 'admin']), async (req, res) => {
-  if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'Email intake לא זמין בשלב זה', feature: 'intake-ai' });
-  try {
-    const results = await intake.pollEmail(db);
-    res.json({ success: true, count: results.length, results });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Intake route moved to routes/intake.js: post('/api/intake/email/poll'
 
-app.get('/api/intake/log', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const status = req.query.status; // optional filter: pending_review / approved / rejected
-  const sql = status
-    ? 'SELECT * FROM intake_log WHERE status=? ORDER BY created_at DESC LIMIT 100'
-    : 'SELECT * FROM intake_log ORDER BY created_at DESC LIMIT 100';
-  res.json(db.prepare(sql).all(...(status ? [status] : [])));
-});
+
+// Intake route moved to routes/intake.js: get('/api/intake/log'
+
 
 // ── INTAKE – Approve: create order from email ─────────────────────
 // Intake approval uses the same transactional order writer as the manual form.
-app.post('/api/intake/:id/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'Intake row not found' });
-  if (row.status === 'approved' && row.order_id) {
-    const order = db.prepare('SELECT order_num FROM orders WHERE id=?').get(row.order_id);
-    return res.json({ success: true, orderId: row.order_id, orderNum: order?.order_num, alreadyApproved: true });
-  }
-  try {
-    const parsed = JSON.parse(row.parsed_data || '{}');
-    const approve = db.transaction(() => {
-      const result = createOrderFromPayload(intakeToOrderPayload(parsed, row.source || 'intake'));
-      db.prepare('UPDATE intake_log SET status=?,order_id=? WHERE id=?').run('approved', result.orderId, row.id);
-      return result;
-    });
-    const result = approve();
-    wsBroadcast('new_order', { orderNum: result.orderNum, orderId: result.orderId });
-    res.json(result);
-  } catch (error) {
-    res.status(error.statusCode || 400).json({ success: false, error: error.message });
-  }
-});
+// Intake route moved to routes/intake.js: post('/api/intake/:id/approve'
+
 
 // Legacy route: unreachable while the transactional handler above is active.
 if (false) app.post('/api/intake-legacy/:id/approve', (req, res) => {
@@ -3956,7 +1792,7 @@ if (false) app.post('/api/intake-legacy/:id/approve', (req, res) => {
   // Calculate total weight
   let totalWeight = 0;
   items.forEach(it => {
-    const kgm = REBAR_WEIGHTS[it.diameter] ?? (it.diameter * it.diameter * 0.00617); // BUG-05
+    const kgm = rebarKgPerMeter(it.diameter);
     totalWeight += (it.length / 1000) * kgm * (it.qty || 1);
   });
   const wastePct = 3;
@@ -3975,7 +1811,7 @@ if (false) app.post('/api/intake-legacy/:id/approve', (req, res) => {
   const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,1,?)').run(orderId, totalWeight).lastInsertRowid;
 
   items.forEach(it => {
-    const kgm = WEIGHTS[it.diameter] ?? (it.diameter * it.diameter * 0.00617);
+    const kgm = rebarKgPerMeter(it.diameter);
     const w   = (it.length / 1000) * kgm * (it.qty || 1);
     db.prepare(`INSERT INTO items (pallet_id,order_id,diameter,qty,total_length_mm,weight_kg,notes,status,is_3d)
       VALUES (?,?,?,?,?,?,?,?,0)`)
@@ -3989,498 +1825,32 @@ if (false) app.post('/api/intake-legacy/:id/approve', (req, res) => {
 });
 
 // ── INTAKE – Reject: mark as not an order ────────────────────────
-app.post('/api/intake/:id/reject', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const r = db.prepare('UPDATE intake_log SET status=? WHERE id=?').run('rejected', req.params.id);
-  if (!r.changes) return res.status(404).json({ error: 'לא נמצא' });
-  res.json({ success: true });
-});
+// Intake route moved to routes/intake.js: post('/api/intake/:id/reject'
 
-// ── INTAKE – Parse text manually (WhatsApp / Email paste) ──────────
-// BUG-44: AI text parsing disabled until AI_ENABLED=true
-app.post('/api/intake/parse-text', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  if (!AI_ENABLED) return res.status(501).json({ error: 'פרסור AI לא זמין בשלב זה', feature: 'ai' });
-  const { text, source } = req.body;
-  if (!text) return res.status(400).json({ error: 'text required' });
-  const parsed = source === 'whatsapp'
-    ? intake.parseWhatsAppMessage(text)
-    : intake.parseOCRText(text);
-  parsed.source = source || 'manual';
-  db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
-    .run(source || 'manual', text.slice(0, 2000), JSON.stringify(parsed), 'pending');
-  res.json({ success: true, parsed });
-});
+
+// ── INTAKE – Parse text manually (WhatsApp / Email / phone paste) ──
+// Intake route moved to routes/intake.js: post('/api/intake/parse-text'
+
 
 // ── PRICE LIST (admin) ────────────────────────────────────────────
-app.get('/api/price-list', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare('SELECT * FROM price_list ORDER BY diameter').all());
-});
+// Price-list routes live in routes/finance.js.
 
-app.patch('/api/price-list', requireAnyRole(['finance', 'manager', 'admin']), async (req, res) => {
-  const rows = req.body; // [{diameter, price_list, price_cust}, ...]
-  const upsert = db.prepare('INSERT OR REPLACE INTO price_list (diameter,price_list,price_cust) VALUES (?,?,?)');
-  const tx = db.transaction(() => rows.forEach(r => upsert.run(r.diameter, r.price_list, r.price_cust)));
-  tx();
-  res.json({ success: true });
+// Customer portal management and external portal routes live in routes/portal.js.
 
-  // Notify portal customers about updated price list (async, don't block response)
-  notifyPriceListUpdate(rows).catch(e => console.warn('[PriceList notify]', e));
-});
+// aiRoutes route moved to routes/aiRoutes.js: post('/api/ai/predict'
 
-async function notifyPriceListUpdate(rows) {
-  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-  // key diameters to show in message
-  const keyDiams = [8, 10, 12, 14, 16, 20];
-  const priceLines = rows
-    .filter(r => keyDiams.includes(r.diameter))
-    .map(r => `• Ø${r.diameter}: מחירון ₪${r.price_list}/ק"ג | לקוח קבוע ₪${r.price_cust}/ק"ג`)
-    .join('\n');
 
-  // Get all customers with portal tokens and phone numbers
-  const customers = db.prepare(
-    `SELECT id, name, phone, portal_token FROM customers WHERE portal_token IS NOT NULL AND phone IS NOT NULL`
-  ).all();
+// aiRoutes route moved to routes/aiRoutes.js: get('/api/ai/predict-order/:orderId'
 
-  for (const c of customers) {
-    const link = `${baseUrl}/customer.html?token=${c.portal_token}`;
-    const msg = `🔔 *עדכון מחירון IronBend*\n\nשלום ${c.name},\nהמחירון עודכן:\n\n${priceLines}\n\nלצפייה בכל המחירים ולהזמנה:\n${link}`;
-    try { await intake.sendWhatsApp(c.phone, msg); } catch {}
-    // small delay to avoid rate limiting
-    await new Promise(r => setTimeout(r, 300));
-  }
-}
 
-// Generate / fetch portal token for a customer
-app.get('/api/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
-  if (!c) return res.status(404).json({ error: 'לא נמצא' });
-  const result = portalAuthResponse(c);
-  res.json({ token: result.token, link: result.link, expiresAt: result.expiresAt });
-});
+// aiRoutes route moved to routes/aiRoutes.js: get('/api/ai/waste-patterns'
 
-app.post('/api/customers/:id/token/rotate', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
-  if (!c) return res.status(404).json({ error: 'not found' });
-  const result = portalAuthResponse(c, { forceRotate: true });
-  auditLog('customer', c.id, null, 'portal_token_rotate', null, null, null, null, req.userId || null, null);
-  res.json({ token: result.token, link: result.link, expiresAt: result.expiresAt });
-});
 
-app.delete('/api/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const c = db.prepare('SELECT id FROM customers WHERE id=?').get(req.params.id);
-  if (!c) return res.status(404).json({ error: 'not found' });
-  db.prepare('UPDATE customers SET portal_token_revoked_at=CURRENT_TIMESTAMP WHERE id=?').run(c.id);
-  auditLog('customer', c.id, null, 'portal_token_revoke', null, null, null, null, req.userId || null, null);
-  res.json({ success: true });
-});
+// aiRoutes route moved to routes/aiRoutes.js: get('/api/ai/machine-efficiency'
 
-app.patch('/api/customers/:id/pricing', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const { price_tier, discount_pct } = req.body;
-  // BUG-26: validate discount is 0–100
-  const discountNum = Number(discount_pct ?? 0);
-  if (isNaN(discountNum) || discountNum < 0 || discountNum > 100)
-    return res.status(400).json({ error: 'הנחה חייבת להיות בין 0 ל-100' });
-  db.prepare('UPDATE customers SET price_tier=?,discount_pct=? WHERE id=?')
-    .run(price_tier, discountNum, req.params.id);
-  res.json({ success: true });
-});
-
-// ── CUSTOMER PORTAL API ───────────────────────────────────────────
-// BUG-41: limited projection — never return sensitive fields via portal resolver
-const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct';
-function resolveCustomer(token, phone) {
-  if (token) return db.prepare(`
-    SELECT ${CUSTOMER_PORTAL_COLS} FROM customers
-    WHERE portal_token=?
-      AND portal_token_revoked_at IS NULL
-      AND (portal_token_expires_at IS NULL OR portal_token_expires_at > ?)
-  `).get(token, new Date().toISOString());
-  if (phone) return db.prepare(`SELECT ${CUSTOMER_PORTAL_COLS} FROM customers WHERE phone=?`).get(phone);
-  return null;
-}
-
-const PORTAL_OTP_TTL_MINUTES = Number(process.env.PORTAL_OTP_TTL_MINUTES || 10);
-const PORTAL_TOKEN_TTL_DAYS = Number(process.env.PORTAL_TOKEN_TTL_DAYS || 90);
-function normalizePortalPhone(phone) {
-  return String(phone || '').replace(/\D/g, '');
-}
-
-function hashPortalOtp(phone, code) {
-  return crypto.createHash('sha256')
-    .update(`${process.env.JWT_SECRET || 'dev-secret'}:${phone}:${code}`)
-    .digest('hex');
-}
-
-function portalTokenExpiresAt() {
-  return new Date(Date.now() + PORTAL_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
-}
-
-function hasActivePortalToken(customer) {
-  if (!customer.portal_token || customer.portal_token_revoked_at) return false;
-  if (!customer.portal_token_expires_at) return true;
-  return new Date(customer.portal_token_expires_at).getTime() > Date.now();
-}
-
-function ensurePortalToken(customer, options = {}) {
-  if (!options.forceRotate && hasActivePortalToken(customer)) return customer.portal_token;
-  const token = crypto.randomBytes(12).toString('hex');
-  const expiresAt = portalTokenExpiresAt();
-  db.prepare(`
-    UPDATE customers
-    SET portal_token=?,
-        portal_token_created_at=CURRENT_TIMESTAMP,
-        portal_token_expires_at=?,
-        portal_token_revoked_at=NULL
-    WHERE id=?
-  `).run(token, expiresAt, customer.id);
-  customer.portal_token = token;
-  customer.portal_token_expires_at = expiresAt;
-  customer.portal_token_revoked_at = null;
-  return token;
-}
-
-function issuePortalOtp(customer) {
-  const phone = normalizePortalPhone(customer.phone);
-  const code = String(crypto.randomInt(100000, 1000000));
-  const expiresAt = new Date(Date.now() + PORTAL_OTP_TTL_MINUTES * 60 * 1000).toISOString();
-  db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE phone=? AND consumed_at IS NULL')
-    .run(phone);
-  db.prepare(`
-    INSERT INTO customer_portal_otps (customer_id,phone,code_hash,expires_at)
-    VALUES (?,?,?,?)
-  `).run(customer.id, phone, hashPortalOtp(phone, code), expiresAt);
-  return { code, expiresAt };
-}
-
-function verifyPortalOtp(phone, code) {
-  const normalizedPhone = normalizePortalPhone(phone);
-  const cleanCode = String(code || '').replace(/\D/g, '');
-  const otp = db.prepare(`
-    SELECT * FROM customer_portal_otps
-    WHERE phone=? AND consumed_at IS NULL
-    ORDER BY id DESC LIMIT 1
-  `).get(normalizedPhone);
-  if (!otp) return { ok: false, status: 401, error: 'Invalid code' };
-  if (new Date(otp.expires_at).getTime() < Date.now()) {
-    db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE id=?').run(otp.id);
-    return { ok: false, status: 401, error: 'Code expired' };
-  }
-  if (Number(otp.attempts || 0) >= 5) return { ok: false, status: 429, error: 'Too many attempts' };
-  if (hashPortalOtp(normalizedPhone, cleanCode) !== otp.code_hash) {
-    db.prepare('UPDATE customer_portal_otps SET attempts=attempts+1 WHERE id=?').run(otp.id);
-    return { ok: false, status: 401, error: 'Invalid code' };
-  }
-  db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE id=?').run(otp.id);
-  return { ok: true, customerId: otp.customer_id };
-}
-
-function portalAuthResponse(customer, options = {}) {
-  const token = ensurePortalToken(customer, options);
-  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-  return {
-    token,
-    link: `${baseUrl}/customer.html?token=${token}`,
-    expiresAt: customer.portal_token_expires_at || null,
-    customer: { id: customer.id, name: customer.name, phone: customer.phone, price_tier: customer.price_tier }
-  };
-}
-
-// Auth: get/create customer by phone (walk-in) or by token
-app.post('/api/c/auth', customerPortalAuthLimiter, (req, res) => {
-  const { name } = req.body;
-  const rawPhone = String(req.body.phone || '').trim();
-  const phone = normalizePortalPhone(rawPhone);
-  if (!phone) return res.status(400).json({ error: 'טלפון חובה' });
-  let c = db.prepare('SELECT * FROM customers WHERE phone=? OR phone=?').get(phone, rawPhone);
-  if (!c) {
-    if (!name) return res.json({ needName: true }); // ask for name first
-    const r = db.prepare('INSERT INTO customers (name,phone,price_tier) VALUES (?,?,?)').run(name, phone, 'list');
-    c = db.prepare('SELECT * FROM customers WHERE id=?').get(r.lastInsertRowid);
-  }
-  const otp = issuePortalOtp(c);
-  if (!IS_TEST) {
-    intake.sendWhatsApp(c.phone, `קוד האימות שלך ל-IronBend: ${otp.code}`).catch(e => console.warn('[Portal OTP]', e));
-  }
-  res.json({
-    otpRequired: true,
-    expiresAt: otp.expiresAt,
-    devOtp: IS_TEST || process.env.NODE_ENV !== 'production' ? otp.code : undefined,
-    customer: { id: c.id, name: c.name, phone: c.phone }
-  });
-});
-
-app.post('/api/c/auth/verify', customerPortalAuthLimiter, (req, res) => {
-  const phone = normalizePortalPhone(req.body.phone);
-  const verified = verifyPortalOtp(phone, req.body.code);
-  if (!verified.ok) return res.status(verified.status).json({ error: verified.error });
-  const c = db.prepare('SELECT * FROM customers WHERE id=?').get(verified.customerId);
-  if (!c || normalizePortalPhone(c.phone) !== phone) return res.status(401).json({ error: 'Invalid code' });
-  res.json(portalAuthResponse(c));
-});
-
-// Get customer info + recent orders
-app.get('/api/c/me', customerPortalActionLimiter, (req, res) => {
-  const { token } = req.query;
-  const c = resolveCustomer(token);
-  if (!c) return res.status(401).json({ error: 'לא מורשה' });
-  const orders = db.prepare(`
-    SELECT id, order_num, status, created_at, total_weight, billing_weight, delivery_date, portal_price
-    FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 20
-  `).all(c.id);
-  res.json({ customer: { id: c.id, name: c.name, phone: c.phone }, orders }); // BUG-40: removed price_tier/discount_pct (internal fields)
-});
-
-// Shapes (public)
-app.get('/api/c/shapes', customerPortalActionLimiter, (req, res) => {
-  res.json(db.prepare('SELECT * FROM shapes WHERE active=1 ORDER BY id').all());
-});
-
-// Price list for this customer
-app.get('/api/c/price-list', customerPortalActionLimiter, (req, res) => {
-  const { token } = req.query;
-  const c = resolveCustomer(token);
-  const tier = c?.price_tier || 'list';
-  const discount = c?.discount_pct || 0;
-  const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
-  const result = pl.map(row => ({
-    diameter: row.diameter,
-    price_per_kg: ((tier === 'customer' ? row.price_cust : row.price_list) * (1 - discount / 100)).toFixed(2)
-  }));
-  res.json(result);
-});
-
-// Quote — calculate price for items before ordering
-app.post('/api/c/quote', customerPortalActionLimiter, (req, res) => {
-  const { token, items } = req.body; // items: [{diameter, sides[], qty}]
-  const c = resolveCustomer(token);
-  const tier = c?.price_tier || 'list';
-  const discount = c?.discount_pct || 0;
-  const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
-  const priceMap = {};
-  pl.forEach(r => {
-    priceMap[r.diameter] = (tier === 'customer' ? r.price_cust : r.price_list) * (1 - discount / 100);
-  });
-  let totalWeight = 0, totalPrice = 0;
-  const breakdown = (items || []).map(item => {
-    const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
-    const kgPerM = REBAR_WEIGHTS[item.diameter] ?? (item.diameter*item.diameter*0.00617); // BUG-05
-    const weight = (totalLengthMm / 1000) * kgPerM * (item.qty || 1);
-    const ppu = priceMap[item.diameter] || 0;
-    const price = weight * ppu;
-    totalWeight += weight;
-    totalPrice += price;
-    return { diameter: item.diameter, weight: +weight.toFixed(3), price_per_kg: +ppu.toFixed(2), price: +price.toFixed(2) };
-  });
-  // Add 3% waste
-  const waste = 0.03;
-  const billingWeight = totalWeight * (1 + waste);
-  const billingPrice  = totalPrice  * (1 + waste);
-  res.json({ breakdown, totalWeight: +totalWeight.toFixed(2), billingWeight: +billingWeight.toFixed(2), totalPrice: +totalPrice.toFixed(2), billingPrice: +billingPrice.toFixed(2), currency: '₪' });
-});
-
-// Submit order from portal
-app.post('/api/c/order', customerPortalActionLimiter, async (req, res) => {
-  const { token, items, deliveryDate, deliveryTime, deliveryAddress, notes } = req.body;
-  let c = resolveCustomer(token);
-  if (!c) return res.status(401).json({ error: 'נדרש זיהוי' });
-  if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
-
-  // Calculate price
-  const tier = c.price_tier || 'list';
-  const discount = c.discount_pct || 0;
-  const pl = db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
-  const priceMap = {};
-  pl.forEach(r => { priceMap[r.diameter] = (tier === 'customer' ? r.price_cust : r.price_list) * (1 - discount / 100); });
-  let totalWeight = 0, totalPrice = 0;
-  const orderNum = generateOrderNum();
-  const wastePct = 3;
-  const confirmToken = crypto.randomBytes(16).toString('hex');
-
-  const orderRow = db.prepare(`
-    INSERT INTO orders (order_num,customer_id,channel,delivery_date,delivery_time,delivery_address,
-      priority,general_notes,total_weight,waste_pct_charged,billing_weight,portal_order,status,confirm_token)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,1,'ממתינה לאישור לקוח',?)
-  `).run(orderNum, c.id, 'פורטל לקוח', deliveryDate, deliveryTime, deliveryAddress,
-         'רגיל', notes, 0, wastePct, 0, confirmToken);
-
-  const orderId = orderRow.lastInsertRowid;
-  const palletRow = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight) VALUES (?,1,9999)').run(orderId);
-  const palletId = palletRow.lastInsertRowid;
-
-  const itemLines = [];
-  items.forEach(item => {
-    const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
-    const kgPerM = REBAR_WEIGHTS[item.diameter] ?? (item.diameter*item.diameter*0.00617); // BUG-05
-    const weight = (totalLengthMm / 1000) * kgPerM * (item.qty || 1);
-    const ppu = priceMap[item.diameter] || 0;
-    totalWeight += weight;
-    totalPrice += weight * ppu;
-    const segments = JSON.stringify((item.sides || []).map((l,i) => ({ length_mm:l, angle_deg:(item.angles||[])[i]??0 })));
-    const machine = autoAssignMachine(item.diameter); // BUG-06
-    db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,machine)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(palletId, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,
-           item.qty||1, Math.ceil((item.qty||1)*(1+wastePct/100)), weight/(item.qty||1), weight, item.note||'', machine);
-    itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} – ${Math.round(totalLengthMm/10)}ס"מ`);
-  });
-
-  const billingWeight = totalWeight * (1 + wastePct/100);
-  const portalPrice   = totalPrice  * (1 + wastePct/100);
-  db.prepare('UPDATE orders SET total_weight=?,billing_weight=?,portal_price=? WHERE id=?')
-    .run(totalWeight, billingWeight, portalPrice, orderId);
-  db.prepare('UPDATE pallets SET total_weight=? WHERE id=?').run(totalWeight, palletId);
-
-  wsBroadcast('new_order', { orderNum, orderId, channel: 'פורטל לקוח', status: 'ממתינה לאישור לקוח' });
-
-  // Send WhatsApp confirmation with approve link (non-blocking)
-  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-  const approveLink = `${baseUrl}/api/c/approve/${confirmToken}`;
-  const delivInfo = deliveryDate ? `📅 אספקה: ${deliveryDate}${deliveryTime ? ' ' + deliveryTime : ''}` : '';
-  const addrInfo  = deliveryAddress ? `📍 ${deliveryAddress}` : '';
-  const waMsg = `📋 *הזמנה ${orderNum} – ממתינה לאישורך*\n\nשלום ${c.name},\nקיבלנו את הזמנתך:\n\n${itemLines.join('\n')}\n\n⚖️ משקל לחיוב: ${billingWeight.toFixed(1)} ק"ג\n💰 סה"כ: ₪${portalPrice.toFixed(0)}\n${delivInfo}\n${addrInfo}\n\n*לאישור ותחילת ייצור – לחץ כאן:*\n${approveLink}\n\n_⚠️ ייצור יתחיל רק לאחר אישורך_`;
-
-  if (c.phone) intake.sendWhatsApp(c.phone, waMsg).catch(e => console.warn('[Order confirm WA]', e));
-
-  res.json({
-    success: true, orderNum, orderId,
-    summary: { totalWeight: +totalWeight.toFixed(2), billingWeight: +billingWeight.toFixed(2), portalPrice: +portalPrice.toFixed(2) },
-    token: c.portal_token,
-    awaitingApproval: true
-  });
-});
-
-// Customer order approval (link from WhatsApp)
-app.get('/api/c/approve/:token', customerPortalActionLimiter, (req, res) => {
-  const order = db.prepare('SELECT o.*,c.name as customer_name,c.phone FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.confirm_token=?').get(req.params.token);
-  if (!order) return res.status(404).send(approvalPage('לא נמצא', 'קישור לא תקין או פג תוקף.', false));
-  if (order.status !== 'ממתינה לאישור לקוח') {
-    return res.send(approvalPage('כבר אושרה', `הזמנה ${order.order_num} כבר אושרה ובטיפול!`, true));
-  }
-  db.prepare("UPDATE orders SET status='אושרה – ממתין לייצור', confirm_token=NULL WHERE id=?").run(order.id);
-  wsBroadcast('order_status', { id: order.id, status: 'אושרה – ממתין לייצור', orderNum: order.order_num });
-  // Notify factory via WA to the notify phone
-  const notifyPhone = db.prepare("SELECT value FROM settings WHERE key='WHATSAPP_NOTIFY_PHONE'").get()?.value;
-  if (notifyPhone) {
-    const msg = `✅ הזמנה ${order.order_num} אושרה ע"י הלקוח ${order.customer_name||''} – ניתן להתחיל ייצור!`;
-    intake.sendWhatsApp(notifyPhone, msg).catch(()=>{});
-  }
-  return res.send(approvalPage('✅ הזמנה אושרה!', `הזמנה ${order.order_num} אושרה בהצלחה.\nנתחיל בייצור בהקדם האפשרי. 🏗️`, true));
-});
-
-// Also allow approval from portal (POST)
-app.post('/api/c/approve', customerPortalActionLimiter, (req, res) => {
-  const { token, orderId } = req.body;
-  const c = resolveCustomer(token);
-  if (!c) return res.status(401).json({ error: 'לא מורשה' });
-  const order = db.prepare('SELECT * FROM orders WHERE id=? AND customer_id=? AND status=?').get(orderId, c.id, 'ממתינה לאישור לקוח');
-  if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה או כבר אושרה' });
-  db.prepare("UPDATE orders SET status='אושרה – ממתין לייצור', confirm_token=NULL WHERE id=?").run(orderId);
-  wsBroadcast('order_status', { id: orderId, status: 'אושרה – ממתין לייצור', orderNum: order.order_num });
-  const notifyPhone = db.prepare("SELECT value FROM settings WHERE key='WHATSAPP_NOTIFY_PHONE'").get()?.value;
-  if (notifyPhone) {
-    intake.sendWhatsApp(notifyPhone, `✅ הזמנה ${order.order_num} אושרה ע"י הלקוח – ניתן להתחיל ייצור!`).catch(()=>{});
-  }
-  res.json({ success: true });
-});
-
-function approvalPage(title, msg, success) {
-  const color = success ? '#27ae60' : '#e74c3c';
-  const icon  = success ? '✅' : '❌';
-  return `<!DOCTYPE html><html lang="he" dir="rtl">
-  <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>${title}</title>
-  <style>body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6fa;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;direction:rtl}
-  .box{background:#fff;border-radius:20px;padding:40px 32px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.1);max-width:380px;width:90%}
-  .icon{font-size:64px;margin-bottom:16px}
-  h1{font-size:22px;color:${color};margin-bottom:12px}
-  p{color:#555;font-size:15px;line-height:1.6;white-space:pre-line}
-  a{display:inline-block;margin-top:24px;padding:12px 28px;background:#e07b39;color:#fff;border-radius:12px;text-decoration:none;font-weight:700}
-  </style></head>
-  <body><div class="box">
-    <div class="icon">${icon}</div>
-    <h1>${title}</h1>
-    <p>${msg}</p>
-    <a href="/">חזרה לדף הבית</a>
-  </div></body></html>`;
-}
-
-// Customer order history
-app.get('/api/c/orders/:orderId', customerPortalActionLimiter, (req, res) => {
-  const { token } = req.query;
-  const c = resolveCustomer(token);
-  if (!c) return res.status(401).json({ error: 'לא מורשה' });
-  // BUG-42: limited projection — no cost/internal fields exposed to portal
-  const order = db.prepare(`
-    SELECT id,order_num,status,created_at,delivery_date,delivery_address,delivery_time,
-           general_notes AS notes,total_weight,billing_weight,portal_price
-    FROM orders WHERE id=? AND customer_id=?
-  `).get(req.params.orderId, c.id);
-  if (!order) return res.status(404).json({ error: 'לא נמצא' });
-  const pallets = db.prepare("SELECT id,pallet_num,'' AS notes FROM pallets WHERE order_id=?").all(order.id);
-  pallets.forEach(p => {
-    p.items = db.prepare(`
-      SELECT id,diameter,total_length_mm,quantity,weight_per_unit,total_weight,
-             machine,segments,struct_element,struct_floor,sheet_num,status
-      FROM items WHERE pallet_id=?
-    `).all(p.id);
-  });
-  order.pallets = pallets;
-  res.json(order);
-});
-
-// ── AI PREDICTION ─────────────────────────────────────────────────
-app.post('/api/ai/predict', requireAnyRole(['manager', 'admin']), (req, res) => {
-  const { items } = req.body;
-  if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
-  const result = ai.predictProductionTime(items);
-  res.json(result);
-});
-
-app.get('/api/ai/predict-order/:orderId', requireAnyRole(['manager', 'admin']), (req, res) => {
-  const order   = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.orderId);
-  if (!order) return res.status(404).json({ error: 'לא נמצא' });
-  const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=?').all(order.id);
-  const items   = pallets.flatMap(p => db.prepare('SELECT * FROM items WHERE pallet_id=?').all(p.id));
-  const prediction   = ai.predictProductionTime(items);
-  const feasibility  = ai.checkDeliveryFeasibility(order, items);
-  res.json({ prediction, feasibility });
-});
-
-app.get('/api/ai/waste-patterns', requireAnyRole(['manager', 'admin']), (req, res) => {
-  res.json(ai.analyzeWastePatterns());
-});
-
-app.get('/api/ai/machine-efficiency', requireAnyRole(['manager', 'admin']), (req, res) => {
-  const days = Number(req.query.days || 7);
-  res.json(ai.getMachineEfficiency(days));
-});
 
 // ── REPORTS ───────────────────────────────────────────────────────
-app.get('/api/reports/summary', requireAnyRole(['office', 'finance', 'manager', 'admin']), (req, res) => {
-  const { from, to } = req.query;
-  const fromDate = from || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-  const toDate   = to   || new Date().toISOString().split('T')[0];
-
-  res.json({
-    period: { from: fromDate, to: toDate },
-    orders: db.prepare(`
-      SELECT DATE(created_at) as date, COUNT(*) as count, SUM(total_weight) as weight
-      FROM orders WHERE DATE(created_at) BETWEEN ? AND ?
-      GROUP BY DATE(created_at) ORDER BY date
-    `).all(fromDate, toDate),
-    byStatus: db.prepare(`
-      SELECT status, COUNT(*) as count FROM orders
-      WHERE DATE(created_at) BETWEEN ? AND ? GROUP BY status
-    `).all(fromDate, toDate),
-    waste: ai.analyzeWastePatterns(),
-    machineEfficiency: ai.getMachineEfficiency(30),
-    topCustomers: db.prepare(`
-      SELECT c.name, COUNT(o.id) as order_count, SUM(o.billing_weight) as total_weight
-      FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
-      WHERE DATE(o.created_at) BETWEEN ? AND ?
-      GROUP BY o.customer_id ORDER BY total_weight DESC LIMIT 10
-    `).all(fromDate, toDate),
-  });
-});
+// Reports summary routes live in routes/reports.js.
 
 // ── BACKGROUND JOBS ───────────────────────────────────────────────
 // Check alerts every 5 minutes
@@ -4533,1390 +1903,70 @@ if (!IS_TEST) cron.schedule('* * * * *', async () => {
 // ══════════════════════════════════════════════════════════════════
 
 // ── SUPPLIERS
-app.get('/api/suppliers', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare('SELECT * FROM suppliers WHERE active=1 ORDER BY name').all());
-});
-app.post('/api/suppliers', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const { name, phone, contact, email, address, payment_terms, notes } = req.body;
-  if (!name) return res.status(400).json({ error: 'שם ספק חובה' });
-  const r = db.prepare('INSERT INTO suppliers (name,phone,contact,email,address,payment_terms,notes) VALUES (?,?,?,?,?,?,?)')
-    .run(name, phone||null, contact||null, email||null, address||null, payment_terms||null, notes||null);
-  res.json({ id: r.lastInsertRowid });
-});
-app.patch('/api/suppliers/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  db.prepare('UPDATE suppliers SET name=COALESCE(?,name),phone=COALESCE(?,phone),contact=COALESCE(?,contact),email=COALESCE(?,email),address=COALESCE(?,address),payment_terms=COALESCE(?,payment_terms),notes=COALESCE(?,notes),active=COALESCE(?,active) WHERE id=?')
-    .run(f.name||null,f.phone||null,f.contact||null,f.email||null,f.address||null,f.payment_terms||null,f.notes||null,f.active??null,req.params.id);
-  res.json({ success: true });
-});
-
-// ── RAW MATERIAL INVENTORY
-app.get('/api/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const { diameter, supplier_id } = req.query;
-  let sql = 'SELECT r.*,s.name as supplier_name,ROUND(r.weight_received-r.weight_used-r.weight_scrapped,2) as weight_available FROM raw_material r LEFT JOIN suppliers s ON r.supplier_id=s.id WHERE r.active=1';
-  const params = [];
-  if (diameter)    { sql += ' AND r.diameter=?';    params.push(diameter); }
-  if (supplier_id) { sql += ' AND r.supplier_id=?'; params.push(supplier_id); }
-  sql += ' ORDER BY r.received_date DESC, r.id DESC';
-  res.json(db.prepare(sql).all(...params));
-});
-app.get('/api/inventory/summary', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare('SELECT diameter,SUM(weight_received) as total_received,SUM(weight_used) as total_used,SUM(weight_scrapped) as total_scrapped,ROUND(SUM(weight_received-weight_used-weight_scrapped),2) as available,COUNT(*) as batches FROM raw_material WHERE active=1 GROUP BY diameter ORDER BY diameter').all());
-});
-app.post('/api/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  if (!f.diameter || !f.weight_received) return res.status(400).json({ error: 'קוטר ומשקל חובה' });
-  const r = db.prepare('INSERT INTO raw_material (material_type,diameter,supplier_id,lot_number,certificate_num,grade,received_date,weight_received,purchase_price,warehouse_loc,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-    .run(f.material_type||'coil',f.diameter,f.supplier_id||null,f.lot_number||null,f.certificate_num||null,f.grade||'B500B',f.received_date||new Date().toISOString().split('T')[0],f.weight_received,f.purchase_price||0,f.warehouse_loc||null,f.notes||null);
-  res.json({ id: r.lastInsertRowid });
-});
-app.patch('/api/inventory/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  db.prepare('UPDATE raw_material SET weight_used=COALESCE(?,weight_used),weight_scrapped=COALESCE(?,weight_scrapped),warehouse_loc=COALESCE(?,warehouse_loc),notes=COALESCE(?,notes),active=COALESCE(?,active) WHERE id=?')
-    .run(f.weight_used??null,f.weight_scrapped??null,f.warehouse_loc||null,f.notes||null,f.active??null,req.params.id);
-  res.json({ success: true });
-});
-
-// ── AUDIT LOG
+// Inventory, suppliers, steel prices and purchase orders live in routes/inventory.js.
 function auditLog(entityType,entityId,entityRef,action,fieldName,oldVal,newVal,notes,userId,userName) {
   try {
     db.prepare('INSERT INTO audit_log (entity_type,entity_id,entity_ref,action,field_name,old_value,new_value,notes,user_id,user_name) VALUES (?,?,?,?,?,?,?,?,?,?)')
       .run(entityType,entityId||null,entityRef||null,action,fieldName||null,oldVal!=null?String(oldVal):null,newVal!=null?String(newVal):null,notes||null,userId||null,userName||null);
   } catch(e) { console.warn('[Audit]',e.message); }
 }
-app.get('/api/audit-log', requireRole('manager'), (req, res) => {
-  const { entity_type, entity_id, limit=200, offset=0 } = req.query;
-  let sql = 'SELECT * FROM audit_log WHERE 1=1';
-  const params = [];
-  if (entity_type) { sql += ' AND entity_type=?'; params.push(entity_type); }
-  if (entity_id)   { sql += ' AND entity_id=?';   params.push(entity_id); }
-  sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-  params.push(Number(limit),Number(offset));
-  res.json(db.prepare(sql).all(...params));
-});
-
-// Order status with audit — BUG-34: State Machine validation
-app.patch('/api/orders/:id/status', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
-  const { status, userId, userName } = req.body;
-  if (!status) return res.status(400).json({ error: 'חסר סטטוס' });
-  const requestedStatus = normalizeOrderStatus(status);
-  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
-  if (!order) return res.status(404).json({ error: 'לא נמצא' });
-  if (order.locked) return res.status(403).json({ error: 'הזמנה נעולה' });
-  if (!isValidOrderTransition(order.status, requestedStatus)) {
-    return res.status(409).json({
-      error: 'מעבר סטטוס לא חוקי',
-      from: order.status,
-      to: requestedStatus,
-      allowed: statusContracts.allowedOrderTransitions(order.status)
-    });
-  }
-  const old = order.status;
-  db.prepare('UPDATE orders SET status=? WHERE id=?').run(requestedStatus, order.id);
-  auditLog('order',order.id,order.order_num,'status_change','status',old,requestedStatus,null,userId,userName);
-  wsBroadcast('order_status',{ id:order.id, status: requestedStatus, orderNum:order.order_num });
-  if (order.customer_id) {
-    const c = db.prepare('SELECT phone FROM customers WHERE id=?').get(order.customer_id);
-    if (c?.phone) intake.notifyOrderStatus(c.phone,order.order_num,requestedStatus).catch(()=>{});
-  }
-  res.json({ success: true });
-});
-app.patch('/api/orders/:id/lock', requireRole('manager'), (req, res) => {
-  const { userId, userName } = req.body;
-  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
-  if (!order) return res.status(404).json({ error: 'לא נמצא' });
-  db.prepare('UPDATE orders SET locked=1,locked_by=?,locked_at=? WHERE id=?').run(userId||null,new Date().toISOString(),order.id);
-  auditLog('order',order.id,order.order_num,'lock','locked','0','1','נעילה לאחר שילוח',userId,userName);
-  res.json({ success: true });
-});
-app.patch('/api/orders/:id/unlock', requireRole('manager'), (req, res) => {
-  const { userId, userName } = req.body;
-  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
-  if (!order) return res.status(404).json({ error: 'לא נמצא' });
-  db.prepare('UPDATE orders SET locked=0,locked_by=NULL,locked_at=NULL WHERE id=?').run(order.id);
-  auditLog('order',order.id,order.order_num,'unlock','locked','1','0','פתיחת נעילה',userId,userName);
-  res.json({ success: true });
-});
-
-// ── USERS / ROLES
-// Auth Core is introduced alongside the legacy login until frontend rollout passes Gate 1a.
-app.post('/api/auth/login', authLoginLimiter, (req, res) => {
-  const result = authService.authenticate(req.body, {
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
-  });
-  if (!result.ok) return res.status(result.status).json({ error: result.error });
-  res.setHeader('Set-Cookie', refreshCookie(result.refreshToken));
-  res.json({ access_token: result.accessToken, user: result.user });
-});
-app.post('/api/auth/refresh', (req, res) => {
-  const result = authService.refresh(parseCookies(req).refresh_token, {
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
-  });
-  if (!result.ok) return res.status(result.status).json({ error: result.error });
-  res.setHeader('Set-Cookie', refreshCookie(result.refreshToken));
-  res.json({ access_token: result.accessToken, user: result.user });
-});
-app.post('/api/auth/logout', (req, res) => {
-  const refreshToken = parseCookies(req).refresh_token;
-  if (!refreshToken && !req.auth) {
-    res.setHeader('Set-Cookie', 'refresh_token=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0');
-    return res.status(401).json({ error: 'Logout requires an active session' });
-  }
-  authService.logout(refreshToken);
-  res.setHeader('Set-Cookie', 'refresh_token=; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=0');
-  res.json({ success: true });
-});
-
-app.get('/api/users', requireRole('admin'), (req, res) => {
-  res.json(db.prepare('SELECT id,username,display_name,role,phone,active,last_login,created_at FROM users ORDER BY role,display_name').all());
-});
-app.get('/api/kiosk/operators', requireAnyRole(['kiosk', 'production', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare(`
-    SELECT id,username,display_name,role,active
-    FROM users
-    WHERE active=1 AND role IN ('operator','kiosk','production','manager','admin')
-    ORDER BY role,display_name
-  `).all());
-});
-app.post('/api/users', requireRole('admin'), (req, res) => {
-  const { username, display_name, role, pin, phone } = req.body;
-  if (!username||!display_name) return res.status(400).json({ error: 'שם משתמש ושם תצוגה חובה' });
-  try {
-    const r = db.prepare('INSERT INTO users (username,display_name,role,pin,pin_hash,phone,password_changed_at) VALUES (?,?,?,?,?,?,?)')
-      .run(username,display_name,role||'operator',pin||null,hashPin(pin),phone||null,pin ? new Date().toISOString() : null);
-    res.json({ id: r.lastInsertRowid });
-  } catch(e) {
-    if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'שם משתמש קיים' });
-    throw e;
-  }
-});
-app.patch('/api/users/:id', requireRole('admin'), (req, res) => {
-  const f = req.body;
-  db.prepare('UPDATE users SET display_name=COALESCE(?,display_name),role=COALESCE(?,role),pin=COALESCE(?,pin),pin_hash=COALESCE(?,pin_hash),phone=COALESCE(?,phone),active=COALESCE(?,active),password_changed_at=CASE WHEN ? IS NULL THEN password_changed_at ELSE ? END WHERE id=?')
-    .run(f.display_name||null,f.role||null,f.pin||null,hashPin(f.pin),f.phone||null,f.active??null,f.pin||null,f.pin ? new Date().toISOString() : null,req.params.id);
-  res.json({ success: true });
-});
-app.post('/api/users/login', (req, res) => {
-  res.status(410).json({ error: 'Legacy login is disabled. Use /api/auth/login.' });
-});
+// Auth routes live in routes/auth.js; users and audit routes live in routes/admin.js.
 
 // ── QUALITY CONTROL
-app.get('/api/quality', requireAnyRole(['quality', 'production', 'office', 'manager', 'admin']), (req, res) => {
-  const { order_id, item_id, result, limit=100 } = req.query;
-  let sql = 'SELECT q.*,u.display_name as inspector_name FROM quality_checks q LEFT JOIN users u ON q.inspector_id=u.id WHERE 1=1';
-  const params = [];
-  if (order_id) { sql+=' AND q.order_id=?'; params.push(order_id); }
-  if (item_id)  { sql+=' AND q.item_id=?';  params.push(item_id); }
-  if (result)   { sql+=' AND q.result=?';   params.push(result); }
-  sql+=' ORDER BY q.checked_at DESC LIMIT ?'; params.push(Number(limit));
-  res.json(db.prepare(sql).all(...params));
-});
-app.post('/api/quality', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  if (!f.item_id) return res.status(400).json({ error: 'item_id חובה' });
-  const r = db.prepare('INSERT INTO quality_checks (item_id,order_id,order_num,inspector_id,check_type,sample_qty,pass_qty,fail_qty,deviation_mm,deviation_deg,result,action_taken,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
-    .run(f.item_id,f.order_id||null,f.order_num||null,f.inspector_id||null,f.check_type||'length',f.sample_qty||1,f.pass_qty||0,f.fail_qty||0,f.deviation_mm||0,f.deviation_deg||0,f.result||'pass',f.action_taken||null,f.notes||null);
-  db.prepare('UPDATE items SET qc_status=? WHERE id=?').run(f.result==='pass'?'עבר':'נכשל',f.item_id);
-  res.json({ id: r.lastInsertRowid });
-});
-app.get('/api/quality/stats', requireAnyRole(['quality', 'production', 'office', 'manager', 'admin']), (req, res) => {
-  res.json({
-    total:   db.prepare('SELECT COUNT(*) as c FROM quality_checks').get().c,
-    passed:  db.prepare("SELECT COUNT(*) as c FROM quality_checks WHERE result='pass'").get().c,
-    failed:  db.prepare("SELECT COUNT(*) as c FROM quality_checks WHERE result='fail'").get().c,
-    byType:  db.prepare('SELECT check_type,COUNT(*) as c,AVG(deviation_mm) as avg_dev FROM quality_checks GROUP BY check_type').all(),
-  });
-});
-
-// ── MAINTENANCE
-app.get('/api/maintenance', requireAnyRole(['maintenance', 'production', 'office', 'manager', 'admin']), (req, res) => {
-  const { machine_id, status, limit=100 } = req.query;
-  let sql = 'SELECT m.*,mc.name as machine_name,mc.label as machine_label,u.display_name as reported_by_name,u2.display_name as assigned_to_name FROM maintenance_logs m LEFT JOIN machines mc ON m.machine_id=mc.id LEFT JOIN users u ON m.reported_by=u.id LEFT JOIN users u2 ON m.assigned_to=u2.id WHERE 1=1';
-  const params = [];
-  if (machine_id) { sql+=' AND m.machine_id=?'; params.push(machine_id); }
-  if (status)     { sql+=' AND m.status=?';     params.push(status); }
-  sql+=' ORDER BY m.started_at DESC LIMIT ?'; params.push(Number(limit));
-  res.json(db.prepare(sql).all(...params));
-});
-app.post('/api/maintenance', requireAnyRole(['maintenance', 'production', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  if (!f.machine_id||!f.description) return res.status(400).json({ error: 'מכונה ותיאור חובה' });
-  if (f.log_type==='breakdown') {
-    db.prepare("UPDATE machines SET status='תקלה' WHERE id=?").run(f.machine_id);
-    wsBroadcast('machine_update',{ machineId:f.machine_id, status:'תקלה' });
-  }
-  const r = db.prepare('INSERT INTO maintenance_logs (machine_id,log_type,description,reported_by,priority,parts_used,cost) VALUES (?,?,?,?,?,?,?)')
-    .run(f.machine_id,f.log_type||'breakdown',f.description,f.reported_by||null,f.priority||'רגיל',f.parts_used||null,f.cost||0);
-  res.json({ id: r.lastInsertRowid });
-});
-app.patch('/api/maintenance/:id', requireAnyRole(['maintenance', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  const log = db.prepare('SELECT * FROM maintenance_logs WHERE id=?').get(req.params.id);
-  if (!log) return res.status(404).json({ error: 'לא נמצא' });
-  const resolvedAt = f.status==='סגורה' ? new Date().toISOString() : null;
-  db.prepare('UPDATE maintenance_logs SET status=COALESCE(?,status),assigned_to=COALESCE(?,assigned_to),downtime_min=COALESCE(?,downtime_min),root_cause=COALESCE(?,root_cause),fix_notes=COALESCE(?,fix_notes),parts_used=COALESCE(?,parts_used),cost=COALESCE(?,cost),resolved_at=COALESCE(?,resolved_at) WHERE id=?')
-    .run(f.status||null,f.assigned_to||null,f.downtime_min||null,f.root_cause||null,f.fix_notes||null,f.parts_used||null,f.cost||null,resolvedAt,req.params.id);
-  if (f.status==='סגורה'&&log.log_type==='breakdown') db.prepare("UPDATE machines SET status='מחובר' WHERE id=?").run(log.machine_id);
-  res.json({ success: true });
-});
-app.get('/api/maintenance/stats', requireAnyRole(['maintenance', 'production', 'office', 'manager', 'admin']), (req, res) => {
-  res.json({
-    open:        db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE status!='סגורה'").get().c,
-    breakdowns:  db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE log_type='breakdown'").get().c,
-    avgDowntime: db.prepare('SELECT ROUND(AVG(downtime_min),0) as avg FROM maintenance_logs WHERE downtime_min>0').get().avg||0,
-    byMachine:   db.prepare('SELECT mc.label,mc.name,COUNT(*) as events,SUM(m.downtime_min) as total_down FROM maintenance_logs m LEFT JOIN machines mc ON m.machine_id=mc.id GROUP BY m.machine_id ORDER BY total_down DESC').all(),
-  });
-});
+// Quality and maintenance routes live in routes/quality.js.
 
 // ── PROJECTS & SITES
-app.get('/api/projects', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
-  const { customer_id, status } = req.query;
-  let sql = 'SELECT p.*,c.name as customer_name,COUNT(DISTINCT s.id) as site_count,COUNT(DISTINCT o.id) as order_count FROM projects p LEFT JOIN customers c ON p.customer_id=c.id LEFT JOIN sites s ON s.project_id=p.id LEFT JOIN orders o ON o.project_id=p.id WHERE 1=1';
-  const params = [];
-  if (customer_id) { sql+=' AND p.customer_id=?'; params.push(customer_id); }
-  if (status)      { sql+=' AND p.status=?';      params.push(status); }
-  sql+=' GROUP BY p.id ORDER BY p.created_at DESC';
-  res.json(db.prepare(sql).all(...params));
-});
-app.get('/api/projects/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
-  const p = db.prepare('SELECT p.*,c.name as customer_name FROM projects p LEFT JOIN customers c ON p.customer_id=c.id WHERE p.id=?').get(req.params.id);
-  if (!p) return res.status(404).json({ error: 'לא נמצא' });
-  p.sites  = db.prepare('SELECT * FROM sites WHERE project_id=? ORDER BY name').all(p.id);
-  p.orders = db.prepare('SELECT id,order_num,status,total_weight,created_at FROM orders WHERE project_id=? ORDER BY created_at DESC').all(p.id);
-  res.json(p);
-});
-app.post('/api/projects', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  if (!f.name) return res.status(400).json({ error: 'שם פרויקט חובה' });
-  const r = db.prepare('INSERT INTO projects (customer_id,name,project_num,status,start_date,end_date,total_budget,contact_name,contact_phone,notes) VALUES (?,?,?,?,?,?,?,?,?,?)')
-    .run(f.customer_id||null,f.name,f.project_num||null,f.status||'פעיל',f.start_date||null,f.end_date||null,f.total_budget||0,f.contact_name||null,f.contact_phone||null,f.notes||null);
-  res.json({ id: r.lastInsertRowid });
-});
-app.patch('/api/projects/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  db.prepare('UPDATE projects SET name=COALESCE(?,name),project_num=COALESCE(?,project_num),status=COALESCE(?,status),start_date=COALESCE(?,start_date),end_date=COALESCE(?,end_date),total_budget=COALESCE(?,total_budget),contact_name=COALESCE(?,contact_name),contact_phone=COALESCE(?,contact_phone),notes=COALESCE(?,notes) WHERE id=?')
-    .run(f.name||null,f.project_num||null,f.status||null,f.start_date||null,f.end_date||null,f.total_budget||null,f.contact_name||null,f.contact_phone||null,f.notes||null,req.params.id);
-  res.json({ success: true });
-});
-
-app.get('/api/sites', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
-  const { project_id, customer_id } = req.query;
-  let sql = 'SELECT s.*,p.name as project_name,c.name as customer_name FROM sites s LEFT JOIN projects p ON s.project_id=p.id LEFT JOIN customers c ON s.customer_id=c.id WHERE s.active=1';
-  const params = [];
-  if (project_id)  { sql+=' AND s.project_id=?';  params.push(project_id); }
-  if (customer_id) { sql+=' AND s.customer_id=?'; params.push(customer_id); }
-  sql+=' ORDER BY s.name';
-  res.json(db.prepare(sql).all(...params));
-});
-app.post('/api/sites', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  if (!f.name) return res.status(400).json({ error: 'שם אתר חובה' });
-  const r = db.prepare('INSERT INTO sites (project_id,customer_id,name,address,lat,lng,contact_name,contact_phone,access_notes) VALUES (?,?,?,?,?,?,?,?,?)')
-    .run(f.project_id||null,f.customer_id||null,f.name,f.address||null,f.lat||null,f.lng||null,f.contact_name||null,f.contact_phone||null,f.access_notes||null);
-  res.json({ id: r.lastInsertRowid });
-});
-app.patch('/api/sites/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  db.prepare('UPDATE sites SET name=COALESCE(?,name),address=COALESCE(?,address),lat=COALESCE(?,lat),lng=COALESCE(?,lng),contact_name=COALESCE(?,contact_name),contact_phone=COALESCE(?,contact_phone),access_notes=COALESCE(?,access_notes),active=COALESCE(?,active) WHERE id=?')
-    .run(f.name||null,f.address||null,f.lat||null,f.lng||null,f.contact_name||null,f.contact_phone||null,f.access_notes||null,f.active??null,req.params.id);
-  res.json({ success: true });
-});
+// Customer, project, and site routes live in routes/customers.js.
 
 // ── CREDIT ACCOUNTS
-app.get('/api/credit', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare('SELECT ca.*,c.name as customer_name,c.phone as customer_phone FROM credit_accounts ca LEFT JOIN customers c ON ca.customer_id=c.id ORDER BY ca.blocked DESC,ca.current_debt DESC').all());
-});
-app.get('/api/credit/:customerId', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id,credit_limit) VALUES (?,0)').run(req.params.customerId);
-  const acc = db.prepare('SELECT ca.*,c.name as customer_name FROM credit_accounts ca LEFT JOIN customers c ON ca.customer_id=c.id WHERE ca.customer_id=?').get(req.params.customerId);
-  acc.transactions = db.prepare('SELECT * FROM credit_transactions WHERE customer_id=? ORDER BY created_at DESC LIMIT 50').all(req.params.customerId);
-  res.json(acc);
-});
-app.patch('/api/credit/:customerId', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id) VALUES (?)').run(req.params.customerId);
-  db.prepare('UPDATE credit_accounts SET credit_limit=COALESCE(?,credit_limit),payment_terms=COALESCE(?,payment_terms),blocked=COALESCE(?,blocked),block_reason=COALESCE(?,block_reason),notes=COALESCE(?,notes),updated_at=CURRENT_TIMESTAMP WHERE customer_id=?')
-    .run(f.credit_limit??null,f.payment_terms||null,f.blocked??null,f.block_reason||null,f.notes||null,req.params.customerId);
-  res.json({ success: true });
-});
-app.post('/api/credit/:customerId/transaction', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const { type, amount, order_id, description } = req.body;
-  if (!type||!amount) return res.status(400).json({ error: 'סוג וסכום חובה' });
-  db.prepare('INSERT OR IGNORE INTO credit_accounts (customer_id) VALUES (?)').run(req.params.customerId);
-  const r = db.prepare('INSERT INTO credit_transactions (customer_id,order_id,type,amount,description) VALUES (?,?,?,?,?)').run(req.params.customerId,order_id||null,type,amount,description||null);
-  const delta = (type==='payment'||type==='credit_note') ? -Math.abs(amount) : Math.abs(amount);
-  db.prepare('UPDATE credit_accounts SET current_debt=ROUND(current_debt+?,2),updated_at=CURRENT_TIMESTAMP WHERE customer_id=?').run(delta,req.params.customerId);
-  const acc = db.prepare('SELECT * FROM credit_accounts WHERE customer_id=?').get(req.params.customerId);
-  if (acc&&acc.credit_limit>0&&acc.current_debt>acc.credit_limit) {
-    db.prepare("UPDATE credit_accounts SET blocked=1,block_reason='חריגה ממסגרת אשראי' WHERE customer_id=?").run(req.params.customerId);
-  }
-  res.json({ id: r.lastInsertRowid });
-});
-// Block status from credit endpoint
-app.get('/api/credit/:customerId/status', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const acc = db.prepare('SELECT blocked,block_reason,credit_limit,current_debt FROM credit_accounts WHERE customer_id=?').get(req.params.customerId);
-  res.json(acc || { blocked: 0, credit_limit: 0, current_debt: 0 });
-});
+// Active credit account routes live in routes/finance.js.
 
 // ── WASTE SUMMARY
-app.get('/api/waste/summary', requireAnyRole(['production', 'office', 'finance', 'manager', 'admin']), (req, res) => {
-  const { from, to } = req.query;
-  const fromDate = from || new Date(Date.now()-30*86400000).toISOString().split('T')[0];
-  const toDate   = to   || new Date().toISOString().split('T')[0];
-  res.json({
-    period: { from:fromDate, to:toDate },
-    byDiameter: db.prepare('SELECT i.diameter,SUM(i.quantity) as items_produced,SUM(i.total_weight) as net_weight,SUM(i.actual_waste) as actual_waste_g,ROUND(AVG(CAST(i.actual_waste AS REAL)/NULLIF(i.total_length_mm,0)*100),2) as waste_pct FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 GROUP BY i.diameter ORDER BY i.diameter').all(fromDate,toDate),
-    topWaste: db.prepare('SELECT o.order_num,i.diameter,i.actual_waste,i.total_weight AS weight,i.shape_name FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 ORDER BY i.actual_waste DESC LIMIT 20').all(fromDate,toDate),
-    rawMaterial: db.prepare('SELECT diameter,SUM(weight_scrapped) as total_scrapped,SUM(weight_received) as total_received,ROUND(100.0*SUM(weight_scrapped)/NULLIF(SUM(weight_received),0),1) as scrap_pct FROM raw_material GROUP BY diameter ORDER BY diameter').all(),
-  });
-});
+// Production routes live in routes/production.js.
 
 // ═══════════════════════════════════════════════════════════════════
 // ── SPEC-B ROUTES ────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════
 
 // ── SHIFTS ────────────────────────────────────────────────────────
-app.get('/api/shifts', requireAnyRole(['production', 'kiosk', 'office', 'manager', 'admin']), (req, res) => {
-  const { date, machine_id, limit = 50 } = req.query;
-  let q = `SELECT s.*, u.display_name as operator_name, m.name as machine_name
-           FROM shifts s
-           LEFT JOIN users u ON s.operator_id=u.id
-           LEFT JOIN machines m ON s.machine_id=m.id`;
-  const wheres = [], params = [];
-  if (date)       { wheres.push("s.date=?");       params.push(date); }
-  if (machine_id) { wheres.push("s.machine_id=?"); params.push(machine_id); }
-  if (wheres.length) q += ' WHERE ' + wheres.join(' AND ');
-  q += ' ORDER BY s.started_at DESC LIMIT ?';
-  params.push(Number(limit));
-  res.json(db.prepare(q).all(...params));
-});
-
-app.post('/api/shifts', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
-  const { shift_type, date, operator_id, machine_id, notes } = req.body;
-  const today = date || new Date().toISOString().slice(0, 10);
-  const r = db.prepare(`INSERT INTO shifts (shift_type,date,operator_id,machine_id,notes) VALUES (?,?,?,?,?)`)
-    .run(shift_type || 'morning', today, operator_id || null, machine_id || null, notes || null);
-  res.json({ id: r.lastInsertRowid });
-});
-
-app.patch('/api/shifts/:id/end', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
-  const { total_pieces, total_weight, notes } = req.body;
-  db.prepare(`UPDATE shifts SET ended_at=CURRENT_TIMESTAMP, total_pieces=?, total_weight=?, notes=COALESCE(?,notes) WHERE id=?`)
-    .run(total_pieces || 0, total_weight || 0, notes || null, req.params.id);
-  res.json({ ok: true });
-});
-
-// ── DOWNTIME REASONS ──────────────────────────────────────────────
-app.get('/api/downtime-reasons', requireAnyRole(['production', 'kiosk', 'maintenance', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare('SELECT * FROM downtime_reasons ORDER BY label').all());
-});
-
-// ── MACHINE STOPS ─────────────────────────────────────────────────
-app.get('/api/machine-stops', requireAnyRole(['production', 'kiosk', 'maintenance', 'manager', 'admin']), (req, res) => {
-  const { machine_id, shift_id, active } = req.query;
-  let q = `SELECT ms.*, dr.label as reason_label, dr.color as reason_color,
-           u.display_name as reported_by_name
-           FROM machine_stops ms
-           LEFT JOIN downtime_reasons dr ON ms.reason_code=dr.code
-           LEFT JOIN users u ON ms.reported_by=u.id`;
-  const wheres = [], params = [];
-  if (machine_id) { wheres.push('ms.machine_id=?'); params.push(machine_id); }
-  if (shift_id)   { wheres.push('ms.shift_id=?');   params.push(shift_id); }
-  if (active === '1') { wheres.push('ms.ended_at IS NULL'); }
-  if (wheres.length) q += ' WHERE ' + wheres.join(' AND ');
-  q += ' ORDER BY ms.started_at DESC LIMIT 100';
-  res.json(db.prepare(q).all(...params));
-});
-
-app.post('/api/machine-stops', requireAnyRole(['production', 'kiosk', 'maintenance', 'manager', 'admin']), (req, res) => {
-  const { machine_id, shift_id, reason_code, notes, reported_by } = req.body;
-  const r = db.prepare(`INSERT INTO machine_stops (machine_id,shift_id,reason_code,notes,reported_by) VALUES (?,?,?,?,?)`)
-    .run(machine_id, shift_id || null, reason_code, notes || null, reported_by || null);
-  // fire event
-  db.prepare(`INSERT INTO production_events (event_type,machine_id,operator_id,payload) VALUES (?,?,?,?)`)
-    .run('MachineStopped', machine_id, reported_by || null, JSON.stringify({ reason_code, notes }));
-  res.json({ id: r.lastInsertRowid });
-});
-
-app.patch('/api/machine-stops/:id/end', requireAnyRole(['production', 'kiosk', 'maintenance', 'manager', 'admin']), (req, res) => {
-  const stop = db.prepare('SELECT * FROM machine_stops WHERE id=?').get(req.params.id);
-  if (!stop) return res.status(404).json({ error: 'not found' });
-  const durMin = stop.started_at
-    ? Math.round((Date.now() - new Date(stop.started_at).getTime()) / 60000)
-    : 0;
-  db.prepare(`UPDATE machine_stops SET ended_at=CURRENT_TIMESTAMP, duration_min=? WHERE id=?`)
-    .run(durMin, req.params.id);
-  res.json({ ok: true, duration_min: durMin });
-});
+// Production routes live in routes/production.js.
 
 // ── STEEL PRICE HISTORY ───────────────────────────────────────────
-app.get('/api/steel-prices', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
-  const { diameter } = req.query;
-  let q = `SELECT sph.*, s.name as supplier_name FROM steel_price_history sph
-           LEFT JOIN suppliers s ON sph.supplier_id=s.id`;
-  if (diameter) {
-    res.json(db.prepare(q + ' WHERE sph.diameter=? ORDER BY sph.effective_date DESC LIMIT 50').all(diameter));
-  } else {
-    // Latest price per diameter
-    res.json(db.prepare(`SELECT sph.*, s.name as supplier_name
-      FROM steel_price_history sph LEFT JOIN suppliers s ON sph.supplier_id=s.id
-      WHERE sph.id IN (
-        SELECT MAX(id) FROM steel_price_history GROUP BY diameter
-      ) ORDER BY sph.diameter`).all());
-  }
-});
+// Steel price history lives in routes/inventory.js.
 
-app.post('/api/steel-prices', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const { diameter, price_per_ton, supplier_id, effective_date, notes, created_by } = req.body;
-  const r = db.prepare(`INSERT INTO steel_price_history (diameter,price_per_ton,supplier_id,effective_date,notes,created_by) VALUES (?,?,?,?,?,?)`)
-    .run(diameter, price_per_ton, supplier_id || null, effective_date || new Date().toISOString().slice(0,10), notes || null, created_by || null);
-  res.json({ id: r.lastInsertRowid });
-});
-
-// ── PACKAGES ─────────────────────────────────────────────────────
-app.get('/api/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const { order_id, status, zone } = req.query;
-  let q = `SELECT pk.*, u.display_name as packed_by_name, c.name as customer_name
-           FROM packages pk
-           LEFT JOIN orders o ON pk.order_id=o.id
-           LEFT JOIN customers c ON o.customer_id=c.id
-           LEFT JOIN users u ON pk.packed_by=u.id`;
-  const wheres = [], params = [];
-  if (order_id) { wheres.push('pk.order_id=?'); params.push(order_id); }
-  if (status)   { wheres.push('pk.status=?');   params.push(status); }
-  if (zone)     { wheres.push('pk.zone=?');      params.push(zone); }
-  if (wheres.length) q += ' WHERE ' + wheres.join(' AND ');
-  q += ' ORDER BY pk.packed_at DESC LIMIT 200';
-  res.json(db.prepare(q).all(...params));
-});
-
-app.post('/api/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const { order_id, order_num, item_ids, quantity, weight, diameter, zone, packed_by } = req.body;
-  const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  const seq = (db.prepare('SELECT COUNT(*)+1 as n FROM packages WHERE package_code LIKE ?').get('PKG-'+dateStr+'%').n || 1);
-  const package_code = `PKG-${dateStr}-${String(seq).padStart(3,'0')}`;
-  const qr_data = JSON.stringify({ code: package_code, order_num, diameter });
-  const r = db.prepare(`INSERT INTO packages (package_code,qr_data,order_id,order_num,item_ids,quantity,weight,diameter,zone,packed_by) VALUES (?,?,?,?,?,?,?,?,?,?)`)
-    .run(package_code, qr_data, order_id || null, order_num || null, JSON.stringify(item_ids || []), quantity || 0, weight || 0, diameter || null, zone || null, packed_by || null);
-  // Update item package assignments
-  if (item_ids && item_ids.length) {
-    const upd = db.prepare('UPDATE items SET package_id=?, zone=? WHERE id=?');
-    for (const iid of item_ids) upd.run(r.lastInsertRowid, zone || null, iid);
-  }
-  res.json({ id: r.lastInsertRowid, package_code });
-});
-
-app.patch('/api/packages/:id/ship', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  db.prepare('UPDATE packages SET status=?,shipped_at=CURRENT_TIMESTAMP WHERE id=?')
-    .run('shipped', req.params.id);
-  res.json({ ok: true });
-});
-
-// ── DELIVERY NOTES ────────────────────────────────────────────────
-app.get('/api/delivery-notes', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const { order_id } = req.query;
-  const rows = order_id
-    ? db.prepare('SELECT * FROM delivery_notes WHERE order_id=? ORDER BY issued_at DESC').all(order_id)
-    : db.prepare('SELECT * FROM delivery_notes ORDER BY issued_at DESC LIMIT 50').all();
-  res.json(rows);
-});
-
-app.post('/api/delivery-notes', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const { order_id, order_num, delivery_id, customer_id, packages_json, items_json, total_weight, driver_id } = req.body;
-  const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  const seq = (db.prepare('SELECT COUNT(*)+1 as n FROM delivery_notes WHERE note_num LIKE ?').get('DN-'+dateStr+'%').n || 1);
-  const note_num = `DN-${dateStr}-${String(seq).padStart(3,'0')}`;
-  const r = db.prepare(`INSERT INTO delivery_notes (note_num,order_id,order_num,delivery_id,customer_id,packages_json,items_json,total_weight,driver_id) VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(note_num, order_id || null, order_num || null, delivery_id || null, customer_id || null,
-      JSON.stringify(packages_json || []), JSON.stringify(items_json || []), total_weight || 0, driver_id || null);
-  res.json({ id: r.lastInsertRowid, note_num });
-});
+// Warehouse packages and delivery notes routes live in routes/warehouse.js.
 
 // ── ITEM STATUS / WASTE UPDATE ───────────────────────────────────
-app.patch('/api/items/:id/status', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {
-  const { status } = req.body;
-  if (!statusContracts.isValidItemStatus(status)) return res.status(400).json({ error: 'invalid status', allowed: statusContracts.VALID_ITEM_STATUSES });
-  const allowed = ['ממתין','בייצור','הושלם','סופק','בהמתנה','בוטל'];
-  if (!allowed.includes(status)) return res.status(400).json({ error: 'invalid status' });
-  const item = db.prepare('SELECT * FROM items WHERE id=?').get(req.params.id);
-  if (!item) return res.status(404).json({ error: 'not found' });
-  const updates = { status };
-  if (status === 'בייצור' && !item.started_at) updates.started_at = new Date().toISOString();
-  if (status === 'הושלם') updates.completed_at = new Date().toISOString();
-  db.prepare(`UPDATE items SET status=?${status==='בייצור'&&!item.started_at?',started_at=?':''}${status==='הושלם'?',completed_at=?':''} WHERE id=?`)
-    .run(...Object.values(updates), req.params.id);
-  wsBroadcast('item_status', { id: Number(req.params.id), status });
-  res.json({ ok: true });
-});
-
-app.patch('/api/items/:id', requireAnyRole(['production', 'kiosk', 'warehouse', 'manager', 'admin']), (req, res) => {
-  const { produced_qty, actual_waste, note, status, package_id, zone } = req.body;
-  const fields = [], vals = [];
-  if (produced_qty !== undefined) { fields.push('produced_qty=?'); vals.push(produced_qty); }
-  if (actual_waste !== undefined) { fields.push('actual_waste=?'); vals.push(actual_waste); }
-  if (note         !== undefined) { fields.push('note=?');         vals.push(note); }
-  if (status       !== undefined) { fields.push('status=?');       vals.push(status); }
-  if (package_id   !== undefined) { fields.push('package_id=?');   vals.push(package_id); }
-  if (zone         !== undefined) { fields.push('zone=?');         vals.push(zone); }
-  if (!fields.length) return res.json({ ok: true });
-  vals.push(req.params.id);
-  db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);
-  res.json({ ok: true });
-});
-
-// ── PRODUCTION QUEUE ──────────────────────────────────────────────
-// Returns pending items grouped and sorted by machine, diameter priority
-app.get('/api/production-queue', requireAnyRole(['production', 'kiosk', 'office', 'manager', 'admin']), (req, res) => {
-  const { machine } = req.query;
-  const visibleItemStatuses = req.query.visual === '1'
-    ? "('ממתין','בייצור','הושלם','סופק')"
-    : "('ממתין','בייצור')";
-  const visibleOrderStatuses = req.query.visual === '1'
-    ? "('אושרה – ממתין לייצור','בתור ייצור','בייצור','הושלם – ממתין לאיסוף','נשלחה','סופק – אושר')"
-    : "('אושרה – ממתין לייצור','בתור ייצור','בייצור')";
-  let q = `
-    SELECT i.id, i.pallet_id, i.shape_id, i.shape_name, i.diameter,
-           i.quantity, i.produced_qty, i.total_weight AS weight, i.status, i.machine,
-           i.segments, i.total_length_mm, i.note, i.qc_status,
-           p.order_id, p.pallet_num,
-           o.order_num, o.priority, o.delivery_date, o.customer_id, o.status AS order_status,
-           c.name as customer_name,
-           COALESCE(o.priority='דחוף',0)*100 +
-           COALESCE(JULIANDAY('now') - JULIANDAY(o.delivery_date), 0)*10 as priority_score
-    FROM items i
-    JOIN pallets p ON i.pallet_id=p.id
-    JOIN orders o ON p.order_id=o.id
-    LEFT JOIN customers c ON o.customer_id=c.id
-    WHERE i.status IN ${visibleItemStatuses}
-    AND o.status IN ${visibleOrderStatuses}
-  `;
-  const params = [];
-  if (machine) { q += ' AND i.machine=?'; params.push(machine); }
-  q += ' ORDER BY i.machine, priority_score DESC, o.delivery_date ASC, i.diameter ASC';
-  const items = db.prepare(q).all(...params);
-
-  // Group by machine
-  const grouped = {};
-  for (const item of items) {
-    const key = item.machine || 'לא שויך';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(item);
-  }
-  res.json({ items, grouped });
-});
-
-// ── PRODUCTION EVENTS ─────────────────────────────────────────────
-app.get('/api/production-events', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
-  const { machine_id, event_type, limit = 100 } = req.query;
-  let q = `SELECT pe.*, m.name as machine_name, u.display_name as operator_name
-           FROM production_events pe
-           LEFT JOIN machines m ON pe.machine_id=m.id
-           LEFT JOIN users u ON pe.operator_id=u.id`;
-  const wheres = [], params = [];
-  if (machine_id)  { wheres.push('pe.machine_id=?');  params.push(machine_id); }
-  if (event_type)  { wheres.push('pe.event_type=?');  params.push(event_type); }
-  if (wheres.length) q += ' WHERE ' + wheres.join(' AND ');
-  q += ' ORDER BY pe.created_at DESC LIMIT ?';
-  params.push(Number(limit));
-  res.json(db.prepare(q).all(...params));
-});
-
-// ── OEE / MACHINE KPIs ────────────────────────────────────────────
-app.get('/api/machines/oee', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
-  const today = new Date().toISOString().slice(0,10);
-  const machines = db.prepare('SELECT * FROM machines').all();
-  const result = machines.map(m => {
-    // Availability: 1 - downtime / shift_hours (assume 8h shift = 480 min)
-    const stopMins = db.prepare(
-      `SELECT COALESCE(SUM(duration_min),0) as mins FROM machine_stops WHERE machine_id=? AND DATE(started_at)=?`
-    ).get(m.id, today).mins;
-    const availability = Math.max(0, Math.min(1, 1 - stopMins / 480));
-
-    // Performance: produced pieces vs. theoretical (rough estimate)
-    const pieces = db.prepare(
-      `SELECT COALESCE(SUM(quantity),0) as q FROM items WHERE machine=? AND DATE(completed_at)=?`
-    ).get(m.name, today).q;
-
-    // Quality: pass rate from quality_checks today
-    const qc = db.prepare(
-      `SELECT SUM(pass_qty) as p, SUM(pass_qty+fail_qty) as t FROM quality_checks WHERE DATE(checked_at)=?`
-    ).get(today);
-    const quality = qc && qc.t > 0 ? qc.p / qc.t : 1;
-
-    // Tons today
-    const tonsToday = db.prepare(
-      `SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons FROM items i WHERE i.machine=? AND DATE(i.completed_at)=?`
-    ).get(m.name, today).tons;
-
-    const oee = Math.round(availability * 1 * quality * 100); // simplified (no performance factor)
-    return { ...m, availability: Math.round(availability*100), quality: Math.round(quality*100), oee, pieces_today: pieces, tons_today: tonsToday, downtime_min: stopMins };
-  });
-  res.json(result);
-});
-
-// ── FINANCIAL MARGIN ──────────────────────────────────────────────
-app.get('/api/orders/:id/margin', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const order = db.prepare(`SELECT o.*, c.price_tier, c.discount_pct FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
-  if (!order) return res.status(404).json({ error: 'not found' });
-
-  // Cost of steel: use steel_price_history (latest per diameter) × weight per diameter
-  const itemsByDiam = db.prepare(`
-    SELECT i.diameter, SUM(i.total_weight) as total_weight
-    FROM items i JOIN pallets p ON i.pallet_id=p.id
-    WHERE p.order_id=?
-    GROUP BY i.diameter
-  `).all(req.params.id);
-
-  let cost_material = 0;
-  for (const row of itemsByDiam) {
-    const price = db.prepare(`SELECT price_per_ton FROM steel_price_history WHERE diameter=? ORDER BY effective_date DESC LIMIT 1`).get(row.diameter);
-    if (price) cost_material += (row.total_weight / 1000) * price.price_per_ton;
-  }
-
-  // Fallback: use price_list if no steel price history
-  if (cost_material === 0) {
-    for (const row of itemsByDiam) {
-      const pl = db.prepare('SELECT price_list FROM price_list WHERE diameter=?').get(row.diameter);
-      if (pl) cost_material += (row.total_weight) * pl.price_list; // price_list is ₪/kg
-    }
-  }
-
-  const sale_price = order.sale_price || order.portal_price || 0;
-  const cost_labor = order.cost_labor || 0;
-  const total_cost = cost_material + cost_labor;
-  const gross_profit = sale_price - total_cost;
-  const margin_pct = sale_price > 0 ? Math.round(gross_profit / sale_price * 100) : 0;
-
-  res.json({
-    order_id: order.id, order_num: order.order_num,
-    cost_material: Math.round(cost_material), cost_labor,
-    total_cost: Math.round(total_cost), sale_price,
-    gross_profit: Math.round(gross_profit), margin_pct
-  });
-});
-
-// ── INVENTORY FORECAST ────────────────────────────────────────────
-app.get('/api/inventory/forecast', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  // Consumption rate: avg kg/day per diameter over last 30 days
-  const consumption = db.prepare(`
-    SELECT i.diameter,
-           COALESCE(SUM(i.total_weight),0) / 30 as avg_daily_kg
-    FROM items i
-    JOIN pallets p ON i.pallet_id=p.id
-    JOIN orders o ON p.order_id=o.id
-    WHERE DATE(o.created_at) >= DATE('now','-30 days')
-    AND i.status='הושלם'
-    GROUP BY i.diameter
-  `).all();
-
-  const stock = db.prepare(`
-    SELECT diameter,
-           COALESCE(SUM(weight_received-weight_used-weight_scrapped),0) as on_hand_kg
-    FROM raw_material WHERE active=1
-    GROUP BY diameter
-  `).all();
-
-  const stockMap = {};
-  for (const s of stock) stockMap[s.diameter] = s.on_hand_kg;
-
-  const forecast = consumption.map(row => {
-    const on_hand = stockMap[row.diameter] || 0;
-    const days_left = row.avg_daily_kg > 0 ? Math.floor(on_hand / row.avg_daily_kg) : 999;
-    return {
-      diameter: row.diameter,
-      on_hand_kg: Math.round(on_hand),
-      avg_daily_kg: Math.round(row.avg_daily_kg),
-      days_left,
-      alert: days_left <= 3 ? 'critical' : days_left <= 7 ? 'warning' : 'ok'
-    };
-  });
-
-  // Also check diameters with stock but no consumption
-  for (const [diam, kg] of Object.entries(stockMap)) {
-    if (!forecast.find(f => f.diameter == diam)) {
-      forecast.push({ diameter: Number(diam), on_hand_kg: Math.round(kg), avg_daily_kg: 0, days_left: 999, alert: 'ok' });
-    }
-  }
-  forecast.sort((a,b) => a.days_left - b.days_left);
-  res.json(forecast);
-});
-
-// ── TONS PER DAY (dashboard KPI) ─────────────────────────────────
-app.get('/api/kpi/tons-today', requireRole('viewer'), (req, res) => {
-  const today = new Date().toISOString().slice(0,10);
-  const r = db.prepare(`
-    SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons
-    FROM items i
-    WHERE i.status='הושלם' AND DATE(i.completed_at)=?
-  `).get(today);
-  res.json({ tons: Math.round((r.tons || 0) * 10) / 10, date: today });
-});
+// Production routes live in routes/production.js.
 
 // ── MONTHLY KPI (exec dashboard) ─────────────────────────────────
-app.get('/api/kpi/monthly', requireAnyRole(['office', 'finance', 'manager', 'admin']), (req, res) => {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,10);
-  const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0,10);
-
-  const cur = db.prepare(`
-    SELECT
-      COUNT(DISTINCT o.id) as order_count,
-      COALESCE(SUM(o.total_weight),0) as total_weight_kg,
-      COALESCE(SUM(CASE WHEN o.sale_price>0 THEN o.sale_price ELSE 0 END),0) as revenue,
-      COALESCE(SUM(CASE WHEN o.cost_material>0 THEN o.cost_material ELSE 0 END),0) as cost_material,
-      COALESCE(SUM(CASE WHEN o.cost_labor>0 THEN o.cost_labor ELSE 0 END),0) as cost_labor,
-      SUM(CASE WHEN o.status='הושלם' OR o.status='סופק' THEN 1 ELSE 0 END) as completed,
-      SUM(CASE WHEN o.status='בייצור' THEN 1 ELSE 0 END) as in_production,
-      SUM(CASE WHEN o.status='ממתינה לאישור' THEN 1 ELSE 0 END) as pending,
-      SUM(CASE WHEN o.priority='דחוף' AND o.status NOT IN ('הושלם','סופק') THEN 1 ELSE 0 END) as urgent_open
-    FROM orders o
-    WHERE DATE(o.created_at) >= ?
-  `).get(monthStart);
-
-  const prev = db.prepare(`
-    SELECT
-      COUNT(DISTINCT o.id) as order_count,
-      COALESCE(SUM(o.total_weight),0) as total_weight_kg,
-      COALESCE(SUM(CASE WHEN o.sale_price>0 THEN o.sale_price ELSE 0 END),0) as revenue
-    FROM orders o
-    WHERE DATE(o.created_at) BETWEEN ? AND ?
-  `).get(prevMonthStart, prevMonthEnd);
-
-  const topCustomers = db.prepare(`
-    SELECT c.name, COUNT(o.id) as orders, COALESCE(SUM(o.total_weight),0) as total_weight_kg,
-      COALESCE(SUM(CASE WHEN o.sale_price>0 THEN o.sale_price ELSE 0 END),0) as revenue
-    FROM orders o
-    JOIN customers c ON o.customer_id = c.id
-    WHERE DATE(o.created_at) >= ?
-    GROUP BY c.id, c.name
-    ORDER BY total_weight_kg DESC
-    LIMIT 5
-  `).all(monthStart);
-
-  const tonsMonth = (cur.total_weight_kg || 0) / 1000;
-  const revenue   = cur.revenue || 0;
-  const cost      = (cur.cost_material || 0) + (cur.cost_labor || 0);
-  const margin    = revenue > 0 ? Math.round(((revenue - cost) / revenue) * 100) : null;
-
-  res.json({
-    month: now.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }),
-    current: { ...cur, tons: Math.round(tonsMonth * 10) / 10, revenue, cost, margin },
-    prev: { ...prev, tons: Math.round((prev.total_weight_kg||0) / 100) / 10 },
-    topCustomers
-  });
-});
+// Monthly KPI routes live in routes/reports.js.
 
 // ── SHIFT SUMMARY (production dashboard) ─────────────────────────
-app.get('/api/kpi/shift-summary', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
-  const today = new Date().toISOString().slice(0,10);
-  const now = new Date();
-  const h = now.getHours();
-  let shiftType = h >= 6 && h < 14 ? 'morning' : h >= 14 && h < 22 ? 'afternoon' : 'night';
-
-  const activeShifts = db.prepare(`
-    SELECT s.*, u.display_name as operator_name, m.name as machine_name
-    FROM shifts s
-    LEFT JOIN users u ON s.operator_id = u.id
-    LEFT JOIN machines m ON s.machine_id = m.id
-    WHERE s.date = ? AND s.ended_at IS NULL
-  `).all(today);
-
-  const itemsInProd = db.prepare(`
-    SELECT i.id, i.diameter, i.quantity, i.produced_qty,
-      COALESCE(i.total_weight, 0) as weight, i.status, i.machine,
-      o.order_num,
-      c.name as customer_name,
-      COALESCE(m.name, i.machine) as machine_name
-    FROM items i
-    LEFT JOIN pallets p ON i.pallet_id = p.id
-    LEFT JOIN orders o ON p.order_id = o.id
-    LEFT JOIN customers c ON o.customer_id = c.id
-    LEFT JOIN machines m ON i.machine_id = m.id
-    WHERE i.status IN ('בייצור','ממתין')
-    ORDER BY i.started_at DESC
-    LIMIT 20
-  `).all();
-
-  const todayTons = db.prepare(`
-    SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons
-    FROM items i WHERE i.status='הושלם' AND DATE(i.completed_at)=?
-  `).get(today);
-
-  const stops = db.prepare(`
-    SELECT ms.*, dr.label as reason_label, m.name as machine_name
-    FROM machine_stops ms
-    LEFT JOIN downtime_reasons dr ON ms.reason_code = dr.code
-    LEFT JOIN machines m ON ms.machine_id = m.id
-    WHERE DATE(ms.started_at) = ? AND ms.ended_at IS NULL
-  `).all(today);
-
-  res.json({
-    shiftType,
-    activeShifts,
-    itemsInProd,
-    todayTons: Math.round((todayTons.tons || 0) * 10) / 10,
-    activeStops: stops
-  });
-});
+// Production routes live in routes/production.js.
 
 ai.init(db);
 
 // ── INCIDENTS (War Room) ───────────────────────────────────────────
-app.get('/api/incidents', requireAnyRole(['quality', 'maintenance', 'production', 'office', 'manager', 'admin']), (req, res) => {
-  const rows = db.prepare(`
-    SELECT i.*, m.name as machine_name
-    FROM incidents i
-    LEFT JOIN machines m ON i.machine_id = m.id
-    ORDER BY
-      CASE i.status WHEN 'פתוח' THEN 0 WHEN 'בטיפול' THEN 1 ELSE 2 END,
-      i.created_at DESC
-  `).all();
-  res.json(rows);
-});
-
-app.post('/api/incidents', requireAnyRole(['quality', 'maintenance', 'production', 'manager', 'admin']), (req, res) => {
-  const { title, machine_id, severity, description, assigned_to, financial_impact, opened_by } = req.body;
-  const r = db.prepare(`
-    INSERT INTO incidents (title,machine_id,severity,description,assigned_to,financial_impact,opened_by,timeline)
-    VALUES (?,?,?,?,?,?,?,?)
-  `).run(
-    title, machine_id || null, severity || 'בינוני',
-    description || '', assigned_to || '', financial_impact || 0, opened_by || '',
-    JSON.stringify([{ ts: new Date().toISOString(), text: 'אירוע נפתח' }])
-  );
-  res.json({ id: r.lastInsertRowid });
-});
-
-app.patch('/api/incidents/:id', requireAnyRole(['quality', 'maintenance', 'manager', 'admin']), (req, res) => {
-  const { status, update_text, assigned_to, financial_impact } = req.body;
-  const inc = db.prepare('SELECT * FROM incidents WHERE id=?').get(req.params.id);
-  if (!inc) return res.status(404).json({ error: 'not found' });
-  let timeline = JSON.parse(inc.timeline || '[]');
-  if (update_text) timeline.push({ ts: new Date().toISOString(), text: update_text });
-  db.prepare(`
-    UPDATE incidents
-    SET status           = COALESCE(?, status),
-        assigned_to      = COALESCE(?, assigned_to),
-        financial_impact = COALESCE(?, financial_impact),
-        timeline         = ?,
-        resolved_at      = CASE WHEN ? = 'סגור' THEN CURRENT_TIMESTAMP ELSE resolved_at END
-    WHERE id = ?
-  `).run(status || null, assigned_to || null, financial_impact ?? null,
-         JSON.stringify(timeline), status || '', req.params.id);
-  res.json({ ok: true });
-});
-
-// ── NCR – Non-Conformance Reports ─────────────────────────────────
-app.get('/api/ncr', requireAnyRole(['quality', 'production', 'manager', 'admin']), (req, res) => {
-  const rows = db.prepare(`
-    SELECT n.*, m.name as machine_name
-    FROM ncr n
-    LEFT JOIN machines m ON n.machine_id = m.id
-    ORDER BY n.created_at DESC
-  `).all();
-  res.json(rows);
-});
-
-app.post('/api/ncr', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
-  const seq = db.prepare('SELECT COUNT(*)+1 as n FROM ncr').get().n;
-  const num = 'NCR-' + new Date().getFullYear() + '-' + String(seq).padStart(4, '0');
-  const { order_id, order_num, machine_id, description, severity, root_cause,
-          disposition, quantity_affected, diameter, assigned_to, notes } = req.body;
-  const r = db.prepare(`
-    INSERT INTO ncr (ncr_num,order_id,order_num,machine_id,description,severity,
-                     root_cause,disposition,quantity_affected,diameter,assigned_to,notes)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-  `).run(num, order_id || null, order_num || '', machine_id || null, description,
-         severity || 'בינוני', root_cause || '', disposition || '',
-         quantity_affected || 0, diameter || null, assigned_to || '', notes || '');
-  res.json({ id: r.lastInsertRowid, ncr_num: num });
-});
-
-app.patch('/api/ncr/:id', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  db.prepare(`
-    UPDATE ncr
-    SET status      = COALESCE(?, status),
-        severity    = COALESCE(?, severity),
-        root_cause  = COALESCE(?, root_cause),
-        disposition = COALESCE(?, disposition),
-        assigned_to = COALESCE(?, assigned_to),
-        notes       = COALESCE(?, notes),
-        closed_by   = COALESCE(?, closed_by),
-        closed_at   = CASE WHEN ? = 'סגור' THEN CURRENT_TIMESTAMP ELSE closed_at END
-    WHERE id = ?
-  `).run(f.status || null, f.severity || null, f.root_cause || null,
-         f.disposition || null, f.assigned_to || null, f.notes || null,
-         f.closed_by || null, f.status || '', req.params.id);
-  res.json({ ok: true });
-});
-
-// ── CAPA – Corrective & Preventive Actions ────────────────────────
-app.get('/api/capa', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare(`
-    SELECT c.*, n.ncr_num
-    FROM capa c
-    LEFT JOIN ncr n ON c.ncr_id = n.id
-    ORDER BY c.created_at DESC
-  `).all());
-});
-
-app.post('/api/capa', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
-  const seq = db.prepare('SELECT COUNT(*)+1 as n FROM capa').get().n;
-  const num = 'CAPA-' + new Date().getFullYear() + '-' + String(seq).padStart(4, '0');
-  const { ncr_id, title, type, problem_description, root_cause,
-          actions, owner, due_date, verification_method } = req.body;
-  const r = db.prepare(`
-    INSERT INTO capa (capa_num,ncr_id,title,type,problem_description,root_cause,
-                      actions,owner,due_date,verification_method)
-    VALUES (?,?,?,?,?,?,?,?,?,?)
-  `).run(num, ncr_id || null, title, type || 'מתקן',
-         problem_description || '', root_cause || '',
-         JSON.stringify(actions || []), owner || '', due_date || '', verification_method || '');
-  res.json({ id: r.lastInsertRowid, capa_num: num });
-});
-
-app.patch('/api/capa/:id', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  db.prepare(`
-    UPDATE capa
-    SET status         = COALESCE(?, status),
-        completion_pct = COALESCE(?, completion_pct),
-        actions        = COALESCE(?, actions),
-        owner          = COALESCE(?, owner),
-        due_date       = COALESCE(?, due_date),
-        problem_description = COALESCE(?, problem_description),
-        root_cause     = COALESCE(?, root_cause),
-        verification_method = COALESCE(?, verification_method)
-    WHERE id = ?
-  `).run(f.status || null, f.completion_pct ?? null,
-          f.actions ? JSON.stringify(f.actions) : null,
-          f.owner || null, f.due_date || null,
-          f.problem_description || null, f.root_cause || null,
-          f.verification_method || null, req.params.id);
-  res.json({ ok: true });
-});
-
-// ── LOTO – Lockout / Tagout ───────────────────────────────────────
-app.get('/api/loto', requireAnyRole(['maintenance', 'production', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare(`
-    SELECT l.*, m.name as machine_name
-    FROM loto l
-    LEFT JOIN machines m ON l.machine_id = m.id
-    ORDER BY l.created_at DESC
-  `).all());
-});
-
-app.post('/api/loto', requireAnyRole(['maintenance', 'manager', 'admin']), (req, res) => {
-  const { machine_id, locked_by, reason, reason_detail, safety_notes } = req.body;
-  const existing = db.prepare("SELECT id FROM loto WHERE machine_id=? AND status='פעיל'").get(machine_id);
-  if (existing) return res.status(409).json({ error: 'המכונה כבר נעולה' });
-  const r = db.prepare(`
-    INSERT INTO loto (machine_id,locked_by,reason,reason_detail,safety_notes)
-    VALUES (?,?,?,?,?)
-  `).run(machine_id, locked_by, reason || 'תחזוקה', reason_detail || '', safety_notes || '');
-  db.prepare("UPDATE machines SET status='נעול LOTO' WHERE id=?").run(machine_id);
-  res.json({ id: r.lastInsertRowid });
-});
-
-app.patch('/api/loto/:id/release', requireAnyRole(['maintenance', 'manager', 'admin']), (req, res) => {
-  const { released_by, release_notes } = req.body;
-  const loto = db.prepare('SELECT * FROM loto WHERE id=?').get(req.params.id);
-  if (!loto) return res.status(404).json({ error: 'not found' });
-  db.prepare(`
-    UPDATE loto
-    SET status='שוחרר', released_by=?, release_notes=?,
-        release_confirmed=1, released_at=CURRENT_TIMESTAMP
-    WHERE id=?
-  `).run(released_by || '', release_notes || '', req.params.id);
-  db.prepare("UPDATE machines SET status='לא מחובר' WHERE id=?").run(loto.machine_id);
-  res.json({ ok: true });
-});
-
-// ── PREVENTIVE MAINTENANCE SCHEDULE ──────────────────────────────
-app.get('/api/pm-schedule', requireAnyRole(['maintenance', 'production', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare(`
-    SELECT p.*, m.name as machine_name
-    FROM pm_schedule p
-    LEFT JOIN machines m ON p.machine_id = m.id
-    WHERE p.active = 1
-    ORDER BY p.next_due ASC
-  `).all());
-});
-
-app.post('/api/pm-schedule', requireAnyRole(['maintenance', 'manager', 'admin']), (req, res) => {
-  const { machine_id, pm_type, frequency, last_done, next_due, instructions } = req.body;
-  db.prepare(`
-    INSERT OR REPLACE INTO pm_schedule (machine_id,pm_type,frequency,last_done,next_due,instructions)
-    VALUES (?,?,?,?,?,?)
-  `).run(machine_id, pm_type, frequency || 'חודשי', last_done || null, next_due || null, instructions || '');
-  res.json({ ok: true });
-});
+// Quality and maintenance routes live in routes/quality.js.
 
 // ── PURCHASE ORDERS ───────────────────────────────────────────────
-app.get('/api/purchase-orders', requireAnyRole(['warehouse', 'office', 'finance', 'manager', 'admin']), (req, res) => {
-  res.json(db.prepare(`
-    SELECT po.*, s.name as supplier_name
-    FROM purchase_orders po
-    LEFT JOIN suppliers s ON po.supplier_id = s.id
-    ORDER BY po.created_at DESC
-  `).all());
-});
+// Purchase orders live in routes/inventory.js.
 
-app.post('/api/purchase-orders', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const seq = db.prepare('SELECT COUNT(*)+1 as n FROM purchase_orders').get().n;
-  const num = 'PO-' + new Date().getFullYear() + '-' + String(seq).padStart(4, '0');
-  const { supplier_id, diameter, material_type, quantity_ton,
-          price_per_ton, expected_date, notes, created_by, status } = req.body;
-  const total = (quantity_ton || 0) * (price_per_ton || 0);
-  const r = db.prepare(`
-    INSERT INTO purchase_orders
-      (po_num,supplier_id,diameter,material_type,quantity_ton,price_per_ton,total_amount,expected_date,status,notes,created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)
-  `).run(num, supplier_id || null, diameter || null, material_type || 'coil',
-          quantity_ton || 0, price_per_ton || 0, total,
-          expected_date || '', status || 'pending', notes || '', created_by || '');
-  res.json({ id: r.lastInsertRowid, po_num: num });
-});
+// search route moved to routes/search.js: get('/api/search'
 
-app.patch('/api/purchase-orders/:id', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const f = req.body;
-  db.prepare(`
-    UPDATE purchase_orders
-    SET status      = COALESCE(?, status),
-        approved_by = COALESCE(?, approved_by)
-    WHERE id = ?
-  `).run(f.status || null, f.approved_by || null, req.params.id);
-  res.json({ ok: true });
-});
-
-app.patch('/api/purchase-orders/:id/receive', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const { heat_number, certificate_num, received_weight, notes } = req.body;
-  const po = db.prepare('SELECT * FROM purchase_orders WHERE id=?').get(req.params.id);
-  if (!po) return res.status(404).json({ error: 'not found' });
-  const actualWeight = received_weight || (po.quantity_ton * 1000);
-  db.prepare(`
-    UPDATE purchase_orders
-    SET status='הגיע', heat_number=?, certificate_num=?, received_weight=?, received_at=CURRENT_TIMESTAMP
-    WHERE id=?
-  `).run(heat_number || '', certificate_num || '', actualWeight, req.params.id);
-  // Also push to raw material inventory
-  if (po.supplier_id && po.diameter) {
-    db.prepare(`
-      INSERT INTO raw_material
-        (material_type,diameter,supplier_id,lot_number,certificate_num,received_date,weight_received,purchase_price,notes)
-      VALUES (?,?,?,?,?,date('now'),?,?,?)
-    `).run(po.material_type || 'coil', po.diameter, po.supplier_id,
-           heat_number || '', certificate_num || '',
-           actualWeight, po.price_per_ton || 0, notes || '');
-  }
-  res.json({ ok: true });
-});
-
-// ── GLOBAL SEARCH (כרך ט) ────────────────────────────────────────
-app.get('/api/search', requireRole('viewer'), (req, res) => {
-  const q = (req.query.q || '').trim();
-  if (q.length < 2) return res.json({ results: [] });
-  const like = `%${q}%`;
-  const results = [];
-
-  // Orders
-  const orders = db.prepare(`
-    SELECT 'order' as type, o.id, o.order_num as ref, c.name as label,
-           o.status, o.created_at as ts
-    FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
-    WHERE o.order_num LIKE ? OR c.name LIKE ? OR o.delivery_address LIKE ?
-    LIMIT 5
-  `).all(like, like, like);
-  results.push(...orders.map(r => ({ ...r, url: `/orders.html?id=${r.id}`, icon: '📋' })));
-
-  // Customers
-  const customers = db.prepare(`
-    SELECT 'customer' as type, c.id, c.name as ref, c.phone as label, c.created_at as ts
-    FROM customers c WHERE c.name LIKE ? OR c.phone LIKE ? OR c.priority_id LIKE ?
-    LIMIT 5
-  `).all(like, like, like);
-  results.push(...customers.map(r => ({ ...r, url: `/admin.html?tab=customers&id=${r.id}`, icon: '👤' })));
-
-  // Packages
-  const packages = db.prepare(`
-    SELECT 'package' as type, id, package_code as ref, order_num as label, status, packed_at as ts
-    FROM packages WHERE package_code LIKE ? OR order_num LIKE ? OR zone LIKE ?
-    LIMIT 4
-  `).all(like, like, like);
-  results.push(...packages.map(r => ({ ...r, url: `/warehouse.html?pkg=${r.id}`, icon: '📦' })));
-
-  // Raw material / inventory
-  const rawmat = db.prepare(`
-    SELECT 'inventory' as type, id, lot_number as ref, diameter||'mm ' ||material_type as label, created_at as ts
-    FROM raw_material WHERE lot_number LIKE ? OR certificate_num LIKE ? OR notes LIKE ?
-    LIMIT 4
-  `).all(like, like, like);
-  results.push(...rawmat.map(r => ({ ...r, url: `/inventory.html`, icon: '🗄️' })));
-
-  // Incidents
-  const incidents = db.prepare(`
-    SELECT 'incident' as type, id, title as ref, status as label, created_at as ts
-    FROM incidents WHERE title LIKE ? OR description LIKE ?
-    LIMIT 3
-  `).all(like, like);
-  results.push(...incidents.map(r => ({ ...r, url: `/warroom.html`, icon: '🚨' })));
-
-  // Sort by relevance: exact match first, then by date
-  results.sort((a, b) => {
-    const aExact = a.ref?.toLowerCase() === q.toLowerCase() ? 1 : 0;
-    const bExact = b.ref?.toLowerCase() === q.toLowerCase() ? 1 : 0;
-    return bExact - aExact;
-  });
-
-  res.json({ results: results.slice(0, 15), query: q });
-});
-
-// ── INVOICES (כרך ט) ─────────────────────────────────────────────
-app.get('/api/invoices', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const { customer_id, status, order_id } = req.query;
-  const wheres = [], params = [];
-  if (customer_id) { wheres.push('i.customer_id=?'); params.push(customer_id); }
-  if (status)      { wheres.push('i.status=?');       params.push(status); }
-  if (order_id)    { wheres.push('i.order_id=?');     params.push(order_id); }
-  const where = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
-  const rows = db.prepare(`SELECT i.*, c.name as customer_name FROM invoices i LEFT JOIN customers c ON i.customer_id=c.id ${where} ORDER BY i.created_at DESC LIMIT 100`).all(...params);
-  res.json(rows);
-});
-
-app.post('/api/invoices', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const { order_id, customer_id, items_json, subtotal, vat_rate, notes, invoice_type, created_by } = req.body;
-  const year = new Date().getFullYear();
-  const seq = db.prepare("SELECT COUNT(*)+1 as n FROM invoices WHERE invoice_num LIKE ?").get(`INV-${year}-%`).n;
-  const invoice_num = `INV-${year}-${String(seq).padStart(5,'0')}`;
-  const vat = vat_rate ?? 0.18;
-  const sub = subtotal || 0;
-  const vatAmount = sub * vat;
-  const total = sub + vatAmount;
-  const order = order_id ? db.prepare('SELECT order_num,customer_id FROM orders WHERE id=?').get(order_id) : null;
-  const cust = (customer_id || order?.customer_id) ? db.prepare('SELECT name,vat_id FROM customers WHERE id=?').get(customer_id || order?.customer_id) : null;
-  const r = db.prepare(`INSERT INTO invoices (invoice_num,invoice_type,order_id,order_num,customer_id,customer_name,customer_vat_id,issue_date,items_json,subtotal,vat_rate,vat_amount,total,notes,created_by)
-    VALUES (?,?,?,?,?,?,?,date('now'),?,?,?,?,?,?,?)`)
-    .run(invoice_num, invoice_type||'tax_invoice', order_id||null, order?.order_num||null,
-      customer_id||order?.customer_id||null, cust?.name||null, cust?.vat_id||null,
-      JSON.stringify(items_json||[]), sub, vat, vatAmount, total, notes||null, created_by||null);
-  wsBroadcast('new_invoice', { id: r.lastInsertRowid, invoice_num, total });
-  res.json({ id: r.lastInsertRowid, invoice_num, total });
-});
-
-app.patch('/api/invoices/:id/pay', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {  // BUG-36: cannot pay cancelled invoice
-  const { paid_amount, payment_method, payment_ref } = req.body;
-  const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(req.params.id);
-  if (!inv) return res.status(404).json({ error: 'not found' });
-  if (inv.status === 'ביטול') return res.status(409).json({ error: 'לא ניתן לשלם חשבונית מבוטלת' });
-  const newPaid = (inv.paid_amount || 0) + (paid_amount || 0);
-  const status = newPaid >= inv.total ? 'שולמה' : 'חלקית';
-  db.prepare('UPDATE invoices SET paid_amount=?,status=?,payment_method=COALESCE(?,payment_method),payment_ref=COALESCE(?,payment_ref) WHERE id=?')
-    .run(newPaid, status, payment_method||null, payment_ref||null, req.params.id);
-  res.json({ ok: true, status, paid_amount: newPaid });
-});
-
-app.patch('/api/invoices/:id/cancel', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  db.prepare("UPDATE invoices SET status='ביטול' WHERE id=?").run(req.params.id);
-  res.json({ ok: true });
-});
-
-// ── CSV EXPORT (כרך ט) ────────────────────────────────────────────
-function toCSV(rows, cols) {
-  const header = cols.map(c => c.label).join(',');
-  const lines = rows.map(r => cols.map(c => {
-    const v = r[c.key] ?? '';
-    const s = String(v).replace(/"/g, '""');
-    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
-  }).join(','));
-  return '﻿' + [header, ...lines].join('\r\n'); // BOM for Hebrew Excel
-}
-
-app.get('/api/export/orders', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const rows = db.prepare(`
-    SELECT o.order_num, c.name as customer, o.delivery_date, o.status, o.total_weight,
-           o.priority, o.channel, o.created_at
-    FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
-    ORDER BY o.created_at DESC LIMIT 5000
-  `).all();
-  const cols = [
-    { key:'order_num',    label:'מספר הזמנה' },
-    { key:'customer',     label:'לקוח' },
-    { key:'delivery_date',label:'תאריך אספקה' },
-    { key:'status',       label:'סטטוס' },
-    { key:'total_weight', label:'משקל (ק"ג)' },
-    { key:'priority',     label:'עדיפות' },
-    { key:'channel',      label:'ערוץ' },
-    { key:'created_at',   label:'נוצרה' },
-  ];
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
-  res.send(toCSV(rows, cols));
-});
-
-app.get('/api/export/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const rows = db.prepare(`
-    SELECT pk.package_code, pk.order_num, pk.status, pk.weight, pk.diameter, pk.zone, pk.packed_at, pk.shipped_at
-    FROM packages pk ORDER BY pk.packed_at DESC LIMIT 5000
-  `).all();
-  const cols = [
-    { key:'package_code', label:'קוד חבילה' },
-    { key:'order_num',    label:'מספר הזמנה' },
-    { key:'status',       label:'סטטוס' },
-    { key:'weight',       label:'משקל (ק"ג)' },
-    { key:'diameter',     label:'קוטר' },
-    { key:'zone',         label:'אזור מחסן' },
-    { key:'packed_at',    label:'תאריך אריזה' },
-    { key:'shipped_at',   label:'תאריך משלוח' },
-  ];
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="packages.csv"');
-  res.send(toCSV(rows, cols));
-});
-
-app.get('/api/export/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-  const rows = db.prepare(`
-    SELECT r.material_type, r.diameter, s.name as supplier, r.lot_number, r.certificate_num,
-           r.grade, r.received_date, r.weight_received, r.weight_used, r.warehouse_loc
-    FROM raw_material r LEFT JOIN suppliers s ON r.supplier_id=s.id
-    ORDER BY r.received_date DESC LIMIT 5000
-  `).all();
-  const cols = [
-    { key:'material_type',   label:'סוג חומר' },
-    { key:'diameter',        label:'קוטר (mm)' },
-    { key:'supplier',        label:'ספק' },
-    { key:'lot_number',      label:'מספר אצווה' },
-    { key:'certificate_num', label:'תעודת חומר' },
-    { key:'grade',           label:'איכות פלדה' },
-    { key:'received_date',   label:'תאריך קבלה' },
-    { key:'weight_received', label:'משקל שהתקבל (ק"ג)' },
-    { key:'weight_used',     label:'משקל שנצרך (ק"ג)' },
-    { key:'warehouse_loc',   label:'מיקום במחסן' },
-  ];
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="inventory.csv"');
-  res.send(toCSV(rows, cols));
-});
 
 // ── BVBS PARSER ──────────────────────────────────────────────────
-function parseBVBSLine(line) {
-  line = line.trim();
-  if (!line.startsWith('@3') && !line.startsWith('@')) return null;
-  const item = {};
-  // Split on ^ delimiter
-  const parts = line.split('^');
-  for (const part of parts) {
-    if (!part || part === '!' || part.startsWith('@')) continue;
-    const m = part.match(/^([a-zA-Z]+)(.+)$/);
-    if (!m) {
-      // geometry block [A 500 B 1800 ...]
-      const geoM = part.match(/\[([^\]]+)\]/);
-      if (geoM) {
-        const legs = [];
-        const tokens = geoM[1].trim().split(/\s+/);
-        for (let i = 0; i < tokens.length - 1; i += 2) {
-          const label = tokens[i];
-          const len = parseFloat(tokens[i + 1]);
-          if (!isNaN(len)) legs.push({ label, length: len });
-        }
-        item.legs = legs;
-        item.sides = legs.map(l => l.length);
-      }
-      continue;
-    }
-    const [, key, val] = m;
-    switch (key.toLowerCase()) {
-      case 'd':  item.diameter    = parseFloat(val); break;
-      case 'l':  item.total_length= parseFloat(val); break;
-      case 'n':  item.mark        = val; break;
-      case 'p':  item.quantity    = parseInt(val, 10) || 1; break;
-      case 'a':  item.shape_code  = val; break;
-      case 'r':  item.grade_code  = val; item.grade = val === '1' ? 'B500B' : val === '2' ? 'B500C' : 'B500B'; break;
-      case 'w':  {
-        if (!item.angles) item.angles = [];
-        item.angles.push(parseFloat(val));
-        break;
-      }
-    }
-  }
-  if (!item.diameter || !item.quantity) return null;
-  // Compute weight — BUG-05: uses global REBAR_WEIGHTS
-  const kgPerM = REBAR_WEIGHTS[item.diameter] ?? (item.diameter * item.diameter * 0.00617);
-  item.weight_per_unit = (item.total_length / 1000) * kgPerM;
-  item.total_weight = item.weight_per_unit * item.quantity;
-  return item;
-}
+// BVBS parser routes live in routes/bvbs.js.
 
-function parseBVBS(content) {
-  const lines = content.split(/\r?\n/);
-  const items = [];
-  let header = {};
-  for (const line of lines) {
-    const t = line.trim();
-    if (!t) continue;
-    if (t.startsWith('@1') || t.startsWith('@2')) {
-      // Header record — extract project/order info
-      const parts = t.split('^');
-      for (const p of parts) {
-        const m = p.match(/^([A-Za-z]+)(.+)$/);
-        if (!m) continue;
-        if (m[1].toLowerCase() === 'bs') header.project = m[2];
-        if (m[1].toLowerCase() === 'kd') header.customer = m[2];
-        if (m[1].toLowerCase() === 'da') header.date = m[2];
-      }
-      continue;
-    }
-    const item = parseBVBSLine(t);
-    if (item) items.push(item);
-  }
-  return { header, items, total_weight: items.reduce((s, i) => s + i.total_weight, 0) };
-}
+// bvbs route moved to routes/bvbs.js: post('/api/bvbs/parse'
 
-app.post('/api/bvbs/parse', requireAnyRole(['office', 'manager', 'admin']), upload.single('file'), (req, res) => {
-  try {
-    const content = req.file
-      ? req.file.buffer.toString('utf-8')
-      : (req.body.content || '');
-    if (!content.trim()) return res.status(400).json({ error: 'Empty BVBS content' });
-    const result = parseBVBS(content);
-    if (!result.items.length) return res.status(422).json({ error: 'לא נמצאו פריטים בקובץ BVBS', raw_lines: content.split('\n').slice(0,5) });
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// Convert parsed BVBS data to an IronBend order
-app.post('/api/bvbs/create-order', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-  const { bvbs_result, customer_id, delivery_date, priority } = req.body;
-  if (!bvbs_result?.items?.length) return res.status(400).json({ error: 'No items' });
-  const orderNum = generateOrderNum();
-  const totalWeight = bvbs_result.total_weight || 0;
-  const orderId = db.prepare(`INSERT INTO orders (order_num,customer_id,channel,delivery_date,priority,status,total_weight,general_notes)
-    VALUES (?,?,?,?,?,?,?,?)`).run(orderNum, customer_id || null, 'BVBS',
-    delivery_date || null, priority || 'רגיל', 'ממתינה לאישור',
-    totalWeight, `יובא מקובץ BVBS${bvbs_result.header?.project ? ' – פרויקט: ' + bvbs_result.header.project : ''}`
-  ).lastInsertRowid;
+// ── CSV EXPORT (כרך ט) ────────────────────────────────────────────
+// CSV export routes live in routes/reports.js.
 
-  // Create one pallet
-  const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,1,?)')
-    .run(orderId, totalWeight).lastInsertRowid;
+// bvbs route moved to routes/bvbs.js: post('/api/bvbs/create-order'
 
-  // Insert items
-  const insertItem = db.prepare(`INSERT INTO items (pallet_id,shape_id,diameter,total_length_mm,quantity,weight_per_unit,total_weight,note,status)
-    VALUES (?,?,?,?,?,?,?,?,?)`);
-  for (const item of bvbs_result.items) {
-    const shapeId = item.shape_code ? 's12' : 's1'; // default to custom or straight
-    insertItem.run(palletId, shapeId, item.diameter, item.total_length || 0, item.quantity,
-      item.weight_per_unit || 0, item.total_weight || 0, `מסימן ${item.mark || ''} | ${item.grade || 'B500B'}`, 'ממתין');
-  }
-
-  wsBroadcast('new_order', { orderId, orderNum });
-  res.json({ ok: true, order_id: orderId, order_num: orderNum, items_created: bvbs_result.items.length });
-});
 
 // ════════════════════════════════════════════════════════════════
 // ── כרך יב – INDUSTRIAL ECONOMICS & FINANCIAL INTELLIGENCE ──────
@@ -5995,514 +2045,9 @@ try {
 } catch(e) { console.warn('כרך יב schema warn:', e.message); }
 
 // ── REBAR WEIGHT TABLE (kg/m) ──────────────────────────────────
-// BUG-05: alias to single source of truth (REBAR_WEIGHTS defined in HELPERS section)
-// Note: REBAR_KG_PER_M had additional diameters (24,26,30,34,38,45,50) — kept here as extended table for cost engine
-const REBAR_KG_PER_M = Object.assign({
-  24:3.55, 26:4.17, 30:5.55, 34:7.13, 38:8.9, 45:12.48, 50:15.41
-}, REBAR_WEIGHTS);
+// Rebar kg/m is centralized in constants.js via rebarKgPerMeter().
 
-// ── COST ENGINE ────────────────────────────────────────────────
-function calculateOrderCost(orderId) {
-  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
-  if (!order) return null;
-
-  const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=?').all(orderId);
-  pallets.forEach(p => { p.items = db.prepare('SELECT * FROM items WHERE pallet_id=?').all(p.id); });
-  const allItems = pallets.flatMap(p => p.items);
-
-  // Get latest steel price (use existing steel_price_history table, or steel_prices if available)
-  let steelPrice = db.prepare(
-    'SELECT price_per_ton FROM steel_price_history ORDER BY effective_date DESC, id DESC LIMIT 1'
-  ).get();
-  if (!steelPrice) steelPrice = db.prepare(
-    'SELECT price_per_ton FROM steel_prices ORDER BY effective_date DESC, id DESC LIMIT 1'
-  ).get();
-  const pricePerTon = steelPrice ? steelPrice.price_per_ton : 3800; // default ILS/ton
-
-  // Total weight: prefer order.total_weight (most accurate), then sum items, then calculate from diameter+length
-  let totalWeightKg = order.total_weight || 0;
-  if (totalWeightKg === 0) {
-    // Try summing items
-    totalWeightKg = allItems.reduce((s, it) => {
-      if (it.total_weight && it.total_weight > 0) return s + it.total_weight;
-      // Calculate from diameter + length
-      const kgPerM = REBAR_KG_PER_M[it.diameter] || 0;
-      const lengthM = (it.total_length_mm || 0) / 1000;
-      return s + (kgPerM * lengthM * (it.quantity || 1));
-    }, 0);
-  }
-  const material_cost = (totalWeightKg / 1000) * pricePerTon;
-
-  // Labor cost: approximate based on weight + complexity
-  const avgBends = allItems.reduce((s, it) => {
-    const segs = (() => { try { return JSON.parse(it.segments || '[]'); } catch(e) { return []; } })();
-    return s + Math.max(0, segs.length - 1);
-  }, 0) / Math.max(1, allItems.length);
-  const laborRatePerTon = 120 + (avgBends * 40); // ILS
-  const labor_cost = (totalWeightKg / 1000) * laborRatePerTon;
-
-  // Machine cost: based on weight (approx ILS 80/ton)
-  const machine_cost = (totalWeightKg / 1000) * 80;
-
-  // Scrap cost: ~3% of material
-  const scrap_cost = material_cost * 0.03;
-
-  // Overhead: 15% of direct costs
-  const directCosts = material_cost + labor_cost + machine_cost + scrap_cost;
-  const overhead_cost = directCosts * 0.15;
-  const total_cost = directCosts + overhead_cost;
-
-  // Revenue from order (portal_price is the customer-facing price in ILS)
-  const revenue = order.portal_price || 0;
-
-  const gross_margin = revenue - total_cost;
-  const margin_pct   = revenue > 0 ? (gross_margin / revenue) * 100 : 0;
-  const tons_delivered = totalWeightKg / 1000;
-  const cost_per_ton   = tons_delivered > 0 ? total_cost / tons_delivered : 0;
-
-  // Confidence: low if missing prices, high if verified
-  const confidence = steelPrice ? 'high' : 'low';
-
-  return {
-    order_id: orderId, material_cost, labor_cost, machine_cost,
-    scrap_cost, overhead_cost, total_cost, revenue,
-    gross_margin, margin_pct, tons_delivered, cost_per_ton, confidence
-  };
-}
-
-// GET /api/orders/:id/costs
-app.get('/api/orders/:id/costs', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const orderId = Number(req.params.id);
-  let existing = db.prepare('SELECT * FROM order_costs WHERE order_id=?').get(orderId);
-  if (!existing) {
-    const calc = calculateOrderCost(orderId);
-    if (!calc) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
-    db.prepare(`INSERT OR REPLACE INTO order_costs
-      (order_id,material_cost,labor_cost,machine_cost,scrap_cost,overhead_cost,
-       total_cost,revenue,gross_margin,margin_pct,tons_delivered,cost_per_ton,confidence)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(calc.order_id, calc.material_cost, calc.labor_cost, calc.machine_cost,
-           calc.scrap_cost, calc.overhead_cost, calc.total_cost, calc.revenue,
-           calc.gross_margin, calc.margin_pct, calc.tons_delivered, calc.cost_per_ton, calc.confidence);
-    existing = db.prepare('SELECT * FROM order_costs WHERE order_id=?').get(orderId);
-  }
-  res.json(existing);
-});
-
-// POST /api/orders/:id/costs/recalculate
-app.post('/api/orders/:id/costs/recalculate', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const orderId = Number(req.params.id);
-  const locked = db.prepare('SELECT locked FROM order_costs WHERE order_id=?').get(orderId);
-  if (locked && locked.locked) return res.status(403).json({ error: 'עלויות נעולות – נדרש מנהל לביטול הנעילה' });
-
-  const calc = calculateOrderCost(orderId);
-  if (!calc) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
-
-  // Snapshot before overwrite
-  const prev = db.prepare('SELECT * FROM order_costs WHERE order_id=?').get(orderId);
-  if (prev) {
-    db.prepare('INSERT INTO cost_snapshots (order_id,snapshot,reason,created_by) VALUES (?,?,?,?)')
-      .run(orderId, JSON.stringify(prev), req.body.reason || 'חישוב מחדש', req.headers['x-user'] || 'system');
-  }
-
-  db.prepare(`INSERT OR REPLACE INTO order_costs
-    (order_id,material_cost,labor_cost,machine_cost,scrap_cost,overhead_cost,
-     total_cost,revenue,gross_margin,margin_pct,tons_delivered,cost_per_ton,confidence,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`)
-    .run(calc.order_id, calc.material_cost, calc.labor_cost, calc.machine_cost,
-         calc.scrap_cost, calc.overhead_cost, calc.total_cost, calc.revenue,
-         calc.gross_margin, calc.margin_pct, calc.tons_delivered, calc.cost_per_ton, calc.confidence);
-
-  wsBroadcast('cost_update', { orderId, margin_pct: calc.margin_pct, gross_margin: calc.gross_margin });
-  res.json({ ...calc, recalculated: true });
-});
-
-// PATCH /api/orders/:id/costs/lock
-app.patch('/api/orders/:id/costs/lock', requireRole('manager'), (req, res) => {
-  const { lock, reason } = req.body;
-  const user = req.headers['x-user'] || 'מנהל';
-  db.prepare(`UPDATE order_costs SET locked=?,locked_by=?,locked_at=datetime('now'),notes=? WHERE order_id=?`)
-    .run(lock ? 1 : 0, lock ? user : null, reason || '', req.params.id);
-  db.prepare('INSERT INTO financial_events (event_type,entity_type,entity_id,description,created_by) VALUES (?,?,?,?,?)')
-    .run(lock ? 'cost_locked' : 'cost_unlocked', 'order', Number(req.params.id), reason || '', user);
-  res.json({ success: true, locked: !!lock });
-});
-
-// GET /api/orders/:id/costs/snapshots
-app.get('/api/orders/:id/costs/snapshots', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const snaps = db.prepare('SELECT * FROM cost_snapshots WHERE order_id=? ORDER BY created_at DESC LIMIT 20')
-    .all(req.params.id);
-  res.json(snaps.map(s => ({ ...s, snapshot: JSON.parse(s.snapshot) })));
-});
-
-// ── CUSTOMER LEDGER ────────────────────────────────────────────
-
-// GET /api/customers/:id/ledger
-app.get('/api/customers/:id/ledger', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const customerId = Number(req.params.id);
-  const customer = db.prepare('SELECT * FROM customers WHERE id=?').get(customerId);
-  if (!customer) return res.status(404).json({ error: 'לקוח לא נמצא' });
-
-  // All orders for this customer
-  const orders = db.prepare(`
-    SELECT o.*, oc.total_cost, oc.revenue, oc.gross_margin, oc.margin_pct, oc.tons_delivered
-    FROM orders o
-    LEFT JOIN order_costs oc ON o.id=oc.order_id
-    WHERE o.customer_id=?
-    ORDER BY o.created_at DESC
-  `).all(customerId);
-
-  // Credit info
-  let credit = db.prepare('SELECT * FROM customer_credit WHERE customer_id=?').get(customerId);
-  if (!credit) {
-    // auto-create default
-    db.prepare('INSERT OR IGNORE INTO customer_credit (customer_id,credit_limit,payment_terms) VALUES (?,?,?)')
-      .run(customerId, 100000, 30);
-    credit = db.prepare('SELECT * FROM customer_credit WHERE customer_id=?').get(customerId);
-  }
-
-  // Calculate open debt from unpaid invoices
-  const openInvoices = db.prepare(`
-    SELECT COALESCE(SUM(total),0) as total
-    FROM invoices WHERE customer_id=? AND status NOT IN ('שולמה','ביטול')
-  `).get(customerId);
-  const open_debt = openInvoices ? openInvoices.total : 0;
-
-  // WIP value (orders in production)
-  const wipOrders = db.prepare(`
-    SELECT COUNT(*) as cnt, COALESCE(SUM(oc.total_cost),0) as val
-    FROM orders o LEFT JOIN order_costs oc ON o.id=oc.order_id
-    WHERE o.customer_id=? AND o.status IN ('בייצור','ממתין','מאושר')
-  `).get(customerId);
-  const wip_value = wipOrders ? wipOrders.val : 0;
-
-  // Totals
-  const totalRevenue  = orders.reduce((s, o) => s + (o.revenue || 0), 0);
-  const totalCost     = orders.reduce((s, o) => s + (o.total_cost || 0), 0);
-  const totalMargin   = totalRevenue - totalCost;
-  const avgMarginPct  = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
-  const totalTons     = orders.reduce((s, o) => s + (o.tons_delivered || 0), 0);
-
-  // Update credit record
-  db.prepare(`UPDATE customer_credit SET open_debt=?,wip_value=?,total_exposure=?,updated_at=datetime('now') WHERE customer_id=?`)
-    .run(open_debt, wip_value, open_debt + wip_value, customerId);
-
-  const total_exposure = open_debt + wip_value;
-  const credit_available = Math.max(0, (credit.credit_limit || 0) - total_exposure);
-  const credit_pct = credit.credit_limit > 0 ? (total_exposure / credit.credit_limit) * 100 : 0;
-  const credit_alert = credit_pct >= 90 ? 'critical' : credit_pct >= 70 ? 'warning' : 'ok';
-
-  res.json({
-    customer,
-    credit: { ...credit, open_debt, wip_value, total_exposure, credit_available, credit_pct, credit_alert },
-    summary: { total_orders: orders.length, totalRevenue, totalCost, totalMargin, avgMarginPct, totalTons },
-    orders
-  });
-});
-
-// PATCH /api/customers/:id/credit
-app.patch('/api/customers/:id/credit', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const { credit_limit, payment_terms, notes } = req.body;
-  db.prepare(`INSERT OR REPLACE INTO customer_credit (customer_id,credit_limit,payment_terms,notes,updated_at)
-    VALUES (?,?,?,?,datetime('now'))`).run(req.params.id, credit_limit, payment_terms || 30, notes || '');
-  res.json({ success: true });
-});
-
-// ── STEEL PRICES (use existing steel_price_history endpoint) ──
-// Note: POST /api/steel-prices is handled by existing endpoint at line ~3059
-
-// ── FINANCIAL DASHBOARD KPIs ──────────────────────────────────
-
-app.get('/api/finance/kpis', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const { period } = req.query; // 'week', 'month', 'quarter'
-  const daysBack = period === 'quarter' ? 90 : period === 'week' ? 7 : 30;
-  const since = new Date(Date.now() - daysBack * 86400000).toISOString().slice(0,10);
-
-  // Revenue & margin
-  const costSummary = db.prepare(`
-    SELECT
-      COALESCE(SUM(oc.revenue),0)       as total_revenue,
-      COALESCE(SUM(oc.total_cost),0)    as total_cost,
-      COALESCE(SUM(oc.gross_margin),0)  as total_margin,
-      COALESCE(SUM(oc.tons_delivered),0) as total_tons,
-      COUNT(*)                           as order_count,
-      COALESCE(AVG(oc.margin_pct),0)    as avg_margin_pct
-    FROM order_costs oc
-    JOIN orders o ON o.id=oc.order_id
-    WHERE o.created_at >= ?
-  `).get(since);
-
-  // Unpaid invoices
-  const unpaid = db.prepare(`
-    SELECT COALESCE(SUM(total),0) as total, COUNT(*) as cnt
-    FROM invoices WHERE status NOT IN ('שולמה','ביטול')
-  `).get();
-
-  // Overdue
-  const overdue = db.prepare(`
-    SELECT COALESCE(SUM(total),0) as total, COUNT(*) as cnt
-    FROM invoices WHERE status NOT IN ('שולמה','ביטול') AND due_date < date('now')
-  `).get();
-
-  // Top 5 customers by revenue
-  const topCustomers = db.prepare(`
-    SELECT c.name, COALESCE(SUM(oc.revenue),0) as revenue,
-           COALESCE(SUM(oc.gross_margin),0) as margin,
-           COALESCE(AVG(oc.margin_pct),0) as margin_pct
-    FROM order_costs oc
-    JOIN orders o ON o.id=oc.order_id
-    JOIN customers c ON c.id=o.customer_id
-    WHERE o.created_at >= ?
-    GROUP BY c.id ORDER BY revenue DESC LIMIT 5
-  `).all(since);
-
-  // Latest steel price
-  const latestPrice = db.prepare('SELECT price_per_ton, effective_date FROM steel_price_history ORDER BY effective_date DESC, id DESC LIMIT 1').get();
-
-  // Orders with margin < 5% (warning)
-  const lowMargin = db.prepare(`
-    SELECT o.order_num, c.name as customer, oc.margin_pct, oc.gross_margin
-    FROM order_costs oc
-    JOIN orders o ON o.id=oc.order_id
-    JOIN customers c ON c.id=o.customer_id
-    WHERE oc.revenue > 0 AND oc.margin_pct < 5 AND o.status NOT IN ('בוטל','הושלם')
-    ORDER BY oc.margin_pct ASC LIMIT 10
-  `).all();
-
-  res.json({
-    period: { days: daysBack, since },
-    summary: costSummary,
-    receivables: { unpaid: unpaid?.total || 0, unpaid_count: unpaid?.cnt || 0,
-                   overdue: overdue?.total || 0, overdue_count: overdue?.cnt || 0 },
-    steel_price: latestPrice,
-    top_customers: topCustomers,
-    low_margin_orders: lowMargin
-  });
-});
-
-// ── FINANCIAL EVENTS LOG ──────────────────────────────────────
-
-app.get('/api/finance/events', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
-  const { limit = 50, offset = 0 } = req.query;
-  const events = db.prepare('SELECT * FROM financial_events ORDER BY created_at DESC LIMIT ? OFFSET ?')
-    .all(Number(limit), Number(offset));
-  res.json(events);
-});
-
-// ── Admin Database Migration (Cloud Upload/Download) ──────────────
-// Download active database backup — BUG-20: admin only
-// Read-only data integrity audit for diagnosing missing orders/items.
-app.get('/api/admin/data-audit', requireAnyRole(['manager', 'admin']), (req, res) => {
-  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
-
-  const summary = {
-    orders: db.prepare('SELECT COUNT(*) as c FROM orders').get().c,
-    pallets: db.prepare('SELECT COUNT(*) as c FROM pallets').get().c,
-    items: db.prepare('SELECT COUNT(*) as c FROM items').get().c,
-    packages: db.prepare('SELECT COUNT(*) as c FROM packages').get().c,
-  };
-
-  const recentOrders = db.prepare(`
-    SELECT o.id, o.order_num, o.status, o.created_at, c.name AS customer_name,
-           COUNT(i.id) AS item_count,
-           COALESCE(SUM(i.quantity), 0) AS qty_total,
-           ROUND(COALESCE(SUM(i.total_weight), 0), 3) AS item_weight,
-           ROUND(COALESCE(o.total_weight, 0), 3) AS order_weight
-    FROM orders o
-    LEFT JOIN customers c ON c.id = o.customer_id
-    LEFT JOIN pallets p ON p.order_id = o.id
-    LEFT JOIN items i ON i.pallet_id = p.id
-    GROUP BY o.id
-    ORDER BY o.created_at DESC, o.id DESC
-    LIMIT ?
-  `).all(limit);
-
-  const ordersWithoutItems = db.prepare(`
-    SELECT o.id, o.order_num, o.status, o.created_at, c.name AS customer_name,
-           ROUND(COALESCE(o.total_weight, 0), 3) AS order_weight
-    FROM orders o
-    LEFT JOIN customers c ON c.id = o.customer_id
-    LEFT JOIN pallets p ON p.order_id = o.id
-    LEFT JOIN items i ON i.pallet_id = p.id
-    GROUP BY o.id
-    HAVING COUNT(i.id) = 0
-    ORDER BY o.created_at DESC, o.id DESC
-    LIMIT ?
-  `).all(limit);
-
-  const palletsWithoutOrders = db.prepare(`
-    SELECT p.id, p.order_id, p.pallet_num, p.total_weight, p.status
-    FROM pallets p
-    LEFT JOIN orders o ON o.id = p.order_id
-    WHERE o.id IS NULL
-    ORDER BY p.id DESC
-    LIMIT ?
-  `).all(limit);
-
-  const itemsWithoutPallets = db.prepare(`
-    SELECT i.id, i.pallet_id, i.shape_name, i.diameter, i.quantity, i.status, i.machine
-    FROM items i
-    LEFT JOIN pallets p ON p.id = i.pallet_id
-    WHERE p.id IS NULL
-    ORDER BY i.id DESC
-    LIMIT ?
-  `).all(limit);
-
-  const palletsWithoutItems = db.prepare(`
-    SELECT p.id, p.order_id, p.pallet_num, p.total_weight, p.status, o.order_num
-    FROM pallets p
-    LEFT JOIN orders o ON o.id = p.order_id
-    LEFT JOIN items i ON i.pallet_id = p.id
-    GROUP BY p.id
-    HAVING COUNT(i.id) = 0
-    ORDER BY p.id DESC
-    LIMIT ?
-  `).all(limit);
-
-  const itemsMissingMachine = db.prepare(`
-    SELECT i.id, o.order_num, i.shape_name, i.diameter, i.quantity, i.status
-    FROM items i
-    JOIN pallets p ON p.id = i.pallet_id
-    JOIN orders o ON o.id = p.order_id
-    WHERE (i.machine IS NULL OR i.machine = '')
-      AND i.status IN (?, ?)
-    ORDER BY i.id DESC
-    LIMIT ?
-  `).all(statusContracts.ITEM_STATUS.WAITING, statusContracts.ITEM_STATUS.IN_PRODUCTION, limit);
-
-  const orderStatus = db.prepare(`
-    SELECT status, COUNT(*) AS count
-    FROM orders
-    GROUP BY status
-    ORDER BY count DESC
-  `).all();
-
-  const itemStatus = db.prepare(`
-    SELECT status, COUNT(*) AS count
-    FROM items
-    GROUP BY status
-    ORDER BY count DESC
-  `).all();
-
-  res.json({
-    ok: true,
-    summary,
-    recent_orders: recentOrders,
-    anomalies: {
-      orders_without_items: ordersWithoutItems,
-      pallets_without_orders: palletsWithoutOrders,
-      pallets_without_items: palletsWithoutItems,
-      items_without_pallets: itemsWithoutPallets,
-      items_missing_machine: itemsMissingMachine,
-    },
-    status_breakdown: { orders: orderStatus, items: itemStatus },
-  });
-});
-
-app.get('/api/admin/database/download', requireRole('admin'), async (req, res) => {
-  const downloadPath = `${DB_PATH}.download-${Date.now()}.tmp`;
-  try {
-    if (!fs.existsSync(DB_PATH)) {
-      return res.status(404).json({ ok: false, error: 'קובץ בסיס הנתונים לא נמצא' });
-    }
-    await db.backup(downloadPath);
-    res.download(downloadPath, 'ironbend.db', () => {
-      if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
-    });
-  } catch (e) {
-    if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-function validateUploadedDatabase(req, res, next) {
-  if (!req.file) return res.status(400).json({ ok: false, error: 'Database file is required' });
-  const tempPath = `${DB_PATH}.validation-${Date.now()}.tmp`;
-  try {
-    fs.writeFileSync(tempPath, req.file.buffer);
-    const uploadedDb = new Database(tempPath, { readonly: true, fileMustExist: true });
-    try {
-      const integrity = uploadedDb.pragma('integrity_check', { simple: true });
-      if (integrity !== 'ok') throw new Error(`SQLite integrity_check failed: ${integrity}`);
-      const existing = new Set(uploadedDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
-      const missing = ['customers', 'orders', 'pallets', 'items', 'users'].filter(table => !existing.has(table));
-      if (missing.length) throw new Error(`Missing required tables: ${missing.join(', ')}`);
-    } finally {
-      uploadedDb.close();
-    }
-    next();
-  } catch (error) {
-    res.status(400).json({ ok: false, error: `Invalid database upload: ${error.message}` });
-  } finally {
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-  }
-}
-
-function allowDatabaseUpload(req, res, next) {
-  if (process.env.ALLOW_DATABASE_UPLOAD !== 'true') {
-    return res.status(403).json({ ok: false, error: 'Database upload is disabled. Enable ALLOW_DATABASE_UPLOAD only during a supervised maintenance window.' });
-  }
-  next();
-}
-
-// Upload and restore database backup
-app.post('/api/admin/database/upload', requireRole('admin'), allowDatabaseUpload, upload.single('dbFile'), validateUploadedDatabase, async (req, res) => { // BUG-20
-  try {
-    if (!req.file) {
-      return res.status(400).json({ ok: false, error: 'לא הועלה קובץ' });
-    }
-
-    console.log('[Database Migration] מתחיל תהליך שחזור בסיס נתונים מהעלאה...');
-
-    // 1. Close current connection safely
-    try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
-    try {
-      db.close();
-      console.log('[Database Migration] 💾 חיבור בסיס הנתונים הישן נסגר בבטחה');
-    } catch (err) {
-      console.warn('[Database Migration] שגיאה בסגירת בסיס הנתונים:', err.message);
-    }
-
-    // 2. Backup old database file just in case
-    if (fs.existsSync(DB_PATH)) {
-      const backupPath = `${DB_PATH}.bak.before-upload-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-      snapshotDatabaseFiles(DB_PATH, backupPath);
-      console.log(`[Database Migration] 📂 גובה קובץ ישן ל-${backupPath}`);
-    }
-
-    // 3. Write new uploaded file
-    for (const sidecar of [`${DB_PATH}-wal`, `${DB_PATH}-shm`]) {
-      if (fs.existsSync(sidecar)) fs.unlinkSync(sidecar);
-    }
-    fs.writeFileSync(DB_PATH, req.file.buffer);
-    console.log(`[Database Migration] 📝 נכתב קובץ בסיס נתונים חדש ל-${DB_PATH}`);
-
-    // 4. Reopen connection
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
-    
-    // 5. Reinitialize submodules
-    modbus.init(db);
-    ai.init(db);
-    console.log('[Database Migration] 🚀 בסיס הנתונים החדש נטען ואותחל בהצלחה!');
-
-    res.json({ ok: true, message: 'בסיס הנתונים שוחזר בהצלחה והשרת אותחל מחדש!' });
-  } catch (e) {
-    console.error('[Database Migration] ❌ שגיאה בשחזור:', e);
-    
-    // In case of crash, try to reopen whatever is at DB_PATH to stay online
-    try {
-      db = new Database(DB_PATH);
-      db.pragma('journal_mode = WAL');
-      db.pragma('foreign_keys = ON');
-      modbus.init(db);
-      ai.init(db);
-    } catch (_) {}
-
-    res.status(500).json({ ok: false, error: `שגיאה בשחזור בסיס הנתונים: ${e.message}` });
-  }
-});
+// Admin data-audit and database maintenance routes live in routes/admin.js.
 
 // ── Health check ──────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -6518,23 +2063,26 @@ app.get('/api/health', (req, res) => {
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, 'backups');
 if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
-if (!IS_TEST) cron.schedule('0 2 * * *', () => {        // כל לילה 02:00
+const backupService = createBackupService(db, { dbPath: DB_PATH, intake });
+
+if (!IS_TEST) cron.schedule('0 2 * * *', async () => {   // כל לילה 02:00
   try {
     const stamp = new Date().toISOString().slice(0, 10);
     const dest  = `${BACKUP_DIR}/ironbend-${stamp}.db`;
+
+    // גיבוי מקומי (hot-backup בטוח תחת WAL)
     if (!fs.existsSync(dest)) {
-      db.backup(dest)                      // better-sqlite3 hot-backup (safe under WAL)
-        .then(() => {
-          console.log(`[Backup] ✅ גובה ל-${dest}`);
-          // שמור 30 ימים אחרונים בלבד
-          const files = fs.readdirSync(BACKUP_DIR)
-            .filter(f => f.endsWith('.db'))
-            .sort();
-          if (files.length > 30)
-            fs.unlinkSync(`${BACKUP_DIR}/${files[0]}`);
-        })
-        .catch(err => console.error('[Backup] ❌', err.message));
+      await db.backup(dest);
+      console.log(`[Backup] ✅ Local backup: ${dest}`);
+
+      // שמור 30 ימים אחרונים בלבד
+      const files = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.db')).sort();
+      if (files.length > 30) fs.unlinkSync(path.join(BACKUP_DIR, files[0]));
     }
+
+    // גיבוי ענן — מוצפן לשרת Tene Industry
+    await backupService.run();
+
   } catch (err) { console.error('[Backup] ❌', err.message); }
 });
 
@@ -6578,7 +2126,22 @@ function startServer(port = PORT, host = '0.0.0.0') {
   });
 }
 
-if (require.main === module) startServer();
+if (require.main === module) {
+  const licenseService = createLicenseService(db);
+  licenseService.check().then(result => {
+    const plan = result.plan || (result.valid ? 'free' : 'locked');
+    if (plan === 'free') {
+      console.log('📦 IronBend — מצב חינם (Free). לשדרוג: Tene Industry');
+    } else if (plan === 'locked') {
+      console.error('\n🔒 IronBend נעול — הרישיון לא תקף. צור קשר: Tene Industry\n');
+    }
+    app.use('/api', licenseService.middleware);
+    startServer();
+  }).catch(err => {
+    console.error('[License] Fatal error:', err.message);
+    startServer();
+  });
+}
 
 function closeServer(callback = () => {}) {
   let doneCalled = false;
