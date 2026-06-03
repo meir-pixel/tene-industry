@@ -294,8 +294,11 @@ module.exports = function createIntakeRouter(deps) {
   router.post('/intake/:id/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Intake row not found' });
-    if (row.status === 'approved' && row.order_id) {
+    if (row.order_id) {
       const order = db.prepare('SELECT order_num FROM orders WHERE id=?').get(row.order_id);
+      if (row.status !== 'approved') {
+        db.prepare('UPDATE intake_log SET status=? WHERE id=?').run('approved', row.id);
+      }
       return res.json({ success: true, orderId: row.order_id, orderNum: order?.order_num, alreadyApproved: true });
     }
     try {
