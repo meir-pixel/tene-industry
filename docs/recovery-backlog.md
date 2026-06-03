@@ -6,6 +6,17 @@ the specification volumes, registries, and gap matrix into controlled work.
 Rule: no task is ready unless it names one module owner, one file scope, source
 documents, acceptance checks, and the agent type that may work on it.
 
+## Current Recovery Checkpoint
+
+Status as of 2026-06-03:
+
+- Active API route families are module-owned under `routes/*.js`.
+- `server.js` intentionally keeps only `/api/health` plus infrastructure/runtime wiring.
+- JWT auth and route-coverage governance are active.
+- Full test baseline: `npm test` passes with 136/136 tests.
+- New routes require owner-module assignment, explicit auth/scoped boundary, and `test/module-governance.test.js` updates.
+
+
 ## Work States
 
 - `candidate`: identified but not ready.
@@ -98,9 +109,9 @@ Goal:
   - `IronBend_API_Registry.docx`
   - `IronBend_Permission_Matrix.docx`
 - Acceptance:
-  - Route families in `server.js` have target role policies.
-  - Current scan count is recorded: 190 Express routes, 170 direct role-protected routes.
-  - Privileged unauthenticated families are marked P0.
+  - Route families have target role policies and module owners.
+  - Historical scan count was recorded for the original monolith: 190 Express routes, 170 direct role-protected routes.
+  - Current active API routes are enforced through module-owned route files and `test/route-auth-coverage.test.js`.
 
 ### S0-06: Create Screen Compliance Table
 
@@ -250,8 +261,9 @@ Goal:
   - `docs/data-safety.md`
 - Acceptance:
   - Stable `JWT_SECRET` requirement documented and added to `render.yaml` with `generateValue: true`.
-  - `AUTH_ENFORCEMENT` is explicitly `false` in `render.yaml` until the staging gate passes.
-  - `AUTH_ENFORCEMENT=true` gate documented.
+  - Retired `AUTH_ENFORCEMENT` as a misleading deployment lever; route guards
+    now enforce JWT directly and `test/route-auth-coverage.test.js` prevents
+    unguarded active `/api/*` routes.
   - Rollback plan references database backup and PIN migration.
 
 ### S1-05: Protect Settings, Audit, Database Admin, Finance
@@ -729,7 +741,7 @@ Goal:
 - Source:
   - `docs/spec-gap-matrix.md`
   - `docs/screen-registry.md`
-  - `server.js` purchase-order, supplier, and steel-price routes
+  - `routes/inventory.js` purchase-order, supplier, and steel-price routes
 - Acceptance:
   - Procurement screen no longer presents itself as a coming-soon stub.
   - Purchase orders, suppliers, and steel prices load from APIs without silent
@@ -818,7 +830,7 @@ Goal:
 - Source:
   - `docs/screen-registry.md`
   - `docs/spec-gap-matrix.md`
-  - `server.js` delivery routes
+  - `routes/fleet.js` delivery routes
 - Acceptance:
   - Driver portal loads authenticated API wrapper before calling protected driver
     and delivery APIs.
@@ -876,7 +888,7 @@ Goal:
 - Source:
   - `docs/screen-registry.md`
   - `docs/spec-gap-matrix.md`
-  - `server.js` maintenance, LOTO, and PM routes
+  - `routes/quality.js` maintenance, LOTO, and PM routes
 - Acceptance:
   - Maintenance screen no longer displays itself as a coming-soon stub.
   - Maintenance, LOTO, PM, and machine health sections do not fall back to mock
@@ -903,7 +915,7 @@ Goal:
 - Source:
   - `docs/screen-registry.md`
   - `docs/spec-gap-matrix.md`
-  - `server.js` project, site, and credit routes
+  - `routes/customers.js` project/site routes and `routes/finance.js` credit routes
 - Acceptance:
   - Projects screen no longer displays itself as a coming-soon stub.
   - Projects screen loads the shared auth wrapper and safe DOM helper.
@@ -932,7 +944,7 @@ Goal:
 - Source:
   - `docs/screen-registry.md`
   - `docs/spec-gap-matrix.md`
-  - `server.js` incident, machine, and OEE routes
+  - `routes/quality.js` incident routes and `routes/production.js` machine/OEE routes
 - Acceptance:
   - War Room no longer displays itself as a coming-soon stub.
   - War Room loads shared auth and safe DOM helpers before protected API calls.
@@ -959,13 +971,13 @@ Goal:
 - Agent type: Worker
 - Write scope:
   - `public/quality.html`
-  - `server.js` CAPA patch route
+  - `routes/quality.js` CAPA patch route
   - focused tests and smoke coverage
   - registry docs
 - Source:
   - `docs/screen-registry.md`
   - `docs/spec-gap-matrix.md`
-  - `server.js` quality, NCR, and CAPA routes
+  - `routes/quality.js` quality, NCR, and CAPA routes
 - Acceptance:
   - Quality screen loads the shared auth wrapper and safe DOM helper.
   - NCR/CAPA lists use `/api/ncr` and `/api/capa` only and do not seed demo
@@ -994,7 +1006,7 @@ Goal:
 - Source:
   - `docs/screen-registry.md`
   - `docs/spec-gap-matrix.md`
-  - `server.js` report, OEE, and machine efficiency routes
+  - `routes/reports.js` report routes and `routes/production.js` OEE/machine efficiency routes
 - Acceptance:
   - Reports screen loads shared auth and safe DOM helpers before navigation.
   - API-sourced customer, order, machine, and shape fields are escaped before
@@ -1017,7 +1029,7 @@ Goal:
   - registry docs
 - Source:
   - `docs/screen-registry.md`
-  - `server.js` finance, price-list, steel-prices, order-cost, and ledger routes
+  - `routes/finance.js`, `routes/catalog.js`, and `routes/inventory.js` finance/pricing/cost/ledger routes
 - Acceptance:
   - Finance loads the shared auth and safe DOM helpers before protected API use.
   - Customer, order, supplier, and selection labels rendered from APIs are escaped.
@@ -1041,7 +1053,7 @@ Goal:
   - focused contract coverage
 - Source:
   - `public/auth-client.js`
-  - `server.js` auth and production KPI routes
+  - `routes/auth.js` auth routes and `routes/production.js` production KPI routes
 - Acceptance:
   - Login screen does not advertise demo credentials or demo login mode.
   - Login still stores sessions through the shared auth client.
@@ -1063,7 +1075,7 @@ Goal:
   - focused contract coverage
 - Source:
   - `docs/admin-shell-split-plan.md`
-  - `server.js` settings and integration test routes
+  - `routes/admin.js` settings and integration test routes
 - Acceptance:
   - Platform Admin does not show demo company placeholders for ERP setup.
   - Unimplemented ERP connector tests are disabled and labelled as planned
@@ -1090,7 +1102,7 @@ Goal:
 - Source:
   - `docs/screen-registry.md`
   - `docs/spec-gap-matrix.md`
-  - `server.js` inventory, suppliers, and waste routes
+  - `routes/inventory.js` inventory/supplier routes and `routes/reports.js` waste routes
 - Acceptance:
   - Inventory screen loads shared auth and safe DOM helpers before navigation.
   - Inventory, supplier, and waste sections use protected API routes and safe

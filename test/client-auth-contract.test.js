@@ -63,6 +63,9 @@ test('production card split keeps item cards and master card in sync', () => {
   assert.match(productionCardsRoute, /function buildSplitMaster\(\)/);
   assert.match(productionCardsRoute, /d\.innerHTML = buildSplitMaster\(\)/);
   assert.match(productionCardsRoute, /buildCard\(row\.item, row\.subQty, row\.totalCards, row\.cardIdx\)/);
+  assert.match(productionCardsRoute, /function isOpenUShapeClient\(segments\)/);
+  assert.match(productionCardsRoute, /function buildOpenUShapeSVG\(segments\)/);
+  assert.match(productionCardsRoute, /data-shape-kind="open-u"/);
   assert.match(productionCardsRoute, /function printCards\(\)[\s\S]*generateCards\(\);[\s\S]*window\.print\(\);/);
   assert.match(productionCardsRoute, /'-C' \+ \(cardIdx\+1\) \+ 'OF' \+ totalCards/);
   assert.match(productionCardsRoute, /להדפיס גם מאסטר מעודכן/);
@@ -269,6 +272,29 @@ test('order creation success copy does not promise production before approval', 
 
   assert.match(index, /ממתינה לאישור לפני ייצור/);
   assert.doesNotMatch(index, /נשלחה לתור הייצור/);
+});
+
+test('new order screen uses compact workspace layout with sticky summary', () => {
+  const index = read('public/index.html');
+  const intakeStart = index.indexOf('class="section order-import-section"');
+  const customerStart = index.indexOf('id="customer-section"');
+  const deliveryStart = index.indexOf('id="delivery-section"');
+  const channelStart = index.indexOf('class="channel-selector"');
+  const customerBlock = index.slice(customerStart, deliveryStart);
+
+  assert.match(index, /grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(320px,\s*0\.72fr\) 290px/);
+  assert.match(index, /order-import-section/);
+  assert.doesNotMatch(index, /<nav class="topnav">/);
+  assert.match(index, /summary-order-number" id="orderNumDisplay"/);
+  assert.ok(channelStart > intakeStart && channelStart < customerStart);
+  assert.doesNotMatch(customerBlock, /channel-selector/);
+  assert.doesNotMatch(customerBlock, /orderChannel/);
+  assert.match(customerBlock, /href="\/customers\.html"/);
+  assert.match(index, /#customer-section \{ grid-column: 1; \}/);
+  assert.match(index, /#delivery-section \{ grid-column: 2; \}/);
+  assert.match(index, /#items-section \{ grid-column: 1 \/ 3; \}/);
+  assert.match(index, /\.summary-bar \{[\s\S]*position: sticky;[\s\S]*top: 72px/);
+  assert.match(index, /@media \(max-width: 768px\)[\s\S]*\.main \{ display: flex; flex-direction: column/);
 });
 
 test('shape side count picker uses clear canonical silhouettes', () => {

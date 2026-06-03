@@ -17,6 +17,57 @@ function parseSegments(value) {
   }
 }
 
+function isRightAngle(value) {
+  return Math.abs(Number(value) - 90) < 0.001;
+}
+
+function isOpenUShape(segments) {
+  if (!Array.isArray(segments) || segments.length !== 3) return false;
+  const lengths = segments.map(segment => Number(segment.length_mm || 0));
+  if (lengths.some(length => length <= 0)) return false;
+
+  const [leftLeg, bridge, rightLeg] = lengths;
+  const legsSimilar = Math.abs(leftLeg - rightLeg) <= Math.max(10, Math.max(leftLeg, rightLeg) * 0.1);
+  const legsShorterThanBridge = leftLeg < bridge && rightLeg < bridge;
+
+  return isRightAngle(segments[0].angle_deg)
+    && isRightAngle(segments[1].angle_deg)
+    && legsShorterThanBridge
+    && legsSimilar;
+}
+
+function openUShapeSvg(segments) {
+  const [leftLeg, bridge, rightLeg] = segments.map(segment => Number(segment.length_mm || 0));
+  const width = 220;
+  const height = 100;
+  const left = 42;
+  const right = 178;
+  const top = 24;
+  const bottom = 78;
+  const midY = (top + bottom) / 2;
+  const midX = (left + right) / 2;
+  const path = `M ${left},${bottom} L ${left},${top} L ${right},${top} L ${right},${bottom}`;
+
+  let svg = `<path d="${path}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  svg += `<path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+  svg += `<rect x="${left - 18}" y="${midY - 7}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
+  svg += `<text x="${left}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(leftLeg)}</text>`;
+
+  svg += `<rect x="${midX - 18}" y="${top - 19}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
+  svg += `<text x="${midX}" y="${top - 12}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(bridge)}</text>`;
+
+  svg += `<rect x="${right - 18}" y="${midY - 7}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
+  svg += `<text x="${right}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(rightLeg)}</text>`;
+
+  [[left, top], [right, top]].forEach(([x, y]) => {
+    svg += `<circle cx="${x}" cy="${y}" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>`;
+    svg += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">90&#176;</text>`;
+  });
+
+  return `<svg data-shape-kind="open-u" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:100px">${svg}</svg>`;
+}
+
 function shapeSvg(segmentsRaw) {
   try {
     const segments = parseSegments(segmentsRaw);
@@ -28,6 +79,8 @@ function shapeSvg(segmentsRaw) {
         '<line x1="12" y1="30" x2="208" y2="30" stroke="#1a2332" stroke-width="3" stroke-linecap="round"/>' +
         '<circle cx="12" cy="30" r="3" fill="#1a2332"/><circle cx="208" cy="30" r="3" fill="#1a2332"/></svg>';
     }
+
+    if (isOpenUShape(segments)) return openUShapeSvg(segments);
 
     const sides = segments.map(segment => Number(segment.length_mm || 0));
     const angles = segments.map(segment => segment.angle_deg);

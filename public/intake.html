@@ -3,51 +3,104 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>קליטת הזמנות - IronBend</title>
+<title>מרכז קליטת הזמנות - IronBend</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap">
 <link rel="stylesheet" href="/theme.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh}
-.page{max-width:1240px;margin:0 auto;padding:18px}
-.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
-.title{font-size:22px;font-weight:900}
-.sub{font-size:12px;color:var(--text-muted);margin-top:2px}
-.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:14px;align-items:start}
-@media(max-width:980px){.grid{grid-template-columns:1fr}}
-.panel{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));overflow:hidden}
-.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fafbfd}
-.panel-title{font-size:15px;font-weight:900}
-.panel-body{padding:16px;display:grid;gap:12px}
-.btn{border:1px solid var(--border);border-radius:8px;padding:8px 13px;font-family:inherit;font-weight:800;cursor:pointer;background:#fff;color:var(--text)}
+.page{max-width:1380px;margin:0 auto;padding:18px}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}
+.title{font-size:24px;font-weight:900}
+.sub{font-size:13px;color:var(--text-muted);margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--border);border-radius:8px;padding:8px 13px;font-family:inherit;font-weight:800;cursor:pointer;background:#fff;color:var(--text);text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn-success{background:var(--success);border-color:var(--success);color:#fff}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
-.field{display:grid;gap:4px}
-.field label{font-size:11px;font-weight:900;color:var(--text-muted)}
-.field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:#fbfcfe;color:var(--text)}
-.field textarea{min-height:96px;resize:vertical}
-.empty{color:var(--text-muted);padding:16px;border:1px dashed var(--border);border-radius:10px;text-align:center}
-.ocr-list{display:grid;gap:10px}
-.intake-card,.train-card{border:1px solid var(--border);border-radius:14px;padding:14px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05)}
-.card-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
-.card-title{font-size:15px;font-weight:900;color:var(--text)}
+.btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px;box-shadow:0 8px 22px rgba(2,26,72,.05)}
+.stat-label{font-size:12px;font-weight:800;color:var(--text-muted)}
+.stat-value{font-size:24px;font-weight:900;margin-top:2px}
+.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(360px,.85fr);gap:14px;align-items:start}
+@media(max-width:1050px){.layout,.stats{grid-template-columns:1fr}.head{flex-direction:column}}
+.panel{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fafbfd}
+.panel-title{font-size:16px;font-weight:900}
+.panel-body{padding:14px;display:grid;gap:12px}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.filter{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 12px;font-family:inherit;font-weight:800;cursor:pointer;color:var(--text-muted)}
+.filter.active{border-color:var(--accent);background:#fff4ec;color:var(--accent)}
+.empty{color:var(--text-muted);padding:18px;border:1px dashed var(--border);border-radius:10px;text-align:center;background:#fbfcfe}
+.intake-list,.ocr-list{display:grid;gap:12px}
+.intake-compose{border:1px solid var(--border);border-radius:8px;background:#fbfcfe;padding:12px;display:grid;gap:10px}
+.compose-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.compose-title{font-size:13px;font-weight:900;color:var(--text)}
+.compose-grid{display:grid;grid-template-columns:180px minmax(0,1fr) auto;gap:8px;align-items:end}
+.compose-grid textarea{min-height:74px;resize:vertical}
+.compose-result{font-size:12px;font-weight:800;color:var(--text-muted);min-height:18px}
+@media(max-width:860px){.compose-grid{grid-template-columns:1fr}.compose-grid .btn{width:100%}}
+.intake-card,.train-card{border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05);overflow:hidden}
+.card-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:13px 14px;border-bottom:1px solid var(--border);background:#fbfcfe}
+.card-title{font-size:16px;font-weight:900;color:var(--text)}
 .card-actions{display:flex;gap:6px;flex-wrap:wrap}
 .meta{font-size:12px;color:var(--text-dim);line-height:1.7}
-.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.chip{background:#e8f0fe;border:1px solid #d8e4fb;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:800}
-.split{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-@media(max-width:700px){.split{grid-template-columns:1fr}}
-.bad{background:#fff7f3;border-radius:10px;padding:10px}
-.good{background:#f2fbf5;border-radius:10px;padding:10px}
-.mini-title{font-size:10px;font-weight:900;margin-bottom:4px}
-.mini-title.bad-title{color:var(--danger)}
-.mini-title.good-title{color:var(--success)}
-.raw-details{margin-top:10px}
-.raw-details summary{cursor:pointer}
-.raw-content{white-space:pre-wrap;margin-top:6px;max-height:160px;overflow:auto;background:#f7fafc;border:1px solid var(--border);border-radius:10px;padding:10px}
+.filter-caption{font-size:11px;font-weight:900;color:var(--text-muted);margin-bottom:4px}
+.urgency-badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:900;border:1px solid transparent}
+.urgency-critical{background:#ffe8e3;color:#9f2b15;border-color:#ffc7bb}
+.urgency-high{background:#fff3d7;color:#8a5300;border-color:#ffd89a}
+.urgency-medium{background:#e8f0fe;color:#21436f;border-color:#d8e4fb}
+.urgency-low{background:#eef7f0;color:#1f6f3c;border-color:#cde8d4}
+.source-badge{border-radius:999px;padding:3px 10px;font-size:11px;font-weight:900;background:#e8f0fe;color:#21436f}
+.source-whatsapp{background:#e7f8ed;color:#166b37}
+.source-email{background:#eef2ff;color:#3344a0}
+.source-image{background:#fff3d7;color:#8a5300}
+.source-phone{background:#ffe9f0;color:#9a2850}
+.card-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:14px}
+@media(max-width:820px){.card-grid{grid-template-columns:1fr}}
+.box{border:1px solid var(--border);border-radius:8px;background:#fbfcfe;padding:12px;min-width:0}
+.box-title{font-size:12px;font-weight:900;color:var(--text-muted);margin-bottom:8px}
+.raw-content{white-space:pre-wrap;max-height:190px;overflow:auto;font-size:12px;line-height:1.7}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{background:#e8f0fe;border:1px solid #d8e4fb;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800}
+.order-metrics{display:grid;grid-template-columns:repeat(4,minmax(92px,1fr));gap:8px;margin:10px 0}
+.metric-cell{border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px}
+.metric-label{font-size:10px;font-weight:900;color:var(--text-muted)}
+.metric-value{font-size:14px;font-weight:900;color:var(--text)}
+.priority-reasons{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.reason-chip{border-radius:999px;background:#fff7ed;border:1px solid #ffd8ad;color:#9a4b12;padding:3px 8px;font-size:10px;font-weight:800}
+.match{display:grid;gap:8px;margin-top:10px}
+.match-ok{border-color:#bde8c8;background:#f3fbf5}
+.match-warn{border-color:#ffd89a;background:#fff9ed}
+.customer-search{display:grid;grid-template-columns:1fr auto;gap:6px}
+.customer-search input,.field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:#fff;color:var(--text)}
+.customer-results{display:grid;gap:6px;margin-top:6px}
+.customer-pick{border:1px solid var(--border);background:#fff;border-radius:8px;padding:8px;text-align:right;font-family:inherit;cursor:pointer}
+.customer-pick strong{display:block}
+.field{display:grid;gap:5px}
+.field label{font-size:12px;font-weight:900;color:var(--text-muted)}
+.field textarea{min-height:96px;resize:vertical}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10233f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;opacity:0;transition:.2s;z-index:900}
+.intake-source-preview{min-height:180px;border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.intake-source-preview iframe,.intake-source-preview img{width:100%;height:260px;border:0;object-fit:contain;background:#fff}
+.intake-source-preview .raw-content{width:100%;max-height:260px;margin:0;padding:12px;text-align:right}
+.intake-fullscreen{position:fixed;inset:0;background:rgba(2,26,72,.62);z-index:780;display:none;padding:14px;backdrop-filter:blur(3px)}
+.intake-fullscreen.open{display:flex}
+.intake-fullscreen-inner{background:#fff;border:1px solid var(--border);border-radius:12px;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(2,26,72,.28)}
+.intake-fullscreen-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f8fafc}
+.intake-fullscreen-title{font-size:16px;font-weight:900}
+.intake-fullscreen-actions{display:flex;gap:8px;flex-wrap:wrap}
+.intake-fullscreen-body{display:grid;grid-template-columns:minmax(620px,1.15fr) minmax(480px,.85fr);min-height:0;flex:1}
+.intake-fullscreen-source{background:#f7f9fc;border-left:1px solid var(--border);padding:14px;min-height:0}
+.intake-fullscreen-source iframe,.intake-fullscreen-source img{width:100%;height:100%;border:1px solid var(--border);border-radius:10px;background:#fff;object-fit:contain}
+.intake-fullscreen-source .raw-content{height:100%;max-height:none;border:1px solid var(--border);border-radius:10px;background:#fff;padding:14px}
+.intake-fullscreen-data{padding:14px;overflow:auto}
+.intake-review-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+.intake-review-table th,.intake-review-table td{border-bottom:1px solid var(--border);padding:8px;text-align:right;vertical-align:top}
+.intake-review-table th{background:#f8fafc;color:var(--text-muted);font-size:11px;font-weight:900}
+@media(max-width:980px){.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-source{min-height:45vh;border-left:0;border-bottom:1px solid var(--border)}}
 </style>
 </head>
 <body data-page="intake">
@@ -58,37 +111,91 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 <main class="page">
   <section class="head">
     <div>
-      <div class="title">📬 קליטת הזמנות ו-OCR</div>
-      <div class="sub">תור סקירה, אישור הזמנות נכנסות ואימון פענוח מסמכים</div>
+      <div class="title">מרכז קליטת הזמנות</div>
+      <div class="sub">מיילים, וואטסאפ, תמונות ושיחות שמחכים לשיוך לקוח ולאישור לפני יצירת הזמנה.</div>
     </div>
-    <button class="btn btn-primary" onclick="loadIntakeQueue()">רענן תור</button>
+    <div class="toolbar">
+      <a class="btn" href="/index.html">הזמנה ידנית</a>
+      <button class="btn btn-primary" onclick="loadIntakeQueue()">רענן תור</button>
+    </div>
   </section>
 
-  <section class="grid">
+  <section class="stats" aria-label="סטטוס תור קליטת הזמנות">
+    <div class="stat"><div class="stat-label">ממתינות לאישור</div><div class="stat-value" id="statPending">0</div></div>
+    <div class="stat"><div class="stat-label">דורשות שיוך לקוח</div><div class="stat-value" id="statNeedsCustomer">0</div></div>
+    <div class="stat"><div class="stat-label">דחופות</div><div class="stat-value" id="statMatched">0</div></div>
+    <div class="stat"><div class="stat-label">פריטים שפוענחו</div><div class="stat-value" id="statItems">0</div></div>
+  </section>
+
+  <section class="layout">
     <section class="panel">
       <div class="panel-head">
-        <div class="panel-title">הזמנות ממתינות לאישור</div>
-        <button class="btn" onclick="loadIntakeQueue()">רענן</button>
+        <div>
+          <div class="panel-title">תור לאישור לפי דחיפות</div>
+          <div class="meta">הרשימה מסודרת לפי תאריך אספקה, כמות, זמן המתנה ושיוך לקוח. מקור הקבלה נשאר רק פילטר עבודה.</div>
+        </div>
+        <div>
+          <div class="filter-caption">סינון לפי מקור</div>
+          <div class="filters" id="sourceFilters">
+            <button class="filter active" data-source="all" onclick="setSourceFilter(this)">הכל</button>
+            <button class="filter" data-source="email" onclick="setSourceFilter(this)">מייל</button>
+            <button class="filter" data-source="whatsapp" onclick="setSourceFilter(this)">וואטסאפ</button>
+            <button class="filter" data-source="image" onclick="setSourceFilter(this)">תמונה</button>
+            <button class="filter" data-source="phone" onclick="setSourceFilter(this)">טלפון</button>
+          </div>
+        </div>
       </div>
-      <div class="panel-body" id="intakeList">
-        <div class="empty">טוען...</div>
+      <div class="panel-body">
+        <div class="intake-compose">
+          <div class="compose-head">
+            <div>
+              <div class="compose-title">הכנסה ידנית לתור</div>
+              <div class="meta">הדבק טקסט מטלפון, וואטסאפ או מייל. המערכת תכניס אותו לתור ותאפשר אישור אחרי בדיקה.</div>
+            </div>
+          </div>
+          <div class="compose-grid">
+            <div class="field">
+              <label>מקור</label>
+              <select id="manualIntakeSource">
+                <option value="phone">טלפון</option>
+                <option value="whatsapp">וואטסאפ</option>
+                <option value="email">מייל</option>
+                <option value="manual">ידני</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>תוכן ההזמנה</label>
+              <textarea id="manualIntakeText" placeholder="לדוגמה: מאיר, טלפון 050..., אספקה 03/06/2026, קוטר 12, אורך 1000, כמות 1"></textarea>
+            </div>
+            <button class="btn btn-primary" id="manualIntakeBtn" onclick="saveManualIntake()">הכנס לתור</button>
+          </div>
+          <div id="manualIntakeResult" class="compose-result"></div>
+        </div>
+        <div class="intake-list" id="intakeList"><div class="empty">טוען...</div></div>
       </div>
     </section>
 
     <section class="panel">
       <div class="panel-head">
-        <div class="panel-title">אימון OCR / AI</div>
+        <div>
+          <div class="panel-title">אימון OCR / AI</div>
+          <div class="meta">כאן מתעדים תיקונים כדי לשפר זיהוי מסמכים ותמונות.</div>
+        </div>
         <button class="btn" onclick="loadOcrTraining()">רענן</button>
       </div>
       <div class="panel-body">
         <div class="form-grid">
           <div class="field">
             <label>שם קצר לדוגמה</label>
-            <input type="text" id="ocrTrainTitle" placeholder="טסה - כמות מול משקל">
+            <input type="text" id="ocrTrainTitle" placeholder="תעודת משלוח - שדה ספק">
           </div>
           <div class="field">
             <label>סוג מסמך</label>
             <select id="ocrTrainType">
+              <option value="bending_shape">צורת כיפוף למלאי</option>
+              <option value="supplier_delivery_note">תעודת משלוח מספק</option>
+              <option value="customer_order_email">הזמנה ממייל</option>
+              <option value="whatsapp_order">הזמנה מוואטסאפ</option>
               <option value="tassa_pdf">TASSA PDF</option>
               <option value="handwritten_cards">כרטיסיות בכתב יד</option>
               <option value="bar_schedule">רשימת ברזל / טבלה</option>
@@ -113,9 +220,32 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
   </section>
 </main>
 
+<div class="intake-fullscreen" id="intakeCompareModal">
+  <div class="intake-fullscreen-inner">
+    <div class="intake-fullscreen-head">
+      <div>
+        <div class="intake-fullscreen-title" id="intakeCompareTitle">השוואת מקור מול פענוח</div>
+        <div class="meta" id="intakeCompareMeta"></div>
+      </div>
+      <div class="intake-fullscreen-actions">
+        <button class="btn btn-success" id="intakeCompareApprove">אשר אחרי בדיקה</button>
+        <button class="btn" onclick="closeIntakeCompare()">סגור</button>
+      </div>
+    </div>
+    <div class="intake-fullscreen-body">
+      <div class="intake-fullscreen-source" id="intakeCompareSource"></div>
+      <div class="intake-fullscreen-data" id="intakeCompareData"></div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
+const selectedCustomers = {};
+let currentSourceFilter = 'all';
+let intakeRows = [];
+
 function escapeHtml(value) {
   return window.IronBendSafe
     ? window.IronBendSafe.escapeHtml(value)
@@ -129,6 +259,408 @@ function toast(message, err = false) {
   el.style.opacity = '1';
   clearTimeout(el._t);
   el._t = setTimeout(() => el.style.opacity = '0', 2400);
+}
+
+function sourceKey(source) {
+  const value = String(source || '').toLowerCase();
+  if (value.includes('whatsapp')) return 'whatsapp';
+  if (value.includes('email') || value.includes('mail')) return 'email';
+  if (value.includes('image') || value.includes('photo') || value.includes('ocr')) return 'image';
+  if (value.includes('phone') || value.includes('manual')) return 'phone';
+  return value || 'manual';
+}
+
+function sourceLabel(source) {
+  const key = sourceKey(source);
+  return { whatsapp:'וואטסאפ', email:'מייל', image:'תמונה', phone:'טלפון', manual:'ידני' }[key] || source || 'לא ידוע';
+}
+
+function intakeSourceHtml(row) {
+  if (row?.original_data_url) {
+    const src = row.original_data_url;
+    if (String(row.original_mime || '').includes('pdf')) return `<iframe title="מסמך מקור" src="${src}"></iframe>`;
+    return `<img alt="מסמך מקור" src="${src}">`;
+  }
+  return `<pre class="raw-content">${escapeHtml(row?.raw_content || 'אין תוכן מקור שמור')}</pre>`;
+}
+
+function intakeReviewTable(parsed) {
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  if (!items.length) return '<div class="empty">לא זוהו פריטים. אין לאשר לפני תיקון ידני.</div>';
+  return `<table class="intake-review-table">
+    <thead><tr><th>#</th><th>קוטר</th><th>כמות</th><th>אורך</th><th>צורה / מידות</th><th>הערה</th></tr></thead>
+    <tbody>${items.map((item, index) => {
+      const sides = Array.isArray(item.sides)
+        ? item.sides
+        : Array.isArray(item.segments)
+          ? item.segments.map(seg => typeof seg === 'object' ? (seg.length_mm || seg.length || seg.length_cm || '') : seg)
+          : [];
+      const shape = item.shape_name || item.shapeName || item.shape || item.type || '';
+      return `<tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(item.diameter ?? item.diameter_mm ?? '-')}</td>
+        <td>${escapeHtml(item.qty ?? item.quantity ?? '-')}</td>
+        <td>${escapeHtml(item.length ?? item.length_mm ?? item.total_length_mm ?? '-')}</td>
+        <td>${escapeHtml(shape)}<br><span class="meta">${escapeHtml(sides.join(' / '))}</span></td>
+        <td>${escapeHtml(item.note || item.notes || '')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function setSourceFilter(button) {
+  currentSourceFilter = button.dataset.source;
+  document.querySelectorAll('#sourceFilters .filter').forEach(el => el.classList.remove('active'));
+  button.classList.add('active');
+  renderIntakeQueue();
+}
+
+function parsedOf(row) {
+  if (row.parsed && typeof row.parsed === 'object') return row.parsed;
+  try { return JSON.parse(row.parsed_data || '{}'); } catch { return {}; }
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('he-IL');
+}
+
+function formatIntakeItem(item) {
+  const diameter = item.diameter ?? item.diameter_mm ?? item.dia ?? '-';
+  const length = item.length ?? item.length_mm ?? item.total_length_mm ?? item.cut_length_mm ?? '-';
+  const qty = item.qty ?? item.quantity ?? item.pcs ?? item.count ?? '-';
+  const shape = item.shape_name || item.shapeName || item.shape || item.type || '';
+  const parts = [`Ø${escapeHtml(diameter)}`, `${escapeHtml(length)} מ"מ`, `${escapeHtml(qty)} יח'`];
+  if (shape) parts.push(escapeHtml(shape));
+  return `<span class="chip">${parts.join(' · ')}</span>`;
+}
+
+function toNumber(value) {
+  const n = Number(String(value ?? '').replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function deliveryDateOf(parsed) {
+  return parsed.delivery_date || parsed.deliveryDate || parsed.due_date || parsed.required_date || parsed.supply_date || '';
+}
+
+function itemMetrics(parsed) {
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  const qty = items.reduce((sum, item) => sum + toNumber(item.qty ?? item.quantity ?? item.pcs ?? item.count), 0);
+  const weight = toNumber(parsed.total_weight ?? parsed.totalWeight ?? parsed.weight_kg ?? parsed.weight);
+  return { itemCount: items.length, qty, weight };
+}
+
+function daysUntil(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  return Math.ceil((date - today) / 86400000);
+}
+
+function urgencyInfo(row) {
+  const parsed = parsedOf(row);
+  const metrics = itemMetrics(parsed);
+  const deliveryDate = deliveryDateOf(parsed);
+  const days = daysUntil(deliveryDate);
+  const reasons = [];
+  let score = 0;
+
+  if (days === null) {
+    score += 12;
+    reasons.push('אין תאריך אספקה');
+  } else if (days <= 0) {
+    score += 80;
+    reasons.push(days < 0 ? 'תאריך אספקה עבר' : 'אספקה היום');
+  } else if (days === 1) {
+    score += 60;
+    reasons.push('אספקה מחר');
+  } else if (days <= 3) {
+    score += 40;
+    reasons.push(`אספקה בעוד ${days} ימים`);
+  } else if (days <= 7) {
+    score += 20;
+    reasons.push('אספקה השבוע');
+  }
+
+  if (metrics.weight >= 5000 || metrics.qty >= 1000) {
+    score += 35;
+    reasons.push('כמות גדולה מאוד');
+  } else if (metrics.weight >= 1000 || metrics.qty >= 300) {
+    score += 22;
+    reasons.push('כמות גדולה');
+  } else if (metrics.qty >= 100 || metrics.itemCount >= 10) {
+    score += 12;
+    reasons.push('ריבוי פריטים');
+  }
+
+  const createdAt = new Date(row.created_at || row.createdAt || 0);
+  if (!Number.isNaN(createdAt.getTime())) {
+    const ageHours = (Date.now() - createdAt.getTime()) / 3600000;
+    if (ageHours >= 8) {
+      score += 16;
+      reasons.push('ממתינה מעל 8 שעות');
+    } else if (ageHours >= 2) {
+      score += 8;
+      reasons.push('ממתינה מעל שעתיים');
+    }
+  }
+
+  if (row.customer_match?.needs_customer_review) {
+    score += 8;
+    reasons.push('דורש שיוך לקוח');
+  }
+
+  const level = score >= 75 ? 'critical' : score >= 45 ? 'high' : score >= 20 ? 'medium' : 'low';
+  const label = { critical:'קריטי', high:'גבוה', medium:'בינוני', low:'רגיל' }[level];
+  return { score, level, label, reasons, deliveryDate, ...metrics };
+}
+
+function sortIntakeRows(rows) {
+  return [...rows].sort((a, b) => {
+    const ua = urgencyInfo(a);
+    const ub = urgencyInfo(b);
+    if (ub.score !== ua.score) return ub.score - ua.score;
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+}
+
+function urgencyMetricsHtml(row) {
+  const urgency = urgencyInfo(row);
+  const dateText = urgency.deliveryDate ? formatDate(urgency.deliveryDate).split(',')[0] : 'לא זוהה';
+  const qtyText = urgency.weight ? `${urgency.weight} ק"ג` : `${urgency.qty || 0} יח'`;
+  const reasons = urgency.reasons.map(reason => `<span class="reason-chip">${escapeHtml(reason)}</span>`).join('');
+  return `
+    <div class="order-metrics" aria-label="מדדי דחיפות">
+      <div class="metric-cell"><div class="metric-label">דחיפות</div><div class="metric-value">${urgency.score}</div></div>
+      <div class="metric-cell"><div class="metric-label">תאריך אספקה</div><div class="metric-value">${escapeHtml(dateText)}</div></div>
+      <div class="metric-cell"><div class="metric-label">כמות</div><div class="metric-value">${escapeHtml(qtyText)}</div></div>
+      <div class="metric-cell"><div class="metric-label">פריטים</div><div class="metric-value">${urgency.itemCount}</div></div>
+    </div>
+    <div class="priority-reasons">${reasons || '<span class="reason-chip">אין גורמי דחיפות חריגים</span>'}</div>
+  `;
+}
+
+function updateStats(rows) {
+  const pending = rows.length;
+  const needsCustomer = rows.filter(row => row.customer_match?.needs_customer_review).length;
+  const urgent = rows.filter(row => urgencyInfo(row).score >= 45).length;
+  const itemCount = rows.reduce((sum, row) => sum + itemMetrics(parsedOf(row)).itemCount, 0);
+  document.getElementById('statPending').textContent = pending;
+  document.getElementById('statNeedsCustomer').textContent = needsCustomer;
+  document.getElementById('statMatched').textContent = urgent;
+  document.getElementById('statItems').textContent = itemCount;
+}
+
+function customerMatchHtml(row) {
+  const match = row.customer_match || {};
+  const customer = selectedCustomers[row.id] || match.customer;
+  const input = match.input || {};
+  const ok = Boolean(customer && !match.needs_customer_review);
+  const title = customer ? `לקוח משויך: ${customer.name}` : 'נדרש שיוך לקוח';
+  const details = customer
+    ? `${customer.phone || ''}${customer.email ? ' · ' + customer.email : ''}${customer.priority_id ? ' · ' + customer.priority_id : ''}`
+    : `${input.name || 'שם לא זוהה'}${input.phone ? ' · ' + input.phone : ''}${input.email ? ' · ' + input.email : ''}`;
+  return `
+    <div class="box match ${ok ? 'match-ok' : 'match-warn'}">
+      <div class="box-title">${escapeHtml(title)}</div>
+      <div class="meta">${escapeHtml(details)}</div>
+      <div class="customer-search">
+        <input id="customerSearch_${row.id}" type="search" placeholder="חפש לקוח לפי שם, טלפון, מייל או מספר לקוח">
+        <button class="btn" onclick="searchCustomerForIntake(${row.id})">חפש</button>
+      </div>
+      <div class="customer-results" id="customerResults_${row.id}"></div>
+    </div>
+  `;
+}
+
+function renderIntakeQueue() {
+  const list = document.getElementById('intakeList');
+  const rows = sortIntakeRows(intakeRows.filter(row => currentSourceFilter === 'all' || sourceKey(row.source) === currentSourceFilter));
+  updateStats(intakeRows);
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty">אין הזמנות שממתינות במסנן הזה. כשייכנסו הזמנות הן ימוינו לפי תאריך אספקה, כמות וזמן המתנה.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(row => {
+    const parsed = parsedOf(row);
+    const items = (parsed.items || []).map(formatIntakeItem).join('');
+    const key = sourceKey(row.source);
+    const urgency = urgencyInfo(row);
+    const customerTitle = parsed.customer_name || parsed.customerName || row.customer_match?.customer?.name || 'לקוח לא מזוהה';
+    const address = parsed.delivery_address || parsed.deliveryAddress || '';
+    const notes = parsed.notes || '';
+    return `
+      <article class="intake-card" id="intake_${row.id}">
+        <div class="card-top">
+          <div>
+            <div class="card-title">${escapeHtml(customerTitle)}</div>
+            <div class="meta"><span class="source-badge source-${key}">${escapeHtml(sourceLabel(row.source))}</span> ${formatDate(row.created_at)}</div>
+          </div>
+          <div class="card-actions">
+            <span class="urgency-badge urgency-${urgency.level}" title="דירוג דחיפות ${urgency.score}">${urgency.label} · ${urgency.score}</span>
+            <button class="btn btn-success" onclick="openIntakeCompare(${row.id})">השוואה ואישור</button>
+            <button class="btn" onclick="openManualOrder(${row.id})">פתח לעריכה</button>
+            <button class="btn btn-danger" onclick="intakeReject(${row.id})">דחה</button>
+          </div>
+        </div>
+        <div class="card-grid">
+          <div class="box">
+            <div class="box-title">מקור הפנייה</div>
+            <div class="intake-source-preview">${intakeSourceHtml(row)}</div>
+            <button class="btn" style="margin-top:8px;width:100%" onclick="openIntakeCompare(${row.id})">השוואה במסך מלא</button>
+          </div>
+          <div class="box">
+            <div class="box-title">פענוח להזמנה</div>
+            ${urgencyMetricsHtml(row)}
+            <div class="meta">${address ? 'כתובת: ' + escapeHtml(address) : 'כתובת לא זוהתה'}</div>
+            <div class="meta">${notes ? 'הערות: ' + escapeHtml(notes) : 'אין הערות'}</div>
+            <div class="chips">${items || '<span class="meta">לא זוהו פריטים. פתח לעריכה לפני אישור.</span>'}</div>
+            ${customerMatchHtml(row)}
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function loadIntakeQueue() {
+  const list = document.getElementById('intakeList');
+  list.innerHTML = '<div class="empty">טוען תור קליטה...</div>';
+  intakeRows = await fetch('/api/intake/log?status=pending_review').then(r => r.json()).catch(() => []);
+  renderIntakeQueue();
+}
+
+async function saveManualIntake() {
+  const btn = document.getElementById('manualIntakeBtn');
+  const resultEl = document.getElementById('manualIntakeResult');
+  const textEl = document.getElementById('manualIntakeText');
+  const sourceEl = document.getElementById('manualIntakeSource');
+  const text = textEl.value.trim();
+  if (!text) {
+    resultEl.style.color = 'var(--danger)';
+    resultEl.textContent = 'צריך להדביק תוכן הזמנה לפני הכנסה לתור.';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'מכניס...';
+  resultEl.style.color = 'var(--text-muted)';
+  resultEl.textContent = 'מפענח ומכניס לתור...';
+  try {
+    const response = await fetch('/api/intake/parse-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, source: sourceEl.value }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) throw new Error(data.error || 'הכנסה לתור נכשלה');
+    textEl.value = '';
+    resultEl.style.color = 'var(--success)';
+    resultEl.textContent = `נכנס לתור לבדיקה${data.item_count != null ? ` · ${data.item_count} פריטים זוהו` : ''}.`;
+    await loadIntakeQueue();
+  } catch (error) {
+    resultEl.style.color = 'var(--danger)';
+    resultEl.textContent = error.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'הכנס לתור';
+  }
+}
+
+async function searchCustomerForIntake(id) {
+  const input = document.getElementById('customerSearch_' + id);
+  const results = document.getElementById('customerResults_' + id);
+  const q = input.value.trim();
+  if (!q) return toast('צריך להקליד שם, טלפון או מייל לחיפוש', true);
+  results.innerHTML = '<div class="meta">מחפש...</div>';
+  const rows = await fetch('/api/customers?q=' + encodeURIComponent(q) + '&limit=8').then(r => r.json()).catch(() => []);
+  if (!rows.length) {
+    results.innerHTML = '<div class="meta">לא נמצאו לקוחות מתאימים.</div>';
+    return;
+  }
+  results.innerHTML = rows.map(customer => `
+    <button class="customer-pick" onclick="selectCustomerForIntake(${id}, ${customer.id})">
+      <strong>${escapeHtml(customer.name)}</strong>
+      <span class="meta">${escapeHtml(customer.phone || '')}${customer.email ? ' · ' + escapeHtml(customer.email) : ''}${customer.priority_id ? ' · ' + escapeHtml(customer.priority_id) : ''}</span>
+    </button>
+  `).join('');
+  results._customers = rows;
+}
+
+function selectCustomerForIntake(id, customerId) {
+  const results = document.getElementById('customerResults_' + id);
+  const customer = (results._customers || []).find(row => row.id === customerId);
+  if (!customer) return;
+  selectedCustomers[id] = customer;
+  toast('לקוח שויך להזמנה');
+  renderIntakeQueue();
+}
+
+function openIntakeCompare(id) {
+  const row = intakeRows.find(item => item.id === id);
+  if (!row) return toast('פנייה לא נמצאה', true);
+  const parsed = parsedOf(row);
+  const urgency = urgencyInfo(row);
+  const title = parsed.customer_name || parsed.customerName || row.customer_match?.customer?.name || 'לקוח לא מזוהה';
+  document.getElementById('intakeCompareTitle').textContent = title;
+  document.getElementById('intakeCompareMeta').textContent = `מקור: ${sourceLabel(row.source)} · דחיפות: ${urgency.label} ${urgency.score} · פריטים: ${urgency.itemCount}`;
+  document.getElementById('intakeCompareSource').innerHTML = intakeSourceHtml(row);
+  document.getElementById('intakeCompareData').innerHTML = `
+    <div class="box">
+      <div class="box-title">פענוח להזמנה</div>
+      ${urgencyMetricsHtml(row)}
+      <div class="meta">כתובת: ${escapeHtml(parsed.delivery_address || parsed.deliveryAddress || 'לא זוהתה')}</div>
+      <div class="meta">הערות: ${escapeHtml(parsed.notes || 'אין הערות')}</div>
+      ${intakeReviewTable(parsed)}
+      ${customerMatchHtml(row)}
+    </div>
+  `;
+  document.getElementById('intakeCompareApprove').onclick = () => intakeApprove(id);
+  document.getElementById('intakeCompareModal').classList.add('open');
+}
+
+function closeIntakeCompare() {
+  document.getElementById('intakeCompareModal').classList.remove('open');
+}
+
+async function intakeApprove(id) {
+  const row = intakeRows.find(item => item.id === id);
+  const selected = selectedCustomers[id] || row?.customer_match?.customer;
+  const parsed = row ? parsedOf(row) : {};
+  if (!selected && !confirm('לא שויך לקוח קיים. ליצור לקוח חדש לפי הפענוח?')) return;
+  if (!(parsed.items || []).length) {
+    toast('אי אפשר לאשר בלי פריטים. פתח לעריכה או תקן את טקסט הקליטה.', true);
+    return;
+  }
+  const response = await fetch(`/api/intake/${id}/approve`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(selected ? { customer_id: selected.id } : {}),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) return toast(result.error || 'אישור נכשל', true);
+  selectedCustomers[id] = null;
+  intakeRows = intakeRows.filter(row => row.id !== id);
+  closeIntakeCompare();
+  renderIntakeQueue();
+  toast(`הזמנה ${result.orderNum} נוצרה`);
+}
+
+async function intakeReject(id) {
+  if (!confirm('לדחות את הפנייה הזו?')) return;
+  const response = await fetch(`/api/intake/${id}/reject`, { method:'POST' });
+  if (!response.ok) return toast('דחייה נכשלה', true);
+  intakeRows = intakeRows.filter(row => row.id !== id);
+  renderIntakeQueue();
+  toast('הפנייה סומנה כדחויה');
+}
+
+function openManualOrder(id) {
+  window.location.href = '/index.html?intake_id=' + encodeURIComponent(id);
 }
 
 async function loadOcrTraining() {
@@ -148,22 +680,12 @@ async function loadOcrTraining() {
         </div>
         <button class="btn" onclick="deleteOcrTraining(${row.id})">הסר</button>
       </div>
-      <div class="split">
-        <div class="bad"><div class="mini-title bad-title">נקרא לא נכון</div><div class="meta">${escapeHtml(row.problem_text)}</div></div>
-        <div class="good"><div class="mini-title good-title">התיקון</div><div class="meta">${escapeHtml(row.correction_text)}</div></div>
+      <div class="card-grid">
+        <div class="box"><div class="box-title">נקרא לא נכון</div><div class="meta">${escapeHtml(row.problem_text)}</div></div>
+        <div class="box"><div class="box-title">התיקון</div><div class="meta">${escapeHtml(row.correction_text)}</div></div>
       </div>
     </article>
   `).join('');
-}
-
-function formatIntakeItem(item) {
-  const diameter = item.diameter ?? item.diameter_mm ?? item.dia ?? '—';
-  const length = item.length ?? item.length_mm ?? item.total_length_mm ?? item.cut_length_mm ?? '—';
-  const qty = item.qty ?? item.quantity ?? item.pcs ?? item.count ?? '—';
-  const shape = item.shape_name || item.shape || item.type || '';
-  const parts = [`Ø${escapeHtml(diameter)}`, `${escapeHtml(length)} מ"מ`, `${escapeHtml(qty)} יח'`];
-  if (shape) parts.push(escapeHtml(shape));
-  return `<span class="chip">${parts.join(' · ')}</span>`;
 }
 
 async function saveOcrTraining() {
@@ -195,54 +717,6 @@ async function deleteOcrTraining(id) {
   await fetch('/api/intake/training/' + id, { method:'DELETE' });
   document.getElementById('ocrTrain_' + id)?.remove();
   toast('התיקון הוסר');
-}
-
-async function loadIntakeQueue() {
-  const list = document.getElementById('intakeList');
-  list.innerHTML = '<div class="empty">טוען...</div>';
-  const rows = await fetch('/api/intake/log?status=pending_review').then(r => r.json()).catch(() => []);
-  if (!rows.length) {
-    list.innerHTML = '<div class="empty">אין הזמנות ממתינות לאישור.</div>';
-    return;
-  }
-  list.innerHTML = rows.map(row => {
-    let parsed = {};
-    try { parsed = JSON.parse(row.parsed_data || '{}'); } catch {}
-    const items = (parsed.items || []).map(formatIntakeItem).join('');
-    return `
-      <article class="intake-card" id="intake_${row.id}">
-        <div class="card-top">
-          <div>
-            <div class="card-title">${escapeHtml(parsed.customer_name || parsed.customerName || 'לקוח לא ידוע')}</div>
-            <div class="meta">${escapeHtml(row.source || '')} ${parsed.delivery_date || parsed.deliveryDate ? ' · ' + escapeHtml(parsed.delivery_date || parsed.deliveryDate) : ''}</div>
-            <div class="chips">${items || '<span class="meta">אין פריטים שזוהו</span>'}</div>
-          </div>
-          <div class="card-actions">
-            <button class="btn btn-success" onclick="intakeApprove(${row.id})">אשר</button>
-            <button class="btn" onclick="intakeReject(${row.id})">דחה</button>
-          </div>
-        </div>
-        <details class="raw-details">
-          <summary class="meta">תוכן מקורי</summary>
-          <pre class="meta raw-content">${escapeHtml(row.raw_content || '')}</pre>
-        </details>
-      </article>
-    `;
-  }).join('');
-}
-
-async function intakeApprove(id) {
-  const response = await fetch(`/api/intake/${id}/approve`, { method:'POST' });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || !result.success) return toast('אישור נכשל', true);
-  document.getElementById('intake_' + id)?.remove();
-  toast(`הזמנה ${result.orderNum} נוצרה`);
-}
-
-async function intakeReject(id) {
-  await fetch(`/api/intake/${id}/reject`, { method:'POST' });
-  document.getElementById('intake_' + id)?.remove();
-  toast('סומן כדחוי');
 }
 
 loadIntakeQueue();

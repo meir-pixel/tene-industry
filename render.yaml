@@ -35,8 +35,6 @@ services:
         generateValue: true
       - key: JWT_SECRET
         generateValue: true
-      - key: AUTH_ENFORCEMENT
-        value: false
       - key: GEMINI_API_KEY
         sync: false
       - key: WHATSAPP_TOKEN

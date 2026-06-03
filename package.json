@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
+    "start:local": "node scripts/start-local.js",
     "dev": "nodemon server.js",
     "pm2": "pm2 start ecosystem.config.js --env production",
     "pm2:stop": "pm2 stop ironbend",
@@ -14,6 +15,7 @@
     "test:auth": "node test/auth-core.test.js && node test/permissions.test.js",
     "test:client": "node test/client-auth-contract.test.js",
     "test:intake": "node test/intake-parser.test.js",
+    "test:modules": "node test/module-governance.test.js",
     "test:security": "node test/security-routes.test.js",
     "test:smoke": "node test/app-smoke.test.js",
     "test:status": "node test/status-contracts.test.js",

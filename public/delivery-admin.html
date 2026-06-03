@@ -1,190 +1,31 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ניהול נהגים - IronBend</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ניהול צי רכבים ונהגים - IronBend</title>
 <link rel="stylesheet" href="/theme.css">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh}
-.page{max-width:1240px;margin:0 auto;padding:18px}
-.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
-.title{font-size:22px;font-weight:900}
-.sub{font-size:12px;color:var(--text-muted);margin-top:2px}
-.btn{border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-family:inherit;font-weight:800;cursor:pointer;background:#fff;color:var(--text)}
-.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn-danger{color:var(--danger);border-color:rgba(184,50,39,.35);background:var(--danger-dim)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-.driver-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));display:flex;flex-direction:column;gap:10px}
-.driver-card.off{opacity:.56}
-.driver-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.driver-name{font-size:16px;font-weight:900}
-.driver-meta{font-size:12px;color:var(--text-dim);line-height:1.8}
-.badge{font-size:11px;font-weight:900;border-radius:999px;padding:3px 9px;background:var(--success-dim);color:var(--success)}
-.badge.off{background:rgba(0,0,0,.06);color:var(--text-muted)}
-.actions{display:flex;gap:8px;flex-wrap:wrap}
-.empty{background:#fff;border:1px solid var(--border);border-radius:10px;padding:36px;text-align:center;color:var(--text-muted)}
-.modal-bg{position:fixed;inset:0;background:rgba(10,20,35,.45);display:none;align-items:center;justify-content:center;z-index:800}
-.modal{width:min(460px,94vw);background:#fff;border-radius:12px;border:1px solid var(--border);box-shadow:0 20px 70px rgba(0,0,0,.22);overflow:hidden}
-.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);font-weight:900}
-.modal-body{padding:18px;display:grid;gap:11px}
-.field{display:grid;gap:4px}
-.field label{font-size:11px;font-weight:900;color:var(--text-muted)}
-.field input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:#fbfcfe;color:var(--text)}
-.modal-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border)}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10233f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;opacity:0;transition:.2s;z-index:900}
-</style>
-</head>
-<body data-page="driver">
-<script src="/safe-dom.js"></script>
-<script src="/auth-client.js"></script>
-<script src="/nav.js"></script>
-
-<main class="page">
-  <section class="head">
-    <div>
-      <div class="title">🚚 ניהול נהגים ורכבים</div>
-      <div class="sub">מסך פנימי ללוגיסטיקה: הקמה, עריכה והשבתה של נהגים</div>
-    </div>
-    <button class="btn btn-primary" onclick="openDriverModal()">+ נהג חדש</button>
-  </section>
-
-  <section class="grid" id="driversGrid">
-    <div class="empty">טוען נהגים...</div>
-  </section>
-</main>
-
-<div class="modal-bg" id="driverModal">
-  <div class="modal">
-    <div class="modal-head">
-      <span id="driverModalTitle">נהג חדש</span>
-      <button class="btn" onclick="closeDriverModal()">סגור</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="driverEditId">
-      <div class="field"><label>שם נהג *</label><input id="driverName" type="text"></div>
-      <div class="field"><label>טלפון</label><input id="driverPhone" type="tel"></div>
-      <div class="field"><label>תיאור רכב</label><input id="driverVehicle" type="text"></div>
-      <div class="field"><label>לוחית רישוי</label><input id="driverPlate" type="text"></div>
-      <div class="field"><label>תוקף רישיון</label><input id="driverLicense" type="date"></div>
-      <div class="field"><label>הערות</label><input id="driverNotes" type="text"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeDriverModal()">ביטול</button>
-      <button class="btn btn-primary" onclick="saveDriver()">שמור</button>
-    </div>
-  </div>
-</div>
-<div class="toast" id="toast"></div>
-
+*{box-sizing:border-box}body{margin:0;font-family:Heebo,Arial,sans-serif;background:#f4f7fb;color:#182233}.page{max-width:1380px;margin:auto;padding:18px}.head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}.title{font-size:26px;font-weight:900}.sub,.meta{color:#64748b;font-size:13px}.toolbar,.actions{display:flex;gap:8px;flex-wrap:wrap}.btn,input,select,textarea{font:inherit}.btn{border:1px solid #cbd5e1;background:#fff;color:#182233;border-radius:8px;padding:9px 13px;font-weight:800;cursor:pointer}.btn-primary{background:#d45f12;border-color:#d45f12;color:#fff}.btn-sm{padding:6px 9px;font-size:12px}.toolbar input,.toolbar select,.field input,.field select,.field textarea{border:1px solid #cbd5e1;border-radius:8px;padding:9px 10px;background:#fff;width:100%}.kpis{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px;margin-bottom:14px}.kpi,.card,.side,.empty{background:#fff;border:1px solid #dbe3ee;border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.06)}.kpi,.card{padding:14px}.kpi small,.box small{display:block;color:#64748b;font-weight:900;font-size:11px}.kpi b{font-size:24px}.layout{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:14px;align-items:start}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}.top{display:flex;justify-content:space-between;gap:10px}.name{font-weight:900;font-size:17px}.plate{font-family:Consolas,monospace;font-weight:900;color:#0f2f56}.badge{display:inline-flex;border-radius:999px;background:#dcfce7;color:#166534;font-weight:900;font-size:11px;padding:3px 8px;margin:2px}.badge.warn{background:#fef3c7;color:#a16207}.badge.danger{background:#fee2e2;color:#b91c1c}.badge.off{background:#e5e7eb;color:#64748b}.money,.docs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.box,.event,.doc{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px}.empty{padding:28px;text-align:center;color:#64748b}.side{position:sticky;top:14px;overflow:hidden}.side-head{padding:14px 16px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;font-weight:900}.side-body{padding:14px;display:grid;gap:12px}.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50}.modal-bg.open{display:flex}.modal{width:min(760px,94vw);max-height:92vh;overflow:auto;background:#fff;border-radius:12px}.modal-head,.modal-actions{padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;font-weight:900}.modal-actions{border-top:1px solid #e2e8f0;border-bottom:0;justify-content:flex-end;gap:8px}.modal-body{padding:18px;display:grid;gap:11px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{display:grid;gap:4px}.field label{font-size:11px;color:#64748b;font-weight:900}.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10233f;color:#fff;border-radius:10px;padding:10px 16px;opacity:0;transition:.2s;z-index:70}@media(max-width:1050px){.layout{grid-template-columns:1fr}.side{position:static}.kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:680px){.head{display:grid}.form-grid,.money,.docs,.kpis{grid-template-columns:1fr}}
+</style></head>
+<body data-page="driver"><script src="/safe-dom.js"></script><script src="/auth-client.js"></script><script src="/nav.js"></script>
+<main class="page"><section class="head"><div><div class="title">ניהול צי רכבים ונהגים</div><div class="sub">רכב הוא נכס עצמאי. נהג הוא אדם שמשויך לרכב. לכל רכב יש תיק מסמכים, טסט, ביטוח, טיפולים, הוצאות והכנסות.</div></div><div class="toolbar"><input id="fleetSearch" placeholder="חיפוש רכב / לוחית / נהג" oninput="renderFleet()"><select id="fleetFilter" onchange="renderFleet()"><option value="">כל הסטטוסים</option><option value="danger">דורש טיפול</option><option value="warning">חסר / קרוב</option><option value="ok">תקין</option></select><button class="btn btn-primary" onclick="openVehicleModal()">+ רכב חדש</button><button class="btn" onclick="openDriverModal()">+ נהג חדש</button></div></section><section class="kpis" id="fleetKpis"></section><section class="layout"><section class="grid" id="vehiclesGrid"><div class="empty">טוען רכבים...</div></section><aside class="side" id="vehicleSide"><div class="side-head"><span>תיק רכב</span><span class="badge off">בחר רכב</span></div><div class="side-body"><div class="empty">בחר רכב כדי לראות נהג משויך, מסמכים, טיפולים והיסטוריה.</div></div></aside></section></main>
+<div class="modal-bg" id="vehicleModal"><div class="modal"><div class="modal-head"><span id="vehicleModalTitle">רכב חדש</span><button class="btn" onclick="closeModal('vehicleModal')">סגור</button></div><div class="modal-body"><input type="hidden" id="vehicleEditId"><div class="form-grid"><div class="field"><label>תיאור רכב *</label><input id="vehicleDesc"></div><div class="field"><label>לוחית רישוי</label><input id="vehiclePlate"></div><div class="field"><label>יצרן</label><input id="vehicleMake"></div><div class="field"><label>דגם</label><input id="vehicleModel"></div><div class="field"><label>שנתון</label><input id="vehicleYear" type="number"></div><div class="field"><label>קילומטראז'</label><input id="odometerKm" type="number"></div><div class="field"><label>תוקף טסט</label><input id="testExpiry" type="date"></div><div class="field"><label>תוקף ביטוח</label><input id="insuranceExpiry" type="date"></div><div class="field"><label>טיפול הבא בתאריך</label><input id="nextServiceDate" type="date"></div><div class="field"><label>טיפול הבא בק״מ</label><input id="nextServiceKm" type="number"></div><div class="field"><label>נהג משויך</label><select id="assignedDriverId"></select></div><div class="field"><label>סטטוס</label><select id="vehicleStatus"><option value="active">פעיל</option><option value="service">בטיפול</option><option value="inactive">מושבת</option></select></div></div><div class="field"><label>הערות רכב</label><textarea id="vehicleNotes"></textarea></div></div><div class="modal-actions"><button class="btn" onclick="closeModal('vehicleModal')">ביטול</button><button class="btn btn-primary" onclick="saveVehicle()">שמור רכב</button></div></div></div>
+<div class="modal-bg" id="driverModal"><div class="modal"><div class="modal-head"><span id="driverModalTitle">נהג חדש</span><button class="btn" onclick="closeModal('driverModal')">סגור</button></div><div class="modal-body"><input type="hidden" id="driverEditId"><div class="form-grid"><div class="field"><label>שם נהג *</label><input id="driverName"></div><div class="field"><label>טלפון</label><input id="driverPhone"></div><div class="field"><label>רכב משויך</label><select id="driverVehicleId"></select></div><div class="field"><label>תוקף רישיון נהג</label><input id="driverLicense" type="date"></div></div><div class="field"><label>הערות נהג</label><textarea id="driverNotes"></textarea></div></div><div class="modal-actions"><button class="btn" onclick="closeModal('driverModal')">ביטול</button><button class="btn btn-primary" onclick="saveDriver()">שמור נהג</button></div></div></div>
+<div class="modal-bg" id="eventModal"><div class="modal"><div class="modal-head"><span>אירוע רכב</span><button class="btn" onclick="closeModal('eventModal')">סגור</button></div><div class="modal-body"><input type="hidden" id="eventVehicleId"><div class="form-grid"><div class="field"><label>סוג אירוע</label><select id="eventType"><option value="maintenance">טיפול</option><option value="repair">תיקון</option><option value="fuel">דלק</option><option value="insurance">ביטוח</option><option value="test">טסט</option><option value="expense">הוצאה אחרת</option><option value="income">הכנסה</option></select></div><div class="field"><label>תאריך</label><input id="eventDate" type="date"></div><div class="field"><label>קילומטראז'</label><input id="eventOdometer" type="number"></div><div class="field"><label>סכום</label><input id="eventAmount" type="number" step="0.01"></div><div class="field"><label>ספק / מוסך / מקור</label><input id="eventVendor"></div><div class="field"><label>אסמכתא</label><input id="eventRef"></div></div><div class="field"><label>פירוט</label><textarea id="eventNotes"></textarea></div></div><div class="modal-actions"><button class="btn" onclick="closeModal('eventModal')">ביטול</button><button class="btn btn-primary" onclick="saveVehicleEvent()">שמור אירוע</button></div></div></div>
+<div class="modal-bg" id="vehicleDocumentModal"><div class="modal"><div class="modal-head"><span>מסמך רכב</span><button class="btn" onclick="closeModal('vehicleDocumentModal')">סגור</button></div><div class="modal-body"><input type="hidden" id="docVehicleId"><div class="form-grid"><div class="field"><label>סוג מסמך</label><select id="docType"><option value="test">טסט</option><option value="insurance">ביטוח</option><option value="license">רישיון רכב</option><option value="service">טיפול</option><option value="invoice">חשבונית</option><option value="other">אחר</option></select></div><div class="field"><label>תוקף</label><input id="docExpiry" type="date"></div><div class="field"><label>כותרת</label><input id="docTitle"></div><div class="field"><label>קובץ</label><input id="docFile" type="file"></div></div><div class="field"><label>הערות</label><textarea id="docNotes"></textarea></div></div><div class="modal-actions"><button class="btn" onclick="closeModal('vehicleDocumentModal')">ביטול</button><button class="btn btn-primary" onclick="saveVehicleDocument()">שמור מסמך</button></div></div></div><div class="toast" id="toast"></div>
 <script>
-let drivers = [];
-
-function escapeHtml(value) {
-  return window.IronBendSafe
-    ? window.IronBendSafe.escapeHtml(value)
-    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-}
-
-function toast(message) {
-  const el = document.getElementById('toast');
-  el.textContent = message;
-  el.style.opacity = '1';
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.style.opacity = '0', 2200);
-}
-
-async function loadDriversAdmin() {
-  drivers = await fetch('/api/drivers?all=1').then(r => r.json()).catch(() => []);
-  const grid = document.getElementById('driversGrid');
-  if (!drivers.length) {
-    grid.innerHTML = '<div class="empty">אין נהגים. לחץ "נהג חדש" כדי להוסיף.</div>';
-    return;
-  }
-  grid.innerHTML = drivers.map(driverCard).join('');
-}
-
-function driverCard(d) {
-  const isActive = d.active !== 0;
-  const encoded = encodeURIComponent(JSON.stringify(d));
-  return `
-    <article class="driver-card ${isActive ? '' : 'off'}">
-      <div class="driver-top">
-        <div>
-          <div class="driver-name">${escapeHtml(d.name)}</div>
-          <div class="driver-meta">
-            <div>${escapeHtml(d.phone || 'ללא טלפון')}</div>
-            <div>${escapeHtml(d.vehicle_desc || 'ללא תיאור רכב')}</div>
-            <div>${escapeHtml(d.license_plate || 'ללא לוחית')}</div>
-            ${d.license_expiry ? `<div>רישיון עד ${escapeHtml(d.license_expiry)}</div>` : ''}
-            ${d.notes ? `<div>${escapeHtml(d.notes)}</div>` : ''}
-          </div>
-        </div>
-        <span class="badge ${isActive ? '' : 'off'}">${isActive ? 'פעיל' : 'מושבת'}</span>
-      </div>
-      <div class="actions">
-        <button class="btn" onclick="openDriverModalFromData('${encoded}')">עריכה</button>
-        <button class="btn ${isActive ? 'btn-danger' : ''}" onclick="toggleDriver(${d.id}, ${isActive ? 0 : 1})">${isActive ? 'השבת' : 'הפעל'}</button>
-      </div>
-    </article>
-  `;
-}
-
-function openDriverModalFromData(encoded) {
-  openDriverModal(JSON.parse(decodeURIComponent(encoded)));
-}
-
-function openDriverModal(driver = null) {
-  document.getElementById('driverEditId').value = driver?.id || '';
-  document.getElementById('driverModalTitle').textContent = driver ? 'עריכת נהג' : 'נהג חדש';
-  document.getElementById('driverName').value = driver?.name || '';
-  document.getElementById('driverPhone').value = driver?.phone || '';
-  document.getElementById('driverVehicle').value = driver?.vehicle_desc || '';
-  document.getElementById('driverPlate').value = driver?.license_plate || '';
-  document.getElementById('driverLicense').value = driver?.license_expiry || '';
-  document.getElementById('driverNotes').value = driver?.notes || '';
-  document.getElementById('driverModal').style.display = 'flex';
-  document.getElementById('driverName').focus();
-}
-
-function closeDriverModal() {
-  document.getElementById('driverModal').style.display = 'none';
-}
-
-async function saveDriver() {
-  const id = document.getElementById('driverEditId').value;
-  const body = {
-    name: document.getElementById('driverName').value.trim(),
-    phone: document.getElementById('driverPhone').value.trim(),
-    vehicle_desc: document.getElementById('driverVehicle').value.trim(),
-    license_plate: document.getElementById('driverPlate').value.trim(),
-    license_expiry: document.getElementById('driverLicense').value || null,
-    notes: document.getElementById('driverNotes').value.trim(),
-  };
-  if (!body.name) return toast('יש להזין שם נהג');
-  await fetch(id ? `/api/drivers/${id}` : '/api/drivers', {
-    method: id ? 'PATCH' : 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(body),
-  });
-  closeDriverModal();
-  toast('נשמר');
-  loadDriversAdmin();
-}
-
-async function toggleDriver(id, active) {
-  await fetch(`/api/drivers/${id}`, {
-    method: 'PATCH',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ active }),
-  });
-  toast(active ? 'נהג הופעל' : 'נהג הושבת');
-  loadDriversAdmin();
-}
-
-loadDriversAdmin();
-</script>
-</body>
-</html>
+let vehicles=[],drivers=[],selectedVehicleId=null,vehicleEvents=[],vehicleDocs=[];const esc=v=>window.IronBendSafe?IronBendSafe.escapeHtml(v):String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));const money=v=>'₪'+Number(v||0).toLocaleString('he-IL',{maximumFractionDigits:0});function toast(m){const e=document.getElementById('toast');e.textContent=m;e.style.opacity=1;clearTimeout(e._t);e._t=setTimeout(()=>e.style.opacity=0,2200)}function today(){return new Date().toISOString().slice(0,10)}function daysText(date){if(!date)return'חסר';const d=Math.ceil((new Date(date+'T00:00:00')-new Date().setHours(0,0,0,0))/86400000);return d<0?'פג לפני '+Math.abs(d)+' ימים':d===0?'פג היום':'עוד '+d+' ימים'}function healthLabel(h){return h?.status==='danger'?'דורש טיפול':h?.status==='warning'?'חסר / קרוב':'תקין'}function healthClass(h){return h?.status==='danger'?'danger':h?.status==='warning'?'warn':''}
+async function loadFleet(){[vehicles,drivers]=await Promise.all([fetch('/api/vehicles?all=1').then(r=>r.ok?r.json():[]).catch(()=>[]),fetch('/api/drivers?all=1').then(r=>r.ok?r.json():[]).catch(()=>[])]);renderKpis();renderFleet();if(selectedVehicleId)renderVehicleSide(selectedVehicleId)}
+function renderKpis(){const active=vehicles.filter(v=>v.active!==0).length,danger=vehicles.filter(v=>v.health?.status==='danger').length,warn=vehicles.filter(v=>v.health?.status==='warning').length,expense=vehicles.reduce((s,v)=>s+Number(v.expense_total||0),0),income=vehicles.reduce((s,v)=>s+Number(v.income_total||0),0);document.getElementById('fleetKpis').innerHTML=[['רכבים פעילים',active,vehicles.length+' בתיק'],['דורשים טיפול',danger,'טסט/ביטוח/טיפול פג'],['קרובים לפקיעה',warn,'30 יום או מידע חסר'],['הוצאות צי',money(expense),'טיפולים, דלק וביטוחים'],['נטו צי',money(income-expense),'הכנסות '+money(income)]].map(k=>'<div class="kpi"><small>'+k[0]+'</small><b>'+k[1]+'</b><div class="meta">'+k[2]+'</div></div>').join('')}
+function renderFleet(){const q=document.getElementById('fleetSearch').value.toLowerCase(),f=document.getElementById('fleetFilter').value;const rows=vehicles.filter(v=>{const t=[v.vehicle_desc,v.license_plate,v.vehicle_make,v.vehicle_model,v.assigned_driver_name].join(' ').toLowerCase();return(!q||t.includes(q))&&(!f||v.health?.status===f)});document.getElementById('vehiclesGrid').innerHTML=rows.length?rows.map(vehicleCard).join(''):'<div class="empty">לא נמצאו רכבים לפי הסינון.</div>'}
+function vehicleCard(v){const h=v.health||{},active=v.active!==0;return '<article class="card"><div class="top"><div><div class="name">'+esc(v.vehicle_desc||'רכב ללא שם')+'</div><div class="meta"><div class="plate">'+esc(v.license_plate||'ללא לוחית')+'</div><div>'+esc([v.vehicle_make,v.vehicle_model,v.vehicle_year].filter(Boolean).join(' ')||'פרטי רכב חסרים')+'</div><div>נהג: '+esc(v.assigned_driver_name||'לא משויך')+'</div></div></div><span class="badge '+healthClass(h)+'">'+healthLabel(h)+'</span></div><div>'+[...(h.overdue||[]).map(x=>'<span class="badge danger">'+esc(x)+' פג</span>'),...(h.dueSoon||[]).map(x=>'<span class="badge warn">'+esc(x)+' קרוב</span>'),...(h.missing||[]).map(x=>'<span class="badge warn">'+esc(x)+' חסר</span>'),'<span class="badge '+(active?'':'off')+'">'+(active?'פעיל':'מושבת')+'</span>'].join('')+'</div><div class="money"><div class="box"><small>הוצאות</small><b>'+money(v.expense_total)+'</b></div><div class="box"><small>הכנסות</small><b>'+money(v.income_total)+'</b></div><div class="box"><small>נטו</small><b>'+money(v.net_total)+'</b></div></div><div class="actions"><button class="btn btn-sm" onclick="renderVehicleSide('+v.id+')">תיק רכב</button><button class="btn btn-sm" onclick="openVehicleModal('+v.id+')">עריכת רכב</button><button class="btn btn-sm" onclick="openDriverModal('+(v.assigned_driver_id||'null')+')">נהג</button><button class="btn btn-sm" onclick="openEventModal('+v.id+')">+ אירוע</button><button class="btn btn-sm" onclick="openDocModal('+v.id+')">+ מסמך</button></div></article>'}
+async function renderVehicleSide(id){selectedVehicleId=id;const v=vehicles.find(x=>x.id===id);if(!v)return;[vehicleEvents,vehicleDocs]=await Promise.all([fetch('/api/vehicles/'+id+'/events').then(r=>r.ok?r.json():[]).catch(()=>[]),fetch('/api/vehicles/'+id+'/documents').then(r=>r.ok?r.json():[]).catch(()=>[])]);document.getElementById('vehicleSide').innerHTML='<div class="side-head"><span>'+esc(v.vehicle_desc||v.license_plate||'רכב')+'</span><span class="badge '+healthClass(v.health)+'">'+healthLabel(v.health)+'</span></div><div class="side-body"><div class="docs">'+docBox('טסט',v.test_expiry)+docBox('ביטוח',v.insurance_expiry)+docBox('טיפול הבא',v.next_service_date||(v.next_service_km?v.next_service_km+' ק״מ':''))+'</div><div class="box"><small>נהג משויך</small><b>'+esc(v.assigned_driver_name||'אין')+'</b><div class="meta">'+esc(v.assigned_driver_phone||'')+'</div></div><div class="money"><div class="box"><small>משלוחים</small><b>'+Number(v.delivery_count||0).toLocaleString('he-IL')+'</b></div><div class="box"><small>ק״מ</small><b>'+Number(v.odometer_km||0).toLocaleString('he-IL')+'</b></div><div class="box"><small>נטו</small><b>'+money(v.net_total)+'</b></div></div><div class="actions"><button class="btn btn-primary" onclick="openDocModal('+v.id+')">+ מסמך</button><button class="btn" onclick="openEventModal('+v.id+')">+ אירוע</button></div><div><b>מסמכים</b>'+docList()+'</div><div><b>היסטוריית רכב</b>'+(vehicleEvents.length?vehicleEvents.map(eventCard).join(''):'<div class="empty">אין עדיין אירועים.</div>')+'</div></div>'}
+function docBox(l,d){return '<div class="box"><small>'+l+'</small><b>'+esc(d||'חסר')+'</b><div class="meta">'+esc(daysText(d))+'</div></div>'}function docList(){return vehicleDocs.length?vehicleDocs.map(d=>'<div class="doc"><b>'+esc(d.title||d.document_type)+'</b><div class="meta">'+esc(d.file_name||'ללא קובץ')+' · '+esc(d.expiry_date?daysText(d.expiry_date):'ללא תוקף')+'</div></div>').join(''):'<div class="empty">אין מסמכים שמורים לרכב.</div>'}function eventCard(e){const labels={maintenance:'טיפול',repair:'תיקון',fuel:'דלק',insurance:'ביטוח',test:'טסט',expense:'הוצאה',income:'הכנסה'};return '<div class="event"><b>'+esc(labels[e.event_type]||e.event_type)+'</b><div class="meta">'+esc(e.event_date||'')+' · '+money(e.amount)+' · '+esc(e.vendor||'')+'</div></div>'}
+function fillDriverSelect(id,value){const el=document.getElementById(id);el.innerHTML='<option value="">ללא שיבוץ</option>'+drivers.map(d=>'<option value="'+d.id+'">'+esc(d.name)+(d.assigned_vehicle_desc?' - '+esc(d.assigned_vehicle_desc):'')+'</option>').join('');el.value=value||''}function fillVehicleSelect(id,value){const el=document.getElementById(id);el.innerHTML='<option value="">ללא רכב</option>'+vehicles.map(v=>'<option value="'+v.id+'">'+esc(v.vehicle_desc||v.license_plate||('רכב '+v.id))+'</option>').join('');el.value=value||''}function closeModal(id){document.getElementById(id).classList.remove('open')}
+function openVehicleModal(id=null){const v=id?vehicles.find(x=>x.id===id):null;vehicleEditId.value=v?.id||'';vehicleModalTitle.textContent=v?'עריכת רכב':'רכב חדש';fillDriverSelect('assignedDriverId',v?.assigned_driver_id);[['vehicleDesc',v?.vehicle_desc],['vehiclePlate',v?.license_plate],['vehicleMake',v?.vehicle_make],['vehicleModel',v?.vehicle_model],['vehicleYear',v?.vehicle_year],['odometerKm',v?.odometer_km],['testExpiry',v?.test_expiry],['insuranceExpiry',v?.insurance_expiry],['nextServiceDate',v?.next_service_date],['nextServiceKm',v?.next_service_km],['vehicleStatus',v?.vehicle_status||'active'],['vehicleNotes',v?.notes]].forEach(([i,val])=>document.getElementById(i).value=val||'');vehicleModal.classList.add('open')}
+async function saveVehicle(){const id=vehicleEditId.value;const body={vehicle_desc:vehicleDesc.value.trim(),license_plate:vehiclePlate.value.trim(),vehicle_make:vehicleMake.value.trim(),vehicle_model:vehicleModel.value.trim(),vehicle_year:Number(vehicleYear.value)||null,odometer_km:Number(odometerKm.value)||0,test_expiry:testExpiry.value||null,insurance_expiry:insuranceExpiry.value||null,next_service_date:nextServiceDate.value||null,next_service_km:Number(nextServiceKm.value)||null,vehicle_status:vehicleStatus.value,notes:vehicleNotes.value.trim(),assigned_driver_id:assignedDriverId.value||null};if(!body.vehicle_desc&&!body.license_plate)return toast('צריך תיאור רכב או לוחית');const r=await fetch(id?'/api/vehicles/'+id:'/api/vehicles',{method:id?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)return toast('שמירת רכב נכשלה');closeModal('vehicleModal');toast('רכב נשמר');await loadFleet()}
+function openDriverModal(id=null){const d=id?drivers.find(x=>x.id===id):null;driverEditId.value=d?.id||'';driverModalTitle.textContent=d?'עריכת נהג':'נהג חדש';fillVehicleSelect('driverVehicleId',d?.vehicle_id);[['driverName',d?.name],['driverPhone',d?.phone],['driverLicense',d?.license_expiry],['driverNotes',d?.notes]].forEach(([i,val])=>document.getElementById(i).value=val||'');driverModal.classList.add('open')}async function saveDriver(){const id=driverEditId.value;const body={name:driverName.value.trim(),phone:driverPhone.value.trim(),vehicle_id:driverVehicleId.value||null,license_expiry:driverLicense.value||null,notes:driverNotes.value.trim()};if(!body.name)return toast('שם נהג חסר');const r=await fetch(id?'/api/drivers/'+id:'/api/drivers',{method:id?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)return toast('שמירת נהג נכשלה');closeModal('driverModal');toast('נהג נשמר');await loadFleet()}
+function openEventModal(id){eventVehicleId.value=id;eventDate.value=today();['eventOdometer','eventAmount','eventVendor','eventRef','eventNotes'].forEach(i=>document.getElementById(i).value='');eventModal.classList.add('open')}async function saveVehicleEvent(){const id=eventVehicleId.value;const body={event_type:eventType.value,event_date:eventDate.value,odometer_km:Number(eventOdometer.value)||null,amount:Number(eventAmount.value)||0,vendor:eventVendor.value.trim(),reference:eventRef.value.trim(),notes:eventNotes.value.trim()};const r=await fetch('/api/vehicles/'+id+'/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)return toast('שמירת אירוע נכשלה');closeModal('eventModal');toast('אירוע נשמר');await loadFleet();await renderVehicleSide(Number(id))}
+function openDocModal(id){docVehicleId.value=id;docType.value='test';docExpiry.value='';docTitle.value='';docNotes.value='';docFile.value='';vehicleDocumentModal.classList.add('open')}async function saveVehicleDocument(){const id=docVehicleId.value;const fd=new FormData();fd.append('document_type',docType.value);fd.append('title',docTitle.value.trim());fd.append('expiry_date',docExpiry.value);fd.append('notes',docNotes.value.trim());if(docFile.files[0])fd.append('file',docFile.files[0]);const r=await fetch('/api/vehicles/'+id+'/documents',{method:'POST',body:fd});if(!r.ok)return toast('שמירת מסמך נכשלה');closeModal('vehicleDocumentModal');toast('מסמך נשמר');await renderVehicleSide(Number(id))}
+loadFleet();
+</script></body></html>

@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const { shapeSvg } = require('../services/productionCards');
 
 function loadShapeEditorGeometry() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
@@ -47,4 +48,18 @@ test('visual-only 3D preview does not use true-3D azimuth arrays', () => {
   assert.match(editor, /const isReal3D = this\.current\.is3d === 1 \|\| this\.current\.is3d === true/);
   assert.match(editor, /const has3D = isReal3D && \(/);
   assert.match(editor, /azAngles:\s+has3D \?/);
+});
+
+test('production card renders open U bars as a readable U shape, not a flattened line', () => {
+  const svg = shapeSvg(JSON.stringify([
+    { length_mm: 200, angle_deg: 90 },
+    { length_mm: 1900, angle_deg: 90 },
+    { length_mm: 200, angle_deg: 0 },
+  ]));
+
+  assert.match(svg, /data-shape-kind="open-u"/);
+  assert.match(svg, /M 42,78 L 42,24 L 178,24 L 178,78/);
+  assert.match(svg, />1900</);
+  assert.match(svg, />200</);
+  assert.match(svg, /90&#176;/);
 });

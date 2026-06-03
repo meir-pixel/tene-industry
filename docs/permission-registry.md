@@ -3,9 +3,10 @@
 Working role decision: see `docs/role-model-decision.md`.
 
 Source-of-truth registry required by Volume 10. Current roles are defined in
-`permissions.js`; guarded routes now require JWT-derived roles. Many endpoints
-still lack direct route-level protection, and `AUTH_ENFORCEMENT` is currently
-disabled by deployment/config default until the staging gate passes.
+`permissions.js`; guarded routes now require JWT-derived roles. There is no
+global auth enforcement switch: each active `/api/*` route must declare a role
+guard, custom authorization middleware, scoped public boundary, or explicit
+allowlist entry, and `test/route-auth-coverage.test.js` enforces that contract.
 
 ## Source Permission Matrix
 
@@ -85,7 +86,7 @@ receive material but cannot see margin".
 5. Finance endpoints must require `finance` or `manager`.
 6. Order status changes must require an authenticated role allowed by the state
    transition.
-7. Shop-floor screens need a deliberate auth mode before global enforcement.
+7. Shop-floor screens need a deliberate auth mode for sold deployments.
 
 ## Sprint 1 Permission Deliverables
 
@@ -99,4 +100,5 @@ receive material but cannot see margin".
 5. Add route-level tests for anonymous, wrong-role, and allowed-role cases.
 6. Produce a route permission table from `api-registry.md`.
 7. Decide kiosk/worker/driver/customer external auth modes.
-8. Enable `AUTH_ENFORCEMENT=true` only after staging checks pass.
+8. Keep `AUTH_BYPASS` disabled in staging/production and verify anonymous
+   protected-route requests return 401 before every release.

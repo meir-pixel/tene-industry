@@ -55,6 +55,7 @@ Status values:
 | `inventory.html` | Inventory | partial | internal warehouse | API-backed raw material inventory and suppliers with auth/safe helpers; still needs receiving policy split from Warehouse. |
 | `warehouse.html` | Inventory / Delivery | partial | internal warehouse | API-backed packages/loading/receiving; still mixed ownership and should be split by responsibility. |
 | `procurement.html` | Inventory | partial | internal procurement | API-backed MVP for purchase orders, suppliers, and steel prices; still needs full workflow policy and supplier portal separation. |
+| `delivery-admin.html` | Fleet Management | partial | internal logistics/manager | Internal fleet asset module: vehicles, assigned drivers, service/test/insurance tracking, events, expenses/income, and vehicle documents. Must remain separate from the external driver portal. |
 | `driver.html` | Delivery / Portals | partial | internal driver/auth TBD | Loads shared auth/nav and aligns with delivery statuses; still needs dedicated external driver auth model before commercial portal use. |
 
 ## Finance, Quality, Maintenance

@@ -145,6 +145,80 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
   background:#fff;
 }
 .inline-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap; }
+.permissions-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+.permission-card {
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:14px;
+  box-shadow:var(--shadow);
+}
+.permission-role { font-size:14px; font-weight:900; margin-bottom:6px; color:var(--text); }
+.permission-desc { font-size:12px; color:var(--text-dim); line-height:1.55; }
+.permission-note {
+  background:var(--info-bg);
+  border:1px solid rgba(21,96,168,0.18);
+  border-radius:12px;
+  padding:14px 16px;
+  color:var(--text);
+  font-size:13px;
+  line-height:1.6;
+  margin-bottom:16px;
+}
+.module-control-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.module-status-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:14px; }
+.module-kpi { background:#fbfcfe; border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+.module-kpi-label { font-size:11px; color:var(--muted); font-weight:800; }
+.module-kpi-value { font-size:20px; font-weight:900; margin-top:2px; }
+.module-card {
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  box-shadow:var(--shadow);
+  margin-bottom:10px;
+  overflow:hidden;
+}
+.module-card-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding:13px 14px;
+  background:#fbfcfe;
+  border-bottom:1px solid rgba(0,0,0,.05);
+}
+.module-title-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.module-title { font-size:15px; font-weight:900; }
+.module-owner { font-size:11px; color:var(--muted); font-weight:800; }
+.module-desc { color:var(--text-dim); font-size:12px; margin-top:4px; line-height:1.5; }
+.module-badges { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.module-badge { border-radius:999px; padding:3px 9px; font-size:11px; font-weight:900; border:1px solid transparent; white-space:nowrap; }
+.module-badge.ok { background:var(--success-bg); color:var(--success); border-color:rgba(26,122,66,.22); }
+.module-badge.partial { background:var(--warning-bg); color:var(--warning); border-color:rgba(168,107,0,.24); }
+.module-badge.frozen { background:var(--info-bg); color:var(--info); border-color:rgba(21,96,168,.22); }
+.module-badge.risk { background:var(--danger-bg); color:var(--danger); border-color:rgba(184,50,39,.22); }
+.module-card-body {
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:10px;
+  padding:12px 14px;
+}
+.module-meta-title { font-size:11px; font-weight:900; color:var(--muted); margin-bottom:4px; }
+.module-meta-text { font-size:12px; color:var(--text); line-height:1.55; }
+.module-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-top:1px solid rgba(0,0,0,.05); }
+.module-links { display:flex; gap:6px; flex-wrap:wrap; }
+.module-link { color:var(--info); text-decoration:none; font-size:12px; font-weight:800; }
+@media(max-width:780px){
+  .module-control-head,.module-card-head,.module-actions{flex-direction:column;align-items:stretch}
+  .module-card-body{grid-template-columns:1fr}
+  .module-badges{justify-content:flex-start}
+}
 .audit-tools { display:flex; gap:8px; flex-wrap:wrap; }
 .audit-tools select {
   padding:8px 11px;
@@ -331,13 +405,22 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <button class="tab-btn" onclick="showTab('email',this)">📧 מייל</button>
         <button class="tab-btn" onclick="showTab('integrations',this)">🔗 אינטגרציות</button>
         <button class="tab-btn" onclick="showTab('vision',this)">📷 OCR</button>
-        <button class="tab-btn" onclick="showTab('users',this);loadUsers()">👥 משתמשים</button>
+        <button class="tab-btn" onclick="showTab('permissions',this)">🔐 הרשאות</button>
+        <button class="tab-btn" data-tab-users onclick="showTab('users',this);loadUsers()">👥 משתמשים</button>
         <button class="tab-btn" onclick="showTab('auditlog',this);loadAuditLog()">📋 לוג שינויים</button>
         <button class="tab-btn" onclick="showTab('cloud',this)">☁️ ניהול ענן</button>
       </div>
 
       <!-- TAB: MODULES -->
       <div id="tab-modules" class="tab-pane active" style="padding:20px">
+        <div class="module-control-head">
+          <div>
+            <div class="tab-heading">בקרת מודולים</div>
+            <div class="tab-subtitle">סטטוס עסקי, גבולות מודול, מסכים ו-API. הפעלה טכנית לא אומרת שהמודול בשל למכירה.</div>
+          </div>
+          <a class="btn" href="/docs.html#modules" target="_blank">פתח מפת מודולים</a>
+        </div>
+        <div class="module-status-grid" id="moduleStatusGrid"></div>
         <div id="modulesList"></div>
       </div>
 
@@ -549,7 +632,7 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
           <div class="form-group">
             <label>OpenAI API Key</label>
             <input type="password" id="vision_key" placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx">
-            <div class="form-hint">מומלץ להגדיר ב-Render כ-OPENAI_API_KEY. אם מוגדר שם, יוצג כאן כמוגדר בלי לחשוף את המפתח.</div>
+            <div class="form-hint">פרודקשן ב-Render משתמש ב-OPENAI_API_KEY שלו. עבודה מקומית יכולה להשתמש במפתח נפרד דרך המסך הזה או דרך OPENAI_API_KEY_LOCAL בקובץ .env.local.</div>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -570,6 +653,21 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
             <div class="test-result" id="test-vision"></div>
           </div>
         </div>
+      </div>
+
+      <!-- TAB: PERMISSIONS -->
+      <div id="tab-permissions" class="tab-pane tab-content-pad">
+        <div class="tab-toolbar">
+          <div>
+            <div class="tab-heading">🔐 ניהול הרשאות</div>
+            <div class="tab-subtitle">נותנים הרשאה דרך תפקיד המשתמש. יוצרים משתמש, בוחרים תפקיד, ושומרים PIN.</div>
+          </div>
+          <button class="btn btn-primary" onclick="showTab('users',document.querySelector('[data-tab-users]'));loadUsers();openAddUser()">+ משתמש עם הרשאה</button>
+        </div>
+        <div class="permission-note">
+          הרשאה לא ניתנת במסך נפרד לכל כפתור. היא נקבעת לפי תפקיד המשתמש. לדוגמה: משתמש בתפקיד מחסן יכול לעבוד במלאי וקבלת חומר, אבל לא בכספים; משתמש אדמין יכול הכל.
+        </div>
+        <div class="permissions-grid" id="permissionsGrid"></div>
       </div>
 
       <!-- TAB: USERS / ROLES -->
@@ -607,9 +705,16 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
               <select id="uRole">
                 <option value="admin">מנהל מערכת</option>
                 <option value="manager">מנהל</option>
-                <option value="operator" selected>מפעיל</option>
-                <option value="driver">נהג</option>
+                <option value="office">משרד</option>
+                <option value="warehouse">מחסן</option>
+                <option value="production">ייצור</option>
+                <option value="kiosk">עמדת ייצור</option>
+                <option value="sales">מכירות</option>
+                <option value="finance">כספים</option>
                 <option value="quality">בקרת איכות</option>
+                <option value="maintenance">תחזוקה</option>
+                <option value="driver">נהג</option>
+                <option value="operator" selected>מפעיל ישן</option>
               </select></div>
             <div class="inline-field"><label>PIN (4 ספרות)</label>
               <input id="uPin" type="text" maxlength="4" pattern="[0-9]{4}" placeholder="1234"></div>
@@ -738,6 +843,33 @@ function showTab(id, btn) {
   const pane = document.getElementById('tab-' + id);
   if (pane) pane.classList.add('active');
   if (btn) btn.classList.add('active');
+  if (id === 'permissions') renderPermissions();
+  if (id === 'users') loadUsers();
+  history.replaceState(null, '', `${location.pathname}?tab=${encodeURIComponent(id)}`);
+}
+
+const PERMISSION_ROLES = [
+  { role:'admin', label:'מנהל מערכת', desc:'גישה מלאה: משתמשים, הגדרות, מלאי, ייצור, כספים, OCR, גיבויים וכל המודולים.' },
+  { role:'manager', label:'מנהל', desc:'ניהול רוחבי של תפעול, הזמנות, דוחות, איכות ותחזוקה. בלי ניהול משתמשים/הגדרות רגישות.' },
+  { role:'office', label:'משרד', desc:'לקוחות, הזמנות, קליטת הזמנות, OCR, מלאי בסיסי, משלוחים ודוחות תפעוליים.' },
+  { role:'warehouse', label:'מחסן', desc:'מלאי, קבלת חומר, ספקים, אריזות, תעודות משלוח ופעולות מחסן.' },
+  { role:'production', label:'ייצור', desc:'תור ייצור, מכונות, סטטוס פריטים, סריקות ופעולות רצפת ייצור.' },
+  { role:'kiosk', label:'עמדת ייצור', desc:'מסך תחנת עבודה/קיוסק, פעולות מפעיל ותור עבודה מוגבל.' },
+  { role:'sales', label:'מכירות', desc:'לקוחות, הצעות/הזמנות ופרויקטים בלי כספים רגישים ובלי ניהול מערכת.' },
+  { role:'finance', label:'כספים', desc:'מחירונים, אשראי, חשבוניות, מרווחים ודוחות כספיים.' },
+  { role:'quality', label:'איכות', desc:'בקרות איכות, NCR, CAPA, אירועים ובדיקות.' },
+  { role:'maintenance', label:'תחזוקה', desc:'תקלות, תחזוקה מונעת, LOTO וסטטוס מכונות תחזוקתי.' },
+  { role:'driver', label:'נהג', desc:'מסך נהג, משלוחים, אישורי מסירה ודיווח בעיות בדרך.' },
+];
+function renderPermissions() {
+  const grid = document.getElementById('permissionsGrid');
+  if (!grid) return;
+  grid.innerHTML = PERMISSION_ROLES.map(item => `
+    <div class="permission-card">
+      <div class="permission-role">${escHtml(item.label)} <span style="font-size:11px;color:var(--muted);font-weight:800">(${escHtml(item.role)})</span></div>
+      <div class="permission-desc">${escHtml(item.desc)}</div>
+    </div>
+  `).join('');
 }
 
 // ── ERP Picker ─────────────────────────────────────────────────
@@ -917,36 +1049,203 @@ function renderStatus(dash, machines, settings) {
     </div>`).join('');
 }
 
-// ── Modules toggles ───────────────────────────────────────────
+// ── Module control board ──────────────────────────────────────
 const MODULES = [
-  { id:'MODULE_MACHINES', icon:'🔧', name:'מכונות Modbus RTU', desc:'קריאת counter + שליחת פרמטרים למכונות A/B/C/D' },
-  { id:'MODULE_WHATSAPP', icon:'💬', name:'WhatsApp',          desc:'שליחת עדכוני סטטוס ללקוחות + קבלת הזמנות' },
-  { id:'MODULE_EMAIL',    icon:'📧', name:'אימייל IMAP',        desc:'בדיקת תיבת דואר אחת לדקה לקבלת הזמנות' },
-  { id:'MODULE_OCR',      icon:'📷', name:'OCR / GPT – זיהוי הזמנות', desc:'עיבוד תמונות/PDF דרך OpenAI Vision' },
-  { id:'MODULE_PRIORITY', icon:'🏭', name:'Priority ERP',       desc:'סנכרון לקוחות, הזמנות, חשבוניות' },
-  { id:'MODULE_MAVEN',    icon:'📒', name:'Maven הנהלת חשבונות',desc:'ייצוא נתונים לתוכנת Maven – הרי מדבר (בקרוב)' },
-  { id:'MODULE_AI',       icon:'🤖', name:'AI תחזיות ייצור',    desc:'חיזוי זמן ייצור וניתוח פחת מהיסטוריה' },
-  { id:'MODULE_ALERTS',   icon:'🔔', name:'מערכת התראות',       desc:'התראות אוטומטיות: דחוף, איחור, תקלת מכונה' },
+  {
+    id:'MODULE_PLATFORM_CORE', icon:'🧱', name:'Platform Core', owner:'ליבה',
+    desc:'זהות, הרשאות, הגדרות, audit, shell משותף ובטיחות נתונים.',
+    status:'partial', risk:'medium', technical:'core',
+    screens:['admin.html','login.html','help.html'], apis:['/api/auth*','/api/users*','/api/settings*','/api/audit-log'],
+    next:'להמשיך להוציא מה-admin מסכים ששייכים למודולים אחרים.',
+    docs:['/docs.html#modules']
+  },
+  {
+    id:'MODULE_VENDOR_CONTROL', icon:'🛰️', name:'Vendor Control / בקרה מרחוק', owner:'ספק התוכנה',
+    desc:'בקרה מרחוק על התקנות לקוח: בריאות שרת, גרסה, גיבויים, מודולים, אינטגרציות וגישה לתמיכה באישור.',
+    status:'frozen', risk:'high', technical:'toggle',
+    screens:['future: vendor-control.html','admin.html control board'], apis:['future: /api/vendor/sites*','future: support-session','future: version/backups'],
+    next:'לבנות רק אחרי הגדרת tenant/license/support-session. אין גישה חופשית לנתוני לקוח.',
+    docs:['/docs.html#modules']
+  },
+  {
+    id:'MODULE_ORDERS', icon:'📋', name:'Orders', owner:'הזמנות',
+    desc:'יצירת הזמנה, אישור, פריטים, משטחים, סטטוסים, כרטיסיות ומסמכי הזמנה.',
+    status:'partial', risk:'high', technical:'core',
+    screens:['orders.html','index.html','intake.html'], apis:['/api/orders*','/api/items*','/api/shapes*','/api/bvbs*'],
+    next:'לא לפצל ראשון. קודם לחזק contracts ו-tests סביב יצירה, אישור וייצור.',
+    links:[['הזמנות','/orders.html'],['הזמנה חדשה','/index.html'],['קליטה','/intake.html']]
+  },
+  {
+    id:'MODULE_PRODUCTION', icon:'⚙️', name:'Production', owner:'ייצור',
+    desc:'תור ייצור, מכונות, קיוסק, עובדים, משמרות, עצירות ו-OEE.',
+    status:'partial', risk:'high', technical:'core',
+    screens:['production-queue.html','machine.html','kiosk.html','production-setup.html'], apis:['/api/production-queue','/api/machines*','/api/scan','/api/shifts*'],
+    next:'לייצב מקור אמת אחד לתור ולסטטוסי פריט לפני פיצול קבצי route.',
+    links:[['תור ייצור','/production-queue.html'],['הגדרות ייצור','/production-setup.html']]
+  },
+  {
+    id:'MODULE_INVENTORY', icon:'📦', name:'Inventory / Procurement', owner:'מלאי ורכש',
+    desc:'חומר גלם, ספקים, קבלות, תעודות משלוח מספקים, מלאי כיפוף ורכש.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['inventory.html','warehouse.html','procurement.html'], apis:['/api/inventory*','/api/suppliers*','/api/purchase-orders*','/api/steel-prices*'],
+    next:'מועמד טוב לפיצול ראשון כי הסיכון נמוך יותר מ-Orders/Production.',
+    links:[['מלאי','/inventory.html'],['מחסן','/warehouse.html'],['רכש','/procurement.html']]
+  },
+  {
+    id:'MODULE_FLEET', icon:'🚚', name:'Fleet Management', owner:'רכבים ונהגים',
+    desc:'רכבים כנכסים נפרדים מנהגים: טסט, ביטוח, טיפולים, הוצאות, הכנסות ומסמכים.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['delivery-admin.html'], apis:['/api/vehicles*','/api/drivers*','/api/deliveries*'],
+    next:'להמשיך להפריד רכב מנהג ולהשלים מסמכים/אירועים לפי רכב.',
+    links:[['ניהול רכבים ונהגים','/delivery-admin.html']]
+  },
+  {
+    id:'MODULE_FINANCE', icon:'💰', name:'Finance', owner:'כספים',
+    desc:'מחירונים, אשראי, עלות הזמנה, רווחיות, חשבוניות ו-ledger.',
+    status:'partial', risk:'high', technical:'core',
+    screens:['finance.html','reports.html'], apis:['/api/price-list*','/api/credit*','/api/invoices*','/api/finance/*'],
+    next:'לא להוסיף עוד פיננסים עד שמאחדים מודל אשראי ומגדירים הרשאות.',
+    links:[['פיננסים','/finance.html'],['דוחות','/reports.html']]
+  },
+  {
+    id:'MODULE_QUALITY', icon:'🧪', name:'Quality / Maintenance', owner:'איכות ואחזקה',
+    desc:'בדיקות איכות, NCR, CAPA, אירועים, תחזוקה, LOTO ותוכניות טיפול.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['quality.html','maintenance.html','warroom.html'], apis:['/api/quality*','/api/ncr*','/api/capa*','/api/maintenance*','/api/incidents*'],
+    next:'להגדיר state machines לפני הרחבת NCR/CAPA ותחזוקה.',
+    links:[['איכות','/quality.html'],['אחזקה','/maintenance.html'],['חדר מצב','/warroom.html']]
+  },
+  {
+    id:'MODULE_PORTALS', icon:'🌐', name:'External Portals', owner:'פורטלים',
+    desc:'לקוחות, ספקים, נהגים ועובדים מחוץ לניהול הפנימי.',
+    status:'frozen', risk:'high', technical:'toggle',
+    screens:['customer.html','portal.html','supplier.html','driver.html','worker.html'], apis:['/api/c/*','portal tokens','supplier/driver APIs'],
+    next:'להקפיא פיצרים עד שמסיימים OTP/session model חיצוני.',
+    links:[['פורטל לקוח','/customer.html'],['ספק','/supplier.html'],['נהג','/driver.html']]
+  },
+  {
+    id:'MODULE_DASHBOARD', icon:'📊', name:'Dashboard / Reports', owner:'BI ודוחות',
+    desc:'מבט רוחבי בלבד. קורא ממודולים אחרים ולא מחזיק לוגיקה עסקית משלו.',
+    status:'partial', risk:'medium', technical:'core',
+    screens:['dashboard.html','reports.html','holdings.html'], apis:['/api/dashboard','/api/reports/*','/api/kpi/*'],
+    next:'לוודא שכל KPI קורא ממקור אמת של המודול ולא מחשב מחדש במסך.',
+    links:[['דשבורד','/dashboard.html'],['דוחות','/reports.html']]
+  },
+  {
+    id:'MODULE_WHATSAPP', icon:'💬', name:'WhatsApp', owner:'אינטגרציות',
+    desc:'שליחת עדכונים וקליטת הזמנות דרך WhatsApp.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['admin.html','intake.html'], apis:['/api/intake/*','webhook'],
+    next:'להשאיר מאחורי דגל הפעלה עד שיוך לקוח ואישור הזמנה יציבים.'
+  },
+  {
+    id:'MODULE_EMAIL', icon:'📧', name:'Email Intake', owner:'קליטת הזמנות',
+    desc:'IMAP, מיילים נכנסים וקליטה לתור אישור.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['admin.html','intake.html'], apis:['/api/intake/email/poll','/api/intake/log'],
+    next:'לחבר למרכז הזמנות ממתינות לפי דחיפות ושיוך לקוח.'
+  },
+  {
+    id:'MODULE_OCR', icon:'📷', name:'OCR / GPT Vision', owner:'AI Intake',
+    desc:'זיהוי תמונות, תעודות משלוח, כרטיסיות וצורות כיפוף.',
+    status:'partial', risk:'high', technical:'toggle',
+    screens:['admin.html','intake.html','inventory.html'], apis:['/api/intake/image','/api/inventory/analyze-bending-shape'],
+    next:'חייב לעבוד עם מסך השוואה גדול ואישור מנהל לפני כתיבה למלאי/הזמנה.'
+  },
+  {
+    id:'MODULE_PRIORITY', icon:'🏭', name:'Priority ERP', owner:'אינטגרציות',
+    desc:'סנכרון לקוחות, הזמנות ותעודות מול Priority.',
+    status:'frozen', risk:'high', technical:'toggle',
+    screens:['admin.html'], apis:['/api/priority/*'],
+    next:'להשאיר קפוא עד שהמודולים הפנימיים יציבים.'
+  },
+  {
+    id:'MODULE_MAVEN', icon:'📒', name:'Maven הנהלת חשבונות', owner:'אינטגרציות',
+    desc:'ייצוא נתונים להנהלת חשבונות.',
+    status:'frozen', risk:'medium', technical:'toggle',
+    screens:['admin.html'], apis:['future'],
+    next:'לא להפעיל עד הגדרת Finance.'
+  },
+  {
+    id:'MODULE_AI', icon:'🤖', name:'AI תחזיות', owner:'BI / ייצור',
+    desc:'תחזיות ייצור ופחת. לא ML עמוק עד שהנתונים עקביים.',
+    status:'frozen', risk:'medium', technical:'toggle',
+    screens:['reports.html'], apis:['/api/ai/*'],
+    next:'להשאיר כניתוח פשוט בלבד עד ניקוי data pipeline.'
+  },
+  {
+    id:'MODULE_ALERTS', icon:'🔔', name:'התראות', owner:'Platform / Production',
+    desc:'התראות דחיפות, איחור ותקלות.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['warroom.html','dashboard.html'], apis:['/api/alerts*'],
+    next:'להפוך אירועים להתראות מתועדות עם owner והרשאות.'
+  }
 ];
 
 function renderModules(settings) {
+  const counts = MODULES.reduce((acc, m) => {
+    acc.total += 1;
+    acc[m.status] = (acc[m.status] || 0) + 1;
+    if (m.risk === 'high') acc.high += 1;
+    return acc;
+  }, { total:0, partial:0, ok:0, frozen:0, high:0 });
+
+  document.getElementById('moduleStatusGrid').innerHTML = [
+    { label:'סה"כ מודולים', value:counts.total, color:'var(--text)' },
+    { label:'חלקיים', value:counts.partial || 0, color:'var(--warning)' },
+    { label:'קפואים', value:counts.frozen || 0, color:'var(--info)' },
+    { label:'סיכון גבוה', value:counts.high || 0, color:'var(--danger)' },
+  ].map(k => `<div class="module-kpi"><div class="module-kpi-label">${k.label}</div><div class="module-kpi-value" style="color:${k.color}">${k.value}</div></div>`).join('');
+
   document.getElementById('modulesList').innerHTML = MODULES.map(m => {
-    const on = settings[m.id] !== 'false';
-    const soon = m.id === 'MODULE_MAVEN';
-    return `<div class="toggle-row">
-      <div class="toggle-row-info">
-        <span class="toggle-row-icon">${m.icon}</span>
-        <div class="toggle-row-text">
-          <div class="t-name">${m.name}${soon?' <span style="font-size:10px;color:var(--muted)">(בקרוב)</span>':''}</div>
-          <div class="t-desc">${m.desc}</div>
+    const on = m.technical === 'core' ? true : settings[m.id] !== 'false';
+    const frozen = m.status === 'frozen';
+    const statusLabel = { ok:'בשל', partial:'חלקי', frozen:'קפוא' }[m.status] || m.status;
+    const riskLabel = { high:'סיכון גבוה', medium:'סיכון בינוני', low:'סיכון נמוך' }[m.risk] || m.risk;
+    const statusClass = m.status === 'ok' ? 'ok' : m.status === 'frozen' ? 'frozen' : 'partial';
+    const links = (m.links || []).map(([label, href]) => `<a class="module-link" href="${href}">${label}</a>`).join('');
+    const docs = (m.docs || []).map(href => `<a class="module-link" href="${href}" target="_blank">מסמך</a>`).join('');
+    return `<article class="module-card">
+      <div class="module-card-head">
+        <div>
+          <div class="module-title-row">
+            <span class="toggle-row-icon">${m.icon}</span>
+            <span class="module-title">${m.name}</span>
+            <span class="module-owner">${m.owner}</span>
+          </div>
+          <div class="module-desc">${m.desc}</div>
+        </div>
+        <div class="module-badges">
+          <span class="module-badge ${statusClass}">${statusLabel}</span>
+          <span class="module-badge ${m.risk === 'high' ? 'risk' : 'partial'}">${riskLabel}</span>
+          <span class="module-badge ${on ? 'ok' : 'frozen'}">${on ? 'מופעל' : 'כבוי'}</span>
         </div>
       </div>
-      <label class="toggle">
-        <input type="checkbox" ${on?'checked':''} ${soon?'disabled':''}
-          onchange="quickSave('${m.id}', this.checked ? 'true' : 'false')">
-        <span class="slider"></span>
-      </label>
-    </div>`;
+      <div class="module-card-body">
+        <div>
+          <div class="module-meta-title">מסכים</div>
+          <div class="module-meta-text">${(m.screens || []).join(', ')}</div>
+        </div>
+        <div>
+          <div class="module-meta-title">API / חוזים</div>
+          <div class="module-meta-text">${(m.apis || []).join(', ')}</div>
+        </div>
+        <div>
+          <div class="module-meta-title">צעד הבא</div>
+          <div class="module-meta-text">${m.next || 'לא הוגדר'}</div>
+        </div>
+      </div>
+      <div class="module-actions">
+        <div class="module-links">${links}${docs}</div>
+        ${m.technical === 'core'
+          ? '<span class="module-badge ok">מודול ליבה</span>'
+          : `<label class="toggle">
+              <input type="checkbox" ${on?'checked':''} ${frozen?'disabled':''}
+                onchange="quickSave('${m.id}', this.checked ? 'true' : 'false')">
+              <span class="slider"></span>
+            </label>`}
+      </div>
+    </article>`;
   }).join('');
 }
 
@@ -1034,6 +1333,16 @@ function escapeHtml(value) {
 }
 const escHtml = escapeHtml;
 
+function openInitialTabFromUrl() {
+  const id = new URLSearchParams(location.search).get('tab');
+  if (!id) return;
+  const btn = document.querySelector(`.tab-btn[onclick*="'${id}'"]`);
+  if (btn) {
+    showTab(id, btn);
+    if (id === 'users') loadUsers();
+  }
+}
+
 // ── Toast ──────────────────────────────────────────────────────
 function toast(msg, err=false) {
   const t = document.getElementById('toast');
@@ -1044,11 +1353,24 @@ function toast(msg, err=false) {
   t._t = setTimeout(() => t.style.opacity='0', 3000);
 }
 
-loadAll();
+loadAll().then(openInitialTabFromUrl);
 
 // ── USERS ─────────────────────────────────────────────────────────
 let usersData = [];
-const ROLE_LABELS = { admin:'👑 מנהל מערכת', manager:'🏭 מנהל', operator:'🔧 מפעיל', driver:'🚚 נהג', quality:'🔍 איכות' };
+const ROLE_LABELS = {
+  admin:'👑 מנהל מערכת',
+  manager:'🏭 מנהל',
+  office:'🏢 משרד',
+  warehouse:'📦 מחסן',
+  production:'🏭 ייצור',
+  kiosk:'🖥️ עמדת ייצור',
+  sales:'🤝 מכירות',
+  finance:'💰 כספים',
+  quality:'🔍 איכות',
+  maintenance:'🛠️ תחזוקה',
+  driver:'🚚 נהג',
+  operator:'🔧 מפעיל ישן',
+};
 
 async function loadUsers() {
   usersData = await fetch('/api/users').then(r=>r.json()).catch(()=>[]);

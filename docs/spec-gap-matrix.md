@@ -17,9 +17,9 @@ Status legend:
 | Spec Requirement | Current Evidence | Status | Recovery Decision |
 | --- | --- | --- | --- |
 | One Entity Registry | Entities are implicit in SQLite schema creation inside `server.js`. | Missing | Create `docs/entity-registry.md` first; later extract schema ownership by module. |
-| One Screen Registry | Screens are standalone `public/*.html`; no central registry. | Missing | Create screen registry from `module-inventory.md`; every screen gets owner, status, route, auth mode. |
-| One API Registry | Routes are all in `server.js`; no formal registry. | Missing | Generate API registry from `server.js` and assign every route to a module. |
-| One Permission Registry | `ROLE_PERMISSIONS` exists, but enforcement is partial. | Partial | Sprint 1: central permission matrix and tests. |
+| One Screen Registry | `docs/screen-registry.md` assigns current screens to module owners, status, and auth mode. | Partial | Keep updating it as screens are rebuilt or split. |
+| One API Registry | `docs/api-registry.md` assigns current route families to module owners and security posture. | Partial | Keep route-family ownership in sync with `server.js` and `test/route-auth-coverage.test.js`. |
+| One Permission Registry | `permissions.js`, `docs/permission-registry.md`, and security tests define the current internal role model. | Partial | Keep expanding request-level role tests for high-risk workflows. |
 | Universal Audit/Event Trail | `auditLog` and WebSocket events exist for some flows, not all important actions. | Partial | Define event contract before broad refactors. |
 | Versioning and feature flags | Some env feature flags exist for AI/Priority/auth. | Partial | Keep feature flags; add module-level product flags later. |
 | Offline and fail-safe | Service worker and offline files exist, but fail-safe workflows are not systematic. | Partial | Treat as Sprint 4/5 after auth and state machines. |
@@ -28,10 +28,10 @@ Status legend:
 
 | Spec Requirement | Current Evidence | Status | Recovery Decision |
 | --- | --- | --- | --- |
-| No critical action without identity | `AUTH_ENFORCEMENT` defaults false. | Partial | P0. Finish auth rollout before feature work. |
-| Role checks cannot be spoofed | Guarded routes now require JWT-derived identity; browser clients strip `x-user-role`/`x-user-id`. Unguarded route families remain separately tracked. | Partial | P0. Continue adding route guards and request-level tests for remaining P0 families. |
-| User management admin-only | `/api/users` routes are not protected consistently. | Missing | First security agent task. |
-| Stable JWT secret in deployment | `render.yaml` has generated `SESSION_SECRET`, but no `JWT_SECRET`. | Missing | Add deployment checklist and configure environment. |
+| No critical action without identity | Guarded routes require JWT-derived `req.auth`; `AUTH_BYPASS` is blocked in `NODE_ENV=production`. | Partial | Verify production/staging environment does not set `AUTH_BYPASS`; keep public/scoped boundaries explicit. |
+| Role checks cannot be spoofed | Guarded routes require JWT-derived identity; browser clients strip `x-user-role`/`x-user-id`; route coverage is tested. | Partial | Keep expanding request-level tests for high-risk workflows. |
+| User management admin-only | `/api/users` routes require admin and are covered by security tests. | Complete | Keep `test/security-routes.test.js` and `test/route-auth-coverage.test.js` green. |
+| Stable JWT secret in deployment | `render.yaml` has generated `JWT_SECRET` and `SESSION_SECRET`. | Complete | Verify Render retained generated secrets after deploy changes. |
 | Public portal identity | Customer portal can issue portal token from phone. | Partial | Design OTP/magic-link before commercial release. |
 | CSRF/headers/rate limits | Login/image have rate limits; no global API/admin rate model seen. | Partial | Sprint 1b hardening. |
 

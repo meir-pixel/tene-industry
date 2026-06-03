@@ -1,6 +1,6 @@
 # Security Rollout
 
-Sprint 1a introduces the authentication core without enabling full API enforcement.
+Sprint 1a introduces the authentication core and explicit route guards.
 
 ## Current Safe State
 
@@ -11,21 +11,24 @@ Sprint 1a introduces the authentication core without enabling full API enforceme
 - Shared navigation attaches access tokens and refreshes them automatically.
 - `requireRole()` now requires JWT-derived identity and no longer trusts `x-user-role` or `x-user-id`.
 - `render.yaml` defines a stable generated `JWT_SECRET`.
-- `AUTH_ENFORCEMENT` is explicitly set to `false` in `render.yaml` until the staging gate passes.
+- There is no global `AUTH_ENFORCEMENT` switch. Guarded routes are protected by
+  route middleware, and route coverage is enforced by `test/route-auth-coverage.test.js`.
 
-## Why Enforcement Remains Off
+## Remaining Staging Risks
 
-Several dedicated pages do not load `public/nav.js` and still need the shared authentication client. Turning enforcement on before those pages are migrated would interrupt production workflows.
+Some dedicated pages still need stronger runtime validation and external portal
+auth decisions. These are usability/product rollout risks, not a global auth
+toggle.
 
-## Gate Before Enabling Enforcement
+## Gate Before Production Release
 
 1. Verify that Render has generated and retained a stable `JWT_SECRET` for the service.
 2. Run `npm run auth:migrate:dry-run`, back up the active database, then run `npm run auth:migrate`.
 3. Migrate dedicated machine, kiosk, driver, supplier, portal, and service-worker flows as appropriate.
 4. Set `WHATSAPP_APP_SECRET` in production so WhatsApp webhook signatures are
    enforced.
-4. Verify each role against protected endpoints in staging.
-5. Set `AUTH_ENFORCEMENT=true` only after the staging checklist passes.
+5. Verify each role against protected endpoints in staging.
+6. Verify anonymous requests to protected production/staging endpoints return 401.
 
 ## Protected Route Progress
 

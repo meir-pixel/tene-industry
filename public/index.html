@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="IronBend">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="/shape-editor.js?v=40"></script>
+<script src="/shape-editor.js?v=43"></script>
 <script src="/offline-db.js"></script>
 <script src="/auth-client.js"></script>
 <script src="/nav.js" defer></script>
@@ -39,7 +39,8 @@
 
   body {
     font-family: 'Heebo', sans-serif;
-    background: #f0f4f8;
+    background:
+      linear-gradient(180deg, #edf3f8 0%, #f7f9fc 38%, #eef3f8 100%);
     color: var(--text);
     min-height: 100vh;
     
@@ -89,12 +90,13 @@
 
   /* MAIN LAYOUT */
   .main {
-    max-width: 1100px;
+    max-width: 1540px;
     margin: 0 auto;
-    padding: 32px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
+    padding: 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr) 290px;
+    gap: 14px;
+    align-items: start;
   }
 
   /* PROGRESS BAR */
@@ -105,6 +107,8 @@
     border-radius: var(--radius);
     overflow: hidden;
     border: 1px solid var(--border);
+    grid-column: 1 / -1;
+    box-shadow: 0 8px 24px rgba(17,34,51,.05);
   }
   .progress-step {
     flex: 1;
@@ -146,9 +150,10 @@
     border-radius: var(--radius);
     border: 1px solid var(--border);
     overflow: hidden;
+    box-shadow: 0 8px 24px rgba(17,34,51,.05);
   }
   .section-header {
-    padding: 18px 24px;
+    padding: 13px 16px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -171,12 +176,45 @@
     color: var(--text-dim);
     margin-top: 2px;
   }
-  .section-body { padding: 24px; }
+  .section-body { padding: 16px; }
+  .order-import-section {
+    grid-column: 1 / 3;
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    align-items: center;
+  }
+  .order-import-section .section-header {
+    border-bottom: 0;
+    min-height: 76px;
+  }
+  .order-import-section .section-body {
+    padding: 12px 16px;
+  }
+  .intake-controls {
+    display: grid;
+    gap: 12px;
+  }
+  .intake-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .intake-row-label {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 800;
+    min-width: 86px;
+  }
+  #customer-section { grid-column: 1; }
+  #delivery-section { grid-column: 2; }
+  #items-section { grid-column: 1 / 3; }
+  .notes-section { grid-column: 1 / 3; }
 
   /* FORM ELEMENTS */
   .form-grid {
     display: grid;
-    gap: 16px;
+    gap: 10px;
   }
   .form-grid-2 { grid-template-columns: 1fr 1fr; }
   .form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
@@ -220,7 +258,7 @@
   }
   input::placeholder, textarea::placeholder { color: var(--text-dim); opacity: 0.6; }
   select option { background: var(--steel-mid); }
-  textarea { resize: vertical; min-height: 80px; }
+  textarea { resize: vertical; min-height: 58px; }
 
   /* CUSTOMER SEARCH */
   .customer-search-wrap { position: relative; }
@@ -252,6 +290,26 @@
   .customer-result-name { font-weight: 600; font-size: 14px; }
   .customer-result-phone { font-size: 12px; color: var(--text-dim); }
   .customer-result-id { font-size: 11px; color: var(--accent); background: rgba(224,123,57,0.1); padding: 2px 8px; border-radius: 20px; }
+  .customer-handoff {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(21,96,168,.12);
+    border-radius: 10px;
+    background: #f8fbff;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .customer-handoff a {
+    color: var(--accent);
+    font-weight: 900;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .customer-handoff a:hover { text-decoration: underline; }
   .new-customer-btn {
     padding: 12px 16px;
     cursor: pointer;
@@ -294,7 +352,7 @@
     background: var(--steel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px;
+    padding: 12px;
     animation: fadeIn 0.2s ease;
   }
   @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
@@ -353,7 +411,7 @@
   }
   .pallet-weight span { color: var(--accent); font-weight: 700; font-size: 15px; }
   .pallet-weight.over span { color: var(--danger); }
-  .pallet-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .pallet-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
 
   /* IRON ITEMS */
   .iron-items-table { width: 100%; border-collapse: collapse; }
@@ -456,15 +514,49 @@
     background: var(--steel-mid);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 20px 24px;
+    padding: 14px;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 12px;
+    grid-column: 3;
+    grid-row: 2 / span 6;
+    position: sticky;
+    top: 72px;
+    box-shadow: 0 14px 34px rgba(17,34,51,.08);
   }
-  .summary-stats { display: flex; gap: 32px; }
+  .summary-order {
+    background: linear-gradient(180deg,#13233a 0%,#0b1a2e 100%);
+    color: #fff;
+    border-radius: 10px;
+    padding: 12px;
+    display: grid;
+    gap: 4px;
+  }
+  .summary-order-label {
+    color: rgba(255,255,255,.66);
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .summary-order-number {
+    font-size: 20px;
+    font-weight: 900;
+    color: #fff;
+  }
+  .summary-order-time {
+    color: rgba(255,255,255,.66);
+    font-size: 11px;
+  }
+  .summary-stats { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .stat {
-    display: flex; flex-direction: column; gap: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
   }
   .stat-label { font-size: 11px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
   .stat-value { font-size: 22px; font-weight: 800; color: var(--text); }
@@ -472,7 +564,8 @@
   .stat-unit { font-size: 12px; color: var(--text-dim); font-weight: 400; }
 
   .submit-btn {
-    padding: 14px 40px;
+    width: 100%;
+    padding: 13px 18px;
     background: linear-gradient(135deg, var(--accent), var(--accent-light));
     border: none;
     border-radius: 10px;
@@ -622,25 +715,20 @@
   .new-order-btn:hover { opacity: 0.9; transform: translateY(-1px); }
 
   /* Touch targets */
-  /* Top nav */
-  .topnav { background:var(--steel-mid); border-bottom:1px solid var(--border); padding:0 20px; height:56px;
-    display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100;
-    box-shadow:0 2px 16px rgba(0,0,0,0.4); }
-  .tnav-link { padding:7px 13px; border-radius:7px; text-decoration:none; color:var(--text-dim);
-    font-size:13px; font-weight:600; transition:all 0.2s; white-space:nowrap; }
-  .tnav-link:hover { background:rgba(255,255,255,0.06); color:var(--text); }
-  .tnav-link.active { background:rgba(224,123,57,0.15); color:var(--accent); }
-  .topnav-meta { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text-dim); }
-  .nav-time { font-size:11px; }
-
   .import-actions {
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .import-actions input[type="file"] {
+    flex: 1 1 320px;
+    min-width: 260px;
+    max-width: 560px;
   }
   .import-status {
-    width: 100%;
+    flex: 1 1 100%;
     margin-top: 4px;
     font-size: 13px;
     color: var(--text-dim);
@@ -710,12 +798,14 @@
   .img-modal {
     background: #fff;
     border: 1px solid var(--border);
-    border-radius: 18px;
-    max-width: 820px;
+    border-radius: 12px;
+    max-width: 1480px;
     width: 100%;
-    max-height: 90vh;
-    overflow-y: auto;
+    max-height: 94vh;
+    overflow: hidden;
     box-shadow: 0 24px 70px rgba(2,26,72,.28);
+    display: flex;
+    flex-direction: column;
   }
   .img-modal-head {
     padding: 18px 22px;
@@ -777,36 +867,77 @@
   }
   @keyframes loadbar { 0%{margin-right:100%} 50%{margin-right:0%} 100%{margin-right:100%} }
   .img-preview-wrap {
-    padding: 16px 22px 0;
     display: none;
+    min-height: 0;
+    flex: 1;
   }
   .img-preview {
-    max-width: 100%;
-    max-height: 260px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: 0 10px 24px rgba(2,26,72,.10);
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #fff;
   }
   .img-results {
     display: none;
-    padding: 18px 22px 22px;
+    padding: 0;
+    min-height: 0;
+    flex: 1;
   }
-  .img-results-title {
-    font-size: 15px;
+  .img-review-workspace {
+    display: grid;
+    grid-template-columns: minmax(520px,1.15fr) minmax(460px,.85fr);
+    min-height: 68vh;
+    max-height: calc(94vh - 76px);
+  }
+  .img-source-panel {
+    background: #f7f9fc;
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .img-source-title,.img-list-title {
+    font-size: 13px;
     font-weight: 900;
     color: var(--text);
-    margin-bottom: 12px;
+  }
+  .img-source-canvas {
+    flex: 1;
+    min-height: 560px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .img-list-panel {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+  .img-results-title {
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--text);
   }
   .img-items-list {
     display: grid;
-    gap: 12px;
+    gap: 10px;
+    overflow: auto;
+    min-height: 0;
+    padding-left: 4px;
   }
   .img-item-card {
     border: 1px solid #dbe4ef;
-    border-radius: 14px;
-    padding: 14px;
+    border-radius: 8px;
+    padding: 12px;
     background: #f8fbff;
-    box-shadow: 0 6px 16px rgba(2,26,72,.05);
   }
   .img-item-card.edited { border-color: var(--accent); background: #fffaf6; }
   .img-item-top {
@@ -877,7 +1008,7 @@
     cursor: pointer;
   }
   .img-modal-actions {
-    margin-top: 18px;
+    margin-top: 8px;
     display: flex;
     gap: 10px;
     justify-content: flex-end;
@@ -893,20 +1024,33 @@
   button, select, input, textarea { min-height: 44px; }
   .delete-btn { min-height: 36px; min-width: 36px; }
 
+  @media (max-width: 1120px) {
+    .main {
+      grid-template-columns: minmax(0, 1fr) 270px;
+      padding: 14px;
+    }
+    .progress-bar, .order-import-section, #customer-section, #delivery-section, #items-section, .notes-section { grid-column: 1; }
+    .order-import-section { grid-template-columns: 1fr; }
+    .order-import-section .section-header { border-bottom: 1px solid var(--border); }
+    .summary-bar { grid-column: 2; grid-row: 2 / span 6; }
+  }
+
   @media (max-width: 768px) {
+    .img-modal { max-height: 96vh; }
+    .img-review-workspace { grid-template-columns: 1fr; max-height:none; }
+    .img-source-canvas { min-height: 360px; }
+    .img-items-list { max-height: 52vh; }
     .form-grid-2, .form-grid-3, .form-grid-4 { grid-template-columns: 1fr; }
     .field.span-2, .field.span-3, .field.span-4 { grid-column: span 1; }
-    .summary-stats { gap: 12px; flex-wrap: wrap; }
-    .main { padding: 12px; gap: 14px; }
+    .summary-stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .main { display: flex; flex-direction: column; padding: 12px; gap: 14px; }
+    .summary-bar { position: sticky; bottom: 0; top: auto; z-index: 90; box-shadow: 0 -12px 34px rgba(17,34,51,.16); }
     .section-body { padding: 14px; }
     .section-header { padding: 14px 16px; }
     .submit-btn { padding: 14px 24px; font-size: 15px; }
-    .topnav-meta .order-num { display: none; }
   }
 
   @media (max-width: 480px) {
-    .topnav { padding: 0 12px; height: 52px; }
-    .topnav .logo span { display: none; }
     /* Progress bar – scrollable */
     .progress-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
     .progress-step { min-width: 72px; font-size: 11px; padding: 10px 8px; flex-shrink: 0; }
@@ -927,7 +1071,7 @@
     .pallet-header { flex-wrap: wrap; gap: 8px; padding: 12px; }
     .pallet-footer { flex-direction: column; gap: 10px; padding: 10px 12px; }
     /* Summary bar */
-    .summary-bar { flex-direction: column; gap: 12px; padding: 16px; }
+    .summary-bar { flex-direction: column; gap: 10px; padding: 10px; }
     .summary-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .stat-value { font-size: 20px; }
     .submit-btn { width: 100%; text-align: center; justify-content: center; font-size: 16px; padding: 16px; }
@@ -938,21 +1082,6 @@
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body data-page="new">
-
-<!-- NAV -->
-<nav class="topnav">
-  <div class="logo"><div class="logo-icon">🔩</div><span>IronBend</span></div>
-  <div class="top-nav-links">
-    <a href="/dashboard.html" class="tnav-link">📊 דשבורד</a>
-    <a href="/orders.html"    class="tnav-link">📋 הזמנות</a>
-    <a href="/index.html"     class="tnav-link active">➕ חדשה</a>
-    <a href="/machine.html"   class="tnav-link">🔧 מכונה</a>
-  </div>
-  <div class="topnav-meta">
-    <div class="order-num">הזמנה: <span id="orderNumDisplay">#—</span></div>
-    <div id="currentDateTime" class="nav-time"></div>
-  </div>
-</nav>
 
 <!-- MAIN -->
 <div class="main">
@@ -985,20 +1114,55 @@
     </div>
   </div>
 
-  <div class="section">
+  <div class="section order-import-section">
     <div class="section-header">
       <div class="section-icon" style="background:rgba(26,122,66,0.12)">📊</div>
       <div>
-        <div class="section-title">ייבוא טבלת הזמנות</div>
-        <div class="section-subtitle">CSV או TSV בלבד. קודם תצוגה מקדימה, אחר כך אישור כתיבה.</div>
+        <div class="section-title">קליטת הזמנה</div>
+        <div class="section-subtitle">בחר מקור הזמנה או ייבא טבלת CSV/TSV.</div>
       </div>
     </div>
     <div class="section-body">
-      <div class="import-actions">
-        <input type="file" id="orderImportFile" accept=".csv,.tsv,text/csv,text/tab-separated-values">
-        <button type="button" class="btn btn-outline" onclick="previewOrderImport()">בדוק טבלה</button>
-        <button type="button" class="btn btn-primary" id="approveOrderImportBtn" onclick="approveOrderImport()" style="display:none">אשר וייבא</button>
-        <div id="orderImportResult" class="import-status"></div>
+      <div class="intake-controls">
+        <div class="intake-row">
+          <div class="intake-row-label">מקור</div>
+          <div class="channel-selector">
+            <button class="channel-btn active" onclick="setChannel(this,'טלפון')">ידנית</button>
+            <button class="channel-btn" onclick="setChannel(this,'וואטסאפ')">וואטסאפ</button>
+            <button class="channel-btn" onclick="setChannel(this,'מייל')">מייל</button>
+            <button class="channel-btn" onclick="setChannel(this,'תמונה')">תמונה</button>
+            <a class="channel-btn" href="/intake.html" style="text-decoration:none">מרכז קליטה</a>
+          </div>
+          <input type="hidden" id="orderChannel" value="טלפון">
+        </div>
+        <div id="channel-panel-whatsapp" class="channel-panel" style="display:none">
+          <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">הדבק הודעת WhatsApp</label>
+          <textarea id="waText" rows="5" placeholder="הדבק כאן את הודעת הוואטסאפ מהלקוח..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--steel-mid);color:var(--text);font-family:inherit;font-size:14px;resize:vertical"></textarea>
+          <button type="button" class="btn btn-primary channel-parse-btn" onclick="parseChannelText('whatsapp')">פרסר הודעה ומלא טופס</button>
+          <div id="parseResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
+        </div>
+        <div id="channel-panel-email" class="channel-panel" style="display:none">
+          <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">הדבק תוכן המייל</label>
+          <textarea id="emailText" rows="5" placeholder="הדבק כאן את תוכן המייל מהלקוח..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--steel-mid);color:var(--text);font-family:inherit;font-size:14px;resize:vertical"></textarea>
+          <button type="button" class="btn btn-primary channel-parse-btn" onclick="parseChannelText('email')">פרסר מייל ומלא טופס</button>
+          <div id="emailParseResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
+        </div>
+        <div id="channel-panel-image" class="channel-panel" style="display:none">
+          <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">קליטת הזמנה מתמונה או PDF</label>
+          <div class="image-drop">
+            <div class="image-drop-copy">בחר צילום או PDF. המערכת תציג תצוגה מקדימה לפני הוספה לטופס.</div>
+            <label for="imgUploadInput" class="file-pick-btn">בחר קובץ</label>
+          </div>
+        </div>
+        <div class="intake-row">
+          <div class="intake-row-label">טבלה</div>
+          <div class="import-actions">
+            <input type="file" id="orderImportFile" accept=".csv,.tsv,text/csv,text/tab-separated-values">
+            <button type="button" class="btn btn-outline" onclick="previewOrderImport()">בדוק טבלה</button>
+            <button type="button" class="btn btn-primary" id="approveOrderImportBtn" onclick="approveOrderImport()" style="display:none">אשר וייבא</button>
+            <div id="orderImportResult" class="import-status"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1008,68 +1172,32 @@
     <div class="section-header">
       <div class="section-icon" style="background:rgba(21,96,168,0.12)">👤</div>
       <div>
-        <div class="section-title">פרטי לקוח</div>
-        <div class="section-subtitle">חפש לקוח קיים או הוסף חדש</div>
+        <div class="section-title">בחירת לקוח להזמנה</div>
+        <div class="section-subtitle">כאן בוחרים לקוח. הקמה מלאה וניהול פרטים נשארים במודול לקוחות.</div>
       </div>
     </div>
     <div class="section-body">
-      <div class="form-grid form-grid-2" style="margin-bottom:16px">
-        <div class="field span-2">
-          <label>ערוץ קבלת ההזמנה</label>
-          <div class="channel-selector">
-            <button class="channel-btn active" onclick="setChannel(this,'טלפון')">📞 טלפון</button>
-            <button class="channel-btn" onclick="setChannel(this,'וואטסאפ')">💬 וואטסאפ</button>
-            <button class="channel-btn" onclick="setChannel(this,'מייל')">📧 מייל</button>
-            <button class="channel-btn" onclick="setChannel(this,'תמונה')">📷 תמונה</button>
-          </div>
-          <input type="hidden" id="orderChannel" value="טלפון">
-        </div>
-      </div>
-
-      <!-- ══ CHANNEL PANELS ══ -->
-      <div id="channel-panel-whatsapp" class="channel-panel" style="display:none;margin-bottom:16px">
-        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">💬 הדבק הודעת WhatsApp</label>
-        <textarea id="waText" rows="5" placeholder="הדבק כאן את הודעת הוואטסאפ מהלקוח..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--steel-mid);color:var(--text);font-family:inherit;font-size:14px;resize:vertical"></textarea>
-        <button type="button" class="btn btn-primary channel-parse-btn" onclick="parseChannelText('whatsapp')">🔍 פרסר הודעה ← מלא טופס אוטומטית</button>
-        <div id="parseResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
-      </div>
-      <div id="channel-panel-email" class="channel-panel" style="display:none;margin-bottom:16px">
-        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📧 הדבק תוכן המייל</label>
-        <textarea id="emailText" rows="5" placeholder="הדבק כאן את תוכן המייל מהלקוח..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--steel-mid);color:var(--text);font-family:inherit;font-size:14px;resize:vertical"></textarea>
-        <button type="button" class="btn btn-primary channel-parse-btn" onclick="parseChannelText('email')">🔍 פרסר מייל ← מלא טופס אוטומטית</button>
-        <div id="emailParseResult" style="margin-top:8px;font-size:13px;color:var(--success)"></div>
-      </div>
-      <div id="channel-panel-image" class="channel-panel" style="display:none;margin-bottom:16px">
-        <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">📷 קליטת הזמנה מתמונה או PDF</label>
-        <div class="image-drop">
-          <div class="image-drop-copy">בחר צילום או PDF. המערכת תציג תצוגה מקדימה לפני הוספה לטופס.</div>
-          <label for="imgUploadInput" class="file-pick-btn">📁 בחר קובץ</label>
-        </div>
-      </div>
-
       <div class="form-grid form-grid-2">
         <div class="field span-2">
-          <label><span class="required">*</span>שם לקוח / חיפוש</label>
+          <label><span class="required">*</span>לקוח להזמנה</label>
           <div class="customer-search-wrap">
             <input type="text" id="customerSearch" placeholder="הקלד שם, טלפון או מספר לקוח..." autocomplete="off" oninput="searchCustomer(this.value)">
             <div class="customer-results" id="customerResults"></div>
           </div>
+          <div class="customer-handoff">
+            <span>אנשי קשר, אשראי, מחירון וכתובות קבועות מנוהלים בכרטיס הלקוח.</span>
+            <a href="/customers.html">פתח לקוחות</a>
+          </div>
         </div>
         <div class="field">
-          <label>טלפון</label>
+          <label>טלפון להזמנה</label>
           <input type="tel" id="customerPhone" placeholder="050-0000000">
         </div>
         <div class="field">
-          <label>מספר לקוח בפריוריטי</label>
-          <input type="text" id="customerPriorityId" placeholder="יוצר אוטומטית ללקוח חדש" style="color:var(--text-dim)">
-        </div>
-        <div class="field">
-          <label>איש קשר</label>
-          <input type="text" id="contactName" placeholder="שם איש הקשר בשטח">
-        </div>
-        <div class="field">
-          <label>טלפון איש קשר</label>
-          <input type="tel" id="contactPhone" placeholder="050-0000000">
+          <label>מקור לקוח</label>
+          <input type="text" id="customerPriorityId" placeholder="לקוח קיים או לקוח חדש מינימלי" style="color:var(--text-dim)" readonly>
+          <input type="hidden" id="contactName">
+          <input type="hidden" id="contactPhone">
         </div>
       </div>
     </div>
@@ -1159,20 +1287,26 @@
         </div>
       </div>
 
-      <div id="imgPreviewWrap" class="img-preview-wrap">
-        <img id="imgPreview" class="img-preview" />
-      </div>
-
       <div id="imgResults" class="img-results">
-        <div class="img-results-title">
-          ✅ זוהו הפריטים הבאים — בדוק ואשר:
-        </div>
-        <div id="imgItemsList" class="img-items-list"></div>
-        <div class="img-modal-actions">
-          <button class="btn btn-outline" onclick="closeImgModal()">ביטול</button>
-          <button class="btn btn-primary" onclick="confirmImgItems()">
-            ✅ אישור — ייבא לטופס
-          </button>
+        <div class="img-review-workspace">
+          <div class="img-source-panel">
+            <div class="img-source-title">מסמך מקור להשוואה</div>
+            <div id="imgPreviewWrap" class="img-preview-wrap img-source-canvas">
+              <img id="imgPreview" class="img-preview" />
+            </div>
+          </div>
+          <div class="img-list-panel">
+            <div class="img-results-title" id="imgResultsTitle">
+              זוהו הפריטים הבאים — בדוק ואשר
+            </div>
+            <div id="imgItemsList" class="img-items-list"></div>
+            <div class="img-modal-actions">
+              <button class="btn btn-outline" onclick="closeImgModal()">ביטול</button>
+              <button class="btn btn-primary" onclick="confirmImgItems()">
+                אישור — ייבא לטופס
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1185,7 +1319,7 @@
   </div>
 
   <!-- SECTION 4: NOTES -->
-  <div class="section">
+  <div class="section notes-section">
     <div class="section-header">
       <div class="section-icon" style="background:rgba(255,255,255,0.06)">📝</div>
       <div>
@@ -1202,6 +1336,11 @@
 
   <!-- SUMMARY BAR -->
   <div class="summary-bar" id="summary-section">
+    <div class="summary-order">
+      <div class="summary-order-label">הזמנה חדשה</div>
+      <div class="summary-order-number" id="orderNumDisplay">#—</div>
+      <div class="summary-order-time" id="currentDateTime"></div>
+    </div>
     <div class="summary-stats">
       <div class="stat">
         <div class="stat-label">משטחים</div>
@@ -1620,7 +1759,12 @@ function openShapeEditor(palletId, itemId) {
   const pallet = pallets.find(p => p.id === palletId);
   const item   = pallet?.items.find(i => i.id == itemId);
   shapeEditor.open(item?.shapeSides?.length ? {
-    presetId: item.shapeId, sides: item.shapeSides, angles: item.shapeAngles || []
+    presetId: item.shapeId,
+    sides: item.shapeSides,
+    angles: item.shapeAngles || [],
+    azAngles: item.azAngles || null,
+    elAngles: item.elAngles || null,
+    is3d: item.is3d || 0,
   } : null);
 }
 
@@ -1635,10 +1779,9 @@ function shapeSelected(data) {
   item.shapeEmoji  = data.presetEmoji;
   item.shapeSides  = data.sides;
   item.shapeAngles = data.angles;
-  item.azAngles    = data.azAngles || null;
-  item.elAngles    = data.elAngles || null;
-  // Detect true 3D: any non-zero azimuth or elevation angle
-  item.is3d = (data.azAngles?.some(a => a !== 0) || data.elAngles?.some(a => a !== 0)) ? 1 : 0;
+  item.is3d       = data.is3d ? 1 : 0;
+  item.azAngles   = item.is3d ? (data.azAngles || []) : null;
+  item.elAngles   = item.is3d ? (data.elAngles || []) : null;
   item.length      = data.sides.reduce((s, l) => s + Number(l), 0);
   _shapeTarget = null;
   renderPallets();
@@ -1748,7 +1891,8 @@ function newOrder() {
   document.getElementById('generalNotes').value = '';
   document.getElementById('driverNotes').value = '';
   const num = String(orderCounter).padStart(3, '0');
-  document.getElementById('orderNumDisplay').textContent = `#2024-${num}`;
+  const orderNumDisplay = document.getElementById('orderNumDisplay');
+  if (orderNumDisplay) orderNumDisplay.textContent = `#2024-${num}`;
   addPallet();
 }
 
@@ -1851,7 +1995,6 @@ async function submitOrder() {
 
 // PWA setup
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js');
   navigator.serviceWorker.addEventListener('message', e => {
     if (e.data?.type === 'order_synced') showToast(`הזמנה סונכרנה: ${e.data.orderNum}`);
   });
@@ -1901,12 +2044,36 @@ function analyzeOrderImage(input) {
   var fd = new FormData();
   fd.append('image', file);
 
-  fetch('/api/analyze-image', { method: 'POST', body: fd })
-    .then(function(r) { return r.json(); })
+  ensureOcrSession()
+    .then(function(hasSession) {
+      if (!hasSession) {
+        throw new Error('OCR_AUTH_REQUIRED');
+      }
+      const authFetch = window.IronBendAuth?.fetch || fetch;
+      return authFetch('/api/analyze-image', { method: 'POST', body: fd });
+    })
+    .then(function(r) {
+      return r.json().then(function(data) {
+        return { ok: r.ok, status: r.status, data: data };
+      });
+    })
+    .then(function(result) {
+      var data = result.data || {};
+      if (!result.ok && (result.status === 401 || data.error === 'Authentication required')) {
+        throw new Error('OCR_AUTH_REQUIRED');
+      }
+      if (!result.ok && result.status === 403) {
+        throw new Error('OCR_FORBIDDEN');
+      }
+      if (!result.ok) {
+        throw new Error(data.error || 'OCR_FAILED');
+      }
+      return data;
+    })
     .then(function(data) {
       document.getElementById('imgLoading').style.display = 'none';
       if (!data.success || !data.items || !data.items.length) {
-        showImgError(data.error || 'לא נמצאו פריטים בתמונה');
+        showImgError(ocrErrorMessage(data.code || data.error || 'לא נמצאו פריטים בתמונה'));
         return;
       }
       _imgAnalyzedItems = data.items;
@@ -1917,8 +2084,31 @@ function analyzeOrderImage(input) {
     })
     .catch(function(err) {
       document.getElementById('imgLoading').style.display = 'none';
-      showImgError('שגיאת תקשורת: ' + err.message);
+      showImgError(ocrErrorMessage(err));
     });
+}
+
+async function ensureOcrSession() {
+  if (!window.IronBendAuth) return false;
+  if (window.IronBendAuth.accessToken()) return true;
+  try {
+    const token = await window.IronBendAuth.refreshAccessToken();
+    return !!token;
+  } catch (e) {
+    return false;
+  }
+}
+
+function ocrErrorMessage(err) {
+  const msg = String(err?.message || err || '');
+  if (msg === 'OCR_AUTH_REQUIRED') return 'נדרשת התחברות מחדש לפני ניתוח תמונה. התחבר ואז נסה שוב.';
+  if (msg === 'ocr_auth_required') return 'נדרשת התחברות מחדש לפני ניתוח תמונה. התחבר ואז נסה שוב.';
+  if (msg === 'OCR_FORBIDDEN') return 'אין למשתמש הנוכחי הרשאה לניתוח תמונה. נדרש משתמש משרד, מנהל או אדמין.';
+  if (msg === 'ocr_forbidden') return 'אין למשתמש הנוכחי הרשאה לניתוח תמונה. נדרש משתמש משרד, מנהל או אדמין.';
+  if (msg === 'Authentication required') return 'נדרשת התחברות מחדש לפני ניתוח תמונה. התחבר ואז נסה שוב.';
+  if (msg.includes('Document recognition is disabled')) return 'OCR כבוי בהגדרות המערכת. הפעל INTAKE_AI_ENABLED והגדר מפתח OpenAI.';
+  if (msg.includes('OPENAI_API_KEY')) return 'OCR לא מוגדר: חסר OPENAI_API_KEY בהגדרות.';
+  return 'שגיאת OCR: ' + msg;
 }
 
 function showImgError(msg) {
@@ -1949,6 +2139,8 @@ function applyAnalyzedMeta(data) {
 
 function renderImgItems(items) {
   var html = '';
+  var title = document.getElementById('imgResultsTitle');
+  if (title) title.textContent = `זוהו ${items.length} פריטים — בדוק מקור מול פענוח לפני אישור`;
   items.forEach(function(it, i) {
     var segsText = (it.segments || []).map(function(s, si) {
       return '<span class="img-segment-pill">' +

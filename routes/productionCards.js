@@ -347,6 +347,45 @@ function drawShape(svgEl, segments) {
 }
 
 // ── Build shape SVG string (client-side mirror of pcShapeSVG) ─────
+function isRightAngleValue(value) {
+  return Math.abs(Number(value) - 90) < 0.001;
+}
+
+function isOpenUShapeClient(segments) {
+  if (!segments || segments.length !== 3) return false;
+  var lengths = segments.map(function(s){ return +(s.length_mm || 0); });
+  if (lengths.some(function(length){ return length <= 0; })) return false;
+  var leftLeg = lengths[0], bridge = lengths[1], rightLeg = lengths[2];
+  var legsSimilar = Math.abs(leftLeg - rightLeg) <= Math.max(10, Math.max(leftLeg, rightLeg) * 0.1);
+  var legsShorterThanBridge = leftLeg < bridge && rightLeg < bridge;
+  return isRightAngleValue(segments[0].angle_deg)
+    && isRightAngleValue(segments[1].angle_deg)
+    && legsShorterThanBridge
+    && legsSimilar;
+}
+
+function buildOpenUShapeSVG(segments) {
+  var leftLeg = +(segments[0].length_mm || 0);
+  var bridge = +(segments[1].length_mm || 0);
+  var rightLeg = +(segments[2].length_mm || 0);
+  var W = 220, H = 100, left = 42, right = 178, top = 24, bottom = 78;
+  var midY = (top + bottom) / 2, midX = (left + right) / 2;
+  var pd = 'M ' + left + ',' + bottom + ' L ' + left + ',' + top + ' L ' + right + ',' + top + ' L ' + right + ',' + bottom;
+  var s = '<path d="' + pd + '" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
+  s += '<path d="' + pd + '" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+  s += '<rect x="' + (left - 18) + '" y="' + (midY - 7) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
+  s += '<text x="' + left + '" y="' + midY + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + leftLeg + '</text>';
+  s += '<rect x="' + (midX - 18) + '" y="' + (top - 19) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
+  s += '<text x="' + midX + '" y="' + (top - 12) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + bridge + '</text>';
+  s += '<rect x="' + (right - 18) + '" y="' + (midY - 7) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
+  s += '<text x="' + right + '" y="' + midY + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + rightLeg + '</text>';
+  [[left, top], [right, top]].forEach(function(p) {
+    s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
+    s += '<text x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">90&deg;</text>';
+  });
+  return '<svg data-shape-kind="open-u" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:100px">' + s + '</svg>';
+}
+
 function buildShapeSVG(segments) {
   try {
     if (!segments || !segments.length) {
@@ -354,6 +393,7 @@ function buildShapeSVG(segments) {
         '<line x1="12" y1="30" x2="208" y2="30" stroke="#1a2332" stroke-width="3" stroke-linecap="round"/>' +
         '<circle cx="12" cy="30" r="3" fill="#1a2332"/><circle cx="208" cy="30" r="3" fill="#1a2332"/></svg>';
     }
+    if (isOpenUShapeClient(segments)) return buildOpenUShapeSVG(segments);
     var W=220, H=100, PAD=18;
     var sides = segments.map(function(s){ return +(s.length_mm||0); });
     var angs  = segments.map(function(s){ return s.angle_deg; });

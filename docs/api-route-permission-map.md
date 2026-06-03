@@ -4,7 +4,8 @@ Working baseline for turning the current API surface into a role-governed produc
 
 Source files:
 
-- `server.js`
+- `routes/*.js`
+- `server.js` for `/api/health` only
 - `docs/api-registry.md`
 - `docs/permission-registry.md`
 - `IronBend_API_Registry.docx`
@@ -12,12 +13,12 @@ Source files:
 
 ## Current Code Snapshot
 
-Automated scan of `server.js` found:
+Automated scan of active API sources found:
 
-- 190 Express routes.
-- 170 routes with direct `requireRole(...)` or `requireAnyRole(...)` middleware.
-- 0 routes with direct `requireAuth` middleware in the route declaration.
-- Most routes currently depend on global soft auth behavior and/or no route-level authorization.
+- `server.js` intentionally keeps only `GET /api/health`.
+- Product API route families live in module-owned `routes/*.js` files.
+- Public/scoped boundaries remain explicit by design: auth, customer portal, WhatsApp webhook, OCR custom authorization, and health.
+- `test/route-auth-coverage.test.js` fails if a new active `/api/*` route is added without an explicit role guard, custom authorization middleware, scoped public boundary, or allowlist entry.
 
 Directly protected route groups today:
 
@@ -47,7 +48,7 @@ Directly protected route groups today:
 | Quality/maintenance | `/api/quality*`, `/api/maintenance*`, `/api/incidents*`, `/api/ncr*`, `/api/capa*`, `/api/loto*`, `/api/pm-schedule*` | quality/maintenance module routes are scoped to quality/maintenance/production/office/manager/admin by action |
 | Catalog/project/procurement/AI | `/api/shapes*`, `/api/companies*`, `/api/holdings`, `/api/projects*`, `/api/sites*`, `/api/priority/status`, `/api/price-list`, `/api/steel-prices`, `/api/purchase-orders*`, `/api/ai/*` | protected by catalog, office, finance, procurement, and manager/admin policies by action |
 
-Current guard behavior: `requireRole()` now requires real JWT-derived `req.auth` and does not trust `x-user-role`/`x-user-id` browser headers. Most route families are still unprotected and must be addressed in Sprint 1.
+Current guard behavior: `requireRole()` and `requireAnyRole()` require real JWT-derived `req.auth` and do not trust `x-user-role`/`x-user-id` browser headers. Route coverage is guarded by `test/route-auth-coverage.test.js`; request-level tests still need to keep expanding for every critical workflow.
 
 ## Target Role Baseline
 
@@ -90,7 +91,7 @@ Current code-only roles that need reconciliation:
 
 ## Route Family Map
 
-| Family | Routes in `server.js` | Current protection | Target access | Priority |
+| Family | Routes / module ownership | Current protection | Target access | Priority |
 | --- | --- | --- | --- | --- |
 | Customers | `/api/customers`, `/api/customers/:id`, `/api/customers/:id/token`, `/api/customers/:id/pricing`, `/api/customers/:id/ledger`, `/api/customers/:id/credit` | Base read/write, token/pricing, ledger/credit protected by action | Read: office/sales/manager/admin. Write/pricing/token/credit: office/manager/admin. Ledger: office/manager/admin and finance role if retained. | P0 |
 | Orders | `/api/orders`, `/api/orders/:id`, `/api/orders/manual`, `/api/orders/:id/status`, `/api/orders/:id/lock`, `/api/orders/:id/unlock`, print/document routes | Read/create/manual/status/lock/unlock and main print/document routes protected | Read: office/production/sales/manager/admin. Create/update: office/manager/admin. Production status: production/manager/admin. Lock/unlock: manager/admin. | P0 |
@@ -131,11 +132,11 @@ Current code-only roles that need reconciliation:
 ## Sprint 1 Implementation Order
 
 1. Freeze the target role list and map current code roles to the permission matrix.
-2. Make `AUTH_ENFORCEMENT=true` viable in deployment with a real `JWT_SECRET`.
-3. Continue removing unprotected P0 route families now that `requireRole()` no longer trusts `x-user-role`/`x-user-id`.
+2. Keep `JWT_SECRET` configured in every deployed environment.
+3. Keep `test/route-auth-coverage.test.js` green so no active `/api/*` route can be added without a guard or explicit public/scoped boundary.
 4. Protect P0 families first: users, settings, admin database, finance/credit, order approvals, production queue mutations, customer portal ownership.
 5. Add route-level tests for every P0 family before broad refactors.
-6. Move route families into modules only after their permission contracts are explicit.
+6. Keep route families inside module-owned `routes/*.js` files; new routes require explicit permission contracts and `test/module-governance.test.js` updates.
 
 ## Acceptance Checks
 

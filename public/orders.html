@@ -589,7 +589,7 @@ function buildDetailHTML(o, pkgs) {
     <div class="status-actions">
       ${statuses.map(s => `<button class="status-btn${o.status===s?' cur':''}"
         ${o.status===s?'disabled':''}
-        onclick="setStatus(${o.id},${jsArg(s)}).then(ok=>{if(ok)closeDetailPanel()})">${escHtml(s)}</button>`).join('')}
+        onclick="setStatusAndClose(${o.id},${jsArg(s)})">${escHtml(s)}</button>`).join('')}
     </div>
   </div>`;
 
@@ -672,6 +672,11 @@ function closeDetail(e) { if (e.target===document.getElementById('detailOverlay'
 function closeDetailPanel() {
   document.getElementById('detailOverlay').classList.remove('show');
   history.replaceState(null, '', '/orders.html');
+}
+
+async function setStatusAndClose(id, status) {
+  const ok = await setStatus(id, status);
+  if (ok) closeDetailPanel();
 }
 
 function printQR(code, orderNum, weight, diameter) {

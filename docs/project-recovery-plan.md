@@ -4,6 +4,18 @@ This document is the working plan for turning `tene-industry` from a one-off
 IronBend implementation into a modular product that can be configured and sold
 to multiple industrial customers.
 
+## Current Recovery Checkpoint
+
+Status as of 2026-06-03:
+
+- Active product API route families have been extracted into module-owned `routes/*.js` files.
+- `server.js` intentionally keeps only infrastructure, schema/startup wiring, shared runtime glue, and `GET /api/health`.
+- JWT-derived authorization is active for guarded routes; `AUTH_BYPASS` is development-only and blocked in production.
+- Governance tests protect module boundaries, auth coverage, constants, status contracts, and extracted services.
+- Full test baseline at this checkpoint: `npm test` passes with 136/136 tests.
+
+Historical notes below may still describe the original monolith where useful, but new work must follow `docs/BUILD_RULES_HE.md` and the current module map.
+
 ## Current Diagnosis
 
 The codebase contains a large amount of useful business work, but it is not yet
@@ -31,14 +43,12 @@ The source specification volumes were located in
 
 The main symptoms are:
 
-- `server.js` owns almost every domain: auth, orders, production, inventory,
-  finance, customer portal, supplier portal, drivers, OCR, AI, Priority ERP,
-  database safety, exports, and admin maintenance.
+- `server.js` used to own almost every domain; active API route families are now module-owned under `routes/*.js`, with `/api/health` intentionally remaining in `server.js`.
 - Frontend screens are mostly standalone HTML files with their own data loading,
   rendering, escaping, role handling, empty states, and action flows.
 - Several screens show similar concepts in different ways, especially orders,
   production queue, machine work, customer status, and admin intake review.
-- Authentication exists, but full enforcement is intentionally still disabled.
+- Authentication and authorization are active for guarded routes through JWT-derived `req.auth`; production must keep `AUTH_BYPASS` disabled.
 - Some business flows were started as stubs or partially connected modules.
 - The product is currently branded and modeled as a rebar factory system, while
   the intended commercial product needs a reusable core plus industry packages.
@@ -99,7 +109,7 @@ Initial files:
 - `public/auth-client.js`
 - `public/nav.js`
 - `public/theme.css`
-- auth, users, settings, audit routes currently inside `server.js`
+- `routes/auth.js` and `routes/admin.js`
 
 ### Orders
 
@@ -113,7 +123,7 @@ Owns:
 
 Initial files:
 
-- order routes inside `server.js`
+- `routes/orders.js` and `routes/productionCards.js`
 - `public/orders.html`
 - `public/index.html`
 - `docs/order-import-integration.md`
@@ -131,7 +141,7 @@ Owns:
 
 Initial files:
 
-- production, machine, worker, shift, scan routes inside `server.js`
+- `routes/production.js`
 - `public/production-queue.html`
 - `public/machine.html`
 - `public/kiosk.html`
@@ -151,7 +161,7 @@ Owns:
 
 Initial files:
 
-- inventory, suppliers, purchase order routes inside `server.js`
+- `routes/inventory.js`
 - `public/inventory.html`
 - `public/warehouse.html`
 - `public/procurement.html`
@@ -167,7 +177,7 @@ Owns:
 
 Initial files:
 
-- packages, delivery, driver routes inside `server.js`
+- `routes/warehouse.js` and `routes/fleet.js`
 - `public/driver.html`
 - `public/warehouse.html`
 
@@ -183,7 +193,7 @@ Owns:
 
 Initial files:
 
-- finance, costs, credit, invoices routes inside `server.js`
+- `routes/finance.js` and catalog pricing routes in `routes/catalog.js`
 - `public/finance.html`
 - finance parts of `public/reports.html`
 
@@ -199,7 +209,7 @@ Owns:
 
 Initial files:
 
-- quality, maintenance, incidents, NCR, CAPA, LOTO routes inside `server.js`
+- `routes/quality.js`
 - `public/quality.html`
 - `public/maintenance.html`
 - `public/warroom.html`
@@ -216,8 +226,8 @@ Owns:
 
 Initial files:
 
-- `/api/c/*` routes inside `server.js`
-- supplier/driver/customer routes inside `server.js`
+- `/api/c/*` routes in `routes/portal.js`
+- external portal and driver/customer routes in module-owned route files
 - `public/customer.html`
 - `public/portal.html`
 - `public/supplier.html`
@@ -225,22 +235,18 @@ Initial files:
 
 ## Critical Findings To Fix First
 
-### P0: Authentication Is Not Enforced
+### P0: Authentication Enforcement Baseline
 
-`AUTH_ENFORCEMENT` remains false in `render.yaml` until the staging gate passes.
-Guarded routes now require JWT-derived identity and no longer trust
-`x-user-role`; remaining risk is route families that still lack direct guards.
+Protected routes require JWT-derived identity through explicit route middleware and no longer trust spoofable role headers. `AUTH_ENFORCEMENT` is retired as a deployment lever; staging and production must verify anonymous protected requests return 401.
 
 Impact:
 
-- Unguarded route families can still be called without real identity.
-- Admin database download is now admin/JWT guarded, but browser smoke testing
-  is still needed before enabling enforcement broadly.
-- Frontend role checks are cosmetic.
+- New `/api/*` routes are unsafe unless they declare a guard or explicit public/scoped boundary.
+- Frontend role checks remain cosmetic; server middleware is the enforcement point.
 
 Decision:
 
-- Sprint 0 must finish the security rollout gate before product work resumes.
+- Keep `test/route-auth-coverage.test.js` green and expand request-level tests for critical workflows.
 
 ### P0: User Management Routes Are Open
 
@@ -429,7 +435,7 @@ Deliverables:
 
 - Stable `JWT_SECRET` configured in deployment.
 - PIN migration verified.
-- `AUTH_ENFORCEMENT=true` in staging, then production.
+- Anonymous protected-route checks return 401 in staging, then production.
 - `x-user-role` fallback removed.
 - User/admin/settings/finance/database endpoints protected.
 - Dedicated pages either load the shared auth client or are intentionally public.
@@ -535,16 +541,14 @@ A screen is not done until:
 
 ## Immediate Backlog
 
-1. Build endpoint inventory from `server.js`.
-2. Build screen inventory from `public/*.html`.
-3. Protect `/api/users*` and database endpoints.
-4. Configure `JWT_SECRET` and plan `AUTH_ENFORCEMENT=true`.
-5. Remove `x-user-role` fallback from privileged flows.
-6. Fix dashboard production queue source.
-7. Add shared escaping helper and patch high-risk screens.
-8. Create order/production status constants.
-9. Decide portal auth model: OTP, magic link, or authenticated customer account.
-10. Decide which stub modules are hidden, frozen, or completed.
+1. Keep module docs and route ownership maps synchronized with `routes/*.js`.
+2. Clean historical sprint/backlog docs that still describe the old monolith as current state.
+3. Build compare-and-approve UX for OCR/email/WhatsApp intake: original document beside parsed output.
+4. Continue screen-level design normalization for intake, shape review, inventory receiving, order approval, fleet, and delivery admin.
+5. Add pricing importer/pricer services as a future sprint without changing the canonical `price_list` table.
+6. Define vendor control / remote support APIs with customer-approved support sessions and audit logging.
+7. Decide final device/station auth policy for kiosk, worker, and driver deployments.
+8. Continue hardening module services where business logic still lives in route files.
 
 ## Open Inputs Needed From Product Owner
 

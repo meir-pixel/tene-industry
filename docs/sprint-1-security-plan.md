@@ -20,7 +20,7 @@ This sprint does not aim to redesign the whole application. It creates the permi
 
 Known current state:
 
-- `AUTH_ENFORCEMENT` is explicitly disabled in `render.yaml` until the staging gate passes.
+- `AUTH_ENFORCEMENT` is retired as a deployment lever; route guards enforce JWT directly.
 - `JWT_SECRET` is defined in `render.yaml` with `generateValue: true`; local development still needs an explicit secret when testing production-like auth.
 - `app.use('/api', optionalAuth)` tries to decode auth but does not require it.
 - `requireRole()` has been moved to `permissions.js` and no longer trusts
@@ -41,7 +41,7 @@ Known current state:
   verifies provider signatures when `WHATSAPP_APP_SECRET` is configured.
   Logout requires an active refresh cookie or access token.
 - `render.yaml` now defines a generated `JWT_SECRET` and keeps
-  `AUTH_ENFORCEMENT=false` until the staging gate passes.
+  route-guard coverage instead of a global enforcement flag.
 
 ## Role Model Decision
 
@@ -298,6 +298,6 @@ Sprint 1 is complete only when:
 
 - P0 internal route families require real authenticated roles.
 - User, settings, DB, finance, order approval, and production mutation tests pass.
-- The deployment configuration requires `AUTH_ENFORCEMENT=true` and a stable `JWT_SECRET`.
+- The deployment configuration has a stable `JWT_SECRET`, guarded routes require JWT-derived roles through explicit middleware, and `AUTH_BYPASS` is disabled or ineffective in production.
 - External portal auth has a written accepted decision, even if implementation starts in Sprint 2.
 - `docs/permission-registry.md` and `docs/api-route-permission-map.md` match the implemented role model.

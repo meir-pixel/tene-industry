@@ -182,6 +182,8 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
 
   const showAxes = opts.showAxes !== false && w >= 100;
   const showDims = opts.showDims !== false && w >= 160;
+  const showBends = opts.showBends !== false && w >= 180;
+  const compactLabels = opts.compactLabels !== false;
   const dark     = opts.dark !== false;
   const labelClr = dark ? '#e8edf3' : '#1a2533';
   const mutedClr = dark ? '#7a93ab' : '#526070';
@@ -215,8 +217,8 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
   const minSY = Math.min(...sys), maxSY = Math.max(...sys);
 
   // Reserve room for axes legend (bottom-left) and labels
-  const axPad = showAxes ? 38 : 0;
-  const pad   = 22 + (showDims ? 32 : 0);
+  const axPad = showAxes ? 28 : 0;
+  const pad   = compactLabels ? 28 : 22 + (showDims ? 32 : 0);
   const avW   = w - pad * 2 - axPad;
   const avH   = h - pad * 2;
   const sc    = Math.min(avW / (maxSX - minSX || 1), avH / (maxSY - minSY || 1));
@@ -283,17 +285,19 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
 
   // ── Bend angle labels ─────────────────────────────────────────
   let bendLabels = '';
-  if (showDims) {
+  if (showBends) {
     for (let i = 1; i < mapped.length - 1; i++) {
       const [bx, by] = mapped[i];
       const angle = angles[i - 1];
       if (angle !== undefined && angle !== 180) {
         bendLabels += `
-          <circle cx="${bx.toFixed(1)}" cy="${(by - barW/2 - 16).toFixed(1)}" r="11"
-            fill="rgba(201,98,26,0.9)" stroke="rgba(255,255,255,0.2)" stroke-width="1" data-ang-click="${i-1}" style="cursor:pointer"/>
-          <text x="${bx.toFixed(1)}" y="${(by - barW/2 - 11.5).toFixed(1)}" text-anchor="middle" font-size="9"
-            font-family="Heebo,Arial" font-weight="700" fill="white"
+          <g opacity="0.92">
+          <rect x="${(bx - 16).toFixed(1)}" y="${(by - barW/2 - 24).toFixed(1)}" width="32" height="20" rx="6"
+            fill="#ffffff" stroke="#d47a35" stroke-width="1.2" data-ang-click="${i-1}" style="cursor:pointer"/>
+          <text x="${bx.toFixed(1)}" y="${(by - barW/2 - 10).toFixed(1)}" text-anchor="middle" font-size="10"
+            font-family="Heebo,Arial" font-weight="800" fill="#c9621a"
             data-ang-click="${i-1}" style="cursor:pointer">${angle}°</text>`;
+          bendLabels += `</g>`;
       }
     }
   }
@@ -306,30 +310,29 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
       const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
       const dx = x2 - x1, dy = y2 - y1;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / len * 22, ny = dx / len * 22;
+      const nx = -dy / len * (compactLabels ? 15 : 22), ny = dx / len * (compactLabels ? 15 : 22);
       const letter = String.fromCharCode(0x05D0 + i); // א ב ג...
       const isActSeg = i === activeSeg;
       const badgeCol = isActSeg ? '#2979ff' : '#526070';
-      // Letter badge (circle with Hebrew letter, colored per segment)
+      const labelW = Math.max(34, Math.min(54, String(sides[i]).length * 8 + 14));
       dimLabels += `
-        <circle cx="${(mx + nx).toFixed(1)}" cy="${(my + ny - 12).toFixed(1)}" r="10"
-          fill="${badgeCol}" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" data-seg-click="${i}" style="cursor:pointer"/>
-        <text x="${(mx + nx).toFixed(1)}" y="${(my + ny - 7.5).toFixed(1)}" text-anchor="middle"
-          font-size="11" font-family="Heebo,Arial" font-weight="900" fill="white"
-          data-seg-click="${i}" style="cursor:pointer">${letter}</text>
-        <rect x="${(mx + nx - 16).toFixed(1)}" y="${(my + ny + 1).toFixed(1)}" width="32" height="13"
-          rx="3" fill="${dark ? 'rgba(26,38,55,0.88)' : 'rgba(255,255,255,0.92)'}" stroke="${badgeCol}" stroke-width="1" data-seg-click="${i}" style="cursor:pointer"/>
-        <text x="${(mx + nx).toFixed(1)}" y="${(my + ny + 11).toFixed(1)}" text-anchor="middle"
-          font-size="9" font-family="Heebo,Arial" font-weight="700" fill="${labelClr}"
-          data-seg-click="${i}" style="cursor:pointer">${sides[i]}</text>`;
+        <g data-seg-click="${i}" style="cursor:pointer">
+          <rect x="${(mx + nx - labelW / 2).toFixed(1)}" y="${(my + ny - 10).toFixed(1)}" width="${labelW}" height="22"
+            rx="6" fill="${dark ? 'rgba(26,38,55,0.9)' : 'rgba(255,255,255,0.96)'}" stroke="${badgeCol}" stroke-width="${isActSeg ? 1.8 : 1}"/>
+          <text x="${(mx + nx).toFixed(1)}" y="${(my + ny + 5).toFixed(1)}" text-anchor="middle"
+            font-size="10" font-family="Heebo,Arial" font-weight="800" fill="${labelClr}">${sides[i]}</text>
+          ${compactLabels ? '' : `<circle cx="${(mx + nx + labelW / 2 - 4).toFixed(1)}" cy="${(my + ny - 10).toFixed(1)}" r="8" fill="${badgeCol}"/>
+          <text x="${(mx + nx + labelW / 2 - 4).toFixed(1)}" y="${(my + ny - 6.5).toFixed(1)}" text-anchor="middle"
+            font-size="8" font-family="Heebo,Arial" font-weight="900" fill="white">${letter}</text>`}
+        </g>`;
     }
   }
 
   // ── XYZ Axis indicator (bottom-right corner) ──────────────────
   let axisHTML = '';
   if (showAxes) {
-    const ax = w - 44, ay = h - 14;
-    const axLen = 22;
+    const ax = w - 34, ay = h - 18;
+    const axLen = 18;
     // Project world X/Y/Z axes through the current camera
     const xEnd = [ax + axLen * cosT,              ay + axLen * sinT * sinP];
     const yEnd = [ax - axLen * sinT,              ay + axLen * cosT * sinP];
@@ -340,19 +343,19 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
       <line x1="${ax}" y1="${ay}" x2="${xEnd[0].toFixed(1)}" y2="${xEnd[1].toFixed(1)}"
         stroke="#e05050" stroke-width="2" stroke-linecap="round"/>
       <text x="${(xEnd[0]+4).toFixed(1)}" y="${(xEnd[1]+4).toFixed(1)}"
-        font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#e05050">X</text>
+        font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#e05050">X</text>
       <line x1="${ax}" y1="${ay}" x2="${yEnd[0].toFixed(1)}" y2="${yEnd[1].toFixed(1)}"
         stroke="#22b844" stroke-width="2" stroke-linecap="round"/>
       <text x="${(yEnd[0]-12).toFixed(1)}" y="${(yEnd[1]+4).toFixed(1)}"
-        font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#22b844">Y</text>
+        font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#22b844">Y</text>
       <line x1="${ax}" y1="${ay}" x2="${zEnd[0].toFixed(1)}" y2="${zEnd[1].toFixed(1)}"
         stroke="#3a7bd5" stroke-width="2" stroke-linecap="round"/>
       <text x="${(zEnd[0]+3).toFixed(1)}" y="${(zEnd[1]-4).toFixed(1)}"
-        font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#3a7bd5">Z</text>
+        font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#3a7bd5">Z</text>
       <circle cx="${ax}" cy="${ay}" r="3" fill="${mutedClr}"/>`;
   }
 
-  const dragHint = opts.camTheta != null
+  const dragHint = opts.dragHint === true && opts.camTheta != null
     ? `<text x="${(w/2).toFixed(0)}" y="${h - 4}" text-anchor="middle"
         font-size="9" font-family="Heebo,Arial" fill="rgba(255,255,255,0.22)">גרור לסובב 🖱</text>`
     : '';
@@ -400,8 +403,9 @@ function persistSavedShape(shapeData, name) {
     id, name: (name || 'צורה מותאמת').trim(),
     sides:    [...shapeData.sides],
     angles:   [...shapeData.angles],
-    azAngles: shapeData.azAngles ? [...shapeData.azAngles] : null,
-    elAngles: shapeData.elAngles ? [...shapeData.elAngles] : null,
+    is3d:     shapeData.is3d ? 1 : 0,
+    azAngles: shapeData.is3d && shapeData.azAngles ? [...shapeData.azAngles] : null,
+    elAngles: shapeData.is3d && shapeData.elAngles ? [...shapeData.elAngles] : null,
     bends:    shapeData.angles.length,
     savedAt:  Date.now(),
   });
@@ -453,8 +457,8 @@ class ShapeEditorModal {
 }
 #seOverlay.show{opacity:1;pointer-events:all;}
 #seModal{
-  background:#ffffff;border:1px solid #d0d8e4;border-radius:16px;
-  width:min(1280px,96vw);max-height:95vh;overflow:hidden;
+  background:#ffffff;border:1px solid #d0d8e4;border-radius:12px;
+  width:min(1180px,96vw);max-height:95vh;overflow:hidden;
   display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25);
   transform:translateY(16px);transition:transform 0.2s;
 }
@@ -496,8 +500,8 @@ class ShapeEditorModal {
 #seModal .se-preset-btn.active svg [stroke*="rebarGrad"]{stroke:#e07b39!important;}
 /* ── Page 2: edit layout ── */
 #sePageEdit{flex:1;display:flex;overflow:hidden;min-height:0;}
-.se-preview-panel{flex:1;display:flex;flex-direction:column;padding:14px 16px;gap:10px;background:#fff;overflow:hidden;}
-.se-data-panel{width:420px;flex-shrink:0;border-right:1px solid #e2e8ef;display:flex;flex-direction:column;overflow:hidden;background:#fff;}
+.se-preview-panel{flex:1;display:flex;flex-direction:column;padding:14px 16px;gap:10px;background:#fff;overflow:hidden;min-width:0;}
+.se-data-panel{width:360px;flex-shrink:0;border-right:1px solid #e2e8ef;display:flex;flex-direction:column;overflow:hidden;background:#fff;}
 .se-data-panel-head{padding:12px 14px 8px;border-bottom:1px solid #e2e8ef;font-size:11px;font-weight:700;color:#7a93ab;text-transform:uppercase;letter-spacing:0.5px;background:#f9fafb;}
 /* Stats bar (horizontal) */
 .se-stats-bar{display:flex;gap:8px;flex-shrink:0;}
@@ -515,7 +519,7 @@ class ShapeEditorModal {
 #seModal .se-svg-wrap{
   background:#f7f9fc;border:1px solid #e2e8ef;
   border-radius:12px;flex:1;display:flex;align-items:center;justify-content:center;
-  min-height:200px;user-select:none;
+  min-height:360px;user-select:none;overflow:hidden;
 }
 #seModal .se-svg-wrap.grab-mode{cursor:grab;}
 #seModal .se-svg-wrap.grab-mode:active{cursor:grabbing;}
@@ -532,7 +536,7 @@ class ShapeEditorModal {
 #se3DOrbitCtrl .se-rot-btn:hover{background:rgba(224,123,57,0.12);border-color:#e07b39;color:#e07b39;}
 #se3DOrbitCtrl .se-rot-btn:active{background:rgba(224,123,57,0.25);}
 #se3DOrbitCtrl .se-rot-label{font-size:9px;color:#7a93ab;font-family:Heebo,Arial;}
-#seModal .se-svg-wrap svg{width:100%;height:320px;}
+#seModal .se-svg-wrap svg{width:100%;height:380px;max-height:100%;}
 #seModal .se-info-col{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;}
 #seModal .se-stat{background:#f4f6f9;border:1px solid #e2e8ef;border-radius:8px;padding:12px 14px;}
 #seModal .se-stat-label{font-size:10px;font-weight:700;color:#7a93ab;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;}
@@ -554,6 +558,8 @@ class ShapeEditorModal {
   color:#1a2332;font-family:'Heebo',sans-serif;font-size:14px;direction:rtl;
   min-height:38px;
 }
+#seModal .se-table td:nth-child(2) .se-input{max-width:96px;margin-inline-start:auto;}
+#seModal .se-table td:nth-child(3) .se-input{max-width:78px;margin-inline-start:auto;}
 #seModal .se-input:focus{outline:none;border-color:#e07b39;background:#fffaf6;}
 #seModal .se-angle-btns{display:flex;gap:4px;flex-wrap:wrap;}
 #seModal .se-angle-btn{
@@ -571,6 +577,17 @@ class ShapeEditorModal {
 }
 #seModal .se-bend-row{background:#fffaf6;}
 #seModal .se-table th span{font-size:9px;opacity:0.7;}
+#seModal .se-mode-note{padding:10px 14px;border-bottom:1px solid #e2e8ef;background:#fbfcfe;display:grid;gap:8px;}
+#seModal .se-3d-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #d8e2ec;border-radius:8px;padding:9px 10px;background:#fff;}
+#seModal .se-3d-toggle strong{font-size:13px;color:#1a2332;}
+#seModal .se-3d-toggle small{display:block;font-size:11px;color:#7a93ab;font-weight:500;line-height:1.45;}
+#seModal .se-switch{position:relative;width:44px;height:24px;flex-shrink:0;}
+#seModal .se-switch input{opacity:0;width:0;height:0;}
+#seModal .se-slider{position:absolute;cursor:pointer;inset:0;background:#c8d4e0;border-radius:999px;transition:.15s;}
+#seModal .se-slider:before{content:"";position:absolute;width:18px;height:18px;right:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 4px rgba(0,0,0,.18);}
+#seModal .se-switch input:checked + .se-slider{background:#e07b39;}
+#seModal .se-switch input:checked + .se-slider:before{transform:translateX(-20px);}
+#seModal .se-3d-help{font-size:11px;color:#7a93ab;line-height:1.55;}
 #seModal .se-add-row{
   display:flex;gap:8px;padding:10px 0 4px;
 }
@@ -618,7 +635,10 @@ class ShapeEditorModal {
 }
 #seModal .se-ok-btn:hover{transform:translateY(-1px);}
 @media(max-width:640px){
-  #seModal .se-body{flex-direction:column;}
+  #seModal{width:100vw;max-height:100vh;border-radius:0;}
+  #sePageEdit{flex-direction:column;}
+  .se-data-panel{width:100%;border-right:none;border-top:1px solid #e2e8ef;max-height:40vh;}
+  #seModal .se-svg-wrap{min-height:260px;}
   #seModal .se-presets{width:100%;flex-direction:row;overflow-x:auto;overflow-y:hidden;border-left:none;border-bottom:1px solid #e2e8ef;padding:8px;flex-wrap:nowrap;max-height:60px;}
   #seModal .se-preset-btn{flex-shrink:0;white-space:nowrap;}
   #seModal .se-preview-row{flex-direction:column;}
@@ -674,8 +694,8 @@ class ShapeEditorModal {
           </div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;">
-          <button id="seView2D" onclick="seSetView('2d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">📐 2D</button>
-          <button id="seView3D" onclick="seSetView('3d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #e07b39;background:rgba(224,123,57,0.1);color:#e07b39;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">🧊 3D XYZ</button>
+          <button id="seView2D" onclick="seSetView('2d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #e07b39;background:rgba(224,123,57,0.1);color:#e07b39;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">2D</button>
+          <button id="seView3D" onclick="seSetView('3d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">3D</button>
           <button id="seResetCam" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}"
             style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#7a93ab;cursor:pointer;font-size:13px;transition:all .15s" title="איפוס זווית">⟳</button>
         </div>
@@ -687,7 +707,7 @@ class ShapeEditorModal {
       <!-- Orbit controls – compact single row -->
       <div id="se3DOrbitCtrl" style="flex-shrink:0;display:flex;align-items:center;gap:3px;
         padding:4px 6px;background:#f0f4f8;border-radius:8px;border:1px solid #e2e8ef;">
-        <span style="font-size:10px;color:#7a93ab;font-weight:700;margin-left:2px;">סיבוב:</span>
+        <span style="font-size:10px;color:#7a93ab;font-weight:700;margin-left:2px;">תצוגה:</span>
         <button class="se-rot-btn" title="שמאלה" style="width:26px;height:26px;font-size:12px;"
           onclick="if(window._seEditor){window._seEditor._camTheta-=Math.PI/8;window._seEditor._updatePreview();}">◁</button>
         <button class="se-rot-btn" title="למעלה" style="width:26px;height:26px;font-size:12px;"
@@ -712,6 +732,19 @@ class ShapeEditorModal {
     <!-- Right: dimension table -->
     <div class="se-data-panel">
       <div class="se-data-panel-head">מידות צלעות וזוויות</div>
+      <div class="se-mode-note">
+        <label class="se-3d-toggle">
+          <span>
+            <strong>מוצר תלת-ממדי אמיתי</strong>
+            <small>כבה: 3D הוא רק תצוגה. דלוק: נשמרים נתוני XYZ לפריט.</small>
+          </span>
+          <span class="se-switch">
+            <input type="checkbox" id="seReal3DToggle" onchange="window._seEditor._setReal3D(this.checked)">
+            <span class="se-slider"></span>
+          </span>
+        </label>
+        <div class="se-3d-help" id="se3DHelp">תצוגת 3D לא הופכת את המוצר לתלת-ממדי. סמן כאן רק אם הברזל באמת יוצא מהמישור.</div>
+      </div>
       <div class="se-table-wrap">
         <table class="se-table">
           <thead id="seTableHead">
@@ -736,12 +769,12 @@ class ShapeEditorModal {
     <!-- Normal footer -->
     <div id="seFootNormal" style="display:flex;width:100%;justify-content:flex-end;gap:10px;align-items:center;">
       <button class="se-cancel-btn" id="seCancel">ביטול</button>
-      <button class="se-save-shape-btn" id="seSaveShapeBtn">💾 שמור צורה</button>
+      <button class="se-save-shape-btn" id="seSaveShapeBtn">שמור צורה</button>
       <button class="se-ok-btn" id="seOk">אשר צורה ←</button>
     </div>
     <!-- Save bar (hidden by default) -->
     <div id="seFootSave" style="display:none;width:100%;align-items:center;gap:10px;flex-wrap:wrap;">
-      <span style="font-size:13px;font-weight:700;color:#1a2332;font-family:Heebo,sans-serif;white-space:nowrap;">💾 שם הצורה:</span>
+      <span style="font-size:13px;font-weight:700;color:#1a2332;font-family:Heebo,sans-serif;white-space:nowrap;">שם הצורה:</span>
       <input id="seSaveNameInput" class="se-input" style="flex:1;min-width:180px;max-width:300px;"
         placeholder="לדוגמה: U-אנקר מיוחד 600מ&quot;מ"
         onkeydown="if(event.key==='Enter')window._seEditor._doSave();if(event.key==='Escape')window._seEditor._hideSaveBar();">
@@ -854,49 +887,49 @@ class ShapeEditorModal {
 
   _bindDragRotation() {
     const wrap = document.getElementById('seSvgWrap');
-    let drag = null; // { startX, startY, startTheta, startPhi }
-
-    const getXY = e => e.touches
-      ? [e.touches[0].clientX, e.touches[0].clientY]
-      : [e.clientX, e.clientY];
+    let drag = null; // { pointerId, startX, startY, startTheta, startPhi }
 
     const startDrag = e => {
       if (window._seViewMode === '2d') return;
+      if (e.button != null && e.button !== 0) return;
       e.preventDefault();
-      const [cx, cy] = getXY(e);
-      drag = { startX: cx, startY: cy, theta: this._camTheta, phi: this._camPhi };
+      drag = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, theta: this._camTheta, phi: this._camPhi };
+      wrap.setPointerCapture?.(e.pointerId);
+      wrap.classList.add('dragging');
     };
 
     const moveDrag = e => {
-      if (!drag) return;
-      // Cancel if mouse button no longer held (released outside window)
-      if (!e.touches && e.buttons !== undefined && e.buttons === 0) { drag = null; return; }
-      // Cancel if view was switched to 2D while dragging
-      if (window._seViewMode === '2d') { drag = null; return; }
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      if (e.buttons !== undefined && e.buttons === 0) { endDrag(e); return; }
+      if (window._seViewMode === '2d') { endDrag(e); return; }
       if (e.cancelable) e.preventDefault();
-      const [cx, cy] = getXY(e);
       const W = wrap.offsetWidth  || 300;
       const H = wrap.offsetHeight || 180;
       // one full width drag = 360° horizontal; one full height drag = 180° vertical
-      this._camTheta = drag.theta + (cx - drag.startX) / W * Math.PI * 2;
+      this._camTheta = drag.theta + (e.clientX - drag.startX) / W * Math.PI * 2;
       this._camPhi   = Math.max(-Math.PI / 2 + 0.05,
                        Math.min( Math.PI / 2 - 0.05,
-                         drag.phi - (cy - drag.startY) / H * Math.PI));
+                         drag.phi - (e.clientY - drag.startY) / H * Math.PI));
       this._updatePreview();
     };
 
-    const endDrag = () => { drag = null; };
+    const endDrag = e => {
+      if (drag && e?.pointerId != null && wrap.hasPointerCapture?.(e.pointerId)) {
+        wrap.releasePointerCapture?.(e.pointerId);
+      }
+      drag = null;
+      wrap.classList.remove('dragging');
+    };
 
     // Expose so seSetView can cancel active drag when switching modes
     window._seResetDrag = endDrag;
 
-    wrap.addEventListener('mousedown',  startDrag);
-    wrap.addEventListener('touchstart', startDrag, { passive: false });
-    document.addEventListener('mousemove',  moveDrag);
-    document.addEventListener('touchmove',  moveDrag, { passive: false });
-    document.addEventListener('mouseup',    endDrag);
-    document.addEventListener('touchend',   endDrag);
-    // Also cancel if focus leaves the window (alt-tab, etc.)
+    wrap.addEventListener('pointerdown', startDrag);
+    wrap.addEventListener('pointermove', moveDrag);
+    wrap.addEventListener('pointerup', endDrag);
+    wrap.addEventListener('pointercancel', endDrag);
+    wrap.addEventListener('lostpointercapture', endDrag);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') endDrag(e); });
     window.addEventListener('blur', endDrag);
   }
 
@@ -1037,12 +1070,18 @@ class ShapeEditorModal {
   _renderTable() {
     if (!this.current) return;
     const { sides, angles, azAngles, elAngles } = this.current;
-    const is3D = window._seViewMode !== '2d';
+    const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
+    const toggle = document.getElementById('seReal3DToggle');
+    if (toggle) toggle.checked = isReal3D;
+    const help = document.getElementById('se3DHelp');
+    if (help) help.textContent = isReal3D
+      ? 'מצב מוצר תלת-ממדי פעיל: ערוך פנייה במרחב והטיית Z לכל צלע.'
+      : 'תצוגת 3D לא הופכת את המוצר לתלת-ממדי. סמן כאן רק אם הברזל באמת יוצא מהמישור.';
 
     // ── Update column headers ──────────────────────────────────
     const thead = document.getElementById('seTableHead');
     if (thead) {
-      if (is3D) {
+      if (isReal3D) {
         thead.innerHTML = `<tr>
           <th style="width:28px">#</th>
           <th style="min-width:90px">אורך (מ"מ)</th>
@@ -1063,7 +1102,7 @@ class ShapeEditorModal {
     // ── Build rows ─────────────────────────────────────────────
     let html = '';
     for (let i = 0; i < sides.length; i++) {
-      if (is3D) {
+      if (isReal3D) {
         const az = azAngles?.[i] ?? 0;
         const el = elAngles?.[i] ?? 0;
         html += `
@@ -1111,6 +1150,21 @@ class ShapeEditorModal {
       }
     }
     document.getElementById('seTableBody').innerHTML = html;
+  }
+
+  _setReal3D(enabled) {
+    if (!this.current) return;
+    this.current.is3d = enabled ? 1 : 0;
+    if (enabled) {
+      this._init3DAnglesFrom2D();
+      window.seSetView?.('3d');
+    } else {
+      this.current.azAngles = Array(this.current.sides.length).fill(0);
+      this.current.elAngles = Array(this.current.sides.length).fill(0);
+      window.seSetView?.('2d');
+    }
+    this._renderTable();
+    this._updatePreview();
   }
 
   _setSide(i, val) {
@@ -1272,15 +1326,18 @@ class ShapeEditorModal {
     const { sides, angles } = this.current;
     const svg = document.getElementById('seShapeSvg');
     const is3D = window._seViewMode !== '2d';
+    const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
 
     if (is3D) {
       const diam = this._diameter || 12;
       const { azAngles, elAngles } = this.current;
-      const has3D = (azAngles && azAngles.some(a => a !== 0)) ||
-                    (elAngles && elAngles.some(a => a !== 0));
+      const has3D = isReal3D && (
+        (azAngles && azAngles.some(a => a !== 0)) ||
+        (elAngles && elAngles.some(a => a !== 0))
+      );
 
-      // If elAngles are set but azAngles are still all-zero, derive azAngles from 2D angles
-      // so the shape keeps its correct XY geometry when Z-tilt is added.
+      // Visual-only 3D must render the exact same flat bend geometry as 2D.
+      // True 3D may use XYZ turn data only after the user explicitly marks it as real 3D.
       let effectiveAzAngles = azAngles;
       if (has3D && (!azAngles || azAngles.every(a => a === 0)) && angles.length > 0) {
         effectiveAzAngles = [0, ...angles.map(a => -(180 - a))];
@@ -1288,7 +1345,7 @@ class ShapeEditorModal {
       }
 
       svg.innerHTML = shape3DSVG(sides, angles, 300, 260, diam, {
-        showAxes: true, showDims: true, dark: false,
+        showAxes: true, showDims: true, showBends: false, compactLabels: true, dark: false,
         camTheta:  this._camTheta,
         camPhi:    this._camPhi,
         azAngles:  has3D ? (effectiveAzAngles || Array(sides.length).fill(0)) : null,
@@ -1423,7 +1480,13 @@ class ShapeEditorModal {
 
   _confirm() {
     if (!this.current || !this.onSelect) return;
-    this.onSelect({ ...this.current });
+    const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
+    this.onSelect({
+      ...this.current,
+      is3d: isReal3D ? 1 : 0,
+      azAngles: isReal3D ? (this.current.azAngles || []) : null,
+      elAngles: isReal3D ? (this.current.elAngles || []) : null,
+    });
     this.close();
   }
 
@@ -1451,6 +1514,7 @@ class ShapeEditorModal {
       }
       this.current = {
         ...existingData,
+        is3d: existingData.is3d ? 1 : 0,
         azAngles: initAz,
         elAngles: existingData.elAngles?.length === n
           ? [...existingData.elAngles]
@@ -1466,12 +1530,19 @@ class ShapeEditorModal {
   }
 
   close() {
+    if (window._seResetDrag) window._seResetDrag();
     this._el.classList.remove('show');
   }
 }
 
 // ── VIEW MODE TOGGLE (global, called from onclick) ────────────────
-window._seViewMode = '3d'; // default to 3D
+window._seViewMode = '2d'; // default to precise 2D editing; 3D is optional review
+window.IronBendShapeGeometry = {
+  calcShapePoints,
+  calcShapePoints3D,
+  shapeSVGPath,
+  shape3DSVG,
+};
 window.seSetView = function(mode) {
   window._seViewMode = mode;
   // Cancel any active drag when switching modes
@@ -1484,8 +1555,8 @@ window.seSetView = function(mode) {
     const idle   = base + 'border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;box-shadow:none;';
     btn2d.style.cssText = (mode === '2d' ? active : idle);
     btn3d.style.cssText = (mode === '3d' ? active : idle);
-    btn2d.textContent = '📐 2D';
-    btn3d.textContent = '🧊 3D XYZ';
+    btn2d.textContent = '2D';
+    btn3d.textContent = '3D';
   }
   // Show/hide orbit controls and grab cursor based on mode
   const orbitCtrl = document.getElementById('se3DOrbitCtrl');

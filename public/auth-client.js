@@ -59,6 +59,44 @@
     return url.includes('/api/auth/');
   }
 
+  function showAuthNotice(status) {
+    if (document.getElementById('ib-auth-notice')) return;
+    const notice = document.createElement('div');
+    notice.id = 'ib-auth-notice';
+    notice.dir = 'rtl';
+    notice.style.cssText = [
+      'position:fixed',
+      'left:18px',
+      'bottom:18px',
+      'z-index:2000',
+      'max-width:420px',
+      'background:#ffffff',
+      'border:1px solid rgba(184,50,39,0.28)',
+      'box-shadow:0 14px 40px rgba(0,0,0,0.18)',
+      'border-radius:12px',
+      'padding:14px 16px',
+      'font-family:Heebo,Arial,sans-serif',
+      'color:#1a2533',
+    ].join(';');
+    const message = status === 403
+      ? 'השרת עובד, אבל אין למשתמש הנוכחי הרשאה לפעולה הזו.'
+      : 'השרת עובד, אבל נדרשת התחברות מחדש כדי לטעון נתונים.';
+    notice.innerHTML = `
+      <div style="font-weight:900;margin-bottom:4px">נדרשת התחברות</div>
+      <div style="font-size:13px;color:#526070;margin-bottom:10px">${message}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" id="ib-auth-dismiss" style="border:1px solid rgba(0,0,0,0.16);background:#fff;border-radius:8px;padding:7px 12px;font-weight:800;cursor:pointer">סגור</button>
+        <button type="button" id="ib-auth-login" style="border:0;background:#c9621a;color:#fff;border-radius:8px;padding:7px 12px;font-weight:900;cursor:pointer">להתחברות</button>
+      </div>
+    `;
+    document.body.appendChild(notice);
+    document.getElementById('ib-auth-dismiss')?.addEventListener('click', () => notice.remove());
+    document.getElementById('ib-auth-login')?.addEventListener('click', () => {
+      const next = encodeURIComponent(location.pathname + location.search);
+      location.href = `/login.html?next=${next}`;
+    });
+  }
+
   async function authFetch(input, init = {}) {
     const url = typeof input === 'string' ? input : input.url;
     const isApi = isApiUrl(url);
@@ -79,6 +117,7 @@
       }
     }
     if (isApi && !isAuth && (response.status === 401 || response.status === 403)) {
+      showAuthNotice(response.status);
       window.dispatchEvent(new CustomEvent('ironbend:auth-denied', {
         detail: { status: response.status, url },
       }));

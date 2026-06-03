@@ -4,19 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>תחנת עבודה – IronBend</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:#0d1117; --panel:#161b22; --border:rgba(255,255,255,0.08);
-  --accent:#e07b39; --accent-dim:rgba(224,123,57,0.15);
-  --success:#27ae60; --success-dim:rgba(39,174,96,0.15);
-  --danger:#e74c3c;  --danger-dim:rgba(231,76,60,0.15);
-  --warning:#f39c12; --warning-dim:rgba(243,156,18,0.15);
-  --info:#3498db;
-  --text:#e8edf4; --text-dim:#8fa0b0;
-  --radius:16px;
+  --bg:#f4f7fb; --panel:#ffffff; --panel-soft:#f8fafc; --border:#dbe4ef;
+  --accent:#d76518; --accent-dim:#fff3e8;
+  --success:#1f8f4d; --success-dim:#e8f6ee;
+  --danger:#b83227;  --danger-dim:#fff0ee;
+  --warning:#b7791f; --warning-dim:#fff7df;
+  --info:#1560a8;
+  --text:#1a2332; --text-dim:#6f8092;
+  --radius:10px;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;touch-action:manipulation;}
@@ -25,9 +25,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .kiosk{height:100dvh;display:flex;flex-direction:column;gap:0;}
 
 /* TOP BAR */
-.kbar{background:var(--panel);border-bottom:1px solid var(--border);
-  padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.kbar-machine{font-size:18px;font-weight:900;color:var(--accent);}
+.kbar{background:#ffffff;border-bottom:1px solid var(--border);
+  padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+  box-shadow:0 1px 0 rgba(2,26,72,.03);}
+.kbar-machine{font-size:18px;font-weight:900;color:var(--text);}
 .kbar-time{font-size:15px;font-weight:700;color:var(--text-dim);}
 .kbar-status{display:flex;align-items:center;gap:8px;}
 .status-dot{width:10px;height:10px;border-radius:50%;background:var(--text-dim);}
@@ -35,7 +36,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .status-dot.error{background:var(--danger);box-shadow:0 0 8px var(--danger);}
 
 /* MAIN AREA */
-.kmain{flex:1;display:grid;grid-template-columns:1fr 320px;gap:16px;padding:16px;min-height:0;overflow:hidden;}
+.kmain{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;padding:16px;min-height:0;overflow:hidden;}
 
 /* COUNTER PANEL */
 .counter-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
@@ -47,11 +48,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .counter-target{font-size:24px;font-weight:700;color:var(--text-dim);}
 .progress-ring-wrap{position:relative;width:160px;height:160px;}
 .progress-ring{transform:rotate(-90deg);}
-.progress-ring-bg{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:8;}
+.progress-ring-bg{fill:none;stroke:#e9eef5;stroke-width:8;}
 .progress-ring-fg{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .5s,stroke .3s;}
 
 /* JOB INFO */
-.job-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:14px 16px;width:100%;}
+.job-card{background:#ffffff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;width:100%;}
 .job-label{font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
 .job-val{font-size:20px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .job-sub{font-size:13px;color:var(--text-dim);margin-top:3px;}
@@ -61,60 +62,60 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .kright{display:flex;flex-direction:column;gap:12px;overflow-y:auto;min-height:0;}
 
 /* ACTION BUTTONS */
-.kbtn{width:100%;padding:18px 20px;border:none;border-radius:14px;font-family:'Heebo',sans-serif;
+.kbtn{width:100%;padding:16px 18px;border:none;border-radius:var(--radius);font-family:'Heebo',sans-serif;
   font-size:18px;font-weight:800;cursor:pointer;transition:all .15s;letter-spacing:.2px;
   display:flex;align-items:center;justify-content:center;gap:10px;}
 .kbtn:active{transform:scale(0.97);}
-.kbtn-success{background:var(--success);color:#fff;}
-.kbtn-success:hover{background:#219a52;}
-.kbtn-danger {background:var(--danger); color:#fff;}
-.kbtn-danger:hover{background:#c0392b;}
-.kbtn-warning{background:var(--warning);color:#fff;}
-.kbtn-warning:hover{background:#d68910;}
-.kbtn-outline{background:transparent;border:2px solid var(--border);color:var(--text-dim);}
-.kbtn-outline:hover{border-color:var(--accent);color:var(--accent);}
-.kbtn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.kbtn-success{background:var(--success-dim);border:1px solid #b8dfc5;color:var(--success);}
+.kbtn-success:hover{background:#dff3e7;}
+.kbtn-danger {background:var(--danger-dim);border:1px solid #efc2bd;color:var(--danger);}
+.kbtn-danger:hover{background:#ffe3df;}
+.kbtn-warning{background:var(--warning-dim);border:1px solid #e3cc93;color:var(--warning);}
+.kbtn-warning:hover{background:#fff0c8;}
+.kbtn-outline{background:#ffffff;border:1px solid var(--border);color:var(--text);}
+.kbtn-outline:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+.kbtn:disabled{opacity:.48;cursor:not-allowed;transform:none;filter:grayscale(.2);}
 
 /* SHIFT INFO */
-.shift-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+.shift-box{background:#ffffff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
 .shift-title{font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
-.shift-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.shift-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #eef2f7;}
 .shift-row:last-child{border-bottom:none;}
 .shift-key{font-size:12px;color:var(--text-dim);}
 .shift-val{font-size:14px;font-weight:700;}
 
 /* ALERTS BOX */
-.alerts-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;flex:1;overflow-y:auto;}
-.alert-row{padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:13px;}
+.alerts-box{background:#ffffff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;flex:1;overflow-y:auto;}
+.alert-row{padding:8px 0;border-bottom:1px solid #eef2f7;font-size:13px;}
 .alert-row:last-child{border-bottom:none;}
 .no-alerts-msg{color:var(--text-dim);font-size:13px;text-align:center;padding:16px 0;}
 
 /* ── MODALS ─────────────────────────────────────────────────── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:800;
+.modal-overlay{position:fixed;inset:0;background:rgba(2,26,72,.45);z-index:800;
   display:none;align-items:center;justify-content:center;}
 .modal-overlay.open{display:flex;}
-.modal-box{background:#1e2530;border:1px solid var(--border);border-radius:20px;
+.modal-box{background:#ffffff;border:1px solid var(--border);border-radius:var(--radius);
   width:min(480px,95vw);padding:24px;display:flex;flex-direction:column;gap:16px;
-  box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+  box-shadow:0 20px 60px rgba(2,26,72,.22);}
 .modal-title{font-size:20px;font-weight:900;}
 
 /* PIN PAD */
-.pin-display{background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:12px;
+.pin-display{background:var(--panel-soft);border:1px solid var(--border);border-radius:var(--radius);
   padding:12px 20px;font-size:32px;letter-spacing:8px;text-align:center;min-height:56px;}
 .pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-.pin-btn{padding:16px;border:none;border-radius:12px;background:rgba(255,255,255,0.08);
+.pin-btn{padding:16px;border:1px solid var(--border);border-radius:var(--radius);background:#ffffff;
   color:var(--text);font-family:'Heebo',sans-serif;font-size:22px;font-weight:700;cursor:pointer;transition:background .15s;}
-.pin-btn:active{background:rgba(255,255,255,0.18);}
+.pin-btn:active{background:var(--accent-dim);}
 
 /* REASON PILLS */
 .reason-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .reason-pill{padding:14px 16px;border:2px solid var(--border);border-radius:12px;
   cursor:pointer;font-size:14px;font-weight:700;text-align:center;transition:all .15s;
-  background:transparent;color:var(--text);}
+  background:#ffffff;color:var(--text);}
 .reason-pill:active,.reason-pill.selected{border-color:var(--danger);background:var(--danger-dim);color:var(--danger);}
 
 /* TEXTAREA */
-.knotes{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;
+.knotes{width:100%;background:var(--panel-soft);border:1px solid var(--border);border-radius:var(--radius);
   color:var(--text);font-family:'Heebo',sans-serif;font-size:14px;padding:12px;resize:none;}
 .knotes:focus{outline:none;border-color:var(--accent);}
 
@@ -122,7 +123,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .status-overlay{position:absolute;inset:0;border-radius:var(--radius);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   font-size:28px;font-weight:900;gap:8px;display:none;}
-.status-overlay.stopped{display:flex;background:rgba(231,76,60,0.15);}
+.status-overlay.stopped{display:flex;background:rgba(184,50,39,0.10);border:1px solid rgba(184,50,39,.25);}
 .status-overlay .overlay-reason{font-size:16px;font-weight:600;color:var(--text-dim);}
 
 /* ── NO JOB STATE ────────────────────────────────────────────── */
@@ -186,7 +187,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <div class="counter-target" id="counterTarget">/ — יחידות</div>
 
           <!-- Progress bar -->
-          <div style="width:100%;max-width:360px;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;margin-top:4px">
+          <div style="width:100%;max-width:360px;height:10px;background:#e9eef5;border-radius:5px;overflow:hidden;margin-top:4px">
             <div id="progressBar" style="height:100%;border-radius:5px;background:var(--accent);transition:width .5s;width:0%"></div>
           </div>
         </div>

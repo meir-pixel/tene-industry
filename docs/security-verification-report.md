@@ -10,13 +10,14 @@ Commands run:
 
 - `node --check server.js`
 - `node --check permissions.js`
+- `node --check test/route-auth-coverage.test.js`
 - `npm test`
 - static route scan of `server.js`
 - `node scripts/edge-smoke.js`
 
 Current test result:
 
-- 66 tests passed.
+- Full `npm test` suite should remain green after security changes; record the latest exact count in the run notes for each release candidate.
 - Permission helper tests cover:
   - target role model exists
   - `operator` maps to `kiosk`
@@ -87,14 +88,15 @@ Static route scan result:
 
 - 190 Express routes detected.
 - 170 routes have direct `requireRole(...)` or `requireAnyRole(...)` middleware.
-- 20 routes remain without direct route-level auth middleware.
+- Remaining active API routes without direct role middleware are intentional public/scoped boundaries: auth, customer portal, WhatsApp webhook, OCR custom authorization, and health.
+- `test/route-auth-coverage.test.js` enforces that every active `/api/*` route has a role guard, custom authorization middleware, scoped public boundary, or explicit allowlist entry.
 
 Important interpretation:
 
 - The permission mechanism is tested.
-- The presence of route guards is verified by static scan.
+- The presence of route guards is verified by an automated static coverage test.
 - Request-level tests now cover representative protected P0 route families, but
-  not every guarded route or every still-open P0 family.
+  not every guarded route.
 
 ## Protected In Sprint 1
 
@@ -158,17 +160,17 @@ These gaps are about proof quality, not only code behavior.
 
 - Request-level API tests exist for representative protected P0 families, but
   do not yet cover every guarded route.
-- Route guard counts come from static scanning and should be backed later by
-  broader integration tests.
-- Remaining 20 non-role route declarations include public auth, customer-scoped
-  portal, provider webhook, minimal health, custom-middleware analysis, and
-  disabled legacy `if (false)` routes.
+- Route guard counts are now enforced by `test/route-auth-coverage.test.js`;
+  broader integration tests should still be added for high-risk workflows.
+- Non-role route declarations include public auth, customer-scoped portal,
+  provider webhook, minimal health, custom-middleware analysis, and disabled
+  legacy `if (false)` routes.
 - Frontend runtime compatibility now has a latest headless Edge smoke pass for login,
   admin, dashboard, intake, production setup, finance, procurement, warehouse, delivery admin, customers, orders, machine, and production queue. Contract tests also cover the shared
   JWT fetch wrapper, removal of spoofable role headers, customer portal OTP UI
   wiring, and customer CRM link rotate/revoke UI wiring. Shared DOM safety and
   status-contract tests cover the first Sprint 2 runtime contracts.
-- `AUTH_ENFORCEMENT` remains `false` in deployment until staging completes; guarded routes still require JWT because `requireRole()` and `requireAnyRole()` no longer depend on that flag.
+- `AUTH_ENFORCEMENT` has been retired as a deployment lever; guarded routes require JWT through explicit route middleware, and production/staging must keep `AUTH_BYPASS` disabled.
 
 ## Sprint 1 Status
 

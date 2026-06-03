@@ -27,7 +27,17 @@ Shared frontend:
 - `public/offline.html`
 - `public/offline-db.js`
 
-Server route families:
+Shared backend:
+
+- `auth-core.js`
+- `permissions.js`
+- `routes/auth.js` for identity session endpoints only
+- `routes/admin.js` for settings, users, audit, and database maintenance
+- `constants.js`
+- `status-contracts.js`
+- `public/status-contracts-client.js`
+
+API route families:
 
 - `/api/auth/*`
 - `/api/users*`
@@ -40,9 +50,14 @@ Server route families:
 
 Current risks:
 
-- Auth enforcement is disabled.
-- `requireRole()` can trust spoofable role headers while enforcement is off.
-- User management routes are not consistently protected.
+- JWT auth is active for guarded routes. `AUTH_BYPASS` must stay disabled in
+  production and staging environments.
+- Local startup may use `AUTH_BYPASS=true` only for development setup; never use
+  that mode to validate production security.
+- User management routes are protected by JWT-derived admin roles; keep
+  `test/route-auth-coverage.test.js` green so this cannot regress.
+- Auth routes are platform identity infrastructure, not an admin feature. Keep
+  `/api/auth/*` out of `routes/admin.js`.
 - Many screens do not load `auth-client.js` directly and rely on `nav.js`.
 
 ## Orders
@@ -58,12 +73,23 @@ Screens:
 - `public/index.html`
 - order panels inside `public/dashboard.html`
 
-Server route families:
+Module services:
+
+- `services/orderNumbers.js`
+- `services/orders.js`
+- `services/productionCards.js` for order production card rendering
+
+Extracted routes:
+
+- `routes/orders.js` for core order CRUD, import approval, status, and lock APIs
+- `routes/productionCards.js` for order print cards, delivery certificate, and A4
+  print output
+
+API route families:
 
 - `/api/orders*`
 - `/api/order-imports/*`
 - `/api/items/*`
-- `/api/shapes*`
 - `/api/bvbs/*`
 - `/api/intake/*`
 - `/api/priority/*`
@@ -92,7 +118,18 @@ Screens:
 - `public/worker-visual.html`
 - production sections inside `public/dashboard.html`
 
-Server route families:
+Module services:
+
+- `status-contracts.js`
+- `public/status-contracts-client.js`
+- `services/productionCards.js` for card output shared with Orders
+
+Extracted routes:
+
+- `routes/production.js` for workers, machine setup/state, scan execution,
+  shifts, stops, production queue/events, OEE, and production KPIs.
+
+API route families:
 
 - `/api/production-queue`
 - `/api/production-events`
@@ -111,7 +148,8 @@ Current risks:
 - Dashboard production queue uses recent orders instead of the production queue
   service.
 - Machine and queue screens need one status contract.
-- Kiosk/worker flows need clear auth treatment before enforcement.
+- Kiosk/worker flows are guarded by production/kiosk roles, but sold deployments
+  still need a deliberate device/station auth policy.
 
 ## Inventory And Procurement
 
@@ -126,7 +164,11 @@ Screens:
 - `public/warehouse.html` for receiving/stock areas
 - `public/procurement.html`
 
-Server route families:
+Module services:
+
+- `services/inventory.js`
+
+API route families:
 
 - `/api/suppliers*`
 - `/api/inventory*`
@@ -152,7 +194,12 @@ Screens:
 - `public/driver.html`
 - delivery/package areas inside `public/warehouse.html`
 
-Server route families:
+Extracted routes:
+
+- `routes/warehouse.js` for packages and delivery-note issuance.
+- `routes/fleet.js` for drivers, vehicles, and delivery lifecycle actions.
+
+API route families:
 
 - `/api/drivers*`
 - `/api/deliveries*`
@@ -165,11 +212,93 @@ Current risks:
 - Driver portal and internal dispatch need different auth models.
 - Package shipping can easily diverge from order status if not centralized.
 
+## Fleet Management
+
+Purpose:
+
+- Sellable fleet module for vehicles as company assets: vehicle file, assigned
+  driver, documents, test/insurance/service expiry, service history, expenses,
+  income attribution, and operational readiness.
+
+Screens:
+
+- `public/delivery-admin.html`
+
+Module services:
+
+- `services/fleet.js`
+
+Extracted routes:
+
+- `routes/fleet.js` for vehicles, vehicle documents/events, driver identity and
+  vehicle assignment, driver locations, and the current delivery execution
+  endpoints. Delivery remains a separate sellable/logistics concept and should
+  be split again when the logistics module is extracted.
+
+API route families:
+
+- `/api/vehicles*`
+- `/api/vehicles/:id/events`
+- `/api/vehicles/:id/documents`
+- `/api/drivers*` only for driver identity and vehicle assignment
+
+Current risks:
+
+- This module must not collapse back into "driver = vehicle".
+- Delivery can depend on the assigned driver, but vehicle documents and service
+  history belong to Fleet Management.
+- Future customer packaging must allow Fleet Management to be enabled or hidden
+  independently from Inventory, Production, Finance, and Quality.
+
+## Catalog And Pricing
+
+Purpose:
+
+- Product shape catalog and internal product price list used by orders, customer
+  portal quoting, and pricing screens.
+
+Screens:
+
+- `public/index.html`
+- `public/intake.html`
+- `public/customer.html`
+- `public/finance.html` for price maintenance UI until a dedicated catalog
+  screen exists
+
+Extracted routes:
+
+- `routes/catalog.js` for shape catalog and internal price-list APIs
+
+API route families:
+
+- `/api/shapes*`
+- `/api/price-list*`
+
+Pricing architecture:
+
+- Current source of truth: `price_list` table with the internal canonical
+  format consumed by catalog, portal quoting, orders, and finance screens.
+- Future import layer: `services/pricing-importer.js` should parse Excel, CSV,
+  ERP/API, supplier files, and other external formats into the canonical
+  `price_list` structure. It should not be the pricing engine.
+- Future pricing engine: `services/pricer.js` should answer "what does this
+  product cost this customer?" using price tier, discount, customer rules, and
+  later industry-specific modules.
+
+Current risks:
+
+- Price-list writes are commercially sensitive and remain limited to
+  finance/manager/admin.
+- Customer-facing price list stays scoped under `/api/c/price-list` in the
+  portal module; catalog owns only the internal source of truth.
+- Do not make routes parse every vendor format directly; add importer adapters
+  that normalize into the canonical price-list format.
+
 ## Finance
 
 Purpose:
 
-- Price lists, order costs, margin, credit, ledger, invoices, finance KPIs.
+- Order costs, margin, credit, ledger, invoices, finance KPIs.
 
 Screens:
 
@@ -177,9 +306,13 @@ Screens:
 - finance sections inside `public/reports.html`
 - credit/project sections inside `public/projects.html`
 
-Server route families:
+Extracted routes:
 
-- `/api/price-list*`
+- `routes/finance.js` for order margin, order costs, customer ledger/credit,
+  finance KPIs, and financial events
+
+API route families:
+
 - `/api/orders/:id/margin`
 - `/api/orders/:id/costs*`
 - `/api/customers/:id/ledger`
@@ -192,7 +325,10 @@ Server route families:
 
 Current risks:
 
-- There are overlapping credit concepts.
+- There are two separate credit mechanisms: `customer_credit` for finance
+  ledger/exposure and `credit_accounts`/`credit_transactions` for active
+  blocking and credit operations. Keep them distinct; move the latter into a
+  finance sprint without merging table semantics.
 - Finance endpoints contain sensitive data and must be protected before use.
 
 ## Quality And Maintenance
@@ -207,7 +343,12 @@ Screens:
 - `public/maintenance.html`
 - `public/warroom.html`
 
-Server route families:
+Extracted routes:
+
+- `routes/quality.js` for quality checks, maintenance logs, incidents,
+  NCR/CAPA, LOTO, and preventive maintenance schedules.
+
+API route families:
 
 - `/api/quality*`
 - `/api/maintenance*`
@@ -222,6 +363,38 @@ Current risks:
 - Several pages are marked as coming soon/stub.
 - State machines for NCR/CAPA and maintenance need a specification before
   expanding functionality.
+- LOTO and maintenance currently update machine status directly; preserve that
+  behavior until a shared machine-state service owns those transitions.
+
+## Customers And Projects
+
+Purpose:
+
+- Internal customer CRM, project records, delivery sites, and operational
+  customer/project context used by Orders and Finance.
+
+Screens:
+
+- customer sections inside `public/admin.html`
+- `public/projects.html`
+
+Extracted routes:
+
+- `routes/customers.js` for internal customer CRUD, projects, and sites.
+
+API route families:
+
+- `/api/customers`
+- `/api/customers/:id`
+- `/api/projects*`
+- `/api/sites*`
+
+Current risks:
+
+- Portal token, portal pricing, and public customer portal routes are separate
+  external-access flows and must not be merged into internal CRM routes.
+- Customer/project data is sellable module data; vendor support access must stay
+  off unless a support session is approved.
 
 ## Customer And External Portals
 
@@ -238,10 +411,21 @@ Screens:
 - `public/worker.html`
 - `public/worker-visual.html`
 
-Server route families:
+Module services:
+
+- `services/intakeWorkflow.js` for external order intake before approval
+
+Extracted routes:
+
+- `routes/portal.js` for customer portal token management, customer portal OTP,
+  quote/order submission, customer approval, and portal-scoped order reads.
+
+API route families:
 
 - `/api/c/*`
 - `/api/customers/:id/token`
+- `/api/customers/:id/token/rotate`
+- `/api/customers/:id/pricing`
 - supplier routes used by `supplier.html`
 - driver routes used by `driver.html`
 - worker routes used by `worker*.html`
@@ -266,10 +450,16 @@ Screens:
 - `public/holdings.html`
 - `public/docs.html`
 
-Server route families:
+Extracted routes:
+
+- `routes/reports.js` for dashboard summary, report summary, monthly KPI, and
+  CSV exports.
+
+API route families:
 
 - `/api/dashboard`
 - `/api/reports/*`
+- `/api/export/*`
 - `/api/waste/summary`
 - `/api/kpi/monthly`
 - `/api/reports/summary`
@@ -281,16 +471,53 @@ Current risks:
 - Dashboard currently duplicates production queue logic.
 - Reporting is broad and should not own write behavior.
 
-## First Agent Assignments
+## Vendor Control And Remote Support
 
-Use these as the first concrete work packages after Sprint 0 approval:
+Purpose:
 
-1. Security Agent: protect user/admin/settings/database endpoints and remove
-   spoofable role fallback from privileged flows.
-2. Production Agent: make dashboard production queue read from the same source
-   as `/api/production-queue`.
-3. Design System Agent: introduce shared escape/render helpers and patch admin
-   intake + orders first.
-4. Architecture Agent: extract route-family ownership into a formal API map.
-5. Portal Agent: design customer portal OTP/magic-link flow without implementing
-   until approved.
+- Vendor/partner control plane for sold customer installations. This module lets
+  the software owner see technical health, licensed modules, installed version,
+  backup status, integration status, error telemetry, and support access state
+  across customer sites without automatically exposing customer business data.
+
+Screens:
+
+- Future: `public/vendor-control.html`
+- Current placeholder/control entry: `public/admin.html` module control board
+
+API route families:
+
+- Future: `/api/vendor/sites*`
+- Future: `/api/vendor/sites/:id/health`
+- Future: `/api/vendor/sites/:id/modules`
+- Future: `/api/vendor/sites/:id/support-session`
+- Future: `/api/vendor/sites/:id/version`
+- Future: `/api/vendor/sites/:id/backups`
+
+Current risks:
+
+- This is not implemented yet and must not be confused with local admin access.
+- Remote vendor access to customer data must be off by default.
+- Support access must be customer-approved, time-limited, read-only by default,
+  and fully audit logged.
+- Any remote update, restore, permission change, or destructive action must need
+  explicit customer approval and a separate audit event.
+- The sellable product should expose module/license status to the vendor while
+  keeping orders, prices, workers, customers, and financial data private unless a
+  support session is open.
+
+## Next Agent Assignments
+
+Use these as the next concrete work packages after the Sprint 1 security and
+module-governance foundation:
+
+1. Production Agent: make dashboard production queue read only from
+   `/api/production-queue` and remove duplicated queue logic.
+2. Quality/Maintenance Agent: extract NCR/CAPA/LOTO/PM state rules into a module
+   service before adding more UI.
+3. Intake/OCR Agent: build compare-and-approve review surfaces for image/email/
+   WhatsApp intake, preserving the original document beside parsed output.
+4. Design System Agent: normalize modal/table layouts for shape review, intake,
+   inventory receiving, and order approval.
+5. Portal Agent: separate internal driver/worker screens from external portal
+   sessions and document the final auth mode.
