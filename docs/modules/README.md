@@ -20,21 +20,25 @@
 
 ---
 
-## מודולים ללא דרכון עדיין
+## ממתינים לדרכון
 
-- auth — זהות וסשנים
-- admin — ניהול מערכת
-- customers — לקוחות, פרויקטים, אתרים
-- inventory — ספקים, מלאי, מחירי פלדה
-- quality — איכות, תחזוקה, תקריות
-- warehouse — חבילות, תעודות משלוח
-- reports — דשבורד, דוחות, KPIs
-- companies — חברות והולדינגס
-- alerts — התראות מערכת
-- ai — חיזוי זמני ייצור
-- bvbs — פרסור BVBS
-- search — חיפוש גלובלי
-- priority — ERP Priority (מושבת עד Phase 2)
+**כלל:** כשנוגעים במודול — כותבים לו דרכון לפני או תוך כדי השינוי.
+
+| מודול | קובץ route | מתי לכתוב |
+|-------|-----------|-----------|
+| auth | routes/auth.js | כשנוגעים בזהות/סשנים |
+| admin | routes/admin.js | כשנוגעים בהגדרות/משתמשים |
+| customers | routes/customers.js | כשנוגעים ב-CRM |
+| inventory | routes/inventory.js | כשנוגעים במלאי/ספקים |
+| quality | routes/quality.js | כשנוגעים באיכות/תחזוקה |
+| warehouse | routes/warehouse.js | כשנוגעים בחבילות/תעודות |
+| reports | routes/reports.js | כשנוגעים בדוחות/KPIs |
+| companies | routes/companies.js | כשנוגעים בהולדינגס |
+| alerts | routes/alerts.js | כשנוגעים בהתראות |
+| ai | routes/ai.js | כשנוגעים בחיזוי |
+| bvbs | routes/bvbs.js | כשנוגעים בפרסור BVBS |
+| search | routes/search.js | כשנוגעים בחיפוש גלובלי |
+| priority | routes/priority.js | Phase 2 בלבד |
 
 ---
 
