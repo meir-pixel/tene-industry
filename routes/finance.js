@@ -6,11 +6,12 @@ function required(name, value) {
 }
 
 module.exports = function createFinanceRouter(deps) {
-  const db = required('db', deps.db);
-  const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
-  const requireRole = required('requireRole', deps.requireRole);
-  const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
+  const db              = required('db',              deps.db);
+  const requireAnyRole  = required('requireAnyRole',  deps.requireAnyRole);
+  const requireRole     = required('requireRole',     deps.requireRole);
+  const wsBroadcast     = required('wsBroadcast',     deps.wsBroadcast);
   const rebarKgPerMeter = required('rebarKgPerMeter', deps.rebarKgPerMeter);
+  const settingsService = required('settingsService', deps.settingsService);
 
 
 // ── INVOICES (כרך ט) ─────────────────────────────────────────────
@@ -136,22 +137,26 @@ function calculateOrderCost(orderId) {
   const material_cost = (totalWeightKg / 1000) * pricePerTon;
 
   // Labor cost: approximate based on weight + complexity
+  // base rate from settings (LABOR_COST_PER_HOUR → per ton conversion: ~8h/ton)
+  const laborBasePerTon = settingsService.getNum('LABOR_COST_PER_HOUR', 120) * 8;
   const avgBends = allItems.reduce((s, it) => {
     const segs = (() => { try { return JSON.parse(it.segments || '[]'); } catch(e) { return []; } })();
     return s + Math.max(0, segs.length - 1);
   }, 0) / Math.max(1, allItems.length);
-  const laborRatePerTon = 120 + (avgBends * 40); // ILS
+  const laborRatePerTon = laborBasePerTon + (avgBends * 40);
   const labor_cost = (totalWeightKg / 1000) * laborRatePerTon;
 
   // Machine cost: based on weight (approx ILS 80/ton)
   const machine_cost = (totalWeightKg / 1000) * 80;
 
-  // Scrap cost: ~3% of material
-  const scrap_cost = material_cost * 0.03;
+  // Scrap cost: from settings (SCRAP_COST_PCT, default 3%)
+  const scrapPct   = settingsService.getNum('SCRAP_COST_PCT', 3) / 100;
+  const scrap_cost = material_cost * scrapPct;
 
-  // Overhead: 15% of direct costs
-  const directCosts = material_cost + labor_cost + machine_cost + scrap_cost;
-  const overhead_cost = directCosts * 0.15;
+  // Overhead: from settings (OVERHEAD_COST_FACTOR, default 0.15 = 15%)
+  const overheadFactor = settingsService.getNum('OVERHEAD_COST_FACTOR', 0.15);
+  const directCosts    = material_cost + labor_cost + machine_cost + scrap_cost;
+  const overhead_cost  = directCosts * overheadFactor;
   const total_cost = directCosts + overhead_cost;
 
   // Revenue from order (portal_price is the customer-facing price in ILS)

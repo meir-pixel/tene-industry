@@ -1410,6 +1410,7 @@ app.use('/api', createFinanceRouter({
   requireRole,
   wsBroadcast,
   rebarKgPerMeter,
+  settingsService,
 }));
 
 app.use('/api', createFleetRouter({
