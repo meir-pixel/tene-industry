@@ -1328,10 +1328,8 @@ function checkOrderComplete(orderId) {
 // BUG-04: duplicate /api/health removed — authoritative version is at bottom of file
 
 // ── CUSTOMERS ─────────────────────────────────────────────────────
-// Customer, project, and site routes live in routes/customers.js.
 
 // ── ORDERS ────────────────────────────────────────────────────────
-// Core order API routes live in routes/orders.js.
 
 const { createOrderFromPayload, createOrderTransaction, calcWeightPerUnit } = createOrderFactory(db, {
   generateOrderNum,
@@ -1468,75 +1466,6 @@ app.use('/api', createAdminRouter({
   statusContracts,
 }));
 
-// Dashboard production KPI: inventory forecast lives in routes/inventory.js.
-// Production routes live in routes/production.js.
-
-
-
-// ── ANALYZE IMAGE (Gemini Vision) ─────────────────────────────────
-if (false) app.post('/api/analyze-image-legacy', upload.single('image'), async (req, res) => {
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY לא מוגדר ב-.env' });
-  if (!req.file)   return res.status(400).json({ error: 'לא התקבלה תמונה' });
-
-  const base64 = req.file.buffer.toString('base64');
-  const mime   = req.file.mimetype || 'image/jpeg';
-
-  const prompt = `אתה מנתח טפסי הזמנות ברזל כפוף של מפעל ישראלי.
-בתמונה זו יש טופס הזמנה של ברזל לכיפוף. נתח אותו והחזר JSON בלבד (ללא טקסט נוסף).
-
-החזר מערך של פריטים בפורמט הבא:
-[
-  {
-    "diameter": 12,
-    "shape_name": "L – זווית 90°",
-    "quantity": 50,
-    "segments": [
-      {"length_mm": 500, "angle_deg": 90},
-      {"length_mm": 200, "angle_deg": 0}
-    ],
-    "total_length_mm": 700,
-    "material_grade": "B500B",
-    "note": ""
-  }
-]
-
-חוקים:
-- diameter: קוטר הברזל במ"מ (מספר שלם: 8,10,12,14,16,20,25,32)
-- segments: רשימת צלעות, כל צלע כוללת length_mm (אורך במ"מ) ו-angle_deg (זווית הכיפוף אחריה, 180=ישר/ללא כיפוף, 90=זווית ישרה)
-- total_length_mm: סכום כל הצלעות
-- quantity: כמות יחידות
-- shape_name: שם הצורה בעברית
-- material_grade: B500B אם לא מצוין אחרת
-- note: הערות מיוחדות אם יש
-- אם יש מספרים שנראים כאורכים ב-ס"מ, המר ל-מ"מ (×10)
-- אם אין מספר מסוים — השתמש בברירת מחדל הגיונית`;
-
-  try {
-    const resp = await require('axios').post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_KEY}`,
-      {
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mime, data: base64 } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 }
-      },
-      { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
-    );
-
-    let text = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    // Strip markdown code blocks if present
-    text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-    const items = JSON.parse(text);
-    res.json({ success: true, items });
-  } catch (err) {
-    const msg = err.response?.data?.error?.message || err.message;
-    res.status(500).json({ error: 'שגיאה בניתוח התמונה: ' + msg });
-  }
-});
 
 // The reviewed order screen uses OpenAI for image and PDF extraction. Results
 // still return to the existing editable preview before an order is created.
@@ -1586,10 +1515,8 @@ function getIntakeTrainingGuidance(limit = 12, documentTypes = []) {
   ).join('\n')}\n`;
 }
 
-// Intake route moved to routes/intake.js: post('/api/analyze-image'
 
-
-// ── SHAPES ────────────────────────────────────────────────────────
+// ── API ROUTERS ────────────────────────────────────────────────────────
 app.use('/api', createInventoryRouter({
   db,
   requireAnyRole,
@@ -1667,8 +1594,6 @@ app.use('/api', createAiRouter({ db, requireAnyRole, ai }));
 app.use('/api', createSearchRouter({ db, requireRole }));
 app.use('/api', createBvbsRouter({ db, requireAnyRole, upload, rebarKgPerMeter, generateOrderNum, wsBroadcast }));
 
-// Catalog and price-list routes live in routes/catalog.js.
-
 
 function tryParseJSON(val, fallback = null) {
   if (!val) return fallback;
@@ -1676,23 +1601,15 @@ function tryParseJSON(val, fallback = null) {
   try { return JSON.parse(val); } catch { return fallback; }
 }
 
-// ── ALERTS ────────────────────────────────────────────────────────
+// ── ALERT HELPERS ────────────────────────────────────────────────────────
 function createAlert(type, level, message, { orderId, machineId } = {}) {
   db.prepare('INSERT INTO alerts (type,level,message,order_id,machine_id) VALUES (?,?,?,?,?)')
     .run(type, level, message, orderId || null, machineId || null);
   wsBroadcast('alert', { type, level, message, orderId, machineId });
 }
 
-// alerts route moved to routes/alerts.js: get('/api/alerts'
 
-
-// alerts route moved to routes/alerts.js: post('/api/alerts'
-
-
-// alerts route moved to routes/alerts.js: patch('/api/alerts/:id/resolve'
-
-
-// ── SETTINGS ─────────────────────────────────────────────
+// ── SETTINGS HELPERS ─────────────────────────────────────────────
 // Helper: get setting from DB (falls back to process.env)
 function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key=?').get(key);
@@ -1708,151 +1625,7 @@ function getOpenAiApiKey() {
   return process.env.OPENAI_API_KEY ?? null;
 }
 
-// Settings and admin routes live in routes/admin.js.
 
-// Intake route moved to routes/intake.js: get('/api/intake/training'
-
-
-// Intake route moved to routes/intake.js: post('/api/intake/training'
-
-
-// Intake route moved to routes/intake.js: delete('/api/intake/training/:id'
-
-
-// ── COMPANIES ─────────────────────────────────────────────────────
-// companies route moved to routes/companies.js: get('/api/companies'
-
-
-// companies route moved to routes/companies.js: post('/api/companies'
-
-
-// companies route moved to routes/companies.js: patch('/api/companies/:id'
-
-
-// ── HOLDINGS DASHBOARD ───────────────────────────────────────────
-// companies route moved to routes/companies.js: get('/api/holdings'
-
-
-// BUG-45: Priority ERP is Phase 2 — return 501 until PRIORITY_ENABLED=true
-// priorityRoutes route moved to routes/priorityRoutes.js: post('/api/priority/sync/:orderId'
-
-
-// priorityRoutes route moved to routes/priorityRoutes.js: get('/api/priority/status'
-
-
-// ── INTAKE – OCR ─────────────────────────────────────────────────
-// BUG-46: OCR/AI intake disabled until INTAKE_AI_ENABLED=true
-// Intake route moved to routes/intake.js: post('/api/intake/image'
-
-
-// ── INTAKE – WhatsApp webhook ─────────────────────────────────────
-// Intake route moved to routes/intake.js: get('/api/intake/whatsapp'
-
-
-// Intake route moved to routes/intake.js: post('/api/intake/whatsapp'
-
-
-// ── INTAKE – Email manual trigger ─────────────────────────────────
-// BUG-46: Email/AI intake disabled until INTAKE_AI_ENABLED=true
-// Intake route moved to routes/intake.js: post('/api/intake/email/poll'
-
-
-// Intake route moved to routes/intake.js: get('/api/intake/log'
-
-
-// ── INTAKE – Approve: create order from email ─────────────────────
-// Intake approval uses the same transactional order writer as the manual form.
-// Intake route moved to routes/intake.js: post('/api/intake/:id/approve'
-
-
-// Legacy route: unreachable while the transactional handler above is active.
-if (false) app.post('/api/intake-legacy/:id/approve', (req, res) => {
-  const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'לא נמצא' });
-
-  let parsed = {};
-  try { parsed = JSON.parse(row.parsed_data || '{}'); } catch {}
-
-  const { customer_name, customer_phone, delivery_date, delivery_address, notes, items = [] } = parsed;
-
-  // Find or create customer
-  let customerId = null;
-  if (customer_name) {
-    let cust = db.prepare('SELECT id FROM customers WHERE name=?').get(customer_name);
-    if (!cust) {
-      const r = db.prepare('INSERT INTO customers (name,phone) VALUES (?,?)').run(customer_name, customer_phone || null);
-      customerId = r.lastInsertRowid;
-    } else {
-      customerId = cust.id;
-    }
-  }
-
-  const orderNum = generateOrderNum();
-
-  // Calculate total weight
-  let totalWeight = 0;
-  items.forEach(it => {
-    const kgm = rebarKgPerMeter(it.diameter);
-    totalWeight += (it.length / 1000) * kgm * (it.qty || 1);
-  });
-  const wastePct = 3;
-  const billingWeight = totalWeight * (1 + wastePct / 100);
-
-  // Create order
-  const orderId = db.prepare(`
-    INSERT INTO orders (order_num,customer_id,channel,delivery_date,delivery_address,
-      priority,general_notes,total_weight,waste_pct_charged,billing_weight,status)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)
-  `).run(orderNum, customerId, 'מייל', delivery_date || null, delivery_address || '',
-         'רגיל', notes || '', totalWeight, wastePct, billingWeight,
-         'ממתינה לאישור').lastInsertRowid;
-
-  // Create pallet + items
-  const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,1,?)').run(orderId, totalWeight).lastInsertRowid;
-
-  items.forEach(it => {
-    const kgm = rebarKgPerMeter(it.diameter);
-    const w   = (it.length / 1000) * kgm * (it.qty || 1);
-    db.prepare(`INSERT INTO items (pallet_id,order_id,diameter,qty,total_length_mm,weight_kg,notes,status,is_3d)
-      VALUES (?,?,?,?,?,?,?,?,0)`)
-      .run(palletId, orderId, it.diameter, it.qty || 1, it.length * (it.qty || 1), w, it.notes || '', 'ממתין');
-  });
-
-  // Mark intake as approved
-  db.prepare('UPDATE intake_log SET status=? WHERE id=?').run('approved', row.id);
-
-  res.json({ success: true, orderId, orderNum });
-});
-
-// ── INTAKE – Reject: mark as not an order ────────────────────────
-// Intake route moved to routes/intake.js: post('/api/intake/:id/reject'
-
-
-// ── INTAKE – Parse text manually (WhatsApp / Email / phone paste) ──
-// Intake route moved to routes/intake.js: post('/api/intake/parse-text'
-
-
-// ── PRICE LIST (admin) ────────────────────────────────────────────
-// Price-list routes live in routes/finance.js.
-
-// Customer portal management and external portal routes live in routes/portal.js.
-
-// aiRoutes route moved to routes/aiRoutes.js: post('/api/ai/predict'
-
-
-// aiRoutes route moved to routes/aiRoutes.js: get('/api/ai/predict-order/:orderId'
-
-
-// aiRoutes route moved to routes/aiRoutes.js: get('/api/ai/waste-patterns'
-
-
-// aiRoutes route moved to routes/aiRoutes.js: get('/api/ai/machine-efficiency'
-
-
-// ── REPORTS ───────────────────────────────────────────────────────
-// Reports summary routes live in routes/reports.js.
-
-// ── BACKGROUND JOBS ───────────────────────────────────────────────
 // Check alerts every 5 minutes
 if (!IS_TEST) cron.schedule('*/5 * * * *', () => {
   // Urgent orders sitting >30 min without production
@@ -1897,79 +1670,17 @@ if (!IS_TEST) cron.schedule('* * * * *', async () => {
 
 // ── START ─────────────────────────────────────────────────────────
 
-// ══════════════════════════════════════════════════════════════════
-// NEW MODULES: SUPPLIERS, INVENTORY, AUDIT, USERS, QC, MAINTENANCE,
-// PROJECTS, SITES, CREDIT, WASTE
-// ══════════════════════════════════════════════════════════════════
-
-// ── SUPPLIERS
-// Inventory, suppliers, steel prices and purchase orders live in routes/inventory.js.
 function auditLog(entityType,entityId,entityRef,action,fieldName,oldVal,newVal,notes,userId,userName) {
   try {
     db.prepare('INSERT INTO audit_log (entity_type,entity_id,entity_ref,action,field_name,old_value,new_value,notes,user_id,user_name) VALUES (?,?,?,?,?,?,?,?,?,?)')
       .run(entityType,entityId||null,entityRef||null,action,fieldName||null,oldVal!=null?String(oldVal):null,newVal!=null?String(newVal):null,notes||null,userId||null,userName||null);
   } catch(e) { console.warn('[Audit]',e.message); }
 }
-// Auth routes live in routes/auth.js; users and audit routes live in routes/admin.js.
-
-// ── QUALITY CONTROL
-// Quality and maintenance routes live in routes/quality.js.
-
-// ── PROJECTS & SITES
-// Customer, project, and site routes live in routes/customers.js.
-
-// ── CREDIT ACCOUNTS
-// Active credit account routes live in routes/finance.js.
-
-// ── WASTE SUMMARY
-// Production routes live in routes/production.js.
-
-// ═══════════════════════════════════════════════════════════════════
-// ── SPEC-B ROUTES ────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════
-
-// ── SHIFTS ────────────────────────────────────────────────────────
-// Production routes live in routes/production.js.
-
-// ── STEEL PRICE HISTORY ───────────────────────────────────────────
-// Steel price history lives in routes/inventory.js.
-
-// Warehouse packages and delivery notes routes live in routes/warehouse.js.
-
-// ── ITEM STATUS / WASTE UPDATE ───────────────────────────────────
-// Production routes live in routes/production.js.
-
-// ── MONTHLY KPI (exec dashboard) ─────────────────────────────────
-// Monthly KPI routes live in routes/reports.js.
-
-// ── SHIFT SUMMARY (production dashboard) ─────────────────────────
-// Production routes live in routes/production.js.
 
 ai.init(db);
 
-// ── INCIDENTS (War Room) ───────────────────────────────────────────
-// Quality and maintenance routes live in routes/quality.js.
-
-// ── PURCHASE ORDERS ───────────────────────────────────────────────
-// Purchase orders live in routes/inventory.js.
-
-// search route moved to routes/search.js: get('/api/search'
-
-
-// ── BVBS PARSER ──────────────────────────────────────────────────
-// BVBS parser routes live in routes/bvbs.js.
-
-// bvbs route moved to routes/bvbs.js: post('/api/bvbs/parse'
-
-
-// ── CSV EXPORT (כרך ט) ────────────────────────────────────────────
-// CSV export routes live in routes/reports.js.
-
-// bvbs route moved to routes/bvbs.js: post('/api/bvbs/create-order'
-
-
 // ════════════════════════════════════════════════════════════════
-// ── כרך יב – INDUSTRIAL ECONOMICS & FINANCIAL INTELLIGENCE ──────
+// ── FINANCIAL SCHEMA BOOTSTRAP ───────────────────────────────
 // ════════════════════════════════════════════════════════════════
 
 // Schema additions for financial engine
@@ -2044,10 +1755,6 @@ try {
   `);
 } catch(e) { console.warn('כרך יב schema warn:', e.message); }
 
-// ── REBAR WEIGHT TABLE (kg/m) ──────────────────────────────────
-// Rebar kg/m is centralized in constants.js via rebarKgPerMeter().
-
-// Admin data-audit and database maintenance routes live in routes/admin.js.
 
 // ── Health check ──────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
