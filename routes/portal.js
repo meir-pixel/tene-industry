@@ -71,8 +71,9 @@ module.exports = function createPortalRouter(deps) {
     return null;
   }
 
-  const PORTAL_OTP_TTL_MINUTES = Number(process.env.PORTAL_OTP_TTL_MINUTES || 10);
-  const PORTAL_TOKEN_TTL_DAYS = Number(process.env.PORTAL_TOKEN_TTL_DAYS || 90);
+  // TTL מה-settings — ניתן לשינוי ע"י מנהל לקוח
+  const PORTAL_OTP_TTL_MINUTES = () => settingsService.getNum('PORTAL_OTP_TTL_MINUTES', Number(process.env.PORTAL_OTP_TTL_MINUTES || 10));
+  const PORTAL_TOKEN_TTL_DAYS  = () => settingsService.getNum('PORTAL_TOKEN_TTL_DAYS',  Number(process.env.PORTAL_TOKEN_TTL_DAYS  || 90));
   function normalizePortalPhone(phone) {
     return String(phone || '').replace(/\D/g, '');
   }
@@ -84,7 +85,7 @@ module.exports = function createPortalRouter(deps) {
   }
 
   function portalTokenExpiresAt() {
-    return new Date(Date.now() + PORTAL_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    return new Date(Date.now() + PORTAL_TOKEN_TTL_DAYS() * 24 * 60 * 60 * 1000).toISOString();
   }
 
   function hasActivePortalToken(customer) {
@@ -114,7 +115,7 @@ module.exports = function createPortalRouter(deps) {
   function issuePortalOtp(customer) {
     const phone = normalizePortalPhone(customer.phone);
     const code = String(crypto.randomInt(100000, 1000000));
-    const expiresAt = new Date(Date.now() + PORTAL_OTP_TTL_MINUTES * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + PORTAL_OTP_TTL_MINUTES() * 60 * 1000).toISOString();
     db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE phone=? AND consumed_at IS NULL')
       .run(phone);
     db.prepare(`
