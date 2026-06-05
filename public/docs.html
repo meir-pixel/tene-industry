@@ -218,7 +218,7 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
       <h4>🔗 חיבורים חיצוניים</h4>
       <ul>
         <li>Modbus RTU – מכונות כיפוף (דרך ממיר TCP)</li>
-        <li>Priority ERP – סנכרון הזמנות (stub)</li>
+        <li>Priority ERP – סנכרון הזמנות (Phase 2 כבוי עד חיבור אמיתי)</li>
         <li>OpenAI API – ניתוח תמונות/טקסט</li>
         <li>SMTP/IMAP – קבלת הזמנות במייל</li>
         <li>Google Fonts – Libre Barcode 128 + Heebo</li>
@@ -515,8 +515,8 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
       <tr>
         <td><code>/procurement.html</code></td>
         <td>רכש</td>
-        <td>הזמנות רכש לספקים, מעקב קבלה.</td>
-        <td><span class="badge stub">🔴 stub</span></td>
+        <td>הזמנות רכש לספקים, מעקב קבלה. API פעיל, ממשק עדיין חלקי.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
       </tr>
       <tr>
         <td><code>/quality.html</code></td>
@@ -527,8 +527,8 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
       <tr>
         <td><code>/maintenance.html</code></td>
         <td>תחזוקה</td>
-        <td>תוכנית תחזוקה מונעת, סטטוס משימות.</td>
-        <td><span class="badge stub">🔴 stub</span></td>
+        <td>תחזוקה מונעת, LOTO, תקלות ומשימות. API פעיל, workflow מסחרי עדיין חלקי.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
       </tr>
       <tr>
         <td><code>/reports.html</code></td>
@@ -545,20 +545,20 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
       <tr>
         <td><code>/projects.html</code></td>
         <td>פרויקטים</td>
-        <td>ניהול פרויקטים ואתרי בנייה.</td>
-        <td><span class="badge stub">🔴 stub</span></td>
+        <td>ניהול פרויקטים ואתרי בנייה. API פעיל, חוויית עבודה עדיין חלקית.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
       </tr>
       <tr>
         <td><code>/warroom.html</code></td>
         <td>War Room</td>
-        <td>דשבורד חירום: התראות פעילות, מצב מכונות, עיכובים.</td>
-        <td><span class="badge stub">🔴 stub</span></td>
+        <td>דשבורד חירום: תקריות, התראות פעילות, מצב מכונות ועיכובים. API פעיל, תהליך הסלמה עדיין חלקי.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
       </tr>
       <tr>
         <td><code>/holdings.html</code></td>
         <td>אחזקות</td>
-        <td>חברות קשורות, נתחי בעלות.</td>
-        <td><span class="badge stub">🔴 stub</span></td>
+        <td>חברות קשורות, נתחי בעלות. API פעיל, מסך ניהולי חלקי.</td>
+        <td><span class="badge partial">🔶 חלקי</span></td>
       </tr>
       <tr>
         <td><code>/admin.html</code></td>
@@ -575,14 +575,14 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
       <tr>
         <td><code>/supplier.html</code></td>
         <td>ספקים</td>
-        <td>ניהול ספקים, טבלאות מחירים.</td>
-        <td><span class="badge stub">🔴 stub</span></td>
+        <td>פורטל ספק מוקפא עד אפיון הרשאות ספקים. ניהול ספקים פנימי נמצא במודול מלאי.</td>
+        <td><span class="badge partial">🔶 מוקפא</span></td>
       </tr>
       <tr>
         <td><code>/portal.html</code></td>
         <td>פורטל</td>
-        <td>כניסה אלטרנטיבית ללקוח.</td>
-        <td><span class="badge stub">🔴 stub</span></td>
+        <td>מסך ישן שהוצא משימוש. הפורטל הפעיל הוא customer.html עם OTP וטוקן לקוח.</td>
+        <td><span class="badge partial">🔶 deprecated</span></td>
       </tr>
       <tr>
         <td><code>/api/orders/:id/print-cards</code></td>
@@ -956,8 +956,8 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
     <div class="status-item"><span class="status-icon">🚚</span><div><div class="status-name">משלוחים</div><small style="color:var(--faint)">driver.html + GPS + חתימה</small></div><span class="badge partial">🔶 חלקי</span></div>
     <div class="status-item"><span class="status-icon">💰</span><div><div class="status-name">פיננסים</div><small style="color:var(--faint)">חשבוניות + KPIs + מרווח</small></div><span class="badge partial">🔶 חלקי</span></div>
     <div class="status-item"><span class="status-icon">🔍</span><div><div class="status-name">איכות (NCR/CAPA/LOTO)</div><small style="color:var(--faint)">API מלא + ממשק בסיסי</small></div><span class="badge partial">🔶 חלקי</span></div>
-    <div class="status-item"><span class="status-icon">🔐</span><div><div class="status-name">הרשאות / אימות</div><small style="color:var(--faint)">users table + login endpoint קיים. אין middleware.</small></div><span class="badge stub">🔴 לא מופעל</span></div>
-    <div class="status-item"><span class="status-icon">🔗</span><div><div class="status-name">Priority ERP</div><small style="color:var(--faint)">API endpoint + priority.js stub</small></div><span class="badge stub">🔴 stub</span></div>
+    <div class="status-item"><span class="status-icon">🔐</span><div><div class="status-name">הרשאות / אימות</div><small style="color:var(--faint)">JWT פעיל, requireRole/requireAnyRole על routes, בדיקות אבטחה ירוקות.</small></div><span class="badge ok">✅ פעיל</span></div>
+    <div class="status-item"><span class="status-icon">🔗</span><div><div class="status-name">Priority ERP</div><small style="color:var(--faint)">Phase 2 כבוי כברירת מחדל; endpoint מוגן ומחזיר 501 עד הפעלה.</small></div><span class="badge partial">🔶 Phase 2</span></div>
     <div class="status-item"><span class="status-icon">📲</span><div><div class="status-name">PWA Offline</div><small style="color:var(--faint)">Service Worker + IndexedDB pending_orders</small></div><span class="badge partial">🔶 בסיסי</span></div>
   </div>
 
@@ -965,10 +965,10 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
   <h3>נתונים טכניים</h3>
   <table class="doc-table">
     <tr><th>מדד</th><th>ערך</th></tr>
-    <tr><td>שורות קוד שרת (server.js)</td><td>~5,430</td></tr>
-    <tr><td>API endpoints</td><td>~130</td></tr>
+    <tr><td>שורות קוד שרת (server.js)</td><td>~1,874 אחרי פיצול routes</td></tr>
+    <tr><td>API endpoints</td><td>~150 active routes תחת routes/*.js + health</td></tr>
     <tr><td>טבלאות SQLite</td><td>~28</td></tr>
-    <tr><td>דפי HTML</td><td>23</td></tr>
+    <tr><td>דפי HTML</td><td>31</td></tr>
     <tr><td>shape-editor.js</td><td>~1,460 שורות</td></tr>
     <tr><td>nav.js</td><td>~340 שורות</td></tr>
     <tr><td>ניהול פלטות</td><td>הזמנה → N פלטות (default: 1), max_weight=500kg</td></tr>
