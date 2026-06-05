@@ -17,7 +17,8 @@ module.exports = function createPortalRouter(deps) {
   const generateOrderNum = required('generateOrderNum', deps.generateOrderNum);
   const autoAssignMachine = required('autoAssignMachine', deps.autoAssignMachine);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
-  const pricer = required('pricer', deps.pricer);
+  const pricer          = required('pricer',          deps.pricer);
+  const settingsService = required('settingsService', deps.settingsService);
   const PORT = required('PORT', deps.PORT);
   const IS_TEST = Boolean(deps.IS_TEST);
 
@@ -243,13 +244,13 @@ module.exports = function createPortalRouter(deps) {
     if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
 
     // Calculate price via pricer service
+    const wastePct = settingsService.getNum('WASTE_PCT_DEFAULT', 3);
     const priceMap = pricer.buildPriceMap({
       tier:        c.price_tier  || 'list',
       discountPct: c.discount_pct || 0,
     });
     let totalWeight = 0, totalPrice = 0;
     const orderNum = generateOrderNum();
-    const wastePct = 3;
     const confirmToken = crypto.randomBytes(16).toString('hex');
 
     const orderRow = db.prepare(`

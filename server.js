@@ -1568,6 +1568,7 @@ app.use('/api', createPortalRouter({
   autoAssignMachine,
   wsBroadcast,
   pricer,
+  settingsService,
   PORT,
   IS_TEST,
 }));
@@ -1631,23 +1632,29 @@ function getOpenAiApiKey() {
 
 // Check alerts every 5 minutes
 if (!IS_TEST) cron.schedule('*/5 * * * *', () => {
-  // Urgent orders sitting >30 min without production
+  // קרא סף זמן מה-settings (ברירת מחדל: 30 ו-15 דקות)
+  const urgentMinutes  = settingsService.getNum('URGENT_ORDER_WAIT_MINUTES',   30);
+  const pendingMinutes = settingsService.getNum('PENDING_APPROVAL_WAIT_MINUTES', 15);
+  const urgentDays     = urgentMinutes  / 1440; // JULIANDAY = ימים
+  const pendingDays    = pendingMinutes / 1440;
+
+  // Urgent orders sitting too long without production
   const urgentLate = db.prepare(`
     SELECT o.id, o.order_num FROM orders o
     WHERE o.priority='דחוף' AND o.status NOT IN ('בייצור','הושלם – ממתין לאיסוף','בדרך ללקוח','סופק – אושר','בוטל')
-      AND JULIANDAY('now') - JULIANDAY(o.created_at) > 0.021
+      AND JULIANDAY('now') - JULIANDAY(o.created_at) > ?
       AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.order_id=o.id AND a.type='urgent_late' AND a.resolved=0)
-  `).all();
-  urgentLate.forEach(o => createAlert('urgent_late', 'danger', `הזמנה דחופה ${o.order_num} ממתינה לייצור מעל 30 דקות`, { orderId: o.id }));
+  `).all(urgentDays);
+  urgentLate.forEach(o => createAlert('urgent_late', 'danger', `הזמנה דחופה ${o.order_num} ממתינה לייצור מעל ${urgentMinutes} דקות`, { orderId: o.id }));
 
-  // Pending approval >15 min
+  // Pending approval too long
   const pendingLong = db.prepare(`
     SELECT o.id, o.order_num FROM orders o
     WHERE o.status='ממתינה לאישור'
-      AND JULIANDAY('now') - JULIANDAY(o.created_at) > 0.01
+      AND JULIANDAY('now') - JULIANDAY(o.created_at) > ?
       AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.order_id=o.id AND a.type='pending_approval' AND a.resolved=0)
-  `).all();
-  pendingLong.forEach(o => createAlert('pending_approval', 'info', `הזמנה ${o.order_num} ממתינה לאישור מעל 15 דקות`, { orderId: o.id }));
+  `).all(pendingDays);
+  pendingLong.forEach(o => createAlert('pending_approval', 'info', `הזמנה ${o.order_num} ממתינה לאישור מעל ${pendingMinutes} דקות`, { orderId: o.id }));
 });
 
 // Email polling every minute — reads settings from DB (not just .env)
