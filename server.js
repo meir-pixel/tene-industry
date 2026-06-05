@@ -17,7 +17,8 @@ const ai       = require('./ai');
 const { createAuthService, ensureAuthSchema, hashPin } = require('./auth-core');
 const { createLicenseService } = require('./services/license');
 const { createBackupService }  = require('./services/backup');
-const { createPricer }         = require('./services/pricer');
+const { createPricer }          = require('./services/pricer');
+const { createSettingsService } = require('./services/settings');
 const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
 const statusContracts = require('./status-contracts');
 const constants = require('./constants');
@@ -128,7 +129,8 @@ if (DB_EXISTS_AT_STARTUP && !SKIP_STARTUP_DB_SNAPSHOT) {
   console.log('[DB Safety] Startup snapshot skipped for local development.');
 }
 let db = new Database(DB_PATH);
-const pricer = createPricer(db);
+const settingsService = createSettingsService(db); // מריץ migration + seed אוטומטית
+const pricer          = createPricer(db);
 if (process.env.NODE_ENV === 'production' && DB_EXISTS_AT_STARTUP && process.env.ALLOW_EMPTY_DB_INIT !== 'true') {
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
   if (!tables.has('orders')) {
@@ -1464,6 +1466,7 @@ app.use('/api', createAdminRouter({
   modbus,
   ai,
   statusContracts,
+  settingsService,
 }));
 
 

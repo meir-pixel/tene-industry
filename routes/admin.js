@@ -23,6 +23,7 @@ module.exports = function createAdminRouter(deps) {
   const statusContracts = required('statusContracts', deps.statusContracts);
 
   const db = () => getDb();
+  const settingsService = required('settingsService', deps.settingsService);
 
   function validateUploadedDatabase(req, res, next) {
     if (!req.file) return res.status(400).json({ ok: false, error: 'Database file is required' });
@@ -350,6 +351,46 @@ module.exports = function createAdminRouter(deps) {
       } catch (_) {}
       res.status(500).json({ ok: false, error: `שגיאה בשחזור בסיס הנתונים: ${e.message}` });
     }
+  });
+
+  // ── Settings Control Room ────────────────────────────────────────
+
+  // GET /api/admin/settings — מנהל לקוח רואה רק מה שמותר לו
+  router.get('/admin/settings', requireRole('admin'), (req, res) => {
+    res.json(settingsService.listForCustomer());
+  });
+
+  // PATCH /api/admin/settings/:key — מנהל לקוח משנה ערך
+  router.patch('/admin/settings/:key', requireRole('admin'), (req, res) => {
+    const { key } = req.params;
+    const { value } = req.body;
+    if (value === undefined) return res.status(400).json({ error: 'value required' });
+
+    // בדוק שיש הרשאת edit
+    const def = db().prepare(
+      "SELECT customer_permission, vendor_only, value_type, min_value, max_value FROM setting_definitions WHERE key=?"
+    ).get(key);
+    if (!def) return res.status(404).json({ error: 'Setting not found' });
+    if (def.vendor_only || def.customer_permission !== 'edit') {
+      return res.status(403).json({ error: 'אין הרשאה לשנות פרמטר זה' });
+    }
+
+    // ולידציה לפי type
+    if (def.value_type === 'number' || def.value_type === 'percent' ||
+        def.value_type === 'currency' || def.value_type === 'minutes' || def.value_type === 'days') {
+      const num = Number(value);
+      if (isNaN(num)) return res.status(400).json({ error: 'ערך חייב להיות מספר' });
+      if (def.min_value != null && num < def.min_value)
+        return res.status(400).json({ error: `ערך מינימלי: ${def.min_value}` });
+      if (def.max_value != null && num > def.max_value)
+        return res.status(400).json({ error: `ערך מקסימלי: ${def.max_value}` });
+    }
+    if (def.value_type === 'boolean' && !['true','false','1','0'].includes(String(value))) {
+      return res.status(400).json({ error: 'ערך בוליאני חייב להיות true/false' });
+    }
+
+    settingsService.set(key, value, { updatedBy: req.userId || null });
+    res.json({ success: true, key, value });
   });
 
   return router;
