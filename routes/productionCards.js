@@ -9,8 +9,7 @@ module.exports = function createProductionCardsRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const cards = required('productionCards', deps.productionCards);
-  const REBAR_WEIGHTS = required('REBAR_WEIGHTS', deps.REBAR_WEIGHTS);
-  const rebarKgPerMeter = required('rebarKgPerMeter', deps.rebarKgPerMeter);
+  const industry = required('industry', deps.industry);
   const tryParseJSON = required('tryParseJSON', deps.tryParseJSON);
   const normalizeFactorySegments = required('normalizeFactorySegments', deps.normalizeFactorySegments);
   const normalizeFactoryShapeName = required('normalizeFactoryShapeName', deps.normalizeFactoryShapeName);
@@ -54,7 +53,7 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
 
   const serverCardsHtml = (allItems.length
     ? cards.masterCard(allItems, order, printDate, delivDate, pallets.length) +
-      allItems.map(it => cards.itemCard(it, order, printDate, REBAR_WEIGHTS)).join('')
+      allItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))).join('')
     : '<div style="padding:40px;text-align:center;color:#888;">אין פריטים בהזמנה זו</div>'
   );
 
@@ -643,7 +642,7 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
 
   const calcItemWeight = it => {
     if (it.total_weight && it.total_weight > 0) return it.total_weight;
-    const kgm = rebarKgPerMeter(Math.round(it.diameter));
+    const kgm = industry.kgPerMeter(Math.round(it.diameter));
     if (!kgm) return 0;
     return Math.round((it.total_length_mm / 1000) * kgm * (it.quantity || 1) * 10) / 10;
   };

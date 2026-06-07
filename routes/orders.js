@@ -13,7 +13,7 @@ module.exports = function createOrdersRouter(deps) {
   const modbus = required('modbus', deps.modbus);
   const intake = required('intake', deps.intake);
   const listPage = required('listPage', deps.listPage);
-  const rebarKgPerMeter = required('rebarKgPerMeter', deps.rebarKgPerMeter);
+  const industry = required('industry', deps.industry);
   const normalizeOrderStatus = required('normalizeOrderStatus', deps.normalizeOrderStatus);
   const isValidOrderTransition = required('isValidOrderTransition', deps.isValidOrderTransition);
   const allowedOrderTransitions = required('allowedOrderTransitions', deps.allowedOrderTransitions);
@@ -55,8 +55,7 @@ module.exports = function createOrdersRouter(deps) {
       return res.status(400).json({ error: 'חסרים פרמטרים' });
     }
     const orderNum = 'MAN-' + Date.now().toString(36).toUpperCase();
-    const kgPerM = rebarKgPerMeter(diameter);
-    const totalWeight = (totalLengthMm / 1000) * kgPerM * qty;
+    const totalWeight = industry.weightPerUnit({ diameter, total_length_mm: totalLengthMm }) * qty;
 
     const orderRow = db.prepare(
       `INSERT INTO orders (order_num,channel,delivery_date,delivery_address,priority,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)

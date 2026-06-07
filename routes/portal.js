@@ -13,9 +13,8 @@ module.exports = function createPortalRouter(deps) {
   const crypto = required('crypto', deps.crypto);
   const intake = required('intake', deps.intake);
   const auditLog = required('auditLog', deps.auditLog);
-  const rebarKgPerMeter = required('rebarKgPerMeter', deps.rebarKgPerMeter);
+  const industry = required('industry', deps.industry);
   const generateOrderNum = required('generateOrderNum', deps.generateOrderNum);
-  const autoAssignMachine = required('autoAssignMachine', deps.autoAssignMachine);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
   const pricer          = required('pricer',          deps.pricer);
   const settingsService = required('settingsService', deps.settingsService);
@@ -229,7 +228,7 @@ module.exports = function createPortalRouter(deps) {
 
     const priceItems = (items || []).map(item => {
       const totalLengthMm = (item.sides || []).reduce((s, v) => s + v, 0);
-      const totalWeight   = (totalLengthMm / 1000) * rebarKgPerMeter(item.diameter) * (item.qty || 1);
+      const totalWeight = industry.weightPerUnit({ diameter: item.diameter, total_length_mm: totalLengthMm }) * (item.qty || 1);
       return { diameter: item.diameter, totalWeight };
     });
 
@@ -268,13 +267,12 @@ module.exports = function createPortalRouter(deps) {
     const itemLines = [];
     items.forEach(item => {
       const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
-      const kgPerM = rebarKgPerMeter(item.diameter);
-      const weight = (totalLengthMm / 1000) * kgPerM * (item.qty || 1);
+      const weight = industry.weightPerUnit({ diameter: item.diameter, total_length_mm: totalLengthMm }) * (item.qty || 1);
       const ppu = priceMap[item.diameter] || 0;
       totalWeight += weight;
       totalPrice += weight * ppu;
       const segments = JSON.stringify((item.sides || []).map((l,i) => ({ length_mm:l, angle_deg:(item.angles||[])[i]??0 })));
-      const machine = autoAssignMachine(item.diameter); // BUG-06
+      const machine = industry.assignResource(item.diameter);
       db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,machine)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(palletId, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,

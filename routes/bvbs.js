@@ -9,7 +9,7 @@ module.exports = function createBvbsRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const upload = required('upload', deps.upload);
-  const rebarKgPerMeter = required('rebarKgPerMeter', deps.rebarKgPerMeter);
+  const industry = required('industry', deps.industry);
   const generateOrderNum = required('generateOrderNum', deps.generateOrderNum);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
 
@@ -54,9 +54,10 @@ module.exports = function createBvbsRouter(deps) {
       }
     }
     if (!item.diameter || !item.quantity) return null;
-    // Compute weight — BUG-05: uses global REBAR_WEIGHTS
-    const kgPerM = rebarKgPerMeter(item.diameter);
-    item.weight_per_unit = (item.total_length / 1000) * kgPerM;
+    item.weight_per_unit = industry.weightPerUnit({
+      diameter: item.diameter,
+      total_length_mm: item.total_length || 0,
+    });
     item.total_weight = item.weight_per_unit * item.quantity;
     return item;
   }

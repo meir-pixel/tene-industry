@@ -10,7 +10,7 @@ module.exports = function createFinanceRouter(deps) {
   const requireAnyRole  = required('requireAnyRole',  deps.requireAnyRole);
   const requireRole     = required('requireRole',     deps.requireRole);
   const wsBroadcast     = required('wsBroadcast',     deps.wsBroadcast);
-  const rebarKgPerMeter = required('rebarKgPerMeter', deps.rebarKgPerMeter);
+  const industry = required('industry', deps.industry);
   const settingsService = required('settingsService', deps.settingsService);
 
 
@@ -129,9 +129,11 @@ function calculateOrderCost(orderId) {
     totalWeightKg = allItems.reduce((s, it) => {
       if (it.total_weight && it.total_weight > 0) return s + it.total_weight;
       // Calculate from diameter + length
-      const kgPerM = Number.isFinite(Number(it.diameter)) ? rebarKgPerMeter(it.diameter) : 0;
-      const lengthM = (it.total_length_mm || 0) / 1000;
-      return s + (kgPerM * lengthM * (it.quantity || 1));
+      if (!Number.isFinite(Number(it.diameter))) return s;
+      return s + (industry.weightPerUnit({
+        diameter: it.diameter,
+        total_length_mm: it.total_length_mm || 0,
+      }) * (it.quantity || 1));
     }, 0);
   }
   const material_cost = (totalWeightKg / 1000) * pricePerTon;

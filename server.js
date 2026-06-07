@@ -121,11 +121,8 @@ ensureAuthSchema(db);
 const moduleLoader = createModuleLoader(settingsService);
 const industry = moduleLoader.active();
 const {
-  rebarKgPerMeter,
-  REBAR_WEIGHTS,
-  autoAssignMachine,
-  normalizeFactorySegments,
-  normalizeFactoryShapeName,
+  normalizeSegments: normalizeFactorySegments,
+  normalizeShapeName: normalizeFactoryShapeName,
 } = industry;
 
 const STRICT_SECRET_ENVS = new Set(['production', 'staging']);
@@ -239,7 +236,7 @@ function checkOrderComplete(orderId) {
 
 const { createOrderFromPayload, createOrderTransaction, calcWeightPerUnit } = createOrderFactory(db, {
   generateOrderNum,
-  rebarKgPerMeter,
+  industry,
 });
 
 function resolveIntakeCustomer(parsed = {}, rawContent = '') {
@@ -286,7 +283,7 @@ app.use('/api', createOrdersRouter({
   modbus,
   intake,
   listPage,
-  rebarKgPerMeter,
+  industry,
   normalizeOrderStatus,
   isValidOrderTransition,
   allowedOrderTransitions: statusContracts.allowedOrderTransitions,
@@ -301,8 +298,7 @@ app.use('/api', createProductionCardsRouter({
   db,
   requireAnyRole,
   productionCards,
-  REBAR_WEIGHTS,
-  rebarKgPerMeter,
+  industry,
   tryParseJSON,
   normalizeFactorySegments,
   normalizeFactoryShapeName,
@@ -313,7 +309,7 @@ app.use('/api', createFinanceRouter({
   requireAnyRole,
   requireRole,
   wsBroadcast,
-  rebarKgPerMeter,
+  industry,
   settingsService,
 }));
 
@@ -468,9 +464,8 @@ app.use('/api', createPortalRouter({
   crypto,
   intake,
   auditLog,
-  rebarKgPerMeter,
+  industry,
   generateOrderNum,
-  autoAssignMachine,
   wsBroadcast,
   pricer,
   settingsService,
@@ -501,7 +496,7 @@ app.use('/api', createCompaniesRouter({ db, requireAnyRole }));
 app.use('/api', createPriorityRouter({ db, requireRole, requireAnyRole, priority, PRIORITY_ENABLED }));
 app.use('/api', createAiRouter({ db, requireAnyRole, ai }));
 app.use('/api', createSearchRouter({ db, requireRole }));
-app.use('/api', createBvbsRouter({ db, requireAnyRole, upload, rebarKgPerMeter, generateOrderNum, wsBroadcast }));
+app.use('/api', createBvbsRouter({ db, requireAnyRole, upload, industry, generateOrderNum, wsBroadcast }));
 
 
 function tryParseJSON(val, fallback = null) {

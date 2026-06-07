@@ -79,9 +79,11 @@ test('shared constants are extracted from the server monolith', () => {
   // constants.js re-exports steel for backward compat
   assert.match(constants, /require\('\.\/modules\/steel-rebar'\)/);
 
-  // server.js must not define these inline
+  // server.js keeps universal constants, and resolves steel-specific behavior via industry loader.
   assert.match(server, /require\('\.\/constants'\)/);
-  assert.match(server, /rebarKgPerMeter/);
+  assert.match(server, /moduleLoader\.active\(\)/);
+  assert.match(server, /const industry =/);
+  assert.doesNotMatch(server, /rebarKgPerMeter/);
   assert.doesNotMatch(server, /const REBAR_WEIGHTS = \{/);
   assert.doesNotMatch(server, /const REBAR_KG_PER_M = Object\.assign/);
   assert.doesNotMatch(server, /const MACHINE_STATES = \[/);
@@ -963,4 +965,26 @@ test('industry module is resolved through the loader, not hardcoded', () => {
   assert.match(steel, /weightPerUnit/);
   assert.match(settings, /ACTIVE_INDUSTRY_MODULE/);
   assert.doesNotMatch(server, /rebarKgPerMeter,\s*\n\}\s*=\s*constants/);
+});
+
+
+test('routes use the active industry contract for steel-specific calculations', () => {
+  const server = read('server.js');
+  const routeFiles = [
+    'routes/orders.js',
+    'routes/portal.js',
+    'routes/finance.js',
+    'routes/bvbs.js',
+    'routes/productionCards.js',
+  ];
+
+  for (const file of routeFiles) {
+    const source = read(file);
+    assert.match(source, /required\('industry', deps\.industry\)/, file);
+    assert.doesNotMatch(source, /required\('rebarKgPerMeter'/, file);
+  }
+
+  assert.match(server, /createOrderFactory\(db, \{[\s\S]*industry,[\s\S]*\}\)/);
+  assert.doesNotMatch(server, /createBvbsRouter\(\{[\s\S]*rebarKgPerMeter/);
+  assert.doesNotMatch(server, /createPortalRouter\(\{[\s\S]*autoAssignMachine/);
 });

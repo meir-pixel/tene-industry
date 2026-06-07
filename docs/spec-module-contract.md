@@ -7,7 +7,7 @@
 
 ## פיצול לשני שלבים
 - **2a (עכשיו, בטוח):** חוזה + Loader. `server.js` מושך את פונקציות הפלדה דרך ה-Loader. ה-routes לא משתנים. הטסטים נשארים ירוקים.
-- **2b (בהמשך):** מיגרציית routes ל-API גנרי (`industry.weightPerUnit`). לא עכשיו.
+- **2b (בוצע חלקית):** routes מרכזיים משתמשים עכשיו ב-`industry.weightPerUnit`; ניתוק מלא של שמות דומיין ספציפיים ימשיך בהמשך.
 
 ---
 
@@ -170,5 +170,5 @@ test('industry module is resolved through the loader, not hardcoded', () => {
 ## מה זה נותן
 נקודת האינטגרציה היחידה לתעשייה היא ה-Loader. כש-`modules/wood/index.js` ייכתב עם אותו חוזה — מוסיפים שורה ל-`AVAILABLE`, משנים `ACTIVE_INDUSTRY_MODULE`, והמערכת רצה כנגרייה.
 
-## שלב 2b (עתידי, לא עכשיו)
-מיגרציית routes מ-`rebarKgPerMeter(d)` ל-`industry.weightPerUnit(item)` — per-route, עם בדיקות. מנתק גם את השמות הספציפיים.
+## שלב 2b (בוצע חלקית)
+Routes מרכזיים (`orders`, `portal`, `finance`, `bvbs`, `productionCards`) מקבלים עכשיו `industry` וקוראים לחוזה הפעיל לחישובי משקל/שיוך. נשאר להמשיך בהמשך לניתוק מלא של שמות דומיין ספציפיים במסכים ובדוחות.

@@ -23,23 +23,23 @@ function validateShapeGeometry(segments) {
   return { valid: true };
 }
 
-// autoAssignMachine, normalizeFactorySegments, normalizeFactoryShapeName
-// הועברו ל-modules/steel-rebar — מיובאים מכאן לתאימות לאחור.
-const {
-  autoAssignMachine,
-  normalizeFactorySegments,
-  normalizeFactoryShapeName,
-} = require('../modules/steel-rebar');
+const steelModule = require('../modules/steel-rebar');
 
-
-function createOrderFactory(db, { generateOrderNum, rebarKgPerMeter }) {
+function createOrderFactory(db, { generateOrderNum, industry }) {
   if (!db) throw new Error('services/orders missing dependency: db');
   if (!generateOrderNum) throw new Error('services/orders missing dependency: generateOrderNum');
-  if (!rebarKgPerMeter) throw new Error('services/orders missing dependency: rebarKgPerMeter');
+  if (!industry) throw new Error('services/orders missing dependency: industry');
+
+  const normalizeSegments = industry.normalizeSegments;
+  const normalizeShapeName = industry.normalizeShapeName;
+  const assignResource = industry.assignResource;
+  if (!normalizeSegments) throw new Error('services/orders missing industry contract: normalizeSegments');
+  if (!normalizeShapeName) throw new Error('services/orders missing industry contract: normalizeShapeName');
+  if (!assignResource) throw new Error('services/orders missing industry contract: assignResource');
+  if (!industry.weightPerUnit) throw new Error('services/orders missing industry contract: weightPerUnit');
 
   function calcWeightPerUnit(diameter, totalLengthMm) {
-    const kgPerM = rebarKgPerMeter(diameter);
-    return (totalLengthMm / 1000) * kgPerM;
+    return industry.weightPerUnit({ diameter, total_length_mm: totalLengthMm });
   }
 
   function createOrderFromPayload(payload) {
@@ -110,17 +110,17 @@ function createOrderFactory(db, { generateOrderNum, rebarKgPerMeter }) {
         const sides = (item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []);
         const totalLengthMm = sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0;
         const angles = item.angles || [];
-        const segmentsArr = normalizeFactorySegments(
+        const segmentsArr = normalizeSegments(
           item.shapeName,
           sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }))
         );
-        const shapeName = normalizeFactoryShapeName(item.shapeName, segmentsArr);
+        const shapeName = normalizeShapeName(item.shapeName, segmentsArr);
         const geoCheck = validateShapeGeometry(segmentsArr);
         if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
         const segments = JSON.stringify(segmentsArr);
         const weightPerUnit = calcWeightPerUnit(item.diameter, totalLengthMm);
         const productionQty = Math.ceil((item.qty || 1) * (1 + wastePct / 100));
-        const machine = autoAssignMachine(item.diameter);
+        const machine = assignResource(item.diameter);
 
         db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -144,8 +144,8 @@ function createOrderFactory(db, { generateOrderNum, rebarKgPerMeter }) {
 
 module.exports = {
   validateShapeGeometry,
-  autoAssignMachine,
-  normalizeFactorySegments,
-  normalizeFactoryShapeName,
+  autoAssignMachine: steelModule.autoAssignMachine,
+  normalizeFactorySegments: steelModule.normalizeFactorySegments,
+  normalizeFactoryShapeName: steelModule.normalizeFactoryShapeName,
   createOrderFactory,
 };
