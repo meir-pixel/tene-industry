@@ -89,6 +89,8 @@ function ensureCoreSchema(db) {
       worker_id INTEGER,
       produced_qty INTEGER DEFAULT 0,
       actual_waste INTEGER DEFAULT 0,
+      actual_weight_kg REAL,
+      weight_deviation_pct REAL,
       note TEXT,
       FOREIGN KEY (pallet_id) REFERENCES pallets(id)
     );

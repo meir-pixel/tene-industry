@@ -296,6 +296,18 @@ test('orders screen status actions keep JavaScript arguments safe inside HTML at
   assert.doesNotMatch(orders, /setStatusAndClose\(\$\{o\.id\},\$\{jsArg\(s\)\}\)/);
 });
 
+test('orders detail does not present one straight segment as a spiral and shows weight checks', () => {
+  const orders = read('public/orders.html');
+
+  assert.match(orders, /function isSingleSegmentShape/);
+  assert.match(orders, /function isSpiralOrRingName/);
+  assert.match(orders, /function shapeMismatchWarning/);
+  assert.match(orders, /shapeLabel\(item\.shape_name, sides\)/);
+  assert.match(orders, /משקל רצוי/);
+  assert.match(orders, /משקל מצוי/);
+  assert.match(orders, /weightDeviationPct/);
+});
+
 test('order creation success copy does not promise production before approval', () => {
   const index = read('public/index.html');
 
@@ -437,6 +449,11 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /readableOpenUDimensions/);
   assert.match(workerVisual, /data-shape-kind="worker-open-u"/);
   assert.match(workerVisual, /data-scale-mode="readable"/);
+  assert.match(workerVisual, /actual_weight_kg/);
+  assert.match(workerVisual, /weightDeviation/);
+  assert.match(workerVisual, /משקל רצוי/);
+  assert.match(workerVisual, /משקל מצוי/);
+  assert.match(workerVisual, /spiral\|ring\|coil/);
   assert.match(workerVisual, /דשבורד איסוף כרטיסים/);
   assert.match(workerVisual, /הזמנות ממתינות/);
   assert.match(workerVisual, /כרטיסים/);

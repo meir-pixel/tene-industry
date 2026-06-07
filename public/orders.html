@@ -534,12 +534,46 @@ function renderDetailShapes() {
   });
 }
 
-function shapeLabel(shapeName) {
+function isSingleSegmentShape(sides) {
+  return !Array.isArray(sides) || sides.filter(n => Number.isFinite(Number(n)) && Number(n) > 0).length <= 1;
+}
+
+function isSpiralOrRingName(shapeName) {
+  return /spiral|ring|coil|ספיר|טבעת|סליל|לולאה/i.test(String(shapeName || ''));
+}
+
+function shapeLabel(shapeName, sides) {
   const name = String(shapeName || '').toLowerCase();
+  if (isSingleSegmentShape(sides)) return 'מוט ישר';
   if (name.includes('open u') || name.includes('open bar')) return 'צורת ח פתוחה';
   if (name.includes('closed') || name.includes('stirrup')) return 'חישוק סגור';
   if (name.includes('straight')) return 'מוט ישר';
   return shapeName || 'מותאם';
+}
+
+function shapeMismatchWarning(item, sides) {
+  return isSingleSegmentShape(sides) && isSpiralOrRingName(item.shape_name);
+}
+
+function actualWeight(item) {
+  const value = Number(item.actual_weight_kg);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function weightDeviationPct(item) {
+  const stored = Number(item.weight_deviation_pct);
+  if (Number.isFinite(stored)) return stored;
+  const actual = actualWeight(item);
+  const target = Number(item.total_weight ?? item.weight ?? 0);
+  return actual && target > 0 ? ((actual - target) / target) * 100 : null;
+}
+
+function weightDeviationClass(pct) {
+  if (pct == null) return '';
+  const abs = Math.abs(pct);
+  if (abs > 10) return ' style="background:#fef2f2;color:#991b1b"';
+  if (abs > 5) return ' style="background:#fff7ed;color:#9a3412"';
+  return ' style="background:#ecfdf5;color:#166534"';
 }
 
 function needsReview(item) {
@@ -622,6 +656,9 @@ function buildDetailHTML(o, pkgs) {
       const angles = itemAngles(item);
       const dims = sides.length ? sides.join(' / ') : itemDimensions(item);
       const review = needsReview(item);
+      const shapeMismatch = shapeMismatchWarning(item, sides);
+      const measuredWeight = actualWeight(item);
+      const deviationPct = weightDeviationPct(item);
       return `<div class="item-row">
         <div class="item-visual"
           data-detail-shape="1"
@@ -630,17 +667,19 @@ function buildDetailHTML(o, pkgs) {
         <div class="item-main">
           <div class="item-head">
             <span class="item-diameter">⌀${escHtml(item.diameter)}</span>
-            <span class="item-shape">${escHtml(shapeLabel(item.shape_name))}</span>
+            <span class="item-shape">${escHtml(shapeLabel(item.shape_name, sides))}</span>
             ${item.is_3d ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px">3D</span>' : ''}
-            ${review ? ' <span style="background:#fff3cd;color:#8a5a00;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">דורש בדיקה</span>' : ''}
+            ${review || shapeMismatch ? ' <span style="background:#fff3cd;color:#8a5a00;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">דורש בדיקה</span>' : ''}
           </div>
           <div class="item-kpis">
             <div class="item-kpi"><div class="item-kpi-label">כמות</div><div class="item-kpi-value">${qty} יח'</div></div>
             <div class="item-kpi"><div class="item-kpi-label">אורך פתיחה</div><div class="item-kpi-value">${Math.round(length)} מ"מ</div></div>
-            <div class="item-kpi"><div class="item-kpi-label">משקל</div><div class="item-kpi-value">${weight.toFixed(1)} ק"ג</div></div>
+            <div class="item-kpi"><div class="item-kpi-label">משקל רצוי</div><div class="item-kpi-value">${weight.toFixed(1)} ק"ג</div></div>
             <div class="item-kpi"><div class="item-kpi-label">יוצר</div><div class="item-kpi-value">${produced}/${qty}</div></div>
           </div>
           ${dims ? `<div class="item-dims">${dims.split(' / ').map((d, idx) => `<span class="dim-chip">${String.fromCharCode(0x05D0 + idx)}: ${d} מ"מ</span>`).join('')}</div>` : ''}
+          ${measuredWeight ? `<div class="item-dims"><span class="dim-chip">משקל מצוי: ${measuredWeight.toFixed(1)} ק"ג</span><span class="dim-chip"${weightDeviationClass(deviationPct)}>סטייה: ${deviationPct > 0 ? '+' : ''}${deviationPct.toFixed(1)}%</span></div>` : ''}
+          ${shapeMismatch ? `<div class="note-chip">⚠ שם הצורה המקורי היה "${escHtml(item.shape_name)}", אבל הגיאומטריה כוללת צלע אחת בלבד ולכן מוצג כמוט ישר.</div>` : ''}
           ${item.note ? `<div class="note-chip">⚠ ${escHtml(item.note)}</div>` : ''}
           ${item.status==='בייצור'&&qty>0?`<div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100,produced/qty*100).toFixed(0)}%"></div></div><div style="font-size:11px;color:var(--muted)">${produced}/${qty}</div>`:''}
         </div>

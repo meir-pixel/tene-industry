@@ -855,6 +855,11 @@ test('production execution API routes are split out of the server monolith', () 
   assert.ok(route.includes("wsBroadcast('machine_assign'"));
   assert.match(route, /createProductionMachinesRouter/);
   assert.match(route, /checkOrderComplete/);
+  assert.match(route, /actual_weight_kg/);
+  assert.match(route, /weight_deviation_pct/);
+  assert.match(route, /SELECT total_weight FROM items WHERE id=\?/);
+  assert.match(route, /\(\(actualWeight - targetWeight\) \/ targetWeight\) \* 100/);
+  assert.match(route, /i\.actual_weight_kg, i\.weight_deviation_pct/);
   assert.ok(!route.includes("router.get('/machines'"));
   assert.ok(!route.includes("router.post('/machines'"));
   assert.ok(!route.includes("router.patch('/machines/:id/config'"));
@@ -1156,12 +1161,16 @@ test('database startup schema migrations and seed data are extracted from server
   assert.match(startup, /require\('\.\/vehicleMigrations'\)/);
   assert.doesNotMatch(startup, /CREATE TABLE IF NOT EXISTS customers/);
   assert.match(startup, /function addCol\(table, col, def\)/);
+  assert.match(startup, /addCol\('items',\s+'actual_weight_kg'/);
+  assert.match(startup, /addCol\('items',\s+'weight_deviation_pct'/);
   assert.match(startup, /ensureVehicleCompatibility\(db\)/);
   assert.doesNotMatch(startup, /function ensureVehicleEventsSchema/);
   assert.doesNotMatch(startup, /function migrateDriverVehicleRows/);
   assert.match(coreSchema, /function ensureCoreSchema\(db\)/);
   assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS customers/);
   assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS orders/);
+  assert.match(coreSchema, /actual_weight_kg REAL/);
+  assert.match(coreSchema, /weight_deviation_pct REAL/);
   assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS purchase_orders/);
   assert.match(coreSchema, /ensureFinanceSchema\(db\)/);
   assert.match(seed, /function seedCoreData\(db\)/);

@@ -49,8 +49,10 @@ function normalizeFactoryShapeName(shapeName, segments) {
   const shape = String(shapeName || '');
   const lower = shape.toLowerCase();
   const lengths = (segments || []).map(s => Number(s.length_mm) || 0);
+  const isSpiralOrRing = /spiral|ring|coil|ספיר|טבעת|סליל|לולאה/.test(lower);
   const isFactory = /open|hook|anchor|closed|stirrup|overlap|אנקר|פתוח|צורת ח|חפיפה|אצבע|מסגרת|\bu\b/.test(lower);
 
+  if (isSpiralOrRing && lengths.length <= 1) return 'straight bar';
   if (isFactory && lengths.length === 3 && lengths[0] === lengths[2]) return 'open U-shaped bar';
   if (isFactory && lengths.length === 6 && lengths[0] === lengths[5]) return 'closed stirrup 90-degree overlap';
   return shape;

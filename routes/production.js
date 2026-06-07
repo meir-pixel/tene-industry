@@ -153,10 +153,20 @@ module.exports = function createProductionRouter(deps) {
   });
 
   router.patch('/items/:id', requireAnyRole(['production', 'kiosk', 'warehouse', 'manager', 'admin']), (req, res) => {
-    const { produced_qty, actual_waste, note, status, package_id, zone } = req.body;
+    const { produced_qty, actual_waste, actual_weight_kg, note, status, package_id, zone } = req.body;
     const fields = [], vals = [];
     if (produced_qty !== undefined) { fields.push('produced_qty=?'); vals.push(produced_qty); }
     if (actual_waste !== undefined) { fields.push('actual_waste=?'); vals.push(actual_waste); }
+    if (actual_weight_kg !== undefined) {
+      const actualWeight = Number(actual_weight_kg);
+      if (!Number.isFinite(actualWeight) || actualWeight < 0) return res.status(400).json({ error: 'invalid actual_weight_kg' });
+      const item = db.prepare('SELECT total_weight FROM items WHERE id=?').get(req.params.id);
+      if (!item) return res.status(404).json({ error: 'not found' });
+      const targetWeight = Number(item.total_weight) || 0;
+      const deviationPct = targetWeight > 0 ? ((actualWeight - targetWeight) / targetWeight) * 100 : null;
+      fields.push('actual_weight_kg=?'); vals.push(actualWeight);
+      fields.push('weight_deviation_pct=?'); vals.push(deviationPct);
+    }
     if (note         !== undefined) { fields.push('note=?');         vals.push(note); }
     if (status       !== undefined) { fields.push('status=?');       vals.push(status); }
     if (package_id   !== undefined) { fields.push('package_id=?');   vals.push(package_id); }
@@ -180,6 +190,7 @@ module.exports = function createProductionRouter(deps) {
     let q = `
       SELECT i.id, i.pallet_id, i.shape_id, i.shape_name, i.diameter,
              i.quantity, i.produced_qty, i.total_weight AS weight, i.status, i.machine,
+             i.actual_weight_kg, i.weight_deviation_pct,
              i.segments, i.total_length_mm, i.note, i.qc_status,
              p.order_id, p.pallet_num,
              o.order_num, o.priority, o.delivery_date, o.customer_id, o.status AS order_status,

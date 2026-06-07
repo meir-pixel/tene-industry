@@ -4,6 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 const { shapeSvg } = require('../services/productionCards');
+const { normalizeFactoryShapeName } = require('../modules/steel-rebar/shapes');
 
 function loadShapeEditorGeometry() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
@@ -62,4 +63,11 @@ test('production card renders open U bars as a readable U shape, not a flattened
   assert.match(svg, />1900</);
   assert.match(svg, />200</);
   assert.match(svg, /90&#176;/);
+});
+
+test('single segment geometry cannot be normalized as a spiral or ring', () => {
+  const segments = [{ length_mm: 25, angle_deg: 0 }];
+
+  assert.equal(normalizeFactoryShapeName('טבעת/ספירלה', segments), 'straight bar');
+  assert.equal(normalizeFactoryShapeName('spiral ring', segments), 'straight bar');
 });
