@@ -64,6 +64,8 @@ try { db.exec("ALTER TABLE backups ADD COLUMN storage_type TEXT DEFAULT 'disk'")
 try { db.exec("ALTER TABLE licenses ADD COLUMN package TEXT DEFAULT 'pro'"); } catch {}
 try { db.exec("ALTER TABLE licenses ADD COLUMN modules TEXT"); } catch {}          // JSON array
 try { db.exec("ALTER TABLE licenses ADD COLUMN max_users INTEGER DEFAULT 0"); } catch {} // 0 = ללא הגבלה
+try { db.exec("ALTER TABLE licenses ADD COLUMN active_users INTEGER DEFAULT 0"); } catch {}    // דווח אחרון משרת הלקוח
+try { db.exec("ALTER TABLE licenses ADD COLUMN active_users_at TEXT"); } catch {}
 
 // ── מודולים וחבילות — מקור אמת יחיד: shared/module-catalog.json ────
 // קוראים מה-catalog המשותף. כך כל מודול חדש מופיע אוטומטית בפאנל,
@@ -130,7 +132,7 @@ function rateLimit(req, res, next) {
 
 // POST /api/check — בדיקת רישיון
 app.post('/api/check', rateLimit, (req, res) => {
-  const { licenseKey, machineId } = req.body;
+  const { licenseKey, machineId, activeUsers } = req.body;
   if (!licenseKey) return res.status(400).json({ valid: false, message: 'licenseKey required' });
 
   const lic = getLicense(licenseKey);
@@ -145,6 +147,14 @@ app.post('/api/check', rateLimit, (req, res) => {
     return res.json({ valid: false, message: 'הרישיון מחובר למחשב אחר. צור קשר עם Tene Industry.' });
   }
 
+  // דיווח משתמשים פעילים מהלקוח (אם נשלח)
+  let over = false;
+  if (typeof activeUsers === 'number' && activeUsers >= 0) {
+    db.prepare('UPDATE licenses SET active_users=?, active_users_at=? WHERE license_key=?')
+      .run(activeUsers, new Date().toISOString(), licenseKey);
+    over = lic.max_users > 0 && activeUsers > lic.max_users;
+  }
+
   res.json({
     valid:        true,
     expiresAt:    lic.expires_at,
@@ -155,6 +165,8 @@ app.post('/api/check', rateLimit, (req, res) => {
       modules:  modulesForLicense(lic),
       maxUsers: lic.max_users || 0,   // 0 = ללא הגבלה
     },
+    // אזהרה רכה — לא נועלים מפעל באמצע יום; רק מסמנים חריגה
+    usersOverLimit: over,
   });
 });
 
@@ -234,14 +246,19 @@ app.get('/admin', (req, res) => {
 
     const pkgLabel = { basic:'בסיסי', pro:'מקצועי', enterprise:'ארגוני', custom:'מותאם' }[lic.package] || lic.package || 'מקצועי';
     const modCount = modulesForLicense(lic).length;
-    const usersLabel = lic.max_users ? `עד ${lic.max_users}` : '∞';
+    const cap = lic.max_users || 0;
+    const act = lic.active_users || 0;
+    const usersOver = cap > 0 && act > cap;
+    const usersLabel = cap
+      ? `<span style="color:${usersOver ? '#e74c3c' : '#27ae60'}">${act}/${cap} משתמשים${usersOver ? ' ⚠️' : ''}</span>`
+      : `${act} משתמשים · ∞`;
 
     return `
       <tr>
         <td><strong>${lic.customer_name}</strong><br><small>${lic.customer_phone || ''}</small></td>
         <td>${lic.expires_at}</td>
         <td style="color:${color}">${status}</td>
-        <td>${pkgLabel}<br><small>${modCount} מודולים · ${usersLabel} משתמשים</small></td>
+        <td>${pkgLabel}<br><small>${modCount} מודולים · ${usersLabel}</small></td>
         <td>${lastBackup ? lastBackup.uploaded_at.slice(0,16) : '—'}</td>
         <td>
           ${!revoked ? `
@@ -327,11 +344,12 @@ app.post('/admin/create', (req, res) => {
   if (!license_key || !customer_name || !expires_at) {
     return res.status(400).send('חסרים פרטים');
   }
-  // modules: checkbox יחיד מגיע כמחרוזת, מרובים כמערך. תמיד כוללים ליבה.
+  // modules: checkbox יחיד מגיע כמחרוזת, מרובים כמערך.
+  // אם לא נשלחו מודולים — ברירת מחדל לפי החבילה. (ליבה תמיד פעילה באפליקציה, לא נשמרת כאן.)
   let mods = req.body.modules || [];
   if (typeof mods === 'string') mods = [mods];
-  mods = Array.from(new Set([...CORE_MODULES, ...mods]));
-  const modulesJson = JSON.stringify(mods);
+  if (mods.length === 0) mods = PACKAGES[pkg] || PACKAGES.pro || [];
+  const modulesJson = JSON.stringify(Array.from(new Set(mods)));
   db.prepare('INSERT INTO licenses (license_key,customer_name,customer_phone,expires_at,notes,package,modules,max_users) VALUES (?,?,?,?,?,?,?,?)')
     .run(license_key, customer_name, customer_phone || null, expires_at, notes || null, pkg || 'pro', modulesJson, Number(max_users) || 0);
 
