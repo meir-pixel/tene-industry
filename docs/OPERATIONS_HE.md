@@ -116,6 +116,7 @@ node tools/provision-customer.js --name "שם לקוח" --module steel-rebar --d
 | 5 | מודול הנהלת חשבונות | — | מודול נפרד מ"כספים" |
 | 6 | חיבור ספק סליקה | — | אחרי בחירת ספק. לא בונים סליקה — מחברים ל-Stripe/ישראלי |
 | 7 | מפת מודולים חיה | [spec-module-map.md](spec-module-map.md) | כל מודול מצהיר consumes/produces; ניטור ב-wsBroadcast; מסך גרף עם סטטוס תקשורת |
+| 8 | הפרדת ניהול ספק/לקוח | [spec-vendor-vs-customer-admin.md](spec-vendor-vs-customer-admin.md) | ⚠️ אבטחה — אסור כפתורי ספק (מודולים/רישיון/מכסה) בצד הלקוח. גיבוי ענן בלבד |
 
 > ⚠️ #4 (ניתוב OCR) הוא הכי קל לפספס — אסור prompt אחד גנרי לכל סוגי המסמכים.
 
