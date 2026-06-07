@@ -35,6 +35,8 @@ Shared backend:
 - `routes/auth.js` for identity session endpoints only
 - `routes/admin.js` for settings, users, audit, and database maintenance
 - `constants.js`
+- `services/moduleLoader.js` for selecting the active industry module through `ACTIVE_INDUSTRY_MODULE`
+- `modules/steel-rebar/index.js` as the current industry contract implementation
 - `status-contracts.js`
 - `public/status-contracts-client.js`
 - `db/connection.js` for database path, startup snapshots, and production safety checks

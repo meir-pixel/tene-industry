@@ -18,6 +18,7 @@ const { createDatabaseConnection } = require('./db/connection');
 const { createLicenseService } = require('./services/license');
 const { createPricer }          = require('./services/pricer');
 const { createSettingsService } = require('./services/settings');
+const { createModuleLoader } = require('./services/moduleLoader');
 const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
 const statusContracts = require('./status-contracts');
 const constants = require('./constants');
@@ -51,18 +52,8 @@ const createPriorityRouter = require('./routes/priority');
 const createAiRouter = require('./routes/ai');
 const createSearchRouter = require('./routes/search');
 const createBvbsRouter = require('./routes/bvbs');
-const {
-  REBAR_WEIGHTS,
-  MACHINE_STATES,
-  STATE_TRANSITIONS,
-  rebarKgPerMeter,
-} = constants;
-const {
-  autoAssignMachine,
-  normalizeFactorySegments,
-  normalizeFactoryShapeName,
-  createOrderFactory,
-} = ordersService;
+const { MACHINE_STATES, STATE_TRANSITIONS } = constants;
+const { createOrderFactory } = ordersService;
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -126,6 +117,16 @@ ensureCoreSchema(db);
 
 runCoreMigrations(db);
 ensureAuthSchema(db);
+
+const moduleLoader = createModuleLoader(settingsService);
+const industry = moduleLoader.active();
+const {
+  rebarKgPerMeter,
+  REBAR_WEIGHTS,
+  autoAssignMachine,
+  normalizeFactorySegments,
+  normalizeFactoryShapeName,
+} = industry;
 
 const STRICT_SECRET_ENVS = new Set(['production', 'staging']);
 if (!process.env.JWT_SECRET && STRICT_SECRET_ENVS.has(process.env.NODE_ENV)) {

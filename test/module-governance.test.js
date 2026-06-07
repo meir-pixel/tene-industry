@@ -942,3 +942,25 @@ test('database connection safety is extracted from server', () => {
   assert.doesNotMatch(server, /SKIP_STARTUP_DB_SNAPSHOT/);
   assert.doesNotMatch(server, /journal_mode = WAL/);
 });
+
+
+test('industry module is resolved through the loader, not hardcoded', () => {
+  const server = read('server.js');
+  const loader = read('services/moduleLoader.js');
+  const steel = read('modules/steel-rebar/index.js');
+  const settings = read('services/settings.js');
+
+  assert.match(server, /createModuleLoader/);
+  assert.match(server, /moduleLoader\.active\(\)/);
+  assert.match(server, /=\s*industry;/);
+  assert.match(loader, /ACTIVE_INDUSTRY_MODULE/);
+  assert.match(loader, /'steel-rebar'/);
+  assert.match(steel, /kgPerMeter:/);
+  assert.match(steel, /assignResource:/);
+  assert.match(steel, /normalizeSegments:/);
+  assert.match(steel, /normalizeShapeName:/);
+  assert.match(steel, /parseBatchFile:/);
+  assert.match(steel, /weightPerUnit/);
+  assert.match(settings, /ACTIVE_INDUSTRY_MODULE/);
+  assert.doesNotMatch(server, /rebarKgPerMeter,\s*\n\}\s*=\s*constants/);
+});

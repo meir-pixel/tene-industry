@@ -127,6 +127,7 @@ function createSettingsService(db) {
     ['SUPPORT_PHONE',                  9, 'טלפון תמיכה',               'מספר לתמיכה בדף הנעילה',                    'phone',    '',  null, null, null,   0, 'read',   2],
     ['LICENSE_KEY',                    9, 'מפתח רישיון',               'מפתח ייחודי לקוח מ-Tene Industry',          'password', '',  null, null, null,   1, 'hidden', 3],
     ['LICENSE_SERVER',                 9, 'שרת רישיונות',              'כתובת שרת Tene Industry',                   'url',      'https://license.tene-ind.com', null, null, null, 1, 'hidden', 4],
+    ['ACTIVE_INDUSTRY_MODULE',        9, 'מודול תעשייה פעיל',         'איזה מודול תעשייה המערכת מריצה',              'string',   'steel-rebar', null, null, null, 1, 'read',   5],
   ];
 
   defs.forEach(d => defSeed.run(...d));

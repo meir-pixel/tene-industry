@@ -1,38 +1,54 @@
 'use strict';
 
 /**
- * modules/steel-rebar — מודול תעשיית ברזל כפוף
+ * modules/steel-rebar - active industry implementation for bent rebar.
  *
- * ממשק ציבורי לכל הלוגיקה הייחודית לפלדה/ברזל.
- * שאר המערכת (routes, services, server.js) מייבאת מכאן — לא מ-constants.js ישירות.
- *
- * כשיגיע מודול תעשייה שני (עץ, אריזה וכו') — אותו ממשק, מימוש שונה.
+ * This file keeps the old steel-specific exports and also exposes the generic
+ * industry contract consumed by services/moduleLoader.js.
  */
 
 const { REBAR_WEIGHTS, REBAR_KG_PER_M, VALID_DIAMETERS, rebarKgPerMeter } = require('./weights');
-const { autoAssignMachine }                                                  = require('./machines');
-const { normalizeFactorySegments, normalizeFactoryShapeName }                = require('./shapes');
-const { parseBVBS, parseBVBSLine }                                           = require('./bvbs');
+const { autoAssignMachine } = require('./machines');
+const { normalizeFactorySegments, normalizeFactoryShapeName } = require('./shapes');
+const { parseBVBS, parseBVBSLine } = require('./bvbs');
+
+function weightPerUnit(item = {}) {
+  const len = Number(item.total_length_mm) || 0;
+  return (len / 1000) * rebarKgPerMeter(item.diameter);
+}
 
 module.exports = {
-  // זהות המודול
-  MODULE_ID:   'steel-rebar',
+  // Existing steel-specific API.
+  MODULE_ID: 'steel-rebar',
   MODULE_NAME: 'ברזל כפוף',
-
-  // חישובי משקל
   rebarKgPerMeter,
   REBAR_WEIGHTS,
   REBAR_KG_PER_M,
   VALID_DIAMETERS,
-
-  // שיוך מכונה
   autoAssignMachine,
-
-  // נורמליזציה של צורות
   normalizeFactorySegments,
   normalizeFactoryShapeName,
-
-  // פרסר BVBS
   parseBVBS,
   parseBVBSLine,
+
+  // Generic industry module contract.
+  id: 'steel-rebar',
+  name: 'ברזל כפוף',
+  kgPerMeter: rebarKgPerMeter,
+  assignResource: autoAssignMachine,
+  normalizeSegments: normalizeFactorySegments,
+  normalizeShapeName: normalizeFactoryShapeName,
+  parseBatchFile: parseBVBS,
+  weightPerUnit,
+  priceDimension: 'diameter',
+  itemFields: [
+    { key: 'diameter', label: 'קוטר', type: 'number', unit: 'mm', required: true },
+    { key: 'segments', label: 'צלעות', type: 'segments' },
+  ],
+  labels: {
+    item: 'מוט',
+    dimension: 'קוטר',
+    resource: 'מכונה',
+    batchFile: 'קובץ BVBS',
+  },
 };
