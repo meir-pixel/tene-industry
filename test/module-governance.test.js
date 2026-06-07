@@ -443,7 +443,7 @@ test('catalog and pricing routes are split out of the server monolith', () => {
 test('intake import and manual parsing live in an intake workflow service', () => {
   const service = read('services/intakeWorkflow.js');
   const server = read('server.js');
-  const route = read('routes/intake.js');
+  const reviewRoute = read('routes/intakeReview.js');
 
   assert.match(service, /function buildOrderImportPreview/);
   assert.match(service, /function buildIntakeOrderPayload/);
@@ -454,13 +454,14 @@ test('intake import and manual parsing live in an intake workflow service', () =
   assert.match(server, /require\('\.\/services\/intakeWorkflow'\)/);
   assert.match(server, /intakeWorkflow\.buildIntakeOrderPayload/);
   assert.match(server, /intakeWorkflow\.buildOrderImportPreview/);
-  assert.match(route, /intakeWorkflow\.parseManualIntakeText/);
+  assert.match(reviewRoute, /intakeWorkflow\.parseManualIntakeText/);
   assert.match(server, /intakeWorkflow\.resolveIntakeCustomer/);
 });
 
 test('intake API routes are split out of the server monolith', () => {
   const route = read('routes/intake.js');
   const trainingRoute = read('routes/intakeTraining.js');
+  const reviewRoute = read('routes/intakeReview.js');
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createIntakeRouter/);
@@ -472,18 +473,28 @@ test('intake API routes are split out of the server monolith', () => {
   assert.ok(route.includes("router.get('/intake/whatsapp'"));
   assert.ok(route.includes("router.post('/intake/whatsapp'"));
   assert.ok(route.includes("router.post('/intake/email/poll'"));
-  assert.ok(route.includes("router.get('/intake/log'"));
-  assert.ok(route.includes("router.post('/intake/:id/approve'"));
-  assert.ok(route.includes("router.post('/intake/:id/reject'"));
-  assert.ok(route.includes("router.post('/intake/parse-text'"));
+  assert.ok(!route.includes("router.get('/intake/log'"));
+  assert.ok(!route.includes("router.post('/intake/:id/approve'"));
+  assert.ok(!route.includes("router.post('/intake/:id/reject'"));
+  assert.ok(!route.includes("router.post('/intake/parse-text'"));
   assert.match(trainingRoute, /module\.exports = function createIntakeTrainingRouter/);
   assert.match(trainingRoute, /routes\/intakeTraining missing dependency/);
   assert.ok(trainingRoute.includes("router.get('/intake/training'"));
   assert.ok(trainingRoute.includes("router.post('/intake/training'"));
   assert.ok(trainingRoute.includes("router.delete('/intake/training/:id'"));
+  assert.match(reviewRoute, /module\.exports = function createIntakeReviewRouter/);
+  assert.match(reviewRoute, /routes\/intakeReview missing dependency/);
+  assert.ok(reviewRoute.includes("router.get('/intake/log'"));
+  assert.ok(reviewRoute.includes("router.post('/intake/:id/approve'"));
+  assert.ok(reviewRoute.includes("router.post('/intake/:id/reject'"));
+  assert.ok(reviewRoute.includes("router.post('/intake/parse-text'"));
+  assert.match(reviewRoute, /createOrderFromPayload/);
+  assert.match(reviewRoute, /wsBroadcast\('new_order'/);
   assert.match(server, /createIntakeRouter/);
   assert.match(server, /createIntakeTrainingRouter/);
+  assert.match(server, /createIntakeReviewRouter/);
   assert.ok(server.includes("app.use('/api', createIntakeTrainingRouter"));
+  assert.ok(server.includes("app.use('/api', createIntakeReviewRouter"));
   assert.ok(server.includes("app.use('/api', createIntakeRouter"));
   assert.ok(!server.includes("app.post('/api/analyze-image'"));
   assert.ok(!server.includes("app.get('/api/intake/training'"));
