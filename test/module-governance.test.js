@@ -123,6 +123,49 @@ test('change protocol blocks unowned work and duplicate module edits', () => {
   assert.match(template, /Do not edit:/);
 });
 
+test('license entitlements gate module routers from the shared catalog', () => {
+  const server = read('server.js');
+  const license = read('services/license.js');
+
+  assert.match(server, /require\('\.\/shared\/module-catalog\.json'\)/);
+  assert.match(server, /const licenseService = createLicenseService\(db\)/);
+  assert.match(server, /function requireModule\(key\)/);
+  assert.match(server, /licensedModuleKeys\.has\(key\)/);
+  assert.match(server, /settingsService\.get\('license_modules'/);
+  assert.match(server, /code: 'module_not_licensed'/);
+  assert.ok(
+    server.indexOf("app.use('/api', licenseService.middleware)") < server.indexOf("app.use('/api', requireModule('orders'), createOrdersRouter"),
+    'license middleware must mount before module routers'
+  );
+
+  for (const [moduleKey, routerName] of [
+    ['orders', 'createOrdersRouter'],
+    ['production', 'createProductionRouter'],
+    ['inventory', 'createInventoryRouter'],
+    ['procurement', 'createProcurementRouter'],
+    ['finance', 'createFinanceRouter'],
+    ['fleet', 'createFleetRouter'],
+    ['quality', 'createQualityRouter'],
+    ['customers', 'createCustomersRouter'],
+    ['intake', 'createIntakeRouter'],
+    ['portal', 'createPortalRouter'],
+    ['warehouse', 'createWarehouseRouter'],
+    ['reports', 'createReportsRouter'],
+    ['companies', 'createCompaniesRouter'],
+    ['ai', 'createAiRouter'],
+    ['bvbs', 'createBvbsRouter'],
+  ]) {
+    assert.match(server, new RegExp(`app\\.use\\('\\/api', requireModule\\('${moduleKey}'\\), ${routerName}`));
+  }
+
+  assert.match(license, /function cacheEntitlements\(entitlements\)/);
+  assert.match(license, /license_modules/);
+  assert.match(license, /JSON\.stringify\(modules\)/);
+  assert.match(license, /license_package/);
+  assert.match(license, /license_max_users/);
+  assert.match(license, /result\.entitlements/);
+});
+
 test('admin module board exposes maturity, risk, scope and vendor control', () => {
   const admin = read('public/admin.html');
 
@@ -217,7 +260,7 @@ test('inventory receiving API routes are split out of the server monolith', () =
   assert.doesNotMatch(route, /router\.get\('\/steel-prices'/);
   assert.doesNotMatch(route, /router\.get\('\/purchase-orders'/);
   assert.match(server, /createInventoryRouter/);
-  assert.match(server, /app\.use\('\/api', createInventoryRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('inventory'\), createInventoryRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/suppliers/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/inventory/);
 });
@@ -240,7 +283,7 @@ test('inventory OCR and vision routes are split out of inventory receiving', () 
   assert.match(route, /axios\.post\('https:\/\/api\.openai\.com\/v1\/responses'/);
   assert.match(route, /parseReceiptReviewPayload/);
   assert.match(server, /createInventoryVisionRouter/);
-  assert.match(server, /app\.use\('\/api', createInventoryVisionRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('inventory'\), createInventoryVisionRouter/);
 });
 
 test('procurement API routes are split out of inventory', () => {
@@ -254,7 +297,7 @@ test('procurement API routes are split out of inventory', () => {
   assert.match(route, /router\.get\('\/purchase-orders'/);
   assert.match(route, /router\.patch\('\/purchase-orders\/:id\/receive'/);
   assert.match(server, /createProcurementRouter/);
-  assert.match(server, /app\.use\('\/api', createProcurementRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('procurement'\), createProcurementRouter/);
   assert.doesNotMatch(inventory, /router\.get\('\/steel-prices'/);
   assert.doesNotMatch(inventory, /router\.get\('\/purchase-orders'/);
   assert.doesNotMatch(server, /app\.(get|post)\('\/api\/steel-prices/);
@@ -273,7 +316,7 @@ test('core order API routes are split out of the server monolith', () => {
   assert.match(route, /auditLog\('order'/);
   assert.match(route, /wsBroadcast\('new_order'/);
   assert.match(server, /createOrdersRouter/);
-  assert.match(server, /app\.use\('\/api', createOrdersRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('orders'\), createOrdersRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/orders(?!\/:id\/(?:print-cards|delivery-certificate|print-a4|margin|costs))/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/order-imports/);
 });
@@ -289,7 +332,7 @@ test('production card print routes are split out of the server monolith', () => 
   assert.match(route, /printPage\.renderPrintCardsPage/);
   assert.doesNotMatch(route, /function buildSplitMaster/);
   assert.match(server, /createProductionCardsRouter/);
-  assert.match(server, /app\.use\('\/api', createProductionCardsRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('production'\), createProductionCardsRouter/);
   assert.doesNotMatch(server, /app\.get\('\/api\/orders\/:id\/print-cards'/);
   assert.doesNotMatch(server, /function pcMasterCard/);
   assert.doesNotMatch(server, /function pcItemCard/);
@@ -313,7 +356,7 @@ test('order document routes are split out of production card printing', () => {
   assert.match(printA4, /router\.get\('\/orders\/:id\/print-a4'/);
   assert.match(printA4, /required\('tryParseJSON', deps\.tryParseJSON\)/);
   assert.match(server, /createOrderDocumentsRouter/);
-  assert.match(server, /app\.use\('\/api', createOrderDocumentsRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('production'\), createOrderDocumentsRouter/);
   assert.doesNotMatch(productionCardsRoute, /delivery-certificate/);
   assert.doesNotMatch(productionCardsRoute, /print-a4/);
   assert.doesNotMatch(server, /app\.get\('\/api\/orders\/:id\/delivery-certificate'/);
@@ -376,10 +419,10 @@ test('finance API routes are split out of the server monolith', () => {
   assert.match(server, /createFinanceInvoicesRouter/);
   assert.match(server, /createFinanceCostsRouter/);
   assert.match(server, /createFinanceLedgerRouter/);
-  assert.match(server, /app\.use\('\/api', createFinanceInvoicesRouter/);
-  assert.match(server, /app\.use\('\/api', createFinanceCostsRouter/);
-  assert.match(server, /app\.use\('\/api', createFinanceLedgerRouter/);
-  assert.match(server, /app\.use\('\/api', createFinanceRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('finance'\), createFinanceInvoicesRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('finance'\), createFinanceCostsRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('finance'\), createFinanceLedgerRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('finance'\), createFinanceRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/invoices/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/orders\/:id\/(?:margin|costs)/);
   assert.doesNotMatch(server, /app\.(get|patch)\('\/api\/customers\/:id\/(?:ledger|credit)/);
@@ -410,7 +453,7 @@ test('finance credit API routes are split from finance ledger and invoices', () 
   assert.match(route, /credit_transactions/);
   assert.match(route, /requireAnyRole\(\['finance', 'manager', 'admin'\]\)/);
   assert.match(server, /createFinanceCreditRouter/);
-  assert.match(server, /app\.use\('\/api', createFinanceCreditRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('finance'\), createFinanceCreditRouter/);
   assert.doesNotMatch(finance, /credit_accounts/);
   assert.doesNotMatch(finance, /credit_transactions/);
   assert.ok(!server.includes("app.get('/api/credit'"));
@@ -431,7 +474,7 @@ test('catalog and pricing routes are split out of the server monolith', () => {
   assert.ok(route.includes("router.post('/shapes'"));
   assert.ok(route.includes("router.post('/shapes/seed'"));
   assert.match(server, /createCatalogRouter/);
-  assert.ok(server.includes("app.use('/api', createCatalogRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('production'), createCatalogRouter"));
   assert.ok(!finance.includes("router.get('/price-list'"));
   assert.ok(!finance.includes("router.patch('/price-list'"));
   assert.ok(!server.includes("app.get('/api/price-list'"));
@@ -503,10 +546,10 @@ test('intake API routes are split out of the server monolith', () => {
   assert.match(server, /createIntakeChannelsRouter/);
   assert.match(server, /createIntakeTrainingRouter/);
   assert.match(server, /createIntakeReviewRouter/);
-  assert.ok(server.includes("app.use('/api', createIntakeTrainingRouter"));
-  assert.ok(server.includes("app.use('/api', createIntakeReviewRouter"));
-  assert.ok(server.includes("app.use('/api', createIntakeChannelsRouter"));
-  assert.ok(server.includes("app.use('/api', createIntakeRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('intake'), createIntakeTrainingRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('intake'), createIntakeReviewRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('intake'), createIntakeChannelsRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('intake'), createIntakeRouter"));
   assert.ok(!server.includes("app.post('/api/analyze-image'"));
   assert.ok(!server.includes("app.get('/api/intake/training'"));
   assert.ok(!server.includes("app.post('/api/intake/training'"));
@@ -565,7 +608,7 @@ test('customer CRM project and site API routes are split out of the server monol
   }
 
   assert.match(server, /createCustomersRouter/);
-  assert.ok(server.includes("app.use('/api', createCustomersRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('customers'), createCustomersRouter"));
   for (const forbiddenSnippet of [
     "app.get('/api/customers',",
     "app.get('/api/customers/:id',",
@@ -656,8 +699,8 @@ test('customer portal and portal management routes are split out of the server m
 
   assert.match(server, /createPortalRouter/);
   assert.match(server, /createPortalAdminRouter/);
-  assert.ok(server.includes("app.use('/api', createPortalAdminRouter"));
-  assert.ok(server.includes("app.use('/api', createPortalRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('portal'), createPortalAdminRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('portal'), createPortalRouter"));
   for (const forbiddenSnippet of [
     "app.get('/api/customers/:id/token'",
     "app.post('/api/customers/:id/token/rotate'",
@@ -761,7 +804,7 @@ test('quality and maintenance API routes are split out of the server monolith', 
   }
 
   assert.match(server, /createQualityRouter/);
-  assert.ok(server.includes("app.use('/api', createQualityRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('quality'), createQualityRouter"));
   for (const forbiddenSnippet of [
     "app.get('/api/quality'",
     "app.post('/api/quality'",
@@ -812,7 +855,7 @@ test('production execution API routes are split out of the server monolith', () 
   assert.doesNotMatch(route, /router\.get\('\/reports\/waste'/);
   assert.doesNotMatch(route, /router\.get\('\/waste\/summary'/);
   assert.match(server, /createProductionRouter/);
-  assert.ok(server.includes("app.use('/api', createProductionRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('production'), createProductionRouter"));
 
   for (const forbiddenSnippet of [
     "app.get('/api/workers'",
@@ -881,7 +924,7 @@ test('production KPI routes are split out of production execution', () => {
   }
   assert.match(route, /statusContracts[.]ITEM_STATUS[.]DONE/);
   assert.match(server, /createProductionMetricsRouter/);
-  assert.ok(server.includes("app.use('/api', createProductionMetricsRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('production'), createProductionMetricsRouter"));
   assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/(?:kpi\/tons-today|kpi\/shift-summary|machines\/oee)/);
 });
 
@@ -906,7 +949,7 @@ test('production shifts and machine stop routes are split out of production exec
   }
   assert.match(route, /INSERT INTO production_events/);
   assert.match(server, /createProductionShiftsRouter/);
-  assert.ok(server.includes("app.use('/api', createProductionShiftsRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('production'), createProductionShiftsRouter"));
   assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/(?:shifts|machine-stops|downtime-reasons)/);
 });
 
@@ -924,7 +967,7 @@ test('warehouse package and delivery note routes are split out of the server mon
   assert.match(route, /package_code/);
   assert.match(route, /note_num/);
   assert.match(server, /createWarehouseRouter/);
-  assert.ok(server.includes("app.use('/api', createWarehouseRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('warehouse'), createWarehouseRouter"));
   for (const forbiddenSnippet of [
     "app.get('/api/packages'",
     "app.post('/api/packages'",
@@ -954,7 +997,7 @@ test('dashboard reports KPI and export routes are split out of the server monoli
   assert.match(route, /statusContracts[.]ITEM_STATUS[.]DONE/);
   assert.match(route, /ai[.]analyzeWastePatterns/);
   assert.match(server, /createReportsRouter/);
-  assert.ok(server.includes("app.use('/api', createReportsRouter"));
+  assert.ok(server.includes("app.use('/api', requireModule('reports'), createReportsRouter"));
   for (const forbiddenSnippet of [
     "app.get('/api/dashboard'",
     "app.get('/api/reports/summary'",
@@ -997,7 +1040,7 @@ test('fleet API routes are split out of the server monolith', () => {
   assert.doesNotMatch(route, /priorityUpdate/);
   assert.doesNotMatch(route, /createAlert\('delivery_problem'/);
   assert.match(server, /createFleetRouter/);
-  assert.match(server, /app\.use\('\/api', createFleetRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('fleet'\), createFleetRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/vehicles/);
   assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/drivers/);
   assert.doesNotMatch(server, /function vehiclePortfolioRows/);
@@ -1022,7 +1065,7 @@ test('logistics delivery routes are split out of fleet', () => {
   assert.match(route, /priorityUpdate/);
   assert.match(route, /createAlert\('delivery_problem'/);
   assert.match(server, /createLogisticsRouter/);
-  assert.match(server, /app\.use\('\/api', createLogisticsRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('fleet'\), createLogisticsRouter/);
   assert.doesNotMatch(fleet, /router\.(get|post|patch|delete)\('\/deliveries/);
   assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/deliveries/);
 });

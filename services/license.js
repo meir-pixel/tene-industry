@@ -127,6 +127,20 @@ function createLicenseService(db) {
     db.prepare('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)').run(key, String(value));
   }
 
+  function cacheEntitlements(entitlements) {
+    if (!entitlements || typeof entitlements !== 'object') {
+      setSetting('license_modules', '');
+      setSetting('license_package', '');
+      setSetting('license_max_users', '');
+      return;
+    }
+
+    const modules = Array.isArray(entitlements.modules) ? entitlements.modules : null;
+    setSetting('license_modules', modules ? JSON.stringify(modules) : '');
+    setSetting('license_package', entitlements.package || '');
+    setSetting('license_max_users', entitlements.maxUsers ?? '');
+  }
+
   // ── FREE mode ─────────────────────────────────────────────────
   // אין LICENSE_KEY = מצב חינם, עובד מלא ללא הגבלה
   function isFreeMode() {
@@ -150,6 +164,7 @@ function createLicenseService(db) {
     setSetting('license_checked_at', new Date().toISOString());
     setSetting('license_message',    result.message || '');
     setSetting('license_plan',       result.valid ? 'paid' : 'locked');
+    cacheEntitlements(result.valid ? result.entitlements : null);
   }
 
   function isWithinGracePeriod() {
@@ -163,6 +178,7 @@ function createLicenseService(db) {
   async function check() {
     if (isFreeMode()) {
       setSetting('license_plan', 'free');
+      cacheEntitlements(null);
       console.log('[License] Free mode — no license key, full functionality');
       return { valid: true, plan: 'free' };
     }

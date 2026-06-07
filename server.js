@@ -30,6 +30,7 @@ const { createAuthMiddleware } = require('./middleware/auth');
 const { createScheduler } = require('./jobs/scheduler');
 const ordersService = require('./services/orders');
 const intakeWorkflow = require('./services/intakeWorkflow');
+const moduleCatalog = require('./shared/module-catalog.json');
 const createInventoryRouter = require('./routes/inventory');
 const createInventoryVisionRouter = require('./routes/inventoryVision');
 const createProcurementRouter = require('./routes/procurement');
@@ -123,6 +124,7 @@ const {
 let db = initialDb;
 const settingsService = createSettingsService(db);
 const pricer = createPricer(db);
+const licenseService = createLicenseService(db);
 const fs = require('fs');
 modbus.init(db); // pass db so modbus reads machine config live
 
@@ -183,6 +185,39 @@ const webhookLimiter = rateLimit({
 
 
 app.use('/api', optionalAuth);
+
+const licensedModuleKeys = new Set((moduleCatalog.modules || []).map(m => m.key));
+
+function readLicensedModules() {
+  const raw = settingsService.get('license_modules', null);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return new Set(parsed.filter(key => licensedModuleKeys.has(key)));
+  } catch {
+    return null;
+  }
+}
+
+function requireModule(key) {
+  if (!licensedModuleKeys.has(key)) {
+    throw new Error(`Unknown licensed module key: ${key}`);
+  }
+
+  return (req, res, next) => {
+    const enabled = readLicensedModules();
+    if (!enabled) return next();
+    if (enabled.has(key)) return next();
+    return res.status(403).json({
+      error: 'Module is not included in this license',
+      code: 'module_not_licensed',
+      module: key,
+    });
+  };
+}
+
+app.use('/api', licenseService.middleware);
 
 seedCoreData(db);
 
@@ -288,7 +323,7 @@ function buildOrderImportPreview(buffer) {
   });
 }
 
-app.use('/api', createOrdersRouter({
+app.use('/api', requireModule('orders'), createOrdersRouter({
   db,
   requireAnyRole,
   requireRole,
@@ -307,7 +342,7 @@ app.use('/api', createOrdersRouter({
   auditLog,
 }));
 
-app.use('/api', createProductionCardsRouter({
+app.use('/api', requireModule('production'), createProductionCardsRouter({
   db,
   requireAnyRole,
   productionCards,
@@ -317,20 +352,20 @@ app.use('/api', createProductionCardsRouter({
   normalizeFactoryShapeName,
 }));
 
-app.use('/api', createOrderDocumentsRouter({
+app.use('/api', requireModule('production'), createOrderDocumentsRouter({
   db,
   requireAnyRole,
   industry,
   tryParseJSON,
 }));
 
-app.use('/api', createFinanceInvoicesRouter({
+app.use('/api', requireModule('finance'), createFinanceInvoicesRouter({
   db,
   requireAnyRole,
   wsBroadcast,
 }));
 
-app.use('/api', createFinanceCostsRouter({
+app.use('/api', requireModule('finance'), createFinanceCostsRouter({
   db,
   requireAnyRole,
   requireRole,
@@ -339,12 +374,12 @@ app.use('/api', createFinanceCostsRouter({
   settingsService,
 }));
 
-app.use('/api', createFinanceLedgerRouter({
+app.use('/api', requireModule('finance'), createFinanceLedgerRouter({
   db,
   requireAnyRole,
 }));
 
-app.use('/api', createFinanceRouter({
+app.use('/api', requireModule('finance'), createFinanceRouter({
   db,
   requireAnyRole,
   requireRole,
@@ -353,12 +388,12 @@ app.use('/api', createFinanceRouter({
   settingsService,
 }));
 
-app.use('/api', createFinanceCreditRouter({
+app.use('/api', requireModule('finance'), createFinanceCreditRouter({
   db,
   requireAnyRole,
 }));
 
-app.use('/api', createFleetRouter({
+app.use('/api', requireModule('fleet'), createFleetRouter({
   db,
   requireAnyRole,
   wsBroadcast,
@@ -366,7 +401,7 @@ app.use('/api', createFleetRouter({
   upload,
 }));
 
-app.use('/api', createLogisticsRouter({
+app.use('/api', requireModule('fleet'), createLogisticsRouter({
   db,
   requireAnyRole,
   wsBroadcast,
@@ -375,7 +410,7 @@ app.use('/api', createLogisticsRouter({
   createAlert,
 }));
 
-app.use('/api', createProductionRouter({
+app.use('/api', requireModule('production'), createProductionRouter({
   db,
   requireAnyRole,
   requireRole,
@@ -388,25 +423,25 @@ app.use('/api', createProductionRouter({
   tryParseJSON,
 }));
 
-app.use('/api', createProductionMetricsRouter({
+app.use('/api', requireModule('production'), createProductionMetricsRouter({
   db,
   requireAnyRole,
   requireRole,
   statusContracts,
 }));
 
-app.use('/api', createProductionShiftsRouter({
+app.use('/api', requireModule('production'), createProductionShiftsRouter({
   db,
   requireAnyRole,
 }));
 
-app.use('/api', createQualityRouter({
+app.use('/api', requireModule('quality'), createQualityRouter({
   db,
   requireAnyRole,
   wsBroadcast,
 }));
 
-app.use('/api', createCustomersRouter({
+app.use('/api', requireModule('customers'), createCustomersRouter({
   db,
   requireAnyRole,
 }));
@@ -484,7 +519,7 @@ function getIntakeTrainingGuidance(limit = 12, documentTypes = []) {
 
 
 // ── API ROUTERS ────────────────────────────────────────────────────────
-app.use('/api', createInventoryRouter({
+app.use('/api', requireModule('inventory'), createInventoryRouter({
   db,
   requireAnyRole,
   wsBroadcast,
@@ -492,7 +527,7 @@ app.use('/api', createInventoryRouter({
   listPage,
 }));
 
-app.use('/api', createInventoryVisionRouter({
+app.use('/api', requireModule('inventory'), createInventoryVisionRouter({
   db,
   requireAnyRole,
   analyzeBendingShapeAuthorization,
@@ -504,17 +539,17 @@ app.use('/api', createInventoryVisionRouter({
   wsBroadcast,
 }));
 
-app.use('/api', createProcurementRouter({
+app.use('/api', requireModule('procurement'), createProcurementRouter({
   db,
   requireAnyRole,
 }));
 
-app.use('/api', createIntakeTrainingRouter({
+app.use('/api', requireModule('intake'), createIntakeTrainingRouter({
   db,
   requireAnyRole,
 }));
 
-app.use('/api', createIntakeReviewRouter({
+app.use('/api', requireModule('intake'), createIntakeReviewRouter({
   db,
   requireAnyRole,
   wsBroadcast,
@@ -525,7 +560,7 @@ app.use('/api', createIntakeReviewRouter({
   intake,
 }));
 
-app.use('/api', createIntakeChannelsRouter({
+app.use('/api', requireModule('intake'), createIntakeChannelsRouter({
   db,
   requireAnyRole,
   INTAKE_AI_ENABLED,
@@ -535,7 +570,7 @@ app.use('/api', createIntakeChannelsRouter({
   wsBroadcast,
 }));
 
-app.use('/api', createIntakeRouter({
+app.use('/api', requireModule('intake'), createIntakeRouter({
   db,
   requireAnyRole,
   analyzeImageAuthorization,
@@ -549,7 +584,7 @@ app.use('/api', createIntakeRouter({
   INTAKE_AI_ENABLED,
   intake,
 }));
-app.use('/api', createPortalAdminRouter({
+app.use('/api', requireModule('portal'), createPortalAdminRouter({
   db,
   requireAnyRole,
   auditLog,
@@ -557,7 +592,7 @@ app.use('/api', createPortalAdminRouter({
   settingsService,
   PORT,
 }));
-app.use('/api', createPortalRouter({
+app.use('/api', requireModule('portal'), createPortalRouter({
   db,
   customerPortalAuthLimiter,
   customerPortalActionLimiter,
@@ -571,11 +606,11 @@ app.use('/api', createPortalRouter({
   PORT,
   IS_TEST,
 }));
-app.use('/api', createWarehouseRouter({
+app.use('/api', requireModule('warehouse'), createWarehouseRouter({
   db,
   requireAnyRole,
 }));
-app.use('/api', createReportsRouter({
+app.use('/api', requireModule('reports'), createReportsRouter({
   db,
   requireRole,
   requireAnyRole,
@@ -583,19 +618,19 @@ app.use('/api', createReportsRouter({
   ai,
 }));
 
-app.use('/api', createCatalogRouter({
+app.use('/api', requireModule('production'), createCatalogRouter({
   db,
   requireAnyRole,
   intake,
   PORT,
 }));
 
-app.use('/api', createAlertsRouter({ db, requireRole, requireAnyRole, wsBroadcast }));
-app.use('/api', createCompaniesRouter({ db, requireAnyRole }));
-app.use('/api', createPriorityRouter({ db, requireRole, requireAnyRole, priority, PRIORITY_ENABLED }));
-app.use('/api', createAiRouter({ db, requireAnyRole, ai }));
-app.use('/api', createSearchRouter({ db, requireRole }));
-app.use('/api', createBvbsRouter({ db, requireAnyRole, upload, industry, generateOrderNum, wsBroadcast }));
+app.use('/api', requireModule('reports'), createAlertsRouter({ db, requireRole, requireAnyRole, wsBroadcast }));
+app.use('/api', requireModule('companies'), createCompaniesRouter({ db, requireAnyRole }));
+app.use('/api', requireModule('orders'), createPriorityRouter({ db, requireRole, requireAnyRole, priority, PRIORITY_ENABLED }));
+app.use('/api', requireModule('ai'), createAiRouter({ db, requireAnyRole, ai }));
+app.use('/api', requireModule('reports'), createSearchRouter({ db, requireRole }));
+app.use('/api', requireModule('bvbs'), createBvbsRouter({ db, requireAnyRole, upload, industry, generateOrderNum, wsBroadcast }));
 
 
 function tryParseJSON(val, fallback = null) {
@@ -710,7 +745,6 @@ function startServer(port = PORT, host = '0.0.0.0') {
 }
 
 if (require.main === module) {
-  const licenseService = createLicenseService(db);
   licenseService.check().then(result => {
     const plan = result.plan || (result.valid ? 'free' : 'locked');
     if (plan === 'free') {
@@ -718,7 +752,6 @@ if (require.main === module) {
     } else if (plan === 'locked') {
       console.error('\n🔒 IronBend נעול — הרישיון לא תקף. צור קשר: Tene Industry\n');
     }
-    app.use('/api', licenseService.middleware);
     startServer();
   }).catch(err => {
     console.error('[License] Fatal error:', err.message);
