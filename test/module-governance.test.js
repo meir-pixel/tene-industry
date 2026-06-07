@@ -165,6 +165,11 @@ test('license entitlements gate module routers from the shared catalog', () => {
   assert.match(license, /JSON\.stringify\(modules\)/);
   assert.match(license, /license_package/);
   assert.match(license, /license_max_users/);
+  assert.match(license, /function activeUsersThisMonth\(\)/);
+  assert.match(license, /WHERE last_login >= date\('now','start of month'\)/);
+  assert.match(license, /activeUsers,/);
+  assert.match(license, /license_users_over/);
+  assert.match(license, /result\.usersOverLimit \? '1' : '0'/);
   assert.match(license, /result\.entitlements/);
 });
 

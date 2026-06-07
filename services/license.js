@@ -127,11 +127,27 @@ function createLicenseService(db) {
     db.prepare('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)').run(key, String(value));
   }
 
+  function activeUsersThisMonth() {
+    try {
+      return db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM users
+        WHERE last_login >= date('now','start of month')
+      `).get().count || 0;
+    } catch {
+      return 0;
+    }
+  }
+
   function cacheEntitlements(entitlements) {
+    // License feature modules come from shared/module-catalog.json.
+    // Industry modules such as modules/steel-rebar are a separate calculation/rendering axis.
     if (!entitlements || typeof entitlements !== 'object') {
       setSetting('license_modules', '');
       setSetting('license_package', '');
       setSetting('license_max_users', '');
+      setSetting('license_users_over', '0');
+      setSetting('license_active_users', '0');
       return;
     }
 
@@ -150,9 +166,11 @@ function createLicenseService(db) {
 
   // ── בדיקה מול שרת ────────────────────────────────────────────
   async function checkRemote(licenseKey) {
+    const activeUsers = activeUsersThisMonth();
     return httpsPost(`${LICENSE_SERVER}/api/check`, {
       licenseKey,
       machineId,
+      activeUsers,
       version: process.env.npm_package_version || '1.0.0',
     });
   }
@@ -164,6 +182,8 @@ function createLicenseService(db) {
     setSetting('license_checked_at', new Date().toISOString());
     setSetting('license_message',    result.message || '');
     setSetting('license_plan',       result.valid ? 'paid' : 'locked');
+    setSetting('license_users_over', result.usersOverLimit ? '1' : '0');
+    setSetting('license_active_users', result.activeUsers ?? activeUsersThisMonth());
     cacheEntitlements(result.valid ? result.entitlements : null);
   }
 
