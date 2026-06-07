@@ -664,12 +664,9 @@ test('production execution API routes are split out of the server monolith', () 
     "router.get('/production-queue'",
     "router.get('/production-events'",
     "router.patch('/items/:id/status'",
-    "router.get('/machines/oee'",
-    "router.get('/kpi/tons-today'",
   ]) {
     assert.ok(route.includes(routeSnippet), routeSnippet);
   }
-  assert.match(route, /statusContracts[.]ITEM_STATUS[.]DONE/);
   assert.ok(route.includes("wsBroadcast('machine_assign'"));
   assert.match(route, /checkOrderComplete/);
   assert.doesNotMatch(route, /router\.get\('\/reports\/waste'/);
@@ -695,9 +692,31 @@ test('production execution API routes are split out of the server monolith', () 
     assert.ok(!server.includes(forbiddenSnippet), forbiddenSnippet);
   }
 
+  assert.match(server, /createProductionMetricsRouter/);
   assert.match(server, /createProductionShiftsRouter/);
   assert.ok(server.includes("createWarehouseRouter"));
   assert.ok(server.includes("createReportsRouter"));
+});
+
+test('production KPI routes are split out of production execution', () => {
+  const route = read('routes/productionMetrics.js');
+  const production = read('routes/production.js');
+  const server = read('server.js');
+
+  assert.match(route, /module[.]exports = function createProductionMetricsRouter/);
+  assert.ok(route.includes('routes/productionMetrics missing dependency'));
+  for (const routeSnippet of [
+    "router.get('/kpi/tons-today'",
+    "router.get('/machines/oee'",
+    "router.get('/kpi/shift-summary'",
+  ]) {
+    assert.ok(route.includes(routeSnippet), routeSnippet);
+    assert.ok(!production.includes(routeSnippet), routeSnippet);
+  }
+  assert.match(route, /statusContracts[.]ITEM_STATUS[.]DONE/);
+  assert.match(server, /createProductionMetricsRouter/);
+  assert.ok(server.includes("app.use('/api', createProductionMetricsRouter"));
+  assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/(?:kpi\/tons-today|kpi\/shift-summary|machines\/oee)/);
 });
 
 test('production shifts and machine stop routes are split out of production execution', () => {

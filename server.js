@@ -39,6 +39,7 @@ const createFinanceRouter = require('./routes/finance');
 const createFleetRouter = require('./routes/fleet');
 const createLogisticsRouter = require('./routes/logistics');
 const createProductionRouter = require('./routes/production');
+const createProductionMetricsRouter = require('./routes/productionMetrics');
 const createProductionShiftsRouter = require('./routes/productionShifts');
 const createQualityRouter = require('./routes/quality');
 const createCustomersRouter = require('./routes/customers');
@@ -351,6 +352,13 @@ app.use('/api', createProductionRouter({
   STATE_TRANSITIONS,
   checkOrderComplete,
   tryParseJSON,
+}));
+
+app.use('/api', createProductionMetricsRouter({
+  db,
+  requireAnyRole,
+  requireRole,
+  statusContracts,
 }));
 
 app.use('/api', createProductionShiftsRouter({

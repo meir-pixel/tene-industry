@@ -135,8 +135,10 @@ Module services:
 
 Extracted routes:
 
+- `routes/productionMetrics.js` for production KPI read models: tons today,
+  machine OEE, and current shift summary.
 - `routes/production.js` for workers, machine setup/state, scan execution,
-  production queue/events, OEE, and production KPIs.
+  and production queue/events.
 - `routes/productionShifts.js` for shifts, downtime reasons, and machine stops.
 
 API route families:
