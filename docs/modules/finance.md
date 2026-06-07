@@ -70,6 +70,15 @@ credit_accounts    → מסגרת אשראי, חסימה אוטומטית
 
 ---
 
+## גבול אחריות עדכני
+
+- `routes/financeInvoices.js` שייך לחשבוניות בלבד: list/create/pay/cancel.
+- `routes/finance.js` שייך לעלויות הזמנה, מרווחים, ledger, customer_credit, KPIs ואירועים פיננסיים.
+- `routes/financeCredit.js` שייך ל-credit_accounts/credit_transactions ולחסימת אשראי תפעולית.
+- אין להחזיר `/api/invoices*` לתוך `routes/finance.js`.
+
+---
+
 ## הרשאות
 
 | פעולה | תפקיד מינימלי |

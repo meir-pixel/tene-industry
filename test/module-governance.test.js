@@ -322,13 +322,10 @@ test('order document routes are split out of production card printing', () => {
 
 test('finance API routes are split out of the server monolith', () => {
   const route = read('routes/finance.js');
+  const invoicesRoute = read('routes/financeInvoices.js');
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createFinanceRouter/);
-  assert.match(route, /router\.get\('\/invoices'/);
-  assert.match(route, /router\.post\('\/invoices'/);
-  assert.match(route, /router\.patch\('\/invoices\/:id\/pay'/);
-  assert.match(route, /router\.patch\('\/invoices\/:id\/cancel'/);
   assert.match(route, /router\.get\('\/orders\/:id\/margin'/);
   assert.match(route, /router\.get\('\/orders\/:id\/costs'/);
   assert.match(route, /router\.post\('\/orders\/:id\/costs\/recalculate'/);
@@ -342,12 +339,24 @@ test('finance API routes are split out of the server monolith', () => {
   assert.ok(!route.includes("router.patch('/credit/:customerId'"));
   assert.ok(!route.includes("router.post('/credit/:customerId/transaction'"));
   assert.ok(!route.includes("router.get('/credit/:customerId/status'"));
+  assert.ok(!route.includes("router.get('/invoices'"));
+  assert.ok(!route.includes("router.post('/invoices'"));
+  assert.ok(!route.includes("router.patch('/invoices/:id/pay'"));
+  assert.ok(!route.includes("router.patch('/invoices/:id/cancel'"));
   assert.doesNotMatch(route, /credit_accounts/);
   assert.doesNotMatch(route, /credit_transactions/);
-  assert.match(route, /wsBroadcast\('new_invoice'/);
-  assert.match(route, /BUG-36: cannot pay cancelled invoice/);
   assert.match(route, /function calculateOrderCost/);
+  assert.match(invoicesRoute, /module\.exports = function createFinanceInvoicesRouter/);
+  assert.match(invoicesRoute, /routes\/financeInvoices missing dependency/);
+  assert.match(invoicesRoute, /router\.get\('\/invoices'/);
+  assert.match(invoicesRoute, /router\.post\('\/invoices'/);
+  assert.match(invoicesRoute, /router\.patch\('\/invoices\/:id\/pay'/);
+  assert.match(invoicesRoute, /router\.patch\('\/invoices\/:id\/cancel'/);
+  assert.match(invoicesRoute, /wsBroadcast\('new_invoice'/);
+  assert.match(invoicesRoute, /BUG-36: cannot pay cancelled invoice/);
   assert.match(server, /createFinanceRouter/);
+  assert.match(server, /createFinanceInvoicesRouter/);
+  assert.match(server, /app\.use\('\/api', createFinanceInvoicesRouter/);
   assert.match(server, /app\.use\('\/api', createFinanceRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/invoices/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/orders\/:id\/(?:margin|costs)/);
