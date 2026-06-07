@@ -520,13 +520,13 @@ test('admin OCR settings describe OpenAI intake instead of Google Vision', () =>
 
 test('order numbers are allocated from a DB sequence instead of order count', () => {
   const server = read('server.js');
-  const startup = read('db/startup.js');
+  const coreSchema = read('db/coreSchema.js');
   const orderNumbers = read('services/orderNumbers.js');
   const generateOrderNumStart = server.indexOf('const generateOrderNum');
   const generateOrderNumEnd = server.indexOf('function checkOrderComplete', generateOrderNumStart);
   const generateOrderNumSource = server.slice(generateOrderNumStart, generateOrderNumEnd);
 
-  assert.match(startup, /CREATE TABLE IF NOT EXISTS order_sequences/);
+  assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS order_sequences/);
   assert.match(server, /createOrderNumberAllocator\(db\)/);
   assert.match(orderNumbers, /function ensureOrderSequence/);
   assert.match(orderNumbers, /const nextOrderNumTx = db\.transaction/);

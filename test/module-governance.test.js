@@ -1093,20 +1093,27 @@ test('remaining utility API routes are split out of the server monolith', () => 
 
 test('database startup schema migrations and seed data are extracted from server', () => {
   const startup = read('db/startup.js');
+  const coreSchema = read('db/coreSchema.js');
   const seed = read('db/seed.js');
   const vehicleMigrations = read('db/vehicleMigrations.js');
   const server = read('server.js');
 
-  assert.match(startup, /function ensureCoreSchema\(db\)/);
+  assert.match(startup, /require\('\.\/coreSchema'\)/);
+  assert.doesNotMatch(startup, /function ensureCoreSchema\(db\)/);
   assert.match(startup, /function runCoreMigrations\(db\)/);
   assert.doesNotMatch(startup, /function seedCoreData\(db\)/);
   assert.match(startup, /require\('\.\/seed'\)/);
   assert.match(startup, /require\('\.\/vehicleMigrations'\)/);
-  assert.match(startup, /CREATE TABLE IF NOT EXISTS customers/);
+  assert.doesNotMatch(startup, /CREATE TABLE IF NOT EXISTS customers/);
   assert.match(startup, /function addCol\(table, col, def\)/);
   assert.match(startup, /ensureVehicleCompatibility\(db\)/);
   assert.doesNotMatch(startup, /function ensureVehicleEventsSchema/);
   assert.doesNotMatch(startup, /function migrateDriverVehicleRows/);
+  assert.match(coreSchema, /function ensureCoreSchema\(db\)/);
+  assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS customers/);
+  assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS orders/);
+  assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS purchase_orders/);
+  assert.match(coreSchema, /ensureFinanceSchema\(db\)/);
   assert.match(seed, /function seedCoreData\(db\)/);
   assert.match(seed, /INSERT OR IGNORE INTO downtime_reasons/);
   assert.match(seed, /INSERT OR IGNORE INTO companies/);
@@ -1170,7 +1177,7 @@ test('scheduled background jobs are extracted from server', () => {
 
 test('finance schema is extracted from server startup', () => {
   const financeSchema = read('db/financeSchema.js');
-  const startup = read('db/startup.js');
+  const coreSchema = read('db/coreSchema.js');
   const server = read('server.js');
 
   assert.match(financeSchema, /function ensureFinanceSchema\(db\)/);
@@ -1179,8 +1186,8 @@ test('finance schema is extracted from server startup', () => {
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS customer_credit/);
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS financial_events/);
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS steel_prices/);
-  assert.match(startup, /require\('\.\/financeSchema'\)/);
-  assert.match(startup, /ensureFinanceSchema\(db\)/);
+  assert.match(coreSchema, /require\('\.\/financeSchema'\)/);
+  assert.match(coreSchema, /ensureFinanceSchema\(db\)/);
   assert.doesNotMatch(server, /FINANCIAL SCHEMA BOOTSTRAP/);
   assert.doesNotMatch(server, /CREATE TABLE IF NOT EXISTS order_costs/);
   assert.doesNotMatch(server, /CREATE TABLE IF NOT EXISTS customer_credit/);

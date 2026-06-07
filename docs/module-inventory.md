@@ -40,7 +40,8 @@ Shared backend:
 - `status-contracts.js`
 - `public/status-contracts-client.js`
 - `db/connection.js` for database path, startup snapshots, and production safety checks
-- `db/startup.js` for core schema and compatibility migrations
+- `db/coreSchema.js` for core table creation
+- `db/startup.js` for startup orchestration and compatibility migrations
 - `db/seed.js` for deterministic startup seed data
 - `db/vehicleMigrations.js` for historical driver/vehicle compatibility migration
 - `db/financeSchema.js` for finance tables loaded by startup
