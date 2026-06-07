@@ -1,5 +1,7 @@
 'use strict';
 
+const { ensureFinanceSchema } = require('./financeSchema');
+
 function ensureCoreSchema(db) {
   // ── SCHEMA ────────────────────────────────────────────────────────
   db.exec(`
@@ -725,6 +727,7 @@ function ensureCoreSchema(db) {
     );
   `);
 
+  ensureFinanceSchema(db);
 }
 
 function runCoreMigrations(db) {

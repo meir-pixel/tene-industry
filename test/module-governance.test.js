@@ -883,3 +883,23 @@ test('scheduled background jobs are extracted from server', () => {
   assert.doesNotMatch(server, /intake\.pollEmail/);
   assert.doesNotMatch(server, /new_intake_email/);
 });
+
+
+test('finance schema is extracted from server startup', () => {
+  const financeSchema = read('db/financeSchema.js');
+  const startup = read('db/startup.js');
+  const server = read('server.js');
+
+  assert.match(financeSchema, /function ensureFinanceSchema\(db\)/);
+  assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS order_costs/);
+  assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS cost_snapshots/);
+  assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS customer_credit/);
+  assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS financial_events/);
+  assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS steel_prices/);
+  assert.match(startup, /require\('\.\/financeSchema'\)/);
+  assert.match(startup, /ensureFinanceSchema\(db\)/);
+  assert.doesNotMatch(server, /FINANCIAL SCHEMA BOOTSTRAP/);
+  assert.doesNotMatch(server, /CREATE TABLE IF NOT EXISTS order_costs/);
+  assert.doesNotMatch(server, /CREATE TABLE IF NOT EXISTS customer_credit/);
+  assert.doesNotMatch(server, /CREATE TABLE IF NOT EXISTS steel_prices/);
+});
