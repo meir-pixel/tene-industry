@@ -74,7 +74,8 @@ wsBroadcast('new_order')
 
 | קובץ | תוכן |
 |------|------|
-| `routes/intake.js` | analyze-image, OCR image intake, WhatsApp/email intake |
+| `routes/intake.js` | analyze-image and OCR image intake |
+| `routes/intakeChannels.js` | WhatsApp webhook and email polling intake |
 | `routes/intakeReview.js` | review queue, approve/reject, manual parse |
 | `routes/intakeTraining.js` | OCR/AI correction examples and training guidance management |
 | `intake.js` | שירות WhatsApp/OCR/Email (module קיים) |

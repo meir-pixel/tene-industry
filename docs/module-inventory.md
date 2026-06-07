@@ -97,7 +97,8 @@ Extracted routes:
 - `routes/orderDocuments.js` as the order document router aggregator
 - `routes/orderDeliveryCertificate.js` for delivery certificate documents
 - `routes/orderPrintA4.js` for A4 production/order documents
-- `routes/intake.js` for image/OCR and WhatsApp/email intake channels
+- `routes/intake.js` for image/OCR document recognition
+- `routes/intakeChannels.js` for WhatsApp and email intake channels
 - `routes/intakeReview.js` for review queue, manual parse, approve, and reject
   flows
 - `routes/intakeTraining.js` for OCR/AI correction examples and training

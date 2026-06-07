@@ -56,6 +56,7 @@ const createWarehouseRouter = require('./routes/warehouse');
 const createReportsRouter = require('./routes/reports');
 const createCatalogRouter = require('./routes/catalog');
 const createIntakeRouter = require('./routes/intake');
+const createIntakeChannelsRouter = require('./routes/intakeChannels');
 const createIntakeTrainingRouter = require('./routes/intakeTraining');
 const createIntakeReviewRouter = require('./routes/intakeReview');
 const createAlertsRouter = require('./routes/alerts');
@@ -524,6 +525,16 @@ app.use('/api', createIntakeReviewRouter({
   intake,
 }));
 
+app.use('/api', createIntakeChannelsRouter({
+  db,
+  requireAnyRole,
+  INTAKE_AI_ENABLED,
+  intake,
+  webhookLimiter,
+  verifyWhatsAppSignature,
+  wsBroadcast,
+}));
+
 app.use('/api', createIntakeRouter({
   db,
   requireAnyRole,
@@ -537,13 +548,6 @@ app.use('/api', createIntakeRouter({
   normalizeFactoryShapeName,
   INTAKE_AI_ENABLED,
   intake,
-  webhookLimiter,
-  verifyWhatsAppSignature,
-  wsBroadcast,
-  enrichIntakeRow,
-  createOrderFromPayload,
-  intakeToOrderPayload,
-  intakeWorkflow,
 }));
 app.use('/api', createPortalAdminRouter({
   db,
