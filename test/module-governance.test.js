@@ -781,6 +781,27 @@ test('fleet API routes are split out of the server monolith', () => {
   assert.match(route, /router\.get\('\/drivers\/:id\/vehicle-events'/);
   assert.match(route, /router\.post\('\/drivers\/:id\/vehicle-events'/);
   assert.match(route, /router\.patch\('\/drivers\/:id\/location'/);
+  assert.doesNotMatch(route, /router\.(get|post|patch|delete)\('\/deliveries/);
+  assert.doesNotMatch(route, /intakeNotify/);
+  assert.doesNotMatch(route, /priorityUpdate/);
+  assert.doesNotMatch(route, /createAlert\('delivery_problem'/);
+  assert.match(server, /createFleetRouter/);
+  assert.match(server, /app\.use\('\/api', createFleetRouter/);
+  assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/vehicles/);
+  assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/drivers/);
+  assert.doesNotMatch(server, /function vehiclePortfolioRows/);
+  assert.doesNotMatch(server, /function driverRows/);
+  assert.match(server, /createPriorityRouter/);
+  assert.match(server, /createWarehouseRouter/);
+});
+
+test('logistics delivery routes are split out of fleet', () => {
+  const route = read('routes/logistics.js');
+  const fleet = read('routes/fleet.js');
+  const server = read('server.js');
+
+  assert.match(route, /module\.exports = function createLogisticsRouter/);
+  assert.ok(route.includes('routes/logistics missing dependency'));
   assert.match(route, /router\.get\('\/deliveries'/);
   assert.match(route, /router\.post\('\/deliveries'/);
   assert.match(route, /router\.post\('\/deliveries\/:id\/depart'/);
@@ -789,15 +810,10 @@ test('fleet API routes are split out of the server monolith', () => {
   assert.match(route, /intakeNotify/);
   assert.match(route, /priorityUpdate/);
   assert.match(route, /createAlert\('delivery_problem'/);
-  assert.match(server, /createFleetRouter/);
-  assert.match(server, /app\.use\('\/api', createFleetRouter/);
-  assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/vehicles/);
-  assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/drivers/);
+  assert.match(server, /createLogisticsRouter/);
+  assert.match(server, /app\.use\('\/api', createLogisticsRouter/);
+  assert.doesNotMatch(fleet, /router\.(get|post|patch|delete)\('\/deliveries/);
   assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/deliveries/);
-  assert.doesNotMatch(server, /function vehiclePortfolioRows/);
-  assert.doesNotMatch(server, /function driverRows/);
-  assert.match(server, /createPriorityRouter/);
-  assert.match(server, /createWarehouseRouter/);
 });
 
 test('remaining utility API routes are split out of the server monolith', () => {

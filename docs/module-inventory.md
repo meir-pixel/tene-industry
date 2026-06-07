@@ -227,7 +227,8 @@ Screens:
 Extracted routes:
 
 - `routes/warehouse.js` for packages and delivery-note issuance.
-- `routes/fleet.js` for drivers, vehicles, and delivery lifecycle actions.
+- `routes/logistics.js` for delivery lifecycle actions.
+- `routes/fleet.js` for driver identity and vehicle references used by dispatch.
 
 API route families:
 
@@ -260,10 +261,9 @@ Module services:
 
 Extracted routes:
 
-- `routes/fleet.js` for vehicles, vehicle documents/events, driver identity and
-  vehicle assignment, driver locations, and the current delivery execution
-  endpoints. Delivery remains a separate sellable/logistics concept and should
-  be split again when the logistics module is extracted.
+- `routes/fleet.js` for vehicles, vehicle documents/events, driver identity,
+  vehicle assignment, and driver locations. Delivery execution lives in
+  `routes/logistics.js` so Fleet can be sold independently from dispatch.
 
 API route families:
 

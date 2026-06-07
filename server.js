@@ -30,7 +30,6 @@ const { createAuthMiddleware } = require('./middleware/auth');
 const { createScheduler } = require('./jobs/scheduler');
 const ordersService = require('./services/orders');
 const intakeWorkflow = require('./services/intakeWorkflow');
-const fleetService = require('./services/fleet');
 const createInventoryRouter = require('./routes/inventory');
 const createProcurementRouter = require('./routes/procurement');
 const createOrdersRouter = require('./routes/orders');
@@ -38,6 +37,7 @@ const createProductionCardsRouter = require('./routes/productionCards');
 const createOrderDocumentsRouter = require('./routes/orderDocuments');
 const createFinanceRouter = require('./routes/finance');
 const createFleetRouter = require('./routes/fleet');
+const createLogisticsRouter = require('./routes/logistics');
 const createProductionRouter = require('./routes/production');
 const createQualityRouter = require('./routes/quality');
 const createCustomersRouter = require('./routes/customers');
@@ -328,6 +328,12 @@ app.use('/api', createFleetRouter({
   wsBroadcast,
   auditLog,
   upload,
+}));
+
+app.use('/api', createLogisticsRouter({
+  db,
+  requireAnyRole,
+  wsBroadcast,
   intakeNotify: intake.notifyOrderStatus.bind(intake),
   priorityUpdate: priority.updateOrderStatus.bind(priority),
   createAlert,
