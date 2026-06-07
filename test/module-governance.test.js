@@ -133,6 +133,8 @@ test('license entitlements gate module routers from the shared catalog', () => {
   assert.match(server, /licensedModuleKeys\.has\(key\)/);
   assert.match(server, /settingsService\.get\('license_modules'/);
   assert.match(server, /code: 'module_not_licensed'/);
+  assert.match(server, /app\.get\('\/api\/license\/modules'/);
+  assert.match(server, /restricted: Boolean\(enabled\)/);
   assert.ok(
     server.indexOf("app.use('/api', licenseService.middleware)") < server.indexOf("app.use('/api', requireModule('orders'), createOrdersRouter"),
     'license middleware must mount before module routers'

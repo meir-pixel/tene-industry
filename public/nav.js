@@ -38,6 +38,30 @@
   ];
 
   const BOTTOM_IDS = ['dashboard', 'orders', 'new', 'admin'];
+  const LINK_MODULES = {
+    orders: 'orders',
+    new: 'orders',
+    intake: 'intake',
+    customers: 'customers',
+    'production-queue': 'production',
+    'worker-visual': 'production',
+    machine: 'production',
+    kiosk: 'production',
+    'production-setup': 'production',
+    warehouse: 'warehouse',
+    inventory: 'inventory',
+    procurement: 'procurement',
+    'delivery-admin': 'fleet',
+    driver: 'fleet',
+    quality: 'quality',
+    maintenance: 'quality',
+    warroom: 'reports',
+    reports: 'reports',
+    finance: 'finance',
+    projects: 'companies',
+    holdings: 'companies',
+  };
+  let visibleLinks = LINKS.slice();
   const path = location.pathname.replace(/^\//, '') || 'dashboard.html';
   const activeId = (LINKS.find(l => l.href.replace('/', '') === path) || {}).id || '';
   const ia = id => id === activeId ? 'ib-active' : '';
@@ -185,7 +209,7 @@
 
   function renderNavLinks(linkClass, groupClass) {
     let currentGroup = '';
-    return LINKS.map(l => {
+    return visibleLinks.map(l => {
       const heading = l.group !== currentGroup
         ? (currentGroup = l.group, '<div class="'+groupClass+'">'+escapeAttr(l.group)+'</div>')
         : '';
@@ -203,6 +227,46 @@
   const styleEl = document.createElement('style');
   styleEl.textContent = CSS;
   document.head.appendChild(styleEl);
+
+  function renderBottomLinks() {
+    return visibleLinks
+      .filter(l => BOTTOM_IDS.includes(l.id))
+      .map(l =>
+        '<a href="'+escapeAttr(l.href)+'" class="ib-bn '+ia(l.id)+'" title="'+escapeAttr(l.label)+'" aria-label="'+escapeAttr(l.label)+'">' +
+          '<span class="ib-bn-icon" aria-hidden="true">'+escapeAttr(l.icon)+'</span>' +
+          '<span class="ib-bn-label">'+escapeAttr(l.label)+'</span>' +
+        '</a>'
+      ).join('');
+  }
+
+  function renderShellLinks() {
+    const links = renderNavLinks('ib-link', 'ib-group-label');
+    const drawerLinks = renderNavLinks('ib-dl', 'ib-drawer-group');
+    const topLinks = document.getElementById('ib-links');
+    const drawerLinksEl = document.getElementById('ib-drawer-links');
+    const bottom = document.getElementById('ib-bottom');
+    if (topLinks) topLinks.innerHTML = links;
+    if (drawerLinksEl) drawerLinksEl.innerHTML = drawerLinks;
+    if (bottom) bottom.innerHTML = renderBottomLinks();
+  }
+
+  function applyLicensedModules(data) {
+    if (!data || !data.restricted || !Array.isArray(data.modules)) return;
+    const enabled = new Set(data.modules);
+    visibleLinks = LINKS.filter(link => {
+      const moduleKey = LINK_MODULES[link.id];
+      return !moduleKey || enabled.has(moduleKey);
+    });
+    renderShellLinks();
+  }
+
+  async function refreshLicensedModules() {
+    try {
+      const res = await fetch('/api/license/modules');
+      if (!res.ok) return;
+      applyLicensedModules(await res.json());
+    } catch {}
+  }
 
   const topnav = document.createElement('nav');
   topnav.id = 'ib-topnav';
@@ -226,14 +290,7 @@
 
   const bottomNav = document.createElement('nav');
   bottomNav.id = 'ib-bottom';
-  bottomNav.innerHTML = LINKS
-    .filter(l => BOTTOM_IDS.includes(l.id))
-    .map(l =>
-      '<a href="'+escapeAttr(l.href)+'" class="ib-bn '+ia(l.id)+'" title="'+escapeAttr(l.label)+'" aria-label="'+escapeAttr(l.label)+'">' +
-        '<span class="ib-bn-icon" aria-hidden="true">'+escapeAttr(l.icon)+'</span>' +
-        '<span class="ib-bn-label">'+escapeAttr(l.label)+'</span>' +
-      '</a>'
-    ).join('');
+  bottomNav.innerHTML = renderBottomLinks();
 
   const toast = document.createElement('div');
   toast.id = 'ib-toast';
@@ -276,9 +333,10 @@
     document.body.insertBefore(topnav, document.body.firstChild);
     document.body.appendChild(overlay);
     document.body.appendChild(drawer);
-    document.body.appendChild(bottomNav);
-    document.body.appendChild(toast);
-    document.body.appendChild(searchOverlay);
+  document.body.appendChild(bottomNav);
+  document.body.appendChild(toast);
+  document.body.appendChild(searchOverlay);
+  refreshLicensedModules();
 
     document.getElementById('ib-hamburger')?.addEventListener('click', openDrawer);
     document.getElementById('ib-drawer-close')?.addEventListener('click', closeDrawer);

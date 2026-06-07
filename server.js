@@ -219,6 +219,21 @@ function requireModule(key) {
 
 app.use('/api', licenseService.middleware);
 
+app.get('/api/license/modules', (req, res) => {
+  const enabled = readLicensedModules();
+  const allModules = (moduleCatalog.modules || []).map(m => ({
+    key: m.key,
+    label: m.label,
+    category: m.category,
+  }));
+  res.json({
+    restricted: Boolean(enabled),
+    modules: enabled ? [...enabled] : allModules.map(m => m.key),
+    core: moduleCatalog.core || [],
+    catalog: allModules,
+  });
+});
+
 seedCoreData(db);
 
 const realtime = createRealtimeServer({ server, db, modbus, authService, applyAuthBypass });

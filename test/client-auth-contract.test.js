@@ -157,6 +157,20 @@ test('shared navigation module icons are clickable links', () => {
   assert.match(nav, /<a href="\/dashboard\.html" title="דשבורד" aria-label="דשבורד"><img id="ib-drawer-logo"/);
 });
 
+test('shared navigation hides modules excluded by license entitlements', () => {
+  const nav = read('public/nav.js');
+
+  assert.match(nav, /const LINK_MODULES = \{/);
+  assert.match(nav, /refreshLicensedModules/);
+  assert.match(nav, /\/api\/license\/modules/);
+  assert.match(nav, /applyLicensedModules/);
+  assert.match(nav, /!data\.restricted/);
+  assert.match(nav, /visibleLinks = LINKS\.filter/);
+  assert.match(nav, /enabled\.has\(moduleKey\)/);
+  assert.match(nav, /renderShellLinks/);
+  assert.match(nav, /renderBottomLinks/);
+});
+
 test('dashboard production queue uses production queue API source', () => {
   const dashboard = read('public/dashboard.html');
 
