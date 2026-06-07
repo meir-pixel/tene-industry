@@ -329,13 +329,13 @@ test('finance API routes are split out of the server monolith', () => {
   assert.match(route, /router\.patch\('\/customers\/:id\/credit'/);
   assert.match(route, /router\.get\('\/finance\/kpis'/);
   assert.match(route, /router\.get\('\/finance\/events'/);
-  assert.ok(route.includes("router.get('/credit'"));
-  assert.ok(route.includes("router.get('/credit/:customerId'"));
-  assert.ok(route.includes("router.patch('/credit/:customerId'"));
-  assert.ok(route.includes("router.post('/credit/:customerId/transaction'"));
-  assert.ok(route.includes("router.get('/credit/:customerId/status'"));
-  assert.match(route, /credit_accounts/);
-  assert.match(route, /credit_transactions/);
+  assert.ok(!route.includes("router.get('/credit'"));
+  assert.ok(!route.includes("router.get('/credit/:customerId'"));
+  assert.ok(!route.includes("router.patch('/credit/:customerId'"));
+  assert.ok(!route.includes("router.post('/credit/:customerId/transaction'"));
+  assert.ok(!route.includes("router.get('/credit/:customerId/status'"));
+  assert.doesNotMatch(route, /credit_accounts/);
+  assert.doesNotMatch(route, /credit_transactions/);
   assert.match(route, /wsBroadcast\('new_invoice'/);
   assert.match(route, /BUG-36: cannot pay cancelled invoice/);
   assert.match(route, /function calculateOrderCost/);
@@ -353,6 +353,30 @@ test('finance API routes are split out of the server monolith', () => {
   assert.match(server, /createReportsRouter/);
   assert.doesNotMatch(server, /app\.get\('\/api\/export\/orders'/);
   assert.doesNotMatch(route, /app\.get\('\/api\/export/);
+});
+
+test('finance credit API routes are split from finance ledger and invoices', () => {
+  const route = read('routes/financeCredit.js');
+  const finance = read('routes/finance.js');
+  const server = read('server.js');
+
+  assert.match(route, /module\.exports = function createFinanceCreditRouter/);
+  assert.match(route, /routes\/financeCredit missing dependency/);
+  assert.ok(route.includes("router.get('/credit'"));
+  assert.ok(route.includes("router.get('/credit/:customerId'"));
+  assert.ok(route.includes("router.patch('/credit/:customerId'"));
+  assert.ok(route.includes("router.post('/credit/:customerId/transaction'"));
+  assert.ok(route.includes("router.get('/credit/:customerId/status'"));
+  assert.match(route, /credit_accounts/);
+  assert.match(route, /credit_transactions/);
+  assert.match(route, /requireAnyRole\(\['finance', 'manager', 'admin'\]\)/);
+  assert.match(server, /createFinanceCreditRouter/);
+  assert.match(server, /app\.use\('\/api', createFinanceCreditRouter/);
+  assert.doesNotMatch(finance, /credit_accounts/);
+  assert.doesNotMatch(finance, /credit_transactions/);
+  assert.ok(!server.includes("app.get('/api/credit'"));
+  assert.ok(!server.includes("app.patch('/api/credit/:customerId'"));
+  assert.ok(!server.includes("app.post('/api/credit/:customerId/transaction'"));
 });
 
 test('catalog and pricing routes are split out of the server monolith', () => {

@@ -349,6 +349,8 @@ Extracted routes:
 
 - `routes/finance.js` for order margin, order costs, customer ledger/credit,
   finance KPIs, and financial events
+- `routes/financeCredit.js` for active credit accounts, blocking status, and
+  credit transactions
 
 API route families:
 
@@ -366,8 +368,8 @@ Current risks:
 
 - There are two separate credit mechanisms: `customer_credit` for finance
   ledger/exposure and `credit_accounts`/`credit_transactions` for active
-  blocking and credit operations. Keep them distinct; move the latter into a
-  finance sprint without merging table semantics.
+  blocking and credit operations. Keep them distinct; `financeCredit.js`
+  owns the latter without merging table semantics.
 - Finance endpoints contain sensitive data and must be protected before use.
 
 ## Quality And Maintenance
