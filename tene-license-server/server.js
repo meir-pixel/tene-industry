@@ -60,6 +60,39 @@ db.exec(`
 // migration: סוג אחסון לכל גיבוי (disk | s3)
 try { db.exec("ALTER TABLE backups ADD COLUMN storage_type TEXT DEFAULT 'disk'"); } catch {}
 
+// migration: חבילה, מודולים ומקסימום משתמשים לכל רישיון
+try { db.exec("ALTER TABLE licenses ADD COLUMN package TEXT DEFAULT 'pro'"); } catch {}
+try { db.exec("ALTER TABLE licenses ADD COLUMN modules TEXT"); } catch {}          // JSON array
+try { db.exec("ALTER TABLE licenses ADD COLUMN max_users INTEGER DEFAULT 0"); } catch {} // 0 = ללא הגבלה
+
+// ── מודולים וחבילות ───────────────────────────────────────────────
+const ALL_MODULES = [
+  { key: 'dashboard',  label: 'דשבורד',        core: true },
+  { key: 'orders',     label: 'הזמנות',         core: true },
+  { key: 'customers',  label: 'לקוחות',         core: true },
+  { key: 'production',  label: 'ייצור',          core: true },
+  { key: 'inventory',  label: 'מלאי',           core: false },
+  { key: 'warehouse',  label: 'מחסן',           core: false },
+  { key: 'fleet',      label: 'צי ומשלוחים',    core: false },
+  { key: 'finance',    label: 'כספים',          core: false },
+  { key: 'quality',    label: 'איכות ותחזוקה',  core: false },
+  { key: 'reports',    label: 'דוחות',          core: false },
+  { key: 'portal',     label: 'פורטל לקוח',     core: false },
+  { key: 'intake_ai',  label: 'קליטת AI/OCR',   core: false },
+  { key: 'companies',  label: 'חברות/הולדינגס', core: false },
+  { key: 'bvbs',       label: 'BVBS',           core: false },
+];
+const CORE_MODULES = ALL_MODULES.filter(m => m.core).map(m => m.key);
+const PACKAGES = {
+  basic:      [...CORE_MODULES],
+  pro:        [...CORE_MODULES, 'inventory', 'warehouse', 'fleet', 'finance', 'quality', 'reports'],
+  enterprise: ALL_MODULES.map(m => m.key),
+};
+function modulesForLicense(lic) {
+  if (lic.modules) { try { return JSON.parse(lic.modules); } catch {} }
+  return PACKAGES[lic.package] || PACKAGES.pro;
+}
+
 // שכבת אחסון — דיסק או ענן זול (S3/B2) לפי משתני סביבה
 const { createStorage } = require('./storage');
 const storage = createStorage(BACKUP_DIR);
@@ -126,6 +159,11 @@ app.post('/api/check', rateLimit, (req, res) => {
     expiresAt:    lic.expires_at,
     customerName: lic.customer_name,
     daysLeft:     daysUntilExpiry(lic),
+    entitlements: {
+      package:  lic.package || 'pro',
+      modules:  modulesForLicense(lic),
+      maxUsers: lic.max_users || 0,   // 0 = ללא הגבלה
+    },
   });
 });
 
@@ -203,11 +241,16 @@ app.get('/admin', (req, res) => {
     else if (expired)  { status = '❌ פג';    color = '#e74c3c'; }
     else if (days <= 30) { status = `⚠️ ${days} ימים`; color = '#f39c12'; }
 
+    const pkgLabel = { basic:'בסיסי', pro:'מקצועי', enterprise:'ארגוני', custom:'מותאם' }[lic.package] || lic.package || 'מקצועי';
+    const modCount = modulesForLicense(lic).length;
+    const usersLabel = lic.max_users ? `עד ${lic.max_users}` : '∞';
+
     return `
       <tr>
         <td><strong>${lic.customer_name}</strong><br><small>${lic.customer_phone || ''}</small></td>
         <td>${lic.expires_at}</td>
         <td style="color:${color}">${status}</td>
+        <td>${pkgLabel}<br><small>${modCount} מודולים · ${usersLabel} משתמשים</small></td>
         <td>${lastBackup ? lastBackup.uploaded_at.slice(0,16) : '—'}</td>
         <td>
           ${!revoked ? `
@@ -243,8 +286,8 @@ app.get('/admin', (req, res) => {
     <h1>🔑 Tene Industry — ניהול רישיונות</h1>
     <a href="/admin/new"><button class="new-btn">+ רישיון חדש</button></a>
     <table>
-      <tr><th>לקוח</th><th>תוקף</th><th>סטטוס</th><th>גיבוי אחרון</th><th>פעולות</th></tr>
-      ${rows || '<tr><td colspan="5" style="text-align:center">אין רישיונות</td></tr>'}
+      <tr><th>לקוח</th><th>תוקף</th><th>סטטוס</th><th>חבילה</th><th>גיבוי אחרון</th><th>פעולות</th></tr>
+      ${rows || '<tr><td colspan="6" style="text-align:center">אין רישיונות</td></tr>'}
     </table>
   </body></html>`);
 });
@@ -255,13 +298,30 @@ app.get('/admin/new', (req, res) => {
   const defaultExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   res.send(`<!DOCTYPE html><html dir="rtl" lang="he">
   <head><meta charset="UTF-8"><title>רישיון חדש</title>
-  <style>body{font-family:Arial;padding:20px} input,textarea{width:100%;padding:8px;margin:5px 0 15px;border:1px solid #ccc;border-radius:4px} button{background:#27ae60;color:white;padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:16px}</style></head>
+  <style>body{font-family:Arial;padding:20px} input,textarea,select{width:100%;padding:8px;margin:5px 0 15px;border:1px solid #ccc;border-radius:4px} button{background:#27ae60;color:white;padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:16px} .mods{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:5px 0 15px} .mods label{font-weight:normal;background:#f7f3ef;padding:8px;border-radius:6px;display:flex;align-items:center;gap:6px;width:auto;margin:0} .mods input{width:auto;margin:0}</style>
+  <script>
+    var PACKAGES=${JSON.stringify(PACKAGES)};
+    function applyPackage(p){var on=PACKAGES[p]||[];document.querySelectorAll('.modbox').forEach(function(c){c.checked=on.indexOf(c.value)>=0});}
+  </script></head>
   <body>
     <h2>רישיון חדש</h2>
     <form method="POST" action="/admin/create">
       <label>שם לקוח</label><input name="customer_name" required>
       <label>טלפון</label><input name="customer_phone" type="tel">
       <label>תוקף עד</label><input name="expires_at" type="date" value="${defaultExpiry}" required>
+      <label>חבילה</label>
+      <select name="package" onchange="applyPackage(this.value)">
+        <option value="basic">בסיסי</option>
+        <option value="pro" selected>מקצועי</option>
+        <option value="enterprise">ארגוני</option>
+        <option value="custom">מותאם אישית</option>
+      </select>
+      <label>מודולים פתוחים</label>
+      <div class="mods">
+        ${ALL_MODULES.map(m => `<label><input type="checkbox" class="modbox" name="modules" value="${m.key}" ${PACKAGES.pro.includes(m.key) ? 'checked' : ''} ${m.core ? 'disabled checked title="מודול ליבה"' : ''}>${m.label}${m.core ? ' 🔒' : ''}</label>`).join('')}
+      </div>
+      <label>מקסימום משתמשים פעילים (0 = ללא הגבלה)</label>
+      <input name="max_users" type="number" min="0" value="0">
       <label>הערות</label><textarea name="notes" rows="2"></textarea>
       <label>מפתח רישיון (נוצר אוטומטית)</label>
       <input name="license_key" value="${key}" readonly style="background:#f9f9f9;font-family:monospace">
@@ -272,12 +332,17 @@ app.get('/admin/new', (req, res) => {
 
 // POST /admin/create
 app.post('/admin/create', (req, res) => {
-  const { license_key, customer_name, customer_phone, expires_at, notes } = req.body;
+  const { license_key, customer_name, customer_phone, expires_at, notes, package: pkg, max_users } = req.body;
   if (!license_key || !customer_name || !expires_at) {
     return res.status(400).send('חסרים פרטים');
   }
-  db.prepare('INSERT INTO licenses (license_key,customer_name,customer_phone,expires_at,notes) VALUES (?,?,?,?,?)')
-    .run(license_key, customer_name, customer_phone || null, expires_at, notes || null);
+  // modules: checkbox יחיד מגיע כמחרוזת, מרובים כמערך. תמיד כוללים ליבה.
+  let mods = req.body.modules || [];
+  if (typeof mods === 'string') mods = [mods];
+  mods = Array.from(new Set([...CORE_MODULES, ...mods]));
+  const modulesJson = JSON.stringify(mods);
+  db.prepare('INSERT INTO licenses (license_key,customer_name,customer_phone,expires_at,notes,package,modules,max_users) VALUES (?,?,?,?,?,?,?,?)')
+    .run(license_key, customer_name, customer_phone || null, expires_at, notes || null, pkg || 'pro', modulesJson, Number(max_users) || 0);
 
   res.send(`<!DOCTYPE html><html dir="rtl" lang="he">
   <head><meta charset="UTF-8"><title>רישיון נוצר</title>
