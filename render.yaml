@@ -1,24 +1,20 @@
 services:
   - type: web
     name: ironbend
-    env: docker
-    plan: starter          # starter = persistent disk support
-    region: frankfurt      # קרוב יותר לישראל
+    runtime: docker
+    plan: free
+    region: frankfurt
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
-    disk:
-      name: ironbend-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: PORT
         value: "3000"
       - key: NODE_ENV
         value: "production"
       - key: DB_PATH
-        value: "/data/ironbend.db"
+        value: "./ironbend.db"
       - key: BACKUP_DIR
-        value: "/data/backups"
+        value: "./backups"
       - key: ALLOW_EMPTY_DB_INIT
         value: "false"
       - key: ALLOW_DATABASE_UPLOAD
