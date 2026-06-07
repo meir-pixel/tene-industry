@@ -17,7 +17,8 @@
  *   DB_PATH          ← ברירת מחדל: ./licenses.db
  */
 
-require('dotenv').config();
+// dotenv אופציונלי — בענן (Render) המשתנים מגיעים מההגדרות, אין קובץ .env
+try { require('dotenv').config(); } catch {}
 const express = require('express');
 const multer  = require('multer');
 const Database = require('better-sqlite3');
