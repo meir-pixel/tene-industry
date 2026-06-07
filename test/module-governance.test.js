@@ -861,3 +861,25 @@ test('realtime websocket transport is extracted from server', () => {
   assert.doesNotMatch(server, /wss\.on\('connection'/);
   assert.doesNotMatch(server, /server\.on\('upgrade'/);
 });
+
+
+test('scheduled background jobs are extracted from server', () => {
+  const scheduler = read('jobs/scheduler.js');
+  const server = read('server.js');
+
+  assert.match(scheduler, /function createScheduler\(deps\)/);
+  assert.match(scheduler, /cron\.schedule/);
+  assert.match(scheduler, /settingsService\.getNum\('URGENT_ORDER_WAIT_MINUTES'/);
+  assert.match(scheduler, /intake\.pollEmail/);
+  assert.match(scheduler, /new_intake_email/);
+  assert.match(scheduler, /createBackupService/);
+  assert.match(scheduler, /db\.backup/);
+  assert.match(server, /require\('\.\/jobs\/scheduler'\)/);
+  assert.match(server, /const scheduler = createScheduler\(\{/);
+  assert.match(server, /scheduler\.stop\(\)/);
+  assert.doesNotMatch(server, /require\('node-cron'\)/);
+  assert.doesNotMatch(server, /cron\.schedule/);
+  assert.doesNotMatch(server, /createBackupService/);
+  assert.doesNotMatch(server, /intake\.pollEmail/);
+  assert.doesNotMatch(server, /new_intake_email/);
+});

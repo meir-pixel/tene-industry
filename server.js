@@ -7,7 +7,6 @@ require('dotenv').config();
 require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: false });
 const http     = require('http');
 const multer   = require('multer');
-const cron     = require('node-cron');
 const crypto   = require('crypto');
 const { rateLimit } = require('express-rate-limit');
 const modbus   = require('./modbus');
@@ -16,7 +15,6 @@ const intake   = require('./intake');
 const ai       = require('./ai');
 const { createAuthService, ensureAuthSchema, hashPin } = require('./auth-core');
 const { createLicenseService } = require('./services/license');
-const { createBackupService }  = require('./services/backup');
 const { createPricer }          = require('./services/pricer');
 const { createSettingsService } = require('./services/settings');
 const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
@@ -26,6 +24,7 @@ const productionCards = require('./services/productionCards');
 const { createOrderNumberAllocator } = require('./services/orderNumbers');
 const { ensureCoreSchema, runCoreMigrations, seedCoreData } = require('./db/startup');
 const { createRealtimeServer } = require('./realtime/ws');
+const { createScheduler } = require('./jobs/scheduler');
 const ordersService = require('./services/orders');
 const intakeWorkflow = require('./services/intakeWorkflow');
 const fleetService = require('./services/fleet');
@@ -609,55 +608,22 @@ function getOpenAiApiKey() {
 }
 
 
-// Check alerts every 5 minutes
-if (!IS_TEST) cron.schedule('*/5 * * * *', () => {
-  // קרא סף זמן מה-settings (ברירת מחדל: 30 ו-15 דקות)
-  const urgentMinutes  = settingsService.getNum('URGENT_ORDER_WAIT_MINUTES',   30);
-  const pendingMinutes = settingsService.getNum('PENDING_APPROVAL_WAIT_MINUTES', 15);
-  const urgentDays     = urgentMinutes  / 1440; // JULIANDAY = ימים
-  const pendingDays    = pendingMinutes / 1440;
-
-  // Urgent orders sitting too long without production
-  const urgentLate = db.prepare(`
-    SELECT o.id, o.order_num FROM orders o
-    WHERE o.priority='דחוף' AND o.status NOT IN ('בייצור','הושלם – ממתין לאיסוף','בדרך ללקוח','סופק – אושר','בוטל')
-      AND JULIANDAY('now') - JULIANDAY(o.created_at) > ?
-      AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.order_id=o.id AND a.type='urgent_late' AND a.resolved=0)
-  `).all(urgentDays);
-  urgentLate.forEach(o => createAlert('urgent_late', 'danger', `הזמנה דחופה ${o.order_num} ממתינה לייצור מעל ${urgentMinutes} דקות`, { orderId: o.id }));
-
-  // Pending approval too long
-  const pendingLong = db.prepare(`
-    SELECT o.id, o.order_num FROM orders o
-    WHERE o.status='ממתינה לאישור'
-      AND JULIANDAY('now') - JULIANDAY(o.created_at) > ?
-      AND NOT EXISTS (SELECT 1 FROM alerts a WHERE a.order_id=o.id AND a.type='pending_approval' AND a.resolved=0)
-  `).all(pendingDays);
-  pendingLong.forEach(o => createAlert('pending_approval', 'info', `הזמנה ${o.order_num} ממתינה לאישור מעל ${pendingMinutes} דקות`, { orderId: o.id }));
-});
-
-// Email polling every minute — reads settings from DB (not just .env)
-if (!IS_TEST) cron.schedule('* * * * *', async () => {
-  const host = getSetting('EMAIL_IMAP_HOST');
-  if (!host) return;
-  try {
-    const results = await intake.pollEmail(db, {
-      host,
-      user:       getSetting('EMAIL_IMAP_USER'),
-      pass:       getSetting('EMAIL_IMAP_PASS'),
-      port:       getSetting('EMAIL_IMAP_PORT') || 993,
-      geminiKey:  getSetting('GEMINI_API_KEY') || process.env.GEMINI_API_KEY,
-    });
-    if (results.length) {
-      wsBroadcast('new_intake_email', { count: results.length });
-      console.log(`[Email] ${results.length} הזמנות חדשות נמצאו`);
-    }
-  } catch (err) {
-    console.error('[Email cron]', err.message);
-  }
-});
 
 // ── START ─────────────────────────────────────────────────────────
+
+const scheduler = createScheduler({
+  db,
+  intake,
+  settingsService,
+  getSetting,
+  createAlert,
+  wsBroadcast,
+  dbPath: DB_PATH,
+  backupDir: process.env.BACKUP_DIR || path.join(__dirname, 'backups'),
+  rootDir: __dirname,
+  isTest: IS_TEST,
+});
+const BACKUP_DIR = scheduler.backupDir;
 
 function auditLog(entityType,entityId,entityRef,action,fieldName,oldVal,newVal,notes,userId,userName) {
   try {
@@ -755,36 +721,11 @@ app.get('/api/health', (req, res) => {
   }
 });
 
-// ── Auto-backup SQLite ────────────────────────────────────────────
-const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, 'backups');
-if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
-
-const backupService = createBackupService(db, { dbPath: DB_PATH, intake });
-
-if (!IS_TEST) cron.schedule('0 2 * * *', async () => {   // כל לילה 02:00
-  try {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const dest  = `${BACKUP_DIR}/ironbend-${stamp}.db`;
-
-    // גיבוי מקומי (hot-backup בטוח תחת WAL)
-    if (!fs.existsSync(dest)) {
-      await db.backup(dest);
-      console.log(`[Backup] ✅ Local backup: ${dest}`);
-
-      // שמור 30 ימים אחרונים בלבד
-      const files = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.db')).sort();
-      if (files.length > 30) fs.unlinkSync(path.join(BACKUP_DIR, files[0]));
-    }
-
-    // גיבוי ענן — מוצפן לשרת Tene Industry
-    await backupService.run();
-
-  } catch (err) { console.error('[Backup] ❌', err.message); }
-});
 
 // ── Graceful shutdown ────────────────────────────────────────────
 function gracefulShutdown(signal) {
   console.log(`\n[Shutdown] קיבלתי ${signal} – סוגר בעדינות...`);
+  scheduler.stop();
   server.close(() => {
     try { db.close(); } catch (_) {}
     console.log('[Shutdown] ✅ השרת נסגר בבטחה');
@@ -846,6 +787,8 @@ function closeServer(callback = () => {}) {
     doneCalled = true;
     callback(error);
   };
+
+  scheduler.stop();
 
   realtime.close();
 

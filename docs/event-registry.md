@@ -24,7 +24,7 @@ into a universal event/audit model.
 | `delivery_depart` | Delivery | Delivery depart route | Delivery state machine. |
 | `delivery_confirm` | Delivery | Delivery confirm route | Delivery state machine. |
 | `new_intake` | Orders | WhatsApp intake | External source, unsafe content. |
-| `new_intake_email` | Orders | Email polling | External source, unsafe content. |
+| `new_intake_email` | Orders | `jobs/scheduler.js` email polling | External source, unsafe content. |
 | `new_invoice` | Finance | Invoice creation | Sensitive financial event. |
 | `cost_update` | Finance | Cost recalculation | Sensitive financial event. |
 
