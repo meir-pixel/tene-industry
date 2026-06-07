@@ -141,15 +141,19 @@ test('admin module board exposes maturity, risk, scope and vendor control', () =
 
 test('production cards are rendered through a module service', () => {
   const service = read('services/productionCards.js');
+  const page = read('services/productionCardPrintPage.js');
   const route = read('routes/productionCards.js');
   const server = read('server.js');
 
   assert.match(service, /function masterCard/);
   assert.match(service, /function itemCard/);
   assert.match(service, /module\.exports/);
+  assert.match(page, /function renderPrintCardsPage/);
+  assert.match(page, /cards\.masterCard/);
+  assert.match(page, /cards\.itemCard/);
   assert.match(server, /require\('\.\/services\/productionCards'\)/);
-  assert.match(route, /cards\.masterCard/);
-  assert.match(route, /cards\.itemCard/);
+  assert.match(route, /printPage\.renderPrintCardsPage/);
+  assert.doesNotMatch(route, /function buildSplitMaster/);
   assert.doesNotMatch(server, /productionCards\.masterCard/);
   assert.doesNotMatch(server, /productionCards\.itemCard/);
 });
@@ -256,8 +260,8 @@ test('production card print routes are split out of the server monolith', () => 
   assert.match(route, /router\.get\('\/orders\/:id\/print-cards'/);
   assert.doesNotMatch(route, /delivery-certificate/);
   assert.doesNotMatch(route, /print-a4/);
-  assert.match(route, /cards\.masterCard/);
-  assert.match(route, /cards\.itemCard/);
+  assert.match(route, /printPage\.renderPrintCardsPage/);
+  assert.doesNotMatch(route, /function buildSplitMaster/);
   assert.match(server, /createProductionCardsRouter/);
   assert.match(server, /app\.use\('\/api', createProductionCardsRouter/);
   assert.doesNotMatch(server, /app\.get\('\/api\/orders\/:id\/print-cards'/);

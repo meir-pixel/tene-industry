@@ -85,7 +85,8 @@ Module services:
 
 - `services/orderNumbers.js`
 - `services/orders.js`
-- `services/productionCards.js` for order production card rendering
+- `services/productionCards.js` for individual production card rendering
+- `services/productionCardPrintPage.js` for the print-cards HTML workspace
 
 Extracted routes:
 

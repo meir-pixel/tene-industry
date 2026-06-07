@@ -57,7 +57,7 @@ test('public portal does not query internal order search', () => {
 });
 
 test('production card split keeps item cards and master card in sync', () => {
-  const productionCardsRoute = read('routes/productionCards.js');
+  const productionCardsRoute = read('services/productionCardPrintPage.js');
 
   assert.match(productionCardsRoute, /function cardPlan\(\)/);
   assert.match(productionCardsRoute, /function buildSplitMaster\(\)/);
