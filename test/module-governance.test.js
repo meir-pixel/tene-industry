@@ -236,17 +236,32 @@ test('production card print routes are split out of the server monolith', () => 
 
   assert.match(route, /module\.exports = function createProductionCardsRouter/);
   assert.match(route, /router\.get\('\/orders\/:id\/print-cards'/);
-  assert.match(route, /router\.get\('\/orders\/:id\/delivery-certificate'/);
-  assert.match(route, /router\.get\('\/orders\/:id\/print-a4'/);
+  assert.doesNotMatch(route, /delivery-certificate/);
+  assert.doesNotMatch(route, /print-a4/);
   assert.match(route, /cards\.masterCard/);
   assert.match(route, /cards\.itemCard/);
   assert.match(server, /createProductionCardsRouter/);
   assert.match(server, /app\.use\('\/api', createProductionCardsRouter/);
   assert.doesNotMatch(server, /app\.get\('\/api\/orders\/:id\/print-cards'/);
-  assert.doesNotMatch(server, /app\.get\('\/api\/orders\/:id\/delivery-certificate'/);
-  assert.doesNotMatch(server, /app\.get\('\/api\/orders\/:id\/print-a4'/);
   assert.doesNotMatch(server, /function pcMasterCard/);
   assert.doesNotMatch(server, /function pcItemCard/);
+});
+
+test('order document routes are split out of production card printing', () => {
+  const route = read('routes/orderDocuments.js');
+  const productionCardsRoute = read('routes/productionCards.js');
+  const server = read('server.js');
+
+  assert.match(route, /module\.exports = function createOrderDocumentsRouter/);
+  assert.match(route, /router\.get\('\/orders\/:id\/delivery-certificate'/);
+  assert.match(route, /router\.get\('\/orders\/:id\/print-a4'/);
+  assert.match(route, /required\('industry', deps\.industry\)/);
+  assert.match(server, /createOrderDocumentsRouter/);
+  assert.match(server, /app\.use\('\/api', createOrderDocumentsRouter/);
+  assert.doesNotMatch(productionCardsRoute, /delivery-certificate/);
+  assert.doesNotMatch(productionCardsRoute, /print-a4/);
+  assert.doesNotMatch(server, /app\.get\('\/api\/orders\/:id\/delivery-certificate'/);
+  assert.doesNotMatch(server, /app\.get\('\/api\/orders\/:id\/print-a4'/);
 });
 
 test('finance API routes are split out of the server monolith', () => {

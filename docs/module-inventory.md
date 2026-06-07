@@ -90,8 +90,8 @@ Module services:
 Extracted routes:
 
 - `routes/orders.js` for core order CRUD, import approval, status, and lock APIs
-- `routes/productionCards.js` for order print cards, delivery certificate, and A4
-  print output
+- `routes/productionCards.js` for production card print output
+- `routes/orderDocuments.js` for delivery certificate and A4 order documents
 
 API route families:
 

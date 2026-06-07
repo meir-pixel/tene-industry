@@ -34,6 +34,7 @@ const fleetService = require('./services/fleet');
 const createInventoryRouter = require('./routes/inventory');
 const createOrdersRouter = require('./routes/orders');
 const createProductionCardsRouter = require('./routes/productionCards');
+const createOrderDocumentsRouter = require('./routes/orderDocuments');
 const createFinanceRouter = require('./routes/finance');
 const createFleetRouter = require('./routes/fleet');
 const createProductionRouter = require('./routes/production');
@@ -302,6 +303,13 @@ app.use('/api', createProductionCardsRouter({
   tryParseJSON,
   normalizeFactorySegments,
   normalizeFactoryShapeName,
+}));
+
+app.use('/api', createOrderDocumentsRouter({
+  db,
+  requireAnyRole,
+  industry,
+  tryParseJSON,
 }));
 
 app.use('/api', createFinanceRouter({
