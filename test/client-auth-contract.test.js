@@ -292,12 +292,22 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
   assert.ok(channelStart > intakeStart && channelStart < customerStart);
   assert.doesNotMatch(customerBlock, /channel-selector/);
   assert.doesNotMatch(customerBlock, /orderChannel/);
+  assert.match(customerBlock, /שיוך לקוח להזמנה/);
+  assert.match(customerBlock, /לא מקימים כאן תיק לקוח מלא/);
+  assert.match(customerBlock, /customerStatePill/);
   assert.match(customerBlock, /href="\/customers\.html"/);
+  assert.match(customerBlock, /פתח מודול לקוחות/);
+  assert.doesNotMatch(customerBlock, /label>מקור לקוח/);
   assert.match(index, /#customer-section \{ grid-column: 1; \}/);
   assert.match(index, /#delivery-section \{ grid-column: 2; \}/);
   assert.match(index, /#items-section \{ grid-column: 1 \/ 3; \}/);
   assert.match(index, /\.summary-bar \{[\s\S]*position: sticky;[\s\S]*top: 72px/);
   assert.match(index, /@media \(max-width: 768px\)[\s\S]*\.main \{ display: flex; flex-direction: column/);
+  assert.match(index, /@media \(max-width: 768px\)[\s\S]*html, body \{ overflow-x: hidden; \}/);
+  assert.match(index, /\.iron-items-table-wrap \{ width: 100%; max-width: 100%; overflow-x: auto/);
+  assert.match(index, /function escapeHtml/);
+  assert.match(index, /escapeHtml\(c\.name\)/);
+  assert.match(index, /selectCustomer\(JSON\.parse\(decodeURIComponent/);
 });
 
 test('shape side count picker uses clear canonical silhouettes', () => {
