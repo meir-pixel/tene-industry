@@ -281,6 +281,9 @@ function escHtml(value) {
 function jsArg(value) {
   return JSON.stringify(String(value ?? ''));
 }
+function jsAttr(value) {
+  return escHtml(jsArg(value));
+}
 
 // ── WebSocket ──────────────────────────────────────────────────────────
 function connectWS() {
@@ -364,7 +367,7 @@ function actionBtns(o, stopProp = true, includePrints = true) {
   const transitionButtons = transitions.map(status => {
     const label = ORDER_ACTION_LABELS.get(status) || status;
     const cls = status === ORDER_STATUS.APPROVED_WAITING_PRODUCTION ? 'btn-sm success' : 'btn-sm';
-    return `<button class="${cls}" onclick="event.stopPropagation();setStatus(${o.id},${jsArg(status)})">${escHtml(label)}</button>`;
+    return `<button class="${cls}" onclick="event.stopPropagation();setStatus(${o.id},${jsAttr(status)})">${escHtml(label)}</button>`;
   }).join('');
   const printButtons = includePrints ? `
     <a class="btn-sm" href="/api/orders/${o.id}/print-cards" target="_blank" title="כרטיסיות">🖨️</a>
@@ -600,7 +603,7 @@ function buildDetailHTML(o, pkgs) {
     <div class="status-actions">
       ${statuses.map(s => `<button class="status-btn${o.status===s?' cur':''}"
         ${o.status===s?'disabled':''}
-        onclick="setStatusAndClose(${o.id},${jsArg(s)})">${escHtml(s)}</button>`).join('')}
+        onclick="setStatusAndClose(${o.id},${jsAttr(s)})">${escHtml(s)}</button>`).join('')}
     </div>
   </div>`;
 
@@ -669,7 +672,7 @@ function buildDetailHTML(o, pkgs) {
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:11px;font-weight:700;color:${col}">${escHtml(label)}</span>
-          <button class="btn-sm" onclick="printQR(${jsArg(p.package_code)},${jsArg(p.order_num)},${Number(p.weight)||0},${Number(p.diameter)||0})">🖨️ QR</button>
+          <button class="btn-sm" onclick="printQR(${jsAttr(p.package_code)},${jsAttr(p.order_num)},${Number(p.weight)||0},${Number(p.diameter)||0})">🖨️ QR</button>
         </div>
       </div>`;
     }).join('');

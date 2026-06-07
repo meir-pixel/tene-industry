@@ -279,9 +279,21 @@ test('orders screen escapes API-sourced detail fields before innerHTML rendering
   assert.match(orders, /escHtml\(o\.driver_notes\)/);
   assert.match(orders, /escHtml\(item\.note\)/);
   assert.match(orders, /escHtml\(p\.package_code\)/);
-  assert.match(orders, /jsArg\(p\.package_code\)/);
+  assert.match(orders, /jsAttr\(p\.package_code\)/);
   assert.doesNotMatch(orders, /\$\{o\.driver_notes\}/);
   assert.doesNotMatch(orders, /\$\{item\.note\}/);
+});
+
+test('orders screen status actions keep JavaScript arguments safe inside HTML attributes', () => {
+  const orders = read('public/orders.html');
+
+  assert.match(orders, /function jsAttr\(value\)/);
+  assert.match(orders, /return escHtml\(jsArg\(value\)\)/);
+  assert.match(orders, /setStatus\(\$\{o\.id\},\$\{jsAttr\(status\)\}\)/);
+  assert.match(orders, /setStatusAndClose\(\$\{o\.id\},\$\{jsAttr\(s\)\}\)/);
+  assert.match(orders, /printQR\(\$\{jsAttr\(p\.package_code\)\},\$\{jsAttr\(p\.order_num\)\}/);
+  assert.doesNotMatch(orders, /setStatus\(\$\{o\.id\},\$\{jsArg\(status\)\}\)/);
+  assert.doesNotMatch(orders, /setStatusAndClose\(\$\{o\.id\},\$\{jsArg\(s\)\}\)/);
 });
 
 test('order creation success copy does not promise production before approval', () => {
