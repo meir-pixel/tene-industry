@@ -32,6 +32,7 @@ const ordersService = require('./services/orders');
 const intakeWorkflow = require('./services/intakeWorkflow');
 const fleetService = require('./services/fleet');
 const createInventoryRouter = require('./routes/inventory');
+const createProcurementRouter = require('./routes/procurement');
 const createOrdersRouter = require('./routes/orders');
 const createProductionCardsRouter = require('./routes/productionCards');
 const createOrderDocumentsRouter = require('./routes/orderDocuments');
@@ -441,6 +442,11 @@ app.use('/api', createInventoryRouter({
   wsBroadcast,
   auditLog,
   listPage,
+}));
+
+app.use('/api', createProcurementRouter({
+  db,
+  requireAnyRole,
 }));
 
 app.use('/api', createIntakeRouter({

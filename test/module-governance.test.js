@@ -13,7 +13,8 @@ const requiredModules = [
   'Platform Core',
   'Orders',
   'Production',
-  'Inventory And Procurement',
+  'Inventory',
+  'Procurement',
   'Fleet Management',
   'Finance',
   'Quality And Maintenance',
@@ -196,19 +197,36 @@ test('inventory receiving and bent-shape parsing live in an inventory service', 
   assert.match(route, /const \{\s+MATERIAL_TYPES,\s+bendingShapeColumns,\s+normalizeBendingShapeInput,\s+normalizeReceiptReviewItem,\s+parseReceiptReviewPayload,\s+\} = require\('\.\.\/services\/inventory'\);/);
 });
 
-test('inventory procurement API routes are split out of the server monolith', () => {
+test('inventory receiving API routes are split out of the server monolith', () => {
   const route = read('routes/inventory.js');
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createInventoryRouter/);
   assert.match(route, /router\.get\('\/suppliers'/);
   assert.match(route, /router\.post\('\/inventory\/receipt-reviews\/analyze'/);
-  assert.match(route, /router\.get\('\/steel-prices'/);
-  assert.match(route, /router\.patch\('\/purchase-orders\/:id\/receive'/);
+  assert.match(route, /router\.get\('\/inventory\/forecast'/);
+  assert.doesNotMatch(route, /router\.get\('\/steel-prices'/);
+  assert.doesNotMatch(route, /router\.get\('\/purchase-orders'/);
   assert.match(server, /createInventoryRouter/);
   assert.match(server, /app\.use\('\/api', createInventoryRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/suppliers/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/inventory/);
+});
+
+test('procurement API routes are split out of inventory', () => {
+  const route = read('routes/procurement.js');
+  const inventory = read('routes/inventory.js');
+  const server = read('server.js');
+
+  assert.match(route, /module\.exports = function createProcurementRouter/);
+  assert.match(route, /router\.get\('\/steel-prices'/);
+  assert.match(route, /router\.post\('\/steel-prices'/);
+  assert.match(route, /router\.get\('\/purchase-orders'/);
+  assert.match(route, /router\.patch\('\/purchase-orders\/:id\/receive'/);
+  assert.match(server, /createProcurementRouter/);
+  assert.match(server, /app\.use\('\/api', createProcurementRouter/);
+  assert.doesNotMatch(inventory, /router\.get\('\/steel-prices'/);
+  assert.doesNotMatch(inventory, /router\.get\('\/purchase-orders'/);
   assert.doesNotMatch(server, /app\.(get|post)\('\/api\/steel-prices/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/purchase-orders/);
 });

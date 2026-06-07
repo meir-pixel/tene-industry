@@ -159,22 +159,24 @@ Current risks:
 - Kiosk/worker flows are guarded by production/kiosk roles, but sold deployments
   still need a deliberate device/station auth policy.
 
-## Inventory And Procurement
+## Inventory
 
 Purpose:
 
-- Raw material stock, suppliers, receiving, purchase orders, forecasts, steel
-  prices.
+- Raw material stock, suppliers, receiving, receipt review, and stock forecasts.
 
 Screens:
 
 - `public/inventory.html`
 - `public/warehouse.html` for receiving/stock areas
-- `public/procurement.html`
 
 Module services:
 
 - `services/inventory.js`
+
+Extracted routes:
+
+- `routes/inventory.js` for suppliers, raw material, receipt review, and inventory forecast
 
 API route families:
 
@@ -182,14 +184,34 @@ API route families:
 - `/api/inventory*`
 - `/api/inventory/summary`
 - `/api/inventory/forecast`
+
+Current risks:
+
+- Warehouse mixes delivery/package work with inventory receiving.
+- Inventory reservation rules are not clearly separated from production demand.
+
+## Procurement
+
+Purpose:
+
+- Purchase orders, steel price history, supplier purchase workflow, and receiving handoff into inventory.
+
+Screens:
+
+- `public/procurement.html`
+
+Extracted routes:
+
+- `routes/procurement.js` for steel prices and purchase orders
+
+API route families:
+
 - `/api/steel-prices*`
 - `/api/purchase-orders*`
 
 Current risks:
 
-- Procurement appears to be a partially stubbed module.
-- Warehouse mixes delivery/package work with inventory receiving.
-- Inventory reservation rules are not clearly separated from production demand.
+- Procurement is API-backed, but workflow policy, approvals, and supplier portal separation still need product hardening.
 
 ## Delivery
 
