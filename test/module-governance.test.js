@@ -714,10 +714,6 @@ test('production execution API routes are split out of the server monolith', () 
   for (const routeSnippet of [
     "router.get('/workers'",
     "router.post('/workers'",
-    "router.get('/machines'",
-    "router.post('/machines'",
-    "router.patch('/machines/:id/config'",
-    "router.patch('/machines/:id/state'",
     "router.post('/scan'",
     "router.get('/production-queue'",
     "router.get('/production-events'",
@@ -726,7 +722,12 @@ test('production execution API routes are split out of the server monolith', () 
     assert.ok(route.includes(routeSnippet), routeSnippet);
   }
   assert.ok(route.includes("wsBroadcast('machine_assign'"));
+  assert.match(route, /createProductionMachinesRouter/);
   assert.match(route, /checkOrderComplete/);
+  assert.ok(!route.includes("router.get('/machines'"));
+  assert.ok(!route.includes("router.post('/machines'"));
+  assert.ok(!route.includes("router.patch('/machines/:id/config'"));
+  assert.ok(!route.includes("router.patch('/machines/:id/state'"));
   assert.doesNotMatch(route, /router\.get\('\/reports\/waste'/);
   assert.doesNotMatch(route, /router\.get\('\/waste\/summary'/);
   assert.match(server, /createProductionRouter/);
@@ -754,6 +755,32 @@ test('production execution API routes are split out of the server monolith', () 
   assert.match(server, /createProductionShiftsRouter/);
   assert.ok(server.includes("createWarehouseRouter"));
   assert.ok(server.includes("createReportsRouter"));
+});
+
+test('production machine routes are split out of production execution', () => {
+  const route = read('routes/productionMachines.js');
+  const production = read('routes/production.js');
+
+  assert.match(route, /module[.]exports = function createProductionMachinesRouter/);
+  assert.ok(route.includes('routes/productionMachines missing dependency'));
+  for (const routeSnippet of [
+    "router.get('/machines'",
+    "router.post('/machines'",
+    "router.delete('/machines/:id'",
+    "router.post('/machines/:id/send-params'",
+    "router.post('/machines/:id/assign'",
+    "router.patch('/machines/:id/config'",
+    "router.post('/machines/:id/complete'",
+    "router.patch('/machines/:id/state'",
+    "router.get('/machines/:id/state-log'",
+  ]) {
+    assert.ok(route.includes(routeSnippet), routeSnippet);
+    assert.ok(!production.includes(routeSnippet), routeSnippet);
+  }
+  assert.match(route, /MACHINE_STATES/);
+  assert.match(route, /STATE_TRANSITIONS/);
+  assert.match(route, /modbus\.writeParams/);
+  assert.match(route, /checkOrderComplete/);
 });
 
 test('production KPI routes are split out of production execution', () => {

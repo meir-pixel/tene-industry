@@ -139,8 +139,10 @@ Extracted routes:
 
 - `routes/productionMetrics.js` for production KPI read models: tons today,
   machine OEE, and current shift summary.
-- `routes/production.js` for workers, machine setup/state, scan execution,
-  and production queue/events.
+- `routes/production.js` for workers, scan execution, item progress, and
+  production queue/events.
+- `routes/productionMachines.js` for machine setup, machine assignment, Modbus
+  parameter writes, machine state transitions, completion, and state logs.
 - `routes/productionShifts.js` for shifts, downtime reasons, and machine stops.
 
 API route families:
