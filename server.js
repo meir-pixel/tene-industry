@@ -143,11 +143,13 @@ const {
 } = industry;
 
 const STRICT_SECRET_ENVS = new Set(['production', 'staging']);
-if (!process.env.JWT_SECRET && STRICT_SECRET_ENVS.has(process.env.NODE_ENV)) {
-  throw new Error('[Auth] JWT_SECRET is required in production/staging.');
+const runtimeJwtSecret = process.env.JWT_SECRET || process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+if (!process.env.JWT_SECRET && !process.env.SESSION_SECRET && STRICT_SECRET_ENVS.has(process.env.NODE_ENV)) {
+  throw new Error('[Auth] JWT_SECRET is required in production/staging unless SESSION_SECRET is configured as a stable fallback.');
 }
-const runtimeJwtSecret = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
-if (!process.env.JWT_SECRET) {
+if (!process.env.JWT_SECRET && process.env.SESSION_SECRET && STRICT_SECRET_ENVS.has(process.env.NODE_ENV)) {
+  console.warn('[Auth] JWT_SECRET is not configured. Using stable SESSION_SECRET fallback for JWT signing.');
+} else if (!process.env.JWT_SECRET) {
   console.warn('[Auth] JWT_SECRET is not configured. Using an ephemeral startup secret for local development/test only.');
 }
 const authService = createAuthService(db, { jwtSecret: runtimeJwtSecret });
