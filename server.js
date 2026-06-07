@@ -56,6 +56,7 @@ const createWarehouseRouter = require('./routes/warehouse');
 const createReportsRouter = require('./routes/reports');
 const createCatalogRouter = require('./routes/catalog');
 const createIntakeRouter = require('./routes/intake');
+const createIntakeTrainingRouter = require('./routes/intakeTraining');
 const createAlertsRouter = require('./routes/alerts');
 const createCompaniesRouter = require('./routes/companies');
 const createPriorityRouter = require('./routes/priority');
@@ -502,6 +503,11 @@ app.use('/api', createInventoryVisionRouter({
 }));
 
 app.use('/api', createProcurementRouter({
+  db,
+  requireAnyRole,
+}));
+
+app.use('/api', createIntakeTrainingRouter({
   db,
   requireAnyRole,
 }));

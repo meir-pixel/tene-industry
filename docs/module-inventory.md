@@ -85,6 +85,8 @@ Module services:
 
 - `services/orderNumbers.js`
 - `services/orders.js`
+- `services/intakeWorkflow.js` for external order intake parsing and
+  approve-to-order payload building
 - `services/productionCards.js` for individual production card rendering
 - `services/productionCardPrintPage.js` for the print-cards HTML workspace
 
@@ -95,6 +97,10 @@ Extracted routes:
 - `routes/orderDocuments.js` as the order document router aggregator
 - `routes/orderDeliveryCertificate.js` for delivery certificate documents
 - `routes/orderPrintA4.js` for A4 production/order documents
+- `routes/intake.js` for image/OCR, WhatsApp/email/manual intake, review queue,
+  and approve/reject flows
+- `routes/intakeTraining.js` for OCR/AI correction examples and training
+  guidance management
 
 API route families:
 
@@ -103,6 +109,7 @@ API route families:
 - `/api/items/*`
 - `/api/bvbs/*`
 - `/api/intake/*`
+- `/api/analyze-image`
 - `/api/priority/*`
 
 Current risks:

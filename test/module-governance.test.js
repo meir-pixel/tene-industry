@@ -460,13 +460,14 @@ test('intake import and manual parsing live in an intake workflow service', () =
 
 test('intake API routes are split out of the server monolith', () => {
   const route = read('routes/intake.js');
+  const trainingRoute = read('routes/intakeTraining.js');
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createIntakeRouter/);
   assert.ok(route.includes("router.post('/analyze-image'"));
-  assert.ok(route.includes("router.get('/intake/training'"));
-  assert.ok(route.includes("router.post('/intake/training'"));
-  assert.ok(route.includes("router.delete('/intake/training/:id'"));
+  assert.ok(!route.includes("router.get('/intake/training'"));
+  assert.ok(!route.includes("router.post('/intake/training'"));
+  assert.ok(!route.includes("router.delete('/intake/training/:id'"));
   assert.ok(route.includes("router.post('/intake/image'"));
   assert.ok(route.includes("router.get('/intake/whatsapp'"));
   assert.ok(route.includes("router.post('/intake/whatsapp'"));
@@ -475,7 +476,14 @@ test('intake API routes are split out of the server monolith', () => {
   assert.ok(route.includes("router.post('/intake/:id/approve'"));
   assert.ok(route.includes("router.post('/intake/:id/reject'"));
   assert.ok(route.includes("router.post('/intake/parse-text'"));
+  assert.match(trainingRoute, /module\.exports = function createIntakeTrainingRouter/);
+  assert.match(trainingRoute, /routes\/intakeTraining missing dependency/);
+  assert.ok(trainingRoute.includes("router.get('/intake/training'"));
+  assert.ok(trainingRoute.includes("router.post('/intake/training'"));
+  assert.ok(trainingRoute.includes("router.delete('/intake/training/:id'"));
   assert.match(server, /createIntakeRouter/);
+  assert.match(server, /createIntakeTrainingRouter/);
+  assert.ok(server.includes("app.use('/api', createIntakeTrainingRouter"));
   assert.ok(server.includes("app.use('/api', createIntakeRouter"));
   assert.ok(!server.includes("app.post('/api/analyze-image'"));
   assert.ok(!server.includes("app.get('/api/intake/training'"));

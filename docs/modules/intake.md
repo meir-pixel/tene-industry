@@ -74,7 +74,8 @@ wsBroadcast('new_order')
 
 | קובץ | תוכן |
 |------|------|
-| `routes/intake.js` | כל ה-endpoints |
+| `routes/intake.js` | analyze-image, OCR image intake, WhatsApp/email intake, review queue, approve/reject, manual parse |
+| `routes/intakeTraining.js` | OCR/AI correction examples and training guidance management |
 | `intake.js` | שירות WhatsApp/OCR/Email (module קיים) |
 | `services/intakeWorkflow.js` | לוגיקת buildIntakeOrderPayload |
 
