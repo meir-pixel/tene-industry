@@ -297,13 +297,21 @@ test('production card print routes are split out of the server monolith', () => 
 
 test('order document routes are split out of production card printing', () => {
   const route = read('routes/orderDocuments.js');
+  const delivery = read('routes/orderDeliveryCertificate.js');
+  const printA4 = read('routes/orderPrintA4.js');
   const productionCardsRoute = read('routes/productionCards.js');
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createOrderDocumentsRouter/);
-  assert.match(route, /router\.get\('\/orders\/:id\/delivery-certificate'/);
-  assert.match(route, /router\.get\('\/orders\/:id\/print-a4'/);
+  assert.match(route, /createOrderDeliveryCertificateRouter/);
+  assert.match(route, /createOrderPrintA4Router/);
   assert.match(route, /required\('industry', deps\.industry\)/);
+  assert.match(delivery, /module\.exports = function createOrderDeliveryCertificateRouter/);
+  assert.match(delivery, /router\.get\('\/orders\/:id\/delivery-certificate'/);
+  assert.match(delivery, /required\('industry', deps\.industry\)/);
+  assert.match(printA4, /module\.exports = function createOrderPrintA4Router/);
+  assert.match(printA4, /router\.get\('\/orders\/:id\/print-a4'/);
+  assert.match(printA4, /required\('tryParseJSON', deps\.tryParseJSON\)/);
   assert.match(server, /createOrderDocumentsRouter/);
   assert.match(server, /app\.use\('\/api', createOrderDocumentsRouter/);
   assert.doesNotMatch(productionCardsRoute, /delivery-certificate/);

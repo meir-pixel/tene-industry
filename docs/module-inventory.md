@@ -92,7 +92,9 @@ Extracted routes:
 
 - `routes/orders.js` for core order CRUD, import approval, status, and lock APIs
 - `routes/productionCards.js` for production card print output
-- `routes/orderDocuments.js` for delivery certificate and A4 order documents
+- `routes/orderDocuments.js` as the order document router aggregator
+- `routes/orderDeliveryCertificate.js` for delivery certificate documents
+- `routes/orderPrintA4.js` for A4 production/order documents
 
 API route families:
 
