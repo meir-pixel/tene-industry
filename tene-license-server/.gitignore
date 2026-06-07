@@ -1,0 +1,7 @@
+node_modules/
+licenses.db
+licenses.db-shm
+licenses.db-wal
+backups/
+.env
+*.log

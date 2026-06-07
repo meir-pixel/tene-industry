@@ -1,0 +1,30 @@
+# Render Blueprint — שרת רישיונות וגיבוי של Tene Industry
+# שירות נפרד מאפליקציית IronBend. כאן נשמרים הרישיונות והגיבויים המוצפנים.
+#
+# פריסה:
+#   1. צור Repo נפרד מהתיקייה הזו (מומלץ), או הצבע ב-Render על rootDir=tene-license-server
+#   2. ב-Render: New → Blueprint → בחר את ה-Repo
+#   3. מלא ADMIN_PASSWORD (סיסמת ממשק הניהול)
+services:
+  - type: web
+    name: tene-license
+    runtime: node
+    plan: starter            # starter = תמיכה בדיסק קבוע (חובה לגיבויים)
+    region: frankfurt        # קרוב לישראל
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    disk:
+      name: tene-license-data
+      mountPath: /data        # הרישיונות והגיבויים נשמרים כאן — לא נמחק בכל deploy
+      sizeGB: 1
+    envVars:
+      # PORT מוזרק אוטומטית ע"י Render — השרת קורא process.env.PORT
+      - key: DB_PATH
+        value: /data/licenses.db
+      - key: BACKUP_DIR
+        value: /data/backups
+      - key: ADMIN_PASSWORD
+        sync: false           # תמלא ידנית ב-Render — סיסמה חזקה
+      - key: TENE_NOTIFY_PHONE
+        sync: false           # הטלפון שלך להתראות (גיבוי נכשל / רישיון פג)

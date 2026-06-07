@@ -1,4 +1,33 @@
-# Deploy — שרת רישיונות Tene Industry
+# Deploy — שרת רישיונות וגיבוי Tene Industry
+
+יש שתי דרכים. **דרך א' (Render) מומלצת** — כי כבר יש לך חשבון Render ואין צורך ב-VPS.
+
+---
+
+## דרך א' — Render (מומלץ, ללא VPS)
+
+שרת זה רץ כשירות **נפרד** מאפליקציית IronBend. הקובץ `render.yaml` בתיקייה כבר מוכן.
+
+**שלבים:**
+1. צור Repo חדש ב-GitHub מהתיקייה `tene-license-server/` בלבד
+   (או: ב-Render בחר את אותו Repo עם `rootDir = tene-license-server`).
+2. ב-Render: **New → Blueprint** → בחר את ה-Repo.
+3. Render יזהה את `render.yaml` ויקים שירות `tene-license` עם דיסק קבוע 1GB.
+4. מלא משתנה `ADMIN_PASSWORD` (סיסמת ממשק הניהול) ו-`TENE_NOTIFY_PHONE` (הטלפון שלך).
+5. אחרי שעולה — הכתובת תהיה למשל `https://tene-license.onrender.com`
+6. עדכן באפליקציה של כל לקוח את `LICENSE_SERVER` לכתובת הזו.
+
+**עלות:** plan `starter` (~7$/חודש) — נדרש בשביל דיסק קבוע ששומר את הגיבויים.
+
+**בדיקה:**
+```
+https://tene-license.onrender.com/health
+https://tene-license.onrender.com/admin   (סיסמה: ADMIN_PASSWORD)
+```
+
+---
+
+## דרך ב' — VPS (אופציה חלופית)
 
 ## מה צריך
 - VPS עם Ubuntu 22.04 (Hetzner CX11 — ~5$/חודש)
