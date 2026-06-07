@@ -551,15 +551,13 @@ test('auth identity routes are split out of admin and server monolith', () => {
 
 test('customer portal and portal management routes are split out of the server monolith', () => {
   const route = read('routes/portal.js');
+  const adminRoute = read('routes/portalAdmin.js');
+  const accessService = read('services/portalAccess.js');
   const customers = read('routes/customers.js');
   const server = read('server.js');
 
   assert.match(route, /module[.]exports = function createPortalRouter/);
   assert.ok(route.includes('routes/portal missing dependency'));
-  assert.ok(route.includes("router.get('/customers/:id/token'"));
-  assert.ok(route.includes("router.post('/customers/:id/token/rotate'"));
-  assert.ok(route.includes("router.delete('/customers/:id/token'"));
-  assert.ok(route.includes("router.patch('/customers/:id/pricing'"));
   assert.ok(route.includes("router.post('/c/auth'"));
   assert.ok(route.includes("router.post('/c/auth/verify'"));
   assert.ok(route.includes("router.get('/c/me'"));
@@ -569,13 +567,35 @@ test('customer portal and portal management routes are split out of the server m
   assert.ok(route.includes("router.get('/c/approve/:token'"));
   assert.ok(route.includes("router.post('/c/approve'"));
   assert.ok(route.includes("router.get('/c/orders/:orderId'"));
-  assert.match(route, /CUSTOMER_PORTAL_COLS/);
+  assert.ok(!route.includes("router.get('/customers/:id/token'"));
+  assert.ok(!route.includes("router.post('/customers/:id/token/rotate'"));
+  assert.ok(!route.includes("router.delete('/customers/:id/token'"));
+  assert.ok(!route.includes("router.patch('/customers/:id/pricing'"));
+  assert.match(route, /createPortalAccessService/);
   assert.match(route, /customerPortalAuthLimiter/);
   assert.match(route, /customerPortalActionLimiter/);
+
+  assert.match(adminRoute, /module[.]exports = function createPortalAdminRouter/);
+  assert.ok(adminRoute.includes('routes/portalAdmin missing dependency'));
+  assert.ok(adminRoute.includes("router.get('/customers/:id/token'"));
+  assert.ok(adminRoute.includes("router.post('/customers/:id/token/rotate'"));
+  assert.ok(adminRoute.includes("router.delete('/customers/:id/token'"));
+  assert.ok(adminRoute.includes("router.patch('/customers/:id/pricing'"));
+  assert.match(adminRoute, /requireAnyRole\(\['office', 'manager', 'admin'\]\)/);
+  assert.match(adminRoute, /createPortalAccessService/);
+  assert.match(accessService, /module[.]exports = \{ createPortalAccessService \}/);
+  assert.match(accessService, /CUSTOMER_PORTAL_COLS/);
+  assert.match(accessService, /function resolveCustomer/);
+  assert.match(accessService, /function issuePortalOtp/);
+  assert.match(accessService, /function verifyPortalOtp/);
+  assert.match(accessService, /function portalAuthResponse/);
+
   assert.ok(!customers.includes("router.get('/customers/:id/token'"));
   assert.ok(!customers.includes("router.patch('/customers/:id/pricing'"));
 
   assert.match(server, /createPortalRouter/);
+  assert.match(server, /createPortalAdminRouter/);
+  assert.ok(server.includes("app.use('/api', createPortalAdminRouter"));
   assert.ok(server.includes("app.use('/api', createPortalRouter"));
   for (const forbiddenSnippet of [
     "app.get('/api/customers/:id/token'",

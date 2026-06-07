@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { createPortalAccessService } = require('../services/portalAccess');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/portal missing dependency: ${name}`);
@@ -7,12 +8,10 @@ function required(name, value) {
 
 module.exports = function createPortalRouter(deps) {
   const db = required('db', deps.db);
-  const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const customerPortalAuthLimiter = required('customerPortalAuthLimiter', deps.customerPortalAuthLimiter);
   const customerPortalActionLimiter = required('customerPortalActionLimiter', deps.customerPortalActionLimiter);
   const crypto = required('crypto', deps.crypto);
   const intake = required('intake', deps.intake);
-  const auditLog = required('auditLog', deps.auditLog);
   const industry = required('industry', deps.industry);
   const generateOrderNum = required('generateOrderNum', deps.generateOrderNum);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
@@ -21,141 +20,14 @@ module.exports = function createPortalRouter(deps) {
   const PORT = required('PORT', deps.PORT);
   const IS_TEST = Boolean(deps.IS_TEST);
 
-  // Generate / fetch portal token for a customer
-  router.get('/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-    let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
-    if (!c) return res.status(404).json({ error: 'לא נמצא' });
-    const result = portalAuthResponse(c);
-    res.json({ token: result.token, link: result.link, expiresAt: result.expiresAt });
-  });
-
-  router.post('/customers/:id/token/rotate', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-    let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
-    if (!c) return res.status(404).json({ error: 'not found' });
-    const result = portalAuthResponse(c, { forceRotate: true });
-    auditLog('customer', c.id, null, 'portal_token_rotate', null, null, null, null, req.userId || null, null);
-    res.json({ token: result.token, link: result.link, expiresAt: result.expiresAt });
-  });
-
-  router.delete('/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-    const c = db.prepare('SELECT id FROM customers WHERE id=?').get(req.params.id);
-    if (!c) return res.status(404).json({ error: 'not found' });
-    db.prepare('UPDATE customers SET portal_token_revoked_at=CURRENT_TIMESTAMP WHERE id=?').run(c.id);
-    auditLog('customer', c.id, null, 'portal_token_revoke', null, null, null, null, req.userId || null, null);
-    res.json({ success: true });
-  });
-
-  router.patch('/customers/:id/pricing', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-    const { price_tier, discount_pct } = req.body;
-    // BUG-26: validate discount is 0–100
-    const discountNum = Number(discount_pct ?? 0);
-    if (isNaN(discountNum) || discountNum < 0 || discountNum > 100)
-      return res.status(400).json({ error: 'הנחה חייבת להיות בין 0 ל-100' });
-    db.prepare('UPDATE customers SET price_tier=?,discount_pct=? WHERE id=?')
-      .run(price_tier, discountNum, req.params.id);
-    res.json({ success: true });
-  });
-
-  // ── CUSTOMER PORTAL API ───────────────────────────────────────────
-  // BUG-41: limited projection — never return sensitive fields via portal resolver
-  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct';
-  function resolveCustomer(token, phone) {
-    if (token) return db.prepare(`
-      SELECT ${CUSTOMER_PORTAL_COLS} FROM customers
-      WHERE portal_token=?
-        AND portal_token_revoked_at IS NULL
-        AND (portal_token_expires_at IS NULL OR portal_token_expires_at > ?)
-    `).get(token, new Date().toISOString());
-    if (phone) return db.prepare(`SELECT ${CUSTOMER_PORTAL_COLS} FROM customers WHERE phone=?`).get(phone);
-    return null;
-  }
-
-  // TTL מה-settings — ניתן לשינוי ע"י מנהל לקוח
-  const PORTAL_OTP_TTL_MINUTES = () => settingsService.getNum('PORTAL_OTP_TTL_MINUTES', Number(process.env.PORTAL_OTP_TTL_MINUTES || 10));
-  const PORTAL_TOKEN_TTL_DAYS  = () => settingsService.getNum('PORTAL_TOKEN_TTL_DAYS',  Number(process.env.PORTAL_TOKEN_TTL_DAYS  || 90));
-  function normalizePortalPhone(phone) {
-    return String(phone || '').replace(/\D/g, '');
-  }
-
-  function hashPortalOtp(phone, code) {
-    return crypto.createHash('sha256')
-      .update(`${process.env.JWT_SECRET || 'dev-secret'}:${phone}:${code}`)
-      .digest('hex');
-  }
-
-  function portalTokenExpiresAt() {
-    return new Date(Date.now() + PORTAL_TOKEN_TTL_DAYS() * 24 * 60 * 60 * 1000).toISOString();
-  }
-
-  function hasActivePortalToken(customer) {
-    if (!customer.portal_token || customer.portal_token_revoked_at) return false;
-    if (!customer.portal_token_expires_at) return true;
-    return new Date(customer.portal_token_expires_at).getTime() > Date.now();
-  }
-
-  function ensurePortalToken(customer, options = {}) {
-    if (!options.forceRotate && hasActivePortalToken(customer)) return customer.portal_token;
-    const token = crypto.randomBytes(12).toString('hex');
-    const expiresAt = portalTokenExpiresAt();
-    db.prepare(`
-      UPDATE customers
-      SET portal_token=?,
-          portal_token_created_at=CURRENT_TIMESTAMP,
-          portal_token_expires_at=?,
-          portal_token_revoked_at=NULL
-      WHERE id=?
-    `).run(token, expiresAt, customer.id);
-    customer.portal_token = token;
-    customer.portal_token_expires_at = expiresAt;
-    customer.portal_token_revoked_at = null;
-    return token;
-  }
-
-  function issuePortalOtp(customer) {
-    const phone = normalizePortalPhone(customer.phone);
-    const code = String(crypto.randomInt(100000, 1000000));
-    const expiresAt = new Date(Date.now() + PORTAL_OTP_TTL_MINUTES() * 60 * 1000).toISOString();
-    db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE phone=? AND consumed_at IS NULL')
-      .run(phone);
-    db.prepare(`
-      INSERT INTO customer_portal_otps (customer_id,phone,code_hash,expires_at)
-      VALUES (?,?,?,?)
-    `).run(customer.id, phone, hashPortalOtp(phone, code), expiresAt);
-    return { code, expiresAt };
-  }
-
-  function verifyPortalOtp(phone, code) {
-    const normalizedPhone = normalizePortalPhone(phone);
-    const cleanCode = String(code || '').replace(/\D/g, '');
-    const otp = db.prepare(`
-      SELECT * FROM customer_portal_otps
-      WHERE phone=? AND consumed_at IS NULL
-      ORDER BY id DESC LIMIT 1
-    `).get(normalizedPhone);
-    if (!otp) return { ok: false, status: 401, error: 'Invalid code' };
-    if (new Date(otp.expires_at).getTime() < Date.now()) {
-      db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE id=?').run(otp.id);
-      return { ok: false, status: 401, error: 'Code expired' };
-    }
-    if (Number(otp.attempts || 0) >= 5) return { ok: false, status: 429, error: 'Too many attempts' };
-    if (hashPortalOtp(normalizedPhone, cleanCode) !== otp.code_hash) {
-      db.prepare('UPDATE customer_portal_otps SET attempts=attempts+1 WHERE id=?').run(otp.id);
-      return { ok: false, status: 401, error: 'Invalid code' };
-    }
-    db.prepare('UPDATE customer_portal_otps SET consumed_at=CURRENT_TIMESTAMP WHERE id=?').run(otp.id);
-    return { ok: true, customerId: otp.customer_id };
-  }
-
-  function portalAuthResponse(customer, options = {}) {
-    const token = ensurePortalToken(customer, options);
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-    return {
-      token,
-      link: `${baseUrl}/customer.html?token=${token}`,
-      expiresAt: customer.portal_token_expires_at || null,
-      customer: { id: customer.id, name: customer.name, phone: customer.phone, price_tier: customer.price_tier }
-    };
-  }
+  const portalAccess = createPortalAccessService({ db, crypto, settingsService, PORT });
+  const {
+    normalizePortalPhone,
+    resolveCustomer,
+    issuePortalOtp,
+    verifyPortalOtp,
+    portalAuthResponse,
+  } = portalAccess;
 
   // Auth: get/create customer by phone (walk-in) or by token
   router.post('/c/auth', customerPortalAuthLimiter, (req, res) => {

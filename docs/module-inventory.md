@@ -459,11 +459,15 @@ Screens:
 Module services:
 
 - `services/intakeWorkflow.js` for external order intake before approval
+- `services/portalAccess.js` for customer portal OTP, scoped customer
+  resolution, token lifecycle, and staff-generated portal links
 
 Extracted routes:
 
-- `routes/portal.js` for customer portal token management, customer portal OTP,
-  quote/order submission, customer approval, and portal-scoped order reads.
+- `routes/portalAdmin.js` for internal staff management of customer portal
+  access links, token rotation/revocation, and customer portal pricing.
+- `routes/portal.js` for customer-facing `/api/c/*` OTP, quote/order
+  submission, customer approval, and portal-scoped order reads.
 
 API route families:
 
@@ -480,6 +484,8 @@ Current risks:
 - Customer access can be granted from phone alone.
 - Portal token policy is not strong enough for a sellable product.
 - External portals need a separate session/OTP decision.
+- Internal portal administration and external customer portal traffic are now
+  separate route files; do not merge them back into CRM or the public portal.
 
 ## Dashboard And Reports
 

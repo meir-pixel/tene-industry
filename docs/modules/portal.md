@@ -81,6 +81,15 @@ tier = 'customer' → price_cust
 
 ---
 
+## גבול אחריות עדכני
+
+- `routes/portal.js` שייך רק ללקוח החיצוני: `/api/c/*`.
+- `routes/portalAdmin.js` שייך רק למשתמש פנימי שמנהל קישור פורטל, rotate/revoke, ותמחור לקוח.
+- `services/portalAccess.js` הוא המקום היחיד ללוגיקת OTP, token, resolveCustomer ו-portalAuthResponse.
+- אין להחזיר token/pricing management ל-CRM או ל-portal.js.
+
+---
+
 ## rate limiters
 
 | limiter | מגבלה | על מה |

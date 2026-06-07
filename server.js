@@ -48,6 +48,7 @@ const createCustomersRouter = require('./routes/customers');
 const createAuthRouter = require('./routes/auth');
 const createAdminRouter = require('./routes/admin');
 const createPortalRouter = require('./routes/portal');
+const createPortalAdminRouter = require('./routes/portalAdmin');
 const createWarehouseRouter = require('./routes/warehouse');
 const createReportsRouter = require('./routes/reports');
 const createCatalogRouter = require('./routes/catalog');
@@ -503,14 +504,20 @@ app.use('/api', createIntakeRouter({
   intakeToOrderPayload,
   intakeWorkflow,
 }));
-app.use('/api', createPortalRouter({
+app.use('/api', createPortalAdminRouter({
   db,
   requireAnyRole,
+  auditLog,
+  crypto,
+  settingsService,
+  PORT,
+}));
+app.use('/api', createPortalRouter({
+  db,
   customerPortalAuthLimiter,
   customerPortalActionLimiter,
   crypto,
   intake,
-  auditLog,
   industry,
   generateOrderNum,
   wsBroadcast,
