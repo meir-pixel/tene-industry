@@ -12,25 +12,25 @@ services:
       sizeGB: 1
     envVars:
       - key: PORT
-        value: 3000
+        value: "3000"
       - key: NODE_ENV
-        value: production
+        value: "production"
       - key: DB_PATH
-        value: /data/ironbend.db
+        value: "/data/ironbend.db"
       - key: BACKUP_DIR
-        value: /data/backups
+        value: "/data/backups"
       - key: ALLOW_EMPTY_DB_INIT
-        value: false
+        value: "false"
       - key: ALLOW_DATABASE_UPLOAD
-        value: false
+        value: "false"
       - key: AI_ENABLED
-        value: false
+        value: "false"
       - key: INTAKE_AI_ENABLED
-        value: false
+        value: "false"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
-        value: gpt-5.4-mini
+        value: "gpt-5.4-mini"
       - key: SESSION_SECRET
         generateValue: true
       - key: JWT_SECRET

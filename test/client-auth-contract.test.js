@@ -756,6 +756,16 @@ test('local server command skips startup snapshot outside production', () => {
   assert.match(localStart, /AUTH_BYPASS_ROLE/);
 });
 
+test('render blueprint keeps env var values as explicit strings', () => {
+  const renderYaml = read('render.yaml');
+  const unquotedValues = renderYaml
+    .split(/\r?\n/)
+    .filter(line => /^\s+value:\s+/.test(line))
+    .filter(line => !/^\s+value:\s+["'].*["']\s*$/.test(line));
+
+  assert.deepEqual(unquotedValues, []);
+});
+
 test('supplier portal is frozen instead of serving demo supplier data', () => {
   const supplier = read('public/supplier.html');
 
