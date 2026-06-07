@@ -97,6 +97,14 @@
     });
   }
 
+  function webSocketUrl(path = '/') {
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = new URL(path, `${protocol}://${location.host}`);
+    const token = accessToken();
+    if (token) url.searchParams.set('token', token);
+    return url.toString();
+  }
+
   async function authFetch(input, init = {}) {
     const url = typeof input === 'string' ? input : input.url;
     const isApi = isApiUrl(url);
@@ -137,6 +145,7 @@
     storeSession,
     clearSession,
     refreshAccessToken,
+    webSocketUrl,
   };
 
   window.__ironBendFetchInstalled = true;

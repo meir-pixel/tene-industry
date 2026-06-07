@@ -284,8 +284,7 @@ function jsArg(value) {
 
 // ── WebSocket ──────────────────────────────────────────────────────────
 function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}`);
+  ws = new WebSocket(window.IronBendAuth?.webSocketUrl?.('/') || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
   ws.onopen  = () => {
     document.getElementById('wsDot').classList.add('connected');
     document.getElementById('wsLabel').textContent = 'מחובר';

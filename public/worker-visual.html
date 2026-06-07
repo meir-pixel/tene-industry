@@ -154,7 +154,7 @@
     function selectOrder(id){state.selected=id;render();document.querySelector('.panel').classList.add('mobile-hidden');document.querySelector('.stage').classList.remove('mobile-hidden')}
     async function load(){try{const r=await fetch('/api/production-queue?visual=1');if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='חי';render()}catch{document.querySelector('#sync').textContent='מתחבר מחדש'}}
     document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelector('.panel').classList.toggle('mobile-hidden',b.dataset.pane!=='panel');document.querySelector('.stage').classList.toggle('mobile-hidden',b.dataset.pane!=='stage')});
-    function ws(){try{const socket=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=event=>{try{if(['item_status','new_order','order_status'].includes(JSON.parse(event.data).type))load()}catch{}};socket.onclose=()=>setTimeout(ws,2000)}catch{}}
+    function ws(){try{const socket=new WebSocket(window.IronBendAuth?.webSocketUrl?.('/')||`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=event=>{try{if(['item_status','new_order','order_status'].includes(JSON.parse(event.data).type))load()}catch{}};socket.onclose=()=>setTimeout(ws,2000)}catch{}}
     load();ws();
   </script>
 </body>

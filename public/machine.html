@@ -460,8 +460,7 @@ function jsArg(value) {
 
 let _wsDelay = 1000;
 function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}`);
+  ws = new WebSocket(window.IronBendAuth?.webSocketUrl?.('/') || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
   ws.onopen  = () => { document.getElementById('wsDot').classList.add('live'); document.getElementById('wsLabel').textContent='מחובר'; _wsDelay = 1000; };
   ws.onerror = () => ws.close();
   ws.onclose = () => { document.getElementById('wsDot').classList.remove('live'); document.getElementById('wsLabel').textContent='מתחבר מחדש...'; _wsDelay = Math.min(_wsDelay * 2, 30000); setTimeout(connectWS, _wsDelay); };

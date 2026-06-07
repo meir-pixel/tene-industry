@@ -786,7 +786,7 @@ async function refreshAlerts() {
 // ── WEBSOCKET ─────────────────────────────────────────────────────
 let _wsDelay = 1000;
 function connectWS() {
-  ws = new WebSocket(WS_URL());
+  ws = new WebSocket(window.IronBendAuth?.webSocketUrl?.('/') || WS_URL());
   ws.onopen  = () => { _wsDelay = 1000; };
   ws.onerror = () => ws.close();
   ws.onclose = () => { _wsDelay = Math.min(_wsDelay * 2, 30000); setTimeout(connectWS, _wsDelay); };

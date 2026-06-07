@@ -838,3 +838,31 @@ test('shared navigation exposes modules converted from stubs', () => {
   assert.doesNotMatch(nav, /warroom removed \(stub\)/);
   assert.doesNotMatch(nav, /stub pages hidden/);
 });
+
+
+test('server hardens production auth and websocket upgrades', () => {
+  const server = read('server.js');
+  const authClient = read('public/auth-client.js');
+  const wsClients = [
+    'public/dashboard.html',
+    'public/kiosk.html',
+    'public/machine.html',
+    'public/orders.html',
+    'public/worker-visual.html',
+  ];
+
+  assert.match(server, /const helmet\s+=\s+require\('helmet'\)/);
+  assert.match(server, /app\.use\(helmet\(\{ contentSecurityPolicy: false \}\)\)/);
+  assert.match(server, /STRICT_SECRET_ENVS = new Set\(\['production', 'staging'\]\)/);
+  assert.match(server, /JWT_SECRET is required in production\/staging/);
+  assert.match(server, /new WebSocketServer\(\{ noServer: true \}\)/);
+  assert.match(server, /server\.on\('upgrade'/);
+  assert.match(server, /authService\.verifyAccessToken\(token\)/);
+  assert.match(server, /HTTP\/1\.1 401 Unauthorized/);
+  assert.match(authClient, /function webSocketUrl/);
+  assert.match(authClient, /searchParams\.set\('token', token\)/);
+
+  for (const file of wsClients) {
+    assert.match(read(file), /IronBendAuth\?\.webSocketUrl/, file);
+  }
+});

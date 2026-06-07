@@ -1,5 +1,6 @@
 const express  = require('express');
 const cors     = require('cors');
+const helmet   = require('helmet');
 const Database = require('better-sqlite3');
 const path     = require('path');
 require('dotenv').config();
@@ -65,7 +66,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 const app    = express();
 const server = http.createServer(app);
-const wss    = new WebSocketServer({ server });
+const wss    = new WebSocketServer({ noServer: true });
 const PORT   = process.env.PORT || 3000;
 const IS_TEST = process.env.NODE_ENV === 'test';
 
@@ -74,6 +75,7 @@ const AI_ENABLED      = process.env.AI_ENABLED      === 'true'; // default: fals
 const INTAKE_AI_ENABLED = process.env.INTAKE_AI_ENABLED === 'true'; // default: false
 const PRIORITY_ENABLED  = process.env.PRIORITY_ENABLED  === 'true'; // default: false
 
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json({
   verify: (req, _res, buf) => {
@@ -1070,9 +1072,13 @@ db.exec(`
 `);
 ensureAuthSchema(db);
 
+const STRICT_SECRET_ENVS = new Set(['production', 'staging']);
+if (!process.env.JWT_SECRET && STRICT_SECRET_ENVS.has(process.env.NODE_ENV)) {
+  throw new Error('[Auth] JWT_SECRET is required in production/staging.');
+}
 const runtimeJwtSecret = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 if (!process.env.JWT_SECRET) {
-  console.warn('[Auth] JWT_SECRET is not configured. Using an ephemeral startup secret; configure JWT_SECRET before staging or production.');
+  console.warn('[Auth] JWT_SECRET is not configured. Using an ephemeral startup secret for local development/test only.');
 }
 const authService = createAuthService(db, { jwtSecret: runtimeJwtSecret });
 const authLoginLimiter = rateLimit({
@@ -1138,6 +1144,38 @@ function optionalAuth(req, _res, next) {
   applyAuthBypass(req);
   next();
 }
+
+function webSocketToken(req) {
+  try {
+    const url = new URL(req.url || '/', 'http://localhost');
+    return url.searchParams.get('token');
+  } catch (_) {
+    return null;
+  }
+}
+
+function authenticateWebSocket(req) {
+  const token = webSocketToken(req);
+  if (token) {
+    try { return authService.verifyAccessToken(token); } catch (_) {}
+  }
+  applyAuthBypass(req);
+  return req.auth || null;
+}
+
+server.on('upgrade', (req, socket, head) => {
+  const auth = authenticateWebSocket(req);
+  if (!auth) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  req.auth = auth;
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    ws.auth = auth;
+    wss.emit('connection', ws, req);
+  });
+});
 
 function requireAuth(req, res, next) {
   optionalAuth(req, res, () => {
@@ -1249,8 +1287,9 @@ function wsBroadcast(type, data) {
   wss.clients.forEach(ws => { if (ws.readyState === 1) ws.send(msg); });
 }
 
-wss.on('connection', ws => {
+wss.on('connection', (ws, req) => {
   ws.isAlive = true;
+  ws.auth = req.auth;
   ws.on('pong', () => { ws.isAlive = true; });
   ws.send(JSON.stringify({ type: 'machines_state', data: modbus.getAllState() }));
 });
