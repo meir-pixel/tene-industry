@@ -482,8 +482,8 @@ Screens:
 
 Extracted routes:
 
-- `routes/reports.js` for dashboard summary, report summary, monthly KPI, and
-  CSV exports.
+- `routes/reports.js` for dashboard summary, report summary, waste reports,
+  monthly KPI, and CSV exports.
 
 API route families:
 

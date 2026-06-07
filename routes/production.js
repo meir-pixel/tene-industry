@@ -327,35 +327,6 @@ module.exports = function createProductionRouter(deps) {
     res.json({ success: true, producedQty: liveCounter, actualWaste });
   });
 
-  router.get('/reports/waste', requireAnyRole(['production', 'office', 'finance', 'manager', 'admin']), (req, res) => {
-    const { from, to } = req.query;
-    const rows = db.prepare(`
-      SELECT i.machine, i.diameter, i.shape_name,
-             SUM(i.actual_waste) as total_waste, SUM(i.quantity) as total_ordered,
-             ROUND(100.0 * SUM(i.actual_waste) / MAX(SUM(i.quantity),1), 1) as waste_pct,
-             COUNT(*) as item_count
-      FROM items i
-      WHERE i.status='הושלם'
-        ${from ? "AND DATE(i.completed_at) >= '" + from + "'" : ''}
-        ${to   ? "AND DATE(i.completed_at) <= '" + to + "'"   : ''}
-      GROUP BY i.machine, i.diameter, i.shape_name
-      ORDER BY waste_pct DESC
-    `).all();
-    res.json(rows);
-  });
-
-  router.get('/waste/summary', requireAnyRole(['production', 'office', 'finance', 'manager', 'admin']), (req, res) => {
-    const { from, to } = req.query;
-    const fromDate = from || new Date(Date.now()-30*86400000).toISOString().split('T')[0];
-    const toDate   = to   || new Date().toISOString().split('T')[0];
-    res.json({
-      period: { from:fromDate, to:toDate },
-      byDiameter: db.prepare('SELECT i.diameter,SUM(i.quantity) as items_produced,SUM(i.total_weight) as net_weight,SUM(i.actual_waste) as actual_waste_g,ROUND(AVG(CAST(i.actual_waste AS REAL)/NULLIF(i.total_length_mm,0)*100),2) as waste_pct FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 GROUP BY i.diameter ORDER BY i.diameter').all(fromDate,toDate),
-      topWaste: db.prepare('SELECT o.order_num,i.diameter,i.actual_waste,i.total_weight AS weight,i.shape_name FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 ORDER BY i.actual_waste DESC LIMIT 20').all(fromDate,toDate),
-      rawMaterial: db.prepare('SELECT diameter,SUM(weight_scrapped) as total_scrapped,SUM(weight_received) as total_received,ROUND(100.0*SUM(weight_scrapped)/NULLIF(SUM(weight_received),0),1) as scrap_pct FROM raw_material GROUP BY diameter ORDER BY diameter').all(),
-    });
-  });
-
   router.get('/shifts', requireAnyRole(['production', 'kiosk', 'office', 'manager', 'admin']), (req, res) => {
     const { date, machine_id, limit = 50 } = req.query;
     let q = `SELECT s.*, u.display_name as operator_name, m.name as machine_name

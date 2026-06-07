@@ -670,6 +670,8 @@ test('production execution API routes are split out of the server monolith', () 
   assert.match(route, /statusContracts[.]ITEM_STATUS[.]DONE/);
   assert.ok(route.includes("wsBroadcast('machine_assign'"));
   assert.match(route, /checkOrderComplete/);
+  assert.doesNotMatch(route, /router\.get\('\/reports\/waste'/);
+  assert.doesNotMatch(route, /router\.get\('\/waste\/summary'/);
   assert.match(server, /createProductionRouter/);
   assert.ok(server.includes("app.use('/api', createProductionRouter"));
 
@@ -731,6 +733,8 @@ test('dashboard reports KPI and export routes are split out of the server monoli
   assert.ok(route.includes('routes/reports missing dependency'));
   assert.ok(route.includes("router.get('/dashboard'"));
   assert.ok(route.includes("router.get('/reports/summary'"));
+  assert.ok(route.includes("router.get('/reports/waste'"));
+  assert.ok(route.includes("router.get('/waste/summary'"));
   assert.ok(route.includes("router.get('/kpi/monthly'"));
   assert.ok(route.includes("router.get('/export/orders'"));
   assert.ok(route.includes("router.get('/export/packages'"));
@@ -743,6 +747,8 @@ test('dashboard reports KPI and export routes are split out of the server monoli
   for (const forbiddenSnippet of [
     "app.get('/api/dashboard'",
     "app.get('/api/reports/summary'",
+    "app.get('/api/reports/waste'",
+    "app.get('/api/waste/summary'",
     "app.get('/api/kpi/monthly'",
     "app.get('/api/export/orders'",
     "app.get('/api/export/packages'",
