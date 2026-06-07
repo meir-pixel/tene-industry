@@ -1,0 +1,27 @@
+{
+  "_doc": "מקור אמת יחיד לכל מודולי המערכת. גם האפליקציה וגם שרת הרישיונות קוראים מכאן. הוספת מודול = שורה אחת כאן + רישום routeFile. בדיקת test/module-catalog.test.js מוודאת שאף מודול route לא נשכח.",
+  "core": ["dashboard", "settings", "users"],
+  "modules": [
+    { "key": "orders",     "label": "הזמנות",           "category": "operations", "routeFile": "routes/orders.js" },
+    { "key": "customers",  "label": "לקוחות (CRM)",      "category": "operations", "routeFile": "routes/customers.js" },
+    { "key": "production", "label": "ייצור",             "category": "industry",   "routeFile": "routes/production.js" },
+    { "key": "inventory",  "label": "מלאי חומר גלם",      "category": "industry",   "routeFile": "routes/inventory.js" },
+    { "key": "procurement","label": "רכש",               "category": "industry",   "routeFile": "routes/procurement.js" },
+    { "key": "warehouse",  "label": "מחסן",              "category": "logistics",  "routeFile": "routes/warehouse.js" },
+    { "key": "fleet",      "label": "צי ומשלוחים",       "category": "logistics",  "routeFile": "routes/fleet.js" },
+    { "key": "finance",    "label": "כספים (עלויות/מרווחים)", "category": "finance", "routeFile": "routes/finance.js" },
+    { "key": "accounting", "label": "הנהלת חשבונות",     "category": "finance",    "routeFile": null, "planned": true },
+    { "key": "quality",    "label": "איכות ותחזוקה",     "category": "quality",    "routeFile": "routes/quality.js" },
+    { "key": "reports",    "label": "דוחות",             "category": "analytics",  "routeFile": "routes/reports.js" },
+    { "key": "portal",     "label": "פורטל לקוח",         "category": "sales",      "routeFile": "routes/portal.js" },
+    { "key": "intake",     "label": "קליטת הזמנות / OCR", "category": "operations", "routeFile": "routes/intake.js" },
+    { "key": "companies",  "label": "חברות / הולדינגס",   "category": "management",  "routeFile": "routes/companies.js" },
+    { "key": "bvbs",       "label": "BVBS",              "category": "industry",   "routeFile": "routes/bvbs.js" },
+    { "key": "ai",         "label": "חיזוי AI",          "category": "analytics",  "routeFile": "routes/ai.js" }
+  ],
+  "packages": {
+    "basic":      ["orders", "customers"],
+    "pro":        ["orders", "customers", "production", "inventory", "warehouse", "fleet", "finance", "quality", "reports"],
+    "enterprise": ["orders", "customers", "production", "inventory", "procurement", "warehouse", "fleet", "finance", "accounting", "quality", "reports", "portal", "intake", "companies", "bvbs", "ai"]
+  }
+}

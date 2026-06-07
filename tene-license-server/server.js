@@ -65,32 +65,23 @@ try { db.exec("ALTER TABLE licenses ADD COLUMN package TEXT DEFAULT 'pro'"); } c
 try { db.exec("ALTER TABLE licenses ADD COLUMN modules TEXT"); } catch {}          // JSON array
 try { db.exec("ALTER TABLE licenses ADD COLUMN max_users INTEGER DEFAULT 0"); } catch {} // 0 = ללא הגבלה
 
-// ── מודולים וחבילות ───────────────────────────────────────────────
-const ALL_MODULES = [
-  { key: 'dashboard',  label: 'דשבורד',        core: true },
-  { key: 'orders',     label: 'הזמנות',         core: true },
-  { key: 'customers',  label: 'לקוחות',         core: true },
-  { key: 'production',  label: 'ייצור',          core: true },
-  { key: 'inventory',  label: 'מלאי',           core: false },
-  { key: 'warehouse',  label: 'מחסן',           core: false },
-  { key: 'fleet',      label: 'צי ומשלוחים',    core: false },
-  { key: 'finance',    label: 'כספים',          core: false },
-  { key: 'quality',    label: 'איכות ותחזוקה',  core: false },
-  { key: 'reports',    label: 'דוחות',          core: false },
-  { key: 'portal',     label: 'פורטל לקוח',     core: false },
-  { key: 'intake_ai',  label: 'קליטת AI/OCR',   core: false },
-  { key: 'companies',  label: 'חברות/הולדינגס', core: false },
-  { key: 'bvbs',       label: 'BVBS',           core: false },
-];
-const CORE_MODULES = ALL_MODULES.filter(m => m.core).map(m => m.key);
-const PACKAGES = {
-  basic:      [...CORE_MODULES],
-  pro:        [...CORE_MODULES, 'inventory', 'warehouse', 'fleet', 'finance', 'quality', 'reports'],
-  enterprise: ALL_MODULES.map(m => m.key),
-};
+// ── מודולים וחבילות — מקור אמת יחיד: shared/module-catalog.json ────
+// קוראים מה-catalog המשותף. כך כל מודול חדש מופיע אוטומטית בפאנל,
+// בלי לתחזק רשימה כפולה. נפילה אם הקובץ חסר.
+let CATALOG;
+try {
+  CATALOG = require(path.join(__dirname, '..', 'shared', 'module-catalog.json'));
+} catch {
+  // fallback מינימלי אם השרת פרוס בנפרד מהריפו הראשי
+  CATALOG = { core: ['dashboard', 'settings', 'users'], modules: [], packages: { basic: [], pro: [], enterprise: [] } };
+  console.warn('[Catalog] shared/module-catalog.json not found — using empty fallback');
+}
+const CORE_MODULES = CATALOG.core || [];
+const ALL_MODULES  = CATALOG.modules || [];          // [{key,label,category,...}]
+const PACKAGES     = CATALOG.packages || {};
 function modulesForLicense(lic) {
   if (lic.modules) { try { return JSON.parse(lic.modules); } catch {} }
-  return PACKAGES[lic.package] || PACKAGES.pro;
+  return PACKAGES[lic.package] || PACKAGES.pro || [];
 }
 
 // שכבת אחסון — דיסק או ענן זול (S3/B2) לפי משתני סביבה
