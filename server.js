@@ -1,7 +1,6 @@
 const express  = require('express');
 const cors     = require('cors');
 const helmet   = require('helmet');
-const Database = require('better-sqlite3');
 const path     = require('path');
 require('dotenv').config();
 require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: false });
@@ -9,11 +8,13 @@ const http     = require('http');
 const multer   = require('multer');
 const crypto   = require('crypto');
 const { rateLimit } = require('express-rate-limit');
+const Database = require('better-sqlite3');
 const modbus   = require('./modbus');
 const priority = require('./priority');
 const intake   = require('./intake');
 const ai       = require('./ai');
 const { createAuthService, ensureAuthSchema, hashPin } = require('./auth-core');
+const { createDatabaseConnection } = require('./db/connection');
 const { createLicenseService } = require('./services/license');
 const { createPricer }          = require('./services/pricer');
 const { createSettingsService } = require('./services/settings');
@@ -110,38 +111,15 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'ironbend.db');
-const fs      = require('fs');
-const DB_EXISTS_AT_STARTUP = fs.existsSync(DB_PATH);
-const SKIP_STARTUP_DB_SNAPSHOT = process.env.SKIP_STARTUP_DB_SNAPSHOT === 'true' && process.env.NODE_ENV !== 'production';
-function snapshotDatabaseFiles(sourcePath, backupBase) {
-  for (const suffix of ['', '-wal', '-shm']) {
-    const source = `${sourcePath}${suffix}`;
-    if (fs.existsSync(source)) fs.copyFileSync(source, `${backupBase}${suffix}`);
-  }
-}
-if (process.env.NODE_ENV === 'production' && !DB_EXISTS_AT_STARTUP && process.env.ALLOW_EMPTY_DB_INIT !== 'true') {
-  throw new Error(`[DB Safety] Refusing to create a new production database at ${DB_PATH}. Verify the persistent disk mount or set ALLOW_EMPTY_DB_INIT=true only for the first intentional initialization.`);
-}
-if (DB_EXISTS_AT_STARTUP && !SKIP_STARTUP_DB_SNAPSHOT) {
-  const startupBackup = `${DB_PATH}.bak.startup`;
-  snapshotDatabaseFiles(DB_PATH, startupBackup);
-  console.log(`[DB Safety] Startup snapshot created: ${startupBackup}`);
-} else if (DB_EXISTS_AT_STARTUP && SKIP_STARTUP_DB_SNAPSHOT) {
-  console.log('[DB Safety] Startup snapshot skipped for local development.');
-}
-let db = new Database(DB_PATH);
-const settingsService = createSettingsService(db); // מריץ migration + seed אוטומטית
-const pricer          = createPricer(db);
-if (process.env.NODE_ENV === 'production' && DB_EXISTS_AT_STARTUP && process.env.ALLOW_EMPTY_DB_INIT !== 'true') {
-  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name));
-  if (!tables.has('orders')) {
-    db.close();
-    throw new Error(`[DB Safety] Refusing to initialize an empty production database at ${DB_PATH}. Verify that the expected persistent database is mounted.`);
-  }
-}
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const {
+  db: initialDb,
+  dbPath: DB_PATH,
+  snapshotDatabaseFiles,
+} = createDatabaseConnection({ env: process.env, rootDir: __dirname });
+let db = initialDb;
+const settingsService = createSettingsService(db);
+const pricer = createPricer(db);
+const fs = require('fs');
 modbus.init(db); // pass db so modbus reads machine config live
 
 ensureCoreSchema(db);

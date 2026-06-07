@@ -504,6 +504,7 @@ test('admin OCR settings describe OpenAI intake instead of Google Vision', () =>
   const admin = read('public/admin.html');
   const adminRoute = read('routes/admin.js');
   const server = read('server.js');
+  const dbConnection = read('db/connection.js');
 
   assert.match(admin, /OpenAI \/ GPT OCR/);
   assert.match(admin, /OPENAI_API_KEY/);
@@ -712,12 +713,13 @@ test('inventory screen is authenticated and covered by safe API loading', () => 
 
 test('local server command skips startup snapshot outside production', () => {
   const server = read('server.js');
+  const dbConnection = read('db/connection.js');
   const authMiddleware = read('middleware/auth.js');
   const pkg = JSON.parse(read('package.json'));
   const localStart = read('scripts/start-local.js');
 
-  assert.match(server, /SKIP_STARTUP_DB_SNAPSHOT/);
-  assert.match(server, /process\.env\.NODE_ENV !== 'production'/);
+  assert.match(dbConnection, /SKIP_STARTUP_DB_SNAPSHOT/);
+  assert.match(dbConnection, /env\.NODE_ENV !== 'production'/);
   assert.match(authMiddleware, /AUTH_BYPASS.*NODE_ENV !== 'production'/);
   assert.equal(pkg.scripts['start:local'], 'node scripts/start-local.js');
   assert.match(localStart, /PORT.*3100/);

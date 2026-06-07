@@ -965,9 +965,9 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
   <h3>נתונים טכניים</h3>
   <table class="doc-table">
     <tr><th>מדד</th><th>ערך</th></tr>
-    <tr><td>שורות קוד שרת (server.js)</td><td>~675 אחרי פיצול routes, DB startup, auth middleware, finance schema, WebSocket ו-scheduled jobs</td></tr>
+    <tr><td>שורות קוד שרת (server.js)</td><td>~625 אחרי פיצול routes, DB connection/startup, auth middleware, finance schema, WebSocket ו-scheduled jobs</td></tr>
     <tr><td>API endpoints</td><td>~150 active routes תחת routes/*.js + health</td></tr>
-    <tr><td>טבלאות SQLite</td><td>~28; schema/seed/migrations ב-db/startup.js + db/financeSchema.js</td></tr>
+    <tr><td>טבלאות SQLite</td><td>~28; DB connection ב-db/connection.js; schema/seed/migrations ב-db/startup.js + db/financeSchema.js</td></tr>
     <tr><td>דפי HTML</td><td>31</td></tr>
     <tr><td>shape-editor.js</td><td>~1,460 שורות</td></tr>
     <tr><td>nav.js</td><td>~340 שורות</td></tr>

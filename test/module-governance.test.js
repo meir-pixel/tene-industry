@@ -923,3 +923,22 @@ test('auth request middleware is extracted from server', () => {
   assert.doesNotMatch(server, /function applyAuthBypass\(req\)/);
   assert.doesNotMatch(server, /function verifyWhatsAppSignature\(req, res, next\)/);
 });
+
+
+test('database connection safety is extracted from server', () => {
+  const connection = read('db/connection.js');
+  const server = read('server.js');
+
+  assert.match(connection, /function createDatabaseConnection\(/);
+  assert.match(connection, /function snapshotDatabaseFiles\(sourcePath, backupBase\)/);
+  assert.match(connection, /SKIP_STARTUP_DB_SNAPSHOT/);
+  assert.match(connection, /ALLOW_EMPTY_DB_INIT/);
+  assert.match(connection, /journal_mode = WAL/);
+  assert.match(connection, /foreign_keys = ON/);
+  assert.match(server, /require\('\.\/db\/connection'\)/);
+  assert.match(server, /createDatabaseConnection\(\{ env: process\.env, rootDir: __dirname \}\)/);
+  assert.doesNotMatch(server, /function snapshotDatabaseFiles\(sourcePath, backupBase\)/);
+  assert.doesNotMatch(server, /DB_EXISTS_AT_STARTUP/);
+  assert.doesNotMatch(server, /SKIP_STARTUP_DB_SNAPSHOT/);
+  assert.doesNotMatch(server, /journal_mode = WAL/);
+});
