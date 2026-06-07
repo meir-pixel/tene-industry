@@ -115,6 +115,7 @@ node tools/provision-customer.js --name "שם לקוח" --module steel-rebar --d
 | 4 | **ניתוב OCR** | spec-dual-pricing.md | ⚠️ המשתמש בוחר סוג מסמך מראש (הזמנה/מחירון/ספק) — ה-AI לא מנתב לבד! prompt נפרד לכל סוג |
 | 5 | מודול הנהלת חשבונות | — | מודול נפרד מ"כספים" |
 | 6 | חיבור ספק סליקה | — | אחרי בחירת ספק. לא בונים סליקה — מחברים ל-Stripe/ישראלי |
+| 7 | מפת מודולים חיה | [spec-module-map.md](spec-module-map.md) | כל מודול מצהיר consumes/produces; ניטור ב-wsBroadcast; מסך גרף עם סטטוס תקשורת |
 
 > ⚠️ #4 (ניתוב OCR) הוא הכי קל לפספס — אסור prompt אחד גנרי לכל סוגי המסמכים.
 
