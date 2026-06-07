@@ -1094,19 +1094,28 @@ test('remaining utility API routes are split out of the server monolith', () => 
 test('database startup schema migrations and seed data are extracted from server', () => {
   const startup = read('db/startup.js');
   const seed = read('db/seed.js');
+  const vehicleMigrations = read('db/vehicleMigrations.js');
   const server = read('server.js');
 
   assert.match(startup, /function ensureCoreSchema\(db\)/);
   assert.match(startup, /function runCoreMigrations\(db\)/);
   assert.doesNotMatch(startup, /function seedCoreData\(db\)/);
   assert.match(startup, /require\('\.\/seed'\)/);
+  assert.match(startup, /require\('\.\/vehicleMigrations'\)/);
   assert.match(startup, /CREATE TABLE IF NOT EXISTS customers/);
   assert.match(startup, /function addCol\(table, col, def\)/);
+  assert.match(startup, /ensureVehicleCompatibility\(db\)/);
+  assert.doesNotMatch(startup, /function ensureVehicleEventsSchema/);
+  assert.doesNotMatch(startup, /function migrateDriverVehicleRows/);
   assert.match(seed, /function seedCoreData\(db\)/);
   assert.match(seed, /INSERT OR IGNORE INTO downtime_reasons/);
   assert.match(seed, /INSERT OR IGNORE INTO companies/);
   assert.match(seed, /INSERT OR IGNORE INTO machines/);
   assert.match(seed, /INSERT OR IGNORE INTO shapes/);
+  assert.match(vehicleMigrations, /function ensureVehicleCompatibility\(db\)/);
+  assert.match(vehicleMigrations, /function ensureVehicleEventsSchema/);
+  assert.match(vehicleMigrations, /function migrateDriverVehicleRows/);
+  assert.match(vehicleMigrations, /vehicle_events_new/);
   assert.match(server, /require\('\.\/db\/startup'\)/);
   assert.match(server, /ensureCoreSchema\(db\)/);
   assert.match(server, /runCoreMigrations\(db\)/);
