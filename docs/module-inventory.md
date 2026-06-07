@@ -36,6 +36,7 @@ Shared backend:
 - `constants.js`
 - `status-contracts.js`
 - `public/status-contracts-client.js`
+- `db/startup.js` for core schema, compatibility migrations, and seed data
 
 API route families:
 

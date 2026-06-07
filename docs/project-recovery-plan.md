@@ -6,13 +6,13 @@ to multiple industrial customers.
 
 ## Current Recovery Checkpoint
 
-Status as of 2026-06-03:
+Status as of 2026-06-07:
 
 - Active product API route families have been extracted into module-owned `routes/*.js` files.
-- `server.js` intentionally keeps only infrastructure, schema/startup wiring, shared runtime glue, and `GET /api/health`.
+- `server.js` intentionally keeps only infrastructure/runtime glue and `GET /api/health`; core schema, compatibility migrations, and seed data live in `db/startup.js`.
 - JWT-derived authorization is active for guarded routes; `AUTH_BYPASS` is development-only and blocked in production.
 - Governance tests protect module boundaries, auth coverage, constants, status contracts, and extracted services.
-- Full test baseline at this checkpoint: `npm test` passes with 136/136 tests.
+- Full test baseline at this checkpoint: `npm test` passes with 141/141 tests.
 
 Historical notes below may still describe the original monolith where useful, but new work must follow `docs/BUILD_RULES_HE.md` and the current module map.
 
@@ -43,7 +43,7 @@ The source specification volumes were located in
 
 The main symptoms are:
 
-- `server.js` used to own almost every domain; active API route families are now module-owned under `routes/*.js`, with `/api/health` intentionally remaining in `server.js`.
+- `server.js` used to own almost every domain; active API route families are now module-owned under `routes/*.js`, database startup is isolated in `db/startup.js`, and `/api/health` intentionally remains in `server.js`.
 - Frontend screens are mostly standalone HTML files with their own data loading,
   rendering, escaping, role handling, empty states, and action flows.
 - Several screens show similar concepts in different ways, especially orders,

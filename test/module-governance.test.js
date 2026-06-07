@@ -821,3 +821,23 @@ test('remaining utility API routes are split out of the server monolith', () => 
     assert.ok(!server.includes(forbidden), forbidden);
   }
 });
+
+
+test('database startup schema migrations and seed data are extracted from server', () => {
+  const startup = read('db/startup.js');
+  const server = read('server.js');
+
+  assert.match(startup, /function ensureCoreSchema\(db\)/);
+  assert.match(startup, /function runCoreMigrations\(db\)/);
+  assert.match(startup, /function seedCoreData\(db\)/);
+  assert.match(startup, /CREATE TABLE IF NOT EXISTS customers/);
+  assert.match(startup, /function addCol\(table, col, def\)/);
+  assert.match(startup, /INSERT OR IGNORE INTO downtime_reasons/);
+  assert.match(server, /require\('\.\/db\/startup'\)/);
+  assert.match(server, /ensureCoreSchema\(db\)/);
+  assert.match(server, /runCoreMigrations\(db\)/);
+  assert.match(server, /seedCoreData\(db\)/);
+  assert.doesNotMatch(server, /CREATE TABLE IF NOT EXISTS customers/);
+  assert.doesNotMatch(server, /function addCol\(table, col, def\)/);
+  assert.doesNotMatch(server, /INSERT OR IGNORE INTO downtime_reasons/);
+});

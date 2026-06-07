@@ -487,7 +487,7 @@ test('intake review and OCR training belong to intake screen', () => {
 test('intake OCR review requires source-versus-parsed comparison', () => {
   const intake = read('public/intake.html');
   const route = read('routes/intake.js');
-  const server = read('server.js');
+  const startup = read('db/startup.js');
 
   assert.match(intake, /intakeCompareModal/);
   assert.match(intake, /openIntakeCompare/);
@@ -497,7 +497,7 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /אשר אחרי בדיקה/);
   assert.match(route, /original_data_url/);
   assert.match(route, /original_mime/);
-  assert.match(server, /addCol\('intake_log', 'original_data_url'/);
+  assert.match(startup, /addCol\('intake_log', 'original_data_url'/);
 });
 
 test('admin OCR settings describe OpenAI intake instead of Google Vision', () => {
@@ -519,12 +519,13 @@ test('admin OCR settings describe OpenAI intake instead of Google Vision', () =>
 
 test('order numbers are allocated from a DB sequence instead of order count', () => {
   const server = read('server.js');
+  const startup = read('db/startup.js');
   const orderNumbers = read('services/orderNumbers.js');
   const generateOrderNumStart = server.indexOf('const generateOrderNum');
   const generateOrderNumEnd = server.indexOf('function checkOrderComplete', generateOrderNumStart);
   const generateOrderNumSource = server.slice(generateOrderNumStart, generateOrderNumEnd);
 
-  assert.match(server, /CREATE TABLE IF NOT EXISTS order_sequences/);
+  assert.match(startup, /CREATE TABLE IF NOT EXISTS order_sequences/);
   assert.match(server, /createOrderNumberAllocator\(db\)/);
   assert.match(orderNumbers, /function ensureOrderSequence/);
   assert.match(orderNumbers, /const nextOrderNumTx = db\.transaction/);
@@ -553,7 +554,7 @@ test('large operational list endpoints use server-side pagination', () => {
 test('machine and workstation setup belong to production setup screen', () => {
   const admin = read('public/admin.html');
   const setup = read('public/production-setup.html');
-  const server = read('server.js');
+  const startup = read('db/startup.js');
   const nav = read('public/nav.js');
 
   assert.doesNotMatch(admin, /tab-machines/);
@@ -573,8 +574,8 @@ test('machine and workstation setup belong to production setup screen', () => {
   assert.match(setup, /double_max_diameter/);
   assert.match(setup, /חוט בודד/);
   assert.match(setup, /חוט כפול/);
-  assert.match(server, /single_min_diameter/);
-  assert.match(server, /double_max_diameter/);
+  assert.match(startup, /single_min_diameter/);
+  assert.match(startup, /double_max_diameter/);
   assert.match(nav, /\/production-setup\.html/);
 });
 
