@@ -237,3 +237,15 @@ module.exports = function createProductionRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'production',
+  label: 'ייצור',
+  consumes: [{ event: 'new_order' }, { event: 'order_status' }, { table: 'items' }, { table: 'machines' }],
+  produces: [
+    { event: 'machine_assign' },
+    { event: 'end_of_day' },
+    { event: 'item_status' },
+    { event: 'order_complete' },
+  ],
+};

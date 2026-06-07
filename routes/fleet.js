@@ -211,3 +211,13 @@ router.patch('/drivers/:id/location', requireAnyRole(['driver', 'office', 'manag
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'fleet',
+  label: 'צי רכבים ונהגים',
+  consumes: [{ table: 'vehicles' }, { table: 'drivers' }],
+  produces: [
+    { event: 'vehicle_updated' },
+    { event: 'driver_location' },
+  ],
+};

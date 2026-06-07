@@ -155,3 +155,10 @@ router.get('/orders/:id/costs/snapshots', requireAnyRole(['finance', 'manager', 
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'finance-costs',
+  label: 'עלויות ומרווח',
+  consumes: [{ table: 'orders' }, { table: 'items' }],
+  produces: [{ event: 'cost_update' }],
+};

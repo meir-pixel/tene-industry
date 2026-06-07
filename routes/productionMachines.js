@@ -211,3 +211,14 @@ module.exports = function createProductionMachinesRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'production-machines',
+  label: 'מכונות ייצור',
+  consumes: [{ table: 'machines' }, { table: 'items' }],
+  produces: [
+    { event: 'machine_assign' },
+    { event: 'machine_complete' },
+    { event: 'machine_state' },
+  ],
+};

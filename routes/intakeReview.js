@@ -80,3 +80,10 @@ module.exports = function createIntakeReviewRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'intake-review',
+  label: 'אישור קליטה',
+  consumes: [{ event: 'new_intake' }, { table: 'intake_log' }],
+  produces: [{ event: 'new_order' }],
+};

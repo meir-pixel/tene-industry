@@ -176,3 +176,14 @@ module.exports = function createOrdersRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'orders',
+  label: 'הזמנות',
+  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'items' }],
+  produces: [
+    { event: 'new_order' },
+    { event: 'order_status' },
+    { event: 'machine_assign' },
+  ],
+};

@@ -311,3 +311,10 @@ Put uncertainty in notes. The manager will compare this parsed data against the 
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'inventory-vision',
+  label: 'זיהוי מלאי',
+  consumes: [{ external: 'openai-vision' }, { table: 'intake_training_examples' }],
+  produces: [{ event: 'inventory_receipt_review_created' }],
+};

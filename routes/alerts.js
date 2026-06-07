@@ -31,3 +31,10 @@ module.exports = function createAlertsRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'alerts',
+  label: 'התראות',
+  consumes: [{ table: 'alerts' }],
+  produces: [{ event: 'alert' }],
+};

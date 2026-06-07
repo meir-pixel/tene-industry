@@ -73,3 +73,10 @@ module.exports = function createIntakeChannelsRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'intake',
+  label: 'קליטת הזמנות',
+  consumes: [{ external: 'whatsapp' }, { external: 'email' }, { table: 'intake_training_examples' }],
+  produces: [{ event: 'new_intake' }],
+};

@@ -60,3 +60,10 @@ module.exports = function createFinanceInvoicesRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'finance-invoices',
+  label: 'חשבוניות',
+  consumes: [{ table: 'orders' }, { table: 'customers' }],
+  produces: [{ event: 'new_invoice' }],
+};

@@ -109,3 +109,13 @@ module.exports = function createLogisticsRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'logistics',
+  label: 'משלוחים',
+  consumes: [{ event: 'order_status' }, { table: 'deliveries' }, { table: 'drivers' }],
+  produces: [
+    { event: 'delivery_depart' },
+    { event: 'delivery_confirm' },
+  ],
+};

@@ -212,3 +212,13 @@ module.exports = function createInventoryRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'inventory',
+  label: 'מלאי',
+  consumes: [{ table: 'raw_materials' }, { table: 'inventory_receipt_reviews' }],
+  produces: [
+    { event: 'inventory_receipt_review_approved' },
+    { event: 'inventory_receipt_review_rejected' },
+  ],
+};

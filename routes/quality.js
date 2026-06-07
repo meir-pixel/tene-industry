@@ -270,3 +270,10 @@ module.exports = function createQualityRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'quality',
+  label: 'איכות ותחזוקה',
+  consumes: [{ table: 'quality_checks' }, { table: 'maintenance_logs' }, { table: 'machines' }],
+  produces: [{ event: 'machine_update' }],
+};

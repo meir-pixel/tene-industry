@@ -19,6 +19,7 @@ const { createLicenseService } = require('./services/license');
 const { createPricer }          = require('./services/pricer');
 const { createSettingsService } = require('./services/settings');
 const { createModuleLoader } = require('./services/moduleLoader');
+const { createModuleMapService } = require('./services/moduleMap');
 const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
 const statusContracts = require('./status-contracts');
 const constants = require('./constants');
@@ -45,6 +46,7 @@ const createFinanceCreditRouter = require('./routes/financeCredit');
 const createFleetRouter = require('./routes/fleet');
 const createLogisticsRouter = require('./routes/logistics');
 const createProductionRouter = require('./routes/production');
+const createProductionMachinesRouter = require('./routes/productionMachines');
 const createProductionMetricsRouter = require('./routes/productionMetrics');
 const createProductionShiftsRouter = require('./routes/productionShifts');
 const createQualityRouter = require('./routes/quality');
@@ -238,6 +240,26 @@ seedCoreData(db);
 
 const realtime = createRealtimeServer({ server, db, modbus, authService, applyAuthBypass });
 const wsBroadcast = realtime.wsBroadcast;
+const moduleMap = createModuleMapService({
+  getEventStats: realtime.getEventStats,
+  routeModules: [
+    { file: 'routes/orders.js', factory: createOrdersRouter },
+    { file: 'routes/portal.js', factory: createPortalRouter },
+    { file: 'routes/intakeReview.js', factory: createIntakeReviewRouter },
+    { file: 'routes/intakeChannels.js', factory: createIntakeChannelsRouter },
+    { file: 'routes/financeInvoices.js', factory: createFinanceInvoicesRouter },
+    { file: 'routes/financeCosts.js', factory: createFinanceCostsRouter },
+    { file: 'routes/inventory.js', factory: createInventoryRouter },
+    { file: 'routes/inventoryVision.js', factory: createInventoryVisionRouter },
+    { file: 'routes/production.js', factory: createProductionRouter },
+    { file: 'routes/productionMachines.js', factory: createProductionMachinesRouter },
+    { file: 'routes/fleet.js', factory: createFleetRouter },
+    { file: 'routes/logistics.js', factory: createLogisticsRouter },
+    { file: 'routes/quality.js', factory: createQualityRouter },
+    { file: 'routes/alerts.js', factory: createAlertsRouter },
+    { file: 'routes/bvbs.js', factory: createBvbsRouter },
+  ],
+});
 
 // modbus.startPolling(5000); // uncomment when hardware connected
 
@@ -481,6 +503,7 @@ app.use('/api', createAdminRouter({
   ai,
   statusContracts,
   settingsService,
+  moduleMap,
 }));
 
 

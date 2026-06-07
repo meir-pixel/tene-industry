@@ -1199,6 +1199,8 @@ test('realtime websocket transport is extracted from server', () => {
   assert.match(realtime, /function createRealtimeServer\(deps\)/);
   assert.match(realtime, /new WebSocketServer\(\{ noServer: true \}\)/);
   assert.match(realtime, /function wsBroadcast\(type, data\)/);
+  assert.match(realtime, /const eventStats = new Map\(\)/);
+  assert.match(realtime, /function getEventStats\(\)/);
   assert.match(realtime, /server\.on\('upgrade', onUpgrade\)/);
   assert.match(realtime, /modbus\.onUpdate/);
   assert.match(realtime, /machines_state/);
@@ -1209,6 +1211,51 @@ test('realtime websocket transport is extracted from server', () => {
   assert.doesNotMatch(server, /function wsBroadcast\(type, data\)/);
   assert.doesNotMatch(server, /wss\.on\('connection'/);
   assert.doesNotMatch(server, /server\.on\('upgrade'/);
+});
+
+test('module map control plane reads route manifests and live websocket events', () => {
+  const service = read('services/moduleMap.js');
+  const admin = read('routes/admin.js');
+  const server = read('server.js');
+
+  assert.match(service, /function createModuleMapService/);
+  assert.match(service, /function snapshot\(\)/);
+  assert.match(service, /flowStatus/);
+  assert.match(admin, /router\.get\('\/admin\/module-map'/);
+  assert.match(admin, /moduleMap\.snapshot\(\)/);
+  assert.match(server, /createModuleMapService/);
+  assert.match(server, /getEventStats: realtime\.getEventStats/);
+  assert.match(server, /moduleMap,/);
+});
+
+test('event-producing route modules declare module-map manifests', () => {
+  const files = [
+    'routes/orders.js',
+    'routes/portal.js',
+    'routes/intakeChannels.js',
+    'routes/intakeReview.js',
+    'routes/financeInvoices.js',
+    'routes/financeCosts.js',
+    'routes/inventory.js',
+    'routes/inventoryVision.js',
+    'routes/production.js',
+    'routes/productionMachines.js',
+    'routes/fleet.js',
+    'routes/logistics.js',
+    'routes/quality.js',
+    'routes/alerts.js',
+    'routes/bvbs.js',
+  ];
+
+  for (const file of files) {
+    const source = read(file);
+    const broadcasts = [...source.matchAll(/wsBroadcast\('([^']+)'/g)].map(match => match[1]);
+    assert.match(source, /module\.exports\.manifest = \{/);
+    assert.match(source, /produces:/);
+    for (const event of broadcasts) {
+      assert.match(source, new RegExp(`event: '${event}'`), `${file} missing manifest event ${event}`);
+    }
+  }
 });
 
 

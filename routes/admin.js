@@ -21,6 +21,7 @@ module.exports = function createAdminRouter(deps) {
   const modbus = required('modbus', deps.modbus);
   const ai = required('ai', deps.ai);
   const statusContracts = required('statusContracts', deps.statusContracts);
+  const moduleMap = required('moduleMap', deps.moduleMap);
 
   const db = () => getDb();
   const settingsService = required('settingsService', deps.settingsService);
@@ -285,6 +286,10 @@ module.exports = function createAdminRouter(deps) {
       },
       status_breakdown: { orders: orderStatus, items: itemStatus },
     });
+  });
+
+  router.get('/admin/module-map', requireAnyRole(['manager', 'admin']), (req, res) => {
+    res.json(moduleMap.snapshot());
   });
 
   router.get('/admin/database/download', requireRole('admin'), async (req, res) => {

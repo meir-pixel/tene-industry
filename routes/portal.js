@@ -261,3 +261,13 @@ module.exports = function createPortalRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'portal',
+  label: 'פורטל לקוח',
+  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'price_list' }],
+  produces: [
+    { event: 'new_order' },
+    { event: 'order_status' },
+  ],
+};

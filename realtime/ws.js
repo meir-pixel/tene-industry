@@ -15,6 +15,7 @@ function createRealtimeServer(deps) {
   const authService = required('authService', deps.authService);
   const applyAuthBypass = required('applyAuthBypass', deps.applyAuthBypass);
   const wss = new WebSocketServer({ noServer: true });
+  const eventStats = new Map();
 
   function webSocketToken(req) {
     try {
@@ -50,11 +51,19 @@ function createRealtimeServer(deps) {
 
   // BUG-15: Add eventId, timestamp, sourceService to every broadcast.
   function wsBroadcast(type, data) {
+    const now = new Date().toISOString();
+    const prev = eventStats.get(type) || { type, count: 0, firstSeen: now, lastSeen: null };
+    eventStats.set(type, {
+      ...prev,
+      count: prev.count + 1,
+      lastSeen: now,
+      sample: data,
+    });
     const envelope = {
       type,
       data,
       eventId: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'),
-      timestamp: new Date().toISOString(),
+      timestamp: now,
       sourceService: 'ironbend-server',
     };
     const msg = JSON.stringify(envelope);
@@ -101,9 +110,14 @@ function createRealtimeServer(deps) {
     }
   }
 
+  function getEventStats() {
+    return [...eventStats.values()].sort((a, b) => String(a.type).localeCompare(String(b.type)));
+  }
+
   return {
     wss,
     wsBroadcast,
+    getEventStats,
     close,
   };
 }

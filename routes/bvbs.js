@@ -131,3 +131,10 @@ module.exports = function createBvbsRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  id: 'bvbs',
+  label: 'ייבוא BVBS',
+  consumes: [{ external: 'bvbs-file' }],
+  produces: [{ event: 'new_order' }],
+};
