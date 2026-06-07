@@ -903,3 +903,23 @@ test('finance schema is extracted from server startup', () => {
   assert.doesNotMatch(server, /CREATE TABLE IF NOT EXISTS customer_credit/);
   assert.doesNotMatch(server, /CREATE TABLE IF NOT EXISTS steel_prices/);
 });
+
+
+test('auth request middleware is extracted from server', () => {
+  const auth = read('middleware/auth.js');
+  const server = read('server.js');
+
+  assert.match(auth, /function createAuthMiddleware\(deps\)/);
+  assert.match(auth, /function optionalAuth\(req, _res, next\)/);
+  assert.match(auth, /function applyAuthBypass\(req\)/);
+  assert.match(auth, /function verifyWhatsAppSignature\(req, res, next\)/);
+  assert.match(auth, /AUTH_BYPASS === 'true' && process\.env\.NODE_ENV !== 'production'/);
+  assert.match(auth, /authService\.verifyAccessToken\(token\)/);
+  assert.match(auth, /crypto\.timingSafeEqual/);
+  assert.match(server, /require\('\.\/middleware\/auth'\)/);
+  assert.match(server, /createAuthMiddleware\(\{ authService, getRolePermission \}\)/);
+  assert.doesNotMatch(server, /function bearerToken\(req\)/);
+  assert.doesNotMatch(server, /function optionalAuth\(req, _res, next\)/);
+  assert.doesNotMatch(server, /function applyAuthBypass\(req\)/);
+  assert.doesNotMatch(server, /function verifyWhatsAppSignature\(req, res, next\)/);
+});

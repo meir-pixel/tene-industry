@@ -712,12 +712,13 @@ test('inventory screen is authenticated and covered by safe API loading', () => 
 
 test('local server command skips startup snapshot outside production', () => {
   const server = read('server.js');
+  const authMiddleware = read('middleware/auth.js');
   const pkg = JSON.parse(read('package.json'));
   const localStart = read('scripts/start-local.js');
 
   assert.match(server, /SKIP_STARTUP_DB_SNAPSHOT/);
   assert.match(server, /process\.env\.NODE_ENV !== 'production'/);
-  assert.match(server, /AUTH_BYPASS.*NODE_ENV !== 'production'/);
+  assert.match(authMiddleware, /AUTH_BYPASS.*NODE_ENV !== 'production'/);
   assert.equal(pkg.scripts['start:local'], 'node scripts/start-local.js');
   assert.match(localStart, /PORT.*3100/);
   assert.match(localStart, /SKIP_STARTUP_DB_SNAPSHOT/);

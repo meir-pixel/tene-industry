@@ -24,6 +24,7 @@ const productionCards = require('./services/productionCards');
 const { createOrderNumberAllocator } = require('./services/orderNumbers');
 const { ensureCoreSchema, runCoreMigrations, seedCoreData } = require('./db/startup');
 const { createRealtimeServer } = require('./realtime/ws');
+const { createAuthMiddleware } = require('./middleware/auth');
 const { createScheduler } = require('./jobs/scheduler');
 const ordersService = require('./services/orders');
 const intakeWorkflow = require('./services/intakeWorkflow');
@@ -157,6 +158,8 @@ if (!process.env.JWT_SECRET) {
   console.warn('[Auth] JWT_SECRET is not configured. Using an ephemeral startup secret for local development/test only.');
 }
 const authService = createAuthService(db, { jwtSecret: runtimeJwtSecret });
+const authMiddleware = createAuthMiddleware({ authService, getRolePermission });
+const { applyAuthBypass, optionalAuth, verifyWhatsAppSignature } = authMiddleware;
 const authLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: process.env.NODE_ENV === 'test' ? 100 : 5,
@@ -189,61 +192,6 @@ const webhookLimiter = rateLimit({
 });
 
 
-function bearerToken(req) {
-  const header = String(req.headers.authorization || '');
-  return header.startsWith('Bearer ') ? header.slice(7) : null;
-}
-
-const AUTH_BYPASS_ENABLED = process.env.AUTH_BYPASS === 'true' && process.env.NODE_ENV !== 'production';
-const AUTH_BYPASS_ROLE = getRolePermission(process.env.AUTH_BYPASS_ROLE || 'admin')?.role || 'admin';
-let authBypassWarned = false;
-
-function applyAuthBypass(req) {
-  if (!AUTH_BYPASS_ENABLED || req.auth) return;
-  if (!authBypassWarned) {
-    console.warn(`[AUTH] AUTH_BYPASS=true is enabled. All API requests run as ${AUTH_BYPASS_ROLE}. Disable after setup/testing.`);
-    authBypassWarned = true;
-  }
-  req.auth = {
-    sub: 'auth-bypass',
-    username: 'auth-bypass',
-    role: AUTH_BYPASS_ROLE,
-  };
-  req.authBypass = true;
-}
-
-function optionalAuth(req, _res, next) {
-  const token = bearerToken(req);
-  if (token) {
-    try { req.auth = authService.verifyAccessToken(token); } catch (_) {}
-  }
-  applyAuthBypass(req);
-  next();
-}
-
-function requireAuth(req, res, next) {
-  optionalAuth(req, res, () => {
-    if (req.auth) return next();
-    return res.status(401).json({ error: 'Authentication required' });
-  });
-}
-
-function verifyWhatsAppSignature(req, res, next) {
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
-  if (!appSecret) return next();
-  const signature = String(req.headers['x-hub-signature-256'] || '');
-  const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
-  const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
-  const signatureBuffer = Buffer.from(signature);
-  const expectedBuffer = Buffer.from(expected);
-  if (
-    signatureBuffer.length !== expectedBuffer.length ||
-    !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
-  ) {
-    return res.sendStatus(403);
-  }
-  return next();
-}
 
 app.use('/api', optionalAuth);
 

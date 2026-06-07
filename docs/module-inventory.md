@@ -30,6 +30,7 @@ Shared frontend:
 Shared backend:
 
 - `auth-core.js`
+- `middleware/auth.js` for request auth decoding, development bypass, and signed webhook verification
 - `permissions.js`
 - `routes/auth.js` for identity session endpoints only
 - `routes/admin.js` for settings, users, audit, and database maintenance
