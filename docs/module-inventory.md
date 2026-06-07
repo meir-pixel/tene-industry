@@ -136,7 +136,8 @@ Module services:
 Extracted routes:
 
 - `routes/production.js` for workers, machine setup/state, scan execution,
-  shifts, stops, production queue/events, OEE, and production KPIs.
+  production queue/events, OEE, and production KPIs.
+- `routes/productionShifts.js` for shifts, downtime reasons, and machine stops.
 
 API route families:
 

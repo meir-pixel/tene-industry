@@ -663,8 +663,6 @@ test('production execution API routes are split out of the server monolith', () 
     "router.post('/scan'",
     "router.get('/production-queue'",
     "router.get('/production-events'",
-    "router.get('/shifts'",
-    "router.post('/machine-stops'",
     "router.patch('/items/:id/status'",
     "router.get('/machines/oee'",
     "router.get('/kpi/tons-today'",
@@ -689,8 +687,6 @@ test('production execution API routes are split out of the server monolith', () 
     "app.post('/api/scan'",
     "app.get('/api/production-queue'",
     "app.get('/api/production-events'",
-    "app.get('/api/shifts'",
-    "app.post('/api/machine-stops'",
     "app.patch('/api/items/:id/status'",
     "app.get('/api/kpi/tons-today'",
     "app.get('/api/kpi/shift-summary'",
@@ -699,8 +695,34 @@ test('production execution API routes are split out of the server monolith', () 
     assert.ok(!server.includes(forbiddenSnippet), forbiddenSnippet);
   }
 
+  assert.match(server, /createProductionShiftsRouter/);
   assert.ok(server.includes("createWarehouseRouter"));
   assert.ok(server.includes("createReportsRouter"));
+});
+
+test('production shifts and machine stop routes are split out of production execution', () => {
+  const route = read('routes/productionShifts.js');
+  const production = read('routes/production.js');
+  const server = read('server.js');
+
+  assert.match(route, /module[.]exports = function createProductionShiftsRouter/);
+  assert.ok(route.includes('routes/productionShifts missing dependency'));
+  for (const routeSnippet of [
+    "router.get('/shifts'",
+    "router.post('/shifts'",
+    "router.patch('/shifts/:id/end'",
+    "router.get('/downtime-reasons'",
+    "router.get('/machine-stops'",
+    "router.post('/machine-stops'",
+    "router.patch('/machine-stops/:id/end'",
+  ]) {
+    assert.ok(route.includes(routeSnippet), routeSnippet);
+    assert.ok(!production.includes(routeSnippet), routeSnippet);
+  }
+  assert.match(route, /INSERT INTO production_events/);
+  assert.match(server, /createProductionShiftsRouter/);
+  assert.ok(server.includes("app.use('/api', createProductionShiftsRouter"));
+  assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/(?:shifts|machine-stops|downtime-reasons)/);
 });
 
 test('warehouse package and delivery note routes are split out of the server monolith', () => {
