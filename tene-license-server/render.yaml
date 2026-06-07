@@ -28,3 +28,16 @@ services:
         sync: false           # תמלא ידנית ב-Render — סיסמה חזקה
       - key: TENE_NOTIFY_PHONE
         sync: false           # הטלפון שלך להתראות (גיבוי נכשל / רישיון פג)
+      # ── אחסון ענן זול (אופציונלי) ──
+      # אם ארבעת אלה ריקים → גיבויים נשמרים על הדיסק (1GB).
+      # אם מוגדרים → גיבויים נשמרים ב-Backblaze B2 / S3 (זול, ללא הגבלה).
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_REGION
+        sync: false

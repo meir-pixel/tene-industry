@@ -115,3 +115,29 @@ https://license.tene-ind.com/admin
 | הפעלה מחדש | `pm2 restart tene-license` |
 | גיבוי DB | `cp /opt/tene-license/licenses.db ~/backup-$(date +%Y%m%d).db` |
 | עדכון גרסה | `cd /opt/tene-license && git pull && pm2 restart tene-license` |
+
+---
+
+## אחסון גיבויים — דיסק או ענן זול
+
+ברירת מחדל: הגיבויים נשמרים על הדיסק (1GB). מספיק ל-1–5 לקוחות.
+
+**כשגדלים — מעבר לאחסון ענן זול (Backblaze B2):**
+
+הגיבויים יישמרו בענן ללא הגבלת נפח, בכמה אגורות לחודש. צריך רק למלא 4 משתנים — בלי שינוי קוד.
+
+1. פתח חשבון ב-Backblaze B2 וצור Bucket.
+2. צור Application Key (מקבל `keyID` ו-`applicationKey`).
+3. ב-Render → השירות → Environment → מלא:
+   ```
+   S3_BUCKET      = שם הדלי
+   S3_ENDPOINT    = https://s3.us-west-004.backblazeb2.com   (לפי האזור שלך)
+   S3_ACCESS_KEY  = keyID
+   S3_SECRET_KEY  = applicationKey
+   S3_REGION      = us-west-004
+   ```
+4. Deploy. בלוגים יופיע `[Storage] mode: s3`.
+
+מאותו רגע — כל גיבוי חדש נשמר בענן הזול. אם המשתנים ריקים — חוזר לדיסק אוטומטית.
+
+**עלות B2:** ~6$ ל-טרה-בייט לחודש (100GB ≈ 0.6$). מתאים גם ל-100 לקוחות.

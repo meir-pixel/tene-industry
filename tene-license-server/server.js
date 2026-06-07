@@ -56,6 +56,13 @@ db.exec(`
     storage_path TEXT NOT NULL
   );
 `);
+// migration: סוג אחסון לכל גיבוי (disk | s3)
+try { db.exec("ALTER TABLE backups ADD COLUMN storage_type TEXT DEFAULT 'disk'"); } catch {}
+
+// שכבת אחסון — דיסק או ענן זול (S3/B2) לפי משתני סביבה
+const { createStorage } = require('./storage');
+const storage = createStorage(BACKUP_DIR);
+console.log(`[Storage] mode: ${storage.type}`);
 
 // ── Helpers ───────────────────────────────────────────────────────
 function generateLicenseKey() {
@@ -122,7 +129,7 @@ app.post('/api/check', rateLimit, (req, res) => {
 });
 
 // POST /api/backup/upload — קבלת גיבוי מוצפן
-app.post('/api/backup/upload', upload.single('file'), (req, res) => {
+app.post('/api/backup/upload', upload.single('file'), async (req, res) => {
   const licenseKey = req.headers['x-license-key'];
   const machineId  = req.headers['x-machine-id'];
 
@@ -136,28 +143,29 @@ app.post('/api/backup/upload', upload.single('file'), (req, res) => {
     return res.status(403).json({ error: 'Machine mismatch' });
   }
 
-  // שמירת קובץ
-  const customerDir = path.join(BACKUP_DIR, licenseKey);
-  if (!fs.existsSync(customerDir)) fs.mkdirSync(customerDir, { recursive: true });
+  const filename = req.file.originalname || `backup_${Date.now()}.db.enc`;
 
-  const filename     = req.file.originalname || `backup_${Date.now()}.db.enc`;
-  const storagePath  = path.join(customerDir, filename);
-  fs.writeFileSync(storagePath, req.file.buffer);
+  try {
+    // שמירה דרך שכבת האחסון (דיסק או ענן)
+    const saved = await storage.save(licenseKey, filename, req.file.buffer);
 
-  // רישום ב-DB
-  db.prepare('INSERT INTO backups (license_key,filename,size_bytes,storage_path) VALUES (?,?,?,?)')
-    .run(licenseKey, filename, req.file.size, storagePath);
+    db.prepare('INSERT INTO backups (license_key,filename,size_bytes,storage_path,storage_type) VALUES (?,?,?,?,?)')
+      .run(licenseKey, filename, req.file.size, saved.path, saved.type);
 
-  // שמור MAX_BACKUPS אחרונים בלבד
-  const old = db.prepare(
-    'SELECT id,storage_path FROM backups WHERE license_key=? ORDER BY uploaded_at DESC LIMIT -1 OFFSET ?'
-  ).all(licenseKey, MAX_BACKUPS);
-  old.forEach(row => {
-    try { fs.unlinkSync(row.storage_path); } catch {}
-    db.prepare('DELETE FROM backups WHERE id=?').run(row.id);
-  });
+    // שמור MAX_BACKUPS אחרונים בלבד
+    const old = db.prepare(
+      'SELECT id,storage_path,storage_type FROM backups WHERE license_key=? ORDER BY uploaded_at DESC LIMIT -1 OFFSET ?'
+    ).all(licenseKey, MAX_BACKUPS);
+    for (const row of old) {
+      await storage.remove(row.storage_path, row.storage_type);
+      db.prepare('DELETE FROM backups WHERE id=?').run(row.id);
+    }
 
-  res.json({ success: true, filename, size: req.file.size });
+    res.json({ success: true, filename, size: req.file.size, storage: saved.type });
+  } catch (err) {
+    console.error('[Backup] upload failed:', err.message);
+    res.status(500).json({ error: 'Backup storage failed' });
+  }
 });
 
 // ════════════════════════════════════════════════════════════════
@@ -336,10 +344,19 @@ app.get('/admin/backups/:key', (req, res) => {
 });
 
 // GET /admin/backup/:id — הורדת גיבוי
-app.get('/admin/backup/:id', (req, res) => {
+app.get('/admin/backup/:id', async (req, res) => {
   const backup = db.prepare('SELECT * FROM backups WHERE id=?').get(req.params.id);
-  if (!backup || !fs.existsSync(backup.storage_path)) return res.status(404).send('לא נמצא');
-  res.download(backup.storage_path, backup.filename);
+  if (!backup) return res.status(404).send('לא נמצא');
+  try {
+    const buf = await storage.getBuffer(backup.storage_path, backup.storage_type || 'disk');
+    if (!buf) return res.status(404).send('לא נמצא');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${backup.filename}"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('[Backup] download failed:', err.message);
+    res.status(500).send('שגיאה בהורדת הגיבוי');
+  }
 });
 
 // ════════════════════════════════════════════════════════════════
