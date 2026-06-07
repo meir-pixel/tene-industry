@@ -21,8 +21,8 @@
     .stage{min-width:0}.order-head{background:var(--blue);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
     .order-head h2{font-size:21px;margin:0}.order-head span{display:block;margin-top:4px;font-size:13px;color:#d8f2fa}.order-head .badge{background:#ffffff22;border-radius:20px;padding:7px 12px;font-weight:700}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;min-width:0}.card{background:#fff;border:2px solid var(--blue);border-radius:15px;overflow:hidden;min-width:0}
-    .card-head{display:grid;grid-template-columns:1.25fr .85fr .7fr .9fr;background:#e4f1f5;padding:10px 12px;gap:8px;align-items:center;min-width:0}.card-head b{font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis}.datum{font-weight:700;text-align:center;white-space:nowrap;min-width:0}.datum strong{font-size:20px}
-    .drawing{height:205px;padding:6px;background:#fff}.drawing svg{width:100%;height:100%;display:block}.shape{fill:none;stroke:#0c5475;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}.angle{fill:none;stroke:#0c5475;stroke-width:4}.measure{fill:#062c46;font-size:15px;font-weight:700}.detail{fill:#79510a;font-size:13px;font-weight:700}
+    .card-head{background:#e4f1f5;padding:10px 12px;display:grid;gap:9px;min-width:0}.worker-card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.worker-card-title b{font-size:19px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.worker-status-pill{border-radius:999px;padding:5px 9px;font-size:12px;font-weight:700;background:#fff;color:var(--ink);border:1px solid var(--line);white-space:nowrap}.worker-status-pill.production{background:#fff7ed;border-color:#fdba74;color:#9a3412}.worker-status-pill.done{background:#ecfdf5;border-color:#86efac;color:#166534}.worker-status-pill.supplied{background:#f4f0ff;border-color:#c4b5fd;color:#4c1d95}.worker-card-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.worker-metric{background:#fff;border:1px solid var(--line);border-radius:10px;padding:7px 8px;text-align:center;min-width:0}.worker-metric span{display:block;color:#55737e;font-size:11px;font-weight:700}.worker-metric strong{display:block;margin-top:2px;color:var(--ink);font-size:19px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .drawing{height:215px;padding:6px;background:#fff;position:relative}.drawing svg{width:100%;height:100%;display:block}.shape{fill:none;stroke:#0c5475;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}.angle{fill:none;stroke:#0c5475;stroke-width:4}.measure{fill:#062c46;font-size:15px;font-weight:700}.detail{fill:#79510a;font-size:13px;font-weight:700}.shape-scale-note{position:absolute;left:8px;bottom:7px;border:1px solid var(--line);background:#ffffffde;border-radius:999px;padding:4px 8px;color:#55737e;font-size:10px;font-weight:700}
     .card-foot{padding:9px;background:#e8f5ef}.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.actions button{padding:10px 4px;border:1px solid #b8cfd8;border-radius:9px;background:#fff;color:var(--ink);font-size:11px;font-weight:700;cursor:pointer}.actions button.active{background:var(--teal);color:#fff;border-color:var(--teal)}.actions button.done.active{background:var(--done)}.actions button.supplied.active{background:var(--supplied)}.meta{font-size:11px;color:#55737e;margin-top:7px;display:flex;gap:8px;justify-content:space-between}
     .empty{background:#fff;border:1px dashed var(--line);padding:38px;border-radius:14px;text-align:center;color:#567784}
     @media(max-width:760px){
@@ -43,9 +43,11 @@
       .order-head{padding:12px;margin-bottom:10px}
       .order-head h2{font-size:18px}
       .grid{grid-template-columns:1fr;gap:10px}
-      .card-head{grid-template-columns:1fr 1fr;gap:6px}
-      .card-head b{grid-column:1/-1;font-size:17px}
-      .drawing{height:170px}
+      .card-head{gap:8px;padding:9px}
+      .worker-card-title b{font-size:17px}
+      .worker-card-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+      .worker-metric{padding:6px 5px}.worker-metric strong{font-size:16px}
+      .drawing{height:185px}
       .actions{grid-template-columns:repeat(2,1fr)}
       .actions button{font-size:12px;padding:12px 6px}
     }
@@ -100,7 +102,7 @@
     }
     function card(item,index){
       const key=supplied(item)?'supplied':statusKey(item.status);
-      return `<article class="card"><div class="card-head"><b>כרטיס ${index+1}</b><div class="datum"><strong>${Number(item.quantity)||0}</strong> יח׳</div><div class="datum">Ø <strong>${esc(item.diameter||'-')}</strong></div><div class="datum">L <strong>${total(item)}</strong> מ״מ</div></div><div class="drawing">${drawing(item)}</div><div class="card-foot"><div class="actions">${['waiting','production','done','supplied'].map(k=>`<button class="${k==='done'?'done ':''}${k==='supplied'?'supplied ':''}${k===key?'active':''}" onclick="setStatus(${item.id},'${k}')">${statusText[k]}</button>`).join('')}</div><div class="meta"><span>${esc(item.machine||'לא משויך')}</span><span>${key==='supplied'?'סופק':esc(item.shape_name||'צורה')}</span></div></div></article>`
+      return `<article class="card"><div class="card-head"><div class="worker-card-title"><b>כרטיס ${index+1}</b><span class="worker-status-pill ${key}">${statusText[key]}</span></div><div class="worker-card-summary"><div class="worker-metric"><span>כמות</span><strong>${Number(item.quantity)||0} יח׳</strong></div><div class="worker-metric"><span>קוטר</span><strong>Ø ${esc(item.diameter||'-')}</strong></div><div class="worker-metric"><span>אורך כללי</span><strong>${total(item)} מ״מ</strong></div></div></div><div class="drawing">${drawing(item)}<span class="shape-scale-note">תצוגה קריאה</span></div><div class="card-foot"><div class="actions">${['waiting','production','done','supplied'].map(k=>`<button class="${k==='done'?'done ':''}${k==='supplied'?'supplied ':''}${k===key?'active':''}" onclick="setStatus(${item.id},'${k}')">${statusText[k]}</button>`).join('')}</div><div class="meta"><span>${esc(item.machine||'לא משויך')}</span><span>${key==='supplied'?'סופק':esc(item.shape_name||'צורה')}</span></div></div></article>`
     }
     function drawing(item){
       const seg=segments(item),name=String(item.shape_name||'').toLowerCase();
@@ -119,17 +121,24 @@
       const bridgeDominant=bridge>=Math.max(left,right)*1.5;
       return legsSimilar&&bridgeDominant&&rightAngle(s[0].angle_deg)&&rightAngle(s[1].angle_deg);
     }
+    function clamp(value,min,max){return Math.max(min,Math.min(max,value))}
+    function readableOpenUDimensions(left,bridge,right){
+      const strongestLeg=Math.max(left,right,1),legScale=82/strongestLeg,bridgeRatio=bridge/strongestLeg;
+      const halfBridge=clamp(50*bridgeRatio,66,124),centerX=180,topY=47;
+      return {x1:centerX-halfBridge,x2:centerX+halfBridge,topY,yLeft:topY+clamp(left*legScale,54,105),yRight:topY+clamp(right*legScale,54,105)};
+    }
     function openU(s){
       const left=Number(s[0].length_mm||0),bridge=Number(s[1].length_mm||0),right=Number(s[2].length_mm||0);
-      return `<svg data-shape-kind="worker-open-u" viewBox="0 0 360 190">
-        <path class="shape" d="M84 152 L84 48 L276 48 L276 152"/>
-        <text class="measure" x="84" y="104" text-anchor="middle">${left}</text>
+      const d=readableOpenUDimensions(left,bridge,right),leftMid=(d.topY+d.yLeft)/2,rightMid=(d.topY+d.yRight)/2;
+      return `<svg data-shape-kind="worker-open-u" data-scale-mode="readable" viewBox="0 0 360 190">
+        <path class="shape" d="M${d.x1} ${d.yLeft} L${d.x1} ${d.topY} L${d.x2} ${d.topY} L${d.x2} ${d.yRight}"/>
+        <text class="measure" x="${d.x1-10}" y="${leftMid+5}" text-anchor="end">${left}</text>
         <text class="measure" x="180" y="35" text-anchor="middle">${bridge}</text>
-        <text class="measure" x="276" y="104" text-anchor="middle">${right}</text>
-        <circle cx="84" cy="48" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
-        <text class="detail" x="84" y="53" text-anchor="middle">90°</text>
-        <circle cx="276" cy="48" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
-        <text class="detail" x="276" y="53" text-anchor="middle">90°</text>
+        <text class="measure" x="${d.x2+10}" y="${rightMid+5}" text-anchor="start">${right}</text>
+        <circle cx="${d.x1}" cy="${d.topY}" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
+        <text class="detail" x="${d.x1}" y="${d.topY+5}" text-anchor="middle">90°</text>
+        <circle cx="${d.x2}" cy="${d.topY}" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
+        <text class="detail" x="${d.x2}" y="${d.topY+5}" text-anchor="middle">90°</text>
       </svg>`
     }
     function closed(s){

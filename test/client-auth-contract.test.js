@@ -406,7 +406,11 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /ITEM_STATUS\.DONE/);
   assert.match(workerVisual, /ITEM_STATUS\.DELIVERED/);
   assert.match(workerVisual, /isOpenUShape/);
+  assert.match(workerVisual, /worker-card-summary/);
+  assert.match(workerVisual, /shape-scale-note/);
+  assert.match(workerVisual, /readableOpenUDimensions/);
   assert.match(workerVisual, /data-shape-kind="worker-open-u"/);
+  assert.match(workerVisual, /data-scale-mode="readable"/);
   assert.match(workerVisual, /דשבורד איסוף כרטיסים/);
   assert.match(workerVisual, /הזמנות ממתינות/);
   assert.match(workerVisual, /כרטיסים/);
