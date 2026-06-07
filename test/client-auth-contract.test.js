@@ -678,7 +678,7 @@ test('warehouse screen is API-backed and does not mask failures with mock logist
 test('inventory screen is authenticated and covered by safe API loading', () => {
   const inventory = read('public/inventory.html');
   const intake = read('public/intake.html');
-  const inventoryRoutes = read('routes/inventory.js');
+  const inventoryVisionRoutes = read('routes/inventoryVision.js');
 
   assert.match(inventory, /src="\/auth-client\.js"/);
   assert.match(inventory, /src="\/safe-dom\.js"/);
@@ -702,7 +702,7 @@ test('inventory screen is authenticated and covered by safe API loading', () => 
   assert.match(inventory, /insufficient_quota/);
   assert.match(inventory, /Billing ב-OpenAI/);
   assert.match(intake, /value="bending_shape"/);
-  assert.match(inventoryRoutes, /getIntakeTrainingGuidance\(12, \['bending_shape', 'bar_schedule', 'general'\]\)/);
+  assert.match(inventoryVisionRoutes, /getIntakeTrainingGuidance\(12, \['bending_shape', 'bar_schedule', 'general'\]\)/);
   assert.match(inventory, /חסר OpenAI API Key/);
   assert.match(inventory, /OCR כבוי/);
   assert.match(inventory, /IronBendSafe\.escapeHtml/);

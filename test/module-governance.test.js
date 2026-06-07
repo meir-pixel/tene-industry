@@ -191,6 +191,7 @@ test('order creation logic lives in an orders module service', () => {
 test('inventory receiving and bent-shape parsing live in an inventory service', () => {
   const service = read('services/inventory.js');
   const route = read('routes/inventory.js');
+  const visionRoute = read('routes/inventoryVision.js');
 
   assert.match(service, /const MATERIAL_TYPES = new Set\(\['coil', 'straight', 'bent'\]\)/);
   assert.match(service, /function normalizeBendingShapeInput/);
@@ -198,7 +199,8 @@ test('inventory receiving and bent-shape parsing live in an inventory service', 
   assert.match(service, /function normalizeReceiptReviewItem/);
   assert.match(service, /function parseReceiptReviewPayload/);
   assert.match(route, /require\('\.\.\/services\/inventory'\)/);
-  assert.match(route, /const \{\s+MATERIAL_TYPES,\s+bendingShapeColumns,\s+normalizeBendingShapeInput,\s+normalizeReceiptReviewItem,\s+parseReceiptReviewPayload,\s+\} = require\('\.\.\/services\/inventory'\);/);
+  assert.match(route, /const \{\s+MATERIAL_TYPES,\s+bendingShapeColumns,\s+normalizeReceiptReviewItem,\s+parseReceiptReviewPayload,\s+\} = require\('\.\.\/services\/inventory'\);/);
+  assert.match(visionRoute, /const \{\s+normalizeBendingShapeInput,\s+parseReceiptReviewPayload,\s+\} = require\('\.\.\/services\/inventory'\);/);
 });
 
 test('inventory receiving API routes are split out of the server monolith', () => {
@@ -207,14 +209,38 @@ test('inventory receiving API routes are split out of the server monolith', () =
 
   assert.match(route, /module\.exports = function createInventoryRouter/);
   assert.match(route, /router\.get\('\/suppliers'/);
-  assert.match(route, /router\.post\('\/inventory\/receipt-reviews\/analyze'/);
   assert.match(route, /router\.get\('\/inventory\/forecast'/);
+  assert.doesNotMatch(route, /axios/);
+  assert.doesNotMatch(route, /router\.post\('\/inventory\/analyze-bending-shape'/);
+  assert.doesNotMatch(route, /router\.post\('\/inventory\/scan-label'/);
+  assert.doesNotMatch(route, /router\.post\('\/inventory\/receipt-reviews\/analyze'/);
   assert.doesNotMatch(route, /router\.get\('\/steel-prices'/);
   assert.doesNotMatch(route, /router\.get\('\/purchase-orders'/);
   assert.match(server, /createInventoryRouter/);
   assert.match(server, /app\.use\('\/api', createInventoryRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/suppliers/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/inventory/);
+});
+
+test('inventory OCR and vision routes are split out of inventory receiving', () => {
+  const route = read('routes/inventoryVision.js');
+  const inventory = read('routes/inventory.js');
+  const server = read('server.js');
+
+  assert.match(route, /module\.exports = function createInventoryVisionRouter/);
+  assert.ok(route.includes('routes/inventoryVision missing dependency'));
+  for (const routeSnippet of [
+    "router.post('/inventory/analyze-bending-shape'",
+    "router.post('/inventory/scan-label'",
+    "router.post('/inventory/receipt-reviews/analyze'",
+  ]) {
+    assert.ok(route.includes(routeSnippet), routeSnippet);
+    assert.ok(!inventory.includes(routeSnippet), routeSnippet);
+  }
+  assert.match(route, /axios\.post\('https:\/\/api\.openai\.com\/v1\/responses'/);
+  assert.match(route, /parseReceiptReviewPayload/);
+  assert.match(server, /createInventoryVisionRouter/);
+  assert.match(server, /app\.use\('\/api', createInventoryVisionRouter/);
 });
 
 test('procurement API routes are split out of inventory', () => {

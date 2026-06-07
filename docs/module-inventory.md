@@ -181,6 +181,8 @@ Module services:
 Extracted routes:
 
 - `routes/inventory.js` for suppliers, raw material, receipt review, and inventory forecast
+- `routes/inventoryVision.js` for inventory OCR/AI recognition: bending shape
+  analysis, label scanning, and supplier receipt parsing.
 
 API route families:
 
@@ -188,6 +190,9 @@ API route families:
 - `/api/inventory*`
 - `/api/inventory/summary`
 - `/api/inventory/forecast`
+- `/api/inventory/analyze-bending-shape`
+- `/api/inventory/scan-label`
+- `/api/inventory/receipt-reviews/analyze`
 
 Current risks:
 

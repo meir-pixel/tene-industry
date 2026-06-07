@@ -31,6 +31,7 @@ const { createScheduler } = require('./jobs/scheduler');
 const ordersService = require('./services/orders');
 const intakeWorkflow = require('./services/intakeWorkflow');
 const createInventoryRouter = require('./routes/inventory');
+const createInventoryVisionRouter = require('./routes/inventoryVision');
 const createProcurementRouter = require('./routes/procurement');
 const createOrdersRouter = require('./routes/orders');
 const createProductionCardsRouter = require('./routes/productionCards');
@@ -453,6 +454,14 @@ function getIntakeTrainingGuidance(limit = 12, documentTypes = []) {
 app.use('/api', createInventoryRouter({
   db,
   requireAnyRole,
+  wsBroadcast,
+  auditLog,
+  listPage,
+}));
+
+app.use('/api', createInventoryVisionRouter({
+  db,
+  requireAnyRole,
   analyzeBendingShapeAuthorization,
   imageAnalysisLimiter,
   upload,
@@ -460,8 +469,6 @@ app.use('/api', createInventoryRouter({
   getOpenAiApiKey,
   getIntakeTrainingGuidance,
   wsBroadcast,
-  auditLog,
-  listPage,
 }));
 
 app.use('/api', createProcurementRouter({
