@@ -262,6 +262,7 @@ app.get('/admin', (req, res) => {
         <td>${lastBackup ? lastBackup.uploaded_at.slice(0,16) : '—'}</td>
         <td>
           ${!revoked ? `
+            <a href="/admin/edit/${lic.license_key}"><button style="background:#2c3e50">ערוך</button></a>
             <form method="POST" action="/admin/extend/${lic.license_key}" style="display:inline">
               <input type="number" name="days" value="365" style="width:55px">
               <button>הארך</button>
@@ -365,6 +366,55 @@ app.post('/admin/create', (req, res) => {
     <br>
     <a href="/admin"><button>חזרה לרשימה</button></a>
   </body></html>`);
+});
+
+// GET /admin/edit/:key — עריכת רישיון קיים
+app.get('/admin/edit/:key', (req, res) => {
+  const lic = getLicense(req.params.key);
+  if (!lic) return res.status(404).send('לא נמצא');
+  const current = modulesForLicense(lic);
+  res.send(`<!DOCTYPE html><html dir="rtl" lang="he">
+  <head><meta charset="UTF-8"><title>עריכת רישיון</title>
+  <style>body{font-family:Arial;padding:20px} input,textarea,select{width:100%;padding:8px;margin:5px 0 15px;border:1px solid #ccc;border-radius:4px} button{background:#27ae60;color:white;padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:16px} .mods{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:5px 0 15px} .mods label{font-weight:normal;background:#f7f3ef;padding:8px;border-radius:6px;display:flex;align-items:center;gap:6px;width:auto;margin:0} .mods input{width:auto;margin:0}</style>
+  <script>
+    var PACKAGES=${JSON.stringify(PACKAGES)};
+    function applyPackage(p){if(p==='custom')return;var on=PACKAGES[p]||[];document.querySelectorAll('.modbox').forEach(function(c){c.checked=on.indexOf(c.value)>=0});}
+  </script></head>
+  <body>
+    <h2>עריכת רישיון — ${lic.customer_name}</h2>
+    <form method="POST" action="/admin/update/${lic.license_key}">
+      <label>שם לקוח</label><input name="customer_name" value="${lic.customer_name}" required>
+      <label>טלפון</label><input name="customer_phone" type="tel" value="${lic.customer_phone || ''}">
+      <label>תוקף עד</label><input name="expires_at" type="date" value="${lic.expires_at}" required>
+      <label>חבילה</label>
+      <select name="package" onchange="applyPackage(this.value)">
+        ${['basic','pro','enterprise','custom'].map(p => `<option value="${p}" ${lic.package === p ? 'selected' : ''}>${({basic:'בסיסי',pro:'מקצועי',enterprise:'ארגוני',custom:'מותאם אישית'})[p]}</option>`).join('')}
+      </select>
+      <label>מודולים פתוחים</label>
+      <div class="mods">
+        ${ALL_MODULES.map(m => `<label><input type="checkbox" class="modbox" name="modules" value="${m.key}" ${current.includes(m.key) ? 'checked' : ''}>${m.label}</label>`).join('')}
+      </div>
+      <label>מקסימום משתמשים פעילים (0 = ללא הגבלה)</label>
+      <input name="max_users" type="number" min="0" value="${lic.max_users || 0}">
+      <label>הערות</label><textarea name="notes" rows="2">${lic.notes || ''}</textarea>
+      <button type="submit">שמור שינויים</button>
+      <a href="/admin"><button type="button" style="background:#7f8c8d">ביטול</button></a>
+    </form>
+  </body></html>`);
+});
+
+// POST /admin/update/:key — שמירת עריכה
+app.post('/admin/update/:key', (req, res) => {
+  const lic = getLicense(req.params.key);
+  if (!lic) return res.status(404).send('לא נמצא');
+  const { customer_name, customer_phone, expires_at, notes, package: pkg, max_users } = req.body;
+  let mods = req.body.modules || [];
+  if (typeof mods === 'string') mods = [mods];
+  if (mods.length === 0) mods = PACKAGES[pkg] || PACKAGES.pro || [];
+  const modulesJson = JSON.stringify(Array.from(new Set(mods)));
+  db.prepare(`UPDATE licenses SET customer_name=?, customer_phone=?, expires_at=?, notes=?, package=?, modules=?, max_users=? WHERE license_key=?`)
+    .run(customer_name, customer_phone || null, expires_at, notes || null, pkg || 'pro', modulesJson, Number(max_users) || 0, req.params.key);
+  res.redirect('/admin');
 });
 
 // POST /admin/extend/:key
