@@ -354,8 +354,8 @@ Extracted routes:
 - `routes/financeInvoices.js` for invoice listing, creation, payment, and cancellation
 - `routes/financeCosts.js` for order cost calculation, recalculation, locking,
   and cost snapshots
-- `routes/finance.js` for order margin, customer ledger/credit, finance KPIs,
-  and financial events
+- `routes/financeLedger.js` for customer ledger and customer_credit exposure
+- `routes/finance.js` for order margin, finance KPIs, and financial events
 - `routes/financeCredit.js` for active credit accounts, blocking status, and
   credit transactions
 

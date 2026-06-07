@@ -66,7 +66,8 @@ credit_accounts    → מסגרת אשראי, חסימה אוטומטית
 
 | קובץ | תוכן |
 |------|------|
-| `routes/finance.js` | margin, ledger, customer_credit, KPIs, events |
+| `routes/finance.js` | margin, KPIs, events |
+| `routes/financeLedger.js` | customer ledger and customer_credit exposure |
 | `routes/financeCosts.js` | order cost calculation, recalculation, lock, snapshots |
 | `routes/financeInvoices.js` | invoice list/create/pay/cancel |
 | `routes/financeCredit.js` | credit_accounts and credit_transactions |
@@ -77,10 +78,12 @@ credit_accounts    → מסגרת אשראי, חסימה אוטומטית
 
 - `routes/financeInvoices.js` שייך לחשבוניות בלבד: list/create/pay/cancel.
 - `routes/financeCosts.js` שייך לעלויות הזמנה בלבד: calculate/recalculate/lock/snapshots.
-- `routes/finance.js` שייך למרווחים, ledger, customer_credit, KPIs ואירועים פיננסיים.
+- `routes/financeLedger.js` שייך ל-ledger ול-customer_credit.
+- `routes/finance.js` שייך למרווחים, KPIs ואירועים פיננסיים.
 - `routes/financeCredit.js` שייך ל-credit_accounts/credit_transactions ולחסימת אשראי תפעולית.
 - אין להחזיר `/api/invoices*` לתוך `routes/finance.js`.
 - אין להחזיר `/api/orders/:id/costs*` לתוך `routes/finance.js`.
+- אין להחזיר `/api/customers/:id/ledger` או `/api/customers/:id/credit` לתוך `routes/finance.js`.
 
 ---
 

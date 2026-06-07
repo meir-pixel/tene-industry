@@ -324,12 +324,11 @@ test('finance API routes are split out of the server monolith', () => {
   const route = read('routes/finance.js');
   const invoicesRoute = read('routes/financeInvoices.js');
   const costsRoute = read('routes/financeCosts.js');
+  const ledgerRoute = read('routes/financeLedger.js');
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createFinanceRouter/);
   assert.match(route, /router\.get\('\/orders\/:id\/margin'/);
-  assert.match(route, /router\.get\('\/customers\/:id\/ledger'/);
-  assert.match(route, /router\.patch\('\/customers\/:id\/credit'/);
   assert.match(route, /router\.get\('\/finance\/kpis'/);
   assert.match(route, /router\.get\('\/finance\/events'/);
   assert.ok(!route.includes("router.get('/credit'"));
@@ -345,6 +344,9 @@ test('finance API routes are split out of the server monolith', () => {
   assert.ok(!route.includes("router.post('/orders/:id/costs/recalculate'"));
   assert.ok(!route.includes("router.patch('/orders/:id/costs/lock'"));
   assert.ok(!route.includes("router.get('/orders/:id/costs/snapshots'"));
+  assert.ok(!route.includes("router.get('/customers/:id/ledger'"));
+  assert.ok(!route.includes("router.patch('/customers/:id/credit'"));
+  assert.doesNotMatch(route, /customer_credit/);
   assert.doesNotMatch(route, /credit_accounts/);
   assert.doesNotMatch(route, /credit_transactions/);
   assert.doesNotMatch(route, /function calculateOrderCost/);
@@ -365,11 +367,18 @@ test('finance API routes are split out of the server monolith', () => {
   assert.match(costsRoute, /router\.get\('\/orders\/:id\/costs\/snapshots'/);
   assert.match(costsRoute, /wsBroadcast\('cost_update'/);
   assert.match(costsRoute, /requireRole\('manager'\)/);
+  assert.match(ledgerRoute, /module\.exports = function createFinanceLedgerRouter/);
+  assert.match(ledgerRoute, /routes\/financeLedger missing dependency/);
+  assert.match(ledgerRoute, /router\.get\('\/customers\/:id\/ledger'/);
+  assert.match(ledgerRoute, /router\.patch\('\/customers\/:id\/credit'/);
+  assert.match(ledgerRoute, /customer_credit/);
   assert.match(server, /createFinanceRouter/);
   assert.match(server, /createFinanceInvoicesRouter/);
   assert.match(server, /createFinanceCostsRouter/);
+  assert.match(server, /createFinanceLedgerRouter/);
   assert.match(server, /app\.use\('\/api', createFinanceInvoicesRouter/);
   assert.match(server, /app\.use\('\/api', createFinanceCostsRouter/);
+  assert.match(server, /app\.use\('\/api', createFinanceLedgerRouter/);
   assert.match(server, /app\.use\('\/api', createFinanceRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/invoices/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/orders\/:id\/(?:margin|costs)/);
