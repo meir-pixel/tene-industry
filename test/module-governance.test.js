@@ -841,3 +841,23 @@ test('database startup schema migrations and seed data are extracted from server
   assert.doesNotMatch(server, /function addCol\(table, col, def\)/);
   assert.doesNotMatch(server, /INSERT OR IGNORE INTO downtime_reasons/);
 });
+
+
+test('realtime websocket transport is extracted from server', () => {
+  const realtime = read('realtime/ws.js');
+  const server = read('server.js');
+
+  assert.match(realtime, /function createRealtimeServer\(deps\)/);
+  assert.match(realtime, /new WebSocketServer\(\{ noServer: true \}\)/);
+  assert.match(realtime, /function wsBroadcast\(type, data\)/);
+  assert.match(realtime, /server\.on\('upgrade', onUpgrade\)/);
+  assert.match(realtime, /modbus\.onUpdate/);
+  assert.match(realtime, /machines_state/);
+  assert.match(server, /require\('\.\/realtime\/ws'\)/);
+  assert.match(server, /const realtime = createRealtimeServer\(\{ server, db, modbus, authService, applyAuthBypass \}\)/);
+  assert.match(server, /const wsBroadcast = realtime\.wsBroadcast/);
+  assert.doesNotMatch(server, /new WebSocketServer/);
+  assert.doesNotMatch(server, /function wsBroadcast\(type, data\)/);
+  assert.doesNotMatch(server, /wss\.on\('connection'/);
+  assert.doesNotMatch(server, /server\.on\('upgrade'/);
+});

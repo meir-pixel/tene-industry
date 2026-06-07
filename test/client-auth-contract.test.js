@@ -843,6 +843,7 @@ test('shared navigation exposes modules converted from stubs', () => {
 
 test('server hardens production auth and websocket upgrades', () => {
   const server = read('server.js');
+  const realtime = read('realtime/ws.js');
   const authClient = read('public/auth-client.js');
   const wsClients = [
     'public/dashboard.html',
@@ -856,10 +857,11 @@ test('server hardens production auth and websocket upgrades', () => {
   assert.match(server, /app\.use\(helmet\(\{ contentSecurityPolicy: false \}\)\)/);
   assert.match(server, /STRICT_SECRET_ENVS = new Set\(\['production', 'staging'\]\)/);
   assert.match(server, /JWT_SECRET is required in production\/staging/);
-  assert.match(server, /new WebSocketServer\(\{ noServer: true \}\)/);
-  assert.match(server, /server\.on\('upgrade'/);
-  assert.match(server, /authService\.verifyAccessToken\(token\)/);
-  assert.match(server, /HTTP\/1\.1 401 Unauthorized/);
+  assert.match(server, /createRealtimeServer\(\{ server, db, modbus, authService, applyAuthBypass \}\)/);
+  assert.match(realtime, /new WebSocketServer\(\{ noServer: true \}\)/);
+  assert.match(realtime, /server\.on\('upgrade', onUpgrade\)/);
+  assert.match(realtime, /authService\.verifyAccessToken\(token\)/);
+  assert.match(realtime, /HTTP\/1\.1 401 Unauthorized/);
   assert.match(authClient, /function webSocketUrl/);
   assert.match(authClient, /searchParams\.set\('token', token\)/);
 

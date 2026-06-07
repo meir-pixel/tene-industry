@@ -37,6 +37,7 @@ Shared backend:
 - `status-contracts.js`
 - `public/status-contracts-client.js`
 - `db/startup.js` for core schema, compatibility migrations, and seed data
+- `realtime/ws.js` for authenticated WebSocket transport and machine broadcasts
 
 API route families:
 

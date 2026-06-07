@@ -9,10 +9,10 @@ to multiple industrial customers.
 Status as of 2026-06-07:
 
 - Active product API route families have been extracted into module-owned `routes/*.js` files.
-- `server.js` intentionally keeps only infrastructure/runtime glue and `GET /api/health`; core schema, compatibility migrations, and seed data live in `db/startup.js`.
+- `server.js` intentionally keeps only HTTP/bootstrap glue and `GET /api/health`; core schema, compatibility migrations, and seed data live in `db/startup.js`, and authenticated WebSocket transport lives in `realtime/ws.js`.
 - JWT-derived authorization is active for guarded routes; `AUTH_BYPASS` is development-only and blocked in production.
 - Governance tests protect module boundaries, auth coverage, constants, status contracts, and extracted services.
-- Full test baseline at this checkpoint: `npm test` passes with 141/141 tests.
+- Full test baseline at this checkpoint: `npm test` passes with 142/142 tests.
 
 Historical notes below may still describe the original monolith where useful, but new work must follow `docs/BUILD_RULES_HE.md` and the current module map.
 

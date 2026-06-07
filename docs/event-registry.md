@@ -1,7 +1,7 @@
 # Event Registry
 
 Source-of-truth registry required by Volume 10. Current realtime events are sent
-through `wsBroadcast(type, data)` in `server.js`; audit events are separately
+through `wsBroadcast(type, data)` from `realtime/ws.js`; audit events are separately
 written through `auditLog(...)`. The spec requires these concepts to converge
 into a universal event/audit model.
 

@@ -9,7 +9,6 @@ const http     = require('http');
 const multer   = require('multer');
 const cron     = require('node-cron');
 const crypto   = require('crypto');
-const { WebSocketServer } = require('ws');
 const { rateLimit } = require('express-rate-limit');
 const modbus   = require('./modbus');
 const priority = require('./priority');
@@ -26,6 +25,7 @@ const constants = require('./constants');
 const productionCards = require('./services/productionCards');
 const { createOrderNumberAllocator } = require('./services/orderNumbers');
 const { ensureCoreSchema, runCoreMigrations, seedCoreData } = require('./db/startup');
+const { createRealtimeServer } = require('./realtime/ws');
 const ordersService = require('./services/orders');
 const intakeWorkflow = require('./services/intakeWorkflow');
 const fleetService = require('./services/fleet');
@@ -67,7 +67,6 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 const app    = express();
 const server = http.createServer(app);
-const wss    = new WebSocketServer({ noServer: true });
 const PORT   = process.env.PORT || 3000;
 const IS_TEST = process.env.NODE_ENV === 'test';
 
@@ -223,38 +222,6 @@ function optionalAuth(req, _res, next) {
   next();
 }
 
-function webSocketToken(req) {
-  try {
-    const url = new URL(req.url || '/', 'http://localhost');
-    return url.searchParams.get('token');
-  } catch (_) {
-    return null;
-  }
-}
-
-function authenticateWebSocket(req) {
-  const token = webSocketToken(req);
-  if (token) {
-    try { return authService.verifyAccessToken(token); } catch (_) {}
-  }
-  applyAuthBypass(req);
-  return req.auth || null;
-}
-
-server.on('upgrade', (req, socket, head) => {
-  const auth = authenticateWebSocket(req);
-  if (!auth) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-    socket.destroy();
-    return;
-  }
-  req.auth = auth;
-  wss.handleUpgrade(req, socket, head, (ws) => {
-    ws.auth = auth;
-    wss.emit('connection', ws, req);
-  });
-});
-
 function requireAuth(req, res, next) {
   optionalAuth(req, res, () => {
     if (req.auth) return next();
@@ -283,46 +250,8 @@ app.use('/api', optionalAuth);
 
 seedCoreData(db);
 
-// ── WEBSOCKET ─────────────────────────────────────────────────────
-// BUG-15: Add eventId, timestamp, sourceService to every broadcast
-function wsBroadcast(type, data) {
-  const envelope = {
-    type,
-    data,
-    eventId:       crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'),
-    timestamp:     new Date().toISOString(),
-    sourceService: 'ironbend-server',
-  };
-  const msg = JSON.stringify(envelope);
-  wss.clients.forEach(ws => { if (ws.readyState === 1) ws.send(msg); });
-}
-
-wss.on('connection', (ws, req) => {
-  ws.isAlive = true;
-  ws.auth = req.auth;
-  ws.on('pong', () => { ws.isAlive = true; });
-  ws.send(JSON.stringify({ type: 'machines_state', data: modbus.getAllState() }));
-});
-
-// Heartbeat – keeps connections alive through Render's 60s nginx timeout
-const wsHeartbeat = setInterval(() => {
-  wss.clients.forEach(ws => {
-    if (ws.isAlive === false) { ws.terminate(); return; }
-    ws.isAlive = false;
-    ws.ping();
-  });
-}, 25000);
-wsHeartbeat.unref?.();
-
-modbus.onUpdate((machineId, state) => {
-  db.prepare(`UPDATE machines SET status=?, counter=?, last_seen=? WHERE id=?`)
-    .run(state.status, state.counter, state.lastSeen, machineId);
-  const machine = db.prepare('SELECT current_item_id FROM machines WHERE id=?').get(machineId);
-  if (machine?.current_item_id) {
-    db.prepare('UPDATE items SET produced_qty=? WHERE id=?').run(state.counter, machine.current_item_id);
-  }
-  wsBroadcast('machine_update', state);
-});
+const realtime = createRealtimeServer({ server, db, modbus, authService, applyAuthBypass });
+const wsBroadcast = realtime.wsBroadcast;
 
 // modbus.startPolling(5000); // uncomment when hardware connected
 
@@ -918,13 +847,7 @@ function closeServer(callback = () => {}) {
     callback(error);
   };
 
-  clearInterval(wsHeartbeat);
-  for (const client of wss.clients) client.terminate();
-  try {
-    wss.close();
-  } catch (error) {
-    if (error.code !== 'ERR_SERVER_NOT_RUNNING') throw error;
-  }
+  realtime.close();
 
   server.closeAllConnections?.();
   if (server.listening) return server.close(done);
