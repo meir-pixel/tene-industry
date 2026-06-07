@@ -38,6 +38,7 @@ const createProductionCardsRouter = require('./routes/productionCards');
 const createOrderDocumentsRouter = require('./routes/orderDocuments');
 const createFinanceRouter = require('./routes/finance');
 const createFinanceInvoicesRouter = require('./routes/financeInvoices');
+const createFinanceCostsRouter = require('./routes/financeCosts');
 const createFinanceCreditRouter = require('./routes/financeCredit');
 const createFleetRouter = require('./routes/fleet');
 const createLogisticsRouter = require('./routes/logistics');
@@ -323,6 +324,15 @@ app.use('/api', createFinanceInvoicesRouter({
   db,
   requireAnyRole,
   wsBroadcast,
+}));
+
+app.use('/api', createFinanceCostsRouter({
+  db,
+  requireAnyRole,
+  requireRole,
+  wsBroadcast,
+  industry,
+  settingsService,
 }));
 
 app.use('/api', createFinanceRouter({

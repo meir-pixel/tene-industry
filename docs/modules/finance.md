@@ -66,16 +66,21 @@ credit_accounts    → מסגרת אשראי, חסימה אוטומטית
 
 | קובץ | תוכן |
 |------|------|
-| `routes/finance.js` | כל ה-endpoints |
+| `routes/finance.js` | margin, ledger, customer_credit, KPIs, events |
+| `routes/financeCosts.js` | order cost calculation, recalculation, lock, snapshots |
+| `routes/financeInvoices.js` | invoice list/create/pay/cancel |
+| `routes/financeCredit.js` | credit_accounts and credit_transactions |
 
 ---
 
 ## גבול אחריות עדכני
 
 - `routes/financeInvoices.js` שייך לחשבוניות בלבד: list/create/pay/cancel.
-- `routes/finance.js` שייך לעלויות הזמנה, מרווחים, ledger, customer_credit, KPIs ואירועים פיננסיים.
+- `routes/financeCosts.js` שייך לעלויות הזמנה בלבד: calculate/recalculate/lock/snapshots.
+- `routes/finance.js` שייך למרווחים, ledger, customer_credit, KPIs ואירועים פיננסיים.
 - `routes/financeCredit.js` שייך ל-credit_accounts/credit_transactions ולחסימת אשראי תפעולית.
 - אין להחזיר `/api/invoices*` לתוך `routes/finance.js`.
+- אין להחזיר `/api/orders/:id/costs*` לתוך `routes/finance.js`.
 
 ---
 

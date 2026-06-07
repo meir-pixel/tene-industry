@@ -323,13 +323,11 @@ test('order document routes are split out of production card printing', () => {
 test('finance API routes are split out of the server monolith', () => {
   const route = read('routes/finance.js');
   const invoicesRoute = read('routes/financeInvoices.js');
+  const costsRoute = read('routes/financeCosts.js');
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createFinanceRouter/);
   assert.match(route, /router\.get\('\/orders\/:id\/margin'/);
-  assert.match(route, /router\.get\('\/orders\/:id\/costs'/);
-  assert.match(route, /router\.post\('\/orders\/:id\/costs\/recalculate'/);
-  assert.match(route, /router\.patch\('\/orders\/:id\/costs\/lock'/);
   assert.match(route, /router\.get\('\/customers\/:id\/ledger'/);
   assert.match(route, /router\.patch\('\/customers\/:id\/credit'/);
   assert.match(route, /router\.get\('\/finance\/kpis'/);
@@ -343,9 +341,13 @@ test('finance API routes are split out of the server monolith', () => {
   assert.ok(!route.includes("router.post('/invoices'"));
   assert.ok(!route.includes("router.patch('/invoices/:id/pay'"));
   assert.ok(!route.includes("router.patch('/invoices/:id/cancel'"));
+  assert.ok(!route.includes("router.get('/orders/:id/costs'"));
+  assert.ok(!route.includes("router.post('/orders/:id/costs/recalculate'"));
+  assert.ok(!route.includes("router.patch('/orders/:id/costs/lock'"));
+  assert.ok(!route.includes("router.get('/orders/:id/costs/snapshots'"));
   assert.doesNotMatch(route, /credit_accounts/);
   assert.doesNotMatch(route, /credit_transactions/);
-  assert.match(route, /function calculateOrderCost/);
+  assert.doesNotMatch(route, /function calculateOrderCost/);
   assert.match(invoicesRoute, /module\.exports = function createFinanceInvoicesRouter/);
   assert.match(invoicesRoute, /routes\/financeInvoices missing dependency/);
   assert.match(invoicesRoute, /router\.get\('\/invoices'/);
@@ -354,9 +356,20 @@ test('finance API routes are split out of the server monolith', () => {
   assert.match(invoicesRoute, /router\.patch\('\/invoices\/:id\/cancel'/);
   assert.match(invoicesRoute, /wsBroadcast\('new_invoice'/);
   assert.match(invoicesRoute, /BUG-36: cannot pay cancelled invoice/);
+  assert.match(costsRoute, /module\.exports = function createFinanceCostsRouter/);
+  assert.match(costsRoute, /routes\/financeCosts missing dependency/);
+  assert.match(costsRoute, /function calculateOrderCost/);
+  assert.match(costsRoute, /router\.get\('\/orders\/:id\/costs'/);
+  assert.match(costsRoute, /router\.post\('\/orders\/:id\/costs\/recalculate'/);
+  assert.match(costsRoute, /router\.patch\('\/orders\/:id\/costs\/lock'/);
+  assert.match(costsRoute, /router\.get\('\/orders\/:id\/costs\/snapshots'/);
+  assert.match(costsRoute, /wsBroadcast\('cost_update'/);
+  assert.match(costsRoute, /requireRole\('manager'\)/);
   assert.match(server, /createFinanceRouter/);
   assert.match(server, /createFinanceInvoicesRouter/);
+  assert.match(server, /createFinanceCostsRouter/);
   assert.match(server, /app\.use\('\/api', createFinanceInvoicesRouter/);
+  assert.match(server, /app\.use\('\/api', createFinanceCostsRouter/);
   assert.match(server, /app\.use\('\/api', createFinanceRouter/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/invoices/);
   assert.doesNotMatch(server, /app\.(get|post|patch)\('\/api\/orders\/:id\/(?:margin|costs)/);
@@ -1187,7 +1200,7 @@ test('routes use the active industry contract for steel-specific calculations', 
   const routeFiles = [
     'routes/orders.js',
     'routes/portal.js',
-    'routes/finance.js',
+    'routes/financeCosts.js',
     'routes/bvbs.js',
     'routes/productionCards.js',
   ];
