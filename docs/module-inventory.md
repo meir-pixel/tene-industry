@@ -40,7 +40,8 @@ Shared backend:
 - `status-contracts.js`
 - `public/status-contracts-client.js`
 - `db/connection.js` for database path, startup snapshots, and production safety checks
-- `db/startup.js` for core schema, compatibility migrations, and seed data
+- `db/startup.js` for core schema and compatibility migrations
+- `db/seed.js` for deterministic startup seed data
 - `db/financeSchema.js` for finance tables loaded by startup
 - `realtime/ws.js` for authenticated WebSocket transport and machine broadcasts
 - `jobs/scheduler.js` for cron-based alerts, email intake polling, and backups
