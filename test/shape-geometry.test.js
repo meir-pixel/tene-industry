@@ -4,7 +4,8 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 const { shapeSvg } = require('../services/productionCards');
-const { normalizeFactoryShapeName } = require('../modules/steel-rebar/shapes');
+const { normalizeFactorySegments, normalizeFactoryShapeName } = require('../modules/steel-rebar/shapes');
+const { distributeSurplusToEndSegments } = require('../services/intakeWorkflow');
 
 function loadShapeEditorGeometry() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
@@ -79,7 +80,9 @@ test('production card renders closed stirrups as a closed rectangular hoop', () 
   assert.match(svg, /Z/);
   assert.match(svg, />300</);
   assert.match(svg, />950</);
-  assert.match(svg, /overlap 100 \/ 100/);
+  assert.match(svg, /data-tail="start"/);
+  assert.match(svg, /data-tail="end"/);
+  assert.match(svg, /end tails 100 \/ 100/);
 });
 
 test('production card accepts closed stirrup OCR with one visible overlap tail', () => {
@@ -94,7 +97,8 @@ test('production card accepts closed stirrup OCR with one visible overlap tail',
   assert.match(svg, /data-shape-kind="closed-stirrup"/);
   assert.match(svg, />300</);
   assert.match(svg, />950</);
-  assert.match(svg, /overlap 100/);
+  assert.match(svg, /data-tail="start"/);
+  assert.match(svg, /end tails 100/);
 });
 
 test('orders detail shape renderer has a dedicated closed-stirrup path', () => {
@@ -105,9 +109,56 @@ test('orders detail shape renderer has a dedicated closed-stirrup path', () => {
   assert.match(renderer, /renderClosedStirrup2D/);
 });
 
+test('orders detail normalizes legacy OCR segment order before drawing', () => {
+  const orders = fs.readFileSync(path.join(__dirname, '..', 'public', 'orders.html'), 'utf8');
+
+  assert.match(orders, /function normalizeDisplaySegments/);
+  assert.match(orders, /צורת ח\|צורת u\|פתוח\|פתוחה/);
+  assert.match(orders, /חישוק\|חפיפה\|מסגרת/);
+});
+
 test('single segment geometry cannot be normalized as a spiral or ring', () => {
   const segments = [{ length_mm: 25, angle_deg: 0 }];
 
   assert.equal(normalizeFactoryShapeName('טבעת/ספירלה', segments), 'straight bar');
   assert.equal(normalizeFactoryShapeName('spiral ring', segments), 'straight bar');
+});
+
+test('Hebrew open U names normalize side order by physical bending path', () => {
+  const segments = normalizeFactorySegments('צורת ח פתוחה', [
+    { length_mm: 550, angle_deg: 90 },
+    { length_mm: 250, angle_deg: 90 },
+    { length_mm: 250, angle_deg: 0 },
+  ]);
+
+  assert.deepEqual(segments.map(segment => segment.length_mm), [250, 550, 250]);
+  assert.equal(normalizeFactoryShapeName('צורת ח פתוחה', segments), 'open U-shaped bar');
+});
+
+test('Hebrew closed stirrup names normalize as closed overlap hoops', () => {
+  const segments = normalizeFactorySegments('חישוק', [
+    { length_mm: 100, angle_deg: 90 },
+    { length_mm: 950, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 90 },
+    { length_mm: 950, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 90 },
+    { length_mm: 100, angle_deg: 0 },
+  ]);
+
+  assert.deepEqual(segments.map(segment => segment.length_mm), [100, 950, 300, 950, 300, 100]);
+  assert.equal(normalizeFactoryShapeName('חישוק', segments), 'closed stirrup 90-degree overlap');
+});
+
+test('reported length surplus is assigned to the two physical end legs', () => {
+  const result = distributeSurplusToEndSegments([
+    { length_mm: 450, angle_deg: 90 },
+    { length_mm: 2400, angle_deg: 90 },
+    { length_mm: 450, angle_deg: 0 },
+  ], 4200);
+
+  assert.equal(result.adjusted, true);
+  assert.equal(result.surplus, 900);
+  assert.equal(result.perEnd, 450);
+  assert.deepEqual(result.segments.map(segment => segment.length_mm), [900, 2400, 900]);
+  assert.equal(result.totalLength, 4200);
 });

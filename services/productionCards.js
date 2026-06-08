@@ -113,7 +113,7 @@ function openUShapeSvg(segments) {
 }
 
 function closedStirrupSvg(parts) {
-  const width = 220;
+  const width = 240;
   const height = 120;
   const horizontal = Math.max(parts.top || 0, parts.bottom || 0, 1);
   const vertical = Math.max(parts.left || 0, parts.right || 0, 1);
@@ -126,19 +126,27 @@ function closedStirrupSvg(parts) {
   const boxH = rawRatio >= 1
     ? Math.max(54, Math.min(maxBoxH, maxBoxW / rawRatio))
     : maxBoxH;
-  const x = (width - boxW) / 2;
+  const x = (width - boxW) / 2 - 10;
   const y = (height - boxH) / 2 + 4;
   const right = x + boxW;
   const bottom = y + boxH;
   const midX = x + boxW / 2;
   const midY = y + boxH / 2;
   const path = `M ${x.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${bottom.toFixed(1)} L ${x.toFixed(1)},${bottom.toFixed(1)} Z`;
-  const hookX = right - Math.min(24, boxW * 0.22);
-  const hookY = y + Math.min(24, boxH * 0.28);
+  const tailScale = Math.min(30, Math.max(12, Math.max(parts.tailStart || 0, parts.tailEnd || 0) / Math.max(horizontal, vertical) * 48));
+  const tailStartX = right + (parts.tailStart ? tailScale : 0);
+  const tailEndY = y - (parts.tailEnd ? tailScale : 0);
 
   let svg = `<path d="${path}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
   svg += `<path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
-  svg += `<path d="M ${right.toFixed(1)},${y.toFixed(1)} L ${hookX.toFixed(1)},${y.toFixed(1)} L ${hookX.toFixed(1)},${hookY.toFixed(1)}" fill="none" stroke="#c9621a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  if (parts.tailStart) {
+    svg += `<path data-tail="start" d="M ${right.toFixed(1)},${y.toFixed(1)} L ${tailStartX.toFixed(1)},${y.toFixed(1)}" fill="none" stroke="#c9621a" stroke-width="3" stroke-linecap="round"/>`;
+    svg += `<circle cx="${tailStartX.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#c9621a"/>`;
+  }
+  if (parts.tailEnd) {
+    svg += `<path data-tail="end" d="M ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${tailEndY.toFixed(1)}" fill="none" stroke="#c9621a" stroke-width="3" stroke-linecap="round"/>`;
+    svg += `<circle cx="${right.toFixed(1)}" cy="${tailEndY.toFixed(1)}" r="3" fill="#c9621a"/>`;
+  }
 
   [
     { x: midX, y: y - 11, value: parts.top },
@@ -152,7 +160,7 @@ function closedStirrupSvg(parts) {
 
   if (parts.tailStart || parts.tailEnd) {
     const tailText = [parts.tailStart, parts.tailEnd].filter(Boolean).join(' / ');
-    svg += `<text x="${(right - 4).toFixed(1)}" y="${(hookY + 14).toFixed(1)}" text-anchor="end" font-size="7.5" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">overlap ${escapeHtml(tailText)}</text>`;
+    svg += `<text x="${(right + 3).toFixed(1)}" y="${(y - 9).toFixed(1)}" text-anchor="start" font-size="7.5" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">end tails ${escapeHtml(tailText)}</text>`;
   }
 
   [[x, y], [right, y], [right, bottom], [x, bottom]].forEach(([cx, cy]) => {

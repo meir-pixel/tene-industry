@@ -175,6 +175,45 @@ function normalizeIntakeItem(item = {}) {
   };
 }
 
+function distributeSurplusToEndSegments(sourceSegments, reportedLengthMm) {
+  const segments = (sourceSegments || []).map(segment => ({
+    ...segment,
+    length_mm: Number(segment.length_mm || 0),
+  }));
+  const reportedLength = Number(reportedLengthMm || 0);
+  const segmentSum = segments.reduce((sum, segment) => sum + segment.length_mm, 0);
+  const surplus = reportedLength - segmentSum;
+
+  if (!reportedLength || !segments.length || surplus <= 0.001) {
+    return {
+      segments,
+      adjusted: false,
+      surplus: 0,
+      perEnd: 0,
+      totalLength: segmentSum,
+      segmentSum,
+    };
+  }
+
+  const perEnd = surplus / 2;
+  const lastIndex = segments.length - 1;
+  segments[0].length_mm = Number((segments[0].length_mm + perEnd).toFixed(3));
+  if (lastIndex > 0) {
+    segments[lastIndex].length_mm = Number((segments[lastIndex].length_mm + perEnd).toFixed(3));
+  } else {
+    segments[0].length_mm = Number((segments[0].length_mm + perEnd).toFixed(3));
+  }
+
+  return {
+    segments,
+    adjusted: true,
+    surplus: Number(surplus.toFixed(3)),
+    perEnd: Number(perEnd.toFixed(3)),
+    totalLength: reportedLength,
+    segmentSum,
+  };
+}
+
 function buildIntakeOrderPayload(parsed = {}, {
   source = 'intake',
   customerOverride = null,
@@ -210,6 +249,7 @@ function buildIntakeOrderPayload(parsed = {}, {
 module.exports = {
   buildIntakeOrderPayload,
   buildOrderImportPreview,
+  distributeSurplusToEndSegments,
   extractFirstEmailFromText,
   extractFirstPhoneFromText,
   importCell,

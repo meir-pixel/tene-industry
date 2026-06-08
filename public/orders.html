@@ -478,10 +478,43 @@ function segmentLength(segment) {
   return Number(segment || 0);
 }
 
+function normalizeDisplaySegments(shapeName, rawSegments) {
+  const segments = (rawSegments || []).map(segment => (
+    segment && typeof segment === 'object'
+      ? { ...segment, length_mm: segmentLength(segment) }
+      : { length_mm: segmentLength(segment), angle_deg: 180 }
+  ));
+  const name = String(shapeName || '').toLowerCase();
+  const lengths = segments.map(segment => segment.length_mm);
+  const isOpenU = /open|hook|anchor|צורת ח|צורת u|פתוח|פתוחה|\bu\b/.test(name);
+  const isClosed = /closed|stirrup|overlap|חישוק|חפיפה|מסגרת/.test(name);
+
+  if (isClosed && lengths.length === 6 && lengths[1] === lengths[3] && lengths[2] === lengths[4] && lengths[0] === lengths[5]) {
+    return segments;
+  }
+  if (isClosed && lengths.length === 6 && lengths[0] === lengths[2] && lengths[1] === lengths[3] && lengths[4] === lengths[5]) {
+    return [
+      { ...segments[4], angle_deg: 90 },
+      { ...segments[0], angle_deg: 90 },
+      { ...segments[1], angle_deg: 90 },
+      { ...segments[2], angle_deg: 90 },
+      { ...segments[3], angle_deg: 90 },
+      { ...segments[5], angle_deg: segments[5].angle_deg ?? 0 },
+    ];
+  }
+  if (isOpenU && lengths.length === 3) {
+    const [a, b, c] = lengths;
+    if (a === b && b !== c) return [{ ...segments[0], angle_deg: 90 }, { ...segments[2], angle_deg: 90 }, segments[1]];
+    if (b === c && a !== b) return [{ ...segments[1], angle_deg: 90 }, { ...segments[0], angle_deg: 90 }, segments[2]];
+  }
+
+  return segments;
+}
+
 function itemLength(item) {
   const direct = Number(item.total_length_mm ?? item.length ?? 0);
   if (Number.isFinite(direct) && direct > 0) return direct;
-  return safeJson(item.segments).reduce((sum, segment) => sum + segmentLength(segment), 0);
+  return normalizeDisplaySegments(item.shape_name, safeJson(item.segments)).reduce((sum, segment) => sum + segmentLength(segment), 0);
 }
 
 function itemWeight(item) {
@@ -494,16 +527,16 @@ function itemWeight(item) {
 }
 
 function itemDimensions(item) {
-  const values = safeJson(item.segments).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
+  const values = normalizeDisplaySegments(item.shape_name, safeJson(item.segments)).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
   return values.length ? values.join(' / ') : '';
 }
 
 function itemSegments(item) {
-  return safeJson(item.segments).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
+  return normalizeDisplaySegments(item.shape_name, safeJson(item.segments)).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
 }
 
 function itemAngles(item) {
-  const segs = safeJson(item.segments);
+  const segs = normalizeDisplaySegments(item.shape_name, safeJson(item.segments));
   return segs.slice(0, -1).map(segment => {
     const angle = segment && typeof segment === 'object' ? Number(segment.angle_deg) : 180;
     return Number.isFinite(angle) && angle > 0 ? angle : 180;

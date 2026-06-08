@@ -103,7 +103,7 @@
     const ratio = horizontal / vertical;
     const boxW = ratio >= 1 ? maxBoxW : Math.max(58, Math.min(maxBoxW, maxBoxH * ratio));
     const boxH = ratio >= 1 ? Math.max(58, Math.min(maxBoxH, maxBoxW / ratio)) : maxBoxH;
-    const x = (W - boxW) / 2;
+    const x = (W - boxW) / 2 - 10;
     const y = (H - boxH) / 2 + 4;
     const right = x + boxW;
     const bottom = y + boxH;
@@ -137,16 +137,27 @@
     bar.setAttribute('stroke-linejoin', 'round');
     svg.appendChild(bar);
 
-    const hookX = right - Math.min(26, boxW * 0.24);
-    const hookY = y + Math.min(26, boxH * 0.30);
-    const hook = document.createElementNS(NS, 'path');
-    hook.setAttribute('d', `M ${right.toFixed(1)},${y.toFixed(1)} L ${hookX.toFixed(1)},${y.toFixed(1)} L ${hookX.toFixed(1)},${hookY.toFixed(1)}`);
-    hook.setAttribute('stroke', '#7a3a08');
-    hook.setAttribute('stroke-width', Math.max(2, strokeW - 1));
-    hook.setAttribute('fill', 'none');
-    hook.setAttribute('stroke-linecap', 'round');
-    hook.setAttribute('stroke-linejoin', 'round');
-    svg.appendChild(hook);
+    const tailScale = Math.min(32, Math.max(12, Math.max(parts.tailStart || 0, parts.tailEnd || 0) / Math.max(horizontal, vertical) * 52));
+    if (parts.tailStart) {
+      const tail = document.createElementNS(NS, 'path');
+      tail.setAttribute('data-tail', 'start');
+      tail.setAttribute('d', `M ${right.toFixed(1)},${y.toFixed(1)} L ${(right + tailScale).toFixed(1)},${y.toFixed(1)}`);
+      tail.setAttribute('stroke', '#7a3a08');
+      tail.setAttribute('stroke-width', Math.max(3, strokeW));
+      tail.setAttribute('fill', 'none');
+      tail.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(tail);
+    }
+    if (parts.tailEnd) {
+      const tail = document.createElementNS(NS, 'path');
+      tail.setAttribute('data-tail', 'end');
+      tail.setAttribute('d', `M ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${(y - tailScale).toFixed(1)}`);
+      tail.setAttribute('stroke', '#7a3a08');
+      tail.setAttribute('stroke-width', Math.max(3, strokeW));
+      tail.setAttribute('fill', 'none');
+      tail.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(tail);
+    }
 
     if (opts.showDimensions) {
       const midX = x + boxW / 2;
@@ -156,7 +167,7 @@
       addShapeText(svg, `${parts.left}mm`, Math.max(20, x - 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
       addShapeText(svg, `${parts.right}mm`, Math.min(W - 20, right + 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
       if (parts.tailStart || parts.tailEnd) {
-        addShapeText(svg, `overlap ${[parts.tailStart, parts.tailEnd].filter(Boolean).join('/')}`, right - 4, Math.min(H - 10, hookY + 16), { anchor: 'end', fill: '#9a4f00', size: '8', weight: '800' });
+        addShapeText(svg, `end tails ${[parts.tailStart, parts.tailEnd].filter(Boolean).join('/')}`, Math.min(W - 8, right + 28), Math.max(10, y - 12), { anchor: 'start', fill: '#9a4f00', size: '8', weight: '800' });
       }
     }
   }

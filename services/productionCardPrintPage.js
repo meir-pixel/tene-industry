@@ -406,20 +406,27 @@ function buildOpenUShapeSVG(segments) {
 }
 
 function buildClosedStirrupSVG(parts) {
-  var W = 220, H = 120;
+  var W = 240, H = 120;
   var horizontal = Math.max(parts.top || 0, parts.bottom || 0, 1);
   var vertical = Math.max(parts.left || 0, parts.right || 0, 1);
   var ratio = horizontal / vertical;
   var maxBoxW = 126, maxBoxH = 82;
   var boxW = ratio >= 1 ? maxBoxW : Math.max(54, Math.min(maxBoxW, maxBoxH * ratio));
   var boxH = ratio >= 1 ? Math.max(54, Math.min(maxBoxH, maxBoxW / ratio)) : maxBoxH;
-  var x = (W - boxW) / 2, y = (H - boxH) / 2 + 4, right = x + boxW, bottom = y + boxH;
+  var x = (W - boxW) / 2 - 10, y = (H - boxH) / 2 + 4, right = x + boxW, bottom = y + boxH;
   var midX = x + boxW / 2, midY = y + boxH / 2;
   var pd = 'M ' + x.toFixed(1) + ',' + y.toFixed(1) + ' L ' + right.toFixed(1) + ',' + y.toFixed(1) + ' L ' + right.toFixed(1) + ',' + bottom.toFixed(1) + ' L ' + x.toFixed(1) + ',' + bottom.toFixed(1) + ' Z';
-  var hookX = right - Math.min(24, boxW * 0.22), hookY = y + Math.min(24, boxH * 0.28);
+  var tailScale = Math.min(30, Math.max(12, Math.max(parts.tailStart || 0, parts.tailEnd || 0) / Math.max(horizontal, vertical) * 48));
   var s = '<path d="' + pd + '" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
   s += '<path d="' + pd + '" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
-  s += '<path d="M ' + right.toFixed(1) + ',' + y.toFixed(1) + ' L ' + hookX.toFixed(1) + ',' + y.toFixed(1) + ' L ' + hookX.toFixed(1) + ',' + hookY.toFixed(1) + '" fill="none" stroke="#c9621a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+  if (parts.tailStart) {
+    s += '<path data-tail="start" d="M ' + right.toFixed(1) + ',' + y.toFixed(1) + ' L ' + (right + tailScale).toFixed(1) + ',' + y.toFixed(1) + '" fill="none" stroke="#c9621a" stroke-width="3" stroke-linecap="round"/>';
+    s += '<circle cx="' + (right + tailScale).toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="#c9621a"/>';
+  }
+  if (parts.tailEnd) {
+    s += '<path data-tail="end" d="M ' + right.toFixed(1) + ',' + y.toFixed(1) + ' L ' + right.toFixed(1) + ',' + (y - tailScale).toFixed(1) + '" fill="none" stroke="#c9621a" stroke-width="3" stroke-linecap="round"/>';
+    s += '<circle cx="' + right.toFixed(1) + '" cy="' + (y - tailScale).toFixed(1) + '" r="3" fill="#c9621a"/>';
+  }
   [
     { x: midX, y: y - 11, value: parts.top },
     { x: right + 20, y: midY, value: parts.right },
@@ -430,7 +437,7 @@ function buildClosedStirrupSVG(parts) {
     s += '<text x="' + label.x.toFixed(1) + '" y="' + label.y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + label.value + '</text>';
   });
   if (parts.tailStart || parts.tailEnd) {
-    s += '<text x="' + (right - 4).toFixed(1) + '" y="' + (hookY + 14).toFixed(1) + '" text-anchor="end" font-size="7.5" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">overlap ' + [parts.tailStart, parts.tailEnd].filter(Boolean).join(' / ') + '</text>';
+    s += '<text x="' + (right + 3).toFixed(1) + '" y="' + (y - 9).toFixed(1) + '" text-anchor="start" font-size="7.5" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">end tails ' + [parts.tailStart, parts.tailEnd].filter(Boolean).join(' / ') + '</text>';
   }
   return '<svg data-shape-kind="closed-stirrup" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:112px">' + s + '</svg>';
 }
