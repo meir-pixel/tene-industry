@@ -218,8 +218,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
   <!-- TABS -->
   <div class="tabs">
     <button class="tab-btn active" onclick="showTab('warehouse')">מחסן</button>
-    <button class="tab-btn" onclick="showTab('loading')">טעינה</button>
-    <button class="tab-btn" onclick="showTab('receipt')">קבלת חומר גלם</button>
+    <button class="tab-btn" onclick="showTab('loading')">טעינה ומשלוח</button>
   </div>
 
   <!-- ══ TAB: WAREHOUSE ══════════════════════════════════════════════ -->
@@ -326,89 +325,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     </div>
   </div>
 
-  <!-- ══ TAB: RECEIPT ════════════════════════════════════════════════ -->
-  <div id="tab-receipt" class="tab-panel">
-    <div class="card card-narrow">
-      <div class="card-header">
-        <span class="card-title">📥 קבלת חומר גלם</span>
-      </div>
-      <div class="card-body">
-        <div class="alert alert-success" id="receiptSuccess"></div>
-        <div class="alert alert-danger" id="receiptError"></div>
-        <div class="form-grid">
-          <div class="form-row">
-            <label>ספק *</label>
-            <select id="rSupplier">
-              <option value="">טוען ספקים...</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <label>קוטר (מ"מ) *</label>
-            <select id="rDiameter">
-              <option value="6">Ø6</option><option value="8">Ø8</option>
-              <option value="10">Ø10</option><option value="12">Ø12</option>
-              <option value="14">Ø14</option><option value="16">Ø16</option>
-              <option value="18">Ø18</option><option value="20">Ø20</option>
-              <option value="22">Ø22</option><option value="25">Ø25</option>
-              <option value="28">Ø28</option><option value="32">Ø32</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <label>סוג חומר</label>
-            <select id="rType">
-              <option value="coil">סליל</option>
-              <option value="straight">מוט ישר</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <label>Heat Number</label>
-            <input id="rHeat" type="text" placeholder="H-2026-XXXXX">
-          </div>
-          <div class="form-row">
-            <label>מספר תעודה *</label>
-            <input id="rCert" type="text" placeholder="CERT-001">
-          </div>
-          <div class="form-row">
-            <label>כמות (ק"ג) *</label>
-            <input id="rQty" type="number" min="0" step="0.1" placeholder="5000">
-          </div>
-          <div class="form-row">
-            <label>מחיר / טון (₪)</label>
-            <input id="rPrice" type="number" min="0" step="1" placeholder="3800">
-          </div>
-          <div class="form-row">
-            <label>מיקום מחסן</label>
-            <input id="rLocation" type="text" placeholder="מדף A3">
-          </div>
-        </div>
-        <div class="form-row">
-          <label>הערות</label>
-          <textarea id="rNotes" rows="2" placeholder="הערות נוספות..."></textarea>
-        </div>
-        <div style="margin-top:4px;">
-          <button class="btn btn-primary" onclick="submitReceipt()">שמור קבלת חומר</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- RECENT RECEIPTS TABLE -->
-    <div class="card card-wide">
-      <div class="card-header">
-        <span class="card-title">📋 קבלות אחרונות (10)</span>
-        <button class="btn btn-outline btn-sm" onclick="loadReceipts()">רענן</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>תאריך</th><th>ספק</th><th>קוטר</th><th>Heat No.</th><th>כמות</th><th>מיקום</th>
-          </tr></thead>
-          <tbody id="receiptsTable">
-            <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">טוען...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+  <!-- קבלת חומר גלם הועברה למסך "מלאי" (כיוון נכנס). מחסן = יציאה בלבד. -->
 </div>
 
 <!-- ══ MODAL: QR CODE ══════════════════════════════════════════════ -->

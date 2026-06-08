@@ -276,7 +276,8 @@ test('orders screen escapes API-sourced detail fields before innerHTML rendering
 
   assert.match(orders, /escHtml\(o\.customer_name/);
   assert.match(orders, /escHtml\(o\.delivery_address\)/);
-  assert.match(orders, /escHtml\(o\.driver_notes\)/);
+  assert.match(orders, /const driverNotes = visibleOrderNote\(o\.driver_notes\)/);
+  assert.match(orders, /escHtml\(driverNotes\)/);
   assert.match(orders, /const displayNote = visibleItemNote\(item\.note\)/);
   assert.match(orders, /escHtml\(displayNote\)/);
   assert.match(orders, /escHtml\(p\.package_code\)/);
@@ -318,6 +319,7 @@ test('orders review warnings have an approval path and source comparison', () =>
 
   assert.match(orders, /function needsItemReview/);
   assert.match(orders, /function visibleItemNote/);
+  assert.match(orders, /function visibleOrderNote/);
   assert.match(orders, /isTechnicalRecognitionNote/);
   assert.match(orders, /דורש אימות מול מקור הקליטה/);
   assert.match(orders, /review_status/);

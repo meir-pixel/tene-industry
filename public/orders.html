@@ -660,6 +660,11 @@ function visibleItemNote(note) {
   return isTechnicalRecognitionNote(note) ? 'דורש אימות מול מקור הקליטה' : note;
 }
 
+function visibleOrderNote(note) {
+  if (!note || isTechnicalRecognitionNote(note)) return '';
+  return note;
+}
+
 function isReviewApproved(item) {
   return String(item.review_status || '').toLowerCase() === 'approved';
 }
@@ -680,6 +685,7 @@ function buildDetailHTML(o, pkgs) {
   const totalItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).length, 0);
   const reviewItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).filter(item => needsItemReview(item)).length, 0);
   const totalPallets = (o.pallets || []).length;
+  const driverNotes = visibleOrderNote(o.driver_notes);
 
   const hero = `<div class="detail-hero">
     <div class="hero-card">
@@ -718,7 +724,7 @@ function buildDetailHTML(o, pkgs) {
       <div><div class="info-label">תאריך אספקה</div><div class="info-value">${escHtml(o.delivery_date??'—')}</div></div>
       <div><div class="info-label">משקל כולל</div><div class="info-value" style="color:var(--accent)">${(o.total_weight||0).toFixed(1)} ק"ג</div></div>
       ${o.delivery_address?`<div style="grid-column:span 2"><div class="info-label">כתובת</div><div class="info-value">${escHtml(o.delivery_address)}</div></div>`:''}
-      ${o.driver_notes?`<div style="grid-column:span 2"><div class="info-label">הערות לנהג</div><div class="info-value">${escHtml(o.driver_notes)}</div></div>`:''}
+      ${driverNotes?`<div style="grid-column:span 2"><div class="info-label">הערות לנהג</div><div class="info-value">${escHtml(driverNotes)}</div></div>`:''}
       ${o.struct_element?`<div><div class="info-label">אלמנט</div><div class="info-value">${escHtml(o.struct_element)}</div></div>`:''}
       ${o.struct_floor?`<div><div class="info-label">קומה</div><div class="info-value">${escHtml(o.struct_floor)}</div></div>`:''}
       ${o.sheet_num?`<div><div class="info-label">גיליון</div><div class="info-value">${escHtml(o.sheet_num)}</div></div>`:''}
