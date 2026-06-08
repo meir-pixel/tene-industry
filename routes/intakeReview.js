@@ -62,6 +62,35 @@ module.exports = function createIntakeReviewRouter(deps) {
     res.json(db.prepare(sql).all(...(status ? [status] : [])).map(enrichIntakeRow));
   });
 
+  function itemNeedsPostOrderReview(item) {
+    if (item.review_status === 'approved') return false;
+    return /review|required|unclear|uncertain|verify|ambiguous|not clear|דורש|בדיקה|לא ברור/i.test(item.note || '');
+  }
+
+  router.get('/intake/order-review-tasks', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const rows = db.prepare(`
+      SELECT il.*, o.order_num, c.name AS customer_name
+      FROM intake_log il
+      JOIN orders o ON o.id = il.order_id
+      LEFT JOIN customers c ON c.id = o.customer_id
+      WHERE il.status='approved'
+      ORDER BY il.created_at DESC
+      LIMIT 100
+    `).all();
+    const tasks = rows.map(row => {
+      const items = db.prepare('SELECT id,note,review_status FROM items WHERE order_id=? ORDER BY id').all(row.order_id);
+      const reviewItems = items.filter(itemNeedsPostOrderReview);
+      if (!reviewItems.length) return null;
+      return {
+        ...enrichIntakeRow(row),
+        post_order_review: true,
+        review_count: reviewItems.length,
+        review_items: reviewItems,
+      };
+    }).filter(Boolean);
+    res.json(tasks);
+  });
+
   router.post('/intake/:id/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Intake row not found' });

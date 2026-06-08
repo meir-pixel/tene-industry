@@ -164,6 +164,25 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .item-dims{display:flex;flex-wrap:wrap;gap:5px;}
 .dim-chip{background:#e8f0fb;color:#1a2533;border-radius:8px;padding:4px 8px;font-size:12px;font-weight:800;}
 .note-chip{background:#fff3cd;color:#8a5a00;border-radius:10px;padding:6px 9px;font-size:12px;line-height:1.45;}
+.review-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.review-status{border-radius:999px;padding:4px 9px;font-size:11px;font-weight:900}
+.review-pending{background:#fff3cd;color:#8a5a00}
+.review-approved{background:#e7f8ed;color:#166b37}
+.review-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 10px;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;color:var(--text)}
+.review-btn.primary{border-color:var(--success);background:#f2fbf5;color:var(--success)}
+.source-overlay{position:fixed;inset:0;background:rgba(2,26,72,.55);z-index:720;display:none;padding:18px;backdrop-filter:blur(3px)}
+.source-overlay.show{display:flex}
+.source-panel{background:#fff;border:1px solid var(--border);border-radius:14px;width:min(1200px,100%);height:min(860px,100%);margin:auto;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(2,26,72,.28)}
+.source-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f8fafc}
+.source-title{font-size:18px;font-weight:900}
+.source-body{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:0;min-height:0;flex:1}
+.source-original{background:#f7f9fc;border-left:1px solid var(--border);padding:12px;overflow:auto}
+.source-original img,.source-original iframe{width:100%;height:100%;min-height:620px;border:1px solid var(--border);border-radius:10px;background:#fff;object-fit:contain}
+.source-parsed{padding:12px;overflow:auto}
+.source-parsed table{min-width:0;width:100%;border-collapse:collapse}
+.source-parsed th,.source-parsed td{border-bottom:1px solid var(--border);padding:8px;text-align:right;font-size:12px}
+.source-parsed th{background:#f8fafc;color:var(--muted);font-weight:900}
+@media(max-width:820px){.source-body{grid-template-columns:1fr}.source-original{border-left:0;border-bottom:1px solid var(--border)}.source-original img,.source-original iframe{min-height:420px}}
 .item-status{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
 .is-wait{background:rgba(122,147,171,0.15);color:var(--dim);}
 .is-prod{background:rgba(224,123,57,0.18);color:var(--accent);}
@@ -247,6 +266,22 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
       <button class="detail-close" onclick="closeDetailPanel()">✕</button>
     </div>
     <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<div class="source-overlay" id="sourceOverlay" onclick="closeSourceOverlay(event)">
+  <div class="source-panel">
+    <div class="source-head">
+      <div>
+        <div class="source-title" id="sourceTitle">מקור קליטה</div>
+        <div class="detail-customer" id="sourceMeta"></div>
+      </div>
+      <button class="detail-close" onclick="closeSourcePanel()">✕</button>
+    </div>
+    <div class="source-body">
+      <div class="source-original" id="sourceOriginal"></div>
+      <div class="source-parsed" id="sourceParsed"></div>
+    </div>
   </div>
 </div>
 
@@ -613,9 +648,25 @@ function needsReview(item) {
   return /review|required|unclear|uncertain|verify|ambiguous|not clear|דורש|לא ברור/i.test(item.note || '');
 }
 
+function isReviewApproved(item) {
+  return String(item.review_status || '').toLowerCase() === 'approved';
+}
+
+function needsItemReview(item, sides) {
+  if (isReviewApproved(item)) return false;
+  return needsReview(item) || shapeMismatchWarning(item, sides || itemSegments(item));
+}
+
+function reviewStatusHtml(item) {
+  if (isReviewApproved(item)) {
+    return '<span class="review-status review-approved">אומת</span>';
+  }
+  return '<span class="review-status review-pending">ממתין לאימות</span>';
+}
+
 function buildDetailHTML(o, pkgs) {
   const totalItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).length, 0);
-  const reviewItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).filter(needsReview).length, 0);
+  const reviewItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).filter(item => needsItemReview(item)).length, 0);
   const totalPallets = (o.pallets || []).length;
 
   const hero = `<div class="detail-hero">
@@ -688,8 +739,8 @@ function buildDetailHTML(o, pkgs) {
       const sides = itemSegments(item);
       const angles = itemAngles(item);
       const dims = sides.length ? sides.join(' / ') : itemDimensions(item);
-      const review = needsReview(item);
       const shapeMismatch = shapeMismatchWarning(item, sides);
+      const review = needsItemReview(item, sides);
       const measuredWeight = actualWeight(item);
       const deviationPct = weightDeviationPct(item);
       return `<div class="item-row">
@@ -702,7 +753,7 @@ function buildDetailHTML(o, pkgs) {
             <span class="item-diameter">⌀${escHtml(item.diameter)}</span>
             <span class="item-shape">${escHtml(shapeLabel(item.shape_name, sides))}</span>
             ${item.is_3d ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px">3D</span>' : ''}
-            ${review || shapeMismatch ? ' <span style="background:#fff3cd;color:#8a5a00;font-size:11px;font-weight:900;padding:3px 8px;border-radius:999px">דורש בדיקה</span>' : ''}
+            ${review || isReviewApproved(item) ? reviewStatusHtml(item) : ''}
           </div>
           <div class="item-kpis">
             <div class="item-kpi"><div class="item-kpi-label">כמות</div><div class="item-kpi-value">${qty} יח'</div></div>
@@ -712,8 +763,12 @@ function buildDetailHTML(o, pkgs) {
           </div>
           ${dims ? `<div class="item-dims">${dims.split(' / ').map((d, idx) => `<span class="dim-chip">${String.fromCharCode(0x05D0 + idx)}: ${d} מ"מ</span>`).join('')}</div>` : ''}
           ${measuredWeight ? `<div class="item-dims"><span class="dim-chip">משקל מצוי: ${measuredWeight.toFixed(1)} ק"ג</span><span class="dim-chip"${weightDeviationClass(deviationPct)}>סטייה: ${deviationPct > 0 ? '+' : ''}${deviationPct.toFixed(1)}%</span></div>` : ''}
-          ${shapeMismatch ? `<div class="note-chip">⚠ שם הצורה המקורי היה "${escHtml(item.shape_name)}", אבל הגיאומטריה כוללת צלע אחת בלבד ולכן מוצג כמוט ישר.</div>` : ''}
+          ${shapeMismatch && !isReviewApproved(item) ? `<div class="note-chip">⚠ שם הצורה המקורי היה "${escHtml(item.shape_name)}", אבל הגיאומטריה כוללת צלע אחת בלבד ולכן מוצג כמוט ישר.</div>` : ''}
           ${item.note ? `<div class="note-chip">⚠ ${escHtml(item.note)}</div>` : ''}
+          ${review ? `<div class="review-actions">
+            <button class="review-btn" onclick="openOrderIntakeSource(event, ${o.id})">פתח מקור להשוואה</button>
+            <button class="review-btn primary" onclick="approveItemReview(event, ${o.id}, ${item.id})">אשר הערה</button>
+          </div>` : ''}
           ${item.status==='בייצור'&&qty>0?`<div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100,produced/qty*100).toFixed(0)}%"></div></div><div style="font-size:11px;color:var(--muted)">${produced}/${qty}</div>`:''}
         </div>
         <span class="item-status ${ic}">${escHtml(item.status)}</span>
@@ -763,6 +818,86 @@ function closeDetailPanel() {
 async function setStatusAndClose(id, status) {
   const ok = await setStatus(id, status);
   if (ok) closeDetailPanel();
+}
+
+function sourceOriginalHtml(row) {
+  if (!row) return '<div class="note-chip">לא נמצא מקור קליטה להזמנה הזאת.</div>';
+  if (row.original_data_url) {
+    const mime = String(row.original_mime || '');
+    if (mime.includes('pdf')) {
+      return `<iframe src="${escHtml(row.original_data_url)}" title="מקור הזמנה"></iframe>`;
+    }
+    return `<img src="${escHtml(row.original_data_url)}" alt="מקור הזמנה">`;
+  }
+  return `<pre class="raw-content">${escHtml(row.raw_content || 'אין מקור שמור')}</pre>`;
+}
+
+function parsedItemsHtml(parsed) {
+  const items = Array.isArray(parsed?.items) ? parsed.items : [];
+  if (!items.length) return '<div class="note-chip">לא נשמרו פריטים בפענוח המקורי.</div>';
+  return `<table>
+    <thead><tr><th>#</th><th>קוטר</th><th>כמות</th><th>אורך</th><th>צורה / צלעות</th><th>הערה</th></tr></thead>
+    <tbody>${items.map((item, index) => {
+      const sides = Array.isArray(item.sides)
+        ? item.sides
+        : Array.isArray(item.segments)
+          ? item.segments.map(seg => typeof seg === 'object' ? (seg.length_mm || seg.length || '') : seg)
+          : [];
+      return `<tr>
+        <td>${index + 1}</td>
+        <td>${escHtml(item.diameter ?? item.diameter_mm ?? '-')}</td>
+        <td>${escHtml(item.qty ?? item.quantity ?? '-')}</td>
+        <td>${escHtml(item.length ?? item.length_mm ?? item.total_length_mm ?? '-')}</td>
+        <td>${escHtml(item.shape_name || item.shapeName || item.shape || '')}<br><span class="detail-customer">${escHtml(sides.join(' / '))}</span></td>
+        <td>${escHtml(item.note || item.notes || '')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+async function openOrderIntakeSource(event, orderId) {
+  event?.stopPropagation?.();
+  const overlay = document.getElementById('sourceOverlay');
+  document.getElementById('sourceTitle').textContent = 'טוען מקור קליטה...';
+  document.getElementById('sourceMeta').textContent = '';
+  document.getElementById('sourceOriginal').innerHTML = '<div class="note-chip">טוען...</div>';
+  document.getElementById('sourceParsed').innerHTML = '';
+  overlay.classList.add('show');
+  try {
+    const response = await fetch(`/api/orders/${orderId}/intake-source`);
+    const row = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(row.error || 'לא נמצא מקור קליטה להזמנה');
+    document.getElementById('sourceTitle').textContent = `מקור קליטה - ${row.order_num || ''}`;
+    document.getElementById('sourceMeta').textContent = `${row.customer_name || ''} · ${row.source || ''} · ${row.created_at || ''}`;
+    document.getElementById('sourceOriginal').innerHTML = sourceOriginalHtml(row);
+    document.getElementById('sourceParsed').innerHTML = `<div class="d-title">פענוח שנשמר לפני יצירת ההזמנה</div>${parsedItemsHtml(row.parsed || {})}`;
+  } catch (error) {
+    document.getElementById('sourceTitle').textContent = 'מקור קליטה לא נמצא';
+    document.getElementById('sourceOriginal').innerHTML = `<div class="note-chip">${escHtml(error.message)}</div>`;
+  }
+}
+
+function closeSourceOverlay(event) {
+  if (event.target === document.getElementById('sourceOverlay')) closeSourcePanel();
+}
+
+function closeSourcePanel() {
+  document.getElementById('sourceOverlay').classList.remove('show');
+}
+
+async function approveItemReview(event, orderId, itemId) {
+  event?.stopPropagation?.();
+  const response = await fetch(`/api/orders/${orderId}/items/${itemId}/review`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'approved' }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    alert(result.error || 'אישור ההערה נכשל');
+    return;
+  }
+  await openDetail(orderId);
 }
 
 function printQR(code, orderNum, weight, diameter) {

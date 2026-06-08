@@ -55,6 +55,10 @@ function runCoreMigrations(db) {
   addCol('items',      'actual_waste',       'INTEGER DEFAULT 0');
   addCol('items',      'actual_weight_kg',   'REAL');
   addCol('items',      'weight_deviation_pct','REAL');
+  addCol('items',      'review_status',      'TEXT');
+  addCol('items',      'review_notes',       'TEXT');
+  addCol('items',      'reviewed_by',        'INTEGER');
+  addCol('items',      'reviewed_at',        'TEXT');
   addCol('items',      'worker_id',          'INTEGER');
   addCol('machines',   'label',              'TEXT');
   addCol('machines',   'slave_id',           'INTEGER DEFAULT 1');

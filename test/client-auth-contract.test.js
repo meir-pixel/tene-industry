@@ -308,6 +308,28 @@ test('orders detail does not present one straight segment as a spiral and shows 
   assert.match(orders, /weightDeviationPct/);
 });
 
+test('orders review warnings have an approval path and source comparison', () => {
+  const orders = read('public/orders.html');
+  const intake = read('public/intake.html');
+  const ordersRoute = read('routes/orders.js');
+  const intakeRoute = read('routes/intakeReview.js');
+  const startup = read('db/startup.js');
+
+  assert.match(orders, /function needsItemReview/);
+  assert.match(orders, /review_status/);
+  assert.match(orders, /approveItemReview/);
+  assert.match(orders, /openOrderIntakeSource/);
+  assert.match(orders, /\/api\/orders\/\$\{orderId\}\/intake-source/);
+  assert.match(orders, /\/api\/orders\/\$\{orderId\}\/items\/\$\{itemId\}\/review/);
+  assert.match(ordersRoute, /\/orders\/:id\/intake-source/);
+  assert.match(ordersRoute, /\/orders\/:orderId\/items\/:itemId\/review/);
+  assert.match(ordersRoute, /wsBroadcast\('order_review'/);
+  assert.match(intakeRoute, /\/intake\/order-review-tasks/);
+  assert.match(intake, /\/api\/intake\/order-review-tasks/);
+  assert.match(intake, /openLinkedOrder/);
+  assert.match(startup, /addCol\('items',\s+'review_status'/);
+});
+
 test('order creation success copy does not promise production before approval', () => {
   const index = read('public/index.html');
 

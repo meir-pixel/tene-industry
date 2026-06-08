@@ -49,6 +49,22 @@ module.exports = function createOrdersRouter(deps) {
     res.json(order);
   });
 
+  router.get('/orders/:id/intake-source', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
+    const row = db.prepare(`
+      SELECT il.*, o.order_num, c.name AS customer_name
+      FROM intake_log il
+      JOIN orders o ON o.id = il.order_id
+      LEFT JOIN customers c ON c.id = o.customer_id
+      WHERE il.order_id = ?
+      ORDER BY il.created_at DESC
+      LIMIT 1
+    `).get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'intake source not found' });
+    let parsed = {};
+    try { parsed = JSON.parse(row.parsed_data || '{}'); } catch {}
+    res.json({ ...row, parsed });
+  });
+
   router.post('/orders/manual', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const { machineId, diameter, qty, totalLengthMm, shape, note } = req.body;
     if (!machineId || !diameter || !qty || !totalLengthMm) {
@@ -156,6 +172,26 @@ module.exports = function createOrdersRouter(deps) {
     res.json({ success: true });
   });
 
+  router.patch('/orders/:orderId/items/:itemId/review', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const status = String(req.body?.status || 'approved').trim();
+    if (!['approved', 'pending'].includes(status)) {
+      return res.status(400).json({ error: 'invalid review status' });
+    }
+    const item = db.prepare('SELECT i.*, o.order_num FROM items i JOIN orders o ON o.id=i.order_id WHERE i.id=? AND i.order_id=?')
+      .get(req.params.itemId, req.params.orderId);
+    if (!item) return res.status(404).json({ error: 'item not found' });
+    const reviewedAt = status === 'approved' ? new Date().toISOString() : null;
+    const reviewedBy = status === 'approved' ? (req.auth?.sub || null) : null;
+    db.prepare(`
+      UPDATE items
+      SET review_status=?, review_notes=?, reviewed_by=?, reviewed_at=?
+      WHERE id=? AND order_id=?
+    `).run(status, req.body?.notes || null, reviewedBy, reviewedAt, item.id, req.params.orderId);
+    auditLog('item', item.id, item.order_num, 'review_status', 'review_status', item.review_status || null, status, req.body?.notes || null, req.auth?.sub || null, req.auth?.display_name || null);
+    wsBroadcast('order_review', { orderId: Number(req.params.orderId), itemId: Number(item.id), status });
+    res.json({ success: true, status, reviewed_at: reviewedAt });
+  });
+
   router.patch('/orders/:id/lock', requireRole('manager'), (req, res) => {
     const { userId, userName } = req.body;
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
@@ -184,6 +220,7 @@ module.exports.manifest = {
   produces: [
     { event: 'new_order' },
     { event: 'order_status' },
+    { event: 'order_review' },
     { event: 'machine_assign' },
   ],
 };

@@ -667,9 +667,8 @@ function renderIntakeQueue() {
           </div>
           <div class="card-actions">
             <span class="urgency-badge urgency-${urgency.level}" title="דירוג דחיפות ${urgency.score}">${urgency.label} · ${urgency.score}</span>
-            <button class="btn btn-success" onclick="openIntakeCompare(${row.id})">השוואה ואישור</button>
-            <button class="btn" onclick="openManualOrder(${row.id})">פתח לעריכה</button>
-            <button class="btn btn-danger" onclick="intakeReject(${row.id})">דחה</button>
+            <button class="btn btn-success" onclick="openIntakeCompare(${row.id})">${row.post_order_review ? 'השוואה למקור' : 'השוואה ואישור'}</button>
+            ${row.post_order_review ? `<button class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה לאימות</button>` : `<button class="btn" onclick="openManualOrder(${row.id})">פתח לעריכה</button><button class="btn btn-danger" onclick="intakeReject(${row.id})">דחה</button>`}
           </div>
         </div>
         <div class="card-grid">
@@ -679,7 +678,7 @@ function renderIntakeQueue() {
             <button class="btn" style="margin-top:8px;width:100%" onclick="openIntakeCompare(${row.id})">השוואה במסך מלא</button>
           </div>
           <div class="box">
-            <div class="box-title">פענוח להזמנה</div>
+            <div class="box-title">${row.post_order_review ? `בדיקות פתוחות אחרי יצירת הזמנה · ${row.review_count || 0}` : 'פענוח להזמנה'}</div>
             ${urgencyMetricsHtml(row)}
             <div class="meta">${address ? 'כתובת: ' + escapeHtml(address) : 'כתובת לא זוהתה'}</div>
             <div class="meta">${notes ? 'הערות: ' + escapeHtml(notes) : 'אין הערות'}</div>
@@ -695,7 +694,11 @@ function renderIntakeQueue() {
 async function loadIntakeQueue() {
   const list = document.getElementById('intakeList');
   list.innerHTML = '<div class="empty">טוען תור קליטה...</div>';
-  intakeRows = await fetch('/api/intake/log?status=pending_review').then(r => r.json()).catch(() => []);
+  const [pendingRows, reviewTasks] = await Promise.all([
+    fetch('/api/intake/log?status=pending_review').then(r => r.json()).catch(() => []),
+    fetch('/api/intake/order-review-tasks').then(r => r.json()).catch(() => []),
+  ]);
+  intakeRows = [...pendingRows, ...reviewTasks];
   renderIntakeQueue();
 }
 
@@ -768,13 +771,16 @@ function openIntakeCompare(id) {
   const row = intakeRows.find(item => item.id === id);
   if (!row) return toast('פנייה לא נמצאה', true);
   const parsed = parsedOf(row);
+  const isPostOrderReview = Boolean(row.post_order_review);
   activeCompareId = id;
   activeCompareOriginal = JSON.parse(JSON.stringify(parsed));
   intakeCompareZoom = 1;
   const urgency = urgencyInfo(row);
   const title = parsed.customer_name || parsed.customerName || row.customer_match?.customer?.name || 'לקוח לא מזוהה';
   document.getElementById('intakeCompareTitle').textContent = title;
-  document.getElementById('intakeCompareMeta').textContent = `מקור: ${sourceLabel(row.source)} · דחיפות: ${urgency.label} ${urgency.score} · פריטים: ${urgency.itemCount}`;
+  document.getElementById('intakeCompareMeta').textContent = isPostOrderReview
+    ? `מקור: ${sourceLabel(row.source)} · הזמנה: ${row.order_num || row.order_id} · בדיקות פתוחות: ${row.review_count || 0}`
+    : `מקור: ${sourceLabel(row.source)} · דחיפות: ${urgency.label} ${urgency.score} · פריטים: ${urgency.itemCount}`;
   document.getElementById('intakeCompareSource').innerHTML = intakeCompareSourceHtml(row);
   document.getElementById('intakeCompareData').innerHTML = `
     <div class="box">
@@ -782,11 +788,13 @@ function openIntakeCompare(id) {
       ${urgencyMetricsHtml(row)}
       <div class="meta">כתובת: ${escapeHtml(parsed.delivery_address || parsed.deliveryAddress || 'לא זוהתה')}</div>
       <div class="meta">הערות: ${escapeHtml(parsed.notes || 'אין הערות')}</div>
-      ${intakeEditableForm(parsed)}
-      ${customerMatchHtml(row)}
+      ${isPostOrderReview ? '<div class="empty">ההזמנה כבר נוצרה. אשר את הערות הבדיקה מתוך מסך ההזמנה, מול המקור שמופיע כאן.</div>' : intakeEditableForm(parsed)}
+      ${isPostOrderReview ? '' : customerMatchHtml(row)}
     </div>
   `;
-  document.getElementById('intakeCompareApprove').onclick = () => intakeApprove(id);
+  const approveButton = document.getElementById('intakeCompareApprove');
+  approveButton.textContent = isPostOrderReview ? 'פתח הזמנה לאימות' : 'אשר אחרי בדיקה';
+  approveButton.onclick = isPostOrderReview ? () => openLinkedOrder(row.order_id) : () => intakeApprove(id);
   document.getElementById('intakeCompareModal').classList.add('open');
   applyIntakeCompareZoom();
 }
@@ -829,6 +837,11 @@ async function intakeReject(id) {
 
 function openManualOrder(id) {
   window.location.href = '/index.html?intake_id=' + encodeURIComponent(id);
+}
+
+function openLinkedOrder(orderId) {
+  if (!orderId) return toast('לא נמצא קישור להזמנה', true);
+  window.location.href = '/orders.html?id=' + encodeURIComponent(orderId);
 }
 
 async function loadOcrTraining() {

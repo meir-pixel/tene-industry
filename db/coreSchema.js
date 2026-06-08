@@ -91,6 +91,10 @@ function ensureCoreSchema(db) {
       actual_waste INTEGER DEFAULT 0,
       actual_weight_kg REAL,
       weight_deviation_pct REAL,
+      review_status TEXT,
+      review_notes TEXT,
+      reviewed_by INTEGER,
+      reviewed_at TEXT,
       note TEXT,
       FOREIGN KEY (pallet_id) REFERENCES pallets(id)
     );
