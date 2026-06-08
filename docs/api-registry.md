@@ -84,10 +84,10 @@ Security posture values:
 
 | Route Family | Module | Expected Security | Current Concern |
 | --- | --- | --- | --- |
-| `/api/suppliers*` | Inventory | auth-required; writes manager | Supplier data. |
+| `/api/suppliers*` | Procurement | auth-required; writes manager | Supplier master data; inventory may read it only as a dependency for receiving. |
 | `/api/inventory*` | Inventory | auth-required; writes warehouse/manager | Stock changes must be audited. |
-| `/api/steel-prices*` | Finance / Inventory | role-required: finance/manager | Impacts pricing/costing. |
-| `/api/purchase-orders*` | Inventory | role-required: procurement/manager | Stub/partial module. |
+| `/api/steel-prices*` | Procurement / Finance | role-required: finance/manager | Purchase price history; impacts pricing/costing. |
+| `/api/purchase-orders*` | Procurement | role-required: procurement/manager | Supplier purchase workflow. |
 | `/api/vehicles*` | Fleet Management | auth-required; writes office/manager/admin | Vehicle asset records, service events, expenses/income, and vehicle documents. Must stay separate from driver identity. |
 | `/api/drivers*` | Delivery / Fleet Management | auth-required; writes dispatch/manager | Driver identity and assignment; driver portal split needed. Vehicle documents/history belong to `/api/vehicles*`. |
 | `/api/deliveries*` | Delivery | auth-required or driver portal | Delivery state changes need auth/audit. |

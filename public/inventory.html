@@ -140,7 +140,6 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     <button class="tab-btn active" onclick="showTab('summary')">סיכום מלאי</button>
     <button class="tab-btn" onclick="showTab('batches')">אצוות / מנות</button>
     <button class="tab-btn" onclick="showTab('receipts')">קבלת חומר (OCR)</button>
-    <button class="tab-btn" onclick="showTab('suppliers')">ספקים</button>
     <button class="tab-btn" onclick="showTab('waste')">פחת וגרוטאות</button>
   </div>
 
@@ -204,20 +203,6 @@ tr:hover td{background:rgba(0,0,0,0.015);}
         </div>
         <div id="receiptReviewList" style="padding:14px">טוען...</div>
       </div>
-    </div>
-  </div>
-
-  <!-- SUPPLIERS TAB -->
-  <div id="tab-suppliers" class="tab-panel">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">🏭 ספקי חומר גלם</span>
-        <button class="btn btn-primary btn-sm" onclick="openAddSupplier()">+ ספק חדש</button>
-      </div>
-      <table>
-        <thead><tr><th>שם ספק</th><th>איש קשר</th><th>טלפון</th><th>אימייל</th><th>תנאי תשלום</th><th>פעולות</th></tr></thead>
-        <tbody id="supplierTable">טוען...</tbody>
-      </table>
     </div>
   </div>
 
@@ -298,27 +283,6 @@ tr:hover td{background:rgba(0,0,0,0.015);}
   </div>
 </div>
 
-<!-- ADD SUPPLIER MODAL -->
-<div class="modal-overlay" id="modalSupplier">
-  <div class="modal">
-    <h2 id="modalSupplierTitle">🏭 ספק חדש</h2>
-    <input type="hidden" id="sId">
-    <div class="form-grid">
-      <div class="form-row" style="grid-column:1/-1"><label>שם ספק *</label><input id="sName" type="text" placeholder="חברת ברזל בע&quot;מ"></div>
-      <div class="form-row"><label>איש קשר</label><input id="sContact" type="text"></div>
-      <div class="form-row"><label>טלפון</label><input id="sPhone" type="tel"></div>
-      <div class="form-row"><label>אימייל</label><input id="sEmail" type="email"></div>
-      <div class="form-row"><label>תנאי תשלום</label><input id="sTerms" type="text" placeholder="שוטף+60"></div>
-    </div>
-    <div class="form-row"><label>כתובת</label><input id="sAddress" type="text"></div>
-    <div class="form-row"><label>הערות</label><textarea id="sNotes" rows="2"></textarea></div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeSupplierModal()">ביטול</button>
-      <button class="btn btn-primary" onclick="saveSupplier()">שמור</button>
-    </div>
-  </div>
-</div>
-
 <div class="receipt-fullscreen" id="receiptCompareModal">
   <div class="receipt-fullscreen-inner">
     <div class="receipt-fullscreen-head">
@@ -351,7 +315,6 @@ function showTab(id) {
   document.getElementById('tab-' + id).classList.add('active');
   if (id === 'batches')   loadBatches();
   if (id === 'receipts')  loadReceiptReviews();
-  if (id === 'suppliers') loadSuppliers();
   if (id === 'waste')     loadWaste();
 }
 
@@ -691,23 +654,9 @@ async function rejectReceiptReview(id) {
 // ── SUPPLIERS ─────────────────────────────────────────────────────
 async function loadSuppliers() {
   suppliers = await fetch('/api/suppliers').then(r=>r.ok ? r.json() : []).catch(()=>[]);
-  renderSuppliers();
-  // refresh dropdown
   const sel = document.getElementById('bSupplier');
+  if (!sel) return;
   sel.innerHTML = '<option value="">— ללא ספק —</option>' + suppliers.map(s=>`<option value="${s.id}">${escH(s.name)}</option>`).join('');
-}
-
-function renderSuppliers() {
-  const body = document.getElementById('supplierTable');
-  if (!suppliers.length) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">אין ספקים</td></tr>'; return; }
-  body.innerHTML = suppliers.map(s => `<tr>
-    <td><strong>${escH(s.name)}</strong></td>
-    <td>${escH(s.contact||'—')}</td>
-    <td>${escH(s.phone||'—')}</td>
-    <td>${escH(s.email||'—')}</td>
-    <td>${escH(s.payment_terms||'—')}</td>
-    <td><button class="btn btn-sm btn-outline" onclick="editSupplier(${s.id})">עריכה</button></td>
-  </tr>`).join('');
 }
 
 // ── WASTE ─────────────────────────────────────────────────────────
@@ -812,51 +761,6 @@ async function saveBatch() {
   closeBatchModal();
   loadSummary();
   loadBatches();
-}
-
-// ── SUPPLIER MODAL ────────────────────────────────────────────────
-function openAddSupplier() {
-  document.getElementById('modalSupplierTitle').textContent = '🏭 ספק חדש';
-  document.getElementById('sId').value = '';
-  ['sName','sContact','sPhone','sEmail','sTerms','sAddress','sNotes'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('modalSupplier').classList.add('open');
-}
-
-function editSupplier(id) {
-  const s = suppliers.find(x=>x.id===id);
-  if (!s) return;
-  document.getElementById('modalSupplierTitle').textContent = 'עריכת ספק';
-  document.getElementById('sId').value = id;
-  document.getElementById('sName').value = s.name||'';
-  document.getElementById('sContact').value = s.contact||'';
-  document.getElementById('sPhone').value = s.phone||'';
-  document.getElementById('sEmail').value = s.email||'';
-  document.getElementById('sTerms').value = s.payment_terms||'';
-  document.getElementById('sAddress').value = s.address||'';
-  document.getElementById('sNotes').value = s.notes||'';
-  document.getElementById('modalSupplier').classList.add('open');
-}
-
-function closeSupplierModal() { document.getElementById('modalSupplier').classList.remove('open'); }
-
-async function saveSupplier() {
-  const id = document.getElementById('sId').value;
-  const body = {
-    name: document.getElementById('sName').value,
-    contact: document.getElementById('sContact').value,
-    phone: document.getElementById('sPhone').value,
-    email: document.getElementById('sEmail').value,
-    payment_terms: document.getElementById('sTerms').value,
-    address: document.getElementById('sAddress').value,
-    notes: document.getElementById('sNotes').value,
-  };
-  if (!body.name) return alert('שם ספק חובה');
-  const url = id ? `/api/suppliers/${id}` : '/api/suppliers';
-  const method = id ? 'PATCH' : 'POST';
-  const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-  if (!r.ok) return alert('שגיאה בשמירה');
-  closeSupplierModal();
-  loadSuppliers();
 }
 
 // ── INIT ─────────────────────────────────────────────────────────

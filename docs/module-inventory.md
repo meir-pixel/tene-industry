@@ -183,12 +183,12 @@ Current risks:
 
 Purpose:
 
-- Raw material stock, suppliers, receiving, receipt review, and stock forecasts.
+- Raw material stock, receiving, receipt review, and stock forecasts.
 
 Screens:
 
 - `public/inventory.html`
-- `public/warehouse.html` for receiving/stock areas
+- `public/inventory.html` is the home for raw material receiving. Warehouse is outbound only.
 
 Module services:
 
@@ -196,13 +196,12 @@ Module services:
 
 Extracted routes:
 
-- `routes/inventory.js` for suppliers, raw material, receipt review, and inventory forecast
+- `routes/inventory.js` for raw material, receipt review, and inventory forecast
 - `routes/inventoryVision.js` for inventory OCR/AI recognition: bending shape
   analysis, label scanning, and supplier receipt parsing.
 
 API route families:
 
-- `/api/suppliers*`
 - `/api/inventory*`
 - `/api/inventory/summary`
 - `/api/inventory/forecast`
@@ -212,14 +211,15 @@ API route families:
 
 Current risks:
 
-- Warehouse mixes delivery/package work with inventory receiving.
+- Inventory must not own supplier management; supplier master data belongs to Procurement.
+- Warehouse must stay outbound only and not reintroduce raw-material receiving.
 - Inventory reservation rules are not clearly separated from production demand.
 
 ## Procurement
 
 Purpose:
 
-- Purchase orders, steel price history, supplier purchase workflow, and receiving handoff into inventory.
+- Supplier master data, purchase orders, steel price history, supplier purchase workflow, and receiving handoff into inventory.
 
 Screens:
 
@@ -227,10 +227,11 @@ Screens:
 
 Extracted routes:
 
-- `routes/procurement.js` for steel prices and purchase orders
+- `routes/procurement.js` for suppliers, steel prices, and purchase orders
 
 API route families:
 
+- `/api/suppliers*`
 - `/api/steel-prices*`
 - `/api/purchase-orders*`
 

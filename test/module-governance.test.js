@@ -258,9 +258,9 @@ test('inventory receiving API routes are split out of the server monolith', () =
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createInventoryRouter/);
-  assert.match(route, /router\.get\('\/suppliers'/);
   assert.match(route, /router\.get\('\/inventory\/forecast'/);
   assert.doesNotMatch(route, /axios/);
+  assert.doesNotMatch(route, /router\.(get|post|patch)\('\/suppliers/);
   assert.doesNotMatch(route, /router\.post\('\/inventory\/analyze-bending-shape'/);
   assert.doesNotMatch(route, /router\.post\('\/inventory\/scan-label'/);
   assert.doesNotMatch(route, /router\.post\('\/inventory\/receipt-reviews\/analyze'/);
@@ -299,12 +299,16 @@ test('procurement API routes are split out of inventory', () => {
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createProcurementRouter/);
+  assert.match(route, /router\.get\('\/suppliers'/);
+  assert.match(route, /router\.post\('\/suppliers'/);
+  assert.match(route, /router\.patch\('\/suppliers\/:id'/);
   assert.match(route, /router\.get\('\/steel-prices'/);
   assert.match(route, /router\.post\('\/steel-prices'/);
   assert.match(route, /router\.get\('\/purchase-orders'/);
   assert.match(route, /router\.patch\('\/purchase-orders\/:id\/receive'/);
   assert.match(server, /createProcurementRouter/);
   assert.match(server, /app\.use\('\/api', requireModule\('procurement'\), createProcurementRouter/);
+  assert.doesNotMatch(inventory, /router\.(get|post|patch)\('\/suppliers/);
   assert.doesNotMatch(inventory, /router\.get\('\/steel-prices'/);
   assert.doesNotMatch(inventory, /router\.get\('\/purchase-orders'/);
   assert.doesNotMatch(server, /app\.(get|post)\('\/api\/steel-prices/);

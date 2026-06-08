@@ -20,24 +20,6 @@ module.exports = function createInventoryRouter(deps) {
   const listPage = required('listPage', deps.listPage);
 
 
-  router.get('/suppliers', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-    res.json(db.prepare('SELECT * FROM suppliers WHERE active=1 ORDER BY name').all());
-  });
-
-  router.post('/suppliers', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-    const { name, phone, contact, email, address, payment_terms, notes } = req.body;
-    if (!name) return res.status(400).json({ error: 'שם ספק חובה' });
-    const r = db.prepare('INSERT INTO suppliers (name,phone,contact,email,address,payment_terms,notes) VALUES (?,?,?,?,?,?,?)')
-      .run(name, phone || null, contact || null, email || null, address || null, payment_terms || null, notes || null);
-    res.json({ id: r.lastInsertRowid });
-  });
-
-  router.patch('/suppliers/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-    const f = req.body;
-    db.prepare('UPDATE suppliers SET name=COALESCE(?,name),phone=COALESCE(?,phone),contact=COALESCE(?,contact),email=COALESCE(?,email),address=COALESCE(?,address),payment_terms=COALESCE(?,payment_terms),notes=COALESCE(?,notes),active=COALESCE(?,active) WHERE id=?')
-      .run(f.name || null, f.phone || null, f.contact || null, f.email || null, f.address || null, f.payment_terms || null, f.notes || null, f.active ?? null, req.params.id);
-    res.json({ success: true });
-  });
 
   router.get('/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
     const { diameter, supplier_id } = req.query;

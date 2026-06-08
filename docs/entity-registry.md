@@ -51,10 +51,10 @@ in the current codebase, such as auth/session and import-staging tables.
 
 | Entity/Table | Owner Module | Notes |
 | --- | --- | --- |
-| `suppliers` | Inventory | Supplier master data. |
+| `suppliers` | Procurement | Supplier master data. Inventory may reference suppliers for receiving, but does not own supplier management. |
 | `raw_material` | Inventory | Material batches/stock. |
 | `raw_material_usage` | Inventory / Production | Material consumption. |
-| `steel_price_history` | Inventory / Finance | Market/price tracking. |
+| `steel_price_history` | Procurement / Finance | Purchase price tracking. |
 | `steel_prices` | Finance / Inventory | Financial steel price table. |
 | `purchase_orders` | Procurement | Procurement module partial/stub. |
 
