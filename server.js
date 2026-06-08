@@ -69,6 +69,7 @@ const createPriorityRouter = require('./routes/priority');
 const createAiRouter = require('./routes/ai');
 const createSearchRouter = require('./routes/search');
 const createBvbsRouter = require('./routes/bvbs');
+const createLicenseRouter = require('./routes/license');
 const { MACHINE_STATES, STATE_TRANSITIONS } = constants;
 const { createOrderFactory } = ordersService;
 
@@ -224,20 +225,7 @@ function requireModule(key) {
 
 app.use('/api', licenseService.middleware);
 
-app.get('/api/license/modules', (req, res) => {
-  const enabled = readLicensedModules();
-  const allModules = (moduleCatalog.modules || []).map(m => ({
-    key: m.key,
-    label: m.label,
-    category: m.category,
-  }));
-  res.json({
-    restricted: Boolean(enabled),
-    modules: enabled ? [...enabled] : allModules.map(m => m.key),
-    core: moduleCatalog.core || [],
-    catalog: allModules,
-  });
-});
+app.use('/api', createLicenseRouter({ readLicensedModules, moduleCatalog }));
 
 seedCoreData(db);
 

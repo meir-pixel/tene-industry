@@ -127,6 +127,7 @@ test('change protocol blocks unowned work and duplicate module edits', () => {
 test('license entitlements gate module routers from the shared catalog', () => {
   const server = read('server.js');
   const license = read('services/license.js');
+  const licenseRoute = read('routes/license.js');
 
   assert.match(server, /require\('\.\/shared\/module-catalog\.json'\)/);
   assert.match(server, /const licenseService = createLicenseService\(db\)/);
@@ -134,8 +135,11 @@ test('license entitlements gate module routers from the shared catalog', () => {
   assert.match(server, /licensedModuleKeys\.has\(key\)/);
   assert.match(server, /settingsService\.get\('license_modules'/);
   assert.match(server, /code: 'module_not_licensed'/);
-  assert.match(server, /app\.get\('\/api\/license\/modules'/);
-  assert.match(server, /restricted: Boolean\(enabled\)/);
+  assert.match(licenseRoute, /module\.exports = function createLicenseRouter/);
+  assert.match(licenseRoute, /router\.get\('\/license\/modules'/);
+  assert.match(licenseRoute, /restricted: Boolean\(enabled\)/);
+  assert.match(server, /createLicenseRouter\(\{ readLicensedModules, moduleCatalog \}\)/);
+  assert.doesNotMatch(server, /app\.get\('\/api\/license\/modules'/);
   assert.ok(
     server.indexOf("app.use('/api', licenseService.middleware)") < server.indexOf("app.use('/api', requireModule('orders'), createOrdersRouter"),
     'license middleware must mount before module routers'
