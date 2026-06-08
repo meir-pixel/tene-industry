@@ -9,7 +9,7 @@ module.exports = function createIntakeTrainingRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
 
-  router.get('/intake/training', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+  router.get('/intake/training', requireAnyRole(['manager', 'admin']), (req, res) => {
     const rows = db.prepare(`
       SELECT id, title, document_type, problem_text, correction_text, active, created_at
       FROM intake_training_examples

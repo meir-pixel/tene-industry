@@ -509,9 +509,10 @@ test('driver management belongs to delivery admin screen', () => {
   assert.match(nav, /\/delivery-admin\.html/);
 });
 
-test('intake review and OCR training belong to intake screen', () => {
+test('intake review belongs to intake screen and OCR training is a separate admin tool', () => {
   const admin = read('public/admin.html');
   const intake = read('public/intake.html');
+  const training = read('public/ocr-training.html');
   const nav = read('public/nav.js');
 
   assert.doesNotMatch(admin, /tab-training/);
@@ -520,8 +521,9 @@ test('intake review and OCR training belong to intake screen', () => {
   assert.doesNotMatch(admin, /loadIntakeQueue/);
   assert.doesNotMatch(admin, /intakeApprove/);
   assert.doesNotMatch(admin, /intakeReject/);
-  assert.match(intake, /loadOcrTraining/);
-  assert.match(intake, /saveOcrTraining/);
+  assert.match(admin, /\/ocr-training\.html/);
+  assert.match(intake, /:has\(#ocrTrainingList\)\{display:none\}/);
+  assert.match(intake, /loadIntakeQueue\(\);\s*<\/script>/);
   assert.match(intake, /loadIntakeQueue/);
   assert.match(intake, /מרכז קליטת הזמנות/);
   assert.match(intake, /הכנסה ידנית לתור/);
@@ -536,7 +538,9 @@ test('intake review and OCR training belong to intake screen', () => {
   assert.match(intake, /searchCustomerForIntake/);
   assert.match(intake, /\/api\/customers\?q=/);
   assert.match(intake, /customer_id/);
-  assert.match(intake, /\/api\/intake\/training/);
+  assert.match(training, /loadOcrTraining/);
+  assert.match(training, /saveOcrTraining/);
+  assert.match(training, /\/api\/intake\/training/);
   assert.match(intake, /\/api\/intake\/log\?status=pending_review/);
   assert.match(nav, /\/intake\.html/);
 });
@@ -549,7 +553,12 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /intakeCompareModal/);
   assert.match(intake, /openIntakeCompare/);
   assert.match(intake, /intakeSourceHtml/);
-  assert.match(intake, /intakeReviewTable/);
+  assert.match(intake, /intakeCompareSourceHtml/);
+  assert.match(intake, /setIntakeCompareZoom/);
+  assert.match(intake, /intakeEditableForm/);
+  assert.match(intake, /data-ocr-field/);
+  assert.match(intake, /low-confidence/);
+  assert.match(intake, /parsed_data: parsed/);
   assert.match(intake, /השוואה במסך מלא/);
   assert.match(intake, /אשר אחרי בדיקה/);
   assert.match(route, /original_data_url/);

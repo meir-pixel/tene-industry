@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>אימון OCR - IronBend</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap">
+<link rel="stylesheet" href="/theme.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh}
+.page{max-width:1180px;margin:0 auto;padding:18px}
+.head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:14px}
+.title{font-size:26px;font-weight:900}
+.sub{font-size:13px;color:var(--text-muted);margin-top:4px}
+.btn{border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-family:inherit;font-weight:900;cursor:pointer;background:#fff;color:var(--text);text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.grid{display:grid;grid-template-columns:minmax(360px,.7fr) minmax(0,1.3fr);gap:14px;align-items:start}
+.panel{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));overflow:hidden}
+.panel-head{padding:14px 16px;border-bottom:1px solid var(--border);background:#fafbfd}
+.panel-title{font-size:16px;font-weight:900}
+.panel-body{padding:14px;display:grid;gap:12px}
+.field{display:grid;gap:5px}
+.field label{font-size:12px;font-weight:900;color:var(--text-muted)}
+.field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;background:#fff;color:var(--text)}
+.field textarea{min-height:110px;resize:vertical}
+.list{display:grid;gap:10px}
+.card{border:1px solid var(--border);border-radius:9px;background:#fff;overflow:hidden}
+.card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:12px 14px;background:#fbfcfe;border-bottom:1px solid var(--border)}
+.card-title{font-size:15px;font-weight:900}
+.meta{font-size:12px;color:var(--text-muted);line-height:1.7}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+.box{border:1px solid var(--border);border-radius:8px;background:#fbfcfe;padding:10px;min-width:0}
+.box-title{font-size:11px;font-weight:900;color:var(--text-muted);margin-bottom:6px}
+.pre{white-space:pre-wrap;overflow:auto;max-height:180px;font-size:12px;line-height:1.6}
+.empty{border:1px dashed var(--border);border-radius:9px;background:#fbfcfe;color:var(--text-muted);padding:18px;text-align:center;font-weight:800}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10233f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;opacity:0;transition:.2s;z-index:900}
+@media(max-width:900px){.grid,.pair{grid-template-columns:1fr}.head{flex-direction:column}.btn{width:100%}}
+</style>
+</head>
+<body data-page="admin">
+<script src="/safe-dom.js"></script>
+<script src="/auth-client.js"></script>
+<script src="/nav.js"></script>
+
+<main class="page">
+  <section class="head">
+    <div>
+      <div class="title">אימון זיהוי OCR</div>
+      <div class="sub">מסך תחזוקה למנהל: תיקונים ממסך השוואת הקליטה נשמרים כאן, ואפשר להוסיף דוגמאות אימון ידניות.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn" href="/intake.html">חזרה לקליטה</a>
+      <button class="btn btn-primary" onclick="loadOcrTraining()">רענן</button>
+    </div>
+  </section>
+
+  <section class="grid">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">הוספת דוגמת אימון</div>
+        <div class="meta">לשימוש כשמזהים דפוס שחוזר על עצמו במסמכים או תמונות.</div>
+      </div>
+      <div class="panel-body">
+        <div class="field">
+          <label>שם קצר לדוגמה</label>
+          <input type="text" id="ocrTrainTitle" placeholder="למשל: תעודת משלוח - שדה ספק">
+        </div>
+        <div class="field">
+          <label>סוג מסמך</label>
+          <select id="ocrTrainType">
+            <option value="bending_shape">צורת כיפוף למלאי</option>
+            <option value="supplier_delivery_note">תעודת משלוח מספק</option>
+            <option value="customer_order_email">הזמנה ממייל</option>
+            <option value="whatsapp_order">הזמנה מוואטסאפ</option>
+            <option value="tassa_pdf">TASSA PDF</option>
+            <option value="handwritten_cards">כרטיסיות בכתב יד</option>
+            <option value="bar_schedule">רשימת ברזל / טבלה</option>
+            <option value="general">כללי</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>מה נקרא לא נכון?</label>
+          <textarea id="ocrTrainProblem"></textarea>
+        </div>
+        <div class="field">
+          <label>איך לקרוא נכון בפעם הבאה?</label>
+          <textarea id="ocrTrainCorrection"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="saveOcrTraining()">שמור תיקון</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">תיקונים שנאספו</div>
+        <div class="meta">התיקונים מגיעים מאישור OCR ומדוגמאות ידניות של מנהלים.</div>
+      </div>
+      <div class="panel-body">
+        <div class="list" id="ocrTrainingList"><div class="empty">טוען...</div></div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function escapeHtml(value) {
+  return window.IronBendSafe
+    ? window.IronBendSafe.escapeHtml(value)
+    : String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function toast(message, err = false) {
+  const el = document.getElementById('toast');
+  el.textContent = message;
+  el.style.background = err ? 'var(--danger)' : 'var(--success)';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.opacity = '0', 2400);
+}
+
+async function loadOcrTraining() {
+  const list = document.getElementById('ocrTrainingList');
+  list.innerHTML = '<div class="empty">טוען...</div>';
+  const rows = await fetch('/api/intake/training').then(r => r.ok ? r.json() : Promise.reject(r)).catch(() => null);
+  if (!rows) {
+    list.innerHTML = '<div class="empty">אין הרשאה או שהטעינה נכשלה.</div>';
+    return;
+  }
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty">אין עדיין דוגמאות אימון.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(row => `
+    <article class="card" id="ocrTrain_${row.id}">
+      <div class="card-top">
+        <div>
+          <div class="card-title">${escapeHtml(row.title)}</div>
+          <div class="meta">${escapeHtml(row.document_type || 'general')} · ${escapeHtml(row.created_at || '')}</div>
+        </div>
+        <button class="btn btn-danger" onclick="deleteOcrTraining(${row.id})">הסר</button>
+      </div>
+      <div class="pair">
+        <div class="box"><div class="box-title">נקרא לא נכון</div><div class="pre">${escapeHtml(row.problem_text)}</div></div>
+        <div class="box"><div class="box-title">התיקון</div><div class="pre">${escapeHtml(row.correction_text)}</div></div>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function saveOcrTraining() {
+  const payload = {
+    title: document.getElementById('ocrTrainTitle').value,
+    document_type: document.getElementById('ocrTrainType').value,
+    problem_text: document.getElementById('ocrTrainProblem').value,
+    correction_text: document.getElementById('ocrTrainCorrection').value,
+  };
+  if (!payload.title.trim() || !payload.problem_text.trim() || !payload.correction_text.trim()) {
+    toast('צריך למלא שם, בעיה ותיקון', true);
+    return;
+  }
+  const response = await fetch('/api/intake/training', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) return toast(result.error || 'שמירת התיקון נכשלה', true);
+  document.getElementById('ocrTrainTitle').value = '';
+  document.getElementById('ocrTrainProblem').value = '';
+  document.getElementById('ocrTrainCorrection').value = '';
+  toast('תיקון נשמר');
+  loadOcrTraining();
+}
+
+async function deleteOcrTraining(id) {
+  const response = await fetch('/api/intake/training/' + id, { method:'DELETE' });
+  if (!response.ok) return toast('מחיקה נכשלה', true);
+  document.getElementById('ocrTrain_' + id)?.remove();
+  toast('התיקון הוסר');
+}
+
+loadOcrTraining();
+</script>
+</body>
+</html>

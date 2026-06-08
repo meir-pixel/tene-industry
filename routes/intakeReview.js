@@ -15,6 +15,45 @@ module.exports = function createIntakeReviewRouter(deps) {
   const intakeWorkflow = required('intakeWorkflow', deps.intakeWorkflow);
   const intake = required('intake', deps.intake);
 
+  function parseStoredIntake(row) {
+    try {
+      return JSON.parse(row.parsed_data || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  function parsedOverride(original, candidate) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return original;
+    const parsed = { ...candidate };
+    parsed.items = Array.isArray(candidate.items) ? candidate.items : [];
+    return parsed;
+  }
+
+  function correctionPair(original, corrected) {
+    const before = JSON.stringify(original || {});
+    const after = JSON.stringify(corrected || {});
+    if (before === after) return null;
+    return {
+      problem: before.slice(0, 1200),
+      correction: after.slice(0, 1200),
+    };
+  }
+
+  function saveCorrectionExample(row, original, corrected) {
+    const pair = correctionPair(original, corrected);
+    if (!pair) return;
+    db.prepare(`
+      INSERT INTO intake_training_examples (title, document_type, problem_text, correction_text)
+      VALUES (?, ?, ?, ?)
+    `).run(
+      `Intake correction #${row.id}`,
+      row.source || 'intake_review',
+      pair.problem,
+      pair.correction
+    );
+  }
+
   router.get('/intake/log', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const status = req.query.status; // optional filter: pending_review / approved / rejected
     const sql = status
@@ -34,7 +73,8 @@ module.exports = function createIntakeReviewRouter(deps) {
       return res.json({ success: true, orderId: row.order_id, orderNum: order?.order_num, alreadyApproved: true });
     }
     try {
-      const parsed = JSON.parse(row.parsed_data || '{}');
+      const originalParsed = parseStoredIntake(row);
+      const parsed = parsedOverride(originalParsed, req.body?.parsed_data);
       const body = req.body || {};
       const customerOverride = body.customer_id ? {
         id: Number(body.customer_id),
@@ -43,8 +83,9 @@ module.exports = function createIntakeReviewRouter(deps) {
         email: body.customer_email || null,
       } : null;
       const approve = db.transaction(() => {
+        saveCorrectionExample(row, originalParsed, parsed);
         const result = createOrderFromPayload(intakeToOrderPayload(parsed, row.source || 'intake', customerOverride, row.raw_content || ''));
-        db.prepare('UPDATE intake_log SET status=?,order_id=? WHERE id=?').run('approved', result.orderId, row.id);
+        db.prepare('UPDATE intake_log SET status=?,order_id=?,parsed_data=? WHERE id=?').run('approved', result.orderId, JSON.stringify(parsed), row.id);
         return result;
       });
       const result = approve();

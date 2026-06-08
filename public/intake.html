@@ -22,9 +22,10 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .stat{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px;box-shadow:0 8px 22px rgba(2,26,72,.05)}
 .stat-label{font-size:12px;font-weight:800;color:var(--text-muted)}
 .stat-value{font-size:24px;font-weight:900;margin-top:2px}
-.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(360px,.85fr);gap:14px;align-items:start}
-@media(max-width:1050px){.layout,.stats{grid-template-columns:1fr}.head{flex-direction:column}}
+.layout{display:block}
+@media(max-width:1050px){.stats{grid-template-columns:1fr}.head{flex-direction:column}}
 .panel{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));overflow:hidden}
+.layout > .panel:has(#ocrTrainingList){display:none}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fafbfd}
 .panel-title{font-size:16px;font-weight:900}
 .panel-body{padding:14px;display:grid;gap:12px}
@@ -100,6 +101,25 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .intake-review-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
 .intake-review-table th,.intake-review-table td{border-bottom:1px solid var(--border);padding:8px;text-align:right;vertical-align:top}
 .intake-review-table th{background:#f8fafc;color:var(--text-muted);font-size:11px;font-weight:900}
+.ocr-source-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.ocr-source-stage{height:calc(100% - 48px);min-height:420px;border:1px solid var(--border);border-radius:10px;background:#fff;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px}
+.ocr-source-zoom{transform-origin:top center;transition:transform .12s ease;max-width:100%}
+.ocr-source-zoom iframe,.ocr-source-zoom img{width:min(100%,980px);height:720px;border:0;object-fit:contain;background:#fff}
+.ocr-source-zoom .raw-content{min-width:520px;max-width:920px;max-height:none;border:0;background:#fff}
+.ocr-edit-form{display:grid;gap:12px}
+.ocr-field{display:grid;gap:5px;border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px}
+.ocr-field label{font-size:11px;font-weight:900;color:var(--text-muted)}
+.ocr-field input,.ocr-field textarea,.ocr-field select{width:100%;border:0;background:transparent;font-family:inherit;font-size:14px;color:var(--text);outline:0}
+.ocr-field textarea{min-height:72px;resize:vertical}
+.ocr-field.low-confidence{border-color:#f2c66d;background:#fff8df;box-shadow:0 0 0 2px rgba(242,198,109,.18)}
+.ocr-field.edited{border-color:var(--success);background:#f2fbf5}
+.ocr-confidence{font-size:10px;font-weight:900;color:#9a6a00}
+.ocr-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ocr-item-editor{border:1px solid var(--border);border-radius:10px;background:#fbfcfe;padding:10px;display:grid;gap:10px}
+.ocr-item-head{display:flex;justify-content:space-between;gap:10px;align-items:center;font-weight:900}
+.ocr-item-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ocr-corrections{border:1px solid #bde8c8;background:#f3fbf5;border-radius:8px;padding:10px;font-size:12px;font-weight:800;color:#1f6f3c}
+@media(max-width:760px){.ocr-field-grid,.ocr-item-grid{grid-template-columns:1fr}.ocr-source-stage{min-height:320px}.ocr-source-zoom iframe,.ocr-source-zoom img{height:520px}}
 @media(max-width:980px){.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-source{min-height:45vh;border-left:0;border-bottom:1px solid var(--border)}}
 </style>
 </head>
@@ -246,6 +266,9 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 const selectedCustomers = {};
 let currentSourceFilter = 'all';
 let intakeRows = [];
+let activeCompareId = null;
+let activeCompareOriginal = null;
+let intakeCompareZoom = 1;
 
 function escapeHtml(value) {
   return window.IronBendSafe
@@ -283,6 +306,148 @@ function intakeSourceHtml(row) {
     return `<img alt="מסמך מקור" src="${src}">`;
   }
   return `<pre class="raw-content">${escapeHtml(row?.raw_content || 'אין תוכן מקור שמור')}</pre>`;
+}
+
+function intakeCompareSourceHtml(row) {
+  return `
+    <div class="ocr-source-toolbar">
+      <button class="btn" onclick="setIntakeCompareZoom(-0.15)">-</button>
+      <button class="btn" onclick="setIntakeCompareZoom(0.15)">+</button>
+      <button class="btn" onclick="resetIntakeCompareZoom()">1:1</button>
+      <span class="meta" id="intakeCompareZoomLabel">100%</span>
+    </div>
+    <div class="ocr-source-stage">
+      <div class="ocr-source-zoom" id="intakeCompareZoomTarget">${intakeSourceHtml(row)}</div>
+    </div>
+  `;
+}
+
+function applyIntakeCompareZoom() {
+  const target = document.getElementById('intakeCompareZoomTarget');
+  const label = document.getElementById('intakeCompareZoomLabel');
+  if (target) target.style.transform = `scale(${intakeCompareZoom})`;
+  if (label) label.textContent = `${Math.round(intakeCompareZoom * 100)}%`;
+}
+
+function setIntakeCompareZoom(delta) {
+  intakeCompareZoom = Math.max(0.5, Math.min(2.5, intakeCompareZoom + delta));
+  applyIntakeCompareZoom();
+}
+
+function resetIntakeCompareZoom() {
+  intakeCompareZoom = 1;
+  applyIntakeCompareZoom();
+}
+
+function confidenceFor(parsed, path) {
+  const maps = [parsed.confidence, parsed.confidence_map, parsed.field_confidence, parsed.confidenceByField];
+  for (const map of maps) {
+    const value = map && (map[path] ?? map[path.split('.').pop()]);
+    if (typeof value === 'number') return value;
+  }
+  return null;
+}
+
+function isLowConfidence(parsed, path, value) {
+  const confidence = confidenceFor(parsed, path);
+  if (confidence !== null && confidence < 0.75) return true;
+  if (value === undefined || value === null || value === '') return true;
+  const text = String(value).toLowerCase();
+  return /unclear|unknown|review|required|verify|not visible|uncertain|בדיקה/.test(text);
+}
+
+function ocrFieldHtml({ label, path, value = '', type = 'text', low = false, itemIndex = null, itemField = null }) {
+  const attrs = itemIndex === null
+    ? `data-ocr-field="${escapeHtml(path)}"`
+    : `data-item-index="${itemIndex}" data-item-field="${escapeHtml(itemField)}"`;
+  const cls = low ? 'ocr-field low-confidence' : 'ocr-field';
+  const confidence = low ? '<div class="ocr-confidence">דורש בדיקה</div>' : '';
+  const body = type === 'textarea'
+    ? `<textarea ${attrs} oninput="markOcrEdited(this)">${escapeHtml(value)}</textarea>`
+    : `<input type="${type}" value="${escapeHtml(value)}" ${attrs} oninput="markOcrEdited(this)">`;
+  return `<label class="${cls}"><span>${escapeHtml(label)}</span>${body}${confidence}</label>`;
+}
+
+function segmentsToText(item) {
+  const segments = Array.isArray(item.segments) ? item.segments : Array.isArray(item.sides) ? item.sides : [];
+  return segments.map(seg => {
+    if (typeof seg === 'object') {
+      const len = seg.length_mm ?? seg.length ?? seg.length_cm ?? '';
+      const angle = seg.angle_deg ?? seg.angle ?? '';
+      return angle !== '' ? `${len}@${angle}` : String(len);
+    }
+    return String(seg);
+  }).filter(Boolean).join(' / ');
+}
+
+function parseSegmentsText(text) {
+  return String(text || '').split(/[\/,\n]+/).map(part => part.trim()).filter(Boolean).map(part => {
+    const [len, angle] = part.split('@').map(v => v.trim());
+    return {
+      length_mm: toNumber(len),
+      angle_deg: angle === undefined || angle === '' ? 0 : toNumber(angle),
+    };
+  });
+}
+
+function intakeEditableForm(parsed) {
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  return `
+    <div class="ocr-edit-form">
+      <div class="ocr-field-grid">
+        ${ocrFieldHtml({ label:'לקוח', path:'customer_name', value: parsed.customer_name || parsed.customerName || '', low: isLowConfidence(parsed, 'customer_name', parsed.customer_name || parsed.customerName) })}
+        ${ocrFieldHtml({ label:'תאריך אספקה', path:'delivery_date', value: deliveryDateOf(parsed), low: isLowConfidence(parsed, 'delivery_date', deliveryDateOf(parsed)) })}
+        ${ocrFieldHtml({ label:'כתובת', path:'delivery_address', value: parsed.delivery_address || parsed.deliveryAddress || '', low: isLowConfidence(parsed, 'delivery_address', parsed.delivery_address || parsed.deliveryAddress) })}
+        ${ocrFieldHtml({ label:'הערות', path:'notes', value: parsed.notes || '', type:'textarea', low: isLowConfidence(parsed, 'notes', parsed.notes) })}
+      </div>
+      <div class="box-title">פריטים שזוהו - ניתן לתקן כאן לפני אישור</div>
+      ${items.length ? items.map((item, index) => `
+        <div class="ocr-item-editor">
+          <div class="ocr-item-head">
+            <span>פריט ${index + 1}</span>
+            <span class="meta">${escapeHtml(item.shape_name || item.shapeName || item.shape || item.type || '')}</span>
+          </div>
+          <div class="ocr-item-grid">
+            ${ocrFieldHtml({ label:'קוטר', itemIndex:index, itemField:'diameter', value:item.diameter ?? item.diameter_mm ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.diameter`, item.diameter ?? item.diameter_mm) })}
+            ${ocrFieldHtml({ label:'כמות', itemIndex:index, itemField:'quantity', value:item.qty ?? item.quantity ?? item.pcs ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.quantity`, item.qty ?? item.quantity ?? item.pcs) })}
+            ${ocrFieldHtml({ label:'אורך פתיחה', itemIndex:index, itemField:'total_length_mm', value:item.total_length_mm ?? item.length_mm ?? item.length ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.total_length_mm`, item.total_length_mm ?? item.length_mm ?? item.length) })}
+            ${ocrFieldHtml({ label:'צורה', itemIndex:index, itemField:'shape_name', value:item.shape_name || item.shapeName || item.shape || item.type || '', low:isLowConfidence(parsed, `items.${index}.shape_name`, item.shape_name || item.shapeName || item.shape || item.type) })}
+            ${ocrFieldHtml({ label:'צלעות: אורך@זווית', itemIndex:index, itemField:'segments', value:segmentsToText(item), type:'textarea', low:isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)) })}
+            ${ocrFieldHtml({ label:'הערה', itemIndex:index, itemField:'note', value:item.note || item.notes || '', type:'textarea', low:isLowConfidence(parsed, `items.${index}.note`, item.note || item.notes) })}
+          </div>
+        </div>
+      `).join('') : '<div class="empty">לא זוהו פריטים. צריך לפתוח לעריכה ידנית לפני אישור.</div>'}
+      <div class="ocr-corrections" id="ocrCorrectionSummary">כל שינוי שתבצע כאן יישמר יחד עם האישור ויזרום למסך אימון OCR.</div>
+    </div>
+  `;
+}
+
+function markOcrEdited(el) {
+  el.closest('.ocr-field')?.classList.add('edited');
+  const summary = document.getElementById('ocrCorrectionSummary');
+  if (summary) summary.textContent = 'יש תיקונים ידניים. הם יישמרו באישור וייכנסו לאימון OCR.';
+}
+
+function readCorrectedParsed() {
+  const row = intakeRows.find(item => item.id === activeCompareId);
+  const parsed = JSON.parse(JSON.stringify(activeCompareOriginal || parsedOf(row || {})));
+  document.querySelectorAll('[data-ocr-field]').forEach(input => {
+    const path = input.dataset.ocrField;
+    if (path === 'customer_name') parsed.customer_name = input.value.trim();
+    if (path === 'delivery_date') parsed.delivery_date = input.value.trim();
+    if (path === 'delivery_address') parsed.delivery_address = input.value.trim();
+    if (path === 'notes') parsed.notes = input.value.trim();
+  });
+  parsed.items = Array.isArray(parsed.items) ? parsed.items : [];
+  document.querySelectorAll('[data-item-index]').forEach(input => {
+    const index = Number(input.dataset.itemIndex);
+    const field = input.dataset.itemField;
+    parsed.items[index] = parsed.items[index] || {};
+    if (field === 'segments') parsed.items[index].segments = parseSegmentsText(input.value);
+    else if (['diameter', 'quantity', 'total_length_mm'].includes(field)) parsed.items[index][field] = toNumber(input.value);
+    else parsed.items[index][field] = input.value.trim();
+  });
+  return parsed;
 }
 
 function intakeReviewTable(parsed) {
@@ -603,23 +768,27 @@ function openIntakeCompare(id) {
   const row = intakeRows.find(item => item.id === id);
   if (!row) return toast('פנייה לא נמצאה', true);
   const parsed = parsedOf(row);
+  activeCompareId = id;
+  activeCompareOriginal = JSON.parse(JSON.stringify(parsed));
+  intakeCompareZoom = 1;
   const urgency = urgencyInfo(row);
   const title = parsed.customer_name || parsed.customerName || row.customer_match?.customer?.name || 'לקוח לא מזוהה';
   document.getElementById('intakeCompareTitle').textContent = title;
   document.getElementById('intakeCompareMeta').textContent = `מקור: ${sourceLabel(row.source)} · דחיפות: ${urgency.label} ${urgency.score} · פריטים: ${urgency.itemCount}`;
-  document.getElementById('intakeCompareSource').innerHTML = intakeSourceHtml(row);
+  document.getElementById('intakeCompareSource').innerHTML = intakeCompareSourceHtml(row);
   document.getElementById('intakeCompareData').innerHTML = `
     <div class="box">
       <div class="box-title">פענוח להזמנה</div>
       ${urgencyMetricsHtml(row)}
       <div class="meta">כתובת: ${escapeHtml(parsed.delivery_address || parsed.deliveryAddress || 'לא זוהתה')}</div>
       <div class="meta">הערות: ${escapeHtml(parsed.notes || 'אין הערות')}</div>
-      ${intakeReviewTable(parsed)}
+      ${intakeEditableForm(parsed)}
       ${customerMatchHtml(row)}
     </div>
   `;
   document.getElementById('intakeCompareApprove').onclick = () => intakeApprove(id);
   document.getElementById('intakeCompareModal').classList.add('open');
+  applyIntakeCompareZoom();
 }
 
 function closeIntakeCompare() {
@@ -629,7 +798,7 @@ function closeIntakeCompare() {
 async function intakeApprove(id) {
   const row = intakeRows.find(item => item.id === id);
   const selected = selectedCustomers[id] || row?.customer_match?.customer;
-  const parsed = row ? parsedOf(row) : {};
+  const parsed = activeCompareId === id ? readCorrectedParsed() : (row ? parsedOf(row) : {});
   if (!selected && !confirm('לא שויך לקוח קיים. ליצור לקוח חדש לפי הפענוח?')) return;
   if (!(parsed.items || []).length) {
     toast('אי אפשר לאשר בלי פריטים. פתח לעריכה או תקן את טקסט הקליטה.', true);
@@ -638,7 +807,7 @@ async function intakeApprove(id) {
   const response = await fetch(`/api/intake/${id}/approve`, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(selected ? { customer_id: selected.id } : {}),
+    body: JSON.stringify({ ...(selected ? { customer_id: selected.id } : {}), parsed_data: parsed }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.success) return toast(result.error || 'אישור נכשל', true);
@@ -719,7 +888,6 @@ async function deleteOcrTraining(id) {
 }
 
 loadIntakeQueue();
-loadOcrTraining();
 </script>
 </body>
 </html>

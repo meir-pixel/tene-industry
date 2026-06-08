@@ -275,7 +275,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request(`/api/orders/${orderId}/delivery-certificate`, { headers: authHeaders(office) })).status, 200);
   });
 
-  await t.test('intake parse log and training require office or manager roles', async () => {
+  await t.test('intake parse/log require office while OCR training is manager-only', async () => {
     assert.equal((await request('/api/intake/log')).status, 401);
     assert.equal((await request('/api/intake/log', { headers: authHeaders(production) })).status, 403);
     assert.equal((await request('/api/intake/log', { headers: authHeaders(office) })).status, 200);
@@ -289,7 +289,8 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
 
     assert.equal((await request('/api/intake/training')).status, 401);
     assert.equal((await request('/api/intake/training', { headers: authHeaders(production) })).status, 403);
-    assert.equal((await request('/api/intake/training', { headers: authHeaders(office) })).status, 200);
+    assert.equal((await request('/api/intake/training', { headers: authHeaders(office) })).status, 403);
+    assert.equal((await request('/api/intake/training', { headers: authHeaders(manager) })).status, 200);
 
     assert.equal((await request('/api/intake/training', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: emptyBody })).status, 401);
     assert.equal((await request('/api/intake/training', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 403);

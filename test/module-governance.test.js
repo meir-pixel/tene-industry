@@ -541,6 +541,7 @@ test('intake API routes are split out of the server monolith', () => {
   assert.ok(trainingRoute.includes("router.get('/intake/training'"));
   assert.ok(trainingRoute.includes("router.post('/intake/training'"));
   assert.ok(trainingRoute.includes("router.delete('/intake/training/:id'"));
+  assert.match(trainingRoute, /requireAnyRole\(\['manager', 'admin'\]\)/);
   assert.match(reviewRoute, /module\.exports = function createIntakeReviewRouter/);
   assert.match(reviewRoute, /routes\/intakeReview missing dependency/);
   assert.ok(reviewRoute.includes("router.get('/intake/log'"));
@@ -548,6 +549,8 @@ test('intake API routes are split out of the server monolith', () => {
   assert.ok(reviewRoute.includes("router.post('/intake/:id/reject'"));
   assert.ok(reviewRoute.includes("router.post('/intake/parse-text'"));
   assert.match(reviewRoute, /createOrderFromPayload/);
+  assert.match(reviewRoute, /req\.body\?\.parsed_data/);
+  assert.match(reviewRoute, /intake_training_examples/);
   assert.match(reviewRoute, /wsBroadcast\('new_order'/);
   assert.match(server, /createIntakeRouter/);
   assert.match(server, /createIntakeChannelsRouter/);
