@@ -136,13 +136,14 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
         </div>
         <div>
           <div class="filter-caption">סינון לפי מקור</div>
-          <div class="filters" id="sourceFilters">
-            <button class="filter active" data-source="all" onclick="setSourceFilter(this)">הכל</button>
-            <button class="filter" data-source="email" onclick="setSourceFilter(this)">מייל</button>
-            <button class="filter" data-source="whatsapp" onclick="setSourceFilter(this)">וואטסאפ</button>
-            <button class="filter" data-source="image" onclick="setSourceFilter(this)">תמונה</button>
-            <button class="filter" data-source="phone" onclick="setSourceFilter(this)">טלפון</button>
-          </div>
+          <select id="sourceFilter" onchange="setSourceFilter(this.value)"
+            style="border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 12px;font-family:inherit;font-weight:700;color:var(--text);cursor:pointer">
+            <option value="all">כל המקורות</option>
+            <option value="email">📧 מייל</option>
+            <option value="whatsapp">📱 וואטסאפ</option>
+            <option value="image">📷 תמונה</option>
+            <option value="phone">☎️ טלפון</option>
+          </select>
         </div>
       </div>
       <div class="panel-body">
@@ -308,10 +309,8 @@ function intakeReviewTable(parsed) {
   </table>`;
 }
 
-function setSourceFilter(button) {
-  currentSourceFilter = button.dataset.source;
-  document.querySelectorAll('#sourceFilters .filter').forEach(el => el.classList.remove('active'));
-  button.classList.add('active');
+function setSourceFilter(value) {
+  currentSourceFilter = value;
   renderIntakeQueue();
 }
 
