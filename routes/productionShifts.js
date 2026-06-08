@@ -84,3 +84,21 @@ module.exports = function createProductionShiftsRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "production-shifts",
+  "label": "Production Shifts",
+  "consumes": [
+    {
+      "table": "machine_stops"
+    },
+    {
+      "table": "production_logs"
+    }
+  ],
+  "produces": [
+    {
+      "event": "machine_update"
+    }
+  ]
+};

@@ -254,3 +254,20 @@ module.exports = function createReportsRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "reports",
+  "label": "Reports",
+  "consumes": [
+    {
+      "table": "orders"
+    },
+    {
+      "table": "items"
+    },
+    {
+      "table": "invoices"
+    }
+  ],
+  "produces": []
+};

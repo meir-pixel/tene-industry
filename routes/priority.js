@@ -39,3 +39,14 @@ module.exports = function createPriorityRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "priority",
+  "label": "Priority Sync",
+  "consumes": [
+    {
+      "table": "orders"
+    }
+  ],
+  "produces": []
+};

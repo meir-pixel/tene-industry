@@ -54,3 +54,14 @@ module.exports = function createPortalAdminRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "portal-admin",
+  "label": "Portal Admin",
+  "consumes": [
+    {
+      "table": "customers"
+    }
+  ],
+  "produces": []
+};

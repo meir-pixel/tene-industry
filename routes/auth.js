@@ -67,3 +67,17 @@ module.exports = function createAuthRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "auth",
+  "label": "Auth",
+  "consumes": [
+    {
+      "table": "users"
+    },
+    {
+      "table": "refresh_tokens"
+    }
+  ],
+  "produces": []
+};

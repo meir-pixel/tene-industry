@@ -291,3 +291,17 @@ buildTable();
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "order-print-a4",
+  "label": "Order A4 Print",
+  "consumes": [
+    {
+      "table": "orders"
+    },
+    {
+      "table": "items"
+    }
+  ],
+  "produces": []
+};

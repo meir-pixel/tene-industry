@@ -83,3 +83,17 @@ module.exports = function createCompaniesRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "companies",
+  "label": "Companies",
+  "consumes": [
+    {
+      "table": "companies"
+    },
+    {
+      "table": "holdings"
+    }
+  ],
+  "produces": []
+};

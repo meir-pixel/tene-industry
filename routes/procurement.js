@@ -109,3 +109,20 @@ module.exports = function createProcurementRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "procurement",
+  "label": "Procurement",
+  "consumes": [
+    {
+      "table": "suppliers"
+    },
+    {
+      "table": "purchase_orders"
+    },
+    {
+      "table": "steel_price_history"
+    }
+  ],
+  "produces": []
+};

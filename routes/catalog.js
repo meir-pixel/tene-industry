@@ -129,3 +129,21 @@ module.exports = function createCatalogRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "catalog",
+  "label": "Catalog",
+  "consumes": [
+    {
+      "table": "shapes"
+    },
+    {
+      "table": "price_list"
+    }
+  ],
+  "produces": [
+    {
+      "event": "price_list_update"
+    }
+  ]
+};

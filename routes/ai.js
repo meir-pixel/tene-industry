@@ -38,3 +38,20 @@ module.exports = function createAiRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "ai",
+  "label": "AI",
+  "consumes": [
+    {
+      "table": "orders"
+    },
+    {
+      "table": "items"
+    },
+    {
+      "table": "production_logs"
+    }
+  ],
+  "produces": []
+};

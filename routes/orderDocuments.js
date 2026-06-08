@@ -27,3 +27,17 @@ module.exports = function createOrderDocumentsRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "order-documents",
+  "label": "Order Documents",
+  "consumes": [
+    {
+      "table": "orders"
+    },
+    {
+      "table": "items"
+    }
+  ],
+  "produces": []
+};

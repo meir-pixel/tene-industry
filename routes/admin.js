@@ -400,3 +400,20 @@ module.exports = function createAdminRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "admin",
+  "label": "Admin",
+  "consumes": [
+    {
+      "table": "settings"
+    },
+    {
+      "table": "users"
+    },
+    {
+      "table": "audit_log"
+    }
+  ],
+  "produces": []
+};

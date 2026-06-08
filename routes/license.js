@@ -26,3 +26,14 @@ module.exports = function createLicenseRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "license",
+  "label": "License",
+  "consumes": [
+    {
+      "table": "settings"
+    }
+  ],
+  "produces": []
+};

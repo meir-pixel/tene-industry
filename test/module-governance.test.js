@@ -1346,6 +1346,22 @@ test('event-producing route modules declare module-map manifests', () => {
   }
 });
 
+test('every route module declares a module-map manifest', () => {
+  const routeDir = path.join(root, 'routes');
+  const routeFiles = fs.readdirSync(routeDir)
+    .filter(file => file.endsWith('.js'))
+    .sort();
+
+  for (const file of routeFiles) {
+    const source = read(`routes/${file}`);
+    assert.match(source, /module\.exports\.manifest = \{/, `routes/${file} missing module-map manifest`);
+    assert.match(source, /['"]?id['"]?\s*:/, `routes/${file} manifest missing id`);
+    assert.match(source, /['"]?label['"]?\s*:/, `routes/${file} manifest missing label`);
+    assert.match(source, /['"]?consumes['"]?\s*:/, `routes/${file} manifest missing consumes`);
+    assert.match(source, /['"]?produces['"]?\s*:/, `routes/${file} manifest missing produces`);
+  }
+});
+
 
 test('scheduled background jobs are extracted from server', () => {
   const scheduler = read('jobs/scheduler.js');

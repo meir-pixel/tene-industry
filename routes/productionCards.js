@@ -63,3 +63,17 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "production-cards",
+  "label": "Production Cards",
+  "consumes": [
+    {
+      "table": "orders"
+    },
+    {
+      "table": "items"
+    }
+  ],
+  "produces": []
+};

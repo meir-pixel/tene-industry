@@ -107,3 +107,17 @@ module.exports = function createProductionMetricsRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "production-metrics",
+  "label": "Production Metrics",
+  "consumes": [
+    {
+      "table": "machines"
+    },
+    {
+      "table": "production_logs"
+    }
+  ],
+  "produces": []
+};

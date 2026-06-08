@@ -84,3 +84,20 @@ router.patch('/customers/:id/credit', requireAnyRole(['finance', 'manager', 'adm
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "finance-ledger",
+  "label": "Finance Ledger",
+  "consumes": [
+    {
+      "table": "customers"
+    },
+    {
+      "table": "invoices"
+    },
+    {
+      "table": "customer_credit"
+    }
+  ],
+  "produces": []
+};

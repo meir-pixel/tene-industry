@@ -42,3 +42,14 @@ module.exports = function createIntakeTrainingRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "intake-training",
+  "label": "Intake Training",
+  "consumes": [
+    {
+      "table": "intake_training"
+    }
+  ],
+  "produces": []
+};

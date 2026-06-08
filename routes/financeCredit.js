@@ -53,3 +53,17 @@ module.exports = function createFinanceCreditRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "finance-credit",
+  "label": "Finance Credit",
+  "consumes": [
+    {
+      "table": "credit_accounts"
+    },
+    {
+      "table": "credit_transactions"
+    }
+  ],
+  "produces": []
+};

@@ -137,3 +137,17 @@ router.get('/finance/events', requireAnyRole(['finance', 'manager', 'admin']), (
 // Download active database backup — BUG-20: admin only
   return router;
 };
+
+module.exports.manifest = {
+  "id": "finance",
+  "label": "Finance",
+  "consumes": [
+    {
+      "table": "orders"
+    },
+    {
+      "table": "invoices"
+    }
+  ],
+  "produces": []
+};

@@ -122,3 +122,20 @@ module.exports = function createCustomersRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "customers",
+  "label": "Customers",
+  "consumes": [
+    {
+      "table": "customers"
+    },
+    {
+      "table": "projects"
+    },
+    {
+      "table": "sites"
+    }
+  ],
+  "produces": []
+};

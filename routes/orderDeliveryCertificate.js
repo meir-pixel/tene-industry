@@ -296,3 +296,17 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "order-delivery-certificate",
+  "label": "Order Delivery Certificate",
+  "consumes": [
+    {
+      "table": "orders"
+    },
+    {
+      "table": "items"
+    }
+  ],
+  "produces": []
+};

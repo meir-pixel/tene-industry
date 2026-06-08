@@ -69,3 +69,20 @@ module.exports = function createSearchRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "search",
+  "label": "Search",
+  "consumes": [
+    {
+      "table": "orders"
+    },
+    {
+      "table": "customers"
+    },
+    {
+      "table": "items"
+    }
+  ],
+  "produces": []
+};

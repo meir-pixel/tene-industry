@@ -67,3 +67,17 @@ module.exports = function createWarehouseRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "warehouse",
+  "label": "Warehouse",
+  "consumes": [
+    {
+      "table": "packages"
+    },
+    {
+      "table": "delivery_notes"
+    }
+  ],
+  "produces": []
+};

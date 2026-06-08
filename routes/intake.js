@@ -197,3 +197,14 @@ module.exports = function createIntakeRouter(deps) {
 
   return router;
 };
+
+module.exports.manifest = {
+  "id": "intake-ocr",
+  "label": "Intake OCR",
+  "consumes": [
+    {
+      "table": "intake_training"
+    }
+  ],
+  "produces": []
+};
