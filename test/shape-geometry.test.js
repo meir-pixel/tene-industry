@@ -65,6 +65,46 @@ test('production card renders open U bars as a readable U shape, not a flattened
   assert.match(svg, /90&#176;/);
 });
 
+test('production card renders closed stirrups as a closed rectangular hoop', () => {
+  const svg = shapeSvg(JSON.stringify([
+    { length_mm: 100, angle_deg: 90 },
+    { length_mm: 950, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 90 },
+    { length_mm: 950, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 90 },
+    { length_mm: 100, angle_deg: 0 },
+  ]));
+
+  assert.match(svg, /data-shape-kind="closed-stirrup"/);
+  assert.match(svg, /Z/);
+  assert.match(svg, />300</);
+  assert.match(svg, />950</);
+  assert.match(svg, /overlap 100 \/ 100/);
+});
+
+test('production card accepts closed stirrup OCR with one visible overlap tail', () => {
+  const svg = shapeSvg(JSON.stringify([
+    { length_mm: 100, angle_deg: 90 },
+    { length_mm: 950, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 90 },
+    { length_mm: 950, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 0 },
+  ]));
+
+  assert.match(svg, /data-shape-kind="closed-stirrup"/);
+  assert.match(svg, />300</);
+  assert.match(svg, />950</);
+  assert.match(svg, /overlap 100/);
+});
+
+test('orders detail shape renderer has a dedicated closed-stirrup path', () => {
+  const renderer = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-renderer.js'), 'utf8');
+
+  assert.match(renderer, /function closedStirrupParts/);
+  assert.match(renderer, /data-shape-kind', 'closed-stirrup'/);
+  assert.match(renderer, /renderClosedStirrup2D/);
+});
+
 test('single segment geometry cannot be normalized as a spiral or ring', () => {
   const segments = [{ length_mm: 25, angle_deg: 0 }];
 

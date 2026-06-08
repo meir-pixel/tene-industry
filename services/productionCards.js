@@ -36,6 +36,50 @@ function isOpenUShape(segments) {
     && legsSimilar;
 }
 
+function isSimilarDimension(a, b, tolerance = 0.12) {
+  const max = Math.max(Number(a) || 0, Number(b) || 0);
+  if (max <= 0) return false;
+  return Math.abs((Number(a) || 0) - (Number(b) || 0)) <= Math.max(10, max * tolerance);
+}
+
+function closedStirrupParts(segments) {
+  if (!Array.isArray(segments) || segments.length < 4) return null;
+  const lengths = segments.map(segment => Number(segment.length_mm || 0));
+  if (lengths.some(length => length <= 0)) return null;
+  const rightAngles = segments.slice(0, Math.min(4, segments.length - 1))
+    .filter(segment => segment.angle_deg != null)
+    .every(segment => isRightAngle(segment.angle_deg));
+  if (!rightAngles) return null;
+
+  if (segments.length >= 5) {
+    const [tailStart, verticalA, horizontalA, verticalB, horizontalB] = lengths;
+    const tailEnd = lengths[5] || 0;
+    const maxBody = Math.max(verticalA, horizontalA, verticalB, horizontalB);
+    const hasSmallTails = tailStart <= maxBody * 0.45 && (!tailEnd || tailEnd <= maxBody * 0.45);
+    if (
+      hasSmallTails &&
+      isSimilarDimension(verticalA, verticalB) &&
+      isSimilarDimension(horizontalA, horizontalB)
+    ) {
+      return {
+        top: horizontalA,
+        right: verticalA,
+        bottom: horizontalB,
+        left: verticalB,
+        tailStart,
+        tailEnd,
+      };
+    }
+  }
+
+  const [top, right, bottom, left] = lengths;
+  if (isSimilarDimension(top, bottom) && isSimilarDimension(right, left)) {
+    return { top, right, bottom, left, tailStart: lengths[4] || 0, tailEnd: 0 };
+  }
+
+  return null;
+}
+
 function openUShapeSvg(segments) {
   const [leftLeg, bridge, rightLeg] = segments.map(segment => Number(segment.length_mm || 0));
   const width = 220;
@@ -68,6 +112,57 @@ function openUShapeSvg(segments) {
   return `<svg data-shape-kind="open-u" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:100px">${svg}</svg>`;
 }
 
+function closedStirrupSvg(parts) {
+  const width = 220;
+  const height = 120;
+  const horizontal = Math.max(parts.top || 0, parts.bottom || 0, 1);
+  const vertical = Math.max(parts.left || 0, parts.right || 0, 1);
+  const maxBoxW = 126;
+  const maxBoxH = 82;
+  const rawRatio = horizontal / vertical;
+  const boxW = rawRatio >= 1
+    ? maxBoxW
+    : Math.max(54, Math.min(maxBoxW, maxBoxH * rawRatio));
+  const boxH = rawRatio >= 1
+    ? Math.max(54, Math.min(maxBoxH, maxBoxW / rawRatio))
+    : maxBoxH;
+  const x = (width - boxW) / 2;
+  const y = (height - boxH) / 2 + 4;
+  const right = x + boxW;
+  const bottom = y + boxH;
+  const midX = x + boxW / 2;
+  const midY = y + boxH / 2;
+  const path = `M ${x.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${bottom.toFixed(1)} L ${x.toFixed(1)},${bottom.toFixed(1)} Z`;
+  const hookX = right - Math.min(24, boxW * 0.22);
+  const hookY = y + Math.min(24, boxH * 0.28);
+
+  let svg = `<path d="${path}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  svg += `<path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  svg += `<path d="M ${right.toFixed(1)},${y.toFixed(1)} L ${hookX.toFixed(1)},${y.toFixed(1)} L ${hookX.toFixed(1)},${hookY.toFixed(1)}" fill="none" stroke="#c9621a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+  [
+    { x: midX, y: y - 11, value: parts.top },
+    { x: right + 20, y: midY, value: parts.right },
+    { x: midX, y: bottom + 13, value: parts.bottom },
+    { x: x - 20, y: midY, value: parts.left },
+  ].forEach(label => {
+    svg += `<rect x="${(label.x - 18).toFixed(1)}" y="${(label.y - 7).toFixed(1)}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
+    svg += `<text x="${label.x.toFixed(1)}" y="${label.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(label.value)}</text>`;
+  });
+
+  if (parts.tailStart || parts.tailEnd) {
+    const tailText = [parts.tailStart, parts.tailEnd].filter(Boolean).join(' / ');
+    svg += `<text x="${(right - 4).toFixed(1)}" y="${(hookY + 14).toFixed(1)}" text-anchor="end" font-size="7.5" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">overlap ${escapeHtml(tailText)}</text>`;
+  }
+
+  [[x, y], [right, y], [right, bottom], [x, bottom]].forEach(([cx, cy]) => {
+    svg += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="8" fill="white" stroke="#c9621a" stroke-width="1.2"/>`;
+    svg += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="6.5" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">90&#176;</text>`;
+  });
+
+  return `<svg data-shape-kind="closed-stirrup" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:112px">${svg}</svg>`;
+}
+
 function shapeSvg(segmentsRaw) {
   try {
     const segments = parseSegments(segmentsRaw);
@@ -81,6 +176,8 @@ function shapeSvg(segmentsRaw) {
     }
 
     if (isOpenUShape(segments)) return openUShapeSvg(segments);
+    const stirrup = closedStirrupParts(segments);
+    if (stirrup) return closedStirrupSvg(stirrup);
 
     const sides = segments.map(segment => Number(segment.length_mm || 0));
     const angles = segments.map(segment => segment.angle_deg);

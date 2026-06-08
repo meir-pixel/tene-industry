@@ -40,6 +40,127 @@
     return pts;
   }
 
+  function isRightAngle(value) {
+    return Math.abs(Number(value) - 90) < 0.1;
+  }
+
+  function isSimilarDimension(a, b, tolerance) {
+    const max = Math.max(Number(a) || 0, Number(b) || 0);
+    if (max <= 0) return false;
+    return Math.abs((Number(a) || 0) - (Number(b) || 0)) <= Math.max(10, max * (tolerance || 0.12));
+  }
+
+  function closedStirrupParts(sides, angles) {
+    if (!Array.isArray(sides) || sides.length < 4) return null;
+    const lengths = sides.map(n => Number(n) || 0);
+    if (lengths.some(n => n <= 0)) return null;
+    const checkedAngles = (angles || []).slice(0, Math.min(4, lengths.length - 1));
+    if (checkedAngles.length && !checkedAngles.every(isRightAngle)) return null;
+
+    if (lengths.length >= 5) {
+      const [tailStart, verticalA, horizontalA, verticalB, horizontalB] = lengths;
+      const tailEnd = lengths[5] || 0;
+      const maxBody = Math.max(verticalA, horizontalA, verticalB, horizontalB);
+      if (
+        tailStart <= maxBody * 0.45 &&
+        (!tailEnd || tailEnd <= maxBody * 0.45) &&
+        isSimilarDimension(verticalA, verticalB) &&
+        isSimilarDimension(horizontalA, horizontalB)
+      ) {
+        return { top: horizontalA, right: verticalA, bottom: horizontalB, left: verticalB, tailStart, tailEnd };
+      }
+    }
+
+    const [top, right, bottom, left] = lengths;
+    if (isSimilarDimension(top, bottom) && isSimilarDimension(right, left)) {
+      return { top, right, bottom, left, tailStart: lengths[4] || 0, tailEnd: 0 };
+    }
+
+    return null;
+  }
+
+  function addShapeText(svg, text, x, y, attrs) {
+    const label = document.createElementNS(NS, 'text');
+    label.setAttribute('x', x.toFixed(1));
+    label.setAttribute('y', y.toFixed(1));
+    label.setAttribute('text-anchor', attrs && attrs.anchor || 'middle');
+    label.setAttribute('dominant-baseline', 'middle');
+    label.setAttribute('fill', attrs && attrs.fill || '#526070');
+    label.setAttribute('font-size', attrs && attrs.size || '9');
+    label.setAttribute('font-family', attrs && attrs.font || 'monospace');
+    label.setAttribute('font-weight', attrs && attrs.weight || '700');
+    label.textContent = text;
+    svg.appendChild(label);
+  }
+
+  function renderClosedStirrup2D(svg, parts, W, H, opts) {
+    const strokeColor = opts.color || '#c9621a';
+    const strokeW = opts.strokeWidth || 4;
+    const horizontal = Math.max(parts.top || 0, parts.bottom || 0, 1);
+    const vertical = Math.max(parts.left || 0, parts.right || 0, 1);
+    const maxBoxW = Math.max(66, W - 86);
+    const maxBoxH = Math.max(58, H - 62);
+    const ratio = horizontal / vertical;
+    const boxW = ratio >= 1 ? maxBoxW : Math.max(58, Math.min(maxBoxW, maxBoxH * ratio));
+    const boxH = ratio >= 1 ? Math.max(58, Math.min(maxBoxH, maxBoxW / ratio)) : maxBoxH;
+    const x = (W - boxW) / 2;
+    const y = (H - boxH) / 2 + 4;
+    const right = x + boxW;
+    const bottom = y + boxH;
+    const pathD = `M ${x.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${bottom.toFixed(1)} L ${x.toFixed(1)},${bottom.toFixed(1)} Z`;
+
+    const glow = document.createElementNS(NS, 'path');
+    glow.setAttribute('d', pathD);
+    glow.setAttribute('stroke', strokeColor);
+    glow.setAttribute('stroke-opacity', '0.18');
+    glow.setAttribute('stroke-width', strokeW + 6);
+    glow.setAttribute('fill', 'none');
+    glow.setAttribute('stroke-linecap', 'round');
+    glow.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(glow);
+
+    const base = document.createElementNS(NS, 'path');
+    base.setAttribute('d', pathD);
+    base.setAttribute('stroke', '#7a3a08');
+    base.setAttribute('stroke-width', strokeW + 1);
+    base.setAttribute('fill', 'none');
+    base.setAttribute('stroke-linecap', 'round');
+    base.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(base);
+
+    const bar = document.createElementNS(NS, 'path');
+    bar.setAttribute('d', pathD);
+    bar.setAttribute('stroke', strokeColor);
+    bar.setAttribute('stroke-width', strokeW);
+    bar.setAttribute('fill', 'none');
+    bar.setAttribute('stroke-linecap', 'round');
+    bar.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(bar);
+
+    const hookX = right - Math.min(26, boxW * 0.24);
+    const hookY = y + Math.min(26, boxH * 0.30);
+    const hook = document.createElementNS(NS, 'path');
+    hook.setAttribute('d', `M ${right.toFixed(1)},${y.toFixed(1)} L ${hookX.toFixed(1)},${y.toFixed(1)} L ${hookX.toFixed(1)},${hookY.toFixed(1)}`);
+    hook.setAttribute('stroke', '#7a3a08');
+    hook.setAttribute('stroke-width', Math.max(2, strokeW - 1));
+    hook.setAttribute('fill', 'none');
+    hook.setAttribute('stroke-linecap', 'round');
+    hook.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(hook);
+
+    if (opts.showDimensions) {
+      const midX = x + boxW / 2;
+      const midY = y + boxH / 2;
+      addShapeText(svg, `${parts.top}mm`, midX, Math.max(12, y - 12), { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, `${parts.bottom}mm`, midX, Math.min(H - 10, bottom + 14), { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, `${parts.left}mm`, Math.max(20, x - 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, `${parts.right}mm`, Math.min(W - 20, right + 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
+      if (parts.tailStart || parts.tailEnd) {
+        addShapeText(svg, `overlap ${[parts.tailStart, parts.tailEnd].filter(Boolean).join('/')}`, right - 4, Math.min(H - 10, hookY + 16), { anchor: 'end', fill: '#9a4f00', size: '8', weight: '800' });
+      }
+    }
+  }
+
   /* ── fit points to a viewport ──────────────────────────────── */
   function fitPoints(pts, W, H, pad) {
     if (pts.length < 2) return {pts, scale:1, ox:pad, oy:pad};
@@ -86,6 +207,14 @@
       t.setAttribute('fill','#8fa0b0'); t.setAttribute('font-size','12');
       t.textContent = 'אין צורה';
       svg.appendChild(t);
+      container.appendChild(svg);
+      return;
+    }
+
+    const stirrup = closedStirrupParts(sides, angles || []);
+    if (stirrup) {
+      svg.setAttribute('data-shape-kind', 'closed-stirrup');
+      renderClosedStirrup2D(svg, stirrup, W, H, opts);
       container.appendChild(svg);
       return;
     }

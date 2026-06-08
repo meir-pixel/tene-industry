@@ -350,6 +350,39 @@ function isOpenUShapeClient(segments) {
     && legsSimilar;
 }
 
+function isSimilarDimensionClient(a, b, tolerance) {
+  var max = Math.max(+(a || 0), +(b || 0));
+  if (max <= 0) return false;
+  return Math.abs(+(a || 0) - +(b || 0)) <= Math.max(10, max * (tolerance || 0.12));
+}
+
+function closedStirrupPartsClient(segments) {
+  if (!segments || segments.length < 4) return null;
+  var values = segments.map(function(s){ return +(s.length_mm || 0); });
+  if (values.some(function(v){ return v <= 0; })) return null;
+  var checkedAngles = segments.slice(0, Math.min(4, segments.length - 1));
+  if (checkedAngles.length && !checkedAngles.every(function(s){ return isRightAngleValue(s.angle_deg); })) return null;
+
+  if (values.length >= 5) {
+    var tailStart = values[0], verticalA = values[1], horizontalA = values[2], verticalB = values[3], horizontalB = values[4], tailEnd = values[5] || 0;
+    var maxBody = Math.max(verticalA, horizontalA, verticalB, horizontalB);
+    if (
+      tailStart <= maxBody * 0.45 &&
+      (!tailEnd || tailEnd <= maxBody * 0.45) &&
+      isSimilarDimensionClient(verticalA, verticalB) &&
+      isSimilarDimensionClient(horizontalA, horizontalB)
+    ) {
+      return { top: horizontalA, right: verticalA, bottom: horizontalB, left: verticalB, tailStart: tailStart, tailEnd: tailEnd };
+    }
+  }
+
+  if (isSimilarDimensionClient(values[0], values[2]) && isSimilarDimensionClient(values[1], values[3])) {
+    return { top: values[0], right: values[1], bottom: values[2], left: values[3], tailStart: values[4] || 0, tailEnd: 0 };
+  }
+
+  return null;
+}
+
 function buildOpenUShapeSVG(segments) {
   var leftLeg = +(segments[0].length_mm || 0);
   var bridge = +(segments[1].length_mm || 0);
@@ -372,6 +405,36 @@ function buildOpenUShapeSVG(segments) {
   return '<svg data-shape-kind="open-u" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:100px">' + s + '</svg>';
 }
 
+function buildClosedStirrupSVG(parts) {
+  var W = 220, H = 120;
+  var horizontal = Math.max(parts.top || 0, parts.bottom || 0, 1);
+  var vertical = Math.max(parts.left || 0, parts.right || 0, 1);
+  var ratio = horizontal / vertical;
+  var maxBoxW = 126, maxBoxH = 82;
+  var boxW = ratio >= 1 ? maxBoxW : Math.max(54, Math.min(maxBoxW, maxBoxH * ratio));
+  var boxH = ratio >= 1 ? Math.max(54, Math.min(maxBoxH, maxBoxW / ratio)) : maxBoxH;
+  var x = (W - boxW) / 2, y = (H - boxH) / 2 + 4, right = x + boxW, bottom = y + boxH;
+  var midX = x + boxW / 2, midY = y + boxH / 2;
+  var pd = 'M ' + x.toFixed(1) + ',' + y.toFixed(1) + ' L ' + right.toFixed(1) + ',' + y.toFixed(1) + ' L ' + right.toFixed(1) + ',' + bottom.toFixed(1) + ' L ' + x.toFixed(1) + ',' + bottom.toFixed(1) + ' Z';
+  var hookX = right - Math.min(24, boxW * 0.22), hookY = y + Math.min(24, boxH * 0.28);
+  var s = '<path d="' + pd + '" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
+  s += '<path d="' + pd + '" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+  s += '<path d="M ' + right.toFixed(1) + ',' + y.toFixed(1) + ' L ' + hookX.toFixed(1) + ',' + y.toFixed(1) + ' L ' + hookX.toFixed(1) + ',' + hookY.toFixed(1) + '" fill="none" stroke="#c9621a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+  [
+    { x: midX, y: y - 11, value: parts.top },
+    { x: right + 20, y: midY, value: parts.right },
+    { x: midX, y: bottom + 13, value: parts.bottom },
+    { x: x - 20, y: midY, value: parts.left }
+  ].forEach(function(label) {
+    s += '<rect x="' + (label.x - 18).toFixed(1) + '" y="' + (label.y - 7).toFixed(1) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
+    s += '<text x="' + label.x.toFixed(1) + '" y="' + label.y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + label.value + '</text>';
+  });
+  if (parts.tailStart || parts.tailEnd) {
+    s += '<text x="' + (right - 4).toFixed(1) + '" y="' + (hookY + 14).toFixed(1) + '" text-anchor="end" font-size="7.5" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">overlap ' + [parts.tailStart, parts.tailEnd].filter(Boolean).join(' / ') + '</text>';
+  }
+  return '<svg data-shape-kind="closed-stirrup" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:112px">' + s + '</svg>';
+}
+
 function buildShapeSVG(segments) {
   try {
     if (!segments || !segments.length) {
@@ -380,6 +443,8 @@ function buildShapeSVG(segments) {
         '<circle cx="12" cy="30" r="3" fill="#1a2332"/><circle cx="208" cy="30" r="3" fill="#1a2332"/></svg>';
     }
     if (isOpenUShapeClient(segments)) return buildOpenUShapeSVG(segments);
+    var stirrup = closedStirrupPartsClient(segments);
+    if (stirrup) return buildClosedStirrupSVG(stirrup);
     var W=220, H=100, PAD=18;
     var sides = segments.map(function(s){ return +(s.length_mm||0); });
     var angs  = segments.map(function(s){ return s.angle_deg; });

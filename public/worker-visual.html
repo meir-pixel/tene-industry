@@ -161,9 +161,10 @@
       </svg>`
     }
     function closed(s){
-      const values=s.map(part=>Number(part.length_mm||0)),tailsAtEnds=values.length>=6&&values[0]<values[1]&&values[5]<values[4],outer=tailsAtEnds?values.slice(1,5):values.slice(0,4),tails=tailsAtEnds?[values[0],values[5]]:values.slice(4,6);
-      const top=outer[0]||0,side=outer[1]||0,bottom=outer[2]||top,left=outer[3]||side,tail1=tails[0]||0,tail2=tails[1]||0;
-      return `<svg viewBox="0 0 360 190"><rect class="shape" x="74" y="42" width="212" height="106"/><path class="angle" d="M225 42v32h32"/><text class="measure" x="180" y="30" text-anchor="middle">${top}</text><text class="measure" x="180" y="170" text-anchor="middle">${bottom}</text><text class="measure" x="55" y="100" text-anchor="middle">${left}</text><text class="measure" x="307" y="100" text-anchor="middle">${side}</text><text class="detail" x="238" y="91">${tail1}</text><text class="detail" x="260" y="42">${tail2}</text></svg>`
+      const values=s.map(part=>Number(part.length_mm||0)),tailsAtEnds=values.length>=5&&values[0]<Math.max(values[1],values[2])*.45&&(!values[5]||values[5]<Math.max(values[3],values[4])*.45);
+      const top=tailsAtEnds?values[2]:(values[0]||0),side=tailsAtEnds?values[1]:(values[1]||0),bottom=tailsAtEnds?values[4]:(values[2]||top),left=tailsAtEnds?values[3]:(values[3]||side),tail1=tailsAtEnds?values[0]:(values[4]||0),tail2=tailsAtEnds?values[5]:(values[5]||0);
+      const horizontal=Math.max(top,bottom,1),vertical=Math.max(left,side,1),ratio=horizontal/vertical,boxW=ratio>=1?212:Math.max(90,Math.min(212,106*ratio)),boxH=ratio>=1?Math.max(82,Math.min(106,212/ratio)):106,x=(360-boxW)/2,y=(190-boxH)/2;
+      return `<svg viewBox="0 0 360 190"><rect class="shape" x="${x}" y="${y}" width="${boxW}" height="${boxH}"/><path class="angle" d="M${x+boxW-61} ${y}v32h32"/><text class="measure" x="180" y="${y-12}" text-anchor="middle">${top}</text><text class="measure" x="180" y="${y+boxH+20}" text-anchor="middle">${bottom}</text><text class="measure" x="${x-19}" y="100" text-anchor="middle">${left}</text><text class="measure" x="${x+boxW+21}" y="100" text-anchor="middle">${side}</text><text class="detail" x="${x+boxW-48}" y="${y+49}">${tail1}</text><text class="detail" x="${x+boxW-27}" y="${y}">${tail2}</text></svg>`
     }
     function spiral(s){
       const label=s.map(x=>Number(x.length_mm||0)).filter(Boolean).join(' / ')||'SPIRAL';
