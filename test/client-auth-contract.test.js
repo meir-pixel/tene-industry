@@ -277,7 +277,8 @@ test('orders screen escapes API-sourced detail fields before innerHTML rendering
   assert.match(orders, /escHtml\(o\.customer_name/);
   assert.match(orders, /escHtml\(o\.delivery_address\)/);
   assert.match(orders, /escHtml\(o\.driver_notes\)/);
-  assert.match(orders, /escHtml\(item\.note\)/);
+  assert.match(orders, /const displayNote = visibleItemNote\(item\.note\)/);
+  assert.match(orders, /escHtml\(displayNote\)/);
   assert.match(orders, /escHtml\(p\.package_code\)/);
   assert.match(orders, /jsAttr\(p\.package_code\)/);
   assert.doesNotMatch(orders, /\$\{o\.driver_notes\}/);
@@ -316,6 +317,9 @@ test('orders review warnings have an approval path and source comparison', () =>
   const startup = read('db/startup.js');
 
   assert.match(orders, /function needsItemReview/);
+  assert.match(orders, /function visibleItemNote/);
+  assert.match(orders, /isTechnicalRecognitionNote/);
+  assert.match(orders, /דורש אימות מול מקור הקליטה/);
   assert.match(orders, /review_status/);
   assert.match(orders, /approveItemReview/);
   assert.match(orders, /openOrderIntakeSource/);
@@ -328,6 +332,12 @@ test('orders review warnings have an approval path and source comparison', () =>
   assert.match(intake, /\/api\/intake\/order-review-tasks/);
   assert.match(intake, /openLinkedOrder/);
   assert.match(startup, /addCol\('items',\s+'review_status'/);
+});
+
+test('image OCR metadata does not become driver instructions', () => {
+  const index = read('public/index.html');
+  assert.match(index, /function isTechnicalRecognitionNote/);
+  assert.match(index, /data\.notes && !isTechnicalRecognitionNote\(data\.notes\)/);
 });
 
 test('order creation success copy does not promise production before approval', () => {

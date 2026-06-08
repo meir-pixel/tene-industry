@@ -3,7 +3,9 @@ const test = require('node:test');
 
 const {
   buildIntakeOrderPayload,
+  isTechnicalRecognitionNote,
   normalizeIntakeItem,
+  operationalOrderNote,
   parseManualIntakeText,
   resolveIntakeCustomer,
 } = require('../services/intakeWorkflow');
@@ -44,6 +46,23 @@ test('buildIntakeOrderPayload resolves customer and calculates total weight', ()
   assert.equal(payload.order.deliveryDate, '2026-06-03');
   assert.equal(payload.pallets[0].items.length, 2);
   assert.equal(payload.order.totalWeight, 10 * 1000 / 100000 * 2 + 12 * 600 / 100000);
+});
+
+test('technical OCR notes stay out of operational order notes', () => {
+  const technicalNote = 'Cover page shows TASSA supplier order. Row 5 is a closed stirrup; interpreted conservatively. Review required: reported total differs from segment sum.';
+  assert.equal(isTechnicalRecognitionNote(technicalNote), true);
+  assert.equal(operationalOrderNote(technicalNote), '');
+
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'לקוח',
+    delivery_date: '2026-06-03',
+    notes: technicalNote,
+    items: [{ diameter: 10, length: 1000, quantity: 1 }],
+  }, {
+    calcWeightPerUnit: () => 1,
+  });
+
+  assert.equal(payload.order.generalNotes, '');
 });
 
 test('parseManualIntakeText delegates whatsapp and manual parsing', () => {

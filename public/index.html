@@ -2183,6 +2183,13 @@ function setIfEmpty(id, value) {
   if (!el.value || !String(el.value).trim()) el.value = value;
 }
 
+function isTechnicalRecognitionNote(value) {
+  var note = String(value || '').trim();
+  if (!note) return false;
+  if (note.length > 220) return true;
+  return /cover page|row\s+\d+|interpreted|sketch|review required|reported total|segment sum|length surplus|unclear|uncertain|conservatively|tassa|pdf/i.test(note);
+}
+
 function applyAnalyzedMeta(data) {
   if (!data) return;
   setIfEmpty('customerSearch', data.customer_name);
@@ -2193,7 +2200,7 @@ function applyAnalyzedMeta(data) {
     var parts = [];
     if (data.document_type) parts.push('מקור: ' + data.document_type);
     if (data.supplier_order_num) parts.push('הזמנת ספק: ' + data.supplier_order_num);
-    if (data.notes) parts.push(data.notes);
+    if (data.notes && !isTechnicalRecognitionNote(data.notes)) parts.push(data.notes);
     setIfEmpty('driverNotes', parts.join(' | '));
   }
 }

@@ -110,6 +110,18 @@ function extractFirstEmailFromText(value) {
   return match ? match[0].toLowerCase() : '';
 }
 
+function isTechnicalRecognitionNote(value) {
+  const note = String(value || '').trim();
+  if (!note) return false;
+  if (note.length > 220) return true;
+  return /cover page|row\s+\d+|interpreted|sketch|review required|reported total|segment sum|length surplus|unclear|uncertain|conservatively|tassa|pdf/i.test(note);
+}
+
+function operationalOrderNote(value) {
+  const note = String(value || '').trim();
+  return isTechnicalRecognitionNote(note) ? '' : note;
+}
+
 function normalizeIntakePhone(value) {
   return String(value || '').replace(/[^\d+]/g, '').replace(/^972/, '0');
 }
@@ -239,7 +251,7 @@ function buildIntakeOrderPayload(parsed = {}, {
       deliveryDate: parsed.delivery_date || parsed.deliveryDate || null,
       deliveryAddress: parsed.delivery_address || parsed.deliveryAddress || '',
       priority: parsed.priority || 'regular',
-      generalNotes: parsed.notes || '',
+      generalNotes: operationalOrderNote(parsed.notes),
       totalWeight: items.reduce((sum, item) => sum + calcWeightPerUnit(item.diameter, item.length) * item.qty, 0),
     },
     pallets: [{ maxWeight: 9999, items }],
@@ -253,8 +265,10 @@ module.exports = {
   extractFirstEmailFromText,
   extractFirstPhoneFromText,
   importCell,
+  isTechnicalRecognitionNote,
   normalizeIntakePhone,
   normalizeIntakeItem,
+  operationalOrderNote,
   parseDelimitedRows,
   parseManualIntakeText,
   resolveIntakeCustomer,

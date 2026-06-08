@@ -648,6 +648,18 @@ function needsReview(item) {
   return /review|required|unclear|uncertain|verify|ambiguous|not clear|דורש|לא ברור/i.test(item.note || '');
 }
 
+function isTechnicalRecognitionNote(value) {
+  const note = String(value || '').trim();
+  if (!note) return false;
+  if (note.length > 220) return true;
+  return /cover page|row\s+\d+|interpreted|sketch|review required|reported total|segment sum|length surplus|unclear|uncertain|conservatively|tassa|pdf/i.test(note);
+}
+
+function visibleItemNote(note) {
+  if (!note) return '';
+  return isTechnicalRecognitionNote(note) ? 'דורש אימות מול מקור הקליטה' : note;
+}
+
 function isReviewApproved(item) {
   return String(item.review_status || '').toLowerCase() === 'approved';
 }
@@ -741,6 +753,7 @@ function buildDetailHTML(o, pkgs) {
       const dims = sides.length ? sides.join(' / ') : itemDimensions(item);
       const shapeMismatch = shapeMismatchWarning(item, sides);
       const review = needsItemReview(item, sides);
+      const displayNote = visibleItemNote(item.note);
       const measuredWeight = actualWeight(item);
       const deviationPct = weightDeviationPct(item);
       return `<div class="item-row">
@@ -764,7 +777,7 @@ function buildDetailHTML(o, pkgs) {
           ${dims ? `<div class="item-dims">${dims.split(' / ').map((d, idx) => `<span class="dim-chip">${String.fromCharCode(0x05D0 + idx)}: ${d} מ"מ</span>`).join('')}</div>` : ''}
           ${measuredWeight ? `<div class="item-dims"><span class="dim-chip">משקל מצוי: ${measuredWeight.toFixed(1)} ק"ג</span><span class="dim-chip"${weightDeviationClass(deviationPct)}>סטייה: ${deviationPct > 0 ? '+' : ''}${deviationPct.toFixed(1)}%</span></div>` : ''}
           ${shapeMismatch && !isReviewApproved(item) ? `<div class="note-chip">⚠ שם הצורה המקורי היה "${escHtml(item.shape_name)}", אבל הגיאומטריה כוללת צלע אחת בלבד ולכן מוצג כמוט ישר.</div>` : ''}
-          ${item.note ? `<div class="note-chip">⚠ ${escHtml(item.note)}</div>` : ''}
+          ${displayNote ? `<div class="note-chip">⚠ ${escHtml(displayNote)}</div>` : ''}
           ${review ? `<div class="review-actions">
             <button class="review-btn" onclick="openOrderIntakeSource(event, ${o.id})">פתח מקור להשוואה</button>
             <button class="review-btn primary" onclick="approveItemReview(event, ${o.id}, ${item.id})">אשר הערה</button>
