@@ -332,14 +332,20 @@ API route families:
 
 Pricing architecture:
 
-- Current source of truth: `price_list` table with the internal canonical
-  format consumed by catalog, portal quoting, orders, and finance screens.
+- There are three separate steel price layers and they must never be collapsed:
+  purchase price, base selling price, and customer-specific price.
+- Purchase price source of truth: `steel_price_history`, owned by Procurement/Finance.
+  It changes frequently and is used for material cost and margin only.
+- Base selling price source of truth: `price_list.price_list`, owned by Catalog/Pricing.
+  This is the default Tene selling price.
+- Customer price source of truth: today `price_list.price_cust` with
+  `customers.price_tier`; future `customer_price_list` per customer.
 - Future import layer: `services/pricing-importer.js` should parse Excel, CSV,
-  ERP/API, supplier files, and other external formats into the canonical
-  `price_list` structure. It should not be the pricing engine.
+  ERP/API, supplier files, customer price-list files, and images into a preview
+  structure that requires approval before saving.
 - Future pricing engine: `services/pricer.js` should answer "what does this
-  product cost this customer?" using price tier, discount, customer rules, and
-  later industry-specific modules.
+  product cost this customer?" using customer pricing source, tier, discount,
+  and industry-specific modules.
 
 Current risks:
 
@@ -615,3 +621,4 @@ module-governance foundation:
    inventory receiving, and order approval.
 5. Portal Agent: separate internal driver/worker screens from external portal
    sessions and document the final auth mode.
+

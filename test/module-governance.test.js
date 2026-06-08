@@ -500,6 +500,18 @@ test('finance credit API routes are split from finance ledger and invoices', () 
   assert.ok(!server.includes("app.post('/api/credit/:customerId/transaction'"));
 });
 
+
+test('finance margin never uses selling price list as purchase cost', () => {
+  const route = read('routes/finance.js');
+  const marginStart = route.indexOf("router.get('/orders/:id/margin'");
+  const kpiStart = route.indexOf("router.get('/finance/kpis'", marginStart);
+  const marginRoute = route.slice(marginStart, kpiStart);
+
+  assert.match(marginRoute, /steel_price_history/);
+  assert.doesNotMatch(marginRoute, /SELECT\s+price_list\s+FROM\s+price_list/i);
+  assert.match(marginRoute, /missing_purchase_price_diameters/);
+  assert.match(marginRoute, /cost_basis_missing/);
+});
 test('catalog and pricing routes are split out of the server monolith', () => {
   const route = read('routes/catalog.js');
   const finance = read('routes/finance.js');

@@ -24,16 +24,13 @@ router.get('/orders/:id/margin', requireAnyRole(['finance', 'manager', 'admin'])
   `).all(req.params.id);
 
   let cost_material = 0;
+  const missingPurchasePriceDiameters = [];
   for (const row of itemsByDiam) {
     const price = db.prepare(`SELECT price_per_ton FROM steel_price_history WHERE diameter=? ORDER BY effective_date DESC LIMIT 1`).get(row.diameter);
-    if (price) cost_material += (row.total_weight / 1000) * price.price_per_ton;
-  }
-
-  // Fallback: use price_list if no steel price history
-  if (cost_material === 0) {
-    for (const row of itemsByDiam) {
-      const pl = db.prepare('SELECT price_list FROM price_list WHERE diameter=?').get(row.diameter);
-      if (pl) cost_material += (row.total_weight) * pl.price_list; // price_list is ₪/kg
+    if (price && Number(price.price_per_ton) > 0) {
+      cost_material += (row.total_weight / 1000) * price.price_per_ton;
+    } else {
+      missingPurchasePriceDiameters.push(Number(row.diameter));
     }
   }
 
@@ -47,7 +44,10 @@ router.get('/orders/:id/margin', requireAnyRole(['finance', 'manager', 'admin'])
     order_id: order.id, order_num: order.order_num,
     cost_material: Math.round(cost_material), cost_labor,
     total_cost: Math.round(total_cost), sale_price,
-    gross_profit: Math.round(gross_profit), margin_pct
+    gross_profit: Math.round(gross_profit), margin_pct,
+    cost_basis: missingPurchasePriceDiameters.length ? 'purchase_price_missing' : 'purchase_price',
+    cost_basis_missing: missingPurchasePriceDiameters.length > 0,
+    missing_purchase_price_diameters: missingPurchasePriceDiameters
   });
 });
 

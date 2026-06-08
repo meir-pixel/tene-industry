@@ -1,117 +1,125 @@
-# אפיון: שני סוגי מחירון (מחירון שלי / מחירון הלקוח)
+# אפיון: מחירון ברזל תלת-שכבתי
 
-> בעלות: `services/pricer.js`, `services/pricing-importer.js` (חדש), `customers`. תאם עם הצוות שעובד על pricer/finance.
-> סטטוס: אפיון, ממתין לביצוע.
+> בעלות: Pricing / Finance / Procurement / Customers.  
+> כלל ברזל: אין יותר "מחיר ברזל" אחד. תמיד מפרידים בין מחיר קנייה, מחיר מכירה ומחיר לקוח.
 
-## ההבחנה
-| סוג | מי קובע | מתי |
-|-----|---------|-----|
-| **המחירון שלי** | אתה (Tene) | ברירת מחדל — רוב הלקוחות |
-| **מחירון הלקוח** | הלקוח | לקוח גדול: "זה המחירון שלי, תתיישר" |
+## למה זה חשוב
 
-לקוח אחד קונה לפי המחירון שלך. אחר כופה את שלו ואתה מסכים. צריך לתמוך בשניהם.
+מחיר הברזל משתנה כל הזמן. בנוסף, יש לקוחות גדולים שמכתיבים מחירון משלהם, והמערכת חייבת לדעת לעבוד גם עם מחירון טנא וגם עם מחירון לקוח בלי לערבב ביניהם.
 
----
+טעות אסורה: להשתמש במחיר מכירה כדי לחשב עלות קנייה או רווחיות. זה יוצר מרווח שקרי.
 
-## שינוי מודל נתונים
+## שלוש שכבות מחיר
 
-### customers — שדה חדש
-```sql
-ALTER TABLE customers ADD COLUMN pricing_source TEXT DEFAULT 'vendor';
--- 'vendor'   = המחירון שלי (price_list)
--- 'customer' = מחירון הלקוח (טבלה ייעודית)
+| שכבה | מי קובע | מקור אמת | שימוש |
+|---|---|---|---|
+| מחיר קנייה | ספק / שוק ברזל | `steel_price_history` | עלות חומר, רווחיות, מחיר קנייה אחרון לפי קוטר וספק |
+| מחיר מכירה בסיסי | טנא | `price_list.price_list` | מחיר ברירת מחדל ללקוחות רגילים |
+| מחיר לקוח | הלקוח / הסכם לקוח | `customer_price_list` בעתיד, היום `price_list.price_cust` + `customers.price_tier` | לקוח שמכתיב מחיר או לקוח עם הסכם קבוע |
+
+## בעלות מודולרית
+
+| מודול | מה הוא מחזיק | מה מותר לו לעשות |
+|---|---|---|
+| Procurement / Inventory | מחיר קנייה מספקים ושוק ברזל (`steel_price_history`) | לעדכן עלות חומר לפי קוטר, ספק ותאריך |
+| Catalog / Pricing | מחיר מכירה בסיסי של טנא (`price_list.price_list`) | לנהל מחירון מכירה רגיל |
+| Customers / Portal | מחירון לקוח והסכמי לקוח (`customer_price_list`, היום `price_list.price_cust`) | לבחור האם לקוח עובד לפי מחירון טנא או מחירון שלו |
+| Orders | צורך מחיר מכירה/לקוח דרך `services/pricer.js` | לא מחשב בעצמו מחירון ולא קורא מחיר קנייה |
+| Finance | צורך מחיר קנייה לצורך עלות ורווחיות | לא משתמש במחיר מכירה כעלות חומר |
+
+כל מודול לוקח את המחיר מהמקום שלו בלבד. אין טבלת קסם אחת ואין fallback שקט בין מחיר קנייה, מחיר מכירה ומחיר לקוח.
+
+## כללי שימוש
+
+1. `steel_price_history` הוא מקור מחיר הקנייה. הוא לא מחיר מכירה.
+2. `price_list.price_list` הוא מחיר מכירה בסיסי. הוא לא עלות חומר.
+3. `price_list.price_cust` הוא מחיר לקוח קבוע זמני/קיים. בעתיד הוא מוחלף או מורחב בטבלת `customer_price_list` פר-לקוח.
+4. `customers.price_tier='customer'` אומר שהלקוח מקבל מחיר לקוח ולא מחירון רגיל.
+5. `customers.discount_pct` הוא הנחה נוספת, לא מקור מחיר עצמאי.
+6. אם אין מחיר קנייה בקוטר מסוים, Finance מחזיר אזהרת `cost_basis_missing` ולא ממציא עלות ממחיר מכירה.
+
+## ארכיטקטורה רצויה
+
+```mermaid
+flowchart LR
+  Supplier["ספק / שוק ברזל"] --> Purchase["steel_price_history\nמחיר קנייה"]
+  Tene["טנא"] --> Sell["price_list.price_list\nמחיר מכירה בסיסי"]
+  Customer["לקוח מכתיב מחירון"] --> CustomerPL["customer_price_list\nמחיר לקוח"]
+
+  Purchase --> Finance["Finance\nעלות ורווחיות"]
+  Sell --> Pricer["services/pricer.js"]
+  CustomerPL --> Pricer
+  Pricer --> Orders["Orders / Portal\nמחיר ללקוח"]
 ```
-(קיים כבר `price_tier` ו-`discount_pct` — נשארים, רלוונטיים ל-vendor.)
 
-### טבלה חדשה — מחירון פר-לקוח
+## מודל נתונים עתידי
+
+### לקוחות
+
+```sql
+ALTER TABLE customers ADD COLUMN pricing_source TEXT DEFAULT 'tene';
+-- 'tene'     = מחירון טנא
+-- 'customer' = מחירון שהלקוח מכתיב
+```
+
+### מחירון לקוח פר לקוח
+
 ```sql
 CREATE TABLE customer_price_list (
-  id           INTEGER PRIMARY KEY,
-  customer_id  INTEGER NOT NULL,
-  dimension    TEXT,        -- קוטר / סוג פריט (גמיש לתעשיות)
-  price        REAL,        -- ₪ ליחידה
-  unit         TEXT DEFAULT 'kg',
-  source       TEXT,        -- 'image' | 'file' | 'manual'
-  imported_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+  id INTEGER PRIMARY KEY,
+  customer_id INTEGER NOT NULL,
+  diameter INTEGER NOT NULL,
+  price_per_kg REAL NOT NULL,
+  source TEXT, -- image | file | manual | api
+  imported_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  approved_by INTEGER,
+  approved_at TEXT,
+  UNIQUE(customer_id, diameter),
   FOREIGN KEY (customer_id) REFERENCES customers(id)
 );
 ```
 
----
+## קליטת מחירון
 
-## pricer — שינוי נקודתי
-`services/pricer.js` כבר מרכז תמחור. מוסיפים החלטה אחת בראש:
+`services/pricing-importer.js` צריך לתרגם פורמטים שונים למבנה פנימי אחד:
 
-```javascript
-function getPricePerKg(diameter, customer) {
-  if (customer?.pricing_source === 'customer') {
-    const row = db.prepare('SELECT price FROM customer_price_list WHERE customer_id=? AND dimension=?')
-      .get(customer.id, String(diameter));
-    if (row) return row.price;          // מחירון הלקוח גובר
-    // אם חסר במחירון הלקוח → נפילה למחירון שלי (עם התראה)
-  }
-  return vendorPrice(diameter, customer); // הלוגיקה הקיימת
+```js
+{
+  sourceType: 'image' | 'excel' | 'csv' | 'manual' | 'api',
+  customerId,
+  rows: [
+    { diameter: 8, pricePerKg: 3.8, confidence: 0.94, raw: '...' }
+  ],
+  warnings: []
 }
 ```
 
-**עיקרון:** מחירון הלקוח גובר רק כשהוגדר `pricing_source='customer'`. אחרת — המחירון שלי כרגיל. שום שינוי ללקוחות קיימים.
+כל קליטה מתמונה/קובץ חייבת לעבור מסך השוואה ואישור לפני שמירה. לא שומרים OCR ישירות למחירון.
 
----
+## מסלול החלטה בזמן הצעת מחיר
 
-## קליטת מחירון לקוח — כל הדרכים
-
-`services/pricing-importer.js` (חדש) — מתרגם כל פורמט לטבלה הפנימית:
-
-| מקור | איך | טכנולוגיה |
-|------|-----|-----------|
-| **תמונה** | צילום מחירון → OCR | OpenAI Vision (קיים ב-intake) |
-| **קובץ** | Excel / CSV | פרסר טבלה |
-| **ידני** | הקלדה בכרטיס הלקוח | טופס |
-| **בעל פה** | הקלדה ידנית (כמו ידני) | טופס |
-
+```mermaid
+flowchart TD
+  A["צריך מחיר לקוטר"] --> B{"יש לקוח?"}
+  B -- לא --> C["מחיר מכירה בסיסי: price_list.price_list"]
+  B -- כן --> D{"pricing_source=customer?"}
+  D -- כן --> E{"יש מחיר לקוח לקוטר?"}
+  E -- כן --> F["customer_price_list"]
+  E -- לא --> G["אזהרה + fallback למחירון טנא"]
+  D -- לא --> H{"price_tier=customer?"}
+  H -- כן --> I["price_list.price_cust"]
+  H -- לא --> C
+  C --> J["החלת discount_pct אם הוגדר"]
+  F --> J
+  G --> J
+  I --> J
 ```
-מחירון מהלקוח (תמונה/קובץ/הקלדה)
-        ↓ services/pricing-importer.js
-שורות מנורמלות: { dimension, price, unit }
-        ↓
-תצוגה מקדימה לאישור (כמו ב-OCR הזמנות)
-        ↓
-שמירה ב-customer_price_list
-```
-
----
-
-## UI (כרטיס לקוח)
-- בורר: **"מקור מחיר"** → המחירון שלי / מחירון הלקוח
-- אם "מחירון הלקוח": כפתורים — העלה תמונה / העלה קובץ / הזן ידני
-- תצוגת המחירון הנוכחי של הלקוח + מתי יובא
-
----
-
-## ⚠️ ניתוב OCR — קריטי, אסור לפספס
-**ה-AI לא מנתב לבד.** אותו OCR מקבל תמונה שיכולה להיות הזמנה / מחירון / תעודת ספק.
-אם ה-AI ינחש לא נכון — מחירון ייכנס כהזמנה. אסון.
-
-**הכלל:** המשתמש בוחר **סוג מסמך מראש**, ולכל סוג **prompt נפרד**:
-```
-מסך קליטה:  [📋 הזמנה]  [💰 מחירון]  [🚚 תעודת ספק]
-                 ↓ בחר "מחירון"
-        AI עם prompt של מחירון בלבד → תצוגה מקדימה → אישור
-```
-- ה-AI **קורא** מה שאמרו לו, לא **מנתב**. הניתוב = החלטת אדם, קליק אחד.
-- כל סוג מסמך = endpoint + prompt משלו (כמו ש-`/analyze-image` להזמנות ו-`/inventory/scan-label` לתוויות כבר נפרדים).
-- אסור prompt אחד גנרי לכל הסוגים — המבנים שונים לגמרי.
-
-## עקרונות
-1. **ברירת מחדל = vendor** — לקוחות קיימים לא מושפעים.
-2. **pricer = מקור אמת אחד** — כל ההחלטה במקום אחד, לא מפוזר.
-3. **תצוגה מקדימה לפני שמירה** — OCR/קובץ אף פעם לא נשמר ישר, תמיד עובר אישור.
-4. **נפילה בטוחה** — חסר פריט במחירון הלקוח → המחירון שלי + התראה, לא 0.
 
 ## Definition of Done
-- [ ] `pricing_source` ב-customers
-- [ ] טבלת `customer_price_list`
-- [ ] `services/pricing-importer.js` (תמונה/קובץ/ידני)
-- [ ] `pricer` בוחר מקור לפי הלקוח
-- [ ] UI בכרטיס לקוח + תצוגה מקדימה
-- [ ] נפילה למחירון vendor כשחסר
+
+- [ ] אין שימוש ב-`price_list` לחישוב עלות קנייה.
+- [ ] `services/pricer.js` הוא נקודת האמת למחיר מכירה/מחיר לקוח.
+- [ ] `steel_price_history` הוא נקודת האמת למחיר קנייה.
+- [ ] מחירון לקוח עובר אישור לפני שמירה.
+- [ ] מסך לקוח מציג בבירור: מחירון טנא / מחירון לקוח.
+- [ ] Finance מציג אזהרה אם חסר מחיר קנייה ולא מחשב רווחיות שקרית.
