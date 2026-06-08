@@ -552,6 +552,12 @@ test('intake review belongs to intake screen and OCR training is a separate admi
   assert.match(intake, /saveManualIntake/);
   assert.match(intake, /manualIntakeText/);
   assert.match(intake, /תור לאישור לפי דחיפות/);
+  assert.match(intake, /queue-panel/);
+  assert.match(intake, /capture-panel/);
+  assert.match(intake, /work-steps/);
+  assert.match(intake, /source-box/);
+  assert.match(intake, /data-box/);
+  assert.match(intake, /queue-empty/);
   assert.match(intake, /urgencyInfo/);
   assert.match(intake, /sortIntakeRows/);
   assert.match(intake, /order-metrics/);
