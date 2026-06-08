@@ -258,11 +258,13 @@ canvas { filter: none !important; }
 .skeleton-row   { height: 44px; border-radius: 6px; margin-bottom: 6px; }
 .skeleton-circle{ border-radius: 50% !important; }
 
-/* ── Global Search Bar (כרך ט) ─────────────────────────── */
+/* ── Global Search Bar ─────────────────────────────────────
+   display:none כברירת מחדל — nav.js פותח/סוגר דרך inline style.
+   (היה display:flex וזה פתח את החלון אוטומטית בכל מסך — באג.) */
 #ib-search-bar {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.55); z-index: 999;
-  display: flex; align-items: flex-start; justify-content: center;
+  display: none; align-items: flex-start; justify-content: center;
   padding-top: 80px; backdrop-filter: blur(4px);
 }
 #ib-search-box {
