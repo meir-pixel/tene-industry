@@ -137,27 +137,18 @@
     bar.setAttribute('stroke-linejoin', 'round');
     svg.appendChild(bar);
 
-    const tailScale = Math.min(32, Math.max(12, Math.max(parts.tailStart || 0, parts.tailEnd || 0) / Math.max(horizontal, vertical) * 52));
-    if (parts.tailStart) {
-      const tail = document.createElementNS(NS, 'path');
-      tail.setAttribute('data-tail', 'start');
-      tail.setAttribute('d', `M ${right.toFixed(1)},${y.toFixed(1)} L ${(right + tailScale).toFixed(1)},${y.toFixed(1)}`);
-      tail.setAttribute('stroke', '#7a3a08');
-      tail.setAttribute('stroke-width', Math.max(3, strokeW));
-      tail.setAttribute('fill', 'none');
-      tail.setAttribute('stroke-linecap', 'round');
-      svg.appendChild(tail);
-    }
-    if (parts.tailEnd) {
-      const tail = document.createElementNS(NS, 'path');
-      tail.setAttribute('data-tail', 'end');
-      tail.setAttribute('d', `M ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${(y - tailScale).toFixed(1)}`);
-      tail.setAttribute('stroke', '#7a3a08');
-      tail.setAttribute('stroke-width', Math.max(3, strokeW));
-      tail.setAttribute('fill', 'none');
-      tail.setAttribute('stroke-linecap', 'round');
-      svg.appendChild(tail);
-    }
+    const markerSize = Math.min(30, Math.max(14, Math.min(boxW, boxH) * 0.28));
+    const markerX = right - markerSize;
+    const markerY = y + markerSize;
+    const marker = document.createElementNS(NS, 'path');
+    marker.setAttribute('data-stirrup-marker', 'overlap');
+    marker.setAttribute('d', `M ${markerX.toFixed(1)},${y.toFixed(1)} L ${markerX.toFixed(1)},${markerY.toFixed(1)} L ${right.toFixed(1)},${markerY.toFixed(1)}`);
+    marker.setAttribute('stroke', '#1a2533');
+    marker.setAttribute('stroke-width', Math.max(3, strokeW));
+    marker.setAttribute('fill', 'none');
+    marker.setAttribute('stroke-linecap', 'square');
+    marker.setAttribute('stroke-linejoin', 'miter');
+    svg.appendChild(marker);
 
     if (opts.showDimensions) {
       const midX = x + boxW / 2;
@@ -166,9 +157,6 @@
       addShapeText(svg, `${parts.bottom}mm`, midX, Math.min(H - 10, bottom + 14), { fill: '#1a2533', size: '10', weight: '800' });
       addShapeText(svg, `${parts.left}mm`, Math.max(20, x - 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
       addShapeText(svg, `${parts.right}mm`, Math.min(W - 20, right + 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
-      if (parts.tailStart || parts.tailEnd) {
-        addShapeText(svg, `end tails ${[parts.tailStart, parts.tailEnd].filter(Boolean).join('/')}`, Math.min(W - 8, right + 28), Math.max(10, y - 12), { anchor: 'start', fill: '#9a4f00', size: '8', weight: '800' });
-      }
     }
   }
 

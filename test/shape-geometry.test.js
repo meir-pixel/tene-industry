@@ -80,9 +80,9 @@ test('production card renders closed stirrups as a closed rectangular hoop', () 
   assert.match(svg, /Z/);
   assert.match(svg, />300</);
   assert.match(svg, />950</);
-  assert.match(svg, /data-tail="start"/);
-  assert.match(svg, /data-tail="end"/);
-  assert.match(svg, /end tails 100 \/ 100/);
+  assert.match(svg, /data-stirrup-marker="overlap"/);
+  assert.doesNotMatch(svg, /data-tail=/);
+  assert.doesNotMatch(svg, /end tails/);
 });
 
 test('production card accepts closed stirrup OCR with one visible overlap tail', () => {
@@ -97,8 +97,9 @@ test('production card accepts closed stirrup OCR with one visible overlap tail',
   assert.match(svg, /data-shape-kind="closed-stirrup"/);
   assert.match(svg, />300</);
   assert.match(svg, />950</);
-  assert.match(svg, /data-tail="start"/);
-  assert.match(svg, /end tails 100/);
+  assert.match(svg, /data-stirrup-marker="overlap"/);
+  assert.doesNotMatch(svg, /data-tail=/);
+  assert.doesNotMatch(svg, /end tails/);
 });
 
 test('orders detail shape renderer has a dedicated closed-stirrup path', () => {
