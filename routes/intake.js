@@ -19,6 +19,7 @@ module.exports = function createIntakeRouter(deps) {
   const normalizeFactoryShapeName = required('normalizeFactoryShapeName', deps.normalizeFactoryShapeName);
   const INTAKE_AI_ENABLED = required('INTAKE_AI_ENABLED', deps.INTAKE_AI_ENABLED);
   const intake = required('intake', deps.intake);
+  const intakeWorkflow = required('intakeWorkflow', deps.intakeWorkflow);
 
   router.post('/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, upload.single('image'), async (req, res) => {
     if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
@@ -122,7 +123,7 @@ module.exports = function createIntakeRouter(deps) {
           angle_deg: Number(segment.angle_deg) || 0,
         })));
         const reportedLength = (Number(item.total_length_cm) || 0) * 10;
-        const lengthAdjustment = intake.distributeSurplusToEndSegments(normalizedSegments, reportedLength);
+        const lengthAdjustment = intakeWorkflow.distributeSurplusToEndSegments(normalizedSegments, reportedLength);
         const segments = lengthAdjustment.segments;
         const computedLength = lengthAdjustment.totalLength;
         const notes = [];

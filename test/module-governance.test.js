@@ -541,6 +541,7 @@ test('catalog and pricing routes are split out of the server monolith', () => {
 test('intake import and manual parsing live in an intake workflow service', () => {
   const service = read('services/intakeWorkflow.js');
   const server = read('server.js');
+  const intakeRoute = read('routes/intake.js');
   const reviewRoute = read('routes/intakeReview.js');
 
   assert.match(service, /function buildOrderImportPreview/);
@@ -554,6 +555,9 @@ test('intake import and manual parsing live in an intake workflow service', () =
   assert.match(server, /intakeWorkflow\.buildOrderImportPreview/);
   assert.match(reviewRoute, /intakeWorkflow\.parseManualIntakeText/);
   assert.match(server, /intakeWorkflow\.resolveIntakeCustomer/);
+  assert.match(intakeRoute, /intakeWorkflow\.distributeSurplusToEndSegments/);
+  assert.doesNotMatch(intakeRoute, /intake\.distributeSurplusToEndSegments/);
+  assert.match(server, /intakeWorkflow,\s*\}\)\);/);
 });
 
 test('intake API routes are split out of the server monolith', () => {

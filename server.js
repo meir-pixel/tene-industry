@@ -618,6 +618,7 @@ app.use('/api', requireModule('intake'), createIntakeRouter({
   normalizeFactoryShapeName,
   INTAKE_AI_ENABLED,
   intake,
+  intakeWorkflow,
 }));
 app.use('/api', requireModule('portal'), createPortalAdminRouter({
   db,
