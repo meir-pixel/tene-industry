@@ -20,8 +20,13 @@
 ## מודל נתונים — תוספת ל-licenses
 ```sql
 ALTER TABLE licenses ADD COLUMN paid_until TEXT;           -- עד מתי שולם (YYYY-MM-DD)
-ALTER TABLE licenses ADD COLUMN billing_status TEXT DEFAULT 'trial';
-  -- 'trial' | 'active' | 'past_due' | 'cancelled'
+ALTER TABLE licenses ADD COLUMN billing_status TEXT DEFAULT 'free';
+  -- 'free' | 'trial' | 'active' | 'past_due' | 'cancelled'
+  -- free  = ללא תשלום (פיילוט/חבר/הדגמה) — לעולם לא נבדק תשלום, לא ננעל
+  -- trial = ניסיון עד תאריך
+  -- active= משלם חודשי
+  -- past_due = פספס — אזהרה → grace → נעילה
+  -- cancelled = בוטל → נעילה
 ALTER TABLE licenses ADD COLUMN billing_ref TEXT;          -- מזהה הלקוח אצל ספק הסליקה
 ALTER TABLE licenses ADD COLUMN monthly_amount REAL DEFAULT 0;
 ```

@@ -66,6 +66,13 @@ try { db.exec("ALTER TABLE licenses ADD COLUMN modules TEXT"); } catch {}       
 try { db.exec("ALTER TABLE licenses ADD COLUMN max_users INTEGER DEFAULT 0"); } catch {} // 0 = ללא הגבלה
 try { db.exec("ALTER TABLE licenses ADD COLUMN active_users INTEGER DEFAULT 0"); } catch {}    // דווח אחרון משרת הלקוח
 try { db.exec("ALTER TABLE licenses ADD COLUMN active_users_at TEXT"); } catch {}
+// ── חיוב ───────────────────────────────────────────────────────────
+try { db.exec("ALTER TABLE licenses ADD COLUMN billing_status TEXT DEFAULT 'free'"); } catch {} // free|trial|active|past_due|cancelled
+try { db.exec("ALTER TABLE licenses ADD COLUMN paid_until TEXT"); } catch {}                    // YYYY-MM-DD
+try { db.exec("ALTER TABLE licenses ADD COLUMN billing_ref TEXT"); } catch {}                   // מזהה אצל ספק הסליקה
+try { db.exec("ALTER TABLE licenses ADD COLUMN monthly_amount REAL DEFAULT 0"); } catch {}
+
+const BILLING_GRACE_DAYS = 7;
 
 // ── מודולים וחבילות — מקור אמת יחיד: shared/module-catalog.json ────
 // קוראים מה-catalog המשותף. כך כל מודול חדש מופיע אוטומטית בפאנל,
@@ -140,6 +147,25 @@ app.post('/api/check', rateLimit, (req, res) => {
   if (lic.revoked_at)  return res.json({ valid: false, message: 'הרישיון בוטל' });
   if (isExpired(lic))  return res.json({ valid: false, message: `הרישיון פג ב-${lic.expires_at}` });
 
+  // ── בדיקת חיוב ──────────────────────────────────────────────────
+  // free / trial → לעולם לא נבדק תשלום. active/past_due → grace ואז נעילה.
+  const billing = lic.billing_status || 'free';
+  let paymentWarning = null;
+  if (billing === 'cancelled') {
+    return res.json({ valid: false, message: 'המנוי בוטל. צור קשר עם Tene Industry.' });
+  }
+  if (billing === 'active' || billing === 'past_due') {
+    if (lic.paid_until) {
+      const daysPastDue = (Date.now() - new Date(lic.paid_until).getTime()) / 86400000;
+      if (daysPastDue > BILLING_GRACE_DAYS) {
+        return res.json({ valid: false, message: 'התשלום החודשי לא התקבל. צור קשר עם Tene Industry.' });
+      }
+      if (daysPastDue > 0) {
+        paymentWarning = `התשלום באיחור — נעילה בעוד ${Math.ceil(BILLING_GRACE_DAYS - daysPastDue)} ימים`;
+      }
+    }
+  }
+
   // קישור מכונה — בפעם הראשונה נשמר, בהמשך מאומת
   if (!lic.machine_id && machineId) {
     db.prepare('UPDATE licenses SET machine_id=? WHERE license_key=?').run(machineId, licenseKey);
@@ -165,10 +191,54 @@ app.post('/api/check', rateLimit, (req, res) => {
       modules:  modulesForLicense(lic),
       maxUsers: lic.max_users || 0,   // 0 = ללא הגבלה
     },
-    // אזהרה רכה — לא נועלים מפעל באמצע יום; רק מסמנים חריגה
+    // אזהרות רכות — לא נועלים מפעל באמצע יום
     usersOverLimit: over,
+    paymentWarning,
   });
 });
+
+// POST /api/billing/webhook — אגנוסטי לספק סליקה
+// כל ספק שולח אחרי חיוב. adapter פר-ספק מתרגם לפורמט המנורמל הזה:
+//   { billing_ref, event: 'paid'|'failed'|'cancelled', paidUntil? }
+// אבטחה: כותרת x-billing-secret חייבת להתאים ל-BILLING_WEBHOOK_SECRET.
+app.post('/api/billing/webhook', (req, res) => {
+  const secret = process.env.BILLING_WEBHOOK_SECRET;
+  if (!secret || req.headers['x-billing-secret'] !== secret) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const { billing_ref, event, paidUntil } = req.body || {};
+  if (!billing_ref || !event) return res.status(400).json({ error: 'billing_ref and event required' });
+
+  const lic = db.prepare('SELECT * FROM licenses WHERE billing_ref=?').get(billing_ref);
+  if (!lic) return res.status(404).json({ error: 'license not found for billing_ref' });
+
+  if (event === 'paid') {
+    // ברירת מחדל: שולם עד סוף החודש הבא
+    const until = paidUntil || new Date(Date.now() + 31 * 86400000).toISOString().slice(0, 10);
+    db.prepare("UPDATE licenses SET billing_status='active', paid_until=? WHERE id=?").run(until, lic.id);
+  } else if (event === 'failed') {
+    db.prepare("UPDATE licenses SET billing_status='past_due' WHERE id=?").run(lic.id);
+    notifyVendor(`⚠️ תשלום נכשל אצל: ${lic.customer_name}`);
+  } else if (event === 'cancelled') {
+    db.prepare("UPDATE licenses SET billing_status='cancelled' WHERE id=?").run(lic.id);
+    notifyVendor(`🚫 מנוי בוטל אצל: ${lic.customer_name}`);
+  }
+  res.json({ ok: true });
+});
+
+// התראת WhatsApp לבעל התוכנה (אם מוגדר)
+function notifyVendor(message) {
+  const phone = process.env.TENE_NOTIFY_PHONE;
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_ID;
+  if (!phone || !token || !phoneId) return; // לא מוגדר — מדלג בשקט
+  const https = require('https');
+  const data = JSON.stringify({ messaging_product: 'whatsapp', to: phone.replace(/\D/g, ''), type: 'text', text: { body: message } });
+  const r = https.request({ hostname: 'graph.facebook.com', path: `/v18.0/${phoneId}/messages`, method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }, timeout: 8000 }, x => x.on('data', () => {}));
+  r.on('error', () => {}); r.on('timeout', () => r.destroy());
+  r.write(data); r.end();
+}
 
 // POST /api/backup/upload — קבלת גיבוי מוצפן
 app.post('/api/backup/upload', upload.single('file'), async (req, res) => {
@@ -253,11 +323,23 @@ app.get('/admin', (req, res) => {
       ? `<span style="color:${usersOver ? '#e74c3c' : '#27ae60'}">${act}/${cap} משתמשים${usersOver ? ' ⚠️' : ''}</span>`
       : `${act} משתמשים · ∞`;
 
+    const billing = lic.billing_status || 'free';
+    const billingMap = {
+      free:      ['ללא תשלום', '#7f8c8d'],
+      trial:     ['ניסיון', '#3498db'],
+      active:    ['✓ משלם', '#27ae60'],
+      past_due:  ['⚠️ באיחור', '#e74c3c'],
+      cancelled: ['🚫 בוטל', '#7f8c8d'],
+    };
+    const [billLabel, billColor] = billingMap[billing] || billingMap.free;
+    const paidInfo = (billing === 'active' || billing === 'past_due') && lic.paid_until ? `<br><small>עד ${lic.paid_until}</small>` : '';
+
     return `
       <tr>
         <td><strong>${lic.customer_name}</strong><br><small>${lic.customer_phone || ''}</small></td>
         <td>${lic.expires_at}</td>
         <td style="color:${color}">${status}</td>
+        <td style="color:${billColor};font-weight:700">${billLabel}${paidInfo}</td>
         <td>${pkgLabel}<br><small>${modCount} מודולים · ${usersLabel}</small></td>
         <td>${lastBackup ? lastBackup.uploaded_at.slice(0,16) : '—'}</td>
         <td>
@@ -295,7 +377,7 @@ app.get('/admin', (req, res) => {
     <h1>🔑 Tene Industry — ניהול רישיונות</h1>
     <a href="/admin/new"><button class="new-btn">+ רישיון חדש</button></a>
     <table>
-      <tr><th>לקוח</th><th>תוקף</th><th>סטטוס</th><th>חבילה</th><th>גיבוי אחרון</th><th>פעולות</th></tr>
+      <tr><th>לקוח</th><th>תוקף</th><th>סטטוס</th><th>תשלום</th><th>חבילה</th><th>גיבוי אחרון</th><th>פעולות</th></tr>
       ${rows || '<tr><td colspan="6" style="text-align:center">אין רישיונות</td></tr>'}
     </table>
   </body></html>`);
@@ -396,6 +478,17 @@ app.get('/admin/edit/:key', (req, res) => {
       </div>
       <label>מקסימום משתמשים פעילים (0 = ללא הגבלה)</label>
       <input name="max_users" type="number" min="0" value="${lic.max_users || 0}">
+      <label>מצב חיוב</label>
+      <select name="billing_status">
+        ${[['free','ללא תשלום'],['trial','ניסיון'],['active','משלם חודשי'],['past_due','באיחור'],['cancelled','בוטל']]
+          .map(([v,l]) => `<option value="${v}" ${(lic.billing_status||'free')===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <label>שולם עד (אם רלוונטי)</label>
+      <input name="paid_until" type="date" value="${lic.paid_until || ''}">
+      <label>מזהה אצל ספק סליקה (billing_ref)</label>
+      <input name="billing_ref" value="${lic.billing_ref || ''}">
+      <label>סכום חודשי (₪)</label>
+      <input name="monthly_amount" type="number" min="0" value="${lic.monthly_amount || 0}">
       <label>הערות</label><textarea name="notes" rows="2">${lic.notes || ''}</textarea>
       <button type="submit">שמור שינויים</button>
       <a href="/admin"><button type="button" style="background:#7f8c8d">ביטול</button></a>
@@ -407,13 +500,17 @@ app.get('/admin/edit/:key', (req, res) => {
 app.post('/admin/update/:key', (req, res) => {
   const lic = getLicense(req.params.key);
   if (!lic) return res.status(404).send('לא נמצא');
-  const { customer_name, customer_phone, expires_at, notes, package: pkg, max_users } = req.body;
+  const { customer_name, customer_phone, expires_at, notes, package: pkg, max_users,
+          billing_status, paid_until, billing_ref, monthly_amount } = req.body;
   let mods = req.body.modules || [];
   if (typeof mods === 'string') mods = [mods];
   if (mods.length === 0) mods = PACKAGES[pkg] || PACKAGES.pro || [];
   const modulesJson = JSON.stringify(Array.from(new Set(mods)));
-  db.prepare(`UPDATE licenses SET customer_name=?, customer_phone=?, expires_at=?, notes=?, package=?, modules=?, max_users=? WHERE license_key=?`)
-    .run(customer_name, customer_phone || null, expires_at, notes || null, pkg || 'pro', modulesJson, Number(max_users) || 0, req.params.key);
+  const validBilling = ['free','trial','active','past_due','cancelled'].includes(billing_status) ? billing_status : 'free';
+  db.prepare(`UPDATE licenses SET customer_name=?, customer_phone=?, expires_at=?, notes=?, package=?, modules=?, max_users=?,
+              billing_status=?, paid_until=?, billing_ref=?, monthly_amount=? WHERE license_key=?`)
+    .run(customer_name, customer_phone || null, expires_at, notes || null, pkg || 'pro', modulesJson, Number(max_users) || 0,
+         validBilling, paid_until || null, billing_ref || null, Number(monthly_amount) || 0, req.params.key);
   res.redirect('/admin');
 });
 
