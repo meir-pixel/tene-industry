@@ -139,7 +139,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
   <div class="tabs">
     <button class="tab-btn active" onclick="showTab('summary')">סיכום מלאי</button>
     <button class="tab-btn" onclick="showTab('batches')">אצוות / מנות</button>
-    <button class="tab-btn" onclick="showTab('receipts')">תעודות ספק לאישור</button>
+    <button class="tab-btn" onclick="showTab('receipts')">קבלת חומר (OCR)</button>
     <button class="tab-btn" onclick="showTab('suppliers')">ספקים</button>
     <button class="tab-btn" onclick="showTab('waste')">פחת וגרוטאות</button>
   </div>
@@ -155,7 +155,10 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     <div class="card">
       <div class="card-header">
         <span class="card-title">📦 מלאי לפי קוטר</span>
-        <button class="btn btn-primary btn-sm" onclick="openAddBatch()">+ קבלת חומר</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="openReceiptOCR()">צלם תעודת ספק OCR</button>
+          <button class="btn btn-primary btn-sm" onclick="openAddBatch()">+ קבלת חומר ידנית</button>
+        </div>
       </div>
       <div class="diam-grid" id="diamGrid">טוען...</div>
     </div>
@@ -188,7 +191,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
   <div id="tab-receipts" class="tab-panel">
     <div class="card">
       <div class="card-header">
-        <span class="card-title">📄 תעודות ספק ממתינות לאישור</span>
+        <span class="card-title">📄 קבלת חומר OCR - תעודות ספק לאישור</span>
         <div class="search-row">
           <input id="receiptImage" type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadReceiptReview(this.files[0])">
           <button class="btn btn-primary btn-sm" onclick="document.getElementById('receiptImage').click()">צלם / העלה תעודה</button>
@@ -357,6 +360,10 @@ function fmt1(v) { return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:
 function escH(s) {
   if (window.IronBendSafe?.escapeHtml) return window.IronBendSafe.escapeHtml(s);
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function openReceiptOCR() {
+  showTab('receipts');
+  setTimeout(() => document.getElementById('receiptImage')?.click(), 80);
 }
 const MATERIAL_LABELS = {
   coil: '🔄 סלילים',
