@@ -55,7 +55,24 @@ test('catalog: packages reference only valid module keys', () => {
   }
 });
 
+test('catalog: quality and maintenance are separate sellable modules', () => {
+  const modules = new Map(catalog.modules.map(m => [m.key, m]));
+  assert.ok(modules.has('quality'), 'quality module missing');
+  assert.ok(modules.has('maintenance'), 'maintenance module missing');
+  assert.strictEqual(modules.get('quality').routeFile, 'routes/quality.js');
+  assert.strictEqual(modules.get('maintenance').routeFile, 'routes/maintenance.js');
+  assert.doesNotMatch(modules.get('quality').label, /תחזוקה|אחזקה/);
+});
+
 test('catalog: core keys do not collide with module keys', () => {
   const modKeys = new Set(catalog.modules.map(m => m.key));
   catalog.core.forEach(k => assert.ok(!modKeys.has(k), `core key "${k}" must not also be a toggleable module`));
+});
+
+test('catalog: fleet and logistics are separate sellable modules', () => {
+  const modules = new Map(catalog.modules.map((m) => [m.key, m]));
+  assert.equal(modules.get('fleet')?.routeFile, 'routes/fleet.js');
+  assert.equal(modules.get('logistics')?.routeFile, 'routes/logistics.js');
+  assert.doesNotMatch(modules.get('fleet')?.label || '', /משלוחים/);
+  assert.match(modules.get('logistics')?.label || '', /משלוחים|לוגיסטיקה/);
 });

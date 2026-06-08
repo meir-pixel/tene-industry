@@ -764,15 +764,20 @@ test('procurement screen is API-backed and no longer a demo stub', () => {
   assert.doesNotMatch(procurement, /fallback to demo/i);
 });
 
-test('warehouse screen is API-backed and does not mask failures with mock logistics data', () => {
+test('warehouse screen is API-backed and owns outbound warehouse work only', () => {
   const warehouse = read('public/warehouse.html');
 
   assert.match(warehouse, /src="\/auth-client\.js"/);
   assert.match(warehouse, /src="\/safe-dom\.js"/);
   assert.match(warehouse, /\/api\/packages/);
   assert.match(warehouse, /\/api\/deliveries/);
-  assert.match(warehouse, /\/api\/suppliers/);
-  assert.match(warehouse, /\/api\/inventory/);
+  assert.doesNotMatch(warehouse, /\/api\/suppliers/);
+  assert.doesNotMatch(warehouse, /\/api\/inventory/);
+  assert.doesNotMatch(warehouse, /tab-receipt/);
+  assert.doesNotMatch(warehouse, /submitReceipt/);
+  assert.doesNotMatch(warehouse, /loadReceipts/);
+  assert.doesNotMatch(warehouse, /loadSuppliers/);
+  assert.doesNotMatch(warehouse, /rSupplier/);
   assert.doesNotMatch(warehouse, /getMockPackages/);
   assert.doesNotMatch(warehouse, /getMockDeliveries/);
   assert.doesNotMatch(warehouse, /getMockSuppliers/);

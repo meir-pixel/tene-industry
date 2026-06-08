@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -1086,20 +1086,36 @@ const MODULES = [
     links:[['תור ייצור','/production-queue.html'],['הגדרות ייצור','/production-setup.html']]
   },
   {
-    id:'MODULE_INVENTORY', icon:'📦', name:'Inventory / Procurement', owner:'מלאי ורכש',
-    desc:'חומר גלם, ספקים, קבלות, תעודות משלוח מספקים, מלאי כיפוף ורכש.',
+    id:'MODULE_INVENTORY', icon:'📦', name:'Inventory', owner:'מלאי',
+    desc:'חומר גלם, קבלות, תעודות משלוח מספקים, מלאי כיפוף וקליטת חומר למלאי.',
     status:'partial', risk:'medium', technical:'toggle',
-    screens:['inventory.html','warehouse.html','procurement.html'], apis:['/api/inventory*','/api/suppliers*','/api/purchase-orders*','/api/steel-prices*'],
-    next:'מועמד טוב לפיצול ראשון כי הסיכון נמוך יותר מ-Orders/Production.',
-    links:[['מלאי','/inventory.html'],['מחסן','/warehouse.html'],['רכש','/procurement.html']]
+    screens:['inventory.html'], apis:['/api/inventory*','/api/inventory/summary','/api/inventory/receipt-reviews/*'],
+    next:'להשאיר כאן רק קליטת חומר ומלאי. ספקים ורכש שייכים ל-Procurement; מחסן שייך ל-Warehouse.',
+    links:[['מלאי','/inventory.html']]
   },
   {
-    id:'MODULE_FLEET', icon:'🚚', name:'Fleet Management', owner:'רכבים ונהגים',
+    id:'MODULE_PROCUREMENT', icon:'🧾', name:'Procurement', owner:'רכש',
+    desc:'ספקים, הזמנות רכש, מחיר פלדה והעברת חומר מאושר למלאי.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['procurement.html'], apis:['/api/suppliers*','/api/purchase-orders*','/api/steel-prices*'],
+    next:'להשלים תהליך אישור רכש וספקים בלי להחזיר אותו למסך מלאי.',
+    links:[['רכש','/procurement.html']]
+  },
+  {
+    id:'MODULE_FLEET', icon:'🚚', name:'Fleet Management', owner:'צי רכבים',
     desc:'רכבים כנכסים נפרדים מנהגים: טסט, ביטוח, טיפולים, הוצאות, הכנסות ומסמכים.',
     status:'partial', risk:'medium', technical:'toggle',
-    screens:['delivery-admin.html'], apis:['/api/vehicles*','/api/drivers*','/api/deliveries*'],
+    screens:['delivery-admin.html'], apis:['/api/vehicles*','/api/drivers*'],
     next:'להמשיך להפריד רכב מנהג ולהשלים מסמכים/אירועים לפי רכב.',
     links:[['ניהול רכבים ונהגים','/delivery-admin.html']]
+  },
+  {
+    id:'MODULE_LOGISTICS', icon:'📦', name:'Logistics', owner:'משלוחים',
+    desc:'שילוח, יציאה לדרך, מסירה, כשלי אספקה ותיעוד מסירת הזמנות. נשען על נהג משויך אך לא מנהל תיק רכב.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['driver.html','warehouse.html'], apis:['/api/deliveries*'],
+    next:'להשלים הפרדת מסך שילוח פנימי ממסך נהג חיצוני ולחבר הוכחת מסירה.',
+    links:[['מסך נהג','/driver.html'],['מחסן שילוח','/warehouse.html']]
   },
   {
     id:'MODULE_FINANCE', icon:'💰', name:'Finance', owner:'כספים',
@@ -1110,12 +1126,20 @@ const MODULES = [
     links:[['פיננסים','/finance.html'],['דוחות','/reports.html']]
   },
   {
-    id:'MODULE_QUALITY', icon:'🧪', name:'Quality / Maintenance', owner:'איכות ואחזקה',
-    desc:'בדיקות איכות, NCR, CAPA, אירועים, תחזוקה, LOTO ותוכניות טיפול.',
+    id:'MODULE_QUALITY', icon:'🧪', name:'Quality', owner:'איכות',
+    desc:'בדיקות איכות, NCR, CAPA ואירועי איכות.',
     status:'partial', risk:'medium', technical:'toggle',
-    screens:['quality.html','maintenance.html','warroom.html'], apis:['/api/quality*','/api/ncr*','/api/capa*','/api/maintenance*','/api/incidents*'],
-    next:'להגדיר state machines לפני הרחבת NCR/CAPA ותחזוקה.',
-    links:[['איכות','/quality.html'],['אחזקה','/maintenance.html'],['חדר מצב','/warroom.html']]
+    screens:['quality.html','warroom.html'], apis:['/api/quality*','/api/ncr*','/api/capa*','/api/incidents*'],
+    next:'להגדיר state machines ל-NCR/CAPA ולא להחזיר לכאן תחזוקה או LOTO.',
+    links:[['איכות','/quality.html'],['חדר מצב','/warroom.html']]
+  },
+  {
+    id:'MODULE_MAINTENANCE', icon:'🛠️', name:'Maintenance', owner:'אחזקה',
+    desc:'תקלות מכונה, טיפול, LOTO, תוכניות PM ומעבר סטטוס מכונה בזמן אחזקה.',
+    status:'partial', risk:'medium', technical:'toggle',
+    screens:['maintenance.html','warroom.html'], apis:['/api/maintenance*','/api/loto*','/api/pm-schedule*'],
+    next:'להגדיר state machine לאחזקה ולשמור את עדכון המכונות בתוך מודול אחזקה.',
+    links:[['אחזקה','/maintenance.html'],['חדר מצב','/warroom.html']]
   },
   {
     id:'MODULE_PORTALS', icon:'🌐', name:'External Portals', owner:'פורטלים',
@@ -1126,12 +1150,20 @@ const MODULES = [
     links:[['פורטל לקוח','/customer.html'],['ספק','/supplier.html'],['נהג','/driver.html']]
   },
   {
-    id:'MODULE_DASHBOARD', icon:'📊', name:'Dashboard / Reports', owner:'BI ודוחות',
+    id:'MODULE_DASHBOARD', icon:'📊', name:'Dashboard', owner:'BI',
     desc:'מבט רוחבי בלבד. קורא ממודולים אחרים ולא מחזיק לוגיקה עסקית משלו.',
     status:'partial', risk:'medium', technical:'core',
-    screens:['dashboard.html','reports.html','holdings.html'], apis:['/api/dashboard','/api/reports/*','/api/kpi/*'],
+    screens:['dashboard.html'], apis:['/api/dashboard','/api/kpi/*'],
     next:'לוודא שכל KPI קורא ממקור אמת של המודול ולא מחשב מחדש במסך.',
-    links:[['דשבורד','/dashboard.html'],['דוחות','/reports.html']]
+    links:[['דשבורד','/dashboard.html']]
+  },
+  {
+    id:'MODULE_REPORTS', icon:'📈', name:'Reports', owner:'דוחות',
+    desc:'דוחות וייצוא נתונים לקריאה בלבד מתוך מודולים קיימים.',
+    status:'partial', risk:'medium', technical:'core',
+    screens:['reports.html'], apis:['/api/reports/*','/api/export/*'],
+    next:'להגדיר הרשאות צפייה לפי תפקיד ולא להכניס חישובי מקור לתוך המסך.',
+    links:[['דוחות','/reports.html']]
   },
   {
     id:'MODULE_WHATSAPP', icon:'💬', name:'WhatsApp', owner:'אינטגרציות',
@@ -1169,14 +1201,14 @@ const MODULES = [
     next:'לא להפעיל עד הגדרת Finance.'
   },
   {
-    id:'MODULE_AI', icon:'🤖', name:'AI תחזיות', owner:'BI / ייצור',
+    id:'MODULE_AI', icon:'🤖', name:'AI תחזיות', owner:'BI',
     desc:'תחזיות ייצור ופחת. לא ML עמוק עד שהנתונים עקביים.',
     status:'frozen', risk:'medium', technical:'toggle',
     screens:['reports.html'], apis:['/api/ai/*'],
     next:'להשאיר כניתוח פשוט בלבד עד ניקוי data pipeline.'
   },
   {
-    id:'MODULE_ALERTS', icon:'🔔', name:'התראות', owner:'Platform / Production',
+    id:'MODULE_ALERTS', icon:'🔔', name:'התראות', owner:'Platform Core',
     desc:'התראות דחיפות, איחור ותקלות.',
     status:'partial', risk:'medium', technical:'toggle',
     screens:['warroom.html','dashboard.html'], apis:['/api/alerts*'],

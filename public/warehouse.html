@@ -402,14 +402,13 @@ function hideAlert(id){document.getElementById(id).classList.remove('show');}
 function showTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  const panels={warehouse:'tab-warehouse',loading:'tab-loading',receipt:'tab-receipt'};
+  const panels={warehouse:'tab-warehouse',loading:'tab-loading'};
   document.getElementById(panels[name]).classList.add('active');
   // mark tab button active by scanning onclick attributes
   document.querySelectorAll('.tab-btn').forEach(b=>{
     if(b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+name+"'"))b.classList.add('active');
   });
   if(name==='loading')loadDeliveries();
-  if(name==='receipt'){loadSuppliers();loadReceipts();}
 }
 
 // ─── KPI ─────────────────────────────────────────────────────────────
@@ -655,84 +654,6 @@ async function confirmShipment(){
   scannedCodes=[];
   updateLoadingUI();
   loadKPI();
-}
-
-// ─── RECEIPT TAB ──────────────────────────────────────────────────────
-async function loadSuppliers(){
-  let suppliers=[];
-  try{
-    suppliers=await fetch('/api/suppliers').then(r=>r.json());
-  }catch(e){
-    suppliers=[];
-    showAlert('receiptError','שגיאה בטעינת ספקים');
-  }
-  const sel=document.getElementById('rSupplier');
-  sel.innerHTML='<option value="">— בחר ספק —</option>'+
-    suppliers.map(s=>`<option value="${s.id}">${escH(s.name)}</option>`).join('');
-}
-
-async function submitReceipt(){
-  hideAlert('receiptSuccess');hideAlert('receiptError');
-  const supplier=document.getElementById('rSupplier').value;
-  const diam=document.getElementById('rDiameter').value;
-  const cert=document.getElementById('rCert').value.trim();
-  const qty=document.getElementById('rQty').value;
-
-  if(!supplier||!diam||!cert||!qty){
-    showAlert('receiptError','נא למלא: ספק, קוטר, מס\' תעודה וכמות');
-    return;
-  }
-
-  const body={
-    supplier_id:Number(supplier),
-    diameter:Number(diam),
-    material_type:document.getElementById('rType').value,
-    heat_number:document.getElementById('rHeat').value.trim(),
-    certificate_num:cert,
-    weight_received:Number(qty),
-    purchase_price:Number(document.getElementById('rPrice').value)||0,
-    warehouse_loc:document.getElementById('rLocation').value.trim(),
-    notes:document.getElementById('rNotes').value.trim(),
-    received_date:today(),
-  };
-
-  try{
-    const r=await fetch('/api/inventory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error('server error');
-  }catch(e){
-    showAlert('receiptError','שגיאה בשמירת קבלת חומר');
-    return;
-  }
-
-  showAlert('receiptSuccess','✅ קבלת חומר נשמרה בהצלחה!');
-  // Reset form
-  ['rSupplier','rType'].forEach(id=>{document.getElementById(id).selectedIndex=0;});
-  ['rHeat','rCert','rQty','rPrice','rLocation','rNotes'].forEach(id=>{document.getElementById(id).value='';});
-  loadReceipts();
-}
-
-async function loadReceipts(){
-  let rows=[];
-  try{
-    rows=await fetch('/api/inventory').then(r=>r.json());
-  }catch(e){
-    rows=[];
-  }
-  // Show last 10 by date desc
-  rows=rows.slice().sort((a,b)=>(b.received_date||'').localeCompare(a.received_date||'')).slice(0,10);
-  const tbody=document.getElementById('receiptsTable');
-  if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">אין קבלות</td></tr>';
-    return;
-  }
-  tbody.innerHTML=rows.map(r=>`<tr>
-    <td>${r.received_date||'—'}</td>
-    <td>${escH(r.supplier_name||'—')}</td>
-    <td><strong>Ø${r.diameter}</strong></td>
-    <td style="font-family:monospace;font-size:12px">${escH(r.lot_number||r.heat_number||'—')}</td>
-    <td>${fmt0(r.weight_received)} ק"ג</td>
-    <td style="font-size:12px;color:var(--text-dim)">${escH(r.warehouse_loc||'—')}</td>
-  </tr>`).join('');
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────

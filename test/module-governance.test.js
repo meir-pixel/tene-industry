@@ -17,7 +17,8 @@ const requiredModules = [
   'Procurement',
   'Fleet Management',
   'Finance',
-  'Quality And Maintenance',
+  'Quality',
+  'Maintenance',
   'Customer And External Portals',
   'Dashboard And Reports',
   'Vendor Control And Remote Support',
@@ -187,6 +188,33 @@ test('admin module board exposes maturity, risk, scope and vendor control', () =
   assert.match(admin, /screens:\[/);
   assert.match(admin, /apis:\[/);
   assert.match(admin, /next:/);
+});
+
+test('module control board does not present combined module ownership', () => {
+  const admin = read('public/admin.html');
+
+  for (const requiredModule of ['MODULE_PROCUREMENT', 'MODULE_MAINTENANCE', 'MODULE_REPORTS']) {
+    assert.match(admin, new RegExp(requiredModule));
+  }
+
+  for (const combinedName of ['Inventory / Procurement', 'Quality / Maintenance', 'Dashboard / Reports']) {
+    assert.ok(!admin.includes(combinedName), `combined module name still exists: ${combinedName}`);
+  }
+  assert.doesNotMatch(admin, /owner:'[^']*\/[^']*'/);
+});
+
+test('screen registry assigns one module owner per screen', () => {
+  const registry = read('docs/screen-registry.md');
+  const rows = registry
+    .split(/\r?\n/)
+    .filter(line => line.startsWith('| `'));
+
+  for (const row of rows) {
+    const cells = row.split('|').map(cell => cell.trim());
+    const owner = cells[2];
+    assert.ok(owner, `missing owner in row: ${row}`);
+    assert.ok(!owner.includes('/'), `screen owner must be one module, got "${owner}" in row: ${row}`);
+  }
 });
 
 test('production cards are rendered through a module service', () => {
@@ -779,26 +807,20 @@ test('admin settings users audit and database routes are split out of the server
   assert.ok(server.includes("app.get('/api/health'"));
 });
 
-test('quality and maintenance API routes are split out of the server monolith', () => {
+test('quality API routes are split out of the server monolith without maintenance ownership', () => {
   const route = read('routes/quality.js');
   const server = read('server.js');
 
   assert.match(route, /module[.]exports = function createQualityRouter/);
   assert.ok(route.includes('routes/quality missing dependency'));
   assert.ok(!route.includes('requireRole'));
-  assert.ok(route.includes("wsBroadcast('machine_update'"));
   assert.ok(route.includes('INSERT INTO quality_checks'));
   assert.ok(route.includes('UPDATE items SET qc_status'));
-  assert.ok(route.includes('UPDATE machines SET status='));
 
   for (const routeSnippet of [
     "router.get('/quality'",
     "router.post('/quality'",
     "router.get('/quality/stats'",
-    "router.get('/maintenance'",
-    "router.post('/maintenance'",
-    "router.patch('/maintenance/:id'",
-    "router.get('/maintenance/stats'",
     "router.get('/incidents'",
     "router.post('/incidents'",
     "router.patch('/incidents/:id'",
@@ -808,6 +830,43 @@ test('quality and maintenance API routes are split out of the server monolith', 
     "router.get('/capa'",
     "router.post('/capa'",
     "router.patch('/capa/:id'",
+  ]) {
+    assert.ok(route.includes(routeSnippet), routeSnippet);
+  }
+
+  for (const forbiddenRouteSnippet of [
+    "router.get('/maintenance'",
+    "router.post('/maintenance'",
+    "router.patch('/maintenance/:id'",
+    "router.get('/maintenance/stats'",
+    "router.get('/loto'",
+    "router.post('/loto'",
+    "router.patch('/loto/:id/release'",
+    "router.get('/pm-schedule'",
+    "router.post('/pm-schedule'",
+  ]) {
+    assert.ok(!route.includes(forbiddenRouteSnippet), forbiddenRouteSnippet);
+  }
+
+  assert.match(server, /createQualityRouter/);
+  assert.ok(server.includes("app.use('/api', requireModule('quality'), createQualityRouter"));
+});
+
+test('maintenance API routes are split from quality and mounted as their own module', () => {
+  const route = read('routes/maintenance.js');
+  const quality = read('routes/quality.js');
+  const server = read('server.js');
+
+  assert.match(route, /module[.]exports = function createMaintenanceRouter/);
+  assert.ok(route.includes('routes/maintenance missing dependency'));
+  assert.ok(route.includes("wsBroadcast('machine_update'"));
+  assert.ok(route.includes('UPDATE machines SET status='));
+
+  for (const routeSnippet of [
+    "router.get('/maintenance'",
+    "router.post('/maintenance'",
+    "router.patch('/maintenance/:id'",
+    "router.get('/maintenance/stats'",
     "router.get('/loto'",
     "router.post('/loto'",
     "router.patch('/loto/:id/release'",
@@ -815,10 +874,11 @@ test('quality and maintenance API routes are split out of the server monolith', 
     "router.post('/pm-schedule'",
   ]) {
     assert.ok(route.includes(routeSnippet), routeSnippet);
+    assert.ok(!quality.includes(routeSnippet), `quality still owns ${routeSnippet}`);
   }
 
-  assert.match(server, /createQualityRouter/);
-  assert.ok(server.includes("app.use('/api', requireModule('quality'), createQualityRouter"));
+  assert.match(server, /createMaintenanceRouter/);
+  assert.ok(server.includes("app.use('/api', requireModule('maintenance'), createMaintenanceRouter"));
   for (const forbiddenSnippet of [
     "app.get('/api/quality'",
     "app.post('/api/quality'",
@@ -1084,7 +1144,7 @@ test('logistics delivery routes are split out of fleet', () => {
   assert.match(route, /priorityUpdate/);
   assert.match(route, /createAlert\('delivery_problem'/);
   assert.match(server, /createLogisticsRouter/);
-  assert.match(server, /app\.use\('\/api', requireModule\('fleet'\), createLogisticsRouter/);
+  assert.match(server, /app\.use\('\/api', requireModule\('logistics'\), createLogisticsRouter/);
   assert.doesNotMatch(fleet, /router\.(get|post|patch|delete)\('\/deliveries/);
   assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/deliveries/);
 });
@@ -1250,6 +1310,7 @@ test('event-producing route modules declare module-map manifests', () => {
     'routes/fleet.js',
     'routes/logistics.js',
     'routes/quality.js',
+    'routes/maintenance.js',
     'routes/alerts.js',
     'routes/bvbs.js',
   ];

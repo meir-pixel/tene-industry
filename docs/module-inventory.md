@@ -239,11 +239,12 @@ Current risks:
 
 - Procurement is API-backed, but workflow policy, approvals, and supplier portal separation still need product hardening.
 
-## Delivery
+## Logistics
 
 Purpose:
 
-- Packages, delivery notes, drivers, shipment status, route lifecycle.
+- Dispatch execution, delivery lifecycle, shipment status, proof of delivery,
+  delivery failures, and handoff between Warehouse and customers.
 
 Screens:
 
@@ -254,11 +255,9 @@ Extracted routes:
 
 - `routes/warehouse.js` for packages and delivery-note issuance.
 - `routes/logistics.js` for delivery lifecycle actions.
-- `routes/fleet.js` for driver identity and vehicle references used by dispatch.
 
 API route families:
 
-- `/api/drivers*`
 - `/api/deliveries*`
 - `/api/packages*`
 - `/api/delivery-notes*`
@@ -266,9 +265,10 @@ API route families:
 
 Current risks:
 
+- Logistics may read assigned driver/vehicle context from Fleet, but it must not
+  own vehicle documents, service history, or driver master data.
 - Driver portal and internal dispatch need different auth models.
 - Package shipping can easily diverge from order status if not centralized.
-
 ## Fleet Management
 
 Purpose:
@@ -392,40 +392,67 @@ Current risks:
   owns the latter without merging table semantics.
 - Finance endpoints contain sensitive data and must be protected before use.
 
-## Quality And Maintenance
+## Quality
 
 Purpose:
 
-- Quality checks, NCR/CAPA, incidents, maintenance, LOTO, PM schedule.
+- Quality checks, NCR/CAPA, non-conformance handling, and incident reporting.
 
 Screens:
 
 - `public/quality.html`
-- `public/maintenance.html`
 - `public/warroom.html`
 
 Extracted routes:
 
-- `routes/quality.js` for quality checks, maintenance logs, incidents,
-  NCR/CAPA, LOTO, and preventive maintenance schedules.
+- `routes/quality.js` for quality checks, incidents, NCR, and CAPA.
 
 API route families:
 
 - `/api/quality*`
-- `/api/maintenance*`
 - `/api/incidents*`
 - `/api/ncr*`
 - `/api/capa*`
+
+Current risks:
+
+- Several pages are marked as coming soon/stub.
+- State machines for NCR/CAPA need a specification before expanding
+  functionality.
+- Quality may read machine context for incidents, but must not own maintenance,
+  LOTO, PM, or machine repair workflows.
+
+## Maintenance
+
+Purpose:
+
+- Maintenance logs, breakdown handling, LOTO, preventive maintenance schedule,
+  and machine repair state transitions.
+
+Screens:
+
+- `public/maintenance.html`
+- maintenance sections inside `public/warroom.html`
+
+Extracted routes:
+
+- `routes/maintenance.js` for maintenance logs, LOTO, and preventive
+  maintenance schedules.
+
+API route families:
+
+- `/api/maintenance*`
 - `/api/loto*`
 - `/api/pm-schedule*`
 
 Current risks:
 
-- Several pages are marked as coming soon/stub.
-- State machines for NCR/CAPA and maintenance need a specification before
-  expanding functionality.
+- State machines for maintenance need a specification before expanding
+  functionality.
 - LOTO and maintenance currently update machine status directly; preserve that
   behavior until a shared machine-state service owns those transitions.
+- Maintenance may publish machine update events, but must not own quality checks,
+  NCR, or CAPA.
 
 ## Customers And Projects
 

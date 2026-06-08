@@ -50,6 +50,7 @@ const createProductionMachinesRouter = require('./routes/productionMachines');
 const createProductionMetricsRouter = require('./routes/productionMetrics');
 const createProductionShiftsRouter = require('./routes/productionShifts');
 const createQualityRouter = require('./routes/quality');
+const createMaintenanceRouter = require('./routes/maintenance');
 const createCustomersRouter = require('./routes/customers');
 const createAuthRouter = require('./routes/auth');
 const createAdminRouter = require('./routes/admin');
@@ -258,6 +259,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/fleet.js', factory: createFleetRouter },
     { file: 'routes/logistics.js', factory: createLogisticsRouter },
     { file: 'routes/quality.js', factory: createQualityRouter },
+    { file: 'routes/maintenance.js', factory: createMaintenanceRouter },
     { file: 'routes/alerts.js', factory: createAlertsRouter },
     { file: 'routes/bvbs.js', factory: createBvbsRouter },
   ],
@@ -440,7 +442,7 @@ app.use('/api', requireModule('fleet'), createFleetRouter({
   upload,
 }));
 
-app.use('/api', requireModule('fleet'), createLogisticsRouter({
+app.use('/api', requireModule('logistics'), createLogisticsRouter({
   db,
   requireAnyRole,
   wsBroadcast,
@@ -475,6 +477,11 @@ app.use('/api', requireModule('production'), createProductionShiftsRouter({
 }));
 
 app.use('/api', requireModule('quality'), createQualityRouter({
+  db,
+  requireAnyRole,
+}));
+
+app.use('/api', requireModule('maintenance'), createMaintenanceRouter({
   db,
   requireAnyRole,
   wsBroadcast,

@@ -25,10 +25,10 @@ Status values:
 
 | Screen | Module Owner | Status | Auth Mode | Notes |
 | --- | --- | --- | --- | --- |
-| `dashboard.html` | Dashboard / Reports | partial | internal | Duplicates production queue logic from recent orders; must read production module source. |
-| `reports.html` | Dashboard / Reports | partial | internal | API-backed reporting screen with auth/safe helpers and smoke coverage; read-only ownership, still needs role-specific report visibility policy. |
-| `holdings.html` | Dashboard / Reports | partial | internal | Company/holding overview. |
-| `docs.html` | Dashboard / Reports | partial | internal | Needs purpose verification against spec. |
+| `dashboard.html` | Dashboard | partial | internal | Cross-module operational overview; must read module APIs and not own module business logic. |
+| `reports.html` | Reports | partial | internal | API-backed reporting screen with auth/safe helpers and smoke coverage; read-only ownership, still needs role-specific report visibility policy. |
+| `holdings.html` | Companies | partial | internal | Company/holding overview. |
+| `docs.html` | Platform Core | partial | internal | Project documentation surface. |
 
 ## Orders
 
@@ -36,7 +36,7 @@ Status values:
 | --- | --- | --- | --- | --- |
 | `orders.html` | Orders | partial | internal | Core order list/detail; unsafe rendering risk; needs shared status model. |
 | `index.html` | Orders | partial | internal | Order creation/intake screen. Confirm role and future placement. |
-| `customers.html` | Orders / Platform CRM | partial | internal | Customer management; should be separated from portal token admin. |
+| `customers.html` | Customers | partial | internal | Internal customer CRM only; portal token admin remains a separate portal/admin flow. |
 
 ## Production
 
@@ -53,20 +53,20 @@ Status values:
 | Screen | Module Owner | Status | Auth Mode | Notes |
 | --- | --- | --- | --- | --- |
 | `inventory.html` | Inventory | partial | internal warehouse | API-backed raw material inventory and receiving/OCR. Supplier management moved to Procurement; inventory only references suppliers during receiving. |
-| `warehouse.html` | Delivery / Warehouse | partial | internal warehouse | API-backed packages/loading; must stay outbound only and not own raw-material receiving. |
+| `warehouse.html` | Warehouse | partial | internal warehouse | API-backed packages/loading; must stay outbound only and not own raw-material receiving. |
 | `procurement.html` | Procurement | partial | internal procurement | API-backed MVP for suppliers, purchase orders, and steel purchase prices; still needs full workflow policy and supplier portal separation. |
 | `delivery-admin.html` | Fleet Management | partial | internal logistics/manager | Internal fleet asset module: vehicles, assigned drivers, service/test/insurance tracking, events, expenses/income, and vehicle documents. Must remain separate from the external driver portal. |
-| `driver.html` | Delivery / Portals | partial | internal driver/auth TBD | Loads shared auth/nav and aligns with delivery statuses; still needs dedicated external driver auth model before commercial portal use. |
+| `driver.html` | Driver Portal | partial | internal driver/auth TBD | Loads shared auth/nav and aligns with delivery statuses; still needs dedicated external driver auth model before commercial portal use. |
 
 ## Finance, Quality, Maintenance
 
 | Screen | Module Owner | Status | Auth Mode | Notes |
 | --- | --- | --- | --- | --- |
 | `finance.html` | Finance | partial | finance/manager | Sensitive finance workspace with auth/safe helpers; price list and cost tools API-backed, still needs role-specific finance visibility policy. |
-| `projects.html` | Projects / Sites | partial | internal office/sales | API-backed projects/sites MVP; finance credit workflow removed back to Finance ownership. |
+| `projects.html` | Projects | partial | internal office/sales | API-backed projects/sites MVP; finance credit workflow removed back to Finance ownership. |
 | `quality.html` | Quality | partial | internal quality | API-backed quality checks and NCR/CAPA MVP; local demo fallbacks removed, still needs workflow state policy before commercial release. |
 | `maintenance.html` | Maintenance | partial | internal maintenance | API-backed maintenance/LOTO/PM screen; mock fallbacks removed, still needs workflow policy and navigation/role polish before commercial release. |
-| `warroom.html` | Quality / Maintenance | partial | internal quality/maintenance | API-backed incident/machine monitor; mock incident fallback removed, still needs incident policy and escalation reporting before commercial release. |
+| `warroom.html` | War Room | partial | internal quality/maintenance | Cross-module incident/machine monitor; reads Quality and Maintenance APIs, but does not own either workflow. |
 
 ## External Portals
 

@@ -8,10 +8,12 @@
     { "key": "inventory",  "label": "מלאי חומר גלם",      "category": "industry",   "routeFile": "routes/inventory.js" },
     { "key": "procurement","label": "רכש",               "category": "industry",   "routeFile": "routes/procurement.js" },
     { "key": "warehouse",  "label": "מחסן",              "category": "logistics",  "routeFile": "routes/warehouse.js" },
-    { "key": "fleet",      "label": "צי ומשלוחים",       "category": "logistics",  "routeFile": "routes/fleet.js" },
+    { "key": "fleet",      "label": "צי רכבים",          "category": "logistics",  "routeFile": "routes/fleet.js" },
+    { "key": "logistics",  "label": "לוגיסטיקה ומשלוחים", "category": "logistics",  "routeFile": "routes/logistics.js" },
     { "key": "finance",    "label": "כספים (עלויות/מרווחים)", "category": "finance", "routeFile": "routes/finance.js" },
     { "key": "accounting", "label": "הנהלת חשבונות",     "category": "finance",    "routeFile": null, "planned": true },
-    { "key": "quality",    "label": "איכות ותחזוקה",     "category": "quality",    "routeFile": "routes/quality.js" },
+    { "key": "quality",    "label": "איכות",             "category": "quality",    "routeFile": "routes/quality.js" },
+    { "key": "maintenance", "label": "אחזקה",            "category": "quality",    "routeFile": "routes/maintenance.js" },
     { "key": "reports",    "label": "דוחות",             "category": "analytics",  "routeFile": "routes/reports.js" },
     { "key": "portal",     "label": "פורטל לקוח",         "category": "sales",      "routeFile": "routes/portal.js" },
     { "key": "intake",     "label": "קליטת הזמנות / OCR", "category": "operations", "routeFile": "routes/intake.js" },
@@ -21,7 +23,7 @@
   ],
   "packages": {
     "basic":      ["orders", "customers"],
-    "pro":        ["orders", "customers", "production", "inventory", "warehouse", "fleet", "finance", "quality", "reports"],
-    "enterprise": ["orders", "customers", "production", "inventory", "procurement", "warehouse", "fleet", "finance", "accounting", "quality", "reports", "portal", "intake", "companies", "bvbs", "ai"]
+    "pro":        ["orders", "customers", "production", "inventory", "warehouse", "fleet", "logistics", "finance", "quality", "maintenance", "reports"],
+    "enterprise": ["orders", "customers", "production", "inventory", "procurement", "warehouse", "fleet", "logistics", "finance", "accounting", "quality", "maintenance", "reports", "portal", "intake", "companies", "bvbs", "ai"]
   }
 }
