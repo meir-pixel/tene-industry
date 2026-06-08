@@ -1348,6 +1348,7 @@ test('event-producing route modules declare module-map manifests', () => {
 
 test('every route module declares a module-map manifest', () => {
   const routeDir = path.join(root, 'routes');
+  const server = read('server.js');
   const routeFiles = fs.readdirSync(routeDir)
     .filter(file => file.endsWith('.js'))
     .sort();
@@ -1359,6 +1360,7 @@ test('every route module declares a module-map manifest', () => {
     assert.match(source, /['"]?label['"]?\s*:/, `routes/${file} manifest missing label`);
     assert.match(source, /['"]?consumes['"]?\s*:/, `routes/${file} manifest missing consumes`);
     assert.match(source, /['"]?produces['"]?\s*:/, `routes/${file} manifest missing produces`);
+    assert.ok(server.includes(`file: 'routes/${file}'`), `routes/${file} missing from server module-map routeModules`);
   }
 });
 

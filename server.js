@@ -38,6 +38,8 @@ const createProcurementRouter = require('./routes/procurement');
 const createOrdersRouter = require('./routes/orders');
 const createProductionCardsRouter = require('./routes/productionCards');
 const createOrderDocumentsRouter = require('./routes/orderDocuments');
+const createOrderDeliveryCertificateRouter = require('./routes/orderDeliveryCertificate');
+const createOrderPrintA4Router = require('./routes/orderPrintA4');
 const createFinanceRouter = require('./routes/finance');
 const createFinanceInvoicesRouter = require('./routes/financeInvoices');
 const createFinanceCostsRouter = require('./routes/financeCosts');
@@ -234,22 +236,46 @@ const wsBroadcast = realtime.wsBroadcast;
 const moduleMap = createModuleMapService({
   getEventStats: realtime.getEventStats,
   routeModules: [
-    { file: 'routes/orders.js', factory: createOrdersRouter },
-    { file: 'routes/portal.js', factory: createPortalRouter },
-    { file: 'routes/intakeReview.js', factory: createIntakeReviewRouter },
-    { file: 'routes/intakeChannels.js', factory: createIntakeChannelsRouter },
+    { file: 'routes/admin.js', factory: createAdminRouter },
+    { file: 'routes/ai.js', factory: createAiRouter },
+    { file: 'routes/alerts.js', factory: createAlertsRouter },
+    { file: 'routes/auth.js', factory: createAuthRouter },
+    { file: 'routes/bvbs.js', factory: createBvbsRouter },
+    { file: 'routes/catalog.js', factory: createCatalogRouter },
+    { file: 'routes/companies.js', factory: createCompaniesRouter },
+    { file: 'routes/customers.js', factory: createCustomersRouter },
+    { file: 'routes/finance.js', factory: createFinanceRouter },
+    { file: 'routes/financeCredit.js', factory: createFinanceCreditRouter },
     { file: 'routes/financeInvoices.js', factory: createFinanceInvoicesRouter },
     { file: 'routes/financeCosts.js', factory: createFinanceCostsRouter },
+    { file: 'routes/financeLedger.js', factory: createFinanceLedgerRouter },
+    { file: 'routes/fleet.js', factory: createFleetRouter },
+    { file: 'routes/intake.js', factory: createIntakeRouter },
+    { file: 'routes/intakeChannels.js', factory: createIntakeChannelsRouter },
+    { file: 'routes/intakeReview.js', factory: createIntakeReviewRouter },
+    { file: 'routes/intakeTraining.js', factory: createIntakeTrainingRouter },
     { file: 'routes/inventory.js', factory: createInventoryRouter },
     { file: 'routes/inventoryVision.js', factory: createInventoryVisionRouter },
-    { file: 'routes/production.js', factory: createProductionRouter },
-    { file: 'routes/productionMachines.js', factory: createProductionMachinesRouter },
-    { file: 'routes/fleet.js', factory: createFleetRouter },
+    { file: 'routes/license.js', factory: createLicenseRouter },
     { file: 'routes/logistics.js', factory: createLogisticsRouter },
-    { file: 'routes/quality.js', factory: createQualityRouter },
     { file: 'routes/maintenance.js', factory: createMaintenanceRouter },
-    { file: 'routes/alerts.js', factory: createAlertsRouter },
-    { file: 'routes/bvbs.js', factory: createBvbsRouter },
+    { file: 'routes/orderDeliveryCertificate.js', factory: createOrderDeliveryCertificateRouter },
+    { file: 'routes/orderDocuments.js', factory: createOrderDocumentsRouter },
+    { file: 'routes/orderPrintA4.js', factory: createOrderPrintA4Router },
+    { file: 'routes/orders.js', factory: createOrdersRouter },
+    { file: 'routes/portal.js', factory: createPortalRouter },
+    { file: 'routes/portalAdmin.js', factory: createPortalAdminRouter },
+    { file: 'routes/priority.js', factory: createPriorityRouter },
+    { file: 'routes/procurement.js', factory: createProcurementRouter },
+    { file: 'routes/production.js', factory: createProductionRouter },
+    { file: 'routes/productionCards.js', factory: createProductionCardsRouter },
+    { file: 'routes/productionMachines.js', factory: createProductionMachinesRouter },
+    { file: 'routes/productionMetrics.js', factory: createProductionMetricsRouter },
+    { file: 'routes/productionShifts.js', factory: createProductionShiftsRouter },
+    { file: 'routes/quality.js', factory: createQualityRouter },
+    { file: 'routes/reports.js', factory: createReportsRouter },
+    { file: 'routes/search.js', factory: createSearchRouter },
+    { file: 'routes/warehouse.js', factory: createWarehouseRouter },
   ],
 });
 
