@@ -54,8 +54,9 @@
 - notes: הצעה שלי — תלוי באישור הכיוון של T-002
 
 ### T-004 · ניתוב OCR לפי סוג מסמך
-- status: todo
+- status: in_progress
 - owner: gpt
+- claimed: 2026-06-09
 - priority: P2
 - scope: routes/intake.js, public/inventory.html, מסך השוואה מקור↔פענוח
 - spec: docs/spec-dual-pricing.md (סעיף ניתוב)
@@ -95,13 +96,15 @@
 - accept: ⚠️ אבטחה — אסור כפתורי ספק (מודולים/רישיון/מכסה) בצד הלקוח
 
 ### T-009 · שכבת מיתוג White-Label (צד לקוח)
-- status: todo
+- status: in_progress
 - owner: claude
+- claimed: 2026-06-09
 - priority: P1
 - scope: services/branding.js (חדש), routes/branding.js (חדש), public/brand-client.js (חדש), services/settings.js (הגדרות BRAND_*), public/nav.js (אלמנט מותג), public/login.html
 - spec: docs/spec-customer-side.md
 - accept: שם/לוגו/צבע נטענים מ-settings פר-לקוח; אין "IronBend" מוצג ללקוח; הלקוח יכול לערוך מיתוג; npm test ירוק
-- notes: ⚠️ צד לקוח = תחום Claude. נוגע ב-nav.js (גם T-002) ובמיתוג שסומן ל-GPT (#4) — לתאם לפני התחלה
+- progress: ✅ נבנו 3 קבצים חדשים (branding.js, routes/branding.js, brand-client.js). ממתין לתיאום עם GPT: mount ב-server.js (שורה אחת), אלמנט מותג ב-nav.js, הגדרות BRAND_* ב-settings.js, login.html
+- notes: ⚠️ צד לקוח = תחום Claude. nav.js/server.js/settings.js משותפים — לתאם לפני נגיעה בהם
 
 ### T-010 · רושם ראשון — מסך כניסה ממותג + מיתוג בהקמה
 - status: todo
