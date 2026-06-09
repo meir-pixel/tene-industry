@@ -922,11 +922,15 @@
     min-height: 0;
     flex: 1;
   }
-  .img-preview {
+  .img-preview,
+  .img-preview-frame {
     width: 100%;
     height: 100%;
-    object-fit: contain;
     background: #fff;
+    border: 0;
+  }
+  .img-preview {
+    object-fit: contain;
   }
   .img-results {
     display: none;
@@ -937,8 +941,8 @@
   .img-review-workspace {
     display: grid;
     grid-template-columns: minmax(520px,1.15fr) minmax(460px,.85fr);
-    min-height: 68vh;
-    max-height: calc(94vh - 76px);
+    height: calc(94vh - 76px);
+    min-height: 0;
   }
   .img-source-panel {
     background: #f7f9fc;
@@ -956,13 +960,13 @@
   }
   .img-source-canvas {
     flex: 1;
-    min-height: 560px;
+    min-height: 0;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: #fff;
-    overflow: hidden;
+    overflow: auto;
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: center;
   }
   .img-list-panel {
@@ -983,6 +987,7 @@
     overflow: auto;
     min-height: 0;
     padding-left: 4px;
+    flex: 1;
   }
   .img-item-card {
     border: 1px solid #dbe4ef;
@@ -1004,14 +1009,12 @@
     color: var(--text);
   }
   .img-item-fields {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(3,minmax(110px,1fr));
+    gap: 8px;
   }
   .img-item-field {
-    display: flex;
-    align-items: center;
+    display: grid;
     gap: 6px;
     color: var(--text-dim);
     font-size: 12px;
@@ -1023,9 +1026,20 @@
     border-radius: 8px;
     font-family: inherit;
     font-size: 13px;
-    width: 76px;
+    width: 100%;
     min-height: 34px;
-    text-align: center;
+    text-align: right;
+  }
+  .img-item-textarea {
+    width: 100%;
+    min-height: 62px;
+    resize: vertical;
+    padding: 7px 9px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    background: #fff;
   }
   .img-segments {
     display: flex;
@@ -1064,6 +1078,10 @@
     gap: 10px;
     justify-content: flex-end;
     flex-wrap: wrap;
+    position: sticky;
+    bottom: 0;
+    background: linear-gradient(180deg,rgba(255,255,255,.72),#fff 35%);
+    padding-top: 10px;
   }
   .img-error-msg {
     color: var(--danger);
@@ -1090,8 +1108,9 @@
   @media (max-width: 768px) {
     html, body { overflow-x: hidden; }
     .img-modal { max-height: 96vh; }
-    .img-review-workspace { grid-template-columns: 1fr; max-height:none; }
+    .img-review-workspace { grid-template-columns: 1fr; height: calc(96vh - 76px); }
     .img-source-canvas { min-height: 360px; }
+    .img-item-fields { grid-template-columns: 1fr; }
     .img-items-list { max-height: 52vh; }
     .form-grid-2, .form-grid-3, .form-grid-4 { grid-template-columns: 1fr; }
     .field.span-2, .field.span-3, .field.span-4 { grid-column: span 1; }
@@ -1357,7 +1376,6 @@
           <div class="img-source-panel">
             <div class="img-source-title">מסמך מקור להשוואה</div>
             <div id="imgPreviewWrap" class="img-preview-wrap img-source-canvas">
-              <img id="imgPreview" class="img-preview" />
             </div>
           </div>
           <div class="img-list-panel">
@@ -2097,6 +2115,34 @@ function showToast(msg, isOffline = false) {
 // ── IMAGE ANALYSIS ────────────────────────────────────────────────
 var _imgAnalyzedItems = [];
 var _imgAnalyzedMeta = {};
+var _imgSourceObjectUrl = null;
+var _imgSourceFileType = '';
+
+function clearImgSourcePreview() {
+  if (_imgSourceObjectUrl) URL.revokeObjectURL(_imgSourceObjectUrl);
+  _imgSourceObjectUrl = null;
+  _imgSourceFileType = '';
+  var wrap = document.getElementById('imgPreviewWrap');
+  if (wrap) {
+    wrap.innerHTML = '';
+    wrap.style.display = 'none';
+  }
+}
+
+function renderImgSourcePreview(file) {
+  clearImgSourcePreview();
+  if (!file) return;
+  _imgSourceObjectUrl = URL.createObjectURL(file);
+  _imgSourceFileType = file.type || '';
+  var wrap = document.getElementById('imgPreviewWrap');
+  if (!wrap) return;
+  if (_imgSourceFileType === 'application/pdf' || /\.pdf$/i.test(file.name || '')) {
+    wrap.innerHTML = '<iframe class="img-preview-frame" title="מסמך מקור PDF" src="' + _imgSourceObjectUrl + '"></iframe>';
+  } else {
+    wrap.innerHTML = '<img class="img-preview" alt="מסמך מקור" src="' + _imgSourceObjectUrl + '">';
+  }
+  wrap.style.display = 'flex';
+}
 
 function analyzeOrderImage(input) {
   if (!input.files || !input.files[0]) return;
@@ -2109,17 +2155,7 @@ function analyzeOrderImage(input) {
   document.getElementById('imgLoading').style.display = 'block';
   document.getElementById('imgResults').style.display = 'none';
   document.getElementById('imgError').style.display = 'none';
-  document.getElementById('imgPreviewWrap').style.display = 'none';
-
-  // Show image preview
-  var reader = new FileReader();
-  if (file.type !== 'application/pdf') {
-    reader.onload = function(e) {
-      document.getElementById('imgPreview').src = e.target.result;
-      document.getElementById('imgPreviewWrap').style.display = 'block';
-    };
-    reader.readAsDataURL(file);
-  }
+  renderImgSourcePreview(file);
 
   // Upload + analyze
   var fd = new FormData();
@@ -2230,40 +2266,71 @@ function renderImgItems(items) {
   var title = document.getElementById('imgResultsTitle');
   if (title) title.textContent = `זוהו ${items.length} פריטים — בדוק מקור מול פענוח לפני אישור`;
   items.forEach(function(it, i) {
-    var segsText = (it.segments || []).map(function(s, si) {
-      return '<span class="img-segment-pill">' +
-        (String.fromCharCode(0x05D0 + si)) + ': ' + (s.length_mm || '') + ' מ"מ</span>';
-    }).join(' ');
+    var segmentsText = segmentsToEditText(it.segments || []);
 
     html += '<div class="img-item-card" id="imgCard' + i + '">';
     html += '<div class="img-item-top">';
-    html += '<div class="img-item-name">' + (it.shape_name || 'פריט ברזל') + '</div>';
+    html += '<div class="img-item-name">פריט ' + (i + 1) + '</div>';
     html += '<button class="img-remove-btn" onclick="removeImgItem(' + i + ')">🗑 הסר</button>';
     html += '</div>';
     html += '<div class="img-item-fields">';
-    html += '<label class="img-item-field">קוטר Ø <input class="img-item-inp" type="number" value="' + (it.diameter||12) + '" id="imgD' + i + '" oninput="markEdited(' + i + ')"></label>';
-    html += '<label class="img-item-field">כמות <input class="img-item-inp" type="number" value="' + (it.quantity||1) + '" id="imgQ' + i + '" oninput="markEdited(' + i + ')"></label>';
-    html += '<span class="img-item-field">אורך כולל <b>' + (it.total_length_mm || '') + ' מ"מ</b></span>';
+    html += '<label class="img-item-field">צורה <input class="img-item-inp" type="text" value="' + escapeHtml(it.shape_name || it.shapeName || it.shape || '') + '" id="imgShape' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">קוטר Ø <input class="img-item-inp" type="number" value="' + escapeHtml(it.diameter || 12) + '" id="imgD' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">כמות <input class="img-item-inp" type="number" value="' + escapeHtml(it.quantity || it.qty || 1) + '" id="imgQ' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">אורך כולל <input class="img-item-inp" type="number" value="' + escapeHtml(it.total_length_mm || it.length_mm || it.length || '') + '" id="imgLen' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field" style="grid-column:span 2">צלעות: אורך@זווית <textarea class="img-item-textarea" id="imgSegs' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(segmentsText) + '</textarea></label>';
+    html += '<label class="img-item-field">הערה <textarea class="img-item-textarea" id="imgNote' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(it.note || it.notes || '') + '</textarea></label>';
     html += '</div>';
-    if (segsText) {
-      html += '<div class="img-segments">' + segsText + '</div>';
-    }
-    if (it.note) {
-      html += '<div class="img-note">⚠ ' + it.note + '</div>';
+    if (it.note || it.notes) {
+      html += '<div class="img-note">⚠ ההערה ניתנת לעריכה בשדה למעלה, ורק אחרי אישור תיכנס לטופס.</div>';
     }
     html += '</div>';
   });
   document.getElementById('imgItemsList').innerHTML = html || '<div class="img-loading-sub">לא זוהו פריטים</div>';
 }
 
+function segmentsToEditText(segments) {
+  return (segments || []).map(function(s) {
+    if (typeof s === 'object') {
+      var len = s.length_mm || s.length || s.length_cm || '';
+      var angle = s.angle_deg != null ? s.angle_deg : (s.angle != null ? s.angle : '');
+      return angle === '' ? String(len) : (len + '@' + angle);
+    }
+    return String(s);
+  }).filter(Boolean).join('\n');
+}
+
+function parseImgSegments(text) {
+  return String(text || '').split(/[,\n/]+/).map(function(part) {
+    part = part.trim();
+    if (!part) return null;
+    var bits = part.split('@').map(function(v) { return v.trim(); });
+    var length = Number(bits[0]);
+    var angle = bits.length > 1 && bits[1] !== '' ? Number(bits[1]) : 0;
+    if (!Number.isFinite(length) || length <= 0) return null;
+    return {
+      length_mm: length,
+      angle_deg: Number.isFinite(angle) ? angle : 0
+    };
+  }).filter(Boolean);
+}
+
 function markEdited(i) {
   var card = document.getElementById('imgCard' + i);
   if (card) card.classList.add('edited');
   // Update _imgAnalyzedItems from inputs
+  var shapeInput = document.getElementById('imgShape' + i);
   var dInput = document.getElementById('imgD' + i);
   var qInput = document.getElementById('imgQ' + i);
+  var lenInput = document.getElementById('imgLen' + i);
+  var segInput = document.getElementById('imgSegs' + i);
+  var noteInput = document.getElementById('imgNote' + i);
+  if (shapeInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].shape_name = shapeInput.value.trim();
   if (dInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].diameter = parseInt(dInput.value) || 12;
   if (qInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].quantity  = parseInt(qInput.value) || 1;
+  if (lenInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].total_length_mm = parseInt(lenInput.value) || 0;
+  if (segInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].segments = parseImgSegments(segInput.value);
+  if (noteInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].note = noteInput.value.trim();
 }
 
 function removeImgItem(i) {
@@ -2320,6 +2387,7 @@ function confirmImgItems() {
 
 function closeImgModal() {
   document.getElementById('imgAnalyzeOverlay').style.display = 'none';
+  clearImgSourcePreview();
 }
 
 // Close on overlay click

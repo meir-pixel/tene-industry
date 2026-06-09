@@ -110,6 +110,15 @@ function extractFirstEmailFromText(value) {
   return match ? match[0].toLowerCase() : '';
 }
 
+function cleanRecognizedCustomerName(value) {
+  const name = String(value || '').trim();
+  if (!name) return '';
+  if (extractFirstEmailFromText(name)) return '';
+  if (extractFirstPhoneFromText(name)) return '';
+  if (/^https?:\/\//i.test(name)) return '';
+  return name;
+}
+
 function isTechnicalRecognitionNote(value) {
   const note = String(value || '').trim();
   if (!note) return false;
@@ -132,7 +141,7 @@ function extractFirstPhoneFromText(value) {
 }
 
 function resolveIntakeCustomer(parsed = {}, rawContent = '', lookups = {}) {
-  const name = parsed.customer_name || parsed.customerName || parsed.name || '';
+  const name = cleanRecognizedCustomerName(parsed.customer_name || parsed.customerName || parsed.name || '');
   const phone = normalizeIntakePhone(parsed.customer_phone || parsed.customerPhone || parsed.phone || extractFirstPhoneFromText(rawContent));
   const email = String(parsed.customer_email || parsed.customerEmail || extractFirstEmailFromText(rawContent) || '').trim().toLowerCase();
   const priorityId = String(parsed.priority_id || parsed.priorityId || parsed.customer_id || parsed.customerId || '').trim();
@@ -241,7 +250,7 @@ function buildIntakeOrderPayload(parsed = {}, {
   return {
     customer: {
       id: selectedCustomer?.id || null,
-      name: customerOverride?.name || selectedCustomer?.name || parsed.customer_name || parsed.customerName || 'Unidentified customer',
+      name: customerOverride?.name || selectedCustomer?.name || cleanRecognizedCustomerName(parsed.customer_name || parsed.customerName) || 'Unidentified customer',
       phone: customerOverride?.phone || selectedCustomer?.phone || parsed.customer_phone || parsed.customerPhone || '',
       email: customerOverride?.email || selectedCustomer?.email || parsed.customer_email || parsed.customerEmail || extractFirstEmailFromText(rawContent),
       address: parsed.delivery_address || parsed.deliveryAddress || '',
@@ -261,6 +270,7 @@ function buildIntakeOrderPayload(parsed = {}, {
 module.exports = {
   buildIntakeOrderPayload,
   buildOrderImportPreview,
+  cleanRecognizedCustomerName,
   distributeSurplusToEndSegments,
   extractFirstEmailFromText,
   extractFirstPhoneFromText,

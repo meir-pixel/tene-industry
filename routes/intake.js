@@ -20,6 +20,7 @@ module.exports = function createIntakeRouter(deps) {
   const INTAKE_AI_ENABLED = required('INTAKE_AI_ENABLED', deps.INTAKE_AI_ENABLED);
   const intake = required('intake', deps.intake);
   const intakeWorkflow = required('intakeWorkflow', deps.intakeWorkflow);
+  const cleanRecognizedCustomerName = intakeWorkflow.cleanRecognizedCustomerName || (value => String(value || '').trim());
 
   router.post('/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, upload.single('image'), async (req, res) => {
     if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
@@ -89,6 +90,9 @@ module.exports = function createIntakeRouter(deps) {
   - If the table gives a straight bar row, use the printed row length as one 180-degree segment.
   For document_type return a short label such as "tassa_pdf", "handwritten_cards", "bar_schedule", or "unknown".
   For supplier_order_num, customer_name, customer_phone, delivery_date, delivery_address, and notes return null when not visible. delivery_date must be YYYY-MM-DD when visible.
+  For generic "רשימת ברזל" / bar schedule documents, header email addresses and phone numbers are supplier/contact details, not customer names. Never put an email address, URL, or phone number in customer_name. If the customer name is not clearly visible, return null.
+  Extract every numbered table row that contains any visible steel data. Do not summarize rows as blank unless the row number area and all steel columns are clearly empty. If a row is hard to read, still return a reviewed item with the visible values and explain uncertainty in note.
+  For a visible table row, quantity belongs to the "כמות" column, diameter belongs to the "קוטר" column, and length/shape dimensions belong to "אורך" / "תיאור צורה". Do not use header phone/email digits as steel item values.
   For handwritten factory cards, visible dimensions are centimeters. Return every visible side in length_cm exactly as written. Return the row's total cut length in total_length_cm exactly as written. Do not convert centimeters to millimeters yourself.
   Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
   Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
@@ -155,7 +159,7 @@ module.exports = function createIntakeRouter(deps) {
         success: true,
         document_type: parsedDocument.document_type || null,
         supplier_order_num: parsedDocument.supplier_order_num || null,
-        customer_name: parsedDocument.customer_name || null,
+        customer_name: cleanRecognizedCustomerName(parsedDocument.customer_name) || null,
         customer_phone: parsedDocument.customer_phone || null,
         delivery_date: parsedDocument.delivery_date || null,
         delivery_address: parsedDocument.delivery_address || null,

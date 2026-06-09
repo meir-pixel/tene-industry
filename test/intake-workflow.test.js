@@ -3,6 +3,7 @@ const test = require('node:test');
 
 const {
   buildIntakeOrderPayload,
+  cleanRecognizedCustomerName,
   isTechnicalRecognitionNote,
   normalizeIntakeItem,
   operationalOrderNote,
@@ -63,6 +64,23 @@ test('technical OCR notes stay out of operational order notes', () => {
   });
 
   assert.equal(payload.order.generalNotes, '');
+});
+
+test('recognized customer name rejects contact-only email or phone values', () => {
+  assert.equal(cleanRecognizedCustomerName('avidanfelzen@gmail.com'), '');
+  assert.equal(cleanRecognizedCustomerName('0549811353'), '');
+  assert.equal(cleanRecognizedCustomerName('לקוח ארזי הטנא'), 'לקוח ארזי הטנא');
+
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'avidanfelzen@gmail.com',
+    customer_phone: '0549811353',
+    items: [{ diameter: 10, length: 1000, quantity: 1 }],
+  }, {
+    calcWeightPerUnit: () => 1,
+  });
+
+  assert.equal(payload.customer.name, 'Unidentified customer');
+  assert.equal(payload.customer.phone, '0549811353');
 });
 
 test('parseManualIntakeText delegates whatsapp and manual parsing', () => {
