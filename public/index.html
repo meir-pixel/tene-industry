@@ -1951,7 +1951,14 @@ function setMaxWeight(palletId, value) {
 // ── WEIGHT CALC ──────────────────────────────────────────────
 function calcItemWeight(item) {
   if (!item.diameter || !item.qty) return 0;
-  const sides = item.shapeSides?.length ? item.shapeSides : (item.length ? [item.length] : []);
+  const spiralDiameter = Number(item.spiral_diameter_mm || item.spiralDiameterMm || 0);
+  const spiralTurns = Number(item.spiral_turns || item.spiralTurns || 0);
+  const isSpiral = /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(item.shapeName || item.shape_name || ''))
+    && spiralDiameter > 0
+    && spiralTurns > 0;
+  const length = isSpiral ? spiralLengthMm(spiralDiameter, spiralTurns) : item.length;
+  const sides = isSpiral ? [] : (item.shapeSides?.length ? item.shapeSides : (length ? [length] : []));
+  if (isSpiral) return window.IronBendRebar.itemWeightKg({ ...item, length, total_length_mm: length, sides: [length] });
   return window.IronBendRebar.itemWeightKg({ ...item, sides });
 }
 
@@ -2045,6 +2052,8 @@ async function submitOrder() {
         length: item.length,
         sides: item.shapeSides && item.shapeSides.length ? item.shapeSides : (item.length ? [item.length] : []),
         angles: item.shapeAngles || [],
+        spiral_diameter_mm: item.spiral_diameter_mm || item.spiralDiameterMm || null,
+        spiral_turns: item.spiral_turns || item.spiralTurns || null,
         qty: item.qty,
         weight: calcItemWeight(item),
         note: item.note || '',
@@ -2289,6 +2298,8 @@ function renderImgItems(items) {
     html += '<label class="img-item-field">קוטר Ø <input class="img-item-inp" type="number" value="' + escapeHtml(it.diameter || 12) + '" id="imgD' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field">כמות <input class="img-item-inp" type="number" value="' + escapeHtml(it.quantity || it.qty || 1) + '" id="imgQ' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field">אורך כולל <input class="img-item-inp" type="number" value="' + escapeHtml(it.total_length_mm || it.length_mm || it.length || '') + '" id="imgLen' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">קוטר ספיראלה <input class="img-item-inp" type="number" value="' + escapeHtml(it.spiral_diameter_mm || it.spiralDiameterMm || '') + '" id="imgSpiralD' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">מספר כריכות <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(it.spiral_turns || it.spiralTurns || '') + '" id="imgSpiralTurns' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field" style="grid-column:span 2">צלעות: אורך@זווית <textarea class="img-item-textarea" id="imgSegs' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(segmentsText) + '</textarea></label>';
     html += '<label class="img-item-field">הערה <textarea class="img-item-textarea" id="imgNote' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(it.note || it.notes || '') + '</textarea></label>';
     html += '</div>';
@@ -2326,6 +2337,16 @@ function parseImgSegments(text) {
   }).filter(Boolean);
 }
 
+function isSpiralImgItem(it) {
+  return /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String((it && (it.shape_name || it.shapeName || it.shape || it.type)) || ''));
+}
+
+function spiralLengthMm(spiralDiameterMm, turns) {
+  var d = Number(spiralDiameterMm) || 0;
+  var t = Number(turns) || 0;
+  return Math.round(Math.PI * d * t);
+}
+
 function markEdited(i) {
   var card = document.getElementById('imgCard' + i);
   if (card) card.classList.add('edited');
@@ -2334,12 +2355,16 @@ function markEdited(i) {
   var dInput = document.getElementById('imgD' + i);
   var qInput = document.getElementById('imgQ' + i);
   var lenInput = document.getElementById('imgLen' + i);
+  var spiralDInput = document.getElementById('imgSpiralD' + i);
+  var spiralTurnsInput = document.getElementById('imgSpiralTurns' + i);
   var segInput = document.getElementById('imgSegs' + i);
   var noteInput = document.getElementById('imgNote' + i);
   if (shapeInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].shape_name = shapeInput.value.trim();
   if (dInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].diameter = parseInt(dInput.value) || 12;
   if (qInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].quantity  = parseInt(qInput.value) || 1;
   if (lenInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].total_length_mm = parseInt(lenInput.value) || 0;
+  if (spiralDInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].spiral_diameter_mm = parseFloat(spiralDInput.value) || null;
+  if (spiralTurnsInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].spiral_turns = parseFloat(spiralTurnsInput.value) || null;
   if (segInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].segments = parseImgSegments(segInput.value);
   if (noteInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].note = noteInput.value.trim();
 }
@@ -2362,20 +2387,28 @@ function confirmImgItems() {
 
   toImport.forEach(function(it) {
     // Build sides/angles from segments
-    var sides  = (it.segments || []).map(function(s) { return s.length_mm || 500; });
-    var angles = (it.segments || []).slice(0, -1).map(function(s) { return s.angle_deg != null ? s.angle_deg : 180; });
-    if (!sides.length) sides = [it.total_length_mm || 1000];
+    var spiralDiameter = Number(it.spiral_diameter_mm || it.spiralDiameterMm || 0);
+    var spiralTurns = Number(it.spiral_turns || it.spiralTurns || 0);
+    var isSpiral = isSpiralImgItem(it) && spiralDiameter > 0 && spiralTurns > 0;
+    var sides  = isSpiral ? [] : (it.segments || []).map(function(s) { return s.length_mm || 500; });
+    var angles = isSpiral ? [] : (it.segments || []).slice(0, -1).map(function(s) { return s.angle_deg != null ? s.angle_deg : 180; });
+    if (!isSpiral && !sides.length) sides = [it.total_length_mm || 1000];
+    var length = isSpiral
+      ? (it.total_length_mm || spiralLengthMm(spiralDiameter, spiralTurns))
+      : (it.total_length_mm || sides.reduce(function(a,b){return a+b;},0));
 
     pallet.items.push({
       id:          Date.now() + Math.random(),
-      shapeId:     's12',
-      shapeEmoji:  '✏️',
-      shapeName:   it.shape_name || 'מותאם',
+      shapeId:     isSpiral ? 'spiral' : 's12',
+      shapeEmoji:  isSpiral ? '🌀' : '✏️',
+      shapeName:   isSpiral ? 'spiral' : (it.shape_name || 'מותאם'),
       shapeSides:  sides,
       shapeAngles: angles,
       diameter:    it.diameter || 12,
-      length:      it.total_length_mm || sides.reduce(function(a,b){return a+b;},0),
+      length:      length,
       qty:         it.quantity || 1,
+      spiral_diameter_mm: isSpiral ? spiralDiameter : null,
+      spiral_turns: isSpiral ? spiralTurns : null,
       note:        it.note || ''
     });
   });

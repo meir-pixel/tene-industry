@@ -549,6 +549,7 @@ function normalizeDisplaySegments(shapeName, rawSegments) {
 function itemLength(item) {
   const direct = Number(item.total_length_mm ?? item.length ?? 0);
   if (Number.isFinite(direct) && direct > 0) return direct;
+  if (isRealSpiralItem(item)) return Math.round(Math.PI * Number(item.spiral_diameter_mm) * Number(item.spiral_turns));
   return normalizeDisplaySegments(item.shape_name, safeJson(item.segments)).reduce((sum, segment) => sum + segmentLength(segment), 0);
 }
 
@@ -562,15 +563,18 @@ function itemWeight(item) {
 }
 
 function itemDimensions(item) {
+  if (isRealSpiralItem(item)) return `קוטר ספיראלה ${item.spiral_diameter_mm} / ${item.spiral_turns} כריכות`;
   const values = normalizeDisplaySegments(item.shape_name, safeJson(item.segments)).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
   return values.length ? values.join(' / ') : '';
 }
 
 function itemSegments(item) {
+  if (isRealSpiralItem(item)) return [];
   return normalizeDisplaySegments(item.shape_name, safeJson(item.segments)).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
 }
 
 function itemAngles(item) {
+  if (isRealSpiralItem(item)) return [];
   const segs = normalizeDisplaySegments(item.shape_name, safeJson(item.segments));
   return segs.slice(0, -1).map(segment => {
     const angle = segment && typeof segment === 'object' ? Number(segment.angle_deg) : 180;
@@ -583,6 +587,11 @@ function renderDetailShapes() {
     setTimeout(renderDetailShapes, 80);
     return;
   }
+  document.querySelectorAll('[data-spiral-shape]').forEach(el => {
+    const diameter = Number(el.dataset.spiralDiameter || 0);
+    const turns = Number(el.dataset.spiralTurns || 0);
+    el.innerHTML = buildSpiralSvg(diameter, turns);
+  });
   document.querySelectorAll('[data-detail-shape]').forEach(el => {
     try {
       const sides = JSON.parse(decodeURIComponent(el.dataset.sides || '%5B%5D'));
@@ -602,6 +611,15 @@ function renderDetailShapes() {
   });
 }
 
+function buildSpiralSvg(diameter, turns) {
+  return `<svg viewBox="0 0 220 130" aria-label="spiral" style="width:100%;height:100%">
+    <circle cx="110" cy="62" r="42" stroke="#DF5000" stroke-width="6" fill="none"/>
+    <circle cx="110" cy="62" r="30" stroke="#ef8a42" stroke-width="4" fill="none" opacity=".75"/>
+    <circle cx="110" cy="62" r="18" stroke="#f3b074" stroke-width="4" fill="none" opacity=".7"/>
+    <text x="110" y="118" text-anchor="middle" font-size="11" fill="#1f2937">קוטר ${escHtml(diameter)} מ"מ · ${escHtml(turns)} כריכות</text>
+  </svg>`;
+}
+
 function isSingleSegmentShape(sides) {
   return !Array.isArray(sides) || sides.filter(n => Number.isFinite(Number(n)) && Number(n) > 0).length <= 1;
 }
@@ -610,7 +628,15 @@ function isSpiralOrRingName(shapeName) {
   return /spiral|ring|coil|ספיר|טבעת|סליל|לולאה/i.test(String(shapeName || ''));
 }
 
-function shapeLabel(shapeName, sides) {
+function isRealSpiralItem(item) {
+  const shape = String(item?.shape_name || item?.shapeName || item?.shape || '');
+  return /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(shape)
+    && Number(item?.spiral_diameter_mm) > 0
+    && Number(item?.spiral_turns) > 0;
+}
+
+function shapeLabel(shapeName, sides, item = null) {
+  if (item && isRealSpiralItem(item)) return 'ספיראלה';
   const name = String(shapeName || '').toLowerCase();
   if (isSingleSegmentShape(sides)) return 'מוט ישר';
   if (name.includes('open u') || name.includes('open bar')) return 'צורת ח פתוחה';
@@ -620,6 +646,7 @@ function shapeLabel(shapeName, sides) {
 }
 
 function shapeMismatchWarning(item, sides) {
+  if (isRealSpiralItem(item)) return false;
   return isSingleSegmentShape(sides) && isSpiralOrRingName(item.shape_name);
 }
 
@@ -762,15 +789,18 @@ function buildDetailHTML(o, pkgs) {
       const displayNote = visibleItemNote(item.note);
       const measuredWeight = actualWeight(item);
       const deviationPct = weightDeviationPct(item);
-      return `<div class="item-row">
-        <div class="item-visual"
+      const visualHtml = isRealSpiralItem(item)
+        ? `<div class="item-visual" data-spiral-shape="1" data-spiral-diameter="${escHtml(item.spiral_diameter_mm)}" data-spiral-turns="${escHtml(item.spiral_turns)}"></div>`
+        : `<div class="item-visual"
           data-detail-shape="1"
           data-sides="${encodeURIComponent(JSON.stringify(sides))}"
-          data-angles="${encodeURIComponent(JSON.stringify(angles))}"></div>
+          data-angles="${encodeURIComponent(JSON.stringify(angles))}"></div>`;
+      return `<div class="item-row">
+        ${visualHtml}
         <div class="item-main">
           <div class="item-head">
             <span class="item-diameter">⌀${escHtml(item.diameter)}</span>
-            <span class="item-shape">${escHtml(shapeLabel(item.shape_name, sides))}</span>
+            <span class="item-shape">${escHtml(shapeLabel(item.shape_name, sides, item))}</span>
             ${item.is_3d ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px">3D</span>' : ''}
             ${review || isReviewApproved(item) ? reviewStatusHtml(item) : ''}
           </div>

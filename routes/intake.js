@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const axios = require('axios');
+const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 
 function required(name, value) {
   if (value === undefined || value === null) throw new Error(`routes/intake missing dependency: ${name}`);
@@ -94,6 +95,8 @@ module.exports = function createIntakeRouter(deps) {
               diameter: { type: 'number' },
               shape_name: { type: 'string' },
               quantity: { type: 'integer' },
+              spiral_diameter_mm: { type: ['number', 'null'] },
+              spiral_turns: { type: ['number', 'null'] },
               segments: {
                 type: 'array',
                 items: {
@@ -110,7 +113,7 @@ module.exports = function createIntakeRouter(deps) {
               material_grade: { type: 'string' },
               note: { type: 'string' },
             },
-            required: ['diameter', 'shape_name', 'quantity', 'segments', 'total_length_cm', 'material_grade', 'note'],
+            required: ['diameter', 'shape_name', 'quantity', 'spiral_diameter_mm', 'spiral_turns', 'segments', 'total_length_cm', 'material_grade', 'note'],
           },
         },
       },
@@ -144,7 +147,14 @@ module.exports = function createIntakeRouter(deps) {
   When the row gives a total cut length and a rectangular stirrup sketch with outer width W and height H, calculate remaining tail length as (total - 2*W - 2*H) / 2. Return six segments: [tail,H,W,H,W,tail].
   Example: total 215 cm with a 60 by 40 cm closed stirrup becomes [7.5,40,60,40,60,7.5] cm. Total 205 cm with a 60 by 35 cm closed stirrup becomes [7.5,35,60,35,60,7.5] cm.
   Name this shape "closed stirrup 90-degree overlap". If the sketch does not clearly show a closed rectangle and the small corner overlap, keep the conservative open shape and add a review note.
-  For a spiral, name it "ספירלה" and include visible ring diameter and turns in note.
+  For a spiral / coil / ring / salil / spiral:
+  - Return shape_name exactly as "spiral".
+  - diameter is the bar diameter.
+  - spiral_diameter_mm is the visible spiral/ring diameter in millimeters.
+  - spiral_turns is the number of wraps/turns.
+  - segments must be [] because a spiral is not a side/angle shape.
+  - total_length_cm should be the calculated cut length in centimeters when possible: pi * spiral_diameter_mm * spiral_turns / 10.
+  - Put uncertainty in note, but do not encode spiral parameters only in note.
   Use one segment per visible side. angle_deg is the interior angle after that segment: 180 for straight, 90 for a square bend.
   Return JSON that matches the requested schema only.`;
     try {
@@ -161,6 +171,25 @@ module.exports = function createIntakeRouter(deps) {
         .find(entry => entry.type === 'output_text')?.text;
       const parsedDocument = JSON.parse(text || '{}');
       const items = (parsedDocument.items || []).map(item => {
+        const spiral = normalizeSpiralParams(item);
+        if (spiral.isSpiral) {
+          const reportedLength = (Number(item.total_length_cm) || 0) * 10;
+          const computedLength = reportedLength || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns);
+          const notes = [];
+          if (item.note) notes.push(item.note);
+          if (!reportedLength) {
+            notes.push(`Spiral length calculated from diameter ${spiral.spiralDiameterMm} mm and ${spiral.turns} turns.`);
+          }
+          return {
+            ...item,
+            shape_name: 'spiral',
+            segments: [],
+            spiral_diameter_mm: spiral.spiralDiameterMm,
+            spiral_turns: spiral.turns,
+            total_length_mm: computedLength,
+            note: notes.join(' '),
+          };
+        }
         const normalizedSegments = normalizeFactorySegments(item.shape_name, (item.segments || []).map(segment => ({
           length_mm: (Number(segment.length_cm) || 0) * 10,
           angle_deg: Number(segment.angle_deg) || 0,

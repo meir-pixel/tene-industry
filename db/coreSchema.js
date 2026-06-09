@@ -73,6 +73,8 @@ function ensureCoreSchema(db) {
       shape_id TEXT,
       shape_name TEXT,
       diameter REAL,
+      spiral_diameter_mm REAL,
+      spiral_turns REAL,
       segments JSON,
       total_length_mm REAL DEFAULT 0,
       quantity INTEGER DEFAULT 1,

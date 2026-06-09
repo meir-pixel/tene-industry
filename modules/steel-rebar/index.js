@@ -9,11 +9,20 @@
 
 const { REBAR_WEIGHTS, REBAR_KG_PER_M, VALID_DIAMETERS, rebarKgPerMeter } = require('./weights');
 const { autoAssignMachine } = require('./machines');
-const { normalizeFactorySegments, normalizeFactoryShapeName } = require('./shapes');
+const {
+  isSpiralName,
+  normalizeSpiralParams,
+  spiralCutLengthMm,
+  normalizeFactorySegments,
+  normalizeFactoryShapeName,
+} = require('./shapes');
 const { parseBVBS, parseBVBSLine } = require('./bvbs');
 
 function weightPerUnit(item = {}) {
-  const len = Number(item.total_length_mm) || 0;
+  const spiral = normalizeSpiralParams(item);
+  const len = spiral.isSpiral
+    ? (Number(item.total_length_mm) || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns))
+    : (Number(item.total_length_mm) || 0);
   return (len / 1000) * rebarKgPerMeter(item.diameter);
 }
 
@@ -26,6 +35,9 @@ module.exports = {
   REBAR_KG_PER_M,
   VALID_DIAMETERS,
   autoAssignMachine,
+  isSpiralName,
+  normalizeSpiralParams,
+  spiralCutLengthMm,
   normalizeFactorySegments,
   normalizeFactoryShapeName,
   parseBVBS,
@@ -43,6 +55,8 @@ module.exports = {
   priceDimension: 'diameter',
   itemFields: [
     { key: 'diameter', label: 'קוטר', type: 'number', unit: 'mm', required: true },
+    { key: 'spiral_diameter_mm', label: 'קוטר ספיראלה', type: 'number', unit: 'mm' },
+    { key: 'spiral_turns', label: 'מספר כריכות', type: 'number' },
     { key: 'segments', label: 'צלעות', type: 'segments' },
   ],
   labels: {

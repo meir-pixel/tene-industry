@@ -1,3 +1,5 @@
+const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
+
 function importCell(row, aliases) {
   const normalized = Object.fromEntries(
     Object.entries(row).map(([key, value]) => [String(key).trim().toLowerCase().replace(/[\s_-]+/g, ''), value])
@@ -174,6 +176,25 @@ function resolveIntakeCustomer(parsed = {}, rawContent = '', lookups = {}) {
 }
 
 function normalizeIntakeItem(item = {}) {
+  const spiral = normalizeSpiralParams(item);
+  if (spiral.isSpiral) {
+    const length = Number(item.length ?? item.total_length_mm) || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns);
+    const qty = Number(item.qty ?? item.quantity ?? 1);
+    return {
+      diameter: Number(item.diameter),
+      length,
+      sides: [],
+      angles: [],
+      qty,
+      shapeId: item.shapeId || item.shape || 'spiral',
+      shapeName: item.shapeName || item.shape_name || item.shape || 'spiral',
+      spiralDiameterMm: spiral.spiralDiameterMm,
+      spiralTurns: spiral.turns,
+      spiral_diameter_mm: spiral.spiralDiameterMm,
+      spiral_turns: spiral.turns,
+      note: item.notes || item.note || '',
+    };
+  }
   const sourceSides = Array.isArray(item.sides) ? item.sides : [];
   const sides = sourceSides.map(Number).filter(length => Number.isFinite(length) && length > 0);
   const fallbackLength = Number(item.length ?? item.total_length_mm ?? 0);

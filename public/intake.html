@@ -422,6 +422,7 @@ function itemSegmentsOf(item) {
 }
 
 function itemSidesAngles(item) {
+  if (isSpiralOcrItem(item)) return { sides: [], angles: [] };
   const segments = itemSegmentsOf(item);
   let sides = segments
     .map(seg => typeof seg === 'object' ? (seg.length_mm ?? seg.length ?? seg.length_cm) : seg)
@@ -437,18 +438,40 @@ function itemSidesAngles(item) {
   return { sides, angles: angles.slice(0, Math.max(0, sides.length - 1)) };
 }
 
+function isSpiralOcrItem(item) {
+  const shape = String(item?.shape_name || item?.shapeName || item?.shape || item?.type || '');
+  const diameter = toNumber(item?.spiral_diameter_mm ?? item?.spiralDiameterMm);
+  const turns = toNumber(item?.spiral_turns ?? item?.spiralTurns);
+  return /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(shape) && diameter > 0 && turns > 0;
+}
+
+function spiralOcrSvg(item) {
+  const diameter = toNumber(item?.spiral_diameter_mm ?? item?.spiralDiameterMm);
+  const turns = toNumber(item?.spiral_turns ?? item?.spiralTurns);
+  return `<svg viewBox="0 0 150 108" aria-label="spiral">
+    <circle cx="75" cy="54" r="34" stroke="#c9621a" stroke-width="5" fill="none"/>
+    <circle cx="75" cy="54" r="24" stroke="#df7c34" stroke-width="3" fill="none" opacity=".75"/>
+    <circle cx="75" cy="54" r="14" stroke="#f2a15f" stroke-width="3" fill="none" opacity=".7"/>
+    <text x="75" y="103" text-anchor="middle" font-size="10" fill="#1f2937">${escapeHtml(diameter)}mm · ${escapeHtml(turns)} כריכות</text>
+  </svg>`;
+}
+
 function currentOcrItemFromFields(index) {
   const source = activeCompareOriginal?.items?.[index] || {};
   const item = { ...source };
   const diameter = ocrItemInput(index, 'diameter');
   const quantity = ocrItemInput(index, 'quantity');
   const totalLength = ocrItemInput(index, 'total_length_mm');
+  const spiralDiameter = ocrItemInput(index, 'spiral_diameter_mm');
+  const spiralTurns = ocrItemInput(index, 'spiral_turns');
   const shapeName = ocrItemInput(index, 'shape_name');
   const segments = ocrItemInput(index, 'segments');
   const note = ocrItemInput(index, 'note');
   if (diameter) item.diameter = toNumber(diameter.value);
   if (quantity) item.quantity = toNumber(quantity.value);
   if (totalLength) item.total_length_mm = toNumber(totalLength.value);
+  if (spiralDiameter) item.spiral_diameter_mm = toNumber(spiralDiameter.value);
+  if (spiralTurns) item.spiral_turns = toNumber(spiralTurns.value);
   if (shapeName) item.shape_name = shapeName.value.trim();
   if (segments) item.segments = parseSegmentsText(segments.value);
   if (note) item.note = note.value.trim();
@@ -461,7 +484,9 @@ function ocrShapePreviewHtml(item, index) {
   const diameter = item.diameter ?? item.diameter_mm ?? '-';
   const quantity = item.qty ?? item.quantity ?? item.pcs ?? '-';
   let svg = '<div class="meta">אין סקיצה</div>';
-  if (sides.length && window.IronBendShapeGeometry?.shapeSVGPath) {
+  if (isSpiralOcrItem(item)) {
+    svg = spiralOcrSvg(item);
+  } else if (sides.length && window.IronBendShapeGeometry?.shapeSVGPath) {
     const { path } = window.IronBendShapeGeometry.shapeSVGPath(sides, angles, 150, 108, 14);
     svg = `<svg viewBox="0 0 150 108" aria-label="${escapeHtml(shape)}"><path d="${path}" stroke="#c9621a" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
@@ -487,9 +512,27 @@ function ensureIntakeShapeEditor() {
 
 function openOcrShapeEditor(index) {
   activeOcrShapeIndex = index;
+  const item = currentOcrItemFromFields(index);
+  if (isSpiralOcrItem(item) || /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(item.shape_name || ''))) {
+    const diameter = window.prompt('קוטר ספיראלה במ"מ', item.spiral_diameter_mm || '');
+    if (diameter === null) return;
+    const turns = window.prompt('מספר כריכות', item.spiral_turns || '');
+    if (turns === null) return;
+    const shapeInput = ocrItemInput(index, 'shape_name');
+    const diameterInput = ocrItemInput(index, 'spiral_diameter_mm');
+    const turnsInput = ocrItemInput(index, 'spiral_turns');
+    const segmentsInput = ocrItemInput(index, 'segments');
+    if (shapeInput) shapeInput.value = 'spiral';
+    if (diameterInput) diameterInput.value = toNumber(diameter);
+    if (turnsInput) turnsInput.value = toNumber(turns);
+    if (segmentsInput) segmentsInput.value = '';
+    [shapeInput, diameterInput, turnsInput, segmentsInput].filter(Boolean).forEach(markOcrEdited);
+    const preview = document.getElementById(`ocrShapePreview_${index}`);
+    if (preview) preview.outerHTML = ocrShapePreviewHtml(currentOcrItemFromFields(index), index);
+    return;
+  }
   const editor = ensureIntakeShapeEditor();
   if (!editor) return toast('עורך הצורה לא נטען', true);
-  const item = currentOcrItemFromFields(index);
   const { sides, angles } = itemSidesAngles(item);
   editor.open({
     presetId: item.shape_id || item.shapeId || item.presetId || null,
@@ -544,6 +587,8 @@ function intakeEditableForm(parsed) {
           </div>
           ${ocrShapePreviewHtml(item, index)}
           <div class="ocr-item-grid">
+            ${ocrFieldHtml({ label:'קוטר ספיראלה', itemIndex:index, itemField:'spiral_diameter_mm', value:item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm) })}
+            ${ocrFieldHtml({ label:'מספר כריכות', itemIndex:index, itemField:'spiral_turns', value:item.spiral_turns ?? item.spiralTurns ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns) })}
             ${ocrFieldHtml({ label:'קוטר', itemIndex:index, itemField:'diameter', value:item.diameter ?? item.diameter_mm ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.diameter`, item.diameter ?? item.diameter_mm) })}
             ${ocrFieldHtml({ label:'כמות', itemIndex:index, itemField:'quantity', value:item.qty ?? item.quantity ?? item.pcs ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.quantity`, item.qty ?? item.quantity ?? item.pcs) })}
             ${ocrFieldHtml({ label:'אורך פתיחה', itemIndex:index, itemField:'total_length_mm', value:item.total_length_mm ?? item.length_mm ?? item.length ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.total_length_mm`, item.total_length_mm ?? item.length_mm ?? item.length) })}
@@ -580,7 +625,7 @@ function readCorrectedParsed() {
     const field = input.dataset.itemField;
     parsed.items[index] = parsed.items[index] || {};
     if (field === 'segments') parsed.items[index].segments = parseSegmentsText(input.value);
-    else if (['diameter', 'quantity', 'total_length_mm'].includes(field)) parsed.items[index][field] = toNumber(input.value);
+    else if (['diameter', 'quantity', 'total_length_mm', 'spiral_diameter_mm', 'spiral_turns'].includes(field)) parsed.items[index][field] = toNumber(input.value);
     else parsed.items[index][field] = input.value.trim();
   });
   return parsed;

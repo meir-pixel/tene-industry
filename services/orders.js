@@ -24,6 +24,7 @@ function validateShapeGeometry(segments) {
 }
 
 const steelModule = require('../modules/steel-rebar');
+const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 
 function createOrderFactory(db, { generateOrderNum, industry }) {
   if (!db) throw new Error('services/orders missing dependency: db');
@@ -107,24 +108,40 @@ function createOrderFactory(db, { generateOrderNum, industry }) {
         .run(orderId, idx + 1, pallet.maxWeight || 500, pallet.totalWeight || 0);
 
       (pallet.items || []).forEach(item => {
-        const sides = (item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []);
-        const totalLengthMm = sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0;
+        const spiral = normalizeSpiralParams(item);
+        const sides = spiral.isSpiral
+          ? []
+          : ((item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []));
+        const totalLengthMm = spiral.isSpiral
+          ? (Number(item.length ?? item.total_length_mm) || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns))
+          : (sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0);
         const angles = item.angles || [];
-        const segmentsArr = normalizeSegments(
-          item.shapeName,
-          sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }))
-        );
-        const shapeName = normalizeShapeName(item.shapeName, segmentsArr);
-        const geoCheck = validateShapeGeometry(segmentsArr);
-        if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
+        const segmentsArr = spiral.isSpiral
+          ? []
+          : normalizeSegments(
+              item.shapeName,
+              sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }))
+            );
+        const shapeName = spiral.isSpiral
+          ? normalizeShapeName(item.shapeName || item.shape_name || 'spiral', segmentsArr, {
+              spiral_diameter_mm: spiral.spiralDiameterMm,
+              spiral_turns: spiral.turns,
+            })
+          : normalizeShapeName(item.shapeName, segmentsArr);
+        if (!spiral.isSpiral) {
+          const geoCheck = validateShapeGeometry(segmentsArr);
+          if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
+        }
         const segments = JSON.stringify(segmentsArr);
         const weightPerUnit = calcWeightPerUnit(item.diameter, totalLengthMm);
         const productionQty = Math.ceil((item.qty || 1) * (1 + wastePct / 100));
         const machine = assignResource(item.diameter);
 
-        db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(pr.lastInsertRowid, item.shapeId, shapeName, item.diameter,
+            spiral.isSpiral ? spiral.spiralDiameterMm : null,
+            spiral.isSpiral ? spiral.turns : null,
             segments, totalLengthMm, item.qty || 1, productionQty,
             weightPerUnit, weightPerUnit * (item.qty || 1),
             item.note, item.structElement, item.structFloor, item.sheetNum, machine,

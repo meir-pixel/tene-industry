@@ -26,6 +26,23 @@ test('normalizeIntakeItem builds canonical sides angles quantity and shape', () 
   assert.equal(item.shapeId, 'U - anchor');
 });
 
+test('normalizeIntakeItem keeps real spiral parameters as first-class item fields', () => {
+  const item = normalizeIntakeItem({
+    diameter: '8',
+    shape_name: 'spiral',
+    spiral_diameter_mm: '50',
+    spiral_turns: '160',
+    quantity: '2',
+  });
+
+  assert.deepEqual(item.sides, []);
+  assert.deepEqual(item.angles, []);
+  assert.equal(item.length, Math.round(Math.PI * 50 * 160));
+  assert.equal(item.spiral_diameter_mm, 50);
+  assert.equal(item.spiral_turns, 160);
+  assert.equal(item.qty, 2);
+});
+
 test('buildIntakeOrderPayload resolves customer and calculates total weight', () => {
   const payload = buildIntakeOrderPayload({
     customer_name: 'Fallback',

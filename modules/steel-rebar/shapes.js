@@ -20,6 +20,49 @@ function isKnownClosedName(shape) {
   return /closed|stirrup|overlap|חפיפה|אצבע|מסגרת|חישוק/.test(shape);
 }
 
+function isSpiralName(shapeName) {
+  return /spiral|ring|coil|spring|helix|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/.test(shapeText(shapeName));
+}
+
+function positiveNumber(...values) {
+  for (const value of values) {
+    const num = Number(value);
+    if (Number.isFinite(num) && num > 0) return num;
+  }
+  return 0;
+}
+
+function normalizeSpiralParams(item = {}) {
+  const spiralDiameterMm = positiveNumber(
+    item.spiral_diameter_mm,
+    item.spiralDiameterMm,
+    item.spiral_diameter,
+    item.spiralDiameter,
+    item.coil_diameter_mm,
+    item.ring_diameter_mm
+  );
+  const turns = positiveNumber(
+    item.spiral_turns,
+    item.spiralTurns,
+    item.turns,
+    item.wraps,
+    item.coils,
+    item.windings
+  );
+  const isSpiral = isSpiralName(item.shape_name || item.shapeName || item.shape || item.type);
+  return {
+    isSpiral: isSpiral && spiralDiameterMm > 0 && turns > 0,
+    spiralDiameterMm,
+    turns,
+  };
+}
+
+function spiralCutLengthMm(spiralDiameterMm, turns) {
+  const diameter = Number(spiralDiameterMm) || 0;
+  const wrapCount = Number(turns) || 0;
+  return Math.round(Math.PI * diameter * wrapCount);
+}
+
 function normalizeOpenU(segments) {
   if (segments.length !== 3) return null;
   const [a, b, c] = toLengths(segments);
@@ -79,13 +122,14 @@ function normalizeFactorySegments(shapeName, sourceSegments) {
   return segments;
 }
 
-function normalizeFactoryShapeName(shapeName, segments) {
+function normalizeFactoryShapeName(shapeName, segments, options = {}) {
   const shape = String(shapeName || '');
   const lower = shapeText(shape);
   const lengths = toLengths(segments);
-  const isSpiralOrRing = /spiral|ring|coil|ספיר|טבעת|סליל|לולאה/.test(lower);
+  const spiral = normalizeSpiralParams({ shape_name: shapeName, ...options });
 
-  if (isSpiralOrRing && lengths.length <= 1) return 'straight bar';
+  if (spiral.isSpiral) return 'spiral';
+  if (isSpiralName(lower) && lengths.length <= 1) return 'straight bar';
   if ((isKnownOpenUName(lower) || isKnownFactoryName(lower)) && lengths.length === 3 && lengths[0] === lengths[2]) {
     return 'open U-shaped bar';
   }
@@ -95,4 +139,10 @@ function normalizeFactoryShapeName(shapeName, segments) {
   return shape;
 }
 
-module.exports = { normalizeFactorySegments, normalizeFactoryShapeName };
+module.exports = {
+  isSpiralName,
+  normalizeSpiralParams,
+  spiralCutLengthMm,
+  normalizeFactorySegments,
+  normalizeFactoryShapeName,
+};

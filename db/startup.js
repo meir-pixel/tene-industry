@@ -49,6 +49,8 @@ function runCoreMigrations(db) {
   addCol('orders',     'created_by',         'INTEGER');
   addCol('pallets',    'status',             "TEXT DEFAULT 'ממתין'");
   addCol('items',      'segments',           'JSON');
+  addCol('items',      'spiral_diameter_mm', 'REAL');
+  addCol('items',      'spiral_turns',       'REAL');
   addCol('items',      'total_length_mm',    'REAL DEFAULT 0');
   addCol('items',      'production_qty',     'INTEGER DEFAULT 0');
   addCol('items',      'weight_per_unit',    'REAL DEFAULT 0');

@@ -303,8 +303,10 @@ test('orders detail does not present one straight segment as a spiral and shows 
 
   assert.match(orders, /function isSingleSegmentShape/);
   assert.match(orders, /function isSpiralOrRingName/);
+  assert.match(orders, /function isRealSpiralItem/);
   assert.match(orders, /function shapeMismatchWarning/);
-  assert.match(orders, /shapeLabel\(item\.shape_name, sides\)/);
+  assert.match(orders, /shapeLabel\(item\.shape_name, sides, item\)/);
+  assert.match(orders, /data-spiral-shape/);
   assert.match(orders, /משקל רצוי/);
   assert.match(orders, /משקל מצוי/);
   assert.match(orders, /weightDeviationPct/);

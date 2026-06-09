@@ -1253,6 +1253,8 @@ test('database startup schema migrations and seed data are extracted from server
   assert.match(startup, /function addCol\(table, col, def\)/);
   assert.match(startup, /addCol\('items',\s+'actual_weight_kg'/);
   assert.match(startup, /addCol\('items',\s+'weight_deviation_pct'/);
+  assert.match(startup, /addCol\('items',\s+'spiral_diameter_mm'/);
+  assert.match(startup, /addCol\('items',\s+'spiral_turns'/);
   assert.match(startup, /ensureVehicleCompatibility\(db\)/);
   assert.doesNotMatch(startup, /function ensureVehicleEventsSchema/);
   assert.doesNotMatch(startup, /function migrateDriverVehicleRows/);
@@ -1260,6 +1262,8 @@ test('database startup schema migrations and seed data are extracted from server
   assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS customers/);
   assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS orders/);
   assert.match(coreSchema, /actual_weight_kg REAL/);
+  assert.match(coreSchema, /spiral_diameter_mm REAL/);
+  assert.match(coreSchema, /spiral_turns REAL/);
   assert.match(coreSchema, /weight_deviation_pct REAL/);
   assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS purchase_orders/);
   assert.match(coreSchema, /ensureFinanceSchema\(db\)/);

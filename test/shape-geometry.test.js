@@ -4,7 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 const { shapeSvg } = require('../services/productionCards');
-const { normalizeFactorySegments, normalizeFactoryShapeName } = require('../modules/steel-rebar/shapes');
+const { normalizeFactorySegments, normalizeFactoryShapeName, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 const { distributeSurplusToEndSegments } = require('../services/intakeWorkflow');
 
 function loadShapeEditorGeometry() {
@@ -123,6 +123,14 @@ test('single segment geometry cannot be normalized as a spiral or ring', () => {
 
   assert.equal(normalizeFactoryShapeName('טבעת/ספירלה', segments), 'straight bar');
   assert.equal(normalizeFactoryShapeName('spiral ring', segments), 'straight bar');
+});
+
+test('real spiral geometry uses diameter and turns instead of side segments', () => {
+  assert.equal(normalizeFactoryShapeName('spiral', [], {
+    spiral_diameter_mm: 50,
+    spiral_turns: 160,
+  }), 'spiral');
+  assert.equal(spiralCutLengthMm(50, 160), Math.round(Math.PI * 50 * 160));
 });
 
 test('Hebrew open U names normalize side order by physical bending path', () => {
