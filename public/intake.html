@@ -130,11 +130,27 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .ocr-field.edited{border-color:var(--success);background:#f2fbf5}
 .ocr-confidence{font-size:10px;font-weight:900;color:#9a6a00}
 .ocr-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.ocr-item-editor{border:1px solid var(--border);border-radius:10px;background:#fbfcfe;padding:10px;display:grid;gap:10px}
-.ocr-item-editor.spiral{border-color:#f1b879;background:#fffaf4}
-.ocr-item-head{display:flex;justify-content:space-between;gap:10px;align-items:center;font-weight:900}
+.ocr-items-sheet{border:1px solid #bfcbd8;border-radius:8px;background:#fff;overflow:hidden}
+.ocr-items-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.ocr-items-table th,.ocr-items-table td{border:1px solid #d2dce8;padding:7px;text-align:right;vertical-align:top;background:#fff}
+.ocr-items-table th{background:#f1f5f9;color:#475569;font-size:11px;font-weight:900}
+.ocr-items-table tr.spiral td{background:#fffaf2}
+.ocr-items-table input,.ocr-items-table textarea{width:100%;border:1px solid #d6e0ea;border-radius:7px;background:#f8fbff;font-family:inherit;font-size:13px;color:var(--text);padding:7px;outline:0}
+.ocr-items-table textarea{min-height:58px;resize:vertical}
+.ocr-items-table input:focus,.ocr-items-table textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,98,26,.12)}
+.ocr-table-shape{display:grid;gap:6px;align-items:center}
+.ocr-table-shape button{width:100%;border:1px solid #d6e0ea;border-radius:8px;background:#fff;min-height:92px;cursor:pointer;display:grid;place-items:center}
+.ocr-table-shape button:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(201,98,26,.12)}
+.ocr-table-shape svg{width:132px;height:82px}
+.ocr-edit-shape-btn{border:1px solid #f1b879!important;background:#fff5e7!important;color:#b85200!important;min-height:auto!important;padding:7px 9px!important;font-size:12px;font-weight:900}
+.ocr-item-row-title{font-weight:900;color:var(--text);display:flex;gap:6px;align-items:center;justify-content:flex-start;flex-wrap:wrap}
 .ocr-item-kind{font-size:11px;font-weight:900;border-radius:999px;padding:4px 10px;background:#eef4f8;color:var(--text-muted)}
 .ocr-item-kind.spiral{background:#fff1dd;color:#a24a00;border:1px solid #f3c58d}
+.ocr-table-note{min-width:190px}
+.ocr-table-measure{min-width:190px}
+.ocr-table-source{font-size:11px;line-height:1.55;color:#64748b;font-weight:800;margin-top:4px}
+.ocr-row-warning{font-size:11px;font-weight:900;color:#9a6a00;background:#fff7d7;border:1px solid #f3d582;border-radius:7px;padding:6px;margin-top:6px}
+.ocr-items-table input.edited,.ocr-items-table textarea.edited{border-color:var(--success);background:#f2fbf5}
 .ocr-shape-card{border:1px solid #d8e4ef;border-radius:10px;background:#fff;display:grid;grid-template-columns:180px minmax(0,1fr);gap:10px;align-items:center;padding:10px}
 .ocr-shape-preview{height:132px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;display:grid;place-items:center;cursor:pointer}
 .ocr-shape-preview svg{width:150px;height:108px}
@@ -154,7 +170,7 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .queue-empty{padding:28px;border:1px dashed var(--border);border-radius:10px;background:linear-gradient(180deg,#fff,#f8fbfe);text-align:center;display:grid;gap:8px}
 .queue-empty-title{font-size:20px;font-weight:900;color:var(--text)}
 .queue-empty-copy{font-size:13px;color:var(--text-muted);max-width:680px;margin:0 auto;line-height:1.7}
-@media(max-width:760px){.ocr-field-grid,.ocr-item-grid,.ocr-shape-card{grid-template-columns:1fr}.ocr-source-stage{min-height:320px}.ocr-source-zoom iframe,.ocr-source-zoom img{height:520px}}
+@media(max-width:760px){.ocr-field-grid,.ocr-item-grid,.ocr-shape-card{grid-template-columns:1fr}.ocr-items-table{min-width:820px}.ocr-items-sheet{overflow:auto}.ocr-source-stage{min-height:320px}.ocr-source-zoom iframe,.ocr-source-zoom img{height:520px}}
 @media(max-width:980px){.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-source{min-height:45vh;border-left:0;border-bottom:1px solid var(--border)}}
 </style>
 </head>
@@ -525,6 +541,67 @@ function ocrShapePreviewHtml(item, index) {
   `;
 }
 
+function ocrTableInputHtml({ index, field, value = '', type = 'text', low = false }) {
+  const lowAttr = low ? ' data-low-confidence="1"' : '';
+  return `<input type="${type}" value="${escapeHtml(value ?? '')}" data-item-index="${index}" data-item-field="${escapeHtml(field)}"${lowAttr} oninput="markOcrEdited(this)">`;
+}
+
+function ocrTableTextareaHtml({ index, field, value = '', low = false }) {
+  const lowAttr = low ? ' data-low-confidence="1"' : '';
+  return `<textarea data-item-index="${index}" data-item-field="${escapeHtml(field)}"${lowAttr} oninput="markOcrEdited(this)">${escapeHtml(value ?? '')}</textarea>`;
+}
+
+function ocrShapeCellHtml(item, index) {
+  const { sides, angles } = itemSidesAngles(item);
+  const shape = item.shape_name || item.shapeName || item.shape || item.type || 'צורה לא מזוהה';
+  const isSpiral = isSpiralOcrItem(item);
+  let svg = '<div class="meta">אין סקיצה</div>';
+  if (isSpiral) {
+    svg = spiralOcrSvg(item);
+  } else if (sides.length && window.IronBendShapeGeometry?.shapeSVGPath) {
+    const { path } = window.IronBendShapeGeometry.shapeSVGPath(sides, angles, 150, 108, 14);
+    svg = `<svg viewBox="0 0 150 108" aria-label="${escapeHtml(shape)}"><path d="${path}" stroke="#c9621a" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  return `
+    <div class="ocr-table-shape" id="ocrShapeCell_${index}">
+      <button type="button" onclick="openOcrShapeEditor(${index})" title="ערוך צורה">${svg}</button>
+      <button type="button" class="ocr-edit-shape-btn" onclick="openOcrShapeEditor(${index})">ערוך צורה</button>
+    </div>
+  `;
+}
+
+function ocrItemTableRowHtml(parsed, item, index) {
+  const isSpiral = isSpiralOcrItem(item);
+  const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
+  const diameter = item.diameter ?? item.diameter_mm ?? '';
+  const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
+  const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '';
+  const note = item.note || item.notes || '';
+  const measureHtml = isSpiral
+    ? `
+      <div class="ocr-table-source">ספירלה: קוטר ספירלה + מספר כריכות</div>
+      ${ocrTableInputHtml({ index, field:'spiral_diameter_mm', value:item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm) })}
+      ${ocrTableInputHtml({ index, field:'spiral_turns', value:item.spiral_turns ?? item.spiralTurns ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns) })}
+      <input type="hidden" value="" data-item-index="${index}" data-item-field="segments">
+    `
+    : ocrTableTextareaHtml({ index, field:'segments', value:segmentsToText(item), low:isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)) });
+  const warning = note ? `<div class="ocr-row-warning">${escapeHtml(note)}</div>` : '';
+  return `
+    <tr class="${isSpiral ? 'spiral' : ''}">
+      <td>
+        <div class="ocr-item-row-title"><span>${index + 1}</span><span class="ocr-item-kind ${isSpiral ? 'spiral' : ''}">${escapeHtml(ocrItemKind(item))}</span></div>
+        <input type="hidden" value="${escapeHtml(shape)}" data-item-index="${index}" data-item-field="shape_name">
+      </td>
+      <td>${ocrShapeCellHtml(item, index)}</td>
+      <td>${ocrTableInputHtml({ index, field:'diameter', value:diameter, type:'number', low:isLowConfidence(parsed, `items.${index}.diameter`, diameter) })}</td>
+      <td>${ocrTableInputHtml({ index, field:'total_length_mm', value:totalLength, type:'number', low:isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength) })}</td>
+      <td>${ocrTableInputHtml({ index, field:'quantity', value:quantity, type:'number', low:isLowConfidence(parsed, `items.${index}.quantity`, quantity) })}</td>
+      <td class="ocr-table-measure">${measureHtml}</td>
+      <td class="ocr-table-note">${ocrTableTextareaHtml({ index, field:'note', value:note, low:isLowConfidence(parsed, `items.${index}.note`, note) })}${warning}</td>
+    </tr>
+  `;
+}
+
 function ocrItemFieldsHtml(parsed, item, index) {
   const isSpiral = isSpiralOcrItem(item);
   const commonFields = `
@@ -573,8 +650,11 @@ function openOcrShapeEditor(index) {
     if (turnsInput) turnsInput.value = toNumber(turns);
     if (segmentsInput) segmentsInput.value = '';
     [shapeInput, diameterInput, turnsInput, segmentsInput].filter(Boolean).forEach(markOcrEdited);
+    const nextItem = currentOcrItemFromFields(index);
     const preview = document.getElementById(`ocrShapePreview_${index}`);
-    if (preview) preview.outerHTML = ocrShapePreviewHtml(currentOcrItemFromFields(index), index);
+    if (preview) preview.outerHTML = ocrShapePreviewHtml(nextItem, index);
+    const cell = document.getElementById(`ocrShapeCell_${index}`);
+    if (cell) cell.outerHTML = ocrShapeCellHtml(nextItem, index);
     return;
   }
   const editor = ensureIntakeShapeEditor();
@@ -609,8 +689,11 @@ function shapeSelectedFromIntake(data) {
     totalLengthInput.value = (data.sides || []).reduce((sum, side) => sum + Number(side || 0), 0);
     markOcrEdited(totalLengthInput);
   }
+  const nextItem = currentOcrItemFromFields(index);
   const preview = document.getElementById(`ocrShapePreview_${index}`);
-  if (preview) preview.outerHTML = ocrShapePreviewHtml(currentOcrItemFromFields(index), index);
+  if (preview) preview.outerHTML = ocrShapePreviewHtml(nextItem, index);
+  const cell = document.getElementById(`ocrShapeCell_${index}`);
+  if (cell) cell.outerHTML = ocrShapeCellHtml(nextItem, index);
   activeOcrShapeIndex = null;
 }
 
@@ -624,19 +707,25 @@ function intakeEditableForm(parsed) {
         ${ocrFieldHtml({ label:'כתובת', path:'delivery_address', value: parsed.delivery_address || parsed.deliveryAddress || '', low: isLowConfidence(parsed, 'delivery_address', parsed.delivery_address || parsed.deliveryAddress) })}
         ${ocrFieldHtml({ label:'הערות', path:'notes', value: parsed.notes || '', type:'textarea', low: isLowConfidence(parsed, 'notes', parsed.notes) })}
       </div>
-      <div class="box-title">פריטים שזוהו - ניתן לתקן כאן לפני אישור</div>
-      ${items.length ? items.map((item, index) => `
-        <div class="ocr-item-editor ${isSpiralOcrItem(item) ? 'spiral' : ''}">
-          <div class="ocr-item-head">
-            <span>פריט ${index + 1}</span>
-            <span class="ocr-item-kind ${isSpiralOcrItem(item) ? 'spiral' : ''}">${escapeHtml(ocrItemKind(item))}</span>
-          </div>
-          ${ocrShapePreviewHtml(item, index)}
-          <div class="ocr-item-grid ${isSpiralOcrItem(item) ? 'ocr-spiral-grid' : ''}">
-            ${ocrItemFieldsHtml(parsed, item, index)}
-          </div>
+      <div class="box-title">טופס הזמנה מזוהה - תקן את הטבלה לפני אישור</div>
+      ${items.length ? `
+        <div class="ocr-items-sheet">
+          <table class="ocr-items-table" aria-label="טופס הזמנה מזוהה">
+            <thead>
+              <tr>
+                <th style="width:92px">מס'</th>
+                <th style="width:190px">שרטוט / צורה</th>
+                <th style="width:110px">קוטר</th>
+                <th style="width:130px">אורך</th>
+                <th style="width:110px">כמות</th>
+                <th>מידות / פרמטרים</th>
+                <th>הערה</th>
+              </tr>
+            </thead>
+            <tbody>${items.map((item, index) => ocrItemTableRowHtml(parsed, item, index)).join('')}</tbody>
+          </table>
         </div>
-      `).join('') : '<div class="empty">לא זוהו פריטים. צריך לפתוח לעריכה ידנית לפני אישור.</div>'}
+      ` : '<div class="empty">לא זוהו פריטים. צריך לפתוח לעריכה ידנית לפני אישור.</div>'}
       <div class="ocr-corrections" id="ocrCorrectionSummary">כל שינוי שתבצע כאן יישמר יחד עם האישור ויזרום למסך אימון OCR.</div>
     </div>
   `;
