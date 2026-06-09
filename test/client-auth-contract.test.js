@@ -355,6 +355,8 @@ test('order creation success copy does not promise production before approval', 
 
 test('new order screen uses compact workspace layout with sticky summary', () => {
   const index = read('public/index.html');
+  const rebarWeights = read('public/rebar-weights.js');
+  const shapeEditor = read('public/shape-editor.js');
   const intakeStart = index.indexOf('class="section order-import-section"');
   const customerStart = index.indexOf('id="customer-section"');
   const deliveryStart = index.indexOf('id="delivery-section"');
@@ -384,6 +386,15 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
   assert.match(index, /function escapeHtml/);
   assert.match(index, /escapeHtml\(c\.name\)/);
   assert.match(index, /selectCustomer\(JSON\.parse\(decodeURIComponent/);
+  assert.ok(index.indexOf('src="/rebar-weights.js"') > -1);
+  assert.ok(index.indexOf('src="/rebar-weights.js"') < index.indexOf('src="/shape-editor.js'));
+  assert.match(index, /IronBendRebar\.itemWeightKg/);
+  assert.doesNotMatch(index, /REBAR_WEIGHTS\?\.\[/);
+  assert.doesNotMatch(index, /0\.00617/);
+  assert.match(rebarWeights, /IronBendRebar/);
+  assert.match(rebarWeights, /kgPerMeter/);
+  assert.match(shapeEditor, /sharedKgPerMeter/);
+  assert.doesNotMatch(shapeEditor, /const REBAR_WEIGHTS = \{/);
 });
 
 test('shape side count picker uses clear canonical silhouettes', () => {

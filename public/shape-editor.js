@@ -1,9 +1,9 @@
-﻿// ── REBAR WEIGHT TABLE (kg/m) ──────────────────────────────────────
-const REBAR_WEIGHTS = {
-  6: 0.222, 8: 0.395, 10: 0.617, 12: 0.888, 14: 1.21,
-  16: 1.58,  18: 2.00, 20: 2.47,  22: 2.98,  25: 3.85,
-  28: 4.83,  32: 6.31, 36: 7.99,  40: 9.86
-};
+﻿// ── REBAR WEIGHTS ─────────────────────────────────────────────────
+function sharedKgPerMeter(diameter) {
+  if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
+  const d = Number(diameter);
+  return Number.isFinite(d) && d > 0 ? d * d * 0.00617 : 0;
+}
 
 // ── SEGMENT COLOR PALETTE ─────────────────────────────────────────
 const SEG_COLORS = [
@@ -419,15 +419,13 @@ function deleteSavedShape(id) {
 
 // ── WEIGHT ────────────────────────────────────────────────────────
 function calcItemWeight(diameter, sides, qty) {
-  const d = Number(diameter);
-  const kgPerM = REBAR_WEIGHTS[d] ?? (d * d * 0.00617);
+  const kgPerM = sharedKgPerMeter(diameter);
   const totalMm = (sides || []).reduce((s, l) => s + Number(l || 0), 0);
   return (totalMm / 1000) * kgPerM * (qty || 1);
 }
 
 function weightPerMeter(diameter) {
-  const d = Number(diameter);
-  return REBAR_WEIGHTS[d] ?? (d * d * 0.00617);
+  return sharedKgPerMeter(diameter);
 }
 
 // ── SHAPE EDITOR CLASS ────────────────────────────────────────────
