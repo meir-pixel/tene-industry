@@ -645,6 +645,7 @@ app.use('/api', requireModule('intake'), createIntakeRouter({
   INTAKE_AI_ENABLED,
   intake,
   intakeWorkflow,
+  wsBroadcast,
 }));
 app.use('/api', requireModule('portal'), createPortalAdminRouter({
   db,

@@ -45,6 +45,7 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 @media(max-width:860px){.compose-grid{grid-template-columns:1fr}.compose-grid .btn{width:100%}}
 .intake-card{border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05);overflow:hidden}
 .intake-card{display:grid;grid-template-columns:minmax(260px,.72fr) minmax(0,1.28fr);grid-template-rows:auto 1fr;min-height:250px}
+.intake-card:target{outline:3px solid var(--accent);outline-offset:3px}
 .card-top{grid-column:2;grid-row:1;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:13px 14px;border-bottom:1px solid var(--border);background:#fbfcfe}
 .card-title{font-size:16px;font-weight:900;color:var(--text)}
 .card-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -735,6 +736,15 @@ function renderIntakeQueue() {
       </article>
     `;
   }).join('');
+  scrollToHashIntake();
+}
+
+function scrollToHashIntake() {
+  const id = decodeURIComponent(location.hash || '').replace(/^#/, '');
+  if (!id) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
 }
 
 async function loadIntakeQueue() {

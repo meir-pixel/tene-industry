@@ -20,7 +20,46 @@ module.exports = function createIntakeRouter(deps) {
   const INTAKE_AI_ENABLED = required('INTAKE_AI_ENABLED', deps.INTAKE_AI_ENABLED);
   const intake = required('intake', deps.intake);
   const intakeWorkflow = required('intakeWorkflow', deps.intakeWorkflow);
+  const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
   const cleanRecognizedCustomerName = intakeWorkflow.cleanRecognizedCustomerName || (value => String(value || '').trim());
+
+  function shouldSaveToIntake(req) {
+    return req.query.save_to_intake === 'true'
+      || req.body?.save_to_intake === 'true'
+      || req.body?.save_to_intake === true;
+  }
+
+  function saveAnalysisToIntake(req, payload) {
+    const originalMime = req.file.mimetype || 'application/octet-stream';
+    const originalDataUrl = `data:${originalMime};base64,${req.file.buffer.toString('base64')}`;
+    const rawContent = [
+      req.file.originalname ? `file: ${req.file.originalname}` : '',
+      payload.document_type ? `document_type: ${payload.document_type}` : '',
+      payload.supplier_order_num ? `supplier_order_num: ${payload.supplier_order_num}` : '',
+      payload.customer_name ? `customer_name: ${payload.customer_name}` : '',
+      payload.customer_phone ? `customer_phone: ${payload.customer_phone}` : '',
+      payload.delivery_date ? `delivery_date: ${payload.delivery_date}` : '',
+      payload.notes ? `notes: ${payload.notes}` : '',
+      `items: ${(payload.items || []).length}`,
+    ].filter(Boolean).join('\n').slice(0, 2000);
+
+    const log = db.prepare(`
+      INSERT INTO intake_log
+        (source,raw_content,parsed_data,original_filename,original_mime,original_data_url,status)
+      VALUES (?,?,?,?,?,?,?)
+    `).run(
+      'ocr',
+      rawContent,
+      JSON.stringify(payload),
+      req.file.originalname || 'ocr-upload',
+      originalMime,
+      originalDataUrl,
+      'pending_review'
+    );
+    const intakeId = log.lastInsertRowid;
+    wsBroadcast('new_intake', { source: 'ocr', intakeId, parsed: payload });
+    return intakeId;
+  }
 
   router.post('/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, upload.single('image'), async (req, res) => {
     if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
@@ -155,7 +194,7 @@ module.exports = function createIntakeRouter(deps) {
         };
       });
       if (!items.length) return res.status(422).json({ error: 'No steel rows were recognized' });
-      res.json({
+      const payload = {
         success: true,
         document_type: parsedDocument.document_type || null,
         supplier_order_num: parsedDocument.supplier_order_num || null,
@@ -165,7 +204,11 @@ module.exports = function createIntakeRouter(deps) {
         delivery_address: parsedDocument.delivery_address || null,
         notes: parsedDocument.notes || null,
         items,
-      });
+      };
+      if (shouldSaveToIntake(req)) {
+        payload.intakeId = saveAnalysisToIntake(req, payload);
+      }
+      res.json(payload);
     } catch (err) {
       const message = err.response?.data?.error?.message || err.message;
       res.status(500).json({ error: `Document recognition failed: ${message}` });

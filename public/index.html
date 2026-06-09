@@ -1385,6 +1385,9 @@
             <div id="imgItemsList" class="img-items-list"></div>
             <div class="img-modal-actions">
               <button class="btn btn-outline" onclick="closeImgModal()">ביטול</button>
+              <button class="btn btn-success" id="openSavedOcrIntakeBtn" style="display:none" onclick="openSavedOcrIntake()">
+                פתח בתור קליטה לאישור
+              </button>
               <button class="btn btn-primary" onclick="confirmImgItems()">
                 אישור — ייבא לטופס
               </button>
@@ -2117,6 +2120,7 @@ var _imgAnalyzedItems = [];
 var _imgAnalyzedMeta = {};
 var _imgSourceObjectUrl = null;
 var _imgSourceFileType = '';
+var _imgSavedIntakeId = null;
 
 function clearImgSourcePreview() {
   if (_imgSourceObjectUrl) URL.revokeObjectURL(_imgSourceObjectUrl);
@@ -2155,11 +2159,15 @@ function analyzeOrderImage(input) {
   document.getElementById('imgLoading').style.display = 'block';
   document.getElementById('imgResults').style.display = 'none';
   document.getElementById('imgError').style.display = 'none';
+  _imgSavedIntakeId = null;
+  var openIntakeBtn = document.getElementById('openSavedOcrIntakeBtn');
+  if (openIntakeBtn) openIntakeBtn.style.display = 'none';
   renderImgSourcePreview(file);
 
   // Upload + analyze
   var fd = new FormData();
   fd.append('image', file);
+  fd.append('save_to_intake', 'true');
 
   ensureOcrSession()
     .then(function(hasSession) {
@@ -2167,7 +2175,7 @@ function analyzeOrderImage(input) {
         throw new Error('OCR_AUTH_REQUIRED');
       }
       const authFetch = window.IronBendAuth?.fetch || fetch;
-      return authFetch('/api/analyze-image', { method: 'POST', body: fd });
+      return authFetch('/api/analyze-image?save_to_intake=true', { method: 'POST', body: fd });
     })
     .then(function(r) {
       return r.json().then(function(data) {
@@ -2195,6 +2203,9 @@ function analyzeOrderImage(input) {
       }
       _imgAnalyzedItems = data.items;
       _imgAnalyzedMeta = data || {};
+      _imgSavedIntakeId = data.intakeId || null;
+      var openIntakeBtn = document.getElementById('openSavedOcrIntakeBtn');
+      if (openIntakeBtn && _imgSavedIntakeId) openIntakeBtn.style.display = 'inline-flex';
       applyAnalyzedMeta(data);
       renderImgItems(data.items);
       document.getElementById('imgResults').style.display = 'block';
@@ -2383,6 +2394,12 @@ function confirmImgItems() {
     t.style.opacity = '1'; t.style.color = 'white';
     clearTimeout(t._timer); t._timer = setTimeout(function(){ t.style.opacity = '0'; }, 4000);
   }
+}
+
+function openSavedOcrIntake() {
+  var target = '/intake.html';
+  if (_imgSavedIntakeId) target += '#intake_' + encodeURIComponent(_imgSavedIntakeId);
+  window.location.href = target;
 }
 
 function closeImgModal() {

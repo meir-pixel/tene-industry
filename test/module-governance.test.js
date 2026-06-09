@@ -557,7 +557,7 @@ test('intake import and manual parsing live in an intake workflow service', () =
   assert.match(server, /intakeWorkflow\.resolveIntakeCustomer/);
   assert.match(intakeRoute, /intakeWorkflow\.distributeSurplusToEndSegments/);
   assert.doesNotMatch(intakeRoute, /intake\.distributeSurplusToEndSegments/);
-  assert.match(server, /intakeWorkflow,\s*\}\)\);/);
+  assert.match(server, /intakeWorkflow,\s*wsBroadcast,\s*\}\)\);/);
 });
 
 test('intake API routes are split out of the server monolith', () => {
@@ -569,6 +569,9 @@ test('intake API routes are split out of the server monolith', () => {
 
   assert.match(route, /module\.exports = function createIntakeRouter/);
   assert.ok(route.includes("router.post('/analyze-image'"));
+  assert.match(route, /saveAnalysisToIntake/);
+  assert.match(route, /INSERT INTO intake_log/);
+  assert.match(route, /wsBroadcast\('new_intake'/);
   assert.ok(!route.includes("router.get('/intake/training'"));
   assert.ok(!route.includes("router.post('/intake/training'"));
   assert.ok(!route.includes("router.delete('/intake/training/:id'"));

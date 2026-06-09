@@ -631,6 +631,7 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /intakeSourceHtml/);
   assert.match(intake, /intakeCompareSourceHtml/);
   assert.match(intake, /setIntakeCompareZoom/);
+  assert.match(intake, /scrollToHashIntake/);
   assert.match(intake, /intakeEditableForm/);
   assert.match(intake, /data-ocr-field/);
   assert.match(intake, /low-confidence/);
@@ -639,7 +640,19 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /אשר אחרי בדיקה/);
   assert.match(route, /original_data_url/);
   assert.match(route, /original_mime/);
+  assert.match(route, /saveAnalysisToIntake/);
   assert.match(startup, /addCol\('intake_log', 'original_data_url'/);
+});
+
+test('new order OCR upload creates an intake review task before direct import', () => {
+  const index = read('public/index.html');
+  const route = read('routes/intake.js');
+
+  assert.match(index, /save_to_intake/);
+  assert.match(index, /openSavedOcrIntake/);
+  assert.match(index, /openSavedOcrIntakeBtn/);
+  assert.match(route, /pending_review/);
+  assert.match(route, /original_data_url/);
 });
 
 test('admin OCR settings describe OpenAI intake instead of Google Vision', () => {
