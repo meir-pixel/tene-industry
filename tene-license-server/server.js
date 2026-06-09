@@ -122,6 +122,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── תיבת נכנס בטלגרם → TASKS.md ───────────────────────────────────
+const { createTelegramBot } = require('./telegram');
+const telegramBot = createTelegramBot();
+app.post('/api/telegram/webhook', (req, res) => telegramBot.webhook(req, res));
+console.log(`[Telegram] intake bot: ${telegramBot.enabled ? 'enabled' : 'disabled (missing TELEGRAM_BOT_TOKEN/GITHUB_TOKEN)'}`);
+
 // ── Rate limiting (פשוט — ללא חבילות) ────────────────────────────
 const checkCounts = new Map();
 setInterval(() => checkCounts.clear(), 60 * 1000); // איפוס כל דקה
@@ -618,6 +624,7 @@ app.listen(PORT, () => {
   console.log(`   Admin: http://localhost:${PORT}/admin`);
   console.log(`   Health: http://localhost:${PORT}/health\n`);
   checkExpiringLicenses(); // בדיקה בהפעלה
+  telegramBot.registerWebhook().catch(e => console.error('telegram registerWebhook', e.message));
 });
 
 module.exports = app;
