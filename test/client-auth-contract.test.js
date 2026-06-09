@@ -332,6 +332,10 @@ test('orders review warnings have an approval path and source comparison', () =>
   assert.match(ordersRoute, /wsBroadcast\('order_review'/);
   assert.match(intakeRoute, /\/intake\/order-review-tasks/);
   assert.match(intake, /\/api\/intake\/order-review-tasks/);
+  assert.match(intake, /postOrderReviewHtml/);
+  assert.match(intake, /reviewItemsHtml/);
+  assert.match(intake, /מסלול אימות הערות אחרי פתיחת הזמנה/);
+  assert.match(intake, /פתח הזמנה ואשר הערות/);
   assert.match(intake, /openLinkedOrder/);
   assert.match(startup, /addCol\('items',\s+'review_status'/);
 });
