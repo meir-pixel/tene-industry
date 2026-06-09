@@ -132,6 +132,13 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .ocr-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .ocr-item-editor{border:1px solid var(--border);border-radius:10px;background:#fbfcfe;padding:10px;display:grid;gap:10px}
 .ocr-item-head{display:flex;justify-content:space-between;gap:10px;align-items:center;font-weight:900}
+.ocr-shape-card{border:1px solid #d8e4ef;border-radius:10px;background:#fff;display:grid;grid-template-columns:180px minmax(0,1fr);gap:10px;align-items:center;padding:10px}
+.ocr-shape-preview{height:132px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;display:grid;place-items:center;cursor:pointer}
+.ocr-shape-preview svg{width:150px;height:108px}
+.ocr-shape-preview:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(201,98,26,.12)}
+.ocr-shape-summary{display:grid;gap:5px;font-size:12px;color:var(--text-muted);line-height:1.5}
+.ocr-shape-summary strong{font-size:14px;color:var(--text)}
+.ocr-shape-hint{font-size:11px;font-weight:900;color:var(--accent)}
 .ocr-item-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .ocr-corrections{border:1px solid #bde8c8;background:#f3fbf5;border-radius:8px;padding:10px;font-size:12px;font-weight:800;color:#1f6f3c}
 .work-steps{display:grid;gap:8px;margin-top:4px}
@@ -142,13 +149,14 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .queue-empty{padding:28px;border:1px dashed var(--border);border-radius:10px;background:linear-gradient(180deg,#fff,#f8fbfe);text-align:center;display:grid;gap:8px}
 .queue-empty-title{font-size:20px;font-weight:900;color:var(--text)}
 .queue-empty-copy{font-size:13px;color:var(--text-muted);max-width:680px;margin:0 auto;line-height:1.7}
-@media(max-width:760px){.ocr-field-grid,.ocr-item-grid{grid-template-columns:1fr}.ocr-source-stage{min-height:320px}.ocr-source-zoom iframe,.ocr-source-zoom img{height:520px}}
+@media(max-width:760px){.ocr-field-grid,.ocr-item-grid,.ocr-shape-card{grid-template-columns:1fr}.ocr-source-stage{min-height:320px}.ocr-source-zoom iframe,.ocr-source-zoom img{height:520px}}
 @media(max-width:980px){.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-source{min-height:45vh;border-left:0;border-bottom:1px solid var(--border)}}
 </style>
 </head>
 <body data-page="intake">
 <script src="/safe-dom.js"></script>
 <script src="/auth-client.js"></script>
+<script src="/shape-editor.js?v=43"></script>
 <script src="/nav.js"></script>
 
 <main class="page">
@@ -275,6 +283,8 @@ let intakeRows = [];
 let activeCompareId = null;
 let activeCompareOriginal = null;
 let intakeCompareZoom = 1;
+let intakeShapeEditor = null;
+let activeOcrShapeIndex = null;
 
 function escapeHtml(value) {
   return window.IronBendSafe
@@ -396,6 +406,125 @@ function parseSegmentsText(text) {
   });
 }
 
+function ocrItemInput(index, field) {
+  return document.querySelector(`[data-item-index="${index}"][data-item-field="${field}"]`);
+}
+
+function itemSegmentsOf(item) {
+  if (Array.isArray(item?.segments) && item.segments.length) return item.segments;
+  if (Array.isArray(item?.sides) && item.sides.length) {
+    return item.sides.map((length, index) => ({
+      length_mm: length,
+      angle_deg: Array.isArray(item.angles) ? (item.angles[index] ?? 0) : 0,
+    }));
+  }
+  return [];
+}
+
+function itemSidesAngles(item) {
+  const segments = itemSegmentsOf(item);
+  let sides = segments
+    .map(seg => typeof seg === 'object' ? (seg.length_mm ?? seg.length ?? seg.length_cm) : seg)
+    .map(toNumber)
+    .filter(n => n > 0);
+  const angles = segments
+    .slice(0, Math.max(0, sides.length - 1))
+    .map(seg => typeof seg === 'object' ? toNumber(seg.angle_deg ?? seg.angle ?? 90) : 90);
+  if (!sides.length) {
+    const length = toNumber(item?.total_length_mm ?? item?.length_mm ?? item?.length);
+    if (length > 0) sides = [length];
+  }
+  return { sides, angles: angles.slice(0, Math.max(0, sides.length - 1)) };
+}
+
+function currentOcrItemFromFields(index) {
+  const source = activeCompareOriginal?.items?.[index] || {};
+  const item = { ...source };
+  const diameter = ocrItemInput(index, 'diameter');
+  const quantity = ocrItemInput(index, 'quantity');
+  const totalLength = ocrItemInput(index, 'total_length_mm');
+  const shapeName = ocrItemInput(index, 'shape_name');
+  const segments = ocrItemInput(index, 'segments');
+  const note = ocrItemInput(index, 'note');
+  if (diameter) item.diameter = toNumber(diameter.value);
+  if (quantity) item.quantity = toNumber(quantity.value);
+  if (totalLength) item.total_length_mm = toNumber(totalLength.value);
+  if (shapeName) item.shape_name = shapeName.value.trim();
+  if (segments) item.segments = parseSegmentsText(segments.value);
+  if (note) item.note = note.value.trim();
+  return item;
+}
+
+function ocrShapePreviewHtml(item, index) {
+  const { sides, angles } = itemSidesAngles(item);
+  const shape = item.shape_name || item.shapeName || item.shape || item.type || 'צורה לא מזוהה';
+  const diameter = item.diameter ?? item.diameter_mm ?? '-';
+  const quantity = item.qty ?? item.quantity ?? item.pcs ?? '-';
+  let svg = '<div class="meta">אין סקיצה</div>';
+  if (sides.length && window.IronBendShapeGeometry?.shapeSVGPath) {
+    const { path } = window.IronBendShapeGeometry.shapeSVGPath(sides, angles, 150, 108, 14);
+    svg = `<svg viewBox="0 0 150 108" aria-label="${escapeHtml(shape)}"><path d="${path}" stroke="#c9621a" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  return `
+    <div class="ocr-shape-card" id="ocrShapePreview_${index}">
+      <button type="button" class="ocr-shape-preview" onclick="openOcrShapeEditor(${index})" title="לחץ לעריכת הצורה">${svg}</button>
+      <div class="ocr-shape-summary">
+        <strong>${escapeHtml(shape)}</strong>
+        <span>Ø ${escapeHtml(diameter)} · כמות ${escapeHtml(quantity)}</span>
+        <span>${escapeHtml(sides.length ? sides.join(' / ') : '-')} מ"מ</span>
+        <span class="ocr-shape-hint">לחץ על הסקיצה כדי לתקן ולאשר את הצורה</span>
+      </div>
+    </div>
+  `;
+}
+
+function ensureIntakeShapeEditor() {
+  if (!intakeShapeEditor && typeof ShapeEditorModal !== 'undefined') {
+    intakeShapeEditor = new ShapeEditorModal(shapeSelectedFromIntake);
+  }
+  return intakeShapeEditor;
+}
+
+function openOcrShapeEditor(index) {
+  activeOcrShapeIndex = index;
+  const editor = ensureIntakeShapeEditor();
+  if (!editor) return toast('עורך הצורה לא נטען', true);
+  const item = currentOcrItemFromFields(index);
+  const { sides, angles } = itemSidesAngles(item);
+  editor.open({
+    presetId: item.shape_id || item.shapeId || item.presetId || null,
+    presetName: item.shape_name || item.shapeName || item.shape || item.type || 'צורה מותאמת',
+    sides: sides.length ? sides : [1000],
+    angles,
+    is3d: item.is3d || 0,
+    azAngles: item.azAngles || null,
+    elAngles: item.elAngles || null,
+  });
+}
+
+function shapeSelectedFromIntake(data) {
+  if (activeOcrShapeIndex === null) return;
+  const index = activeOcrShapeIndex;
+  const shapeInput = ocrItemInput(index, 'shape_name');
+  const segmentsInput = ocrItemInput(index, 'segments');
+  const totalLengthInput = ocrItemInput(index, 'total_length_mm');
+  if (shapeInput) {
+    shapeInput.value = data.presetName || 'צורה מותאמת';
+    markOcrEdited(shapeInput);
+  }
+  if (segmentsInput) {
+    segmentsInput.value = (data.sides || []).map((side, i) => `${side}@${(data.angles || [])[i] ?? 0}`).join(' / ');
+    markOcrEdited(segmentsInput);
+  }
+  if (totalLengthInput) {
+    totalLengthInput.value = (data.sides || []).reduce((sum, side) => sum + Number(side || 0), 0);
+    markOcrEdited(totalLengthInput);
+  }
+  const preview = document.getElementById(`ocrShapePreview_${index}`);
+  if (preview) preview.outerHTML = ocrShapePreviewHtml(currentOcrItemFromFields(index), index);
+  activeOcrShapeIndex = null;
+}
+
 function intakeEditableForm(parsed) {
   const items = Array.isArray(parsed.items) ? parsed.items : [];
   return `
@@ -413,6 +542,7 @@ function intakeEditableForm(parsed) {
             <span>פריט ${index + 1}</span>
             <span class="meta">${escapeHtml(item.shape_name || item.shapeName || item.shape || item.type || '')}</span>
           </div>
+          ${ocrShapePreviewHtml(item, index)}
           <div class="ocr-item-grid">
             ${ocrFieldHtml({ label:'קוטר', itemIndex:index, itemField:'diameter', value:item.diameter ?? item.diameter_mm ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.diameter`, item.diameter ?? item.diameter_mm) })}
             ${ocrFieldHtml({ label:'כמות', itemIndex:index, itemField:'quantity', value:item.qty ?? item.quantity ?? item.pcs ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.quantity`, item.qty ?? item.quantity ?? item.pcs) })}
