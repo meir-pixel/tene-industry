@@ -85,10 +85,10 @@ node server.js  # מריץ מקומית
 | רמה | משימה טובה ראשונה | קישור |
 |-----|-------------------|-------|
 | קל | קרא דרכון מודול אחד והבן קלט/פלט | [docs/modules/README.md](docs/modules/README.md) |
-| בינוני | קח משימה פתוחה עם אפיון מוכן | טבלת המשימות ב-[docs/OPERATIONS_HE.md](docs/OPERATIONS_HE.md) |
+| בינוני | קח משימה פתוחה מהלוח | [TASKS.md](TASKS.md) — מקור האמת למשימות |
 | מתקדם | המשך לרוקן route מ-`server.js` למודול | [docs/spec-module-contract.md](docs/spec-module-contract.md) |
 
-יש **8 משימות פתוחות עם אפיון מוכן** ב-`OPERATIONS_HE.md` — כל אחת אפשר לקחת עצמאית.
+יש **לוח משימות חי** ב-`TASKS.md` (בשורש) — כל כרטיס עם owner, scope, spec ו-accept. אפשר לקחת עצמאית.
 
 ---
 
