@@ -94,6 +94,24 @@
 - spec: docs/spec-vendor-vs-customer-admin.md
 - accept: ⚠️ אבטחה — אסור כפתורי ספק (מודולים/רישיון/מכסה) בצד הלקוח
 
+### T-009 · שכבת מיתוג White-Label (צד לקוח)
+- status: todo
+- owner: claude
+- priority: P1
+- scope: services/branding.js (חדש), routes/branding.js (חדש), public/brand-client.js (חדש), services/settings.js (הגדרות BRAND_*), public/nav.js (אלמנט מותג), public/login.html
+- spec: docs/spec-customer-side.md
+- accept: שם/לוגו/צבע נטענים מ-settings פר-לקוח; אין "IronBend" מוצג ללקוח; הלקוח יכול לערוך מיתוג; npm test ירוק
+- notes: ⚠️ צד לקוח = תחום Claude. נוגע ב-nav.js (גם T-002) ובמיתוג שסומן ל-GPT (#4) — לתאם לפני התחלה
+
+### T-010 · רושם ראשון — מסך כניסה ממותג + מיתוג בהקמה
+- status: todo
+- owner: claude
+- priority: P2
+- scope: public/login.html, tools/provision-customer.js, docs/customer-onboarding.md
+- spec: docs/spec-customer-side.md
+- accept: login מציג מותג לקוח; provision-customer מזריק BRAND_* כברירת מחדל
+- notes: תלוי ב-T-009; כפיית סיסמה ראשונה (#3) מסומן GPT — לתאם
+
 ---
 
 ## 📥 נכנס (ממתין לסידור)
