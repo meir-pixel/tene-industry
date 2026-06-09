@@ -26,7 +26,6 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 @media(max-width:1120px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.head{align-items:flex-start;flex-direction:column}}
 @media(max-width:680px){.stats{grid-template-columns:1fr}}
 .panel{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));overflow:hidden}
-.layout > .panel:has(#ocrTrainingList){display:none}
 .queue-panel{min-width:0}
 .capture-panel{position:sticky;top:14px}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fafbfd}
@@ -36,7 +35,7 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .filter{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 12px;font-family:inherit;font-weight:800;cursor:pointer;color:var(--text-muted)}
 .filter.active{border-color:var(--accent);background:#fff4ec;color:var(--accent)}
 .empty{color:var(--text-muted);padding:18px;border:1px dashed var(--border);border-radius:10px;text-align:center;background:#fbfcfe}
-.intake-list,.ocr-list{display:grid;gap:12px}
+.intake-list{display:grid;gap:12px}
 .intake-compose{border:0;background:transparent;padding:0;display:grid;gap:10px}
 .compose-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .compose-title{font-size:16px;font-weight:900;color:var(--text)}
@@ -44,7 +43,7 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .compose-grid textarea{min-height:150px;resize:vertical}
 .compose-result{font-size:12px;font-weight:800;color:var(--text-muted);min-height:18px}
 @media(max-width:860px){.compose-grid{grid-template-columns:1fr}.compose-grid .btn{width:100%}}
-.intake-card,.train-card{border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05);overflow:hidden}
+.intake-card{border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05);overflow:hidden}
 .intake-card{display:grid;grid-template-columns:minmax(260px,.72fr) minmax(0,1.28fr);grid-template-rows:auto 1fr;min-height:250px}
 .card-top{grid-column:2;grid-row:1;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:13px 14px;border-bottom:1px solid var(--border);background:#fbfcfe}
 .card-title{font-size:16px;font-weight:900;color:var(--text)}
@@ -236,48 +235,6 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
       </div>
     </aside>
 
-    <section class="panel">
-      <div class="panel-head">
-        <div>
-          <div class="panel-title">אימון OCR / AI</div>
-          <div class="meta">כאן מתעדים תיקונים כדי לשפר זיהוי מסמכים ותמונות.</div>
-        </div>
-        <button class="btn" onclick="loadOcrTraining()">רענן</button>
-      </div>
-      <div class="panel-body">
-        <div class="form-grid">
-          <div class="field">
-            <label>שם קצר לדוגמה</label>
-            <input type="text" id="ocrTrainTitle" placeholder="תעודת משלוח - שדה ספק">
-          </div>
-          <div class="field">
-            <label>סוג מסמך</label>
-            <select id="ocrTrainType">
-              <option value="bending_shape">צורת כיפוף למלאי</option>
-              <option value="supplier_delivery_note">תעודת משלוח מספק</option>
-              <option value="customer_order_email">הזמנה ממייל</option>
-              <option value="whatsapp_order">הזמנה מוואטסאפ</option>
-              <option value="tassa_pdf">TASSA PDF</option>
-              <option value="handwritten_cards">כרטיסיות בכתב יד</option>
-              <option value="bar_schedule">רשימת ברזל / טבלה</option>
-              <option value="general">כללי</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-grid">
-          <div class="field">
-            <label>מה נקרא לא נכון?</label>
-            <textarea id="ocrTrainProblem"></textarea>
-          </div>
-          <div class="field">
-            <label>איך לקרוא נכון בפעם הבאה?</label>
-            <textarea id="ocrTrainCorrection"></textarea>
-          </div>
-        </div>
-        <button class="btn btn-primary" onclick="saveOcrTraining()">שמור תיקון</button>
-        <div id="ocrTrainingList" class="ocr-list"></div>
-      </div>
-    </section>
   </section>
 </main>
 
@@ -888,62 +845,6 @@ function openManualOrder(id) {
 function openLinkedOrder(orderId) {
   if (!orderId) return toast('לא נמצא קישור להזמנה', true);
   window.location.href = '/orders.html?id=' + encodeURIComponent(orderId);
-}
-
-async function loadOcrTraining() {
-  const list = document.getElementById('ocrTrainingList');
-  list.innerHTML = '<div class="empty">טוען...</div>';
-  const rows = await fetch('/api/intake/training').then(r => r.json()).catch(() => []);
-  if (!rows.length) {
-    list.innerHTML = '<div class="empty">אין עדיין דוגמאות אימון.</div>';
-    return;
-  }
-  list.innerHTML = rows.map(row => `
-    <article class="train-card" id="ocrTrain_${row.id}">
-      <div class="card-top">
-        <div>
-          <div class="card-title">${escapeHtml(row.title)}</div>
-          <div class="meta">${escapeHtml(row.document_type || 'general')}</div>
-        </div>
-        <button class="btn" onclick="deleteOcrTraining(${row.id})">הסר</button>
-      </div>
-      <div class="card-grid">
-        <div class="box"><div class="box-title">נקרא לא נכון</div><div class="meta">${escapeHtml(row.problem_text)}</div></div>
-        <div class="box"><div class="box-title">התיקון</div><div class="meta">${escapeHtml(row.correction_text)}</div></div>
-      </div>
-    </article>
-  `).join('');
-}
-
-async function saveOcrTraining() {
-  const payload = {
-    title: document.getElementById('ocrTrainTitle').value,
-    document_type: document.getElementById('ocrTrainType').value,
-    problem_text: document.getElementById('ocrTrainProblem').value,
-    correction_text: document.getElementById('ocrTrainCorrection').value,
-  };
-  if (!payload.title.trim() || !payload.problem_text.trim() || !payload.correction_text.trim()) {
-    toast('צריך למלא שם, בעיה ותיקון', true);
-    return;
-  }
-  const response = await fetch('/api/intake/training', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(payload),
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || !result.success) return toast('שמירת התיקון נכשלה', true);
-  document.getElementById('ocrTrainTitle').value = '';
-  document.getElementById('ocrTrainProblem').value = '';
-  document.getElementById('ocrTrainCorrection').value = '';
-  toast('תיקון נשמר');
-  loadOcrTraining();
-}
-
-async function deleteOcrTraining(id) {
-  await fetch('/api/intake/training/' + id, { method:'DELETE' });
-  document.getElementById('ocrTrain_' + id)?.remove();
-  toast('התיקון הוסר');
 }
 
 loadIntakeQueue();

@@ -556,7 +556,10 @@ test('intake review belongs to intake screen and OCR training is a separate admi
   assert.doesNotMatch(admin, /intakeApprove/);
   assert.doesNotMatch(admin, /intakeReject/);
   assert.match(admin, /\/ocr-training\.html/);
-  assert.match(intake, /:has\(#ocrTrainingList\)\{display:none\}/);
+  assert.doesNotMatch(intake, /ocrTrainingList/);
+  assert.doesNotMatch(intake, /loadOcrTraining/);
+  assert.doesNotMatch(intake, /saveOcrTraining/);
+  assert.doesNotMatch(intake, /deleteOcrTraining/);
   assert.match(intake, /loadIntakeQueue\(\);\s*<\/script>/);
   assert.match(intake, /loadIntakeQueue/);
   assert.match(intake, /מרכז קליטת הזמנות/);
@@ -788,7 +791,7 @@ test('warehouse screen is API-backed and owns outbound warehouse work only', () 
 
 test('inventory screen is authenticated and covered by safe API loading', () => {
   const inventory = read('public/inventory.html');
-  const intake = read('public/intake.html');
+  const training = read('public/ocr-training.html');
   const inventoryVisionRoutes = read('routes/inventoryVision.js');
 
   assert.match(inventory, /src="\/auth-client\.js"/);
@@ -812,7 +815,7 @@ test('inventory screen is authenticated and covered by safe API loading', () => 
   assert.match(inventory, /ocrSetupMessage/);
   assert.match(inventory, /insufficient_quota/);
   assert.match(inventory, /Billing ב-OpenAI/);
-  assert.match(intake, /value="bending_shape"/);
+  assert.match(training, /value="bending_shape"/);
   assert.match(inventoryVisionRoutes, /getIntakeTrainingGuidance\(12, \['bending_shape', 'bar_schedule', 'general'\]\)/);
   assert.match(inventory, /חסר OpenAI API Key/);
   assert.match(inventory, /OCR כבוי/);
