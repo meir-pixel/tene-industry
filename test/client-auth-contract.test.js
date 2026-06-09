@@ -346,6 +346,24 @@ test('image OCR metadata does not become driver instructions', () => {
   assert.match(index, /data\.notes && !isTechnicalRecognitionNote\(data\.notes\)/);
 });
 
+test('technical OCR metadata does not print on customer-facing documents', () => {
+  const deliveryCertificate = read('routes/orderDeliveryCertificate.js');
+  const productionCards = read('services/productionCards.js');
+  const printPage = read('services/productionCardPrintPage.js');
+
+  for (const source of [deliveryCertificate, productionCards, printPage]) {
+    assert.match(source, /isTechnicalRecognitionNote/);
+    assert.match(source, /REVIEW_NOTE_LABEL/);
+    assert.match(source, /printableItemNote/);
+  }
+
+  assert.doesNotMatch(deliveryCertificate, /\[item\.struct_element, item\.struct_floor, item\.sheet_num, item\.note\]/);
+  assert.match(productionCards, /const note = printableItemNote\(item\.note\)/);
+  assert.doesNotMatch(productionCards, /escapeHtml\(item\.note\)/);
+  assert.match(printPage, /note:\s+printableItemNote\(it\.note\)/);
+  assert.doesNotMatch(printPage, /note:\s+it\.note\s+\|\|/);
+});
+
 test('order creation success copy does not promise production before approval', () => {
   const index = read('public/index.html');
 

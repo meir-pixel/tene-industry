@@ -1,3 +1,12 @@
+const { isTechnicalRecognitionNote } = require('./intakeWorkflow');
+
+const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
+
+function printableItemNote(note) {
+  if (!note) return '';
+  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
+}
+
 function renderPrintCardsPage({
   order,
   pallets,
@@ -196,7 +205,7 @@ var allItems      = ${JSON.stringify(allItems.map(it => ({
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
   segments:       tryParseJSON(it.segments, []),
-  note:           it.note        || '',
+  note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   pallet_num:     it._palletNum  || 1,
   material_grade: it.material_grade || 'B500B',

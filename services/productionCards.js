@@ -1,9 +1,18 @@
+const { isTechnicalRecognitionNote } = require('./intakeWorkflow');
+
+const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function printableItemNote(note) {
+  if (!note) return '';
+  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
 }
 
 function parseSegments(value) {
@@ -269,6 +278,7 @@ function itemCard(item, order, printDate, rebarWeights) {
   const barcode = `${order.order_num || ''}-${String(item.id).padStart(6, '0')}`;
   const segments = parseSegments(item.segments);
   const title = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
+  const note = printableItemNote(item.note);
   const kgPerMeter = rebarWeights[Math.round(item.diameter || 0)];
   const weight = item.total_weight && item.total_weight > 0
     ? Number(item.total_weight).toFixed(2)
@@ -308,7 +318,7 @@ function itemCard(item, order, printDate, rebarWeights) {
       `<div class="pc-spec-cell"><span class="spec-lbl">אורך פיתוח:</span> <b>${item.total_length_mm || 0}</b> מ"מ</div>` +
       (item.struct_element ? `<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> ${escapeHtml(item.struct_element)}</div>` : '') +
     '</div>' +
-    (item.note ? `<div class="pc-note">⚠ ${escapeHtml(item.note)}</div>` : '') +
+    (note ? `<div class="pc-note">⚠ ${escapeHtml(note)}</div>` : '') +
     '<div class="pc-footer">' +
       `<div class="bc-font-footer">${escapeHtml(barcode)}</div>` +
       `<div class="pc-brand">SYNTA<br><span class="pc-brand-num">${item._palletNum || 1}</span></div>` +
@@ -318,6 +328,7 @@ function itemCard(item, order, printDate, rebarWeights) {
 
 module.exports = {
   escapeHtml,
+  printableItemNote,
   shapeSvg,
   masterCard,
   itemCard,

@@ -1,8 +1,16 @@
 const router = require('express').Router();
+const { isTechnicalRecognitionNote } = require('../services/intakeWorkflow');
+
+const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orderDeliveryCertificate missing dependency: ${name}`);
   return value;
+}
+
+function printableItemNote(note) {
+  if (!note) return '';
+  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
 }
 
 module.exports = function createOrderDeliveryCertificateRouter(deps) {
@@ -69,7 +77,7 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
     const lenCm  = item.total_length_mm ? Math.round(item.total_length_mm / 10) : '–';
     const qty    = item.quantity || 1;
     const wt     = fmt1(calcItemWeight(item));
-    const notes  = [item.struct_element, item.struct_floor, item.sheet_num, item.note].filter(Boolean).join(' · ') || '–';
+    const notes  = [item.struct_element, item.struct_floor, item.sheet_num, printableItemNote(item.note)].filter(Boolean).join(' · ') || '–';
 
     // Inline SVG shape (80×52)
     const svgShape = (() => {
