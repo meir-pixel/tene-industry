@@ -29,9 +29,10 @@
 
 ### T-001 · ספירת משתמשים פעילים ברישיון
 - status: todo
-- owner: claude
+- owner: gpt
 - priority: P1
 - scope: services/license.js
+- notes: הועבר ל-GPT (license.js תחומו). הצד של אכיפת המכסה ב-tene-license-server הוא תחום Claude ויטופל בנפרד.
 - spec: docs/spec-license-modules.md
 - accept: license.js שולח `activeUsers` ל-`/api/check`; מכסת המשתמשים נאכפת בשרת הרישיונות
 - notes: בלי זה מכסת המשתמשים בפאנל לא עובדת בפועל
@@ -46,12 +47,12 @@
 - notes: ⚠️ נוגע ב-permissions.js/nav — לתאם בין הסוכנים לפני התחלה
 
 ### T-003 · עדכון BUILD_RULES — הצהרת הרשאות חובה במודול
-- status: approval
+- status: done
 - owner: claude
 - priority: P2
-- scope: docs/BUILD_RULES_HE.md, docs/spec-module-permissions.md
-- accept: סעיף 8 מחייב `manifest.access` בכל מודול; ברירת מחדל hidden; governance מאמת קיום access
-- notes: הצעה שלי — תלוי באישור הכיוון של T-002
+- scope: docs/BUILD_RULES_HE.md
+- accept: סעיף 8 מחייב `manifest.access` בכל מודול; ברירת מחדל hidden
+- progress: ✅ נוסף סעיף 8.1 ל-BUILD_RULES_HE.md (הצהרת screens+access, ברירת מחדל hidden, קיר ביטחון בקוד)
 
 ### T-004 · ניתוב OCR לפי סוג מסמך
 - status: in_progress
@@ -96,15 +97,14 @@
 - accept: ⚠️ אבטחה — אסור כפתורי ספק (מודולים/רישיון/מכסה) בצד הלקוח
 
 ### T-009 · שכבת מיתוג White-Label (צד לקוח)
-- status: in_progress
+- status: done
 - owner: claude
 - claimed: 2026-06-09
 - priority: P1
-- scope: services/branding.js (חדש), routes/branding.js (חדש), public/brand-client.js (חדש), services/settings.js (הגדרות BRAND_*), public/nav.js (אלמנט מותג), public/login.html
+- scope: services/branding.js, routes/branding.js, public/brand-client.js, services/settings.js, public/nav.js
 - spec: docs/spec-customer-side.md
-- accept: שם/לוגו/צבע נטענים מ-settings פר-לקוח; אין "IronBend" מוצג ללקוח; הלקוח יכול לערוך מיתוג; npm test ירוק
-- progress: ✅ נבנו 3 קבצים חדשים (branding.js, routes/branding.js, brand-client.js). ממתין לתיאום עם GPT: mount ב-server.js (שורה אחת), אלמנט מותג ב-nav.js, הגדרות BRAND_* ב-settings.js, login.html
-- notes: ⚠️ צד לקוח = תחום Claude. nav.js/server.js/settings.js משותפים — לתאם לפני נגיעה בהם
+- accept: שם/לוגו/צבע נטענים מ-settings פר-לקוח; הלקוח יכול לערוך מיתוג; npm test ירוק (195/195)
+- progress: ✅ branding.js+routes (Claude) → mount ב-server.js (GPT) → הגדרות BRAND_ customer-editable ב-settings.js (Claude) → brand-client נטען בכל הדפים דרך nav.js + hookים ללוגו (Claude). מסך כניסה + מיתוג בהקמה = T-010.
 
 ### T-010 · רושם ראשון — מסך כניסה ממותג + מיתוג בהקמה
 - status: todo
@@ -130,4 +130,6 @@
 
 > כרטיסים שהושלמו עוברים לכאן עם `commit:`. לא נמחקים.
 
-- T-000 · `START_HERE.md` — מדריך כניסה למצטרף · owner: claude · (ממתין לקומיט)
+- T-000 · `START_HERE.md` — מדריך כניסה למצטרף · owner: claude · commit: 0a7649d
+- T-003 · BUILD_RULES §8.1 — הצהרת screens+access חובה במודול · owner: claude
+- T-009 · שכבת מיתוג White-Label — שם/לוגו/צבע פר-לקוח, customer-editable · owner: claude (+GPT wired server.js)

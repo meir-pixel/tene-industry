@@ -118,6 +118,15 @@ node --test test\route-auth-coverage.test.js
 
 אם לא ברור מי הבעלים, לא כותבים קוד לפני שמחליטים.
 
+### 8.1 הצהרת מסכים והרשאות ב-manifest (חובה)
+
+כל route module מצהיר ב-`manifest` על המסכים שהוא חושף ועל הרשאת ברירת המחדל:
+
+- `screens` — המסכים שהמודול חושף (id, path, label, group). זהו מקור האמת לניווט.
+- `access` — `default` + `roles`. **ברירת המחדל הבטוחה:** מודול חדש = `default: 'hidden'`, `roles: { admin: 'edit' }` בלבד. פותחים גישה במפורש, לא משאירים פתוח.
+- ההצהרה הזו מופיעה אוטומטית במסך "ניהול מערכת" (ראה `docs/spec-module-permissions.md`).
+- ההרשאה ב-manifest **אינה מחליפה** את `requireAnyRole`/`requireRole` ב-endpoints — הקוד נשאר קיר הביטחון; ה-manifest יכול רק להגביל, לא להעלות.
+
 ## 9. מחירון ותמחור
 
 המחירון אינו "קובץ שקורא הכל" ואינו route פיננסי רגיל.

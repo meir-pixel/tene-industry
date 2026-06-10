@@ -65,6 +65,7 @@ function createSettingsService(db) {
     [7, 'מייל',          '📧', 7],
     [8, 'Priority ERP',  '🔗', 8],
     [9, 'מערכת',         '🖥️', 9],
+    [10, 'מיתוג',        '🎨', 10],
   ].forEach(r => groupSeed.run(...r));
 
   // ── Seed definitions ─────────────────────────────────────────────
@@ -81,6 +82,12 @@ function createSettingsService(db) {
     ['WASTE_PCT_DEFAULT',              1, 'אחוז פסולת ברירת מחדל',     'אחוז waste שמחושב על כל הזמנה',             'percent',  '3',    0,   30, '%',     0, 'edit',   1],
     ['URGENT_ORDER_WAIT_MINUTES',      1, 'זמן המתנה לדחוף',           'כמה דקות עד התראה על הזמנה דחופה',          'minutes',  '30',   5,  120, 'דקות', 0, 'edit',   2],
     ['PENDING_APPROVAL_WAIT_MINUTES',  1, 'זמן המתנה לאישור',          'כמה דקות עד התראה על הזמנה ממתינה',         'minutes',  '15',   5,   60, 'דקות', 0, 'edit',   3],
+
+    // ── מיתוג (white-label — הלקוח יכול לערוך) ───────────────────
+    ['BRAND_NAME',                     10, 'שם המערכת',                 'השם שמוצג ללקוח בכותרת ובלשונית',           'string',   'IronBend',             null, null, null, 0, 'edit', 1],
+    ['BRAND_LOGO_URL',                 10, 'לוגו (קישור)',              'נתיב או קישור ללוגו המוצג',                 'url',      '/brand/tene-logo.svg', null, null, null, 0, 'edit', 2],
+    ['BRAND_PRIMARY_COLOR',            10, 'צבע ראשי',                  'צבע מותג ראשי (hex, למשל #2E75B6)',          'string',   '#2E75B6',              null, null, null, 0, 'edit', 3],
+    ['BRAND_SUPPORT_PHONE',            10, 'טלפון תמיכה',               'מספר תמיכה שמוצג ללקוח',                    'phone',    '',                     null, null, null, 0, 'edit', 4],
 
     // ── כספים ────────────────────────────────────────────────────
     ['LABOR_COST_PER_HOUR',            2, 'עלות עבודה לשעה',           'עלות עובד לשעת עבודה',                      'currency', '120',  0, 9999, '₪',    0, 'edit',   1],

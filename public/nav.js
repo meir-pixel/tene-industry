@@ -7,6 +7,14 @@
     document.head.appendChild(authScript);
   }
 
+  // מיתוג white-label — נטען מנקודה אחת לכל הדפים
+  if (!document.querySelector('script[src="/brand-client.js"]')) {
+    const brandScript = document.createElement('script');
+    brandScript.src = '/brand-client.js';
+    brandScript.async = false;
+    document.head.appendChild(brandScript);
+  }
+
   const LINKS = [
     { group:'ראשי', href:'/dashboard.html', icon:'📊', label:'דשבורד', id:'dashboard' },
     { group:'ראשי', href:'/orders.html', icon:'📋', label:'הזמנות', id:'orders' },
@@ -271,7 +279,7 @@
   const topnav = document.createElement('nav');
   topnav.id = 'ib-topnav';
   topnav.innerHTML =
-    '<a href="/dashboard.html" id="ib-logo" title="דשבורד" aria-label="דשבורד"><img id="ib-logo-icon" src="/brand/tene-logo.svg" alt="טנא תעשיות ברזל"></a>' +
+    '<a href="/dashboard.html" id="ib-logo" title="דשבורד" aria-label="דשבורד"><img id="ib-logo-icon" data-brand-logo src="/brand/tene-logo.svg" alt="לוגו"></a>' +
     '<div id="ib-links">' + renderNavLinks('ib-link', 'ib-group-label') + '</div>' +
     '<button id="ib-search-btn" title="חיפוש (Ctrl+K)" aria-label="חיפוש">🔍</button>' +
     '<button id="ib-hamburger" aria-label="תפריט">☰</button>';
@@ -283,7 +291,7 @@
   drawer.id = 'ib-drawer';
   drawer.innerHTML =
     '<div id="ib-drawer-head">' +
-      '<a href="/dashboard.html" title="דשבורד" aria-label="דשבורד"><img id="ib-drawer-logo" src="/brand/tene-logo.svg" alt="טנא תעשיות ברזל"></a>' +
+      '<a href="/dashboard.html" title="דשבורד" aria-label="דשבורד"><img id="ib-drawer-logo" data-brand-logo src="/brand/tene-logo.svg" alt="לוגו"></a>' +
       '<button id="ib-drawer-close" aria-label="סגור">✕</button>' +
     '</div>' +
     '<div id="ib-drawer-links">' + renderNavLinks('ib-dl', 'ib-drawer-group') + '</div>';
