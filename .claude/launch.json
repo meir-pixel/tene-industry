@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["server.js"],
       "autoPort": true
+    },
+    {
+      "name": "mockups",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "http-server", "docs/mockups", "-p", "4599", "-c-1"],
+      "port": 4599
     }
   ]
 }
