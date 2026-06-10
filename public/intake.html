@@ -215,7 +215,7 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-order-form-head{display:none}
 .ocr-order-row{
   display:grid;
-  grid-template-columns:58px minmax(280px,.95fr) repeat(3,minmax(110px,.45fr)) minmax(220px,.72fr);
+  grid-template-columns:minmax(290px,.82fr) minmax(320px,1fr);
   min-height:0;
   border:1px solid #d7e3ef;
   border-radius:12px;
@@ -225,30 +225,20 @@ body[data-page="intake"] #seOverlay{z-index:980}
   margin-bottom:12px;
 }
 .ocr-order-row.verified{border-color:#9bd6c0;background:#f6fcf8}
-.ocr-order-cell{
-  border-left:1px solid #e5edf5;
-  padding:12px;
-  background:#fff;
-}
-.ocr-order-cell:nth-child(2){
-  background:#fbfdff;
-  border-left:1px solid #d7e3ef;
-}
-.ocr-order-num{
-  background:#10233f;
-  color:#fff;
-  font-size:22px;
-  align-content:center;
-}
-.ocr-shape-title{
-  font-size:16px;
-  margin-bottom:8px;
-}
+.ocr-order-main{padding:14px;background:#fff;display:grid;gap:12px;border-left:1px solid #e5edf5}
+.ocr-order-visual{padding:14px;background:#fbfdff;display:grid;gap:10px;align-content:start}
+.ocr-order-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ocr-order-index{display:inline-grid;place-items:center;min-width:42px;height:42px;border-radius:12px;background:#10233f;color:#fff;font-size:18px;font-weight:900}
+.ocr-shape-title{font-size:18px;margin-bottom:0;display:flex;align-items:center;gap:8px;justify-content:flex-start;flex-wrap:wrap}
 .ocr-shape-title .badge{
   background:#fff4e8;
   color:#c95608;
   border:1px solid #f4bf8c;
 }
+.ocr-order-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ocr-order-measures{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ocr-order-measures.full{grid-template-columns:1fr}
+.ocr-order-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start}
 .ocr-table-shape{display:block}
 .ocr-visual-card{
   border:1px solid #d8e4ef;
@@ -289,7 +279,7 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-shape-large,
 .ocr-table-shape button.ocr-shape-drawing{
   width:100%;
-  min-height:210px;
+  min-height:270px;
   border:0;
   border-radius:0;
   background:#fff;
@@ -301,8 +291,8 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-shape-large svg,
 .ocr-table-shape svg{
   width:100%;
-  height:200px;
-  max-width:340px;
+  height:250px;
+  max-width:440px;
 }
 .ocr-visual-footer{
   display:flex;
@@ -317,7 +307,7 @@ body[data-page="intake"] #seOverlay{z-index:980}
   font-weight:900;
 }
 .ocr-order-input{
-  font-size:18px;
+  font-size:17px;
   padding:10px 8px;
   background:#f8fbff;
 }
@@ -336,7 +326,14 @@ body[data-page="intake"] #seOverlay{z-index:980}
 }
 @media(max-width:1180px){
   .ocr-order-form{overflow:auto}
-  .ocr-order-row{min-width:1040px}
+  .ocr-order-row{min-width:980px}
+}
+@media(max-width:900px){
+  .ocr-order-form{overflow:visible}
+  .ocr-order-row{grid-template-columns:1fr;min-width:0}
+  .ocr-order-main{border-left:0;border-top:1px solid #e5edf5}
+  .ocr-order-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ocr-order-measures{grid-template-columns:1fr}
 }
 
 </style>
@@ -855,14 +852,14 @@ function ocrShapeCellHtml(item, index) {
         <div class="ocr-visual-metrics">
           <div class="ocr-visual-metric"><span>כמות</span><strong>${escapeHtml(quantity)} יח'</strong></div>
           <div class="ocr-visual-metric"><span>קוטר</span><strong>Ø ${escapeHtml(diameter)}</strong></div>
-          <div class="ocr-visual-metric"><span>אורך כללי</span><strong>${escapeHtml(totalLength)} מ"מ</strong></div>
+          <div class="ocr-visual-metric"><span>אורך כולל</span><strong>${escapeHtml(totalLength)} מ"מ</strong></div>
           <div class="ocr-visual-metric"><span>משקל רצוי</span><strong class="accent">${escapeHtml(targetWeight)} ק"ג</strong></div>
         </div>
         <button type="button" class="ocr-shape-large ocr-shape-drawing" onclick="openOcrShapeEditor(${index})" title="פתח עורך צורה">
           ${ocrShapeSvgHtml(item, 340, 230)}
         </button>
         <div class="ocr-visual-footer">
-          <span>לחץ על הצורה כדי לתקן ולאשר את הפריט</span>
+          <span>לחץ על השרטוט כדי לתקן צורה ומידות</span>
           <button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">ערוך צורה</button>
         </div>
       </div>
@@ -894,33 +891,50 @@ function ocrItemTableRowHtml(parsed, item, index) {
   const targetWeight = ocrTargetWeightKg(item);
   const measureHtml = isSpiral
     ? `
-      <div class="ocr-order-label">\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4</div>
-      ${ocrOrderCellInput(index, 'spiral_diameter_mm', item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm))}
-      <div class="ocr-order-label">\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea</div>
-      ${ocrOrderCellInput(index, 'spiral_turns', item.spiral_turns ?? item.spiralTurns ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns))}
+      <div class="ocr-order-measures">
+        <div><div class="ocr-order-label">קוטר ספיראלה</div>
+        ${ocrOrderCellInput(index, 'spiral_diameter_mm', item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm))}</div>
+        <div><div class="ocr-order-label">מספר כריכות</div>
+        ${ocrOrderCellInput(index, 'spiral_turns', item.spiral_turns ?? item.spiralTurns ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns))}</div>
+      </div>
       <input type="hidden" value="" data-item-index="${index}" data-item-field="segments">
     `
     : `
-      <div class="ocr-order-label">\u05e6\u05dc\u05e2\u05d5\u05ea: \u05d0\u05d5\u05e8\u05da@\u05d6\u05d5\u05d5\u05d9\u05ea \u05dc\u05e4\u05d9 \u05e1\u05d3\u05e8 \u05d4\u05d4\u05d5\u05e4\u05e2\u05d4</div>
-      ${ocrOrderCellTextarea(index, 'segments', segmentsToText(item), isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)))}
+      <div class="ocr-order-measures full">
+        <div><div class="ocr-order-label">צלעות לפי סדר השרטוט: אורך@זווית</div>
+        ${ocrOrderCellTextarea(index, 'segments', segmentsToText(item), isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)))}</div>
+      </div>
     `;
   const warning = note ? `<div class="ocr-order-note">${escapeHtml(note)}</div>` : '';
   return `
     <div class="ocr-order-row" id="ocrOrderRow_${index}">
-      <div class="ocr-order-cell ocr-order-num">${index + 1}</div>
-      <div class="ocr-order-cell">
-        <div class="ocr-shape-title"><span>${escapeHtml(ocrDisplayName(item))}</span><span class="badge">\u05dc\u05d7\u05d9\u05e5 \u05dc\u05e2\u05e8\u05d9\u05db\u05d4</span></div>
+      <div class="ocr-order-visual">
+        <div class="ocr-order-top">
+          <div class="ocr-shape-title"><span>${escapeHtml(ocrDisplayName(item))}</span><span class="badge">לחיץ לעריכה</span></div>
+          <div class="ocr-order-index">${index + 1}</div>
+        </div>
         <input type="hidden" value="${escapeHtml(shape)}" data-item-index="${index}" data-item-field="shape_name">
         ${ocrShapeCellHtml(item, index)}
-        <div class="ocr-item-actions">
-          <button type="button" class="ocr-small-btn" onclick="verifyOcrItem(${index})">\u05e1\u05de\u05df \u05db\u05de\u05d0\u05d5\u05de\u05ea</button>
-          <button type="button" class="ocr-small-btn danger" onclick="removeOcrItem(${index})">\u05d4\u05e1\u05e8</button>
+      </div>
+      <div class="ocr-order-main">
+        <div class="ocr-order-fields">
+          <div><div class="ocr-order-label">כמות</div>${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</div>
+          <div><div class="ocr-order-label">קוטר Ø</div>${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</div>
+          <div><div class="ocr-order-label">אורך כולל</div>${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}</div>
+          <div><div class="ocr-order-label">משקל רצוי</div><div class="ocr-order-input">${escapeHtml(targetWeight || '-')} ק"ג</div></div>
+        </div>
+        ${measureHtml}
+        <div>
+          <div class="ocr-order-label">הערת זיהוי / אישור</div>
+          ${ocrOrderCellTextarea(index, 'note', note, isLowConfidence(parsed, `items.${index}.note`, note))}
+          ${warning}
+        </div>
+        <div class="ocr-order-actions">
+          <button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">פתח לעריכת צורה</button>
+          <button type="button" class="ocr-small-btn" onclick="verifyOcrItem(${index})">סמן כמאומת</button>
+          <button type="button" class="ocr-small-btn danger" onclick="removeOcrItem(${index})">הסר</button>
         </div>
       </div>
-      <div class="ocr-order-cell"><div class="ocr-order-label">\u05e7\u05d5\u05d8\u05e8 ?</div>${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</div>
-      <div class="ocr-order-cell"><div class="ocr-order-label">\u05d0\u05d5\u05e8\u05da \u05db\u05d5\u05dc\u05dc</div>${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}<div class="ocr-order-label">\u05de\u05e9\u05e7\u05dc \u05e8\u05e6\u05d5\u05d9</div><div class="ocr-order-input">${escapeHtml(targetWeight || '-')} \u05e7\u05f4\u05d2</div></div>
-      <div class="ocr-order-cell"><div class="ocr-order-label">\u05db\u05de\u05d5\u05ea</div>${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</div>
-      <div class="ocr-order-cell">${measureHtml}<div class="ocr-order-label">\u05d4\u05e2\u05e8\u05d4</div>${ocrOrderCellTextarea(index, 'note', note, isLowConfidence(parsed, `items.${index}.note`, note))}${warning}</div>
     </div>
   `;
 }
