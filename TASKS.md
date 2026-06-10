@@ -115,6 +115,33 @@
 - accept: login מציג מותג לקוח; provision-customer מזריק BRAND_* כברירת מחדל
 - notes: תלוי ב-T-009; כפיית סיסמה ראשונה (#3) מסומן GPT — לתאם
 
+### T-011 · תפקידי פורטל (מזמין / מאשר)
+- status: in_progress
+- owner: claude
+- claimed: 2026-06-09
+- priority: P1
+- scope: services/portalAccess.js, routes/portal.js, routes/portalAdmin.js, public/customer.html
+- spec: docs/spec-portal-roles.md
+- accept: כמה משתמשים לכל לקוח עם תפקיד; מזמין=פורטל מלא בלי מחיר/אישור; מאשר=מחיר+אישור; ניהול ע"י לקוח+טנא
+- progress: ✅ בסיס — טבלת portal_users + backfill role=both + resolvePortalUser + roleCaps ב-portalAccess (195/195). נשאר: אימות מחזיר role, גדר מחיר/אישור ב-/c/*, ניהול משתמשים, שרטוט צורות+מידות, מעקב סטטוס.
+
+### T-012 · פרויקטים ותקציב בפורטל
+- status: todo
+- owner: claude
+- priority: P2
+- scope: projects (לבדוק קיים), routes/portal.js, public/customer.html, public/projects.html
+- spec: docs/spec-project-budgets.md
+- accept: פרויקט+תקציב; ניצול; מצב advisory/blocking בשליטת המאשר; אזהרה/חסימה ביצירת הזמנה; בר תקציב לפי role
+- notes: תלוי ב-T-011 (תפקידים)
+
+### T-013 · רב-לשוניות לייצור (עברית/תאילנדית/אנגלית)
+- status: approval
+- owner: either
+- priority: P2
+- scope: tbd (i18n — בעיקר פרמטרי ייצור/מסכי שטח)
+- accept: פרמטרי הייצור ומסכי השטח בשלוש שפות; בחירת שפה למשתמש
+- notes: נכנס מהבוט (Meir 10/06). ממתין לאפיון ואישור היקף.
+
 ---
 
 ## 📥 נכנס (ממתין לסידור)

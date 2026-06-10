@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תצוגה — פרטי הזמנה</title>
+<style>
+  :root{ --brand-primary:#2E75B6; --ok:#2ca36b; }
+  *{ box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI',Arial,sans-serif; }
+  body{ background:#f4f6f8; padding:20px; display:flex; justify-content:center; }
+  .wrap{ width:560px; max-width:97vw; }
+  .card{ background:#fff; border-radius:16px; box-shadow:0 4px 18px rgba(0,0,0,.07); padding:20px; margin-bottom:14px; }
+  .ohead{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .onum{ font-size:19px; font-weight:800; }
+  .odate{ font-size:12.5px; color:#888; margin-top:3px; }
+  .pill{ background:#e9f6ef; color:var(--ok); font-weight:700; font-size:13px; padding:6px 12px; border-radius:20px; }
+  h3{ font-size:14px; color:#1a1a1a; margin:2px 0 12px; }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{ text-align:right; color:#8a929a; font-weight:600; font-size:12px; padding:0 6px 8px; border-bottom:1.5px solid #eef1f4; }
+  td{ padding:11px 6px; border-bottom:1px solid #f1f3f5; }
+  .shape{ display:inline-flex; align-items:center; gap:6px; }
+  .shape svg{ width:38px; height:22px; }
+  .num{ font-variant-numeric:tabular-nums; }
+
+  .price-row{ display:flex; justify-content:space-between; padding:9px 2px; font-size:14px; color:#444; }
+  .price-row.sub{ color:#888; font-size:13px; }
+  .price-row.total{ border-top:2px solid #eef1f4; margin-top:6px; padding-top:13px; font-size:17px; font-weight:800; color:#1a1a1a; }
+  .price-row.total b{ color:var(--brand-primary); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card">
+    <div class="ohead">
+      <div>
+        <div class="onum">הזמנה HZ-2026-042</div>
+        <div class="odate">אספקה 12/06/2026 · רחוב התעשייה 3, ב"ש</div>
+      </div>
+      <div class="pill">✓ מוכנה</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>פריטים בהזמנה</h3>
+    <table>
+      <thead>
+        <tr><th>צורה</th><th>קוטר</th><th>אורך</th><th>כמות</th><th>משקל</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="shape">
+            <svg viewBox="0 0 60 32"><polyline points="8,4 8,26 52,26 52,4" fill="none" stroke="#2E75B6" stroke-width="3"/></svg>
+            90·195·90
+          </span></td>
+          <td class="num">⌀25</td>
+          <td class="num">375 ס"מ</td>
+          <td class="num">66</td>
+          <td class="num">982 ק"ג</td>
+        </tr>
+        <tr>
+          <td><span class="shape">
+            <svg viewBox="0 0 60 32"><line x1="8" y1="16" x2="52" y2="16" stroke="#2E75B6" stroke-width="3"/></svg>
+            ישר
+          </span></td>
+          <td class="num">⌀12</td>
+          <td class="num">600 ס"מ</td>
+          <td class="num">40</td>
+          <td class="num">213 ק"ג</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>פירוט מחיר</h3>
+    <div class="price-row"><span>ברזל קטרים 25-8 (0.982 טון)</span><span class="num">₪2,621.94</span></div>
+    <div class="price-row sub"><span>חיתוך למידות</span><span class="num">₪68.74</span></div>
+    <div class="price-row sub"><span>בגין כיפוף</span><span class="num">₪166.94</span></div>
+    <div class="price-row"><span>סה"כ לפני מע"מ</span><span class="num">₪2,857.62</span></div>
+    <div class="price-row sub"><span>מע"מ 18%</span><span class="num">₪514.37</span></div>
+    <div class="price-row total"><span>סה"כ לתשלום</span><b class="num">₪3,372</b></div>
+  </div>
+
+</div>
+</body>
+</html>

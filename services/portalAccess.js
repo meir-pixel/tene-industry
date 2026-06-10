@@ -14,6 +14,44 @@ function createPortalAccessService(deps) {
   // BUG-41: limited projection - never return sensitive fields via portal resolver.
   const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct';
 
+  // ── משתמשי פורטל עם תפקידים (מזמין/מאשר) — ראה docs/spec-portal-roles.md ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS portal_users (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL REFERENCES customers(id),
+      phone       TEXT NOT NULL UNIQUE,
+      name        TEXT,
+      role        TEXT NOT NULL DEFAULT 'both' CHECK (role IN ('orderer','approver','both')),
+      active      INTEGER NOT NULL DEFAULT 1,
+      created_at  TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  // Backfill חד-פעמי: כל לקוח קיים עם טלפון → משתמש פורטל role=both (שומר התנהגות קיימת)
+  try {
+    if (db.prepare('SELECT COUNT(*) c FROM portal_users').get().c === 0) {
+      const custs = db.prepare("SELECT id,name,phone FROM customers WHERE phone IS NOT NULL AND TRIM(phone)<>''").all();
+      const ins = db.prepare("INSERT OR IGNORE INTO portal_users (customer_id,phone,name,role) VALUES (?,?,?,'both')");
+      for (const c of custs) ins.run(c.id, normalizePortalPhone(c.phone), c.name);
+    }
+  } catch (e) { console.warn('[portal_users backfill]', e.message); }
+
+  // יכולות לפי תפקיד — כולם מזמינים; מחיר ואישור רק ל-approver/both
+  function roleCaps(role) {
+    const r = role || 'both';
+    return {
+      role: r,
+      canOrder: true,
+      seePrice: r === 'approver' || r === 'both',
+      canApprove: r === 'approver' || r === 'both',
+    };
+  }
+
+  function resolvePortalUser(phone) {
+    const np = normalizePortalPhone(phone);
+    if (!np) return null;
+    return db.prepare('SELECT * FROM portal_users WHERE phone=? AND active=1').get(np);
+  }
+
   function resolveCustomer(token, phone) {
     if (token) return db.prepare(`
       SELECT ${CUSTOMER_PORTAL_COLS} FROM customers
@@ -115,6 +153,8 @@ function createPortalAccessService(deps) {
   return {
     normalizePortalPhone,
     resolveCustomer,
+    resolvePortalUser,
+    roleCaps,
     issuePortalOtp,
     verifyPortalOtp,
     portalAuthResponse,

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תצוגה — פריטים (מזמין/שטח)</title>
+<style>
+  :root{ --brand-primary:#2E75B6; --ink:#1a1a1a; }
+  *{ box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI',Arial,sans-serif; }
+  body{ background:#f4f6f8; padding:20px; display:flex; justify-content:center; }
+  .wrap{ width:560px; max-width:97vw; }
+  .card{ background:#fff; border-radius:16px; box-shadow:0 4px 18px rgba(0,0,0,.07); padding:20px; margin-bottom:14px; }
+  .ohead{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .onum{ font-size:19px; font-weight:800; }
+  .odate{ font-size:12.5px; color:#888; margin-top:3px; }
+  .role{ background:#eef4fb; color:var(--brand-primary); font-weight:700; font-size:12px; padding:6px 11px; border-radius:20px; }
+  h3{ font-size:14px; margin:2px 0 4px; }
+  .role-note{ font-size:12px; color:#9aa3ab; margin-bottom:14px; }
+
+  .item{ display:flex; gap:16px; align-items:center; padding:16px 4px; border-bottom:1px solid #f1f3f5; }
+  .item:last-child{ border-bottom:0; }
+  .draw{ width:140px; flex:0 0 auto; }
+  .draw svg{ width:140px; height:88px; }
+  .draw .dim{ font-size:11px; fill:#2E75B6; font-weight:700; }
+  .info{ flex:1; }
+  .info .name{ font-weight:800; font-size:16px; color:var(--ink); }
+  .info .row{ font-size:13px; color:#666; margin-top:5px; }
+  .info .row b{ color:var(--ink); }
+  .qty{ text-align:left; }
+  .qty .n{ font-size:22px; font-weight:800; color:var(--brand-primary); }
+  .qty .u{ font-size:12px; color:#9aa3ab; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card">
+    <div class="ohead">
+      <div>
+        <div class="onum">הזמנה HZ-2026-042</div>
+        <div class="odate">נפתחה 08/06 · אספקה 12/06/2026</div>
+      </div>
+      <div class="role">👷 מזמין · שטח</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>פריטים בהזמנה</h3>
+    <div class="role-note">תצוגת שטח — ללא מחירים. תמחור מוצג למאשר (כספים).</div>
+
+    <!-- פריט 1: סטייפל 90·195·90 -->
+    <div class="item">
+      <div class="draw">
+        <svg viewBox="0 0 150 95">
+          <polyline points="35,85 35,28 115,28 115,85" fill="none" stroke="#2E75B6" stroke-width="3.5" stroke-linejoin="round"/>
+          <!-- right-angle marks -->
+          <path d="M35,40 L47,40 L47,28" fill="none" stroke="#9aa3ab" stroke-width="1"/>
+          <path d="M115,40 L103,40 L103,28" fill="none" stroke="#9aa3ab" stroke-width="1"/>
+          <text class="dim" x="20" y="60" text-anchor="middle">90</text>
+          <text class="dim" x="75" y="20" text-anchor="middle">195</text>
+          <text class="dim" x="130" y="60" text-anchor="middle">90</text>
+        </svg>
+      </div>
+      <div class="info">
+        <div class="name">⌀25 · סטייפל</div>
+        <div class="row">צלעות: <b>90 · 195 · 90 ס"מ</b> · אורך כולל <b>375 ס"מ</b></div>
+        <div class="row">זווית כיפוף: <b>90°</b></div>
+      </div>
+      <div class="qty"><div class="n">66</div><div class="u">יחידות</div></div>
+    </div>
+
+    <!-- פריט 2: ישר -->
+    <div class="item">
+      <div class="draw">
+        <svg viewBox="0 0 150 95">
+          <line x1="20" y1="50" x2="130" y2="50" stroke="#2E75B6" stroke-width="3.5"/>
+          <text class="dim" x="75" y="40" text-anchor="middle">600</text>
+        </svg>
+      </div>
+      <div class="info">
+        <div class="name">⌀12 · ישר</div>
+        <div class="row">אורך: <b>600 ס"מ</b></div>
+      </div>
+      <div class="qty"><div class="n">40</div><div class="u">יחידות</div></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
