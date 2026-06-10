@@ -168,6 +168,30 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-shape-hint{font-size:11px;font-weight:900;color:var(--accent)}
 .ocr-item-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .ocr-item-grid.ocr-spiral-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ocr-order-form{border:1px solid #bfcbd8;border-radius:10px;background:#fff;overflow:hidden;display:grid;gap:0}
+.ocr-order-form-head{display:grid;grid-template-columns:70px minmax(280px,1.25fr) 92px 112px 92px minmax(170px,.8fr);background:#f1f5f9;border-bottom:1px solid #d2dce8;color:#475569;font-size:11px;font-weight:900}
+.ocr-order-form-head>div{padding:8px;border-left:1px solid #d2dce8;text-align:center}
+.ocr-order-row{display:grid;grid-template-columns:70px minmax(280px,1.25fr) 92px 112px 92px minmax(170px,.8fr);border-bottom:1px solid #d2dce8;min-height:250px}
+.ocr-order-row:last-child{border-bottom:0}
+.ocr-order-row.verified{background:#f4fbf6}
+.ocr-order-cell{padding:10px;border-left:1px solid #e3ebf3;display:grid;align-content:start;gap:8px;min-width:0}
+.ocr-order-num{font-size:22px;font-weight:900;color:#102033;text-align:center;align-content:center;background:#fafbfd}
+.ocr-shape-large{border:1px solid #d8e4ef;border-radius:10px;background:#fff;min-height:178px;display:grid;place-items:center;padding:8px;cursor:pointer;position:relative}
+.ocr-shape-large:hover{border-color:#c9621a;box-shadow:0 0 0 3px rgba(201,98,26,.14)}
+.ocr-shape-large svg{width:100%;height:170px;max-width:300px;display:block}
+.ocr-shape-title{font-size:13px;font-weight:900;color:#102033;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ocr-shape-title .badge{font-size:10px;border-radius:999px;background:#eef4f8;color:#60748a;padding:3px 8px}
+.ocr-order-input{width:100%;border:1px solid #d6e0ea;border-radius:8px;background:#f8fbff;font-family:inherit;font-size:14px;color:var(--text);padding:8px;outline:0;text-align:center;font-weight:800}
+.ocr-order-input:focus,.ocr-order-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,98,26,.12)}
+.ocr-order-textarea{width:100%;border:1px solid #d6e0ea;border-radius:8px;background:#f8fbff;font-family:inherit;font-size:12px;color:var(--text);padding:8px;min-height:84px;resize:vertical;line-height:1.5}
+.ocr-order-label{font-size:10px;font-weight:900;color:#718299;text-align:center}
+.ocr-order-note{background:#fff7d7;border:1px solid #f3d582;color:#8a5300;border-radius:8px;padding:7px 9px;font-size:11px;font-weight:800;line-height:1.45}
+.ocr-item-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.ocr-small-btn{border:1px solid #d6e0ea;border-radius:8px;background:#fff;color:#475569;font-family:inherit;font-size:11px;font-weight:900;padding:6px 9px;cursor:pointer}
+.ocr-small-btn.primary{border-color:#f1b879;background:#fff5e7;color:#b85200}
+.ocr-small-btn.danger{border-color:#f0b6b6;background:#fff7f7;color:#b42318}
+@media(max-width:980px){.ocr-order-form{overflow:auto}.ocr-order-form-head,.ocr-order-row{min-width:920px}}
+
 .ocr-spiral-banner{border:1px solid #f1d4a8;background:#fff6dd;color:#875200;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:900;line-height:1.6}
 .ocr-corrections{border:1px solid #bde8c8;background:#f3fbf5;border-radius:8px;padding:10px;font-size:12px;font-weight:800;color:#1f6f3c}
 .work-steps{display:grid;gap:8px;margin-top:4px}
@@ -186,6 +210,7 @@ body[data-page="intake"] #seOverlay{z-index:980}
 <script src="/safe-dom.js"></script>
 <script src="/auth-client.js"></script>
 <script src="/shape-editor.js?v=43"></script>
+<script src="/shape-renderer.js?v=3"></script>
 <script src="/nav.js"></script>
 
 <main class="page">
@@ -518,47 +543,131 @@ function currentOcrItemFromFields(index) {
   return item;
 }
 
-function ocrShapePreviewHtml(item, index) {
-  const { sides, angles } = itemSidesAngles(item);
-  const shape = item.shape_name || item.shapeName || item.shape || item.type || 'צורה לא מזוהה';
-  const diameter = item.diameter ?? item.diameter_mm ?? '-';
-  const quantity = item.qty ?? item.quantity ?? item.pcs ?? '-';
-  const isSpiral = isSpiralOcrItem(item);
-  const spiralDiameter = item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '-';
-  const spiralTurns = item.spiral_turns ?? item.spiralTurns ?? '-';
-  const length = isSpiral ? (toNumber(item.total_length_mm) || spiralOcrLengthMm(item)) : 0;
-  let svg = '<div class="meta">אין סקיצה</div>';
-  if (isSpiral) {
-    svg = spiralOcrSvg(item);
-  } else if (sides.length && window.IronBendShapeGeometry?.shapeSVGPath) {
-    const { path } = window.IronBendShapeGeometry.shapeSVGPath(sides, angles, 150, 108, 14);
-    svg = `<svg viewBox="0 0 150 108" aria-label="${escapeHtml(shape)}"><path d="${path}" stroke="#c9621a" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+
+
+function ocrText(value, fallback = '-') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+
+function ocrShapeRaw(item) {
+  return String(item?.shape_name || item?.shapeName || item?.shape || item?.type || '').trim();
+}
+
+function hasAnyToken(text, tokens) {
+  const normalized = String(text || '').toLowerCase();
+  return tokens.some(token => normalized.includes(String(token).toLowerCase()));
+}
+
+function ocrDisplayName(item) {
+  if (isSpiralOcrItem(item)) return '\u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4 / \u05e1\u05dc\u05d9\u05dc \u05e7\u05e4\u05d9\u05e6\u05d9';
+  const raw = ocrShapeRaw(item);
+  if (/straight/i.test(raw) || hasAnyToken(raw, ['\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8', '\u05d9\u05e9\u05e8'])) return '\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8';
+  if (/open\s*u|u-shaped|u shape/i.test(raw) || hasAnyToken(raw, ['\u05e4\u05ea\u05d5\u05d7\u05d4', '\u05e6\u05d5\u05e8\u05ea \u05d7', '\u05db\u05d9\u05e4\u05d5\u05e3'])) return '\u05e6\u05d5\u05e8\u05ea \u05d7 \u05e4\u05ea\u05d5\u05d7\u05d4';
+  if (/closed|stirrup/i.test(raw) || hasAnyToken(raw, ['\u05d7\u05d9\u05e9\u05d5\u05e7', '\u05e1\u05d2\u05d5\u05e8', '\u05e8\u05d9\u05e0\u05d2', '\u05de\u05e1\u05d2\u05e8\u05ea'])) return '\u05d7\u05d9\u05e9\u05d5\u05e7 \u05e1\u05d2\u05d5\u05e8';
+  if (/bent/i.test(raw) || hasAnyToken(raw, ['\u05db\u05d9\u05e4\u05d5\u05e3', '\u05d6\u05d5\u05d5\u05d9\u05ea', '\u05d6\u05d5\u05d9\u05ea'])) return '\u05db\u05d9\u05e4\u05d5\u05e3';
+  return raw || '\u05e6\u05d5\u05e8\u05d4 \u05dc\u05d0 \u05de\u05d6\u05d5\u05d4\u05d4';
+}
+
+function isRightAngleList(angles) {
+  return !angles.length || angles.every(angle => Math.abs(toNumber(angle) - 90) <= 3);
+}
+
+function isClosedStirrupOcr(item, sides, angles) {
+  const name = ocrShapeRaw(item);
+  if ((/stirrup|closed/i.test(name) || hasAnyToken(name, ['\u05d7\u05d9\u05e9\u05d5\u05e7', '\u05e1\u05d2\u05d5\u05e8', '\u05e8\u05d9\u05e0\u05d2', '\u05de\u05e1\u05d2\u05e8\u05ea'])) && sides.length >= 4 && isRightAngleList(angles)) return true;
+  if (sides.length === 4 && isRightAngleList(angles)) {
+    const [a,b,c,d] = sides.map(toNumber);
+    const similarH = Math.abs(a - c) <= Math.max(25, Math.max(a,c) * 0.22);
+    const similarV = Math.abs(b - d) <= Math.max(25, Math.max(b,d) * 0.22);
+    return similarH && similarV;
   }
-  return `
-    <div class="ocr-shape-card" id="ocrShapePreview_${index}">
-      <button type="button" class="ocr-shape-preview" onclick="openOcrShapeEditor(${index})" title="לחץ לעריכת הצורה">${svg}</button>
-      <div class="ocr-shape-summary">
-        <strong>${escapeHtml(isSpiral ? 'ספיראלה' : shape)}</strong>
-        <span>Ø ${escapeHtml(diameter)} · כמות ${escapeHtml(quantity)}</span>
-        ${isSpiral
-          ? `<span>קוטר ספיראלה: ${escapeHtml(spiralDiameter)} מ"מ · כריכות: ${escapeHtml(spiralTurns)}</span><span>אורך מחושב: ${escapeHtml(length || '-')} מ"מ</span>`
-          : `<span>${escapeHtml(sides.length ? sides.join(' / ') : '-')} מ"מ</span>`}
-        <span class="ocr-shape-hint">לחץ על הסקיצה כדי לתקן ולאשר את הצורה</span>
-      </div>
-    </div>
-  `;
+  return false;
 }
 
-function ocrTableInputHtml({ index, field, value = '', type = 'text', low = false }) {
-  const lowAttr = low ? ' data-low-confidence="1"' : '';
-  return `<input type="${type}" value="${escapeHtml(value ?? '')}" data-item-index="${index}" data-item-field="${escapeHtml(field)}"${lowAttr} oninput="markOcrEdited(this)">`;
+function ocrSegmentLabel(value) {
+  const n = toNumber(value);
+  if (!n) return '';
+  return String(Math.round(n));
 }
 
-function ocrTableTextareaHtml({ index, field, value = '', low = false }) {
-  const lowAttr = low ? ' data-low-confidence="1"' : '';
-  return `<textarea data-item-index="${index}" data-item-field="${escapeHtml(field)}"${lowAttr} oninput="markOcrEdited(this)">${escapeHtml(value ?? '')}</textarea>`;
+function ocrLabelText(x, y, text) {
+  if (!text) return '';
+  return `<text x="${x}" y="${y}" text-anchor="middle" font-size="14" font-weight="900" fill="#102033">${escapeHtml(text)}</text>`;
 }
 
+function ocrClosedStirrupSvg(sides, item, width = 300, height = 210) {
+  const nums = sides.map(toNumber).filter(Boolean);
+  const top = nums[0] || nums[2] || toNumber(item?.width_mm) || 300;
+  const right = nums[1] || nums[3] || toNumber(item?.height_mm) || top;
+  const bottom = nums[2] || top;
+  const left = nums[3] || right;
+  const horizontal = Math.max(top, bottom, 1);
+  const vertical = Math.max(left, right, 1);
+  const padX = 54;
+  const padY = 34;
+  const maxW = width - padX * 2;
+  const maxH = height - padY * 2;
+  const scale = Math.min(maxW / horizontal, maxH / vertical);
+  const boxW = Math.max(70, horizontal * scale);
+  const boxH = Math.max(70, vertical * scale);
+  const x = (width - boxW) / 2;
+  const y = (height - boxH) / 2 + 4;
+  const r = x + boxW;
+  const b = y + boxH;
+  const marker = Math.min(38, Math.max(20, Math.min(boxW, boxH) * 0.28));
+  return `<svg viewBox="0 0 ${width} ${height}" data-shape-kind="ocr-stirrup" aria-label="stirrup">
+    <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${boxW.toFixed(1)}" height="${boxH.toFixed(1)}" fill="none" stroke="#0f5f78" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M ${(r-marker).toFixed(1)} ${y.toFixed(1)} L ${(r-marker).toFixed(1)} ${(y+marker).toFixed(1)} L ${r.toFixed(1)} ${(y+marker).toFixed(1)}" fill="none" stroke="#102033" stroke-width="5" stroke-linejoin="miter"/>
+    ${ocrLabelText((x+boxW/2).toFixed(1), Math.max(18, y-12).toFixed(1), ocrSegmentLabel(top))}
+    ${ocrLabelText((x+boxW/2).toFixed(1), Math.min(height-8, b+22).toFixed(1), ocrSegmentLabel(bottom))}
+    ${ocrLabelText(Math.max(18, x-28).toFixed(1), (y+boxH/2+5).toFixed(1), ocrSegmentLabel(left))}
+    ${ocrLabelText(Math.min(width-18, r+28).toFixed(1), (y+boxH/2+5).toFixed(1), ocrSegmentLabel(right))}
+  </svg>`;
+}
+
+function ocrStraightSvg(item, width = 300, height = 210) {
+  const length = toNumber(item?.total_length_mm ?? item?.length_mm ?? item?.length) || itemSidesAngles(item).sides[0] || 0;
+  const y = Math.round(height / 2);
+  const x1 = 42;
+  const x2 = width - 42;
+  return `<svg viewBox="0 0 ${width} ${height}" aria-label="straight bar">
+    <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#0f5f78" stroke-width="8" stroke-linecap="round"/>
+    <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#d9651c" stroke-width="3" stroke-linecap="round"/>
+    ${ocrLabelText(width/2, y-22, length ? ocrSegmentLabel(length) : '')}
+  </svg>`;
+}
+
+function ocrOpenShapeSvg(item, sides, angles, width = 300, height = 210) {
+  const cleanSides = sides.map(toNumber).filter(Boolean);
+  if (!cleanSides.length) return ocrStraightSvg(item, width, height);
+  if (typeof IronBendShapeGeometry !== 'undefined') {
+    const pathData = IronBendShapeGeometry.shapeSVGPath(cleanSides, angles, width, height);
+    const pts = pathData.points || [];
+    const labels = [];
+    for (let i = 0; i < cleanSides.length && i < pts.length - 1; i++) {
+      const midX = Math.round((pts[i].x + pts[i + 1].x) / 2);
+      const midY = Math.round((pts[i].y + pts[i + 1].y) / 2);
+      labels.push(ocrLabelText(midX, midY - 8, ocrSegmentLabel(cleanSides[i])));
+    }
+    return `<svg viewBox="0 0 ${width} ${height}" aria-label="bent shape">
+      <path d="${pathData.path}" fill="none" stroke="#0f5f78" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="${pathData.path}" fill="none" stroke="#d9651c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pts.map(pt => `<circle cx="${pt.x}" cy="${pt.y}" r="4" fill="#d9651c"/>`).join('')}
+      ${labels.join('')}
+    </svg>`;
+  }
+  return ocrStraightSvg(item, width, height);
+}
+
+function ocrShapeSvgHtml(item, width = 300, height = 210) {
+  if (isSpiralOcrItem(item)) return spiralOcrSvg(item);
+  const { sides, angles } = itemSidesAngles(item);
+  if (isClosedStirrupOcr(item, sides, angles)) return ocrClosedStirrupSvg(sides, item, width, height);
+  if (!sides.length || /straight/i.test(ocrShapeRaw(item)) || hasAnyToken(ocrShapeRaw(item), ['\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8', '\u05d9\u05e9\u05e8'])) return ocrStraightSvg(item, width, height);
+  return ocrOpenShapeSvg(item, sides, angles, width, height);
+}
 
 function ocrBarKgPerMeter(diameter) {
   const d = toNumber(diameter);
@@ -575,41 +684,52 @@ function ocrTargetWeightKg(item) {
   return (ocrBarKgPerMeter(diameter) * (length / 1000) * quantity).toFixed(1);
 }
 
-function ocrMetricHtml(label, value, accent = false) {
-  return `<div class="ocr-visual-metric"><span>${escapeHtml(label)}</span><strong class="${accent ? 'accent' : ''}">${escapeHtml(value || '-')}</strong></div>`;
+function ocrShapePreviewHtml(item, index) {
+  const diameter = item.diameter ?? item.diameter_mm ?? '-';
+  const quantity = item.qty ?? item.quantity ?? item.pcs ?? '-';
+  const targetWeight = ocrTargetWeightKg(item);
+  return `
+    <div class="ocr-shape-card" id="ocrShapePreview_${index}">
+      <button type="button" class="ocr-shape-preview" onclick="openOcrShapeEditor(${index})" title="\u05e2\u05e8\u05d5\u05da \u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea">${ocrShapeSvgHtml(item, 260, 170)}</button>
+      <div class="ocr-shape-summary">
+        <strong>${escapeHtml(ocrDisplayName(item))}</strong>
+        <span>\u05e7\u05d5\u05d8\u05e8 ? ${escapeHtml(diameter)} ? \u05db\u05de\u05d5\u05ea ${escapeHtml(quantity)}</span>
+        <span>\u05de\u05e9\u05e7\u05dc \u05e8\u05e6\u05d5\u05d9: ${escapeHtml(targetWeight || '-')} \u05e7\u05f4\u05d2</span>
+        <span class="ocr-shape-hint">\u05dc\u05d7\u05e5 \u05e2\u05dc \u05d4\u05e6\u05d5\u05e8\u05d4 \u05db\u05d3\u05d9 \u05dc\u05e4\u05ea\u05d5\u05d7 \u05e2\u05d5\u05e8\u05da</span>
+      </div>
+    </div>
+  `;
+}
+
+function ocrOrderCellInput(index, field, value, type = 'text', low = false) {
+  return `<input class="ocr-order-input ${low ? 'low-confidence' : ''}" type="${type}" value="${escapeHtml(value ?? '')}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" oninput="markOcrEdited(this)">`;
+}
+
+function ocrOrderCellTextarea(index, field, value, low = false) {
+  return `<textarea class="ocr-order-textarea ${low ? 'low-confidence' : ''}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" oninput="markOcrEdited(this)">${escapeHtml(value ?? '')}</textarea>`;
 }
 
 function ocrShapeCellHtml(item, index) {
-  const { sides, angles } = itemSidesAngles(item);
-  const shape = item.shape_name || item.shapeName || item.shape || item.type || 'צורה לא מזוהה';
-  const isSpiral = isSpiralOcrItem(item);
-  const diameter = item.diameter ?? item.diameter_mm ?? '';
-  const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
-  const length = isSpiral
-    ? (toNumber(item.total_length_mm) || spiralOcrLengthMm(item))
-    : (item.total_length_mm ?? item.length_mm ?? item.length ?? '');
-  const targetWeight = ocrTargetWeightKg(item);
-  let svg = '<div class="meta">אין סקיצה</div>';
-  if (isSpiral) {
-    svg = spiralOcrSvg(item);
-  } else if (sides.length && window.IronBendShapeGeometry?.shapeSVGPath) {
-    const { path } = window.IronBendShapeGeometry.shapeSVGPath(sides, angles, 150, 108, 14);
-    svg = `<svg viewBox="0 0 150 108" aria-label="${escapeHtml(shape)}"><path d="${path}" stroke="#0f5f78" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  }
   return `
     <div class="ocr-table-shape" id="ocrShapeCell_${index}">
-      <div class="ocr-visual-card">
-        <div class="ocr-visual-metrics">
-          ${ocrMetricHtml('\u05db\u05de\u05d5\u05ea', quantity)}
-          ${ocrMetricHtml('\u05e7\u05d5\u05d8\u05e8', diameter ? `\u00d8 ${diameter}` : '')}
-          ${ocrMetricHtml(isSpiral ? '\u05d0\u05d5\u05e8\u05da \u05de\u05d7\u05d5\u05e9\u05d1' : '\u05d0\u05d5\u05e8\u05da \u05db\u05dc\u05dc\u05d9', length)}
-          ${ocrMetricHtml('\u05de\u05e9\u05e7\u05dc \u05e8\u05e6\u05d5\u05d9', targetWeight ? `${targetWeight} \u05e7\u05f4\u05d2` : '', true)}
-        </div>
-        <button type="button" class="ocr-shape-drawing" onclick="openOcrShapeEditor(${index})" title="ערוך צורה">${svg}</button>
-      </div>
-      <button type="button" class="ocr-edit-shape-btn" onclick="openOcrShapeEditor(${index})">ערוך צורה</button>
+      <button type="button" class="ocr-shape-large" onclick="openOcrShapeEditor(${index})" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4">${ocrShapeSvgHtml(item, 300, 210)}</button>
+      <button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">\u05e2\u05e8\u05d5\u05da \u05e6\u05d5\u05e8\u05d4</button>
     </div>
   `;
+}
+
+function removeOcrItem(index) {
+  if (!activeCompareOriginal || !Array.isArray(activeCompareOriginal.items)) return;
+  activeCompareOriginal.items.splice(index, 1);
+  const form = document.querySelector('#intakeCompareData .ocr-edit-form');
+  if (form) form.outerHTML = intakeEditableForm(activeCompareOriginal);
+}
+
+function verifyOcrItem(index) {
+  const row = document.getElementById(`ocrOrderRow_${index}`);
+  if (row) row.classList.add('verified');
+  const summary = document.getElementById('ocrCorrectionSummary');
+  if (summary) summary.textContent = '\u05d4\u05e4\u05e8\u05d9\u05d8 \u05e1\u05d5\u05de\u05df \u05db\u05de\u05d0\u05d5\u05de\u05ea. \u05d4\u05d0\u05d9\u05e9\u05d5\u05e8 \u05d4\u05e1\u05d5\u05e4\u05d9 \u05de\u05ea\u05d1\u05e6\u05e2 \u05d1\u05db\u05e4\u05ea\u05d5\u05e8 \u05d4\u05e8\u05d0\u05e9\u05d9.';
 }
 
 function ocrItemTableRowHtml(parsed, item, index) {
@@ -619,54 +739,74 @@ function ocrItemTableRowHtml(parsed, item, index) {
   const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
   const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '';
   const note = item.note || item.notes || '';
+  const targetWeight = ocrTargetWeightKg(item);
   const measureHtml = isSpiral
     ? `
-      <div class="ocr-table-source">ספירלה: קוטר ספירלה + מספר כריכות</div>
-      ${ocrTableInputHtml({ index, field:'spiral_diameter_mm', value:item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm) })}
-      ${ocrTableInputHtml({ index, field:'spiral_turns', value:item.spiral_turns ?? item.spiralTurns ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns) })}
+      <div class="ocr-order-label">\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4</div>
+      ${ocrOrderCellInput(index, 'spiral_diameter_mm', item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm))}
+      <div class="ocr-order-label">\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea</div>
+      ${ocrOrderCellInput(index, 'spiral_turns', item.spiral_turns ?? item.spiralTurns ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns))}
       <input type="hidden" value="" data-item-index="${index}" data-item-field="segments">
     `
-    : ocrTableTextareaHtml({ index, field:'segments', value:segmentsToText(item), low:isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)) });
-  const warning = note ? `<div class="ocr-row-warning">${escapeHtml(note)}</div>` : '';
+    : `
+      <div class="ocr-order-label">\u05e6\u05dc\u05e2\u05d5\u05ea: \u05d0\u05d5\u05e8\u05da@\u05d6\u05d5\u05d5\u05d9\u05ea \u05dc\u05e4\u05d9 \u05e1\u05d3\u05e8 \u05d4\u05d4\u05d5\u05e4\u05e2\u05d4</div>
+      ${ocrOrderCellTextarea(index, 'segments', segmentsToText(item), isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)))}
+    `;
+  const warning = note ? `<div class="ocr-order-note">${escapeHtml(note)}</div>` : '';
   return `
-    <tr class="${isSpiral ? 'spiral' : ''}">
-      <td>
-        <div class="ocr-item-row-title"><span>${index + 1}</span><span class="ocr-item-kind ${isSpiral ? 'spiral' : ''}">${escapeHtml(ocrItemKind(item))}</span></div>
+    <div class="ocr-order-row" id="ocrOrderRow_${index}">
+      <div class="ocr-order-cell ocr-order-num">${index + 1}</div>
+      <div class="ocr-order-cell">
+        <div class="ocr-shape-title"><span>${escapeHtml(ocrDisplayName(item))}</span><span class="badge">\u05dc\u05d7\u05d9\u05e5 \u05dc\u05e2\u05e8\u05d9\u05db\u05d4</span></div>
         <input type="hidden" value="${escapeHtml(shape)}" data-item-index="${index}" data-item-field="shape_name">
-      </td>
-      <td>${ocrShapeCellHtml(item, index)}</td>
-      <td>${ocrTableInputHtml({ index, field:'diameter', value:diameter, type:'number', low:isLowConfidence(parsed, `items.${index}.diameter`, diameter) })}</td>
-      <td>${ocrTableInputHtml({ index, field:'total_length_mm', value:totalLength, type:'number', low:isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength) })}</td>
-      <td>${ocrTableInputHtml({ index, field:'quantity', value:quantity, type:'number', low:isLowConfidence(parsed, `items.${index}.quantity`, quantity) })}</td>
-      <td class="ocr-table-measure">${measureHtml}</td>
-      <td class="ocr-table-note">${ocrTableTextareaHtml({ index, field:'note', value:note, low:isLowConfidence(parsed, `items.${index}.note`, note) })}${warning}</td>
-    </tr>
+        ${ocrShapeCellHtml(item, index)}
+        <div class="ocr-item-actions">
+          <button type="button" class="ocr-small-btn" onclick="verifyOcrItem(${index})">\u05e1\u05de\u05df \u05db\u05de\u05d0\u05d5\u05de\u05ea</button>
+          <button type="button" class="ocr-small-btn danger" onclick="removeOcrItem(${index})">\u05d4\u05e1\u05e8</button>
+        </div>
+      </div>
+      <div class="ocr-order-cell"><div class="ocr-order-label">\u05e7\u05d5\u05d8\u05e8 ?</div>${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</div>
+      <div class="ocr-order-cell"><div class="ocr-order-label">\u05d0\u05d5\u05e8\u05da \u05db\u05d5\u05dc\u05dc</div>${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}<div class="ocr-order-label">\u05de\u05e9\u05e7\u05dc \u05e8\u05e6\u05d5\u05d9</div><div class="ocr-order-input">${escapeHtml(targetWeight || '-')} \u05e7\u05f4\u05d2</div></div>
+      <div class="ocr-order-cell"><div class="ocr-order-label">\u05db\u05de\u05d5\u05ea</div>${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</div>
+      <div class="ocr-order-cell">${measureHtml}<div class="ocr-order-label">\u05d4\u05e2\u05e8\u05d4</div>${ocrOrderCellTextarea(index, 'note', note, isLowConfidence(parsed, `items.${index}.note`, note))}${warning}</div>
+    </div>
   `;
 }
 
 function ocrItemFieldsHtml(parsed, item, index) {
-  const isSpiral = isSpiralOcrItem(item);
-  const commonFields = `
-    ${ocrFieldHtml({ label:'קוטר ברזל Ø', itemIndex:index, itemField:'diameter', value:item.diameter ?? item.diameter_mm ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.diameter`, item.diameter ?? item.diameter_mm) })}
-    ${ocrFieldHtml({ label:'כמות', itemIndex:index, itemField:'quantity', value:item.qty ?? item.quantity ?? item.pcs ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.quantity`, item.qty ?? item.quantity ?? item.pcs) })}
-    ${ocrFieldHtml({ label:'אורך פתיחה', itemIndex:index, itemField:'total_length_mm', value:item.total_length_mm ?? item.length_mm ?? item.length ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.total_length_mm`, item.total_length_mm ?? item.length_mm ?? item.length) })}
-    ${ocrFieldHtml({ label:'צורה', itemIndex:index, itemField:'shape_name', value:isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || ''), low:isLowConfidence(parsed, `items.${index}.shape_name`, item.shape_name || item.shapeName || item.shape || item.type) })}
-  `;
-  if (isSpiral) {
-    return `
-      <div class="ocr-spiral-banner">ספיראלה מוגדרת לפי 3 פרמטרים: קוטר ברזל, קוטר ספיראלה ומספר כריכות. אין כאן צלעות או זוויות.</div>
-      ${commonFields}
-      ${ocrFieldHtml({ label:'קוטר ספיראלה', itemIndex:index, itemField:'spiral_diameter_mm', value:item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm) })}
-      ${ocrFieldHtml({ label:'מספר כריכות', itemIndex:index, itemField:'spiral_turns', value:item.spiral_turns ?? item.spiralTurns ?? '', type:'number', low:isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns) })}
-      ${ocrFieldHtml({ label:'הערה', itemIndex:index, itemField:'note', value:item.note || item.notes || '', type:'textarea', low:isLowConfidence(parsed, `items.${index}.note`, item.note || item.notes) })}
-    `;
-  }
+  return ocrItemTableRowHtml(parsed, item, index);
+}
+
+function intakeEditableForm(parsed) {
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
   return `
-    ${commonFields}
-    ${ocrFieldHtml({ label:'צלעות: אורך@זווית', itemIndex:index, itemField:'segments', value:segmentsToText(item), type:'textarea', low:isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)) })}
-    ${ocrFieldHtml({ label:'הערה', itemIndex:index, itemField:'note', value:item.note || item.notes || '', type:'textarea', low:isLowConfidence(parsed, `items.${index}.note`, item.note || item.notes) })}
+    <div class="ocr-edit-form">
+      <div class="ocr-field-grid">
+        ${ocrFieldHtml({ label:'\u05dc\u05e7\u05d5\u05d7', path:'customer_name', value: parsed.customer_name || parsed.customerName || '', low: isLowConfidence(parsed, 'customer_name', parsed.customer_name || parsed.customerName) })}
+        ${ocrFieldHtml({ label:'\u05ea\u05d0\u05e8\u05d9\u05da \u05d0\u05e1\u05e4\u05e7\u05d4', path:'delivery_date', value: deliveryDateOf(parsed), low: isLowConfidence(parsed, 'delivery_date', deliveryDateOf(parsed)) })}
+        ${ocrFieldHtml({ label:'\u05db\u05ea\u05d5\u05d1\u05ea', path:'delivery_address', value: parsed.delivery_address || parsed.deliveryAddress || '', low: isLowConfidence(parsed, 'delivery_address', parsed.delivery_address || parsed.deliveryAddress) })}
+        ${ocrFieldHtml({ label:'\u05d4\u05e2\u05e8\u05d5\u05ea \u05dc\u05e0\u05d4\u05d2/\u05d9\u05d9\u05e6\u05d5\u05e8', path:'notes', value: isTechnicalRecognitionNote(parsed.notes) ? '' : (parsed.notes || ''), type:'textarea', low: false })}
+      </div>
+      <div class="box-title">\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4 - \u05d1\u05d3\u05d9\u05e7\u05d4 \u05de\u05d5\u05dc \u05d4\u05de\u05e7\u05d5\u05e8 \u05dc\u05e4\u05e0\u05d9 \u05d0\u05d9\u05e9\u05d5\u05e8</div>
+      ${items.length ? `
+        <div class="ocr-order-form" aria-label="\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4">
+          <div class="ocr-order-form-head">
+            <div>\u05de\u05e1?</div><div>\u05e9\u05e8\u05d8\u05d5\u05d8 / \u05e6\u05d5\u05e8\u05d4</div><div>\u05e7\u05d5\u05d8\u05e8</div><div>\u05d0\u05d5\u05e8\u05da \u05d5\u05de\u05e9\u05e7\u05dc</div><div>\u05db\u05de\u05d5\u05ea</div><div>\u05de\u05d9\u05d3\u05d5\u05ea / \u05d4\u05e2\u05e8\u05d5\u05ea</div>
+          </div>
+          ${items.map((item, index) => ocrItemTableRowHtml(parsed, item, index)).join('')}
+        </div>
+      ` : '<div class="empty">\u05dc\u05d0 \u05d6\u05d5\u05d4\u05d5 \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd. \u05d0\u05e4\u05e9\u05e8 \u05dc\u05d4\u05d5\u05e1\u05d9\u05e3/\u05dc\u05ea\u05e7\u05df \u05dc\u05e4\u05e0\u05d9 \u05d0\u05d9\u05e9\u05d5\u05e8.</div>'}
+      <div class="ocr-corrections" id="ocrCorrectionSummary">\u05db\u05dc \u05e9\u05d9\u05e0\u05d5\u05d9 \u05d9\u05d3\u05e0\u05d9 \u05d9\u05d9\u05e9\u05de\u05e8 \u05d1\u05d0\u05d9\u05e9\u05d5\u05e8 \u05d5\u05d9\u05d9\u05db\u05e0\u05e1 \u05dc\u05de\u05e1\u05dc\u05d5\u05dc \u05d0\u05d9\u05de\u05d5\u05df OCR.</div>
+    </div>
   `;
 }
+
+function markOcrEdited(el) {
+  el.closest('.ocr-field, .ocr-order-row')?.classList.add('edited');
+  const summary = document.getElementById('ocrCorrectionSummary');
+  if (summary) summary.textContent = '\u05d9\u05e9 \u05ea\u05d9\u05e7\u05d5\u05e0\u05d9\u05dd \u05d9\u05d3\u05e0\u05d9\u05d9\u05dd. \u05d4\u05dd \u05d9\u05d9\u05e9\u05de\u05e8\u05d5 \u05d1\u05d0\u05d9\u05e9\u05d5\u05e8 \u05d5\u05d9\u05d9\u05db\u05e0\u05e1\u05d5 \u05dc\u05d0\u05d9\u05de\u05d5\u05df OCR.';
+}
+
 
 function ensureIntakeShapeEditor() {
   if (!intakeShapeEditor && typeof ShapeEditorModal !== 'undefined') {
@@ -678,10 +818,10 @@ function ensureIntakeShapeEditor() {
 function openOcrShapeEditor(index) {
   activeOcrShapeIndex = index;
   const item = currentOcrItemFromFields(index);
-  if (isSpiralOcrItem(item) || /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(item.shape_name || ''))) {
-    const diameter = window.prompt('קוטר ספיראלה במ"מ', item.spiral_diameter_mm || '');
+  if (isSpiralOcrItem(item) || /spiral|ring|coil/i.test(String(item.shape_name || '')) || hasAnyToken(item.shape_name, ['\u05e1\u05e4\u05d9\u05e8', '\u05d8\u05d1\u05e2\u05ea', '\u05e1\u05dc\u05d9\u05dc', '\u05dc\u05d5\u05dc\u05d0\u05d4', '\u05e7\u05e4\u05d9\u05e5'])) {
+    const diameter = window.prompt('\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4 \u05d1\u05de\u05f4\u05de', item.spiral_diameter_mm || '');
     if (diameter === null) return;
-    const turns = window.prompt('מספר כריכות', item.spiral_turns || '');
+    const turns = window.prompt('\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea', item.spiral_turns || '');
     if (turns === null) return;
     const shapeInput = ocrItemInput(index, 'shape_name');
     const diameterInput = ocrItemInput(index, 'spiral_diameter_mm');
@@ -692,25 +832,32 @@ function openOcrShapeEditor(index) {
     if (turnsInput) turnsInput.value = toNumber(turns);
     if (segmentsInput) segmentsInput.value = '';
     [shapeInput, diameterInput, turnsInput, segmentsInput].filter(Boolean).forEach(markOcrEdited);
-    const nextItem = currentOcrItemFromFields(index);
-    const preview = document.getElementById(`ocrShapePreview_${index}`);
-    if (preview) preview.outerHTML = ocrShapePreviewHtml(nextItem, index);
-    const cell = document.getElementById(`ocrShapeCell_${index}`);
-    if (cell) cell.outerHTML = ocrShapeCellHtml(nextItem, index);
+    refreshOcrShapeVisual(index);
     return;
   }
   const editor = ensureIntakeShapeEditor();
-  if (!editor) return toast('עורך הצורה לא נטען', true);
+  if (!editor) return toast('\u05e2\u05d5\u05e8\u05da \u05d4\u05e6\u05d5\u05e8\u05d4 \u05dc\u05d0 \u05e0\u05d8\u05e2\u05df', true);
   const { sides, angles } = itemSidesAngles(item);
   editor.open({
     presetId: item.shape_id || item.shapeId || item.presetId || null,
-    presetName: item.shape_name || item.shapeName || item.shape || item.type || 'צורה מותאמת',
+    presetName: item.shape_name || item.shapeName || item.shape || item.type || '\u05e6\u05d5\u05e8\u05d4 \u05de\u05d5\u05ea\u05d0\u05de\u05ea',
     sides: sides.length ? sides : [1000],
     angles,
     is3d: item.is3d || 0,
     azAngles: item.azAngles || null,
     elAngles: item.elAngles || null,
   });
+}
+
+function refreshOcrShapeVisual(index) {
+  const nextItem = currentOcrItemFromFields(index);
+  const preview = document.getElementById(`ocrShapePreview_${index}`);
+  if (preview) preview.outerHTML = ocrShapePreviewHtml(nextItem, index);
+  const cell = document.getElementById(`ocrShapeCell_${index}`);
+  if (cell) cell.outerHTML = ocrShapeCellHtml(nextItem, index);
+  const row = document.getElementById(`ocrOrderRow_${index}`);
+  const title = row?.querySelector('.ocr-shape-title span');
+  if (title) title.textContent = ocrDisplayName(nextItem);
 }
 
 function shapeSelectedFromIntake(data) {
@@ -720,7 +867,7 @@ function shapeSelectedFromIntake(data) {
   const segmentsInput = ocrItemInput(index, 'segments');
   const totalLengthInput = ocrItemInput(index, 'total_length_mm');
   if (shapeInput) {
-    shapeInput.value = data.presetName || 'צורה מותאמת';
+    shapeInput.value = data.presetName || '\u05e6\u05d5\u05e8\u05d4 \u05de\u05d5\u05ea\u05d0\u05de\u05ea';
     markOcrEdited(shapeInput);
   }
   if (segmentsInput) {
@@ -731,52 +878,8 @@ function shapeSelectedFromIntake(data) {
     totalLengthInput.value = (data.sides || []).reduce((sum, side) => sum + Number(side || 0), 0);
     markOcrEdited(totalLengthInput);
   }
-  const nextItem = currentOcrItemFromFields(index);
-  const preview = document.getElementById(`ocrShapePreview_${index}`);
-  if (preview) preview.outerHTML = ocrShapePreviewHtml(nextItem, index);
-  const cell = document.getElementById(`ocrShapeCell_${index}`);
-  if (cell) cell.outerHTML = ocrShapeCellHtml(nextItem, index);
+  refreshOcrShapeVisual(index);
   activeOcrShapeIndex = null;
-}
-
-function intakeEditableForm(parsed) {
-  const items = Array.isArray(parsed.items) ? parsed.items : [];
-  return `
-    <div class="ocr-edit-form">
-      <div class="ocr-field-grid">
-        ${ocrFieldHtml({ label:'לקוח', path:'customer_name', value: parsed.customer_name || parsed.customerName || '', low: isLowConfidence(parsed, 'customer_name', parsed.customer_name || parsed.customerName) })}
-        ${ocrFieldHtml({ label:'תאריך אספקה', path:'delivery_date', value: deliveryDateOf(parsed), low: isLowConfidence(parsed, 'delivery_date', deliveryDateOf(parsed)) })}
-        ${ocrFieldHtml({ label:'כתובת', path:'delivery_address', value: parsed.delivery_address || parsed.deliveryAddress || '', low: isLowConfidence(parsed, 'delivery_address', parsed.delivery_address || parsed.deliveryAddress) })}
-        ${ocrFieldHtml({ label:'הערות', path:'notes', value: parsed.notes || '', type:'textarea', low: isLowConfidence(parsed, 'notes', parsed.notes) })}
-      </div>
-      <div class="box-title">טופס הזמנה מזוהה - תקן את הטבלה לפני אישור</div>
-      ${items.length ? `
-        <div class="ocr-items-sheet">
-          <table class="ocr-items-table" aria-label="טופס הזמנה מזוהה">
-            <thead>
-              <tr>
-                <th style="width:92px">מס'</th>
-                <th style="width:330px">שרטוט / צורה</th>
-                <th style="width:110px">קוטר</th>
-                <th style="width:130px">אורך</th>
-                <th style="width:110px">כמות</th>
-                <th>מידות / פרמטרים</th>
-                <th>הערה</th>
-              </tr>
-            </thead>
-            <tbody>${items.map((item, index) => ocrItemTableRowHtml(parsed, item, index)).join('')}</tbody>
-          </table>
-        </div>
-      ` : '<div class="empty">לא זוהו פריטים. צריך לפתוח לעריכה ידנית לפני אישור.</div>'}
-      <div class="ocr-corrections" id="ocrCorrectionSummary">כל שינוי שתבצע כאן יישמר יחד עם האישור ויזרום למסך אימון OCR.</div>
-    </div>
-  `;
-}
-
-function markOcrEdited(el) {
-  el.closest('.ocr-field')?.classList.add('edited');
-  const summary = document.getElementById('ocrCorrectionSummary');
-  if (summary) summary.textContent = 'יש תיקונים ידניים. הם יישמרו באישור וייכנסו לאימון OCR.';
 }
 
 function readCorrectedParsed() {
