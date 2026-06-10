@@ -123,7 +123,7 @@
 - scope: services/portalAccess.js, routes/portal.js, routes/portalAdmin.js, public/customer.html
 - spec: docs/spec-portal-roles.md
 - accept: כמה משתמשים לכל לקוח עם תפקיד; מזמין=פורטל מלא בלי מחיר/אישור; מאשר=מחיר+אישור; ניהול ע"י לקוח+טנא
-- progress: ✅ בסיס — טבלת portal_users + backfill role=both + resolvePortalUser + roleCaps ב-portalAccess (195/195). נשאר: אימות מחזיר role, גדר מחיר/אישור ב-/c/*, ניהול משתמשים, שרטוט צורות+מידות, מעקב סטטוס.
+- progress: ✅ בסיס (portal_users+roleCaps) + ✅ טוקן פר-משתמש + אימות מחזיר role + שער מחיר/אישור בכל /c/* (מזמין לא רואה מחיר, רק מאשר מאשר). 195/195. נשאר: ניהול משתמשים (פורטל+פנימי), כניסה לפי טלפון-משתמש (לא רק טלפון חברה), שרטוט צורות+מידות, מעקב סטטוס.
 
 ### T-012 · פרויקטים ותקציב בפורטל
 - status: todo

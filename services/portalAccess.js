@@ -26,6 +26,9 @@ function createPortalAccessService(deps) {
       created_at  TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN token TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN token_expires_at TEXT`); } catch {}
+
   // Backfill חד-פעמי: כל לקוח קיים עם טלפון → משתמש פורטל role=both (שומר התנהגות קיימת)
   try {
     if (db.prepare('SELECT COUNT(*) c FROM portal_users').get().c === 0) {
@@ -50,6 +53,37 @@ function createPortalAccessService(deps) {
     const np = normalizePortalPhone(phone);
     if (!np) return null;
     return db.prepare('SELECT * FROM portal_users WHERE phone=? AND active=1').get(np);
+  }
+
+  function findOrCreatePortalUser(customerId, phone, name) {
+    const np = normalizePortalPhone(phone);
+    let u = db.prepare('SELECT * FROM portal_users WHERE phone=?').get(np);
+    if (!u) {
+      const r = db.prepare("INSERT INTO portal_users (customer_id,phone,name,role) VALUES (?,?,?,'both')")
+        .run(customerId, np, name || null);
+      u = db.prepare('SELECT * FROM portal_users WHERE id=?').get(r.lastInsertRowid);
+    }
+    return u;
+  }
+
+  function issueUserToken(portalUser) {
+    const token = crypto.randomBytes(12).toString('hex');
+    const expiresAt = portalTokenExpiresAt();
+    db.prepare('UPDATE portal_users SET token=?, token_expires_at=? WHERE id=?').run(token, expiresAt, portalUser.id);
+    return { token, expiresAt };
+  }
+
+  // טוקן פר-משתמש → {customer, user, role}. נופל ל-null אם לא קיים/פג.
+  function resolvePortalSession(token) {
+    if (!token) return null;
+    const u = db.prepare(`
+      SELECT * FROM portal_users
+      WHERE token=? AND active=1 AND (token_expires_at IS NULL OR token_expires_at > ?)
+    `).get(token, new Date().toISOString());
+    if (!u) return null;
+    const customer = db.prepare(`SELECT ${CUSTOMER_PORTAL_COLS} FROM customers WHERE id=?`).get(u.customer_id);
+    if (!customer) return null;
+    return { customer, user: u, role: u.role };
   }
 
   function resolveCustomer(token, phone) {
@@ -154,6 +188,9 @@ function createPortalAccessService(deps) {
     normalizePortalPhone,
     resolveCustomer,
     resolvePortalUser,
+    findOrCreatePortalUser,
+    issueUserToken,
+    resolvePortalSession,
     roleCaps,
     issuePortalOtp,
     verifyPortalOtp,

@@ -24,10 +24,23 @@ module.exports = function createPortalRouter(deps) {
   const {
     normalizePortalPhone,
     resolveCustomer,
+    findOrCreatePortalUser,
+    issueUserToken,
+    resolvePortalSession,
+    roleCaps,
     issuePortalOtp,
     verifyPortalOtp,
     portalAuthResponse,
   } = portalAccess;
+
+  // session(token) → {customer, role}. טוקן פר-משתמש; נפילה לטוקן חברה ישן (role=both, תאימות לאחור).
+  function session(token) {
+    const s = resolvePortalSession(token);
+    if (s) return { customer: s.customer, role: s.role, caps: roleCaps(s.role) };
+    const c = resolveCustomer(token);
+    if (c) return { customer: c, role: 'both', caps: roleCaps('both') };
+    return null;
+  }
 
   // Auth: get/create customer by phone (walk-in) or by token
   router.post('/c/auth', customerPortalAuthLimiter, (req, res) => {
@@ -59,19 +72,33 @@ module.exports = function createPortalRouter(deps) {
     if (!verified.ok) return res.status(verified.status).json({ error: verified.error });
     const c = db.prepare('SELECT * FROM customers WHERE id=?').get(verified.customerId);
     if (!c || normalizePortalPhone(c.phone) !== phone) return res.status(401).json({ error: 'Invalid code' });
-    res.json(portalAuthResponse(c));
+    // משתמש פורטל + תפקיד + טוקן פר-משתמש
+    const user = findOrCreatePortalUser(c.id, phone, c.name);
+    const { token, expiresAt } = issueUserToken(user);
+    const caps = roleCaps(user.role);
+    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+    res.json({
+      token,
+      link: `${baseUrl}/customer.html?token=${token}`,
+      expiresAt,
+      role: user.role,
+      caps,
+      customer: { id: c.id, name: c.name, phone: c.phone, price_tier: caps.seePrice ? c.price_tier : undefined }
+    });
   });
 
   // Get customer info + recent orders
   router.get('/c/me', customerPortalActionLimiter, (req, res) => {
     const { token } = req.query;
-    const c = resolveCustomer(token);
-    if (!c) return res.status(401).json({ error: 'לא מורשה' });
-    const orders = db.prepare(`
+    const s = session(token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    const c = s.customer;
+    let orders = db.prepare(`
       SELECT id, order_num, status, created_at, total_weight, billing_weight, delivery_date, portal_price
       FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 20
     `).all(c.id);
-    res.json({ customer: { id: c.id, name: c.name, phone: c.phone }, orders }); // BUG-40: removed price_tier/discount_pct (internal fields)
+    if (!s.caps.seePrice) orders = orders.map(({ portal_price, ...o }) => o); // מזמין (שטח) לא רואה מחיר
+    res.json({ customer: { id: c.id, name: c.name, phone: c.phone }, role: s.role, caps: s.caps, orders }); // BUG-40: ללא price_tier/discount_pct
   });
 
   // Shapes (public)
@@ -82,7 +109,10 @@ module.exports = function createPortalRouter(deps) {
   // Price list for this customer
   router.get('/c/price-list', customerPortalActionLimiter, (req, res) => {
     const { token } = req.query;
-    const c = resolveCustomer(token);
+    const s = session(token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.caps.seePrice) return res.json({ priceHidden: true, items: [] }); // מזמין לא רואה מחירון
+    const c = s.customer;
     const priceMap = pricer.buildPriceMap({
       tier:        c?.price_tier  || 'list',
       discountPct: c?.discount_pct || 0,
@@ -96,7 +126,10 @@ module.exports = function createPortalRouter(deps) {
   // Quote — calculate price for items before ordering
   router.post('/c/quote', customerPortalActionLimiter, (req, res) => {
     const { token, items } = req.body; // items: [{diameter, sides[], qty}]
-    const c = resolveCustomer(token);
+    const s = session(token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.caps.seePrice) return res.json({ priceHidden: true }); // מזמין לא רואה הצעת מחיר
+    const c = s.customer;
 
     const priceItems = (items || []).map(item => {
       const totalLengthMm = (item.sides || []).reduce((s, v) => s + v, 0);
@@ -111,8 +144,9 @@ module.exports = function createPortalRouter(deps) {
   // Submit order from portal
   router.post('/c/order', customerPortalActionLimiter, async (req, res) => {
     const { token, items, deliveryDate, deliveryTime, deliveryAddress, notes } = req.body;
-    let c = resolveCustomer(token);
-    if (!c) return res.status(401).json({ error: 'נדרש זיהוי' });
+    const s = session(token);
+    if (!s) return res.status(401).json({ error: 'נדרש זיהוי' });
+    const c = s.customer;
     if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
 
     // Calculate price via pricer service
@@ -171,8 +205,12 @@ module.exports = function createPortalRouter(deps) {
 
     res.json({
       success: true, orderNum, orderId,
-      summary: { totalWeight: +totalWeight.toFixed(2), billingWeight: +billingWeight.toFixed(2), portalPrice: +portalPrice.toFixed(2) },
-      token: c.portal_token,
+      summary: {
+        totalWeight: +totalWeight.toFixed(2),
+        billingWeight: +billingWeight.toFixed(2),
+        ...(s.caps.seePrice ? { portalPrice: +portalPrice.toFixed(2) } : {})
+      },
+      token,
       awaitingApproval: true
     });
   });
@@ -198,8 +236,10 @@ module.exports = function createPortalRouter(deps) {
   // Also allow approval from portal (POST)
   router.post('/c/approve', customerPortalActionLimiter, (req, res) => {
     const { token, orderId } = req.body;
-    const c = resolveCustomer(token);
-    if (!c) return res.status(401).json({ error: 'לא מורשה' });
+    const s = session(token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.caps.canApprove) return res.status(403).json({ error: 'רק מאשר (כספים) יכול לאשר הזמנה' });
+    const c = s.customer;
     const order = db.prepare('SELECT * FROM orders WHERE id=? AND customer_id=? AND status=?').get(orderId, c.id, 'ממתינה לאישור לקוח');
     if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה או כבר אושרה' });
     db.prepare("UPDATE orders SET status='אושרה – ממתין לייצור', confirm_token=NULL WHERE id=?").run(orderId);
@@ -235,8 +275,9 @@ module.exports = function createPortalRouter(deps) {
   // Customer order history
   router.get('/c/orders/:orderId', customerPortalActionLimiter, (req, res) => {
     const { token } = req.query;
-    const c = resolveCustomer(token);
-    if (!c) return res.status(401).json({ error: 'לא מורשה' });
+    const s = session(token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    const c = s.customer;
     // BUG-42: limited projection — no cost/internal fields exposed to portal
     const order = db.prepare(`
       SELECT id,order_num,status,created_at,delivery_date,delivery_address,delivery_time,
@@ -244,6 +285,8 @@ module.exports = function createPortalRouter(deps) {
       FROM orders WHERE id=? AND customer_id=?
     `).get(req.params.orderId, c.id);
     if (!order) return res.status(404).json({ error: 'לא נמצא' });
+    if (!s.caps.seePrice) delete order.portal_price; // מזמין לא רואה מחיר
+    order.role = s.role; order.caps = s.caps;
     const pallets = db.prepare("SELECT id,pallet_num,'' AS notes FROM pallets WHERE order_id=?").all(order.id);
     pallets.forEach(p => {
       p.items = db.prepare(`
