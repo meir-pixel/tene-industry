@@ -142,7 +142,7 @@
     const markerY = y + markerSize;
     const marker = document.createElementNS(NS, 'path');
     marker.setAttribute('data-stirrup-marker', 'overlap');
-    marker.setAttribute('d', `M ${markerX.toFixed(1)},${y.toFixed(1)} L ${markerX.toFixed(1)},${markerY.toFixed(1)} L ${right.toFixed(1)},${markerY.toFixed(1)}`);
+    marker.setAttribute('d', `M ${right.toFixed(1)},${y.toFixed(1)} L ${markerX.toFixed(1)},${y.toFixed(1)} L ${markerX.toFixed(1)},${markerY.toFixed(1)} L ${right.toFixed(1)},${markerY.toFixed(1)}`);
     marker.setAttribute('stroke', '#1a2533');
     marker.setAttribute('stroke-width', Math.max(3, strokeW));
     marker.setAttribute('fill', 'none');

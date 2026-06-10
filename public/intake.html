@@ -619,7 +619,7 @@ function ocrClosedStirrupSvg(sides, item, width = 300, height = 210) {
   const marker = Math.min(38, Math.max(20, Math.min(boxW, boxH) * 0.28));
   return `<svg viewBox="0 0 ${width} ${height}" data-shape-kind="ocr-stirrup" aria-label="stirrup">
     <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${boxW.toFixed(1)}" height="${boxH.toFixed(1)}" fill="none" stroke="#0f5f78" stroke-width="6" stroke-linejoin="round"/>
-    <path d="M ${(r-marker).toFixed(1)} ${y.toFixed(1)} L ${(r-marker).toFixed(1)} ${(y+marker).toFixed(1)} L ${r.toFixed(1)} ${(y+marker).toFixed(1)}" fill="none" stroke="#102033" stroke-width="5" stroke-linejoin="miter"/>
+    <path d="M ${r.toFixed(1)} ${y.toFixed(1)} L ${(r-marker).toFixed(1)} ${y.toFixed(1)} L ${(r-marker).toFixed(1)} ${(y+marker).toFixed(1)} L ${r.toFixed(1)} ${(y+marker).toFixed(1)}" fill="none" stroke="#102033" stroke-width="5" stroke-linecap="square" stroke-linejoin="miter"/>
     ${ocrLabelText((x+boxW/2).toFixed(1), Math.max(18, y-12).toFixed(1), ocrSegmentLabel(top))}
     ${ocrLabelText((x+boxW/2).toFixed(1), Math.min(height-8, b+22).toFixed(1), ocrSegmentLabel(bottom))}
     ${ocrLabelText(Math.max(18, x-28).toFixed(1), (y+boxH/2+5).toFixed(1), ocrSegmentLabel(left))}
