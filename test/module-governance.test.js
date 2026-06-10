@@ -629,6 +629,22 @@ test('intake API routes are split out of the server monolith', () => {
   assert.ok(!server.includes("app.post('/api/intake/parse-text'"));
 });
 
+test('OCR document intake is explicitly routed by module, not AI guessing', () => {
+  const intakeRoute = read('routes/intake.js');
+  const inventoryPage = read('public/inventory.html');
+  const orderPage = read('public/index.html');
+
+  assert.match(intakeRoute, /function requestedOcrDocumentType/);
+  assert.match(intakeRoute, /document_type_hint/);
+  assert.match(intakeRoute, /wrong_document_route/);
+  assert.match(intakeRoute, /CUSTOMER ORDER \/ BAR SCHEDULE/);
+  assert.doesNotMatch(intakeRoute, /First identify the document format/);
+  assert.match(orderPage, /id="ocrDocumentType"/);
+  assert.match(orderPage, /fd\.append\('document_type_hint'/);
+  assert.match(inventoryPage, /document_type_hint', 'supplier_delivery'/);
+  assert.match(inventoryPage, /accept="image\/\*,\.pdf,application\/pdf"/);
+});
+
 test('fleet vehicle health and input normalization live in a fleet service', () => {
   const service = read('services/fleet.js');
   const route = read('routes/fleet.js');

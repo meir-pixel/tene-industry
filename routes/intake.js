@@ -30,6 +30,20 @@ module.exports = function createIntakeRouter(deps) {
       || req.body?.save_to_intake === true;
   }
 
+  function requestedOcrDocumentType(req) {
+    const raw = String(
+      req.body?.document_type_hint
+      || req.body?.document_type
+      || req.query.document_type_hint
+      || req.query.document_type
+      || 'order'
+    ).trim().toLowerCase();
+    if (['order', 'customer_order', 'bar_schedule', 'rebar_order'].includes(raw)) return 'order';
+    if (['supplier_delivery', 'delivery_note', 'supplier_receipt', 'inventory_receipt'].includes(raw)) return 'supplier_delivery';
+    if (['price_list', 'pricing', 'steel_price_list'].includes(raw)) return 'price_list';
+    return 'order';
+  }
+
   function saveAnalysisToIntake(req, payload) {
     const originalMime = req.file.mimetype || 'application/octet-stream';
     const originalDataUrl = `data:${originalMime};base64,${req.file.buffer.toString('base64')}`;
@@ -75,6 +89,16 @@ module.exports = function createIntakeRouter(deps) {
     const attachment = mime === 'application/pdf'
       ? { type: 'input_file', filename: req.file.originalname || 'order.pdf', file_data: `data:application/pdf;base64,${fileData}` }
       : { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' };
+    const documentIntent = requestedOcrDocumentType(req);
+    if (documentIntent !== 'order') {
+      return res.status(422).json({
+        code: 'wrong_document_route',
+        document_type_hint: documentIntent,
+        error: documentIntent === 'supplier_delivery'
+          ? 'תעודת ספק / קבלת חומר נקלטת דרך מודול מלאי, לא דרך הזמנה חדשה.'
+          : 'מחירון ברזל נקלט דרך מודול מחירונים, לא דרך הזמנה חדשה.',
+      });
+    }
     const schema = {
       type: 'object',
       additionalProperties: false,
@@ -120,10 +144,13 @@ module.exports = function createIntakeRouter(deps) {
       required: ['document_type', 'supplier_order_num', 'customer_name', 'customer_phone', 'delivery_date', 'delivery_address', 'notes', 'items'],
     };
     const trainingGuidance = getIntakeTrainingGuidance();
-    const prompt = `Read this photographed or PDF steel production order carefully.
+    const prompt = `The operator selected document type: CUSTOMER ORDER / BAR SCHEDULE.
+  This route must parse only customer orders, handwritten rebar lists, factory cards, or bending schedules.
+  Do not classify the document yourself as supplier delivery, inventory receipt, or price list. If the selected route is wrong, return no items and explain in notes.
+  Read this photographed or PDF steel production order carefully.
   Return every printed or handwritten table row as a separate item.
   ${trainingGuidance}
-  First identify the document format. If it is a TASSA / טסה supplier order:
+  If it is a TASSA / טסה supplier order used as a customer order source:
   - Page 1 is usually a cover page. Extract the supplier order number from "הזמנה לספק מס'", the requested delivery date from "מועד אספקה", customer/contact name from "לכבוד" or the handwritten body, and phone from the handwritten body if present.
   - Later pages are "רשימת ברזל לכיפוף" / bending schedules. Extract each numbered table row as a separate item.
   - Do not treat the cover-page free text or phone line as a steel item.

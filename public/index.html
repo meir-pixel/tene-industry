@@ -1199,8 +1199,13 @@
       <div class="intake-controls">
         <div class="ocr-quick-action">
           <div class="intake-row-label">OCR</div>
+          <select id="ocrDocumentType" class="form-select" style="max-width:230px">
+            <option value="order">הזמנה / רשימת ברזל</option>
+            <option value="supplier_delivery">תעודת ספק - עבור למלאי</option>
+            <option value="price_list">מחירון - עבור למחירונים</option>
+          </select>
           <label for="imgUploadInput" class="file-pick-btn">בחר PDF / תמונה לזיהוי</label>
-          <div class="ocr-quick-copy">להזמנות סרוקות, צילום וואטסאפ או קובץ PDF. אחרי הזיהוי תראה תצוגה לאישור לפני ייבוא.</div>
+          <div class="ocr-quick-copy">בחר סוג מסמך מראש. הזמנה נקלטת כאן; תעודת ספק שייכת למלאי; מחירון שייך למחירונים.</div>
         </div>
         <div class="intake-row">
           <div class="intake-row-label">מקור</div>
@@ -2177,6 +2182,7 @@ function analyzeOrderImage(input) {
   var fd = new FormData();
   fd.append('image', file);
   fd.append('save_to_intake', 'true');
+  fd.append('document_type_hint', document.getElementById('ocrDocumentType')?.value || 'order');
 
   ensureOcrSession()
     .then(function(hasSession) {
@@ -2242,6 +2248,8 @@ function ocrErrorMessage(err) {
   if (msg === 'ocr_auth_required') return 'נדרשת התחברות מחדש לפני ניתוח תמונה. התחבר ואז נסה שוב.';
   if (msg === 'OCR_FORBIDDEN') return 'אין למשתמש הנוכחי הרשאה לניתוח תמונה. נדרש משתמש משרד, מנהל או אדמין.';
   if (msg === 'ocr_forbidden') return 'אין למשתמש הנוכחי הרשאה לניתוח תמונה. נדרש משתמש משרד, מנהל או אדמין.';
+  if (msg.includes('תעודת ספק / קבלת חומר')) return 'זה מסמך מלאי. פתח מלאי ← קבלת חומר OCR והעלה אותו שם.';
+  if (msg.includes('מחירון ברזל')) return 'זה מסמך מחירון. הוא לא נקלט כהזמנה; יש להעביר אותו למודול מחירונים.';
   if (msg === 'Authentication required') return 'נדרשת התחברות מחדש לפני ניתוח תמונה. התחבר ואז נסה שוב.';
   if (msg.includes('Document recognition is disabled')) return 'OCR כבוי בהגדרות המערכת. הפעל INTAKE_AI_ENABLED והגדר מפתח OpenAI.';
   if (msg.includes('OPENAI_API_KEY')) return 'OCR לא מוגדר: חסר OPENAI_API_KEY בהגדרות.';

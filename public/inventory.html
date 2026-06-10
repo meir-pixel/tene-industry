@@ -192,7 +192,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
       <div class="card-header">
         <span class="card-title">📄 קבלת חומר OCR - תעודות ספק לאישור</span>
         <div class="search-row">
-          <input id="receiptImage" type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadReceiptReview(this.files[0])">
+          <input id="receiptImage" type="file" accept="image/*,.pdf,application/pdf" style="display:none" onchange="uploadReceiptReview(this.files[0])">
           <button class="btn btn-primary btn-sm" onclick="document.getElementById('receiptImage').click()">צלם / העלה תעודה</button>
           <button class="btn btn-outline btn-sm" onclick="loadReceiptReviews()">רענן</button>
         </div>
@@ -266,7 +266,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
           <div class="form-row"><label>צלעות במ"מ</label><input id="bShapeSides" type="text" placeholder="300,600,300" oninput="previewBendingShape()"></div>
           <div class="form-row"><label>זוויות בין צלעות</label><input id="bShapeAngles" type="text" placeholder="90,90" oninput="previewBendingShape()"></div>
           <div class="shape-actions">
-            <input id="bShapeImage" type="file" accept="image/*,application/pdf" style="display:none" onchange="analyzeBendingShape(this.files[0])">
+            <input id="bShapeImage" type="file" accept="image/*,.pdf,application/pdf" style="display:none" onchange="analyzeBendingShape(this.files[0])">
             <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('bShapeImage').click()">זהה מתמונה</button>
             <button type="button" class="btn btn-outline btn-sm" onclick="previewBendingShape()">רענן צורה</button>
           </div>
@@ -622,6 +622,7 @@ async function uploadReceiptReview(file) {
   box.innerHTML = '<div class="muted">מפענח תעודת ספק...</div>';
   const fd = new FormData();
   fd.append('image', file);
+  fd.append('document_type_hint', 'supplier_delivery');
   try {
     const r = await fetch('/api/inventory/receipt-reviews/analyze', { method:'POST', body: fd });
     const data = await r.json().catch(()=>({}));
