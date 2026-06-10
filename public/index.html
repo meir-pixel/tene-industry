@@ -778,6 +778,38 @@
     min-width: 260px;
     max-width: 560px;
   }
+  .csv-import-details {
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: #f8fbff;
+    padding: 10px 12px;
+  }
+  .csv-import-details summary {
+    cursor: pointer;
+    font-weight: 900;
+    color: var(--text-dim);
+    list-style: none;
+  }
+  .csv-import-details summary::-webkit-details-marker { display: none; }
+  .csv-import-details summary::before {
+    content: "+";
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    margin-inline-end: 8px;
+    background: #eef4f8;
+    color: var(--accent);
+    font-weight: 900;
+  }
+  .csv-import-details[open] summary::before { content: "-"; }
+  .csv-import-row {
+    margin-top: 10px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+  }
   .import-status {
     flex: 1 1 100%;
     margin-top: 4px;
@@ -1237,16 +1269,20 @@
             <label for="imgUploadInput" class="file-pick-btn">בחר PDF / תמונה לזיהוי</label>
           </div>
         </div>
-        <div class="intake-row">
-          <div class="intake-row-label">טבלה</div>
-          <div class="import-actions">
-            <input type="file" id="orderImportFile" accept=".csv,.tsv,text/csv,text/tab-separated-values">
-            <button type="button" class="btn btn-outline" onclick="previewOrderImport()">בדוק טבלה</button>
-            <button type="button" class="btn btn-primary" id="approveOrderImportBtn" onclick="approveOrderImport()" style="display:none">אשר וייבא</button>
-            <div id="orderImportResult" class="import-status"></div>
+        <details class="csv-import-details">
+          <summary>ייבוא CSV/TSV מתקדם — לא PDF ולא תמונה</summary>
+          <div class="intake-row csv-import-row">
+            <div class="intake-row-label">CSV/TSV</div>
+            <div class="import-actions">
+              <input type="file" id="orderImportFile" class="visually-hidden-file" accept=".csv,.tsv,text/csv,text/tab-separated-values" onchange="document.getElementById('orderImportFileLabel').textContent = this.files[0]?.name || 'בחר CSV/TSV'">
+              <label for="orderImportFile" id="orderImportFileLabel" class="btn btn-outline">בחר CSV/TSV</label>
+              <button type="button" class="btn btn-outline" onclick="previewOrderImport()">בדוק טבלה</button>
+              <button type="button" class="btn btn-primary" id="approveOrderImportBtn" onclick="approveOrderImport()" style="display:none">אשר וייבא</button>
+              <div id="orderImportResult" class="import-status"></div>
+            </div>
+            <div class="ocr-quick-copy">רק קובצי CSV/TSV מטבלה מוכנה. PDF ותמונות מעלים דרך שורת ה-OCR למעלה.</div>
           </div>
-          <div class="ocr-quick-copy">לטבלאות מובנות בלבד: CSV/TSV. PDF ותמונות מעלים דרך OCR.</div>
-        </div>
+        </details>
       </div>
     </div>
   </div>

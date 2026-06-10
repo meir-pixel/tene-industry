@@ -139,10 +139,17 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-items-table input,.ocr-items-table textarea{width:100%;border:1px solid #d6e0ea;border-radius:7px;background:#f8fbff;font-family:inherit;font-size:12px;color:var(--text);padding:5px 6px;outline:0}
 .ocr-items-table textarea{min-height:34px;max-height:72px;resize:vertical}
 .ocr-items-table input:focus,.ocr-items-table textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,98,26,.12)}
-.ocr-table-shape{display:grid;gap:6px;align-items:center}
-.ocr-table-shape button{width:100%;border:1px solid #d6e0ea;border-radius:8px;background:#fff;min-height:56px;cursor:pointer;display:grid;place-items:center}
-.ocr-table-shape button:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(201,98,26,.12)}
-.ocr-table-shape svg{width:96px;height:54px}
+.ocr-table-shape{display:grid;gap:8px;align-items:stretch}
+.ocr-visual-card{border:1px solid #d8e4ef;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 8px 18px rgba(15,35,55,.05)}
+.ocr-visual-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-bottom:1px solid #e4edf5;background:#f8fbff}
+.ocr-visual-metric{padding:7px 6px;text-align:center;border-left:1px solid #e4edf5;min-width:0}
+.ocr-visual-metric:first-child{border-left:0}
+.ocr-visual-metric span{display:block;font-size:10px;font-weight:900;color:#718299;line-height:1.2}
+.ocr-visual-metric strong{display:block;font-size:16px;font-weight:900;color:#102033;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ocr-visual-metric strong.accent{color:#d85b00}
+.ocr-table-shape button.ocr-shape-drawing{width:100%;border:0;border-radius:0;background:#fff;min-height:132px;cursor:pointer;display:grid;place-items:center;padding:10px}
+.ocr-table-shape button.ocr-shape-drawing:hover{box-shadow:inset 0 0 0 3px rgba(201,98,26,.18)}
+.ocr-table-shape svg{width:180px;height:132px;max-width:100%}
 .ocr-edit-shape-btn{border:1px solid #f1b879!important;background:#fff5e7!important;color:#b85200!important;min-height:auto!important;padding:5px 7px!important;font-size:11px;font-weight:900}
 .ocr-item-row-title{font-weight:900;color:var(--text);display:flex;gap:6px;align-items:center;justify-content:flex-start;flex-wrap:wrap}
 .ocr-item-kind{font-size:11px;font-weight:900;border-radius:999px;padding:4px 10px;background:#eef4f8;color:var(--text-muted)}
@@ -552,20 +559,54 @@ function ocrTableTextareaHtml({ index, field, value = '', low = false }) {
   return `<textarea data-item-index="${index}" data-item-field="${escapeHtml(field)}"${lowAttr} oninput="markOcrEdited(this)">${escapeHtml(value ?? '')}</textarea>`;
 }
 
+
+function ocrBarKgPerMeter(diameter) {
+  const d = toNumber(diameter);
+  return d > 0 ? d * d * 0.00617 : 0;
+}
+
+function ocrTargetWeightKg(item) {
+  const diameter = toNumber(item?.diameter ?? item?.diameter_mm);
+  const quantity = toNumber(item?.qty ?? item?.quantity ?? item?.pcs) || 1;
+  const length = isSpiralOcrItem(item)
+    ? (toNumber(item?.total_length_mm) || spiralOcrLengthMm(item))
+    : toNumber(item?.total_length_mm ?? item?.length_mm ?? item?.length);
+  if (!diameter || !length) return '';
+  return (ocrBarKgPerMeter(diameter) * (length / 1000) * quantity).toFixed(1);
+}
+
+function ocrMetricHtml(label, value, accent = false) {
+  return `<div class="ocr-visual-metric"><span>${escapeHtml(label)}</span><strong class="${accent ? 'accent' : ''}">${escapeHtml(value || '-')}</strong></div>`;
+}
+
 function ocrShapeCellHtml(item, index) {
   const { sides, angles } = itemSidesAngles(item);
   const shape = item.shape_name || item.shapeName || item.shape || item.type || 'צורה לא מזוהה';
   const isSpiral = isSpiralOcrItem(item);
+  const diameter = item.diameter ?? item.diameter_mm ?? '';
+  const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
+  const length = isSpiral
+    ? (toNumber(item.total_length_mm) || spiralOcrLengthMm(item))
+    : (item.total_length_mm ?? item.length_mm ?? item.length ?? '');
+  const targetWeight = ocrTargetWeightKg(item);
   let svg = '<div class="meta">אין סקיצה</div>';
   if (isSpiral) {
     svg = spiralOcrSvg(item);
   } else if (sides.length && window.IronBendShapeGeometry?.shapeSVGPath) {
     const { path } = window.IronBendShapeGeometry.shapeSVGPath(sides, angles, 150, 108, 14);
-    svg = `<svg viewBox="0 0 150 108" aria-label="${escapeHtml(shape)}"><path d="${path}" stroke="#c9621a" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    svg = `<svg viewBox="0 0 150 108" aria-label="${escapeHtml(shape)}"><path d="${path}" stroke="#0f5f78" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
   return `
     <div class="ocr-table-shape" id="ocrShapeCell_${index}">
-      <button type="button" onclick="openOcrShapeEditor(${index})" title="ערוך צורה">${svg}</button>
+      <div class="ocr-visual-card">
+        <div class="ocr-visual-metrics">
+          ${ocrMetricHtml('\u05db\u05de\u05d5\u05ea', quantity)}
+          ${ocrMetricHtml('\u05e7\u05d5\u05d8\u05e8', diameter ? `\u00d8 ${diameter}` : '')}
+          ${ocrMetricHtml(isSpiral ? '\u05d0\u05d5\u05e8\u05da \u05de\u05d7\u05d5\u05e9\u05d1' : '\u05d0\u05d5\u05e8\u05da \u05db\u05dc\u05dc\u05d9', length)}
+          ${ocrMetricHtml('\u05de\u05e9\u05e7\u05dc \u05e8\u05e6\u05d5\u05d9', targetWeight ? `${targetWeight} \u05e7\u05f4\u05d2` : '', true)}
+        </div>
+        <button type="button" class="ocr-shape-drawing" onclick="openOcrShapeEditor(${index})" title="ערוך צורה">${svg}</button>
+      </div>
       <button type="button" class="ocr-edit-shape-btn" onclick="openOcrShapeEditor(${index})">ערוך צורה</button>
     </div>
   `;
@@ -715,7 +756,7 @@ function intakeEditableForm(parsed) {
             <thead>
               <tr>
                 <th style="width:92px">מס'</th>
-                <th style="width:190px">שרטוט / צורה</th>
+                <th style="width:330px">שרטוט / צורה</th>
                 <th style="width:110px">קוטר</th>
                 <th style="width:130px">אורך</th>
                 <th style="width:110px">כמות</th>
