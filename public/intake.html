@@ -104,6 +104,7 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .intake-source-preview .raw-content{width:100%;max-height:260px;margin:0;padding:12px;text-align:right}
 .intake-fullscreen{position:fixed;inset:0;background:rgba(2,26,72,.62);z-index:780;display:none;padding:14px;backdrop-filter:blur(3px)}
 .intake-fullscreen.open{display:flex}
+body[data-page="intake"] #seOverlay{z-index:980}
 .intake-fullscreen-inner{background:#fff;border:1px solid var(--border);border-radius:12px;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(2,26,72,.28)}
 .intake-fullscreen-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f8fafc}
 .intake-fullscreen-title{font-size:16px;font-weight:900}
@@ -131,25 +132,25 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .ocr-confidence{font-size:10px;font-weight:900;color:#9a6a00}
 .ocr-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .ocr-items-sheet{border:1px solid #bfcbd8;border-radius:8px;background:#fff;overflow:hidden}
-.ocr-items-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-.ocr-items-table th,.ocr-items-table td{border:1px solid #d2dce8;padding:7px;text-align:right;vertical-align:top;background:#fff}
+.ocr-items-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.ocr-items-table th,.ocr-items-table td{border:1px solid #d2dce8;padding:5px 6px;text-align:right;vertical-align:middle;background:#fff}
 .ocr-items-table th{background:#f1f5f9;color:#475569;font-size:11px;font-weight:900}
 .ocr-items-table tr.spiral td{background:#fffaf2}
-.ocr-items-table input,.ocr-items-table textarea{width:100%;border:1px solid #d6e0ea;border-radius:7px;background:#f8fbff;font-family:inherit;font-size:13px;color:var(--text);padding:7px;outline:0}
-.ocr-items-table textarea{min-height:58px;resize:vertical}
+.ocr-items-table input,.ocr-items-table textarea{width:100%;border:1px solid #d6e0ea;border-radius:7px;background:#f8fbff;font-family:inherit;font-size:12px;color:var(--text);padding:5px 6px;outline:0}
+.ocr-items-table textarea{min-height:34px;max-height:72px;resize:vertical}
 .ocr-items-table input:focus,.ocr-items-table textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,98,26,.12)}
 .ocr-table-shape{display:grid;gap:6px;align-items:center}
-.ocr-table-shape button{width:100%;border:1px solid #d6e0ea;border-radius:8px;background:#fff;min-height:92px;cursor:pointer;display:grid;place-items:center}
+.ocr-table-shape button{width:100%;border:1px solid #d6e0ea;border-radius:8px;background:#fff;min-height:56px;cursor:pointer;display:grid;place-items:center}
 .ocr-table-shape button:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(201,98,26,.12)}
-.ocr-table-shape svg{width:132px;height:82px}
-.ocr-edit-shape-btn{border:1px solid #f1b879!important;background:#fff5e7!important;color:#b85200!important;min-height:auto!important;padding:7px 9px!important;font-size:12px;font-weight:900}
+.ocr-table-shape svg{width:96px;height:54px}
+.ocr-edit-shape-btn{border:1px solid #f1b879!important;background:#fff5e7!important;color:#b85200!important;min-height:auto!important;padding:5px 7px!important;font-size:11px;font-weight:900}
 .ocr-item-row-title{font-weight:900;color:var(--text);display:flex;gap:6px;align-items:center;justify-content:flex-start;flex-wrap:wrap}
 .ocr-item-kind{font-size:11px;font-weight:900;border-radius:999px;padding:4px 10px;background:#eef4f8;color:var(--text-muted)}
 .ocr-item-kind.spiral{background:#fff1dd;color:#a24a00;border:1px solid #f3c58d}
 .ocr-table-note{min-width:190px}
 .ocr-table-measure{min-width:190px}
 .ocr-table-source{font-size:11px;line-height:1.55;color:#64748b;font-weight:800;margin-top:4px}
-.ocr-row-warning{font-size:11px;font-weight:900;color:#9a6a00;background:#fff7d7;border:1px solid #f3d582;border-radius:7px;padding:6px;margin-top:6px}
+.ocr-row-warning{font-size:10px;font-weight:900;color:#9a6a00;background:#fff7d7;border:1px solid #f3d582;border-radius:7px;padding:4px 6px;margin-top:4px;line-height:1.4}
 .ocr-items-table input.edited,.ocr-items-table textarea.edited{border-color:var(--success);background:#f2fbf5}
 .ocr-shape-card{border:1px solid #d8e4ef;border-radius:10px;background:#fff;display:grid;grid-template-columns:180px minmax(0,1fr);gap:10px;align-items:center;padding:10px}
 .ocr-shape-preview{height:132px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;display:grid;place-items:center;cursor:pointer}
@@ -1032,7 +1033,7 @@ function renderIntakeQueue() {
             <span class="task-type">${row.post_order_review ? 'אימות אחרי פתיחת הזמנה' : 'פנייה לפני יצירת הזמנה'}</span>
             <span class="urgency-badge urgency-${urgency.level}" title="דירוג דחיפות ${urgency.score}">${urgency.label} · ${urgency.score}</span>
             <button class="btn btn-success" onclick="openIntakeCompare(${row.id})">${row.post_order_review ? 'השוואה למקור' : 'השוואה ואישור'}</button>
-            ${row.post_order_review ? `<button class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה לאימות</button>` : `<button class="btn" onclick="openManualOrder(${row.id})">פתח לעריכה</button><button class="btn btn-danger" onclick="intakeReject(${row.id})">דחה</button>`}
+            ${row.post_order_review ? `<button class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה לאימות</button>` : `<button class="btn" onclick="openManualOrder(${row.id})">פתח להשוואה ועריכה</button><button class="btn btn-danger" onclick="intakeReject(${row.id})">דחה</button>`}
           </div>
         </div>
         <div class="card-grid">
@@ -1211,7 +1212,7 @@ async function intakeReject(id) {
 }
 
 function openManualOrder(id) {
-  window.location.href = '/index.html?intake_id=' + encodeURIComponent(id);
+  openIntakeCompare(id);
 }
 
 function openLinkedOrder(orderId) {

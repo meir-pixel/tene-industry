@@ -18,6 +18,7 @@ const { createDatabaseConnection } = require('./db/connection');
 const { createLicenseService } = require('./services/license');
 const { createPricer }          = require('./services/pricer');
 const { createSettingsService } = require('./services/settings');
+const { createBrandingService } = require('./services/branding');
 const { createModuleLoader } = require('./services/moduleLoader');
 const { createModuleMapService } = require('./services/moduleMap');
 const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
@@ -72,6 +73,7 @@ const createAiRouter = require('./routes/ai');
 const createSearchRouter = require('./routes/search');
 const createBvbsRouter = require('./routes/bvbs');
 const createLicenseRouter = require('./routes/license');
+const createBrandingRouter = require('./routes/branding');
 const { MACHINE_STATES, STATE_TRANSITIONS } = constants;
 const { createOrderFactory } = ordersService;
 
@@ -129,6 +131,7 @@ const {
 } = createDatabaseConnection({ env: process.env, rootDir: __dirname });
 let db = initialDb;
 const settingsService = createSettingsService(db);
+const brandingService = createBrandingService(settingsService);
 const pricer = createPricer(db);
 const licenseService = createLicenseService(db);
 const fs = require('fs');
@@ -228,6 +231,7 @@ function requireModule(key) {
 app.use('/api', licenseService.middleware);
 
 app.use('/api', createLicenseRouter({ readLicensedModules, moduleCatalog }));
+app.use('/api', createBrandingRouter({ branding: brandingService }));
 
 seedCoreData(db);
 
@@ -240,6 +244,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/ai.js', factory: createAiRouter },
     { file: 'routes/alerts.js', factory: createAlertsRouter },
     { file: 'routes/auth.js', factory: createAuthRouter },
+    { file: 'routes/branding.js', factory: createBrandingRouter },
     { file: 'routes/bvbs.js', factory: createBvbsRouter },
     { file: 'routes/catalog.js', factory: createCatalogRouter },
     { file: 'routes/companies.js', factory: createCompaniesRouter },

@@ -89,6 +89,7 @@ function extractExpressRoutes(source, options = {}) {
 
 const PUBLIC_OR_SCOPED_API_ROUTES = new Set([
   'GET /api/health',
+  'GET /api/branding',
   'GET /api/license/modules',
   'POST /api/auth/login',
   'POST /api/auth/refresh',
