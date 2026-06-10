@@ -123,7 +123,7 @@
 - scope: services/portalAccess.js, routes/portal.js, routes/portalAdmin.js, public/customer.html
 - spec: docs/spec-portal-roles.md
 - accept: כמה משתמשים לכל לקוח עם תפקיד; מזמין=פורטל מלא בלי מחיר/אישור; מאשר=מחיר+אישור; ניהול ע"י לקוח+טנא
-- progress: ✅ בסיס (portal_users+roleCaps) + ✅ טוקן פר-משתמש + אימות מחזיר role + שער מחיר/אישור בכל /c/* (מזמין לא רואה מחיר, רק מאשר מאשר). 195/195. נשאר: ניהול משתמשים (פורטל+פנימי), כניסה לפי טלפון-משתמש (לא רק טלפון חברה), שרטוט צורות+מידות, מעקב סטטוס.
+- progress: ✅ portal_users+roleCaps · ✅ טוקן פר-משתמש+role · ✅ שער מחיר/אישור בכל /c/* · ✅ כניסה לפי טלפון אישי · ✅ ניהול משתמשים בפורטל (GET/POST /c/users, deactivate — מאשר בלבד). 195/195. נשאר (UI+פנימי): מסך ניהול משתמשים ב-customer.html, ניהול ע"י טנא ב-portalAdmin, שרטוט צורות+מידות, מעקב סטטוס.
 
 ### T-012 · פרויקטים ותקציב בפורטל
 - status: todo

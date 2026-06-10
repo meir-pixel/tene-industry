@@ -48,15 +48,21 @@ module.exports = function createPortalRouter(deps) {
     const rawPhone = String(req.body.phone || '').trim();
     const phone = normalizePortalPhone(rawPhone);
     if (!phone) return res.status(400).json({ error: 'טלפון חובה' });
-    let c = db.prepare('SELECT * FROM customers WHERE phone=? OR phone=?').get(phone, rawPhone);
+    // 1) משתמש פורטל קיים (טלפון אישי) → החברה שלו
+    let c = null;
+    const pu = portalAccess.resolvePortalUser(phone);
+    if (pu) c = db.prepare('SELECT * FROM customers WHERE id=?').get(pu.customer_id);
+    // 2) טלפון של חברה (legacy)
+    if (!c) c = db.prepare('SELECT * FROM customers WHERE phone=? OR phone=?').get(phone, rawPhone);
+    // 3) חדש לגמרי → צריך שם → פותח חברה
     if (!c) {
       if (!name) return res.json({ needName: true }); // ask for name first
       const r = db.prepare('INSERT INTO customers (name,phone,price_tier) VALUES (?,?,?)').run(name, phone, 'list');
       c = db.prepare('SELECT * FROM customers WHERE id=?').get(r.lastInsertRowid);
     }
-    const otp = issuePortalOtp(c);
+    const otp = issuePortalOtp({ id: c.id, phone }); // OTP לטלפון שהוקלד (לא בהכרח טלפון החברה)
     if (!IS_TEST) {
-      intake.sendWhatsApp(c.phone, `קוד האימות שלך ל-IronBend: ${otp.code}`).catch(e => console.warn('[Portal OTP]', e));
+      intake.sendWhatsApp(phone, `קוד האימות שלך: ${otp.code}`).catch(e => console.warn('[Portal OTP]', e));
     }
     res.json({
       otpRequired: true,
@@ -71,8 +77,8 @@ module.exports = function createPortalRouter(deps) {
     const verified = verifyPortalOtp(phone, req.body.code);
     if (!verified.ok) return res.status(verified.status).json({ error: verified.error });
     const c = db.prepare('SELECT * FROM customers WHERE id=?').get(verified.customerId);
-    if (!c || normalizePortalPhone(c.phone) !== phone) return res.status(401).json({ error: 'Invalid code' });
-    // משתמש פורטל + תפקיד + טוקן פר-משתמש
+    if (!c) return res.status(401).json({ error: 'Invalid code' });
+    // משתמש פורטל + תפקיד + טוקן פר-משתמש (הטלפון יכול להיות אישי, לא של החברה)
     const user = findOrCreatePortalUser(c.id, phone, c.name);
     const { token, expiresAt } = issueUserToken(user);
     const caps = roleCaps(user.role);
@@ -85,6 +91,43 @@ module.exports = function createPortalRouter(deps) {
       caps,
       customer: { id: c.id, name: c.name, phone: c.phone, price_tier: caps.seePrice ? c.price_tier : undefined }
     });
+  });
+
+  // ── ניהול משתמשי פורטל (מאשר בלבד) ────────────────────────────
+  router.get('/c/users', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.query.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.caps.canApprove) return res.status(403).json({ error: 'רק מאשר יכול לנהל משתמשים' });
+    const users = db.prepare('SELECT id,phone,name,role,active FROM portal_users WHERE customer_id=? ORDER BY id').all(s.customer.id);
+    res.json({ users });
+  });
+
+  router.post('/c/users', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.body.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.caps.canApprove) return res.status(403).json({ error: 'רק מאשר יכול לנהל משתמשים' });
+    const phone = normalizePortalPhone(req.body.phone);
+    const name = req.body.name || null;
+    const role = ['orderer', 'approver', 'both'].includes(req.body.role) ? req.body.role : 'orderer';
+    if (!phone) return res.status(400).json({ error: 'טלפון חובה' });
+    const existing = db.prepare('SELECT * FROM portal_users WHERE phone=?').get(phone);
+    if (existing) {
+      if (existing.customer_id !== s.customer.id) return res.status(409).json({ error: 'הטלפון משויך ללקוח אחר' });
+      db.prepare('UPDATE portal_users SET name=COALESCE(?,name), role=?, active=1 WHERE id=?').run(name, role, existing.id);
+      return res.json({ success: true, id: existing.id, updated: true });
+    }
+    const r = db.prepare('INSERT INTO portal_users (customer_id,phone,name,role) VALUES (?,?,?,?)').run(s.customer.id, phone, name, role);
+    res.json({ success: true, id: r.lastInsertRowid });
+  });
+
+  router.post('/c/users/:id/deactivate', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.body.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.caps.canApprove) return res.status(403).json({ error: 'רק מאשר יכול לנהל משתמשים' });
+    const u = db.prepare('SELECT * FROM portal_users WHERE id=? AND customer_id=?').get(req.params.id, s.customer.id);
+    if (!u) return res.status(404).json({ error: 'לא נמצא' });
+    db.prepare('UPDATE portal_users SET active=0 WHERE id=?').run(u.id);
+    res.json({ success: true });
   });
 
   // Get customer info + recent orders
