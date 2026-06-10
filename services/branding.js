@@ -12,7 +12,7 @@ function required(name, value) {
 }
 
 const BRAND_DEFAULTS = {
-  name: 'IronBend',
+  name: 'טנא תעשיות ברזל בע"מ',
   logoUrl: '/brand/tene-logo.svg',
   primaryColor: '#2E75B6',
   supportPhone: '',
