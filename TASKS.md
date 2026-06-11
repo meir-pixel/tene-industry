@@ -65,8 +65,9 @@
 
 
 ### T-005 · שני סוגי מחירון (קנייה / מכירה)
-- status: todo
+- status: in_progress
 - owner: gpt
+- claimed: 2026-06-11
 - priority: P2
 - scope: services/pricing-importer.js (חדש), price_list, מסכי מחירון
 - spec: docs/spec-dual-pricing.md
