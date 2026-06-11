@@ -642,6 +642,15 @@ function isSpiralOcrItem(item) {
   return /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(shape) && diameter > 0 && turns > 0;
 }
 
+function isStraightOcrItem(item) {
+  if (isSpiralOcrItem(item)) return false;
+  const raw = ocrShapeRaw(item);
+  if (/straight|bar/i.test(raw) || hasAnyToken(raw, ['\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8', '\u05d9\u05e9\u05e8', '\u05d1\u05e8\u05d6\u05dc \u05d9\u05e9\u05e8'])) return true;
+  const { sides, angles } = itemSidesAngles(item);
+  const realAngles = (angles || []).map(toNumber).filter(angle => angle && angle !== 180);
+  return sides.length <= 1 && realAngles.length === 0;
+}
+
 function spiralOcrSvg(item) {
   const diameter = toNumber(item?.spiral_diameter_mm ?? item?.spiralDiameterMm);
   const turns = toNumber(item?.spiral_turns ?? item?.spiralTurns);
@@ -820,18 +829,21 @@ function ocrShapePreviewHtml(item, index) {
   const diameter = item.diameter ?? item.diameter_mm ?? '-';
   const quantity = item.qty ?? item.quantity ?? item.pcs ?? '-';
   const targetWeight = ocrTargetWeightKg(item);
+  const isStraight = isStraightOcrItem(item);
   return `
     <div class="ocr-shape-card" id="ocrShapePreview_${index}">
-      <button type="button" class="ocr-shape-preview" onclick="openOcrShapeEditor(${index})" title="\u05e2\u05e8\u05d5\u05da \u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea">${ocrShapeSvgHtml(item, 260, 170)}</button>
+      <button type="button" class="ocr-shape-preview" onclick="${isStraight ? `verifyOcrItem(${index})` : `openOcrShapeEditor(${index})`}" title="${isStraight ? '\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8 - \u05d0\u05d9\u05df \u05d6\u05d5\u05d5\u05d9\u05d5\u05ea' : '\u05e2\u05e8\u05d5\u05da \u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea'}">${ocrShapeSvgHtml(item, 260, 170)}</button>
       <div class="ocr-shape-summary">
         <strong>${escapeHtml(ocrDisplayName(item))}</strong>
         <span>\u05e7\u05d5\u05d8\u05e8 ? ${escapeHtml(diameter)} ? \u05db\u05de\u05d5\u05ea ${escapeHtml(quantity)}</span>
         <span>\u05de\u05e9\u05e7\u05dc \u05e8\u05e6\u05d5\u05d9: ${escapeHtml(targetWeight || '-')} \u05e7\u05f4\u05d2</span>
-        <span class="ocr-shape-hint">\u05dc\u05d7\u05e5 \u05e2\u05dc \u05d4\u05e6\u05d5\u05e8\u05d4 \u05db\u05d3\u05d9 \u05dc\u05e4\u05ea\u05d5\u05d7 \u05e2\u05d5\u05e8\u05da</span>
+        <span class="ocr-shape-hint">${isStraight ? '\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8: \u05e2\u05e8\u05d5\u05da \u05d0\u05d5\u05e8\u05da, \u05e7\u05d5\u05d8\u05e8 \u05d5\u05db\u05de\u05d5\u05ea \u05d1\u05e9\u05d3\u05d5\u05ea' : '\u05dc\u05d7\u05e5 \u05e2\u05dc \u05d4\u05e6\u05d5\u05e8\u05d4 \u05db\u05d3\u05d9 \u05dc\u05e4\u05ea\u05d5\u05d7 \u05e2\u05d5\u05e8\u05da'}</span>
       </div>
     </div>
   `;
 }
+
+
 
 function ocrOrderCellInput(index, field, value, type = 'text', low = false) {
   return `<input class="ocr-order-input ${low ? 'low-confidence' : ''}" type="${type}" value="${escapeHtml(value ?? '')}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" oninput="markOcrEdited(this)">`;
@@ -846,26 +858,29 @@ function ocrShapeCellHtml(item, index) {
   const quantity = item.qty ?? item.quantity ?? item.pcs ?? '-';
   const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '-';
   const targetWeight = ocrTargetWeightKg(item) || '-';
+  const isStraight = isStraightOcrItem(item);
   return `
     <div class="ocr-table-shape" id="ocrShapeCell_${index}">
       <div class="ocr-visual-card">
         <div class="ocr-visual-metrics">
-          <div class="ocr-visual-metric"><span>כמות</span><strong>${escapeHtml(quantity)} יח'</strong></div>
-          <div class="ocr-visual-metric"><span>קוטר</span><strong>Ø ${escapeHtml(diameter)}</strong></div>
-          <div class="ocr-visual-metric"><span>אורך כולל</span><strong>${escapeHtml(totalLength)} מ"מ</strong></div>
-          <div class="ocr-visual-metric"><span>משקל רצוי</span><strong class="accent">${escapeHtml(targetWeight)} ק"ג</strong></div>
+          <div class="ocr-visual-metric"><span>\u05db\u05de\u05d5\u05ea</span><strong>${escapeHtml(quantity)} \u05d9\u05d7'</strong></div>
+          <div class="ocr-visual-metric"><span>\u05e7\u05d5\u05d8\u05e8</span><strong>\u00d8 ${escapeHtml(diameter)}</strong></div>
+          <div class="ocr-visual-metric"><span>\u05d0\u05d5\u05e8\u05da \u05db\u05d5\u05dc\u05dc</span><strong>${escapeHtml(totalLength)} \u05de\"\u05de</strong></div>
+          <div class="ocr-visual-metric"><span>\u05de\u05e9\u05e7\u05dc \u05e8\u05e6\u05d5\u05d9</span><strong class="accent">${escapeHtml(targetWeight)} \u05e7\"\u05d2</strong></div>
         </div>
-        <button type="button" class="ocr-shape-large ocr-shape-drawing" onclick="openOcrShapeEditor(${index})" title="פתח עורך צורה">
+        <button type="button" class="ocr-shape-large ocr-shape-drawing" onclick="${isStraight ? `verifyOcrItem(${index})` : `openOcrShapeEditor(${index})`}" title="${isStraight ? '\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8 - \u05d0\u05d9\u05df \u05d6\u05d5\u05d5\u05d9\u05d5\u05ea' : '\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4'}">
           ${ocrShapeSvgHtml(item, 340, 230)}
         </button>
         <div class="ocr-visual-footer">
-          <span>לחץ על השרטוט כדי לתקן צורה ומידות</span>
-          <button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">ערוך צורה</button>
+          <span>${isStraight ? '\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8: \u05e2\u05d5\u05e8\u05db\u05d9\u05dd \u05e8\u05e7 \u05d0\u05d5\u05e8\u05da, \u05e7\u05d5\u05d8\u05e8 \u05d5\u05db\u05de\u05d5\u05ea' : '\u05dc\u05d7\u05e5 \u05e2\u05dc \u05d4\u05e9\u05e8\u05d8\u05d5\u05d8 \u05db\u05d3\u05d9 \u05dc\u05ea\u05e7\u05df \u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea'}</span>
+          ${isStraight ? `<button type="button" class="ocr-small-btn primary" onclick="verifyOcrItem(${index})">\u05d0\u05e9\u05e8 \u05de\u05d5\u05d8 \u05d9\u05e9\u05e8</button>` : `<button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">\u05e2\u05e8\u05d5\u05da \u05e6\u05d5\u05e8\u05d4</button>`}
         </div>
       </div>
     </div>
   `;
 }
+
+
 
 function removeOcrItem(index) {
   if (!activeCompareOriginal || !Array.isArray(activeCompareOriginal.items)) return;
@@ -883,34 +898,48 @@ function verifyOcrItem(index) {
 
 function ocrItemTableRowHtml(parsed, item, index) {
   const isSpiral = isSpiralOcrItem(item);
+  const isStraight = isStraightOcrItem(item);
   const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
   const diameter = item.diameter ?? item.diameter_mm ?? '';
   const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
   const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '';
   const note = item.note || item.notes || '';
   const targetWeight = ocrTargetWeightKg(item);
-  const measureHtml = isSpiral
-    ? `
+  let measureHtml;
+  if (isSpiral) {
+    measureHtml = `
       <div class="ocr-order-measures">
-        <div><div class="ocr-order-label">קוטר ספיראלה</div>
+        <div><div class="ocr-order-label">\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05dc\u05d4</div>
         ${ocrOrderCellInput(index, 'spiral_diameter_mm', item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm))}</div>
-        <div><div class="ocr-order-label">מספר כריכות</div>
+        <div><div class="ocr-order-label">\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea</div>
         ${ocrOrderCellInput(index, 'spiral_turns', item.spiral_turns ?? item.spiralTurns ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns))}</div>
       </div>
       <input type="hidden" value="" data-item-index="${index}" data-item-field="segments">
-    `
-    : `
+    `;
+  } else if (isStraight) {
+    measureHtml = `
+      <div class="ocr-order-measures full straight-ocr-no-angles">
+        <div>
+          <div class="ocr-order-label">\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8 - \u05d0\u05d9\u05df \u05e6\u05dc\u05e2\u05d5\u05ea \u05d5\u05d0\u05d9\u05df \u05d6\u05d5\u05d5\u05d9\u05d5\u05ea</div>
+          <div class="ocr-order-input">\u05e2\u05e8\u05d5\u05da \u05e8\u05e7 \u05d0\u05d5\u05e8\u05da \u05db\u05d5\u05dc\u05dc, \u05e7\u05d5\u05d8\u05e8 \u05d5\u05db\u05de\u05d5\u05ea. \u05e9\u05d3\u05d4 \u05d6\u05d5\u05d5\u05d9\u05d5\u05ea \u05dc\u05d0 \u05e0\u05e4\u05ea\u05d7.</div>
+        </div>
+      </div>
+      <input type="hidden" value="" data-item-index="${index}" data-item-field="segments">
+    `;
+  } else {
+    measureHtml = `
       <div class="ocr-order-measures full">
-        <div><div class="ocr-order-label">צלעות לפי סדר השרטוט: אורך@זווית</div>
+        <div><div class="ocr-order-label">\u05e6\u05dc\u05e2\u05d5\u05ea \u05dc\u05e4\u05d9 \u05e1\u05d3\u05e8 \u05d4\u05e9\u05e8\u05d8\u05d5\u05d8: \u05d0\u05d5\u05e8\u05da@\u05d6\u05d5\u05d5\u05d9\u05ea</div>
         ${ocrOrderCellTextarea(index, 'segments', segmentsToText(item), isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)))}</div>
       </div>
     `;
+  }
   const warning = note ? `<div class="ocr-order-note">${escapeHtml(note)}</div>` : '';
   return `
     <div class="ocr-order-row" id="ocrOrderRow_${index}">
       <div class="ocr-order-visual">
         <div class="ocr-order-top">
-          <div class="ocr-shape-title"><span>${escapeHtml(ocrDisplayName(item))}</span><span class="badge">לחיץ לעריכה</span></div>
+          <div class="ocr-shape-title"><span>${escapeHtml(ocrDisplayName(item))}</span><span class="badge">${isStraight ? '\u05d0\u05d9\u05df \u05d6\u05d5\u05d5\u05d9\u05d5\u05ea' : '\u05dc\u05d7\u05d9\u05e5 \u05dc\u05e2\u05e8\u05d9\u05db\u05d4'}</span></div>
           <div class="ocr-order-index">${index + 1}</div>
         </div>
         <input type="hidden" value="${escapeHtml(shape)}" data-item-index="${index}" data-item-field="shape_name">
@@ -918,26 +947,28 @@ function ocrItemTableRowHtml(parsed, item, index) {
       </div>
       <div class="ocr-order-main">
         <div class="ocr-order-fields">
-          <div><div class="ocr-order-label">כמות</div>${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</div>
-          <div><div class="ocr-order-label">קוטר Ø</div>${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</div>
-          <div><div class="ocr-order-label">אורך כולל</div>${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}</div>
-          <div><div class="ocr-order-label">משקל רצוי</div><div class="ocr-order-input">${escapeHtml(targetWeight || '-')} ק"ג</div></div>
+          <div><div class="ocr-order-label">\u05db\u05de\u05d5\u05ea</div>${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</div>
+          <div><div class="ocr-order-label">\u05e7\u05d5\u05d8\u05e8 \u00d8</div>${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</div>
+          <div><div class="ocr-order-label">\u05d0\u05d5\u05e8\u05da \u05db\u05d5\u05dc\u05dc</div>${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}</div>
+          <div><div class="ocr-order-label">\u05de\u05e9\u05e7\u05dc \u05e8\u05e6\u05d5\u05d9</div><div class="ocr-order-input">${escapeHtml(targetWeight || '-')} \u05e7\"\u05d2</div></div>
         </div>
         ${measureHtml}
         <div>
-          <div class="ocr-order-label">הערת זיהוי / אישור</div>
+          <div class="ocr-order-label">\u05d4\u05e2\u05e8\u05ea \u05d6\u05d9\u05d4\u05d5\u05d9 / \u05d0\u05d9\u05e9\u05d5\u05e8</div>
           ${ocrOrderCellTextarea(index, 'note', note, isLowConfidence(parsed, `items.${index}.note`, note))}
           ${warning}
         </div>
         <div class="ocr-order-actions">
-          <button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">פתח לעריכת צורה</button>
-          <button type="button" class="ocr-small-btn" onclick="verifyOcrItem(${index})">סמן כמאומת</button>
-          <button type="button" class="ocr-small-btn danger" onclick="removeOcrItem(${index})">הסר</button>
+          ${isStraight ? `<button type="button" class="ocr-small-btn primary" onclick="verifyOcrItem(${index})">\u05d0\u05e9\u05e8 \u05de\u05d5\u05d8 \u05d9\u05e9\u05e8</button>` : `<button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">\u05e4\u05ea\u05d7 \u05dc\u05e2\u05e8\u05d9\u05db\u05ea \u05e6\u05d5\u05e8\u05d4</button>`}
+          <button type="button" class="ocr-small-btn" onclick="verifyOcrItem(${index})">\u05e1\u05de\u05df \u05db\u05de\u05d0\u05d5\u05de\u05ea</button>
+          <button type="button" class="ocr-small-btn danger" onclick="removeOcrItem(${index})">\u05d4\u05e1\u05e8</button>
         </div>
       </div>
     </div>
   `;
 }
+
+
 
 function ocrItemFieldsHtml(parsed, item, index) {
   return ocrItemTableRowHtml(parsed, item, index);
@@ -984,8 +1015,14 @@ function ensureIntakeShapeEditor() {
 function openOcrShapeEditor(index) {
   activeOcrShapeIndex = index;
   const item = currentOcrItemFromFields(index);
+  if (isStraightOcrItem(item)) {
+    verifyOcrItem(index);
+    toast('\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8: \u05d0\u05d9\u05df \u05d6\u05d5\u05d5\u05d9\u05d5\u05ea. \u05e2\u05d5\u05e8\u05db\u05d9\u05dd \u05d0\u05d5\u05e8\u05da, \u05e7\u05d5\u05d8\u05e8 \u05d5\u05db\u05de\u05d5\u05ea \u05d1\u05e9\u05d3\u05d5\u05ea.');
+    activeOcrShapeIndex = null;
+    return;
+  }
   if (isSpiralOcrItem(item) || /spiral|ring|coil/i.test(String(item.shape_name || '')) || hasAnyToken(item.shape_name, ['\u05e1\u05e4\u05d9\u05e8', '\u05d8\u05d1\u05e2\u05ea', '\u05e1\u05dc\u05d9\u05dc', '\u05dc\u05d5\u05dc\u05d0\u05d4', '\u05e7\u05e4\u05d9\u05e5'])) {
-    const diameter = window.prompt('\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4 \u05d1\u05de\u05f4\u05de', item.spiral_diameter_mm || '');
+    const diameter = window.prompt('\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05dc\u05d4 \u05d1\u05de\u05f4\u05de', item.spiral_diameter_mm || '');
     if (diameter === null) return;
     const turns = window.prompt('\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea', item.spiral_turns || '');
     if (turns === null) return;
@@ -1014,6 +1051,8 @@ function openOcrShapeEditor(index) {
     elAngles: item.elAngles || null,
   });
 }
+
+
 
 function refreshOcrShapeVisual(index) {
   const nextItem = currentOcrItemFromFields(index);

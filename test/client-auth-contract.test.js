@@ -640,6 +640,10 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /shape-editor\.js/);
   assert.match(intake, /ocrShapePreviewHtml/);
   assert.match(intake, /openOcrShapeEditor/);
+  assert.match(intake, /isStraightOcrItem/);
+  assert.match(intake, /straight-ocr-no-angles/);
+  assert.match(intake, /spiral_diameter_mm/);
+  assert.match(intake, /spiral_turns/);
   assert.match(intake, /ShapeEditorModal/);
   assert.match(intake, /parsed_data: parsed/);
   assert.match(intake, /השוואה במסך מלא/);
