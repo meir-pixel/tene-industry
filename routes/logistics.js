@@ -111,6 +111,8 @@ module.exports = function createLogisticsRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'logistics',
   label: 'משלוחים',
   consumes: [{ event: 'order_status' }, { table: 'deliveries' }, { table: 'drivers' }],

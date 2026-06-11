@@ -302,12 +302,15 @@ module.exports = function createIntakeRouter(deps) {
 };
 
 module.exports.manifest = {
-  "id": "intake-ocr",
-  "label": "Intake OCR",
-  "consumes": [
-    {
-      "table": "intake_training"
-    }
+  id: 'intake-ocr',
+  label: 'קליטת הזמנות',
+  screens: [
+    { id: 'intake', path: '/intake.html', label: 'קליטת הזמנות', icon: '📬', group: 'ראשי' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'edit' },
+  },
+  consumes: [{ table: 'intake_training' }],
+  produces: [],
 };

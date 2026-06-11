@@ -86,6 +86,8 @@ router.patch('/customers/:id/credit', requireAnyRole(['finance', 'manager', 'adm
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "finance-ledger",
   "label": "Finance Ledger",
   "consumes": [

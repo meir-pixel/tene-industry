@@ -41,6 +41,8 @@ module.exports = function createPriorityRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "priority",
   "label": "Priority Sync",
   "consumes": [

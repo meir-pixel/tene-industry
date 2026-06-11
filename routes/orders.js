@@ -216,6 +216,14 @@ module.exports = function createOrdersRouter(deps) {
 module.exports.manifest = {
   id: 'orders',
   label: 'הזמנות',
+  screens: [
+    { id: 'orders',    path: '/orders.html', label: 'הזמנות',     icon: '📋', group: 'ראשי' },
+    { id: 'new-order', path: '/index.html',  label: 'הזמנה חדשה', icon: '➕', group: 'ראשי' },
+  ],
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'edit', finance: 'read', production: 'read', sales: 'read' },
+  },
   consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'items' }],
   produces: [
     { event: 'new_order' },

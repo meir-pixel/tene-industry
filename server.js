@@ -74,6 +74,8 @@ const createSearchRouter = require('./routes/search');
 const createBvbsRouter = require('./routes/bvbs');
 const createLicenseRouter = require('./routes/license');
 const createBrandingRouter = require('./routes/branding');
+const createAccessRouter   = require('./routes/access');
+const { createAccessControl } = require('./services/accessControl');
 const { MACHINE_STATES, STATE_TRANSITIONS } = constants;
 const { createOrderFactory } = ordersService;
 
@@ -233,6 +235,26 @@ app.use('/api', licenseService.middleware);
 app.use('/api', createLicenseRouter({ readLicensedModules, moduleCatalog }));
 app.use('/api', createBrandingRouter({ branding: brandingService }));
 
+// Collect all route manifests for access control
+const allRouteFactories = [
+  createOrdersRouter, createCustomersRouter, createIntakeRouter, createProductionRouter,
+  createProductionMachinesRouter, createProductionCardsRouter, createWarehouseRouter,
+  createInventoryRouter, createProcurementRouter, createFleetRouter, createQualityRouter,
+  createMaintenanceRouter, createReportsRouter, createFinanceRouter, createFinanceInvoicesRouter,
+  createFinanceCostsRouter, createFinanceLedgerRouter, createFinanceCreditRouter,
+  createCompaniesRouter, createAdminRouter, createLogisticsRouter, createPortalRouter,
+  createPortalAdminRouter, createAlertsRouter, createAiRouter, createBvbsRouter,
+  createSearchRouter, createIntakeChannelsRouter, createIntakeReviewRouter, createIntakeTrainingRouter,
+  createInventoryVisionRouter, createOrderDocumentsRouter, createOrderDeliveryCertificateRouter,
+  createOrderPrintA4Router, createProductionMetricsRouter, createProductionShiftsRouter,
+  createCatalogRouter, createPriorityRouter, createBrandingRouter, createLicenseRouter,
+  createAccessRouter,
+];
+const routeManifests = allRouteFactories.map(f => f.manifest).filter(Boolean);
+const accessControl = createAccessControl({ routeManifests, settingsService });
+
+app.use('/api', createAccessRouter({ requireRole, accessControl }));
+
 seedCoreData(db);
 
 const realtime = createRealtimeServer({ server, db, modbus, authService, applyAuthBypass });
@@ -281,6 +303,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/reports.js', factory: createReportsRouter },
     { file: 'routes/search.js', factory: createSearchRouter },
     { file: 'routes/warehouse.js', factory: createWarehouseRouter },
+    { file: 'routes/access.js', factory: createAccessRouter },
   ],
 });
 

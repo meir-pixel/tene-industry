@@ -139,15 +139,15 @@ router.get('/finance/events', requireAnyRole(['finance', 'manager', 'admin']), (
 };
 
 module.exports.manifest = {
-  "id": "finance",
-  "label": "Finance",
-  "consumes": [
-    {
-      "table": "orders"
-    },
-    {
-      "table": "invoices"
-    }
+  id: 'finance',
+  label: 'פיננסים',
+  screens: [
+    { id: 'finance', path: '/finance.html', label: 'פיננסים', icon: '💰', group: 'ניהול' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', finance: 'edit' },
+  },
+  consumes: [{ table: 'orders' }, { table: 'invoices' }],
+  produces: []
 };

@@ -863,15 +863,75 @@ const PERMISSION_ROLES = [
   { role:'maintenance', label:'תחזוקה', desc:'תקלות, תחזוקה מונעת, LOTO וסטטוס מכונות תחזוקתי.' },
   { role:'driver', label:'נהג', desc:'מסך נהג, משלוחים, אישורי מסירה ודיווח בעיות בדרך.' },
 ];
-function renderPermissions() {
+const ROLE_LABELS = Object.fromEntries(PERMISSION_ROLES.map(r => [r.role, r.label]));
+const ACCESS_LABELS = { hidden: '🚫 מוסתר', read: '👁 צפייה', edit: '✏️ עריכה' };
+
+async function renderPermissions() {
   const grid = document.getElementById('permissionsGrid');
   if (!grid) return;
-  grid.innerHTML = PERMISSION_ROLES.map(item => `
-    <div class="permission-card">
-      <div class="permission-role">${escHtml(item.label)} <span style="font-size:11px;color:var(--muted);font-weight:800">(${escHtml(item.role)})</span></div>
-      <div class="permission-desc">${escHtml(item.desc)}</div>
-    </div>
-  `).join('');
+  grid.innerHTML = '<div style="padding:16px;color:var(--muted)">טוען מטריצה...</div>';
+  try {
+    const token = localStorage.getItem('ib_token');
+    const res = await fetch('/api/access/matrix', { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) { grid.innerHTML = '<div style="padding:16px;color:#b83227">שגיאה בטעינת הרשאות</div>'; return; }
+    const { screens, roles, access } = await res.json();
+
+    const roleRow = roles.map(r => `<th style="font-size:11px;padding:6px 4px;text-align:center;min-width:72px">${escHtml(ROLE_LABELS[r] || r)}</th>`).join('');
+    const rows = screens.map(s => {
+      const cells = roles.map(r => {
+        const val = (access[s.id] || {})[r] || 'hidden';
+        return `<td style="text-align:center;padding:4px">
+          <select data-screen="${escHtml(s.id)}" data-role="${escHtml(r)}"
+            style="font-size:11px;padding:3px 4px;border-radius:5px;border:1px solid #ddd;background:#fafafa"
+            onchange="saveAccessOverride(this)">
+            ${['hidden','read','edit'].map(l =>
+              `<option value="${l}"${val===l?' selected':''}>${escHtml(ACCESS_LABELS[l])}</option>`
+            ).join('')}
+          </select>
+        </td>`;
+      }).join('');
+      return `<tr>
+        <td style="font-size:12px;padding:6px 8px;white-space:nowrap;font-weight:700">
+          ${escHtml(s.icon||'')} ${escHtml(s.label)}
+          <div style="font-size:10px;color:var(--muted);font-weight:400">${escHtml(s.moduleLabel||'')}</div>
+        </td>
+        ${cells}
+      </tr>`;
+    }).join('');
+
+    grid.innerHTML = `
+      <div style="overflow-x:auto;margin-top:12px">
+        <table style="border-collapse:collapse;width:100%;min-width:600px">
+          <thead><tr>
+            <th style="text-align:right;padding:6px 8px;font-size:12px">מסך</th>
+            ${roleRow}
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div id="accessSaveMsg" style="margin-top:8px;font-size:12px;color:#1a7a42;display:none">✅ נשמר</div>
+      </div>`;
+  } catch (e) {
+    grid.innerHTML = `<div style="padding:16px;color:#b83227">שגיאה: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function saveAccessOverride(sel) {
+  const screenId = sel.dataset.screen;
+  const role = sel.dataset.role;
+  const level = sel.value;
+  try {
+    const token = localStorage.getItem('ib_token');
+    const res = await fetch('/api/access/matrix', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ screenId, role, level }),
+    });
+    if (!res.ok) { const e = await res.json(); alert('שגיאה: ' + e.error); return; }
+    const msg = document.getElementById('accessSaveMsg');
+    if (msg) { msg.style.display = 'block'; clearTimeout(msg._t); msg._t = setTimeout(() => { msg.style.display = 'none'; }, 2000); }
+  } catch (e) {
+    alert('שגיאה בשמירה: ' + e.message);
+  }
 }
 
 // ── ERP Picker ─────────────────────────────────────────────────

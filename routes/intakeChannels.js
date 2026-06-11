@@ -75,6 +75,8 @@ module.exports = function createIntakeChannelsRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'intake',
   label: 'קליטת הזמנות',
   consumes: [{ external: 'whatsapp' }, { external: 'email' }, { table: 'intake_training_examples' }],

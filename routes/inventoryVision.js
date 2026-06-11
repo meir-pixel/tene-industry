@@ -313,6 +313,8 @@ Put uncertainty in notes. The manager will compare this parsed data against the 
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'inventory-vision',
   label: 'זיהוי מלאי',
   consumes: [{ external: 'openai-vision' }, { table: 'intake_training_examples' }],

@@ -40,6 +40,8 @@ module.exports = function createAiRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "ai",
   "label": "AI",
   "consumes": [

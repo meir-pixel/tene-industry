@@ -85,15 +85,16 @@ module.exports = function createCompaniesRouter(deps) {
 };
 
 module.exports.manifest = {
-  "id": "companies",
-  "label": "Companies",
-  "consumes": [
-    {
-      "table": "companies"
-    },
-    {
-      "table": "holdings"
-    }
+  id: 'companies',
+  label: 'חברות ואחזקות',
+  screens: [
+    { id: 'projects',  path: '/projects.html',  label: 'פרויקטים', icon: '🏗️', group: 'ניהול' },
+    { id: 'holdings',  path: '/holdings.html',   label: 'אחזקות',   icon: '🏢', group: 'ניהול' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', finance: 'read', sales: 'read' },
+  },
+  consumes: [{ table: 'companies' }, { table: 'holdings' }],
+  produces: [],
 };

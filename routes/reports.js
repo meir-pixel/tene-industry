@@ -256,18 +256,16 @@ module.exports = function createReportsRouter(deps) {
 };
 
 module.exports.manifest = {
-  "id": "reports",
-  "label": "Reports",
-  "consumes": [
-    {
-      "table": "orders"
-    },
-    {
-      "table": "items"
-    },
-    {
-      "table": "invoices"
-    }
+  id: 'reports',
+  label: 'דוחות',
+  screens: [
+    { id: 'reports',  path: '/reports.html',  label: 'דוחות',    icon: '📈', group: 'בקרה' },
+    { id: 'warroom',  path: '/warroom.html',   label: 'War Room', icon: '🚨', group: 'בקרה' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', finance: 'read', quality: 'read', maintenance: 'read' },
+  },
+  consumes: [{ table: 'orders' }, { table: 'items' }, { table: 'invoices' }],
+  produces: [],
 };

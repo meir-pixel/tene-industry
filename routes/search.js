@@ -71,6 +71,8 @@ module.exports = function createSearchRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "search",
   "label": "Search",
   "consumes": [

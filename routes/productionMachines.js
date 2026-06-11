@@ -215,6 +215,13 @@ module.exports = function createProductionMachinesRouter(deps) {
 module.exports.manifest = {
   id: 'production-machines',
   label: 'מכונות ייצור',
+  screens: [
+    { id: 'machine', path: '/machine.html', label: 'מכונות', icon: '🔧', group: 'ייצור' },
+  ],
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', production: 'read', maintenance: 'read', kiosk: 'read' },
+  },
   consumes: [{ table: 'machines' }, { table: 'items' }],
   produces: [
     { event: 'machine_assign' },

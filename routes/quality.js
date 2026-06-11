@@ -176,6 +176,13 @@ module.exports = function createQualityRouter(deps) {
 module.exports.manifest = {
   id: 'quality',
   label: 'איכות',
+  screens: [
+    { id: 'quality', path: '/quality.html', label: 'איכות', icon: '🔍', group: 'בקרה' },
+  ],
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', production: 'read', quality: 'edit' },
+  },
   consumes: [{ table: 'quality_checks' }, { table: 'incidents' }, { table: 'ncr' }, { table: 'capa' }],
   produces: [],
 };

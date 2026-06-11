@@ -112,7 +112,14 @@ module.exports = function createMaintenanceRouter(deps) {
 
 module.exports.manifest = {
   id: 'maintenance',
-  label: 'אחזקה',
+  label: 'תחזוקה',
+  screens: [
+    { id: 'maintenance', path: '/maintenance.html', label: 'תחזוקה', icon: '🛠️', group: 'בקרה' },
+  ],
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', quality: 'read', maintenance: 'edit' },
+  },
   consumes: [{ table: 'maintenance_logs' }, { table: 'machines' }, { table: 'loto' }, { table: 'pm_schedule' }],
   produces: [{ event: 'machine_update' }],
 };

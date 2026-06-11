@@ -69,15 +69,15 @@ module.exports = function createWarehouseRouter(deps) {
 };
 
 module.exports.manifest = {
-  "id": "warehouse",
-  "label": "Warehouse",
-  "consumes": [
-    {
-      "table": "packages"
-    },
-    {
-      "table": "delivery_notes"
-    }
+  id: 'warehouse',
+  label: 'מחסן',
+  screens: [
+    { id: 'warehouse', path: '/warehouse.html', label: 'מחסן', icon: '📦', group: 'תפעול' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', production: 'read', warehouse: 'edit' },
+  },
+  consumes: [{ table: 'packages' }, { table: 'delivery_notes' }],
+  produces: [],
 };

@@ -65,15 +65,15 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
 };
 
 module.exports.manifest = {
-  "id": "production-cards",
-  "label": "Production Cards",
-  "consumes": [
-    {
-      "table": "orders"
-    },
-    {
-      "table": "items"
-    }
+  id: 'production-cards',
+  label: 'כרטיסי ייצור',
+  screens: [
+    { id: 'production-cards', path: '/productionCards.html', label: 'כרטיסי ייצור', icon: '🗂️', group: 'ייצור' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', production: 'read' },
+  },
+  consumes: [{ table: 'orders' }, { table: 'items' }],
+  produces: [],
 };

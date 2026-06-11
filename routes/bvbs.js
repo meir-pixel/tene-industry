@@ -133,6 +133,8 @@ module.exports = function createBvbsRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'bvbs',
   label: 'ייבוא BVBS',
   consumes: [{ external: 'bvbs-file' }],

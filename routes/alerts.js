@@ -33,6 +33,8 @@ module.exports = function createAlertsRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'alerts',
   label: 'התראות',
   consumes: [{ table: 'alerts' }],

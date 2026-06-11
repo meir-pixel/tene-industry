@@ -306,6 +306,8 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "order-delivery-certificate",
   "label": "Order Delivery Certificate",
   "consumes": [

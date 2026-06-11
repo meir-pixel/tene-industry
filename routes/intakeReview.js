@@ -152,6 +152,8 @@ module.exports = function createIntakeReviewRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'intake-review',
   label: 'אישור קליטה',
   consumes: [{ event: 'new_intake' }, { table: 'intake_log' }],

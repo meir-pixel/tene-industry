@@ -69,6 +69,8 @@ module.exports = function createAuthRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "auth",
   "label": "Auth",
   "consumes": [

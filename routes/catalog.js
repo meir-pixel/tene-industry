@@ -131,6 +131,8 @@ module.exports = function createCatalogRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "catalog",
   "label": "Catalog",
   "consumes": [

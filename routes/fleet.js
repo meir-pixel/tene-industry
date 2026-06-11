@@ -214,7 +214,15 @@ router.patch('/drivers/:id/location', requireAnyRole(['driver', 'office', 'manag
 
 module.exports.manifest = {
   id: 'fleet',
-  label: 'צי רכבים ונהגים',
+  label: 'צי רכבים',
+  screens: [
+    { id: 'delivery-admin', path: '/delivery-admin.html', label: 'ניהול צי',  icon: '🚚', group: 'תפעול' },
+    { id: 'driver',         path: '/driver.html',         label: 'מסך נהג',   icon: '🚚', group: 'תפעול' },
+  ],
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', driver: 'edit' },
+  },
   consumes: [{ table: 'vehicles' }, { table: 'drivers' }],
   produces: [
     { event: 'vehicle_updated' },

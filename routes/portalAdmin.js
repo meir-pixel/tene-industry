@@ -56,6 +56,8 @@ module.exports = function createPortalAdminRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "portal-admin",
   "label": "Portal Admin",
   "consumes": [

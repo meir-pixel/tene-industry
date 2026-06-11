@@ -19,6 +19,8 @@ module.exports = function createBrandingRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'branding',
   label: 'מיתוג',
   consumes: [{ table: 'settings' }],

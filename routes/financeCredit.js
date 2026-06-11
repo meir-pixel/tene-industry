@@ -55,6 +55,8 @@ module.exports = function createFinanceCreditRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "finance-credit",
   "label": "Finance Credit",
   "consumes": [

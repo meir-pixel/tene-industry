@@ -29,6 +29,8 @@ module.exports = function createOrderDocumentsRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "order-documents",
   "label": "Order Documents",
   "consumes": [

@@ -62,6 +62,8 @@ module.exports = function createFinanceInvoicesRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'finance-invoices',
   label: 'חשבוניות',
   consumes: [{ table: 'orders' }, { table: 'customers' }],

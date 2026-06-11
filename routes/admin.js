@@ -402,18 +402,15 @@ module.exports = function createAdminRouter(deps) {
 };
 
 module.exports.manifest = {
-  "id": "admin",
-  "label": "Admin",
-  "consumes": [
-    {
-      "table": "settings"
-    },
-    {
-      "table": "users"
-    },
-    {
-      "table": "audit_log"
-    }
+  id: 'admin',
+  label: 'ניהול מערכת',
+  screens: [
+    { id: 'admin', path: '/admin.html', label: 'ניהול מערכת', icon: '⚙️', group: 'ניהול' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit' },
+  },
+  consumes: [{ table: 'settings' }, { table: 'users' }, { table: 'audit_log' }],
+  produces: [],
 };

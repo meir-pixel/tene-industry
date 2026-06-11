@@ -28,6 +28,8 @@ module.exports = function createLicenseRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "license",
   "label": "License",
   "consumes": [

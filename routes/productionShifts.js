@@ -86,6 +86,8 @@ module.exports = function createProductionShiftsRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "production-shifts",
   "label": "Production Shifts",
   "consumes": [

@@ -111,18 +111,15 @@ module.exports = function createProcurementRouter(deps) {
 };
 
 module.exports.manifest = {
-  "id": "procurement",
-  "label": "Procurement",
-  "consumes": [
-    {
-      "table": "suppliers"
-    },
-    {
-      "table": "purchase_orders"
-    },
-    {
-      "table": "steel_price_history"
-    }
+  id: 'procurement',
+  label: 'רכש',
+  screens: [
+    { id: 'procurement', path: '/procurement.html', label: 'רכש', icon: '🛒', group: 'תפעול' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'edit', warehouse: 'read' },
+  },
+  consumes: [{ table: 'suppliers' }, { table: 'purchase_orders' }, { table: 'steel_price_history' }],
+  produces: [],
 };

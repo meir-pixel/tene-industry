@@ -241,6 +241,16 @@ module.exports = function createProductionRouter(deps) {
 module.exports.manifest = {
   id: 'production',
   label: 'ייצור',
+  screens: [
+    { id: 'production-queue',  path: '/production-queue.html',  label: 'תור ייצור',      icon: '🏭', group: 'ייצור' },
+    { id: 'worker-visual',     path: '/worker-visual.html',     label: 'דשבורד איסוף',   icon: '🧾', group: 'ייצור' },
+    { id: 'kiosk',             path: '/kiosk.html',             label: 'תחנת עבודה',     icon: '🖥️', group: 'ייצור' },
+    { id: 'production-setup',  path: '/production-setup.html',  label: 'הגדרות ייצור',   icon: '⚙️', group: 'ייצור' },
+  ],
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', production: 'edit', kiosk: 'edit' },
+  },
   consumes: [{ event: 'new_order' }, { event: 'order_status' }, { table: 'items' }, { table: 'machines' }],
   produces: [
     { event: 'machine_assign' },

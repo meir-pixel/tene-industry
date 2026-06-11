@@ -198,6 +198,13 @@ module.exports = function createInventoryRouter(deps) {
 module.exports.manifest = {
   id: 'inventory',
   label: 'מלאי',
+  screens: [
+    { id: 'inventory', path: '/inventory.html', label: 'מלאי', icon: '🗄️', group: 'תפעול' },
+  ],
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'read', production: 'read', warehouse: 'edit' },
+  },
   consumes: [{ table: 'raw_materials' }, { table: 'inventory_receipt_reviews' }],
   produces: [
     { event: 'inventory_receipt_review_approved' },

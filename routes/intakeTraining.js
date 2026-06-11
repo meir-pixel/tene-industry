@@ -44,6 +44,8 @@ module.exports = function createIntakeTrainingRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "intake-training",
   "label": "Intake Training",
   "consumes": [

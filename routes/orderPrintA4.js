@@ -293,6 +293,8 @@ buildTable();
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "order-print-a4",
   "label": "Order A4 Print",
   "consumes": [

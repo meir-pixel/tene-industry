@@ -28,14 +28,12 @@
 ## 🔓 משימות פתוחות
 
 ### T-001 · ספירת משתמשים פעילים ברישיון
-- status: todo
+- status: done
 - owner: gpt
 - priority: P1
 - scope: services/license.js
-- notes: הועבר ל-GPT (license.js תחומו). הצד של אכיפת המכסה ב-tene-license-server הוא תחום Claude ויטופל בנפרד.
-- spec: docs/spec-license-modules.md
-- accept: license.js שולח `activeUsers` ל-`/api/check`; מכסת המשתמשים נאכפת בשרת הרישיונות
-- notes: בלי זה מכסת המשתמשים בפאנל לא עובדת בפועל
+- notes: מומש — activeUsersThisMonth() קיימת, last_login בסכמה, activeUsers נשלח ב-checkRemote(). test ב-module-governance.test.js:172 מוודא.
+- commit: already-in-codebase
 
 ### T-002 · מטריצת הרשאות מבוססת-מודול + מסך ניהול
 - status: todo

@@ -349,6 +349,8 @@ module.exports = function createPortalRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'portal',
   label: 'פורטל לקוח',
   consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'price_list' }],

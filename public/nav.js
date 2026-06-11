@@ -276,6 +276,40 @@
     } catch {}
   }
 
+  async function applyAccessControl() {
+    try {
+      const token = localStorage.getItem('ib_token');
+      if (!token) return;
+      const res = await fetch('/api/access/me', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (!res.ok) return;
+      const { screens } = await res.json();
+      if (!Array.isArray(screens)) return;
+      const visibleIds = new Set(screens.map(s => s.id));
+      // Map screen IDs back to nav link IDs (some overlap, some differ)
+      visibleLinks = LINKS.filter(link => {
+        // Always show dashboard
+        if (link.id === 'dashboard') return true;
+        // Direct match
+        if (visibleIds.has(link.id)) return true;
+        // Map nav id → screen id
+        const screenMap = {
+          'new': 'new-order',
+          'production-queue': 'production-queue',
+          'worker-visual': 'worker-visual',
+          'machine': 'machine',
+          'kiosk': 'kiosk',
+          'production-setup': 'production-setup',
+          'delivery-admin': 'delivery-admin',
+        };
+        const mapped = screenMap[link.id];
+        return mapped ? visibleIds.has(mapped) : false;
+      });
+      renderShellLinks();
+    } catch {}
+  }
+
   const topnav = document.createElement('nav');
   topnav.id = 'ib-topnav';
   topnav.innerHTML =
@@ -345,6 +379,7 @@
   document.body.appendChild(toast);
   document.body.appendChild(searchOverlay);
   refreshLicensedModules();
+  applyAccessControl();
 
     document.getElementById('ib-hamburger')?.addEventListener('click', openDrawer);
     document.getElementById('ib-drawer-close')?.addEventListener('click', closeDrawer);

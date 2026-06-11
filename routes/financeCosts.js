@@ -157,6 +157,8 @@ router.get('/orders/:id/costs/snapshots', requireAnyRole(['finance', 'manager', 
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'finance-costs',
   label: 'עלויות ומרווח',
   consumes: [{ table: 'orders' }, { table: 'items' }],

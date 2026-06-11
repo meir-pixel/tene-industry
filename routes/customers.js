@@ -124,18 +124,15 @@ module.exports = function createCustomersRouter(deps) {
 };
 
 module.exports.manifest = {
-  "id": "customers",
-  "label": "Customers",
-  "consumes": [
-    {
-      "table": "customers"
-    },
-    {
-      "table": "projects"
-    },
-    {
-      "table": "sites"
-    }
+  id: 'customers',
+  label: 'לקוחות',
+  screens: [
+    { id: 'customers', path: '/customers.html', label: 'לקוחות', icon: '👥', group: 'ראשי' },
   ],
-  "produces": []
+  access: {
+    default: 'hidden',
+    roles: { admin: 'edit', manager: 'edit', office: 'edit', finance: 'read', sales: 'read' },
+  },
+  consumes: [{ table: 'customers' }, { table: 'projects' }, { table: 'sites' }],
+  produces: [],
 };

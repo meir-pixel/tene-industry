@@ -109,6 +109,8 @@ module.exports = function createProductionMetricsRouter(deps) {
 };
 
 module.exports.manifest = {
+  screens: [],
+  access: { default: 'hidden', roles: { admin: 'edit' } },
   "id": "production-metrics",
   "label": "Production Metrics",
   "consumes": [
