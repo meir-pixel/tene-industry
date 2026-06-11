@@ -1245,12 +1245,12 @@
       <div class="intake-controls">
         <div class="ocr-quick-action">
           <div class="intake-row-label">OCR</div>
-          <select id="ocrDocumentType" class="form-select" style="max-width:230px">
+          <select id="ocrDocumentType" class="form-select" style="max-width:230px" onchange="updateOcrDocumentRouteUi()">
             <option value="order">הזמנה / רשימת ברזל</option>
             <option value="supplier_delivery">תעודת ספק - עבור למלאי</option>
             <option value="price_list">מחירון - עבור למחירונים</option>
           </select>
-          <label for="imgUploadInput" class="file-pick-btn">בחר PDF / תמונה לזיהוי</label>
+          <label for="imgUploadInput" class="file-pick-btn" data-ocr-upload-label onclick="return handleOcrPickerClick(event)">בחר PDF / תמונה לזיהוי</label>
           <input type="file" id="imgUploadInput" accept="image/*,.jpg,.jpeg,.png,.webp,.pdf,application/pdf"
                  class="visually-hidden-file"
                  onchange="analyzeOrderImage(this)">
@@ -1286,7 +1286,7 @@
           <label style="font-weight:600;display:block;margin-bottom:8px;color:var(--text)">קליטת הזמנה מתמונה או PDF</label>
           <div class="image-drop">
             <div class="image-drop-copy">בחר צילום או PDF. המערכת תציג תצוגה מקדימה לפני הוספה לטופס.</div>
-            <label for="imgUploadInput" class="file-pick-btn">בחר PDF / תמונה לזיהוי</label>
+            <label for="imgUploadInput" class="file-pick-btn" data-ocr-upload-label onclick="return handleOcrPickerClick(event)">בחר PDF / תמונה לזיהוי</label>
           </div>
         </div>
         <details class="csv-import-details">
@@ -1558,6 +1558,7 @@ function init() {
 
   // Shape editor
   shapeEditor = new ShapeEditorModal(shapeSelected);
+  updateOcrDocumentRouteUi();
 
   // Pre-fill customer from URL params (e.g. coming from customers.html)
   const urlParams = new URLSearchParams(window.location.search);
@@ -2296,6 +2297,27 @@ function routeNonOrderOcrDocument(documentType) {
     return true;
   }
   return false;
+}
+
+function handleOcrPickerClick(event) {
+  const documentType = document.getElementById('ocrDocumentType')?.value || 'order';
+  if (!routeNonOrderOcrDocument(documentType)) return true;
+  if (event) event.preventDefault();
+  return false;
+}
+
+function updateOcrDocumentRouteUi() {
+  const documentType = document.getElementById('ocrDocumentType')?.value || 'order';
+  const labels = document.querySelectorAll('[data-ocr-upload-label]');
+  const text = documentType === 'supplier_delivery'
+    ? 'פתח מלאי - קבלת חומר OCR'
+    : documentType === 'price_list'
+      ? 'פתח פיננסים - מחירון'
+      : 'בחר PDF / תמונה לזיהוי';
+  labels.forEach(label => {
+    label.textContent = text;
+    label.classList.toggle('route-link', documentType !== 'order');
+  });
 }
 
 async function ensureOcrSession() {

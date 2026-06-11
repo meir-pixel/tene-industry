@@ -892,6 +892,11 @@ test('order OCR routes non-order documents to their owning modules before upload
   assert.match(intake, /documentType === 'price_list'/);
   assert.match(intake, /\/finance\.html#price-list/);
   assert.match(intake, /if \(routeNonOrderOcrDocument\(documentType\)\) return/);
+  assert.match(intake, /function handleOcrPickerClick\(event\)/);
+  assert.match(intake, /function updateOcrDocumentRouteUi\(\)/);
+  assert.match(intake, /data-ocr-upload-label/);
+  assert.match(intake, /פתח מלאי - קבלת חומר OCR/);
+  assert.match(intake, /פתח פיננסים - מחירון/);
   assert.match(inventory, /function openInitialInventoryTab\(\)/);
   assert.match(inventory, /window\.location\.hash/);
   assert.match(finance, /id="price-list"/);
