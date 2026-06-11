@@ -2219,6 +2219,8 @@ function analyzeOrderImage(input) {
   if (!input.files || !input.files[0]) return;
   var file = input.files[0];
   input.value = ''; // reset so same file can be re-selected
+  var documentType = document.getElementById('ocrDocumentType')?.value || 'order';
+  if (routeNonOrderOcrDocument(documentType)) return;
 
   // Show modal + loading
   var overlay = document.getElementById('imgAnalyzeOverlay');
@@ -2235,7 +2237,7 @@ function analyzeOrderImage(input) {
   var fd = new FormData();
   fd.append('image', file);
   fd.append('save_to_intake', 'true');
-  fd.append('document_type_hint', document.getElementById('ocrDocumentType')?.value || 'order');
+  fd.append('document_type_hint', documentType);
 
   ensureOcrSession()
     .then(function(hasSession) {
@@ -2282,6 +2284,18 @@ function analyzeOrderImage(input) {
       document.getElementById('imgLoading').style.display = 'none';
       showImgError(ocrErrorMessage(err));
     });
+}
+
+function routeNonOrderOcrDocument(documentType) {
+  if (documentType === 'supplier_delivery') {
+    window.location.href = '/inventory.html#receipts';
+    return true;
+  }
+  if (documentType === 'price_list') {
+    window.location.href = '/finance.html#price-list';
+    return true;
+  }
+  return false;
 }
 
 async function ensureOcrSession() {

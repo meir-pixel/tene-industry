@@ -881,6 +881,22 @@ test('inventory screen is authenticated and covered by safe API loading', () => 
   assert.doesNotMatch(inventory, /demo data/i);
 });
 
+test('order OCR routes non-order documents to their owning modules before upload', () => {
+  const intake = read('public/index.html');
+  const inventory = read('public/inventory.html');
+  const finance = read('public/finance.html');
+
+  assert.match(intake, /function routeNonOrderOcrDocument\(documentType\)/);
+  assert.match(intake, /documentType === 'supplier_delivery'/);
+  assert.match(intake, /\/inventory\.html#receipts/);
+  assert.match(intake, /documentType === 'price_list'/);
+  assert.match(intake, /\/finance\.html#price-list/);
+  assert.match(intake, /if \(routeNonOrderOcrDocument\(documentType\)\) return/);
+  assert.match(inventory, /function openInitialInventoryTab\(\)/);
+  assert.match(inventory, /window\.location\.hash/);
+  assert.match(finance, /id="price-list"/);
+});
+
 test('local server command skips startup snapshot outside production', () => {
   const server = read('server.js');
   const dbConnection = read('db/connection.js');

@@ -313,9 +313,15 @@ function showTab(id) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', b.onclick.toString().includes(`'${id}'`)));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
+  if (window.location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
   if (id === 'batches')   loadBatches();
   if (id === 'receipts')  loadReceiptReviews();
   if (id === 'waste')     loadWaste();
+}
+
+function openInitialInventoryTab() {
+  const id = (window.location.hash || '').replace('#', '') || 'summary';
+  if (document.getElementById('tab-' + id)) showTab(id);
 }
 
 function fmt0(v) { return (+v||0).toLocaleString('he-IL',{maximumFractionDigits:0}); }
@@ -773,6 +779,7 @@ document.getElementById('wasteTo').value   = today;
 
 loadSummary();
 loadSuppliers();
+openInitialInventoryTab();
 </script>
 </body>
 </html>
