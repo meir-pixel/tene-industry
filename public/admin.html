@@ -416,8 +416,8 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
       <div id="tab-modules" class="tab-pane active" style="padding:20px">
         <div class="module-control-head">
           <div>
-            <div class="tab-heading">בקרת מודולים</div>
-            <div class="tab-subtitle">סטטוס עסקי, גבולות מודול, מסכים ו-API. הפעלה טכנית לא אומרת שהמודול בשל למכירה.</div>
+            <div class="tab-heading">מודולים פעילים</div>
+            <div class="tab-subtitle">המודולים הזמינים למערכת שלך. הפעלה/כיבוי מודולים מנוהלת על-ידי Tene Industry בלבד.</div>
           </div>
           <a class="btn" href="/docs.html#modules" target="_blank">פתח מפת מודולים</a>
         </div>
@@ -1331,13 +1331,9 @@ function renderModules(settings) {
       </div>
       <div class="module-actions">
         <div class="module-links">${links}${docs}</div>
-        ${m.technical === 'core'
-          ? '<span class="module-badge ok">מודול ליבה</span>'
-          : `<label class="toggle">
-              <input type="checkbox" ${on?'checked':''} ${frozen?'disabled':''}
-                onchange="quickSave('${m.id}', this.checked ? 'true' : 'false')">
-              <span class="slider"></span>
-            </label>`}
+        <span class="module-badge ${m.technical === 'core' ? 'ok' : on ? 'ok' : 'frozen'}" title="הפעלת מודולים מנוהלת על-ידי Tene Industry">
+          ${m.technical === 'core' ? 'מודול ליבה' : on ? 'מופעל' : 'כבוי'}
+        </span>
       </div>
     </article>`;
   }).join('');

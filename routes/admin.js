@@ -86,6 +86,17 @@ module.exports = function createAdminRouter(deps) {
       `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
        ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`
     );
+    // Block vendor_only keys — customer admin must not write license/API secrets
+    const getVendorOnly = db().prepare(
+      "SELECT vendor_only FROM setting_definitions WHERE key=?"
+    );
+    const blocked = Object.keys(req.body).filter(k => {
+      const def = getVendorOnly.get(k);
+      return def && def.vendor_only === 1;
+    });
+    if (blocked.length > 0) {
+      return res.status(403).json({ error: 'אין הרשאה לשנות פרמטרים אלה', blocked });
+    }
     const save = db().transaction(entries => {
       for (const [k, v] of Object.entries(entries)) {
         upsert.run(k, v ?? '');

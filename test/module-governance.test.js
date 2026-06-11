@@ -181,7 +181,7 @@ test('license entitlements gate module routers from the shared catalog', () => {
 test('admin module board exposes maturity, risk, scope and vendor control', () => {
   const admin = read('public/admin.html');
 
-  assert.match(admin, /בקרת מודולים/);
+  assert.match(admin, /מודולים פעילים|בקרת מודולים/);
   assert.match(admin, /moduleStatusGrid/);
   assert.match(admin, /module-card/);
   assert.match(admin, /MODULE_VENDOR_CONTROL/);

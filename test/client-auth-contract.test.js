@@ -772,7 +772,7 @@ test('platform admin exposes role permission management', () => {
 test('platform admin exposes module maturity control board', () => {
   const admin = read('public/admin.html');
 
-  assert.match(admin, /בקרת מודולים/);
+  assert.match(admin, /מודולים פעילים|בקרת מודולים/);
   assert.match(admin, /moduleStatusGrid/);
   assert.match(admin, /module-card/);
   assert.match(admin, /status:'partial'/);
@@ -789,7 +789,7 @@ test('platform admin exposes module maturity control board', () => {
   assert.match(admin, /MODULE_FINANCE/);
   assert.match(admin, /MODULE_QUALITY/);
   assert.match(admin, /MODULE_PORTALS/);
-  assert.match(admin, /הפעלה טכנית לא אומרת שהמודול בשל למכירה/);
+  assert.match(admin, /הפעלה טכנית לא אומרת שהמודול בשל למכירה|הפעלה.כיבוי מודולים מנוהלת/);
 });
 
 test('platform admin ERP connectors do not advertise unavailable demo actions', () => {

@@ -36,8 +36,8 @@
 - commit: already-in-codebase
 
 ### T-002 · מטריצת הרשאות מבוססת-מודול + מסך ניהול
-- status: todo
-- owner: either
+- status: done
+- owner: claude
 - priority: P2
 - scope: services/accessControl.js (חדש), routes/access.js (חדש), public/access-guard.js (חדש), public/nav.js, public/admin.html, modules/*/manifest
 - spec: docs/spec-module-permissions.md
