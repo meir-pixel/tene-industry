@@ -53,14 +53,16 @@
 - progress: ✅ נוסף סעיף 8.1 ל-BUILD_RULES_HE.md (הצהרת screens+access, ברירת מחדל hidden, קיר ביטחון בקוד)
 
 ### T-004 · ניתוב OCR לפי סוג מסמך
-- status: in_progress
+- status: done
 - owner: gpt
 - claimed: 2026-06-09
 - priority: P2
 - scope: routes/intake.js, public/inventory.html, מסך השוואה מקור↔פענוח
 - spec: docs/spec-dual-pricing.md (סעיף ניתוב)
 - accept: המשתמש בוחר סוג מסמך מראש (הזמנה/מחירון/ספק); prompt נפרד לכל סוג; ה-AI לא מנתב לבד
-- notes: ⚠️ הכי קל לפספס — אסור prompt גנרי אחד
+- notes: Done by GPT. Order OCR keeps only order/bar-schedule documents in the order intake flow; supplier delivery notes route to inventory receipt OCR; price lists route to finance price-list. Contract test covers the routing.
+- commit: 9c66c41
+
 
 ### T-005 · שני סוגי מחירון (קנייה / מכירה)
 - status: todo
