@@ -48,6 +48,19 @@ into a universal event/audit model.
 | `production.card.weightCaptured` | Production Cards | Weight entry or scale integration | Reports, Quality | `eventId`, `cardId`, `targetWeightKg`, `actualWeightKg`, `capturedAt`, `device` |
 | `production.card.weightDeviation` | Production Cards | Weight tolerance check | Alerts, Quality, Manager | `eventId`, `cardId`, `targetWeightKg`, `actualWeightKg`, `deviationPct`, `thresholdPct`, `requiresApproval` |
 
+### Intake/OCR Events
+
+| Event Type | Owner Module | Producer | Consumers | Required Payload |
+| --- | --- | --- | --- | --- |
+| `intake.source.received` | Intake/OCR | Document upload / WhatsApp / email / CSV import | Dashboard, Audit | `eventId`, `sourceId`, `sourceChannel`, `sourceHash`, `receivedAt`, `actorUserId` |
+| `intake.parse.started` | Intake/OCR | User action or background worker | UI realtime, Audit | `eventId`, `sourceId`, `draftId`, `parserType`, `startedAt`, `actorUserId` |
+| `intake.parse.completed` | Intake/OCR | OCR/parser worker | UI realtime, Orders draft queue | `eventId`, `sourceId`, `draftId`, `itemCount`, `confidenceSummary`, `completedAt` |
+| `intake.review.required` | Intake/OCR | OCR/parser validation | UI, Manager alerts | `eventId`, `sourceId`, `draftId`, `reviewItemId`, `field`, `reason`, `confidence`, `createdAt` |
+| `intake.item.corrected` | Intake/OCR | User correction | OCR Training, Audit | `eventId`, `sourceId`, `draftId`, `itemId`, `field`, `oldValue`, `newValue`, `actorUserId`, `createdAt` |
+| `intake.duplicate.detected` | Intake/OCR | Duplicate check | UI, Audit | `eventId`, `sourceId`, `draftId`, `matchedSourceId`, `matchReason`, `confidence`, `createdAt` |
+| `intake.draft.approved` | Intake/OCR | Human approval | Orders, Audit | `eventId`, `sourceId`, `draftId`, `approvedBy`, `approvedAt`, `orderDraftPayload` |
+| `intake.draft.rejected` | Intake/OCR | Human rejection | Audit | `eventId`, `sourceId`, `draftId`, `rejectedBy`, `reason`, `createdAt` |
+| `intake.training.example.created` | Intake/OCR Training | User-approved correction | OCR Training | `eventId`, `sourceId`, `draftId`, `correctionId`, `customerId`, `formatHint`, `createdAt` |
 ## Required Event Contract
 
 Every important event should eventually include:

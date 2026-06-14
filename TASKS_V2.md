@@ -228,13 +228,14 @@
 
 ### V2-008 — Intake/OCR Module Specification
 
-- status: todo
+- status: approval
 - owner: gpt
 - module: intake-ocr
 - priority: critical
 - scope:
   - modules/intake/README_HE.md
   - modules/intake/module.manifest.js
+  - docs/event-registry.md
 - input:
   - PDF, image, WhatsApp, email, manual, CSV
 - output:
@@ -247,6 +248,8 @@
   - compare flow מוגדר.
   - training flow מוגדר.
   - approval path מוגדר.
+  - איפיון מסך קליטת מסמכים והשוואת OCR הועבר ל-modules/intake/README_HE.md.
+  - ממתין לאישור מאיר לפני קוד.
 
 ### V2-009 — Pricing Module Specification
 
