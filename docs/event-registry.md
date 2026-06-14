@@ -36,6 +36,18 @@ into a universal event/audit model.
 | `lock` | Orders | Order lock after shipment. |
 | `unlock` | Orders | Unlock action. |
 
+
+## Planned V2 Event Types
+
+| Event Type | Owner Module | Producer | Consumers | Required Payload |
+| --- | --- | --- | --- | --- |
+| `production.card.created` | Production Cards | Card generation from approved order | Production, Reports | `eventId`, `orderId`, `cardId`, `itemId`, `quantity`, `targetWeightKg`, `createdAt` |
+| `production.card.started` | Production Cards | Worker station start action | Production, Orders | `eventId`, `cardId`, `orderId`, `workerId`, `stationId`, `startedAt` |
+| `production.card.completed` | Production Cards | Worker station complete action | Orders, Reports | `eventId`, `cardId`, `orderId`, `workerId`, `quantityDone`, `completedAt` |
+| `production.card.reprinted` | Production Cards | Manager reprint action | Orders, Audit | `eventId`, `orderId`, `cardIds`, `reason`, `actorUserId`, `createdAt` |
+| `production.card.weightCaptured` | Production Cards | Weight entry or scale integration | Reports, Quality | `eventId`, `cardId`, `targetWeightKg`, `actualWeightKg`, `capturedAt`, `device` |
+| `production.card.weightDeviation` | Production Cards | Weight tolerance check | Alerts, Quality, Manager | `eventId`, `cardId`, `targetWeightKg`, `actualWeightKg`, `deviationPct`, `thresholdPct`, `requiresApproval` |
+
 ## Required Event Contract
 
 Every important event should eventually include:

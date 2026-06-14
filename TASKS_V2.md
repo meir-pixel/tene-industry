@@ -275,6 +275,37 @@
   - START_HERE_V2 מפנה לפרוטוקול.
   - כל משימת רישוי עתידית חייבת לעבור דרך core/licensing + module registry.
 
+### V2-011 — Production Cards Module Specification
+
+- status: todo
+- owner: gpt
+- module: production-cards
+- priority: high
+- scope:
+  - `docs/modules/production-cards.md`
+  - future: `modules/production-cards/README_HE.md`
+  - future: `modules/production-cards/module.manifest.js`
+- input:
+  - approved order
+  - steel-rebar shape snapshot
+  - worker scan/photo
+  - target weight and actual weight
+- output:
+  - production cards
+  - print/reprint jobs
+  - worker progress
+  - weight deviation alerts
+- logic:
+  - כרטיסיות נוצרות רק מהזמנה מאושרת.
+  - עובד רואה צורה, מידות, כמות, משקל רצוי וכפתורי פעולה — לא מלל ארוך.
+  - משקל מצוי מושווה למשקל רצוי ומייצר התראת חריגה רכה.
+  - צילום כרטיסייה מזהה כרטיס, לא יוצר הזמנה חדשה.
+- definition_of_done:
+  - manifest מלא.
+  - API/screen/db/events מוגדרים.
+  - mockup ויזואלי לתחנת עובד וניהול כרטיסיות.
+  - אין תלות ב־server.js הישן.
+
 ---
 
 ## ⛔ אסור כרגע

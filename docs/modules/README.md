@@ -16,6 +16,7 @@
 | 📥 קליטה | [intake.md](intake.md) | WA, OCR, מייל → הזמנות |
 | 🚚 צי | [fleet.md](fleet.md) | רכבים, נהגים, משלוחים |
 | 🔧 ייצור | [production.md](production.md) | מכונות, משמרות, סריקה |
+| 🧾 כרטיסיות ייצור | [production-cards.md](production-cards.md) | הדפסה, ברקודים, תחנת עובד, משקל רצוי/מצוי |
 | 🔑 רישיון | [license.md](license.md) | Free/Paid/Locked + גיבוי |
 
 ---
