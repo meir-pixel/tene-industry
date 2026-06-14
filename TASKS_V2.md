@@ -37,6 +37,33 @@
 
 ---
 
+## 🎯 Sprint 0 — חלוקת משימות אפיון
+
+מטרה: לסיים אפיון מודולרי לפני כתיבת קוד V2. כל משימה כאן היא אפיון בלבד: README/manifest/API/events/screens. לא בונים קוד עד שהאפיון מאושר.
+
+| סדר | משימה | בעלים מומלץ | למה |
+|---|---|---|---|
+| 1 | `V2-006` Steel/Rebar Industry | gpt | הליבה המקצועית: צורות, חישוקים, ספירלות, משקל ותצוגה ויזואלית. כל ההזמנות נשענות על זה. |
+| 2 | `V2-008` Intake/OCR | gpt | חייב להישען על חוקי הצורות; כולל השוואה מול מקור, תיקון צורה ואימון OCR. |
+| 3 | `V2-007` Orders | gpt | מרכז התהליך העסקי: לקוח, פריטים, סטטוסים, אישור, מעבר לייצור. |
+| 4 | `V2-011` Production Cards | gpt | נגזר מהזמנות ומתעשיית ברזל; כולל כרטיסיות, ברקוד, תחנת עובד, משקל רצוי/מצוי. |
+| 5 | `V2-005` Customers | claude/either | עצמאי יחסית: לקוח, אנשי קשר, כתובות, תנאי תשלום, מחירון לקוח. |
+| 6 | `V2-009` Pricing | claude/either | עצמאי יחסית אבל חייב להחזיק מחיר קנייה, מכירה, מחיר לקוח ו־snapshot להזמנה. |
+| 7 | `V2-002` Auth / Users / Permissions | claude/either | תשתית ליבה; ניתן לאפיין במקביל כי אינו תלוי בצורות. |
+| 8 | `V2-004` Licensing Gate | claude/either | רישוי ומכירת מודולים; תלוי ב־module registry אך אפשר לאפיין חוזה במקביל. |
+| 9 | `V2-003` Module Registry + Manifest | gpt | מחבר את כל המודולים לטעינה, ownership, consumes/produces ומפת מודולים. |
+| 10 | `V2-010` Integration Gate | gpt | שער כניסה לכל עבודה חיצונית; שומר שאין שוב שני עותקים וטלאים. |
+
+### כללי עבודה לספרינט האפיון
+
+- אין קוד. רק אפיון, manifests, API contracts, אירועים, מסכים ותלויות.
+- כל מודול חייב לציין: input, output, logic, DB ownership, API, events, screens, permissions, risks.
+- מודול שמייצר מסך חייב לכלול mockup plan ותצוגה לפני קוד.
+- אם Claude עובד במקביל — הוא לוקח רק משימות שסומנו `claude/either` ולא נוגע במשימות `gpt` בלי תיאום.
+- אם יש סתירה בין מסמך חיצוני למסמך V2 — מסמך V2 מנצח, והסתירה נרשמת ב־blocker.
+
+---
+
 ## ✅ מוכן לעבודה
 
 ### V2-001 — V2 Core Skeleton
@@ -65,7 +92,7 @@
 ### V2-002 — Auth / Users / Permissions Contract
 
 - status: todo
-- owner: either
+- owner: claude/either
 - module: core-auth
 - priority: critical
 - scope:
@@ -113,7 +140,7 @@
 ### V2-004 — Licensing Gate
 
 - status: todo
-- owner: either
+- owner: claude/either
 - module: licensing
 - priority: high
 - scope:
@@ -136,7 +163,7 @@
 ### V2-005 — Customers Module Specification
 
 - status: todo
-- owner: gpt
+- owner: claude/either
 - module: customers
 - priority: high
 - scope:
@@ -224,7 +251,7 @@
 ### V2-009 — Pricing Module Specification
 
 - status: todo
-- owner: either
+- owner: claude/either
 - module: pricing
 - priority: high
 - scope:
