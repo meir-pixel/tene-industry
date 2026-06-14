@@ -242,6 +242,39 @@
   - שלושת סוגי המחירון מופרדים.
   - API חישוב מחיר מוגדר.
 
+
+### V2-010 — Integration Gate + Licensing Source of Truth
+
+- status: todo
+- owner: gpt
+- module: project-management/licensing
+- priority: critical
+- scope:
+  - `docs/V2_INTEGRATION_PROTOCOL_HE.md`
+  - `START_HERE_V2.md`
+  - `TASKS_V2.md`
+  - future: `core/licensing`
+  - future: `core/module-registry`
+- input:
+  - עבודה שנעשתה אצל Claude/GPT מחוץ לריפו
+  - קטלוג מודולים קיים
+  - שרת רישיונות קיים
+  - החלטות מאיר לגבי מכירת מודולים
+- output:
+  - שער קליטה אחד לכל עבודה חיצונית
+  - חוזה רישוי V2 נקי
+  - הפרדה בין מודולי מוצר למודולי תעשייה
+  - כלל: מה שלא נכנס דרך TASKS_V2 לא נכנס לפרויקט
+- logic:
+  - לא מעתיקים קוד צדדי כטלאי.
+  - כל עבודה חיצונית מקבלת כרטיס, scope, owner ו־Definition of Done.
+  - רישוי מחובר ל־module registry, לא מפוזר במסכים/routes.
+  - Free/dev mode פתוח; production נאכף לפי entitlements.
+- definition_of_done:
+  - פרוטוקול הקליטה מתועד.
+  - START_HERE_V2 מפנה לפרוטוקול.
+  - כל משימת רישוי עתידית חייבת לעבור דרך core/licensing + module registry.
+
 ---
 
 ## ⛔ אסור כרגע
