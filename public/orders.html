@@ -405,8 +405,8 @@ function actionBtns(o, stopProp = true, includePrints = true) {
     return `<button class="${cls}" onclick="event.stopPropagation();setStatus(${o.id},${jsAttr(status)})">${escHtml(label)}</button>`;
   }).join('');
   const printButtons = includePrints ? `
-    <a class="btn-sm" href="/api/orders/${o.id}/print-cards" target="_blank" title="כרטיסיות">🖨️</a>
-    <a class="btn-sm" href="/api/orders/${o.id}/delivery-certificate" target="_blank" title="תעודת משלוח">📋</a>
+    <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" title="כרטיסיות">🖨️</a>
+    <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" title="תעודת משלוח">📋</a>
   ` : '';
   return `<div class="actions" ${sp}>
     ${transitionButtons}
@@ -457,8 +457,8 @@ function renderCards(orders) {
       </div>
       <div class="m-card-actions">
         ${actionBtns(o, false, false)}
-        <a class="btn-sm" href="/api/orders/${o.id}/print-cards" target="_blank" onclick="event.stopPropagation()">🖨️ כרטיסיות</a>
-        <a class="btn-sm" href="/api/orders/${o.id}/delivery-certificate" target="_blank" onclick="event.stopPropagation()">📋 תעודה</a>
+        <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" onclick="event.stopPropagation()">🖨️ כרטיסיות</a>
+        <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" onclick="event.stopPropagation()">📋 תעודה</a>
       </div>
     </div>`).join('');
 }
@@ -737,9 +737,9 @@ function buildDetailHTML(o, pkgs) {
 
   // ── Print buttons
   const prints = `<div class="print-btns">
-    <a class="print-btn cards" href="/api/orders/${o.id}/print-cards" target="_blank" rel="noopener">&#128424;&#65039; &#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1493;&#1514; &#1497;&#1497;&#1510;&#1493;&#1512;</a>
-    <a class="print-btn a4" href="/api/orders/${o.id}/print-a4" target="_blank" rel="noopener">&#128196; &#1492;&#1491;&#1508;&#1505;&#1514; A4</a>
-    <a class="print-btn delivery" href="/api/orders/${o.id}/delivery-certificate" target="_blank" rel="noopener">&#128203; &#1514;&#1506;&#1493;&#1491;&#1514; &#1502;&#1513;&#1500;&#1493;&#1495;</a>
+    <a class="print-btn cards" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" rel="noopener">&#128424;&#65039; &#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1493;&#1514; &#1497;&#1497;&#1510;&#1493;&#1512;</a>
+    <a class="print-btn a4" href="/order-print.html?id=${o.id}&kind=print-a4" target="_blank" rel="noopener">&#128196; &#1492;&#1491;&#1508;&#1505;&#1514; A4</a>
+    <a class="print-btn delivery" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" rel="noopener">&#128203; &#1514;&#1506;&#1493;&#1491;&#1514; &#1502;&#1513;&#1500;&#1493;&#1495;</a>
   </div>`;
 
   // ── Info

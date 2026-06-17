@@ -2042,8 +2042,8 @@ function _successOrderId() {
   return document.getElementById('successOverlay').getAttribute('data-order-id') || '';
 }
 function successGoView()    { const id = _successOrderId(); if(id) location.href = '/orders.html?id='+id; else location.href='/orders.html'; }
-function successPrintCards(){ const id = _successOrderId(); if(id) window.open('/api/orders/'+id+'/print-cards','_blank'); }
-function successDelivCert() { const id = _successOrderId(); if(id) window.open('/api/orders/'+id+'/delivery-certificate','_blank'); }
+function successPrintCards(){ const id = _successOrderId(); if(id) window.open('/order-print.html?id='+encodeURIComponent(id)+'&kind=print-cards','_blank'); }
+function successDelivCert() { const id = _successOrderId(); if(id) window.open('/order-print.html?id='+encodeURIComponent(id)+'&kind=delivery-certificate','_blank'); }
 
 function newOrder() {
   orderCounter++;
