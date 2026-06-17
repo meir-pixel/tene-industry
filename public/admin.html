@@ -856,6 +856,7 @@ const PERMISSION_ROLES = [
   { role:'office', label:'משרד', desc:'לקוחות, הזמנות, קליטת הזמנות, OCR, מלאי בסיסי, משלוחים ודוחות תפעוליים.' },
   { role:'warehouse', label:'מחסן', desc:'מלאי, קבלת חומר, ספקים, אריזות, תעודות משלוח ופעולות מחסן.' },
   { role:'production', label:'ייצור', desc:'תור ייצור, מכונות, סטטוס פריטים, סריקות ופעולות רצפת ייצור.' },
+  { role:'operator', label:'מפעיל / עובד ייצור', desc:'עובד תחנה. בפועל זה alias להרשאת קיוסק: כניסה לעמדת עבודה, צפייה בתור ועדכון ביצוע מוגבל.' },
   { role:'kiosk', label:'עמדת ייצור', desc:'מסך תחנת עבודה/קיוסק, פעולות מפעיל ותור עבודה מוגבל.' },
   { role:'sales', label:'מכירות', desc:'לקוחות, הצעות/הזמנות ופרויקטים בלי כספים רגישים ובלי ניהול מערכת.' },
   { role:'finance', label:'כספים', desc:'מחירונים, אשראי, חשבוניות, מרווחים ודוחות כספיים.' },
@@ -1447,20 +1448,6 @@ loadAll().then(openInitialTabFromUrl);
 
 // ── USERS ─────────────────────────────────────────────────────────
 let usersData = [];
-const ROLE_LABELS = {
-  admin:'👑 מנהל מערכת',
-  manager:'🏭 מנהל',
-  office:'🏢 משרד',
-  warehouse:'📦 מחסן',
-  production:'🏭 ייצור',
-  kiosk:'🖥️ עמדת ייצור',
-  sales:'🤝 מכירות',
-  finance:'💰 כספים',
-  quality:'🔍 איכות',
-  maintenance:'🛠️ תחזוקה',
-  driver:'🚚 נהג',
-  operator:'🔧 מפעיל ישן',
-};
 
 async function loadUsers() {
   usersData = await fetch('/api/users').then(r=>r.json()).catch(()=>[]);
