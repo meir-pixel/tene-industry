@@ -737,9 +737,9 @@ function buildDetailHTML(o, pkgs) {
 
   // ── Print buttons
   const prints = `<div class="print-btns">
-    <a class="print-btn cards" href="/api/orders/${o.id}/print-cards" target="_blank">🖨️ כרטיסיות ייצור</a>
-    <a class="print-btn a4" href="/api/orders/${o.id}/print-a4" target="_blank">📄 הדפסת A4</a>
-    <a class="print-btn delivery" href="/api/orders/${o.id}/delivery-certificate" target="_blank">📋 תעודת משלוח</a>
+    <a class="print-btn cards" href="/api/orders/${o.id}/print-cards" target="_blank" rel="noopener">&#128424;&#65039; &#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1493;&#1514; &#1497;&#1497;&#1510;&#1493;&#1512;</a>
+    <a class="print-btn a4" href="/api/orders/${o.id}/print-a4" target="_blank" rel="noopener">&#128196; &#1492;&#1491;&#1508;&#1505;&#1514; A4</a>
+    <a class="print-btn delivery" href="/api/orders/${o.id}/delivery-certificate" target="_blank" rel="noopener">&#128203; &#1514;&#1506;&#1493;&#1491;&#1514; &#1502;&#1513;&#1500;&#1493;&#1495;</a>
   </div>`;
 
   // ── Info
@@ -933,7 +933,6 @@ function closeSourceOverlay(event) {
 function closeSourcePanel() {
   document.getElementById('sourceOverlay').classList.remove('show');
 }
-
 async function approveItemReview(event, orderId, itemId) {
   event?.stopPropagation?.();
   const response = await fetch(`/api/orders/${orderId}/items/${itemId}/review`, {
