@@ -29,6 +29,7 @@
 
     /* ── Screen ── */
     .screen{display:none;padding:20px;max-width:600px;margin:0 auto}
+    #screenOrder{max-width:980px}
     .screen.active{display:block}
 
     /* ── Auth screen ── */
@@ -92,21 +93,30 @@
     .shape-name-label{font-size:11px;font-weight:600;color:var(--text);text-align:center}
 
     /* ── Items list ── */
-    .item-row{background:#f8f8f8;border-radius:10px;padding:12px;margin-bottom:8px;position:relative}
-    .item-row-title{font-weight:700;font-size:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+    .item-row{background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px;position:relative;box-shadow:0 1px 6px rgba(0,0,0,.035)}
+    .item-row-title{font-weight:800;font-size:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
     .item-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .portal-shape-edit{display:grid;grid-template-columns:132px 1fr;gap:10px;align-items:stretch;margin-top:10px}
-    .portal-shape-preview{border:1.5px solid var(--border);background:#fff;border-radius:12px;min-height:116px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s;position:relative;overflow:hidden}
+    .portal-line-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--dim);font-size:12px;font-weight:700}
+    .portal-pill{display:inline-flex;align-items:center;gap:4px;border:1px solid #d8e2ef;background:#f6f9fc;border-radius:999px;padding:4px 9px;color:#26364a}
+    .portal-pill strong{color:#0f1b2d}
+    .portal-shape-edit{display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:stretch;margin-top:10px}
+    .portal-shape-preview{border:1.5px solid var(--border);background:#fff;border-radius:12px;min-height:156px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s;position:relative;overflow:hidden}
     .portal-shape-preview:hover{border-color:var(--orange);box-shadow:0 0 0 3px rgba(224,123,57,.12)}
-    .portal-shape-preview svg{width:112px;height:88px;display:block}
+    .portal-shape-preview svg{width:178px;height:132px;display:block}
     .portal-shape-edit-btn{position:absolute;bottom:6px;left:6px;background:#fff3e8;color:#c95700;border:1px solid #ffd2ae;border-radius:999px;font-size:10px;font-weight:800;padding:3px 8px}
     .portal-shape-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start}
     .portal-shape-meta .field{margin-bottom:0}
     .portal-shape-summary{grid-column:1/-1;font-size:12px;color:var(--dim);line-height:1.45}
+    .portal-shape-primary{grid-column:1/-1;background:#fff7ef;color:#c95700;border:1.5px solid #ffd2ae;border-radius:10px;padding:11px;font-weight:800;cursor:pointer}
     .segments-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    .seg-input{width:70px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;text-align:center}
+    .seg-input{width:78px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;text-align:center}
     .seg-label{font-size:11px;color:var(--dim);text-align:center;margin-top:2px}
     .remove-item{color:var(--red);background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px}
+    .portal-upload-card{border:1px dashed #d7e0ea;background:#fbfdff}
+    .portal-upload-grid{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+    .portal-upload-note{font-size:12px;color:var(--dim);line-height:1.5;margin-top:8px}
+    .attached-docs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .attached-doc{background:#eef5fb;border:1px solid #d9e8f6;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;color:#31506b}
 
     /* ── Price box ── */
     .price-box{background:linear-gradient(135deg,#1a1a2e,#2d3a5e);color:#fff;border-radius:14px;padding:18px;margin-bottom:16px}
@@ -139,7 +149,7 @@
     .loader{text-align:center;padding:40px;color:var(--dim);font-size:14px}
 
     @media(min-width:600px){.shapes-grid{grid-template-columns:repeat(4,1fr)}}
-    @media(max-width:480px){.portal-shape-edit{grid-template-columns:1fr}.portal-shape-preview{min-height:128px}}
+    @media(max-width:720px){.portal-shape-edit{grid-template-columns:1fr}.portal-shape-preview{min-height:150px}.portal-upload-grid{grid-template-columns:1fr}}
   </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -203,6 +213,18 @@
 
   <div class="step-title"><span class="step-num">1</span> בחר פריטים</div>
 
+  <div class="section-card portal-upload-card">
+    <div class="card-title">מסמך מקור להזמנה</div>
+    <div class="portal-upload-grid">
+      <input type="file" id="portalSourceFiles" accept=".pdf,image/*,.csv,.tsv,.xlsx,.xls" multiple onchange="handlePortalFiles(this.files)"/>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('portalSourceFiles').click()">בחר PDF / תמונה</button>
+    </div>
+    <div class="portal-upload-note">
+      כרגע הקובץ מצורף כהפניה לבדיקה במשרד. OCR מלא לפורטל יחובר כ-endpoint נפרד כדי שלא נכניס נתונים שגויים אוטומטית.
+    </div>
+    <div id="portalFileList" class="attached-docs"></div>
+  </div>
+
   <div id="itemsList"></div>
 
   <button class="btn btn-secondary btn-sm" onclick="addItem()" style="margin-bottom:20px">➕ הוסף פריט</button>
@@ -262,6 +284,7 @@ let ME    = null;
 let SHAPES = [];
 let PRICE_LIST = {};  // {diameter: price_per_kg}
 let orderItems  = []; // [{id, shapeId, shapeName, diameter, sides, angles, qty, note}]
+let portalSourceFiles = [];
 let itemIdSeq   = 0;
 let portalShapeEditor = null;
 let portalShapeTargetId = null;
@@ -571,11 +594,15 @@ async function approveOrder(orderId) {
 // ──────────────────────────────────────────────────────
 function showOrderScreen() {
   orderItems = [];
+  portalSourceFiles = [];
   document.getElementById('priceBox').style.display = 'none';
   document.getElementById('delivDate').value = '';
   document.getElementById('delivTime').value = '';
   document.getElementById('delivAddr').value = '';
   document.getElementById('orderNotes').value = '';
+  const sourceInput = document.getElementById('portalSourceFiles');
+  if (sourceInput) sourceInput.value = '';
+  renderPortalFileList();
   addItem();
   showScreen('screenOrder');
 }
@@ -585,7 +612,7 @@ function addItem() {
   const shape = SHAPES[0] || { id:'s1', name:'ישר', bends:0, sides_default:'[1000]', angles_default:'[]' };
   const sides = JSON.parse(shape.sides_default||'[1000]');
   const angles = JSON.parse(shape.angles_default||'[]');
-  orderItems.push({ id, shapeId:shape.id, shapeName:shape.name, diameter:12, sides:[...sides], angles:[...angles], qty:1, note:'' });
+  orderItems.push({ id, shapeId:shape.id, shapeName:shape.name, diameter:12, sides:[...sides], angles:[...angles], azAngles:[], elAngles:[], is3d:0, qty:1, note:'' });
   renderItems();
 }
 
@@ -619,11 +646,18 @@ function renderItemRow(item, num) {
   const kgUnit  = WEIGHTS[item.diameter] ?? (item.diameter*item.diameter*0.00617);
   const weight  = (totalMm/1000)*kgUnit*item.qty;
   const price   = (PRICE_LIST[item.diameter]||0)*weight;
+  const shapeLabel = escapeHtml(item.shapeName || 'צורה');
+  const segmentLabel = item.sides.length ? item.sides.map(v => escapeHtml(formatMm(v))).join(' / ') : 'ללא צלעות';
 
   return `
   <div class="item-row" id="item-${item.id}">
     <div class="item-row-title">
       <span>פריט ${num}</span>
+      <span class="portal-line-head">
+        <span class="portal-pill">כמות <strong>${escapeHtml(item.qty)}</strong></span>
+        <span class="portal-pill">Ø <strong>${escapeHtml(item.diameter)}</strong></span>
+        <span class="portal-pill">משקל <strong>${weight.toFixed(2)} ק"ג</strong></span>
+      </span>
       <button class="remove-item" onclick="removeItem(${item.id})">✕</button>
     </div>
     <div class="portal-shape-edit">
@@ -641,9 +675,10 @@ function renderItemRow(item, num) {
           <select onchange="updateField(${item.id},'diameter',+this.value)">${diamOpts}</select>
         </div>
         <div class="portal-shape-summary">
-          ${escapeHtml(item.shapeName || 'צורה')} · ${item.sides.length ? item.sides.map(v => escapeHtml(v)).join(' / ') + ' מ"מ' : 'ללא צלעות'}<br>
-          לחץ על הציור כדי לשנות צלעות, זוויות וצורת כיפוף.
+          <strong>${shapeLabel}</strong> · ${segmentLabel}<br>
+          לחץ על הציור או על הכפתור כדי לשנות צלעות, זוויות וצורת כיפוף באותו עורך פנימי.
         </div>
+        <button type="button" class="portal-shape-primary" onclick="openPortalShapeEditor(${item.id})">עריכת צורה מלאה</button>
       </div>
     </div>
     <div class="field" style="margin-top:4px">
@@ -678,6 +713,9 @@ function changeShape(id, sel) {
   item.shapeName = opt.dataset.name;
   item.sides     = JSON.parse(opt.dataset.sides||'[1000]');
   item.angles    = JSON.parse(opt.dataset.angles||'[]');
+  item.azAngles  = [];
+  item.elAngles  = [];
+  item.is3d      = 0;
   renderItems();
 }
 
@@ -709,7 +747,9 @@ function openPortalShapeEditor(id) {
     presetEmoji: '',
     sides: [...(item.sides || [])],
     angles: [...(item.angles || [])],
-    is3d: 0,
+    azAngles: [...(item.azAngles || [])],
+    elAngles: [...(item.elAngles || [])],
+    is3d: Number(item.is3d || 0),
   });
 }
 
@@ -720,9 +760,38 @@ function portalShapeSelected(data) {
   item.shapeName = data.presetName || item.shapeName || 'צורה מותאמת';
   item.sides = Array.isArray(data.sides) ? data.sides.map(v => Number(v) || 0) : [];
   item.angles = Array.isArray(data.angles) ? data.angles.map(v => Number(v) || 0) : [];
+  item.azAngles = Array.isArray(data.azAngles) ? data.azAngles.map(v => Number(v) || 0) : [];
+  item.elAngles = Array.isArray(data.elAngles) ? data.elAngles.map(v => Number(v) || 0) : [];
+  item.is3d = Number(data.is3d || 0);
   portalShapeTargetId = null;
   renderItems();
   toast('הצורה עודכנה בפריט');
+}
+
+function formatMm(value) {
+  const n = Number(value) || 0;
+  return `${n} מ"מ`;
+}
+
+function handlePortalFiles(files) {
+  portalSourceFiles = Array.from(files || []).map(file => ({
+    name: file.name,
+    size: file.size || 0,
+    type: file.type || ''
+  }));
+  renderPortalFileList();
+}
+
+function renderPortalFileList() {
+  const el = document.getElementById('portalFileList');
+  if (!el) return;
+  if (!portalSourceFiles.length) {
+    el.innerHTML = '<span class="portal-upload-note">לא צורף מסמך מקור.</span>';
+    return;
+  }
+  el.innerHTML = portalSourceFiles.map(file => `
+    <span class="attached-doc">📎 ${escapeHtml(file.name)}</span>
+  `).join('');
 }
 
 function shapePreviewSvg(item) {
@@ -795,13 +864,17 @@ async function submitOrder() {
     if (!item.sides.every(s=>s>0)) { toast('הכנס אורכי קטעים תקינים', true); return; }
   }
 
+  const docNote = portalSourceFiles.length
+    ? `\n\nמסמכי מקור שצורפו בפורטל לבדיקה משרדית: ${portalSourceFiles.map(f => f.name).join(', ')}`
+    : '';
+
   const body = {
     token:       TOKEN,
-    items:       orderItems.map(i=>({ shapeId:i.shapeId, shapeName:i.shapeName, diameter:i.diameter, sides:i.sides, angles:i.angles, qty:i.qty, note:i.note })),
+    items:       orderItems.map(i=>({ shapeId:i.shapeId, shapeName:i.shapeName, diameter:i.diameter, sides:i.sides, angles:i.angles, azAngles:i.azAngles, elAngles:i.elAngles, is3d:i.is3d, qty:i.qty, note:i.note })),
     deliveryDate: document.getElementById('delivDate').value,
     deliveryTime: document.getElementById('delivTime').value,
     deliveryAddress: document.getElementById('delivAddr').value + ' ' + document.getElementById('delivMode').value,
-    notes:        document.getElementById('orderNotes').value,
+    notes:        `${document.getElementById('orderNotes').value || ''}${docNote}`,
   };
 
   const res = await fetch('/api/c/order',{
