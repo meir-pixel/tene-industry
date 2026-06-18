@@ -896,6 +896,30 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.ok(priceItem.id);
     assert.equal((await request(`/api/pricing/price-books/${priceBook.id}`, { method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ name: 'Bad Update' }) })).status, 403);
     assert.equal((await request(`/api/pricing/price-books/${priceBook.id}`, { method: 'PATCH', headers: authHeaders(finance), body: JSON.stringify({ status: 'active' }) })).status, 200);
+
+    const customerPriceBookCustomerId = seedCustomer();
+    const customerPriceBookResponse = await request('/api/pricing/price-books', {
+      method: 'POST',
+      headers: authHeaders(finance),
+      body: JSON.stringify({
+        code: 'SEC-CUSTOMER-PRICE-BOOK',
+        name: 'Security Customer Price Book',
+        customer_id: customerPriceBookCustomerId,
+        customer_name: 'Security Customer',
+        price_type: 'customer',
+        status: 'draft',
+      }),
+    });
+    assert.equal(customerPriceBookResponse.status, 200);
+    const customerPriceBook = (await customerPriceBookResponse.json()).price_book;
+    assert.equal(db.prepare('SELECT price_tier FROM customers WHERE id = ?').get(customerPriceBookCustomerId).price_tier, 'retail');
+    assert.equal((await request(`/api/pricing/price-books/${customerPriceBook.id}`, {
+      method: 'PATCH',
+      headers: authHeaders(finance),
+      body: JSON.stringify({ status: 'active' }),
+    })).status, 200);
+    assert.equal(db.prepare('SELECT price_tier FROM customers WHERE id = ?').get(customerPriceBookCustomerId).price_tier, 'customer');
+
     assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items/${priceItem.id}`, { method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ price_before_vat: 13 }) })).status, 403);
     assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items/${priceItem.id}`, { method: 'PATCH', headers: authHeaders(finance), body: JSON.stringify({ price_before_vat: 13 }) })).status, 200);
     assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items/${priceItem.id}`, { method: 'DELETE', headers: authHeaders(office) })).status, 403);

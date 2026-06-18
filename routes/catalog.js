@@ -22,6 +22,11 @@ module.exports = function createCatalogRouter(deps) {
     return db.prepare('SELECT * FROM pricing_price_books WHERE id = ?').get(Number(id));
   }
 
+  function syncCustomerPriceTier(priceBook) {
+    if (priceBook.price_type !== 'customer' || priceBook.status !== 'active' || !priceBook.customer_id) return;
+    db.prepare("UPDATE customers SET price_tier = 'customer' WHERE id = ?").run(Number(priceBook.customer_id));
+  }
+
   function validatePriceBook(body, existing = {}) {
     const code = trimText(body.code ?? existing.code);
     const name = trimText(body.name ?? existing.name);
@@ -109,7 +114,9 @@ module.exports = function createCatalogRouter(deps) {
         b.code, b.name, b.customer_id, b.customer_name, b.price_type, b.currency,
         b.status, b.source_type, b.source_ref, b.notes
       );
-      res.json({ success: true, price_book: priceBookById(result.lastInsertRowid) });
+      const priceBook = priceBookById(result.lastInsertRowid);
+      syncCustomerPriceTier(priceBook);
+      res.json({ success: true, price_book: priceBook });
     } catch (err) {
       if (String(err.message || '').includes('UNIQUE')) return res.status(409).json({ error: 'code_exists' });
       throw err;
@@ -132,7 +139,9 @@ module.exports = function createCatalogRouter(deps) {
         b.code, b.name, b.customer_id, b.customer_name, b.price_type, b.currency,
         b.status, b.source_type, b.source_ref, b.notes, existing.id
       );
-      res.json({ success: true, price_book: priceBookById(existing.id) });
+      const priceBook = priceBookById(existing.id);
+      syncCustomerPriceTier(priceBook);
+      res.json({ success: true, price_book: priceBook });
     } catch (err) {
       if (String(err.message || '').includes('UNIQUE')) return res.status(409).json({ error: 'code_exists' });
       throw err;
