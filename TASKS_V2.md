@@ -327,6 +327,30 @@
   - מוגדר snapshot מחיר להזמנה.
   - מוגדר status `price_list_requires_update`.
 
+### V2-009A-UI — Pricing Manager Mockup
+
+- status: approval
+- owner: codex-finance-pricing
+- module: pricing
+- priority: high
+- scope:
+  - `docs/mockups/pricing-manager.html`
+- input:
+  - `docs/spec-dual-pricing.md`
+  - sample PDF price list from customer/vendor
+- output:
+  - מוקאפ HTML עצמאי למסך ניהול מחירונים.
+  - חלון יבוא מחירון מ-PDF/Excel/CSV.
+  - חלון עריכת שורת מחירון עם מק״ט, קטגוריה, יחידה, מחיר, מטבע, חריגה ותוקף.
+- logic:
+  - המוקאפ הוא דוגמה ויזואלית בלבד לפני הטמעה.
+  - אין שינוי בקוד מערכת, routes, DB או services.
+  - כל שורת מחירון חייבת להיות ניתנת לעריכה/הוספה.
+  - מחירון מיובא נשמר כטיוטה עד השוואה ואישור.
+- definition_of_done:
+  - מאיר מאשר ויזואלית את מבנה החלונות.
+  - לאחר אישור, V2-009A יכול להמשיך לאפיון README/manifest/API/events/screens.
+
 ### V2-009B — Costing Module Specification
 
 - status: todo

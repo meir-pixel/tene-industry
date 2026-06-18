@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מוקאפ - ניהול מחירונים</title>
+<style>
+  :root {
+    --bg:#f5f7fa;
+    --panel:#ffffff;
+    --panel-2:#f9fbfd;
+    --text:#17202a;
+    --muted:#687482;
+    --line:#dbe2ea;
+    --line-strong:#c7d0db;
+    --brand:#255f99;
+    --brand-2:#e8f1fb;
+    --ok:#21865a;
+    --warn:#a26700;
+    --bad:#b3261e;
+    --shadow:0 10px 30px rgba(30,45,62,.08);
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Segoe UI", Arial, sans-serif;
+  }
+
+  button, input, select {
+    font:inherit;
+  }
+
+  .app {
+    min-height:100vh;
+    display:grid;
+    grid-template-columns:280px minmax(0,1fr);
+  }
+
+  aside {
+    background:#102033;
+    color:#eef5fb;
+    padding:18px;
+  }
+
+  .brand {
+    font-size:18px;
+    font-weight:800;
+    margin-bottom:22px;
+  }
+
+  .nav-section {
+    color:#9fb1c5;
+    font-size:12px;
+    font-weight:700;
+    margin:18px 0 8px;
+  }
+
+  .nav-item {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 12px;
+    border-radius:8px;
+    color:#dce7f2;
+    margin-bottom:4px;
+  }
+
+  .nav-item.active {
+    background:#1d3958;
+    color:#fff;
+  }
+
+  .count {
+    min-width:26px;
+    text-align:center;
+    background:#284969;
+    border-radius:8px;
+    padding:2px 6px;
+    font-size:12px;
+    font-weight:700;
+  }
+
+  main {
+    padding:22px;
+    overflow:auto;
+  }
+
+  .topbar {
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    align-items:flex-start;
+    margin-bottom:16px;
+  }
+
+  h1 {
+    margin:0 0 6px;
+    font-size:26px;
+    letter-spacing:0;
+  }
+
+  .sub {
+    color:var(--muted);
+    font-size:14px;
+  }
+
+  .actions {
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  .btn {
+    border:1px solid var(--line-strong);
+    background:#fff;
+    color:var(--text);
+    border-radius:8px;
+    height:38px;
+    padding:0 12px;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    cursor:default;
+    font-weight:700;
+    white-space:nowrap;
+  }
+
+  .btn.primary {
+    background:var(--brand);
+    color:#fff;
+    border-color:var(--brand);
+  }
+
+  .btn.icon {
+    width:38px;
+    justify-content:center;
+    padding:0;
+    font-size:18px;
+  }
+
+  .toolbar {
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    box-shadow:var(--shadow);
+    padding:14px;
+    display:grid;
+    grid-template-columns:1.1fr .8fr .8fr .8fr auto;
+    gap:10px;
+    margin-bottom:14px;
+  }
+
+  .field label {
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:5px;
+    font-weight:700;
+  }
+
+  .field input,
+  .field select {
+    width:100%;
+    height:36px;
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+    background:#fff;
+    padding:0 10px;
+    color:var(--text);
+  }
+
+  .price-list-header {
+    display:grid;
+    grid-template-columns:1.2fr repeat(4, minmax(130px, .45fr));
+    gap:10px;
+    margin-bottom:14px;
+  }
+
+  .metric {
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px;
+    min-height:74px;
+  }
+
+  .metric b {
+    display:block;
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:7px;
+  }
+
+  .metric span {
+    font-size:20px;
+    font-weight:800;
+  }
+
+  .tabs {
+    display:flex;
+    gap:6px;
+    margin:0 0 12px;
+  }
+
+  .tab {
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+    background:#fff;
+    padding:8px 12px;
+    font-weight:700;
+    color:var(--muted);
+  }
+
+  .tab.active {
+    background:var(--brand-2);
+    color:var(--brand);
+    border-color:#b6cce5;
+  }
+
+  .grid {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 340px;
+    gap:14px;
+  }
+
+  .table-panel,
+  .side-panel {
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+
+  .panel-head {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel-2);
+  }
+
+  .panel-title {
+    font-weight:800;
+  }
+
+  .table-wrap {
+    overflow:auto;
+  }
+
+  table {
+    width:100%;
+    min-width:980px;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+
+  th {
+    position:sticky;
+    top:0;
+    background:#eef3f8;
+    text-align:right;
+    padding:10px 9px;
+    color:#536171;
+    font-size:12px;
+    border-bottom:1px solid var(--line-strong);
+    z-index:1;
+  }
+
+  td {
+    padding:9px;
+    border-bottom:1px solid #edf1f5;
+    vertical-align:middle;
+  }
+
+  tr.category td {
+    background:#f3f7fb;
+    color:#25435f;
+    font-weight:800;
+    border-top:1px solid var(--line-strong);
+  }
+
+  .sku {
+    font-weight:800;
+    color:#173d63;
+    direction:ltr;
+    text-align:left;
+  }
+
+  .num {
+    direction:ltr;
+    text-align:left;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .editable {
+    display:inline-flex;
+    min-width:88px;
+    height:30px;
+    align-items:center;
+    border:1px solid #bad0e8;
+    border-radius:8px;
+    padding:0 9px;
+    background:#fbfdff;
+    color:#123f6b;
+    font-weight:700;
+  }
+
+  .tag {
+    display:inline-flex;
+    align-items:center;
+    height:24px;
+    border-radius:8px;
+    padding:0 8px;
+    font-size:12px;
+    font-weight:800;
+  }
+
+  .tag.ok { background:#e7f5ee; color:var(--ok); }
+  .tag.warn { background:#fff2d8; color:var(--warn); }
+  .tag.bad { background:#fde8e6; color:var(--bad); }
+  .tag.info { background:var(--brand-2); color:var(--brand); }
+
+  .row-actions {
+    display:flex;
+    gap:5px;
+  }
+
+  .mini {
+    width:30px;
+    height:30px;
+    border:1px solid var(--line-strong);
+    background:#fff;
+    border-radius:8px;
+    font-weight:800;
+  }
+
+  .side-panel {
+    align-self:start;
+  }
+
+  .side-body {
+    padding:14px;
+  }
+
+  .form-grid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+
+  .form-grid .wide {
+    grid-column:1 / -1;
+  }
+
+  .checklist {
+    display:grid;
+    gap:8px;
+    margin-top:12px;
+  }
+
+  .check {
+    display:flex;
+    gap:8px;
+    align-items:center;
+    font-size:13px;
+    color:#3a4653;
+  }
+
+  .box {
+    width:16px;
+    height:16px;
+    border-radius:4px;
+    border:1px solid var(--line-strong);
+    background:#fff;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    color:#fff;
+    font-size:11px;
+  }
+
+  .box.on {
+    background:var(--brand);
+    border-color:var(--brand);
+  }
+
+  .timeline {
+    display:grid;
+    gap:12px;
+  }
+
+  .event {
+    display:grid;
+    grid-template-columns:78px 1fr;
+    gap:10px;
+    font-size:13px;
+  }
+
+  .event time {
+    color:var(--muted);
+    direction:ltr;
+    text-align:left;
+  }
+
+  .modal {
+    position:fixed;
+    inset:auto 22px 22px auto;
+    width:520px;
+    max-width:calc(100vw - 44px);
+    background:#fff;
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+    box-shadow:0 20px 60px rgba(20,35,55,.22);
+    overflow:hidden;
+  }
+
+  .modal .panel-head {
+    background:#fff;
+  }
+
+  .modal-body {
+    padding:14px;
+  }
+
+  .drop {
+    border:1px dashed #9bb4cf;
+    background:#f7fbff;
+    border-radius:8px;
+    padding:18px;
+    text-align:center;
+    color:#355b7c;
+    font-weight:800;
+    margin-bottom:12px;
+  }
+
+  .compare {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+
+  .compare-box {
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px;
+    background:#fbfcfe;
+    min-height:96px;
+  }
+
+  .compare-box b {
+    display:block;
+    margin-bottom:8px;
+  }
+
+  .modal-actions {
+    display:flex;
+    justify-content:flex-start;
+    gap:8px;
+    border-top:1px solid var(--line);
+    padding:12px 14px;
+    background:var(--panel-2);
+  }
+
+  @media (max-width:1100px) {
+    .app { grid-template-columns:1fr; }
+    aside { display:none; }
+    .toolbar,
+    .price-list-header,
+    .grid {
+      grid-template-columns:1fr;
+    }
+    .topbar {
+      flex-direction:column;
+    }
+    .actions {
+      justify-content:flex-start;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">IronBend V2</div>
+    <div class="nav-section">מחירונים</div>
+    <div class="nav-item active"><span>מחירון לקוח</span><span class="count">42</span></div>
+    <div class="nav-item"><span>מחירון כללי</span><span class="count">18</span></div>
+    <div class="nav-item"><span>יבוא לאישור</span><span class="count">3</span></div>
+    <div class="nav-section">כספים</div>
+    <div class="nav-item"><span>חשבוניות</span><span class="count">12</span></div>
+    <div class="nav-item"><span>אשראי</span><span class="count">7</span></div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <h1>ניהול מחירונים</h1>
+        <div class="sub">מחירון לקוח עם מק״טים, קטגוריות, חריגות, תוקף ואישור</div>
+      </div>
+      <div class="actions">
+        <button class="btn">יבוא PDF/Excel</button>
+        <button class="btn">שכפל מחירון</button>
+        <button class="btn primary">מחירון חדש</button>
+      </div>
+    </div>
+
+    <section class="toolbar">
+      <div class="field">
+        <label>חיפוש</label>
+        <input value="ש.כהן 301401685-S1">
+      </div>
+      <div class="field">
+        <label>לקוח</label>
+        <select><option>י.ד עשוש תשתיות בע״מ</option></select>
+      </div>
+      <div class="field">
+        <label>סוג מחירון</label>
+        <select><option>מחירון לקוח</option><option>מחירון כללי</option></select>
+      </div>
+      <div class="field">
+        <label>סטטוס</label>
+        <select><option>בתוקף</option><option>דורש אישור</option><option>פג תוקף</option></select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button class="btn icon" title="סינון">⌕</button>
+      </div>
+    </section>
+
+    <section class="price-list-header">
+      <div class="metric">
+        <b>מחירון נבחר</b>
+        <span>301401685-S1</span>
+      </div>
+      <div class="metric">
+        <b>תאריך מחירון</b>
+        <span>15/04/26</span>
+      </div>
+      <div class="metric">
+        <b>תנאי תשלום</b>
+        <span>שוטף 95</span>
+      </div>
+      <div class="metric">
+        <b>שורות פעילות</b>
+        <span>31</span>
+      </div>
+      <div class="metric">
+        <b>מטבע</b>
+        <span>ש״ח</span>
+      </div>
+    </section>
+
+    <div class="tabs">
+      <div class="tab active">שורות מחירון</div>
+      <div class="tab">פרטי מחירון</div>
+      <div class="tab">יבוא ואישור</div>
+      <div class="tab">היסטוריה</div>
+    </div>
+
+    <section class="grid">
+      <div class="table-panel">
+        <div class="panel-head">
+          <div class="panel-title">שורות מחירון</div>
+          <div class="actions">
+            <button class="btn">הוסף קטגוריה</button>
+            <button class="btn primary">הוסף שורה</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>מק״ט</th>
+                <th>תיאור מוצר</th>
+                <th>קטגוריה</th>
+                <th>כמות</th>
+                <th>יחידה</th>
+                <th>מחיר לפני מע״מ</th>
+                <th>מטבע</th>
+                <th>חריגה</th>
+                <th>תוקף</th>
+                <th>פעולות</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="category"><td colspan="10">ברזל מעובד</td></tr>
+              <tr>
+                <td class="sku">2010</td>
+                <td>ברזל בניין 8-25 מ״מ לעיבוד C500 / רתיך</td>
+                <td>ברזל מעובד</td>
+                <td class="num">1.000</td>
+                <td>ק״ג</td>
+                <td><span class="editable">2.6500</span></td>
+                <td>ש״ח</td>
+                <td><span class="tag ok">רגיל</span></td>
+                <td><span class="tag info">בתוקף</span></td>
+                <td><div class="row-actions"><button class="mini">✎</button><button class="mini">⋯</button></div></td>
+              </tr>
+              <tr>
+                <td class="sku">2019</td>
+                <td>ברזל לבניין 28-36 מ״מ לעיבוד C500 / רתיך</td>
+                <td>ברזל מעובד</td>
+                <td class="num">1.000</td>
+                <td>ק״ג</td>
+                <td><span class="editable">2.7500</span></td>
+                <td>ש״ח</td>
+                <td><span class="tag ok">רגיל</span></td>
+                <td><span class="tag info">בתוקף</span></td>
+                <td><div class="row-actions"><button class="mini">✎</button><button class="mini">⋯</button></div></td>
+              </tr>
+              <tr class="category"><td colspan="10">מוטות</td></tr>
+              <tr>
+                <td class="sku">2005</td>
+                <td>ברזל בניין 8-25 מ״מ בחבילות C500 עד אורך 16</td>
+                <td>מוטות</td>
+                <td class="num">1.000</td>
+                <td>ק״ג</td>
+                <td><span class="editable">2.6500</span></td>
+                <td>ש״ח</td>
+                <td><span class="tag warn">חריגה</span></td>
+                <td><span class="tag info">בתוקף</span></td>
+                <td><div class="row-actions"><button class="mini">✎</button><button class="mini">⋯</button></div></td>
+              </tr>
+              <tr>
+                <td class="sku">2007</td>
+                <td>ברזל בניין 8-16 מ״מ בחבילות 6 מטר ו-12 מטר</td>
+                <td>מוטות</td>
+                <td class="num">1.000</td>
+                <td>ק״ג</td>
+                <td><span class="editable">2.6500</span></td>
+                <td>ש״ח</td>
+                <td><span class="tag ok">רגיל</span></td>
+                <td><span class="tag info">בתוקף</span></td>
+                <td><div class="row-actions"><button class="mini">✎</button><button class="mini">⋯</button></div></td>
+              </tr>
+              <tr class="category"><td colspan="10">עיבודי ברזל</td></tr>
+              <tr>
+                <td class="sku">2515</td>
+                <td>חיתוך</td>
+                <td>עיבודי ברזל</td>
+                <td class="num">1.000</td>
+                <td>ק״ג</td>
+                <td><span class="editable">0.0700</span></td>
+                <td>ש״ח</td>
+                <td><span class="tag ok">רגיל</span></td>
+                <td><span class="tag info">בתוקף</span></td>
+                <td><div class="row-actions"><button class="mini">✎</button><button class="mini">⋯</button></div></td>
+              </tr>
+              <tr>
+                <td class="sku">2520</td>
+                <td>כיפוף</td>
+                <td>עיבודי ברזל</td>
+                <td class="num">1.000</td>
+                <td>ק״ג</td>
+                <td><span class="editable">0.1700</span></td>
+                <td>ש״ח</td>
+                <td><span class="tag ok">רגיל</span></td>
+                <td><span class="tag info">בתוקף</span></td>
+                <td><div class="row-actions"><button class="mini">✎</button><button class="mini">⋯</button></div></td>
+              </tr>
+              <tr>
+                <td class="sku">2530</td>
+                <td>חישוקים</td>
+                <td>עיבודי ברזל</td>
+                <td class="num">1.000</td>
+                <td>יח׳</td>
+                <td><span class="editable">0.2000</span></td>
+                <td>ש״ח</td>
+                <td><span class="tag ok">רגיל</span></td>
+                <td><span class="tag info">בתוקף</span></td>
+                <td><div class="row-actions"><button class="mini">✎</button><button class="mini">⋯</button></div></td>
+              </tr>
+              <tr class="category"><td colspan="10">הובלות</td></tr>
+              <tr>
+                <td class="sku">630100</td>
+                <td>כניסה נוספת</td>
+                <td>הובלות</td>
+                <td class="num">1.000</td>
+                <td>יח׳</td>
+                <td><span class="editable">220.0000</span></td>
+                <td>ש״ח</td>
+                <td><span class="tag ok">רגיל</span></td>
+                <td><span class="tag info">בתוקף</span></td>
+                <td><div class="row-actions"><button class="mini">✎</button><button class="mini">⋯</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="side-panel">
+        <div class="panel-head">
+          <div class="panel-title">עריכת שורה</div>
+          <span class="tag info">מק״ט 2010</span>
+        </div>
+        <div class="side-body">
+          <div class="form-grid">
+            <div class="field"><label>מק״ט</label><input value="2010"></div>
+            <div class="field"><label>קטגוריה</label><input value="ברזל מעובד"></div>
+            <div class="field wide"><label>תיאור מוצר</label><input value="ברזל בניין 8-25 מ״מ לעיבוד C500 / רתיך"></div>
+            <div class="field"><label>כמות</label><input value="1.000"></div>
+            <div class="field"><label>יחידה</label><select><option>ק״ג</option><option>יח׳</option><option>מטר</option></select></div>
+            <div class="field"><label>מחיר לפני מע״מ</label><input value="2.6500"></div>
+            <div class="field"><label>מטבע</label><select><option>ש״ח</option><option>USD</option><option>EUR</option></select></div>
+            <div class="field wide"><label>תוקף מחיר</label><input value="15/04/26 - 15/04/27"></div>
+          </div>
+          <div class="checklist">
+            <div class="check"><span class="box on">✓</span><span>פעיל בהצעות מחיר</span></div>
+            <div class="check"><span class="box"></span><span>שורה חריגה לאישור מנהל</span></div>
+            <div class="check"><span class="box on">✓</span><span>נשמרת ב-snapshot הזמנה</span></div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:14px;">
+            <button class="btn primary">שמור שורה</button>
+            <button class="btn">בטל</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="modal" aria-label="יבוא מחירון">
+      <div class="panel-head">
+        <div class="panel-title">יבוא מחירון לאישור</div>
+        <span class="tag warn">טיוטה</span>
+      </div>
+      <div class="modal-body">
+        <div class="drop">גרירת PDF, Excel או CSV לכאן</div>
+        <div class="compare">
+          <div class="compare-box">
+            <b>זוהה מהמסמך</b>
+            <div>קוד: 301401685-S1</div>
+            <div>לקוח: י.ד עשוש תשתיות בע״מ</div>
+            <div>תנאי תשלום: שוטף 95</div>
+          </div>
+          <div class="compare-box">
+            <b>לפני שמירה</b>
+            <div>31 שורות מחיר</div>
+            <div>2 חריגות</div>
+            <div>1 שורה דורשת שיוך קטגוריה</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary">פתח השוואה</button>
+        <button class="btn">שמור כטיוטה</button>
+        <button class="btn">סגור</button>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>
