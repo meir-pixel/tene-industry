@@ -173,6 +173,23 @@
     return { pts: pts.map(p => ({x: p.x*scale+ox, y: p.y*scale+oy})), scale, ox, oy };
   }
 
+  function readableDisplaySides(sides, opts) {
+    const values = (sides || []).map(n => Number(n) || 0);
+    if (opts && opts.readableScale === false) return values;
+    const positive = values.filter(n => n > 0);
+    if (positive.length < 2) return values;
+    const max = Math.max(...positive);
+    const min = Math.min(...positive);
+    if (!max || min / max >= 0.24) return values;
+
+    // Human-readable preview: keep tiny hook/end legs visible.
+    // Machine values still come from the labels/data, not from the drawn pixel ratio.
+    return values.map(n => {
+      if (n <= 0) return 0;
+      return Math.max(max * 0.26, Math.sqrt(n / max) * max);
+    });
+  }
+
   /* ── 2D renderer ──────────────────────────────────────────── */
   function renderShape2D(container, sides, angles, opts) {
     if (!container) return;
@@ -218,7 +235,8 @@
       return;
     }
 
-    const rawPts = computePoints(sides, angles || []);
+    const displaySides = readableDisplaySides(sides, opts);
+    const rawPts = computePoints(displaySides, angles || []);
     const {pts}  = fitPoints(rawPts, W, H, pad);
 
     // Shadow / depth effect
@@ -303,7 +321,7 @@
 
     // Dimension labels (if requested)
     if (opts.showDimensions && sides.length <= 6) {
-      const rawPts2 = computePoints(sides, angles || []);
+      const rawPts2 = computePoints(displaySides, angles || []);
       const {pts: scaledForLabel, scale} = fitPoints(rawPts2, W, H, pad);
       sides.forEach((len, i) => {
         const p1 = scaledForLabel[i], p2 = scaledForLabel[i+1];
