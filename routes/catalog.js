@@ -8,41 +8,199 @@ function required(name, value) {
 module.exports = function createCatalogRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
-  const intake = required('intake', deps.intake);
-  const PORT = required('PORT', deps.PORT);
 
-  async function notifyPriceListUpdate(rows) {
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-    const keyDiams = [8, 10, 12, 14, 16, 20];
-    const priceLines = rows
-      .filter(r => keyDiams.includes(Number(r.diameter)))
-      .map(r => `Diameter ${r.diameter}: list ${r.price_list} NIS/kg | customer ${r.price_cust} NIS/kg`)
-      .join('\n');
-
-    const customers = db.prepare(
-      `SELECT id, name, phone, portal_token FROM customers WHERE portal_token IS NOT NULL AND phone IS NOT NULL`
-    ).all();
-
-    for (const c of customers) {
-      const link = `${baseUrl}/customer.html?token=${c.portal_token}`;
-      const msg = `IronBend price list updated\n\nHello ${c.name},\nThe price list was updated:\n\n${priceLines}\n\nView prices and order:\n${link}`;
-      try { await intake.sendWhatsApp(c.phone, msg); } catch {}
-      await new Promise(r => setTimeout(r, 300));
-    }
+  function trimText(value) {
+    return String(value ?? '').trim();
   }
 
-  router.get('/price-list', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
-    res.json(db.prepare('SELECT * FROM price_list ORDER BY diameter').all());
+  function toNumber(value, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function priceBookById(id) {
+    return db.prepare('SELECT * FROM pricing_price_books WHERE id = ?').get(Number(id));
+  }
+
+  function validatePriceBook(body, existing = {}) {
+    const code = trimText(body.code ?? existing.code);
+    const name = trimText(body.name ?? existing.name);
+    if (!code) return { error: 'code_required' };
+    if (!name) return { error: 'name_required' };
+    return {
+      value: {
+        code,
+        name,
+        customer_id: body.customer_id === '' || body.customer_id === undefined ? (existing.customer_id ?? null) : Number(body.customer_id),
+        customer_name: trimText(body.customer_name ?? existing.customer_name),
+        price_type: trimText(body.price_type ?? existing.price_type ?? 'customer') || 'customer',
+        currency: trimText(body.currency ?? existing.currency ?? 'ILS') || 'ILS',
+        payment_terms: trimText(body.payment_terms ?? existing.payment_terms),
+        effective_date: trimText(body.effective_date ?? existing.effective_date) || null,
+        expires_at: trimText(body.expires_at ?? existing.expires_at) || null,
+        status: trimText(body.status ?? existing.status ?? 'draft') || 'draft',
+        source_type: trimText(body.source_type ?? existing.source_type ?? 'manual') || 'manual',
+        source_ref: trimText(body.source_ref ?? existing.source_ref),
+        notes: trimText(body.notes ?? existing.notes),
+      }
+    };
+  }
+
+  function validatePriceItem(body, existing = {}) {
+    const sku = trimText(body.sku ?? existing.sku);
+    const description = trimText(body.description ?? existing.description);
+    if (!sku) return { error: 'sku_required' };
+    if (!description) return { error: 'description_required' };
+    return {
+      value: {
+        sku,
+        diameter: body.diameter === '' || body.diameter === undefined || body.diameter === null ? (existing.diameter ?? null) : Number(body.diameter),
+        category: trimText(body.category ?? existing.category),
+        description,
+        quantity: toNumber(body.quantity ?? existing.quantity, 1),
+        unit: trimText(body.unit ?? existing.unit ?? 'kg') || 'kg',
+        price_before_vat: toNumber(body.price_before_vat ?? existing.price_before_vat, 0),
+        currency: trimText(body.currency ?? existing.currency ?? 'ILS') || 'ILS',
+        exception_flag: body.exception_flag ? 1 : 0,
+        active: body.active === undefined ? (existing.active ?? 1) : (body.active ? 1 : 0),
+        valid_from: trimText(body.valid_from ?? existing.valid_from) || null,
+        valid_to: trimText(body.valid_to ?? existing.valid_to) || null,
+        sort_order: toNumber(body.sort_order ?? existing.sort_order, 0),
+        notes: trimText(body.notes ?? existing.notes),
+      }
+    };
+  }
+
+  router.get('/pricing/price-books', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
+    const books = db.prepare(`
+      SELECT b.*,
+        COUNT(i.id) AS item_count,
+        COALESCE(SUM(CASE WHEN i.active = 1 THEN 1 ELSE 0 END), 0) AS active_item_count
+      FROM pricing_price_books b
+      LEFT JOIN pricing_price_items i ON i.price_book_id = b.id
+      GROUP BY b.id
+      ORDER BY CASE b.status WHEN 'active' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END, b.updated_at DESC, b.id DESC
+    `).all();
+    res.json(books);
   });
 
-  router.patch('/price-list', requireAnyRole(['finance', 'manager', 'admin']), async (req, res) => {
-    const rows = req.body;
-    const upsert = db.prepare('INSERT OR REPLACE INTO price_list (diameter,price_list,price_cust) VALUES (?,?,?)');
-    const tx = db.transaction(() => rows.forEach(r => upsert.run(r.diameter, r.price_list, r.price_cust)));
-    tx();
-    res.json({ success: true });
+  router.post('/pricing/price-books', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+    const parsed = validatePriceBook(req.body || {});
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const b = parsed.value;
+    try {
+      const result = db.prepare(`
+        INSERT INTO pricing_price_books
+          (code, name, customer_id, customer_name, price_type, currency, payment_terms, effective_date, expires_at, status, source_type, source_ref, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        b.code, b.name, b.customer_id, b.customer_name, b.price_type, b.currency, b.payment_terms,
+        b.effective_date, b.expires_at, b.status, b.source_type, b.source_ref, b.notes
+      );
+      res.json({ success: true, price_book: priceBookById(result.lastInsertRowid) });
+    } catch (err) {
+      if (String(err.message || '').includes('UNIQUE')) return res.status(409).json({ error: 'code_exists' });
+      throw err;
+    }
+  });
 
-    notifyPriceListUpdate(rows).catch(e => console.warn('[PriceList notify]', e));
+  router.patch('/pricing/price-books/:id', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+    const existing = priceBookById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'price_book_not_found' });
+    const parsed = validatePriceBook(req.body || {}, existing);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const b = parsed.value;
+    try {
+      db.prepare(`
+        UPDATE pricing_price_books
+        SET code = ?, name = ?, customer_id = ?, customer_name = ?, price_type = ?, currency = ?,
+            payment_terms = ?, effective_date = ?, expires_at = ?, status = ?, source_type = ?,
+            source_ref = ?, notes = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).run(
+        b.code, b.name, b.customer_id, b.customer_name, b.price_type, b.currency, b.payment_terms,
+        b.effective_date, b.expires_at, b.status, b.source_type, b.source_ref, b.notes, existing.id
+      );
+      res.json({ success: true, price_book: priceBookById(existing.id) });
+    } catch (err) {
+      if (String(err.message || '').includes('UNIQUE')) return res.status(409).json({ error: 'code_exists' });
+      throw err;
+    }
+  });
+
+  router.get('/pricing/price-books/:id/items', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
+    const book = priceBookById(req.params.id);
+    if (!book) return res.status(404).json({ error: 'price_book_not_found' });
+    const rows = db.prepare(`
+      SELECT *
+      FROM pricing_price_items
+      WHERE price_book_id = ? AND active = 1
+      ORDER BY sort_order, category, sku
+    `).all(book.id);
+    res.json({ price_book: book, items: rows });
+  });
+
+  router.post('/pricing/price-books/:id/items', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+    const book = priceBookById(req.params.id);
+    if (!book) return res.status(404).json({ error: 'price_book_not_found' });
+    const parsed = validatePriceItem(req.body || {});
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const i = parsed.value;
+    try {
+      const result = db.prepare(`
+        INSERT INTO pricing_price_items
+          (price_book_id, sku, diameter, category, description, quantity, unit, price_before_vat, currency, exception_flag, active, valid_from, valid_to, sort_order, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        book.id, i.sku, i.diameter, i.category, i.description, i.quantity, i.unit, i.price_before_vat, i.currency,
+        i.exception_flag, i.active, i.valid_from, i.valid_to, i.sort_order, i.notes
+      );
+      db.prepare("UPDATE pricing_price_books SET updated_at = datetime('now') WHERE id = ?").run(book.id);
+      res.json({ success: true, item: db.prepare('SELECT * FROM pricing_price_items WHERE id = ?').get(result.lastInsertRowid) });
+    } catch (err) {
+      if (String(err.message || '').includes('UNIQUE')) return res.status(409).json({ error: 'sku_exists' });
+      throw err;
+    }
+  });
+
+  router.patch('/pricing/price-books/:id/items/:itemId', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+    const book = priceBookById(req.params.id);
+    if (!book) return res.status(404).json({ error: 'price_book_not_found' });
+    const existing = db.prepare('SELECT * FROM pricing_price_items WHERE id = ? AND price_book_id = ?').get(Number(req.params.itemId), book.id);
+    if (!existing) return res.status(404).json({ error: 'price_item_not_found' });
+    const parsed = validatePriceItem(req.body || {}, existing);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const i = parsed.value;
+    try {
+      db.prepare(`
+        UPDATE pricing_price_items
+        SET sku = ?, diameter = ?, category = ?, description = ?, quantity = ?, unit = ?, price_before_vat = ?,
+            currency = ?, exception_flag = ?, active = ?, valid_from = ?, valid_to = ?,
+            sort_order = ?, notes = ?, updated_at = datetime('now')
+        WHERE id = ? AND price_book_id = ?
+      `).run(
+        i.sku, i.diameter, i.category, i.description, i.quantity, i.unit, i.price_before_vat, i.currency,
+        i.exception_flag, i.active, i.valid_from, i.valid_to, i.sort_order, i.notes, existing.id, book.id
+      );
+      db.prepare("UPDATE pricing_price_books SET updated_at = datetime('now') WHERE id = ?").run(book.id);
+      res.json({ success: true, item: db.prepare('SELECT * FROM pricing_price_items WHERE id = ?').get(existing.id) });
+    } catch (err) {
+      if (String(err.message || '').includes('UNIQUE')) return res.status(409).json({ error: 'sku_exists' });
+      throw err;
+    }
+  });
+
+  router.delete('/pricing/price-books/:id/items/:itemId', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+    const book = priceBookById(req.params.id);
+    if (!book) return res.status(404).json({ error: 'price_book_not_found' });
+    const result = db.prepare(`
+      UPDATE pricing_price_items
+      SET active = 0, updated_at = datetime('now')
+      WHERE id = ? AND price_book_id = ?
+    `).run(Number(req.params.itemId), book.id);
+    if (!result.changes) return res.status(404).json({ error: 'price_item_not_found' });
+    db.prepare("UPDATE pricing_price_books SET updated_at = datetime('now') WHERE id = ?").run(book.id);
+    res.json({ success: true });
   });
 
   router.get('/shapes', requireAnyRole(['office', 'sales', 'production', 'manager', 'admin']), (req, res) => {
@@ -140,12 +298,15 @@ module.exports.manifest = {
       "table": "shapes"
     },
     {
-      "table": "price_list"
+      "table": "pricing_price_books"
+    },
+    {
+      "table": "pricing_price_items"
     }
   ],
   "produces": [
     {
-      "event": "price_list_update"
+      "event": "pricing_price_book_update"
     }
   ]
 };

@@ -327,29 +327,48 @@
   - מוגדר snapshot מחיר להזמנה.
   - מוגדר status `price_list_requires_update`.
 
-### V2-009A-UI — Pricing Manager Mockup
+### V2-009A-UI — Pricing Manager Runtime Screen
 
-- status: approval
+- status: done
 - owner: codex-finance-pricing
 - module: pricing
 - priority: high
 - scope:
   - `docs/mockups/pricing-manager.html`
+  - `public/pricing.html`
+  - `public/nav.js`
+  - `public/finance.html`
+  - `public/index.html`
+  - `routes/catalog.js`
+  - `routes/portal.js`
+  - `services/pricer.js`
+  - `db/coreSchema.js`
+  - `db/financeSchema.js`
+  - `db/seed.js`
+  - `test/pricer.test.js`
+  - `test/app-smoke.test.js`
+  - `test/client-auth-contract.test.js`
+  - `test/module-governance.test.js`
+  - `test/security-routes.test.js`
 - input:
   - `docs/spec-dual-pricing.md`
   - sample PDF price list from customer/vendor
 - output:
   - מוקאפ HTML עצמאי למסך ניהול מחירונים.
+  - מסך מערכת אמיתי לניהול מחירונים, מק״טים ושורות מחיר.
+  - API לשמירת מחירונים ושורות מחיר הניתנות לעריכה/הוספה.
+  - הסרת מחירון הקוטר הישן (`price_list`) מהמסך, ה-API, ה-schema וה-seed.
   - חלון יבוא מחירון מ-PDF/Excel/CSV.
   - חלון עריכת שורת מחירון עם מק״ט, קטגוריה, יחידה, מחיר, מטבע, חריגה ותוקף.
 - logic:
-  - המוקאפ הוא דוגמה ויזואלית בלבד לפני הטמעה.
-  - אין שינוי בקוד מערכת, routes, DB או services.
+  - המוקאפ אושר כהכוונת UI ומוטמע במסך מערכת.
+  - מחירונים חדשים נשמרים כטיוטה עד הפעלה ידנית.
   - כל שורת מחירון חייבת להיות ניתנת לעריכה/הוספה.
   - מחירון מיובא נשמר כטיוטה עד השוואה ואישור.
 - definition_of_done:
-  - מאיר מאשר ויזואלית את מבנה החלונות.
-  - לאחר אישור, V2-009A יכול להמשיך לאפיון README/manifest/API/events/screens.
+  - ניתן ליצור מחירון חדש מתוך התוכנה.
+  - ניתן להוסיף, לערוך ולמחוק שורות מק״ט.
+  - בדיקות הרשאות ו-governance מכסות את API המחירונים.
 
 ### V2-009B — Costing Module Specification
 

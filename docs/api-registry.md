@@ -99,7 +99,7 @@ Security posture values:
 | Route Family | Module | Expected Security | Current Concern |
 | --- | --- | --- | --- |
 | `/api/shapes*` | Catalog | auth-required; writes manager/admin | Product shape catalog source of truth. |
-| `/api/price-list*` | Catalog / Pricing | role-required: finance/manager/admin for writes | Sensitive commercial pricing; portal reads only scoped copy under `/api/c/price-list`. |
+| `/api/pricing/price-books*` | Catalog / Pricing | role-required: finance/manager/admin for writes | Sensitive commercial pricing; portal reads only scoped copy under `/api/c/price-list`. |
 
 ## Finance
 

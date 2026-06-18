@@ -1,29 +1,14 @@
 'use strict';
 
-/**
- * services/pricer.js — מנוע תמחור
- *
- * מרכז את כל לוגיקת התמחור במקום אחד.
- * routes/portal.js, routes/finance.js וכל route אחר — קוראים מכאן.
- *
- * תמיכה בעתיד: כשיגיע מודול עץ/אריזה — מוסיפים PRICERS['wood']
- * בלי לשנות שום route.
- *
- * מינוח:
- *   tier       — 'list' (מחיר מחירון) | 'customer' (מחיר לקוח קבוע)
- *   discountPct — 0–100, הנחה נוספת על גבי ה-tier
- *   pricePerKg  — ₪ לק"ג
- */
-
 function createPricer(db) {
   if (!db) throw new Error('services/pricer missing dependency: db');
 
   function normalizeTier(tier) {
-    return tier === 'customer' ? 'customer' : 'list';
+    return tier === 'customer' ? 'customer' : 'general';
   }
 
   function priceLabel(tier) {
-    return normalizeTier(tier) === 'customer' ? 'מחירון אישי' : 'מחירון כללי';
+    return normalizeTier(tier) === 'customer' ? 'מחירון לקוח' : 'מחירון כללי';
   }
 
   function normalizeDiscount(discountPct) {
@@ -53,18 +38,77 @@ function createPricer(db) {
     };
   }
 
-  function resolveDiameterPrice(diameter, { tier = 'list', discountPct = 0 } = {}) {
+  function getActivePriceBook({ tier = 'general', customerId = null } = {}) {
     const normalizedTier = normalizeTier(tier);
-    const row = getPriceRow(diameter);
-    if (!row) return missingPriceResult(diameter, normalizedTier, 'missing_diameter');
+    if (normalizedTier === 'customer') {
+      if (!customerId) return null;
+      return db.prepare(`
+        SELECT *
+        FROM pricing_price_books
+        WHERE status = 'active'
+          AND price_type = 'customer'
+          AND customer_id = ?
+        ORDER BY COALESCE(effective_date, '') DESC, updated_at DESC, id DESC
+        LIMIT 1
+      `).get(Number(customerId)) || null;
+    }
+    return db.prepare(`
+      SELECT *
+      FROM pricing_price_books
+      WHERE status = 'active'
+        AND price_type IN ('general', 'sale')
+        AND customer_id IS NULL
+      ORDER BY COALESCE(effective_date, '') DESC, updated_at DESC, id DESC
+      LIMIT 1
+    `).get() || null;
+  }
 
-    const base = normalizedTier === 'customer' ? row.price_cust : row.price_list;
+  function getPriceRow(diameter, options = {}) {
+    const book = getActivePriceBook(options);
+    if (!book) return null;
+    const row = db.prepare(`
+      SELECT i.*, b.id AS price_book_id, b.code AS price_book_code, b.name AS price_book_name, b.price_type
+      FROM pricing_price_items i
+      JOIN pricing_price_books b ON b.id = i.price_book_id
+      WHERE i.price_book_id = ?
+        AND i.active = 1
+        AND (
+          i.diameter = ?
+          OR i.sku = ?
+          OR i.sku = ?
+        )
+      ORDER BY i.sort_order, i.id
+      LIMIT 1
+    `).get(book.id, Number(diameter), String(diameter), `D${Number(diameter)}`);
+    return row || null;
+  }
+
+  function getAllPriceRows(options = {}) {
+    const book = getActivePriceBook(options);
+    if (!book) return [];
+    return db.prepare(`
+      SELECT i.*, b.id AS price_book_id, b.code AS price_book_code, b.name AS price_book_name, b.price_type
+      FROM pricing_price_items i
+      JOIN pricing_price_books b ON b.id = i.price_book_id
+      WHERE i.price_book_id = ? AND i.active = 1
+      ORDER BY i.sort_order, i.diameter, i.sku
+    `).all(book.id);
+  }
+
+  function resolveDiameterPrice(diameter, { tier = 'general', customerId = null, discountPct = 0 } = {}) {
+    const normalizedTier = normalizeTier(tier);
+    const row = getPriceRow(diameter, { tier: normalizedTier, customerId });
+    if (!row) return missingPriceResult(diameter, normalizedTier, 'missing_diameter');
+    const base = row.price_before_vat;
     if (!isUsablePrice(base)) return missingPriceResult(diameter, normalizedTier, 'missing_selected_price');
 
     const discount = normalizeDiscount(discountPct);
     const pricePerKg = Number((Number(base) * (1 - discount / 100)).toFixed(3));
     return {
       diameter: Number(diameter),
+      sku: row.sku,
+      priceBookId: row.price_book_id,
+      priceBookCode: row.price_book_code,
       pricePerKg,
       price_per_kg: pricePerKg,
       basePrice: Number(base),
@@ -76,68 +120,56 @@ function createPricer(db) {
     };
   }
 
-  // ── שליפת שורת מחירון לפי קוטר ──────────────────────────────
-  function getPriceRow(diameter) {
-    return db.prepare('SELECT * FROM price_list WHERE diameter=?').get(Number(diameter)) || null;
+  function getPricePerKg(diameter, { tier = 'general', customerId = null, discountPct = 0 } = {}) {
+    return resolveDiameterPrice(diameter, { tier, customerId, discountPct }).pricePerKg;
   }
 
-  // ── כל שורות המחירון ─────────────────────────────────────────
-  function getAllPriceRows() {
-    return db.prepare('SELECT * FROM price_list ORDER BY diameter').all();
-  }
-
-  // ── מחיר ₪/ק"ג לקוטר + tier + הנחה ─────────────────────────
-  function getPricePerKg(diameter, { tier = 'list', discountPct = 0 } = {}) {
-    return resolveDiameterPrice(diameter, { tier, discountPct }).pricePerKg;
-  }
-
-  // ── מפת מחירים לכל הקוטרים ──────────────────────────────────
-  // מחזיר: { 8: 7.28, 10: 7.41, 12: 7.56, ... }
-  function buildPriceMap({ tier = 'list', discountPct = 0 } = {}) {
-    const rows = getAllPriceRows();
-    const map  = {};
-    rows.forEach(row => {
-      map[row.diameter] = resolveDiameterPrice(row.diameter, { tier, discountPct }).pricePerKg;
-    });
+  function buildPriceMap({ tier = 'general', customerId = null, discountPct = 0 } = {}) {
+    const map = {};
+    for (const row of getAllPriceRows({ tier, customerId })) {
+      if (!row.diameter) continue;
+      map[row.diameter] = resolveDiameterPrice(row.diameter, { tier, customerId, discountPct }).pricePerKg;
+    }
     return map;
   }
 
   function listCustomerPrices(customer = {}) {
-    return getAllPriceRows().map(row => resolveDiameterPrice(row.diameter, {
-      tier: customer.price_tier || 'list',
-      discountPct: customer.discount_pct || 0,
-    }));
+    const tier = customer.price_tier === 'customer' ? 'customer' : 'general';
+    const rows = getAllPriceRows({ tier, customerId: customer.id });
+    return rows
+      .filter(row => row.diameter)
+      .map(row => resolveDiameterPrice(row.diameter, {
+        tier,
+        customerId: customer.id,
+        discountPct: customer.discount_pct || 0,
+      }));
   }
 
-  // ── מחיר פריט יחיד ───────────────────────────────────────────
-  // item: { diameter, totalWeight }
-  function calcItemPrice(item, { tier = 'list', discountPct = 0 } = {}) {
-    const ppu = getPricePerKg(item.diameter, { tier, discountPct });
+  function calcItemPrice(item, { tier = 'general', customerId = null, discountPct = 0 } = {}) {
+    const ppu = getPricePerKg(item.diameter, { tier, customerId, discountPct });
     if (ppu === null) return null;
     return Number((item.totalWeight * ppu).toFixed(2));
   }
 
-  // ── מחיר הזמנה מלאה ──────────────────────────────────────────
-  // items: [{ diameter, totalWeight }, ...]
-  // מחזיר: { totalPrice, breakdown: [{ diameter, weight, pricePerKg, price }] }
-  function calcOrderPrice(items, { tier = 'list', discountPct = 0, wastePct = 3 } = {}) {
+  function calcOrderPrice(items, { tier = 'general', customerId = null, discountPct = 0, wastePct = 3 } = {}) {
     let totalWeight = 0;
     let totalPrice = 0;
     const warnings = [];
 
     const breakdown = (items || []).map(item => {
-      const resolved = resolveDiameterPrice(item.diameter, { tier, discountPct });
+      const resolved = resolveDiameterPrice(item.diameter, { tier, customerId, discountPct });
       const ppu = resolved.pricePerKg;
-      const price = ppu === null ? 0 : item.totalWeight * ppu;
-      totalWeight += item.totalWeight;
+      const weight = Number(item.totalWeight || 0);
+      const price = ppu === null ? 0 : weight * ppu;
+      totalWeight += weight;
       totalPrice += price;
       if (resolved.requiresPriceListUpdate) warnings.push(resolved);
       return {
-        diameter:   item.diameter,
-        weight:     +item.totalWeight.toFixed(3),
+        diameter: item.diameter,
+        weight: +weight.toFixed(3),
         pricePerKg: ppu === null ? null : +ppu.toFixed(2),
         price_per_kg: ppu === null ? null : +ppu.toFixed(2),
-        price:      +price.toFixed(2),
+        price: +price.toFixed(2),
         pricingSource: resolved.pricingSource,
         pricingLabel: resolved.pricingLabel,
         status: resolved.status,
@@ -146,32 +178,33 @@ function createPricer(db) {
     });
 
     const billingWeight = totalWeight * (1 + wastePct / 100);
-    const billingPrice  = totalPrice  * (1 + wastePct / 100);
+    const billingPrice = totalPrice * (1 + wastePct / 100);
 
     return {
       breakdown,
-      totalWeight:   +totalWeight.toFixed(2),
+      totalWeight: +totalWeight.toFixed(2),
       billingWeight: +billingWeight.toFixed(2),
-      totalPrice:    +totalPrice.toFixed(2),
-      billingPrice:  +billingPrice.toFixed(2),
+      totalPrice: +totalPrice.toFixed(2),
+      billingPrice: +billingPrice.toFixed(2),
       status: warnings.length ? 'price_list_requires_update' : 'priced',
       requiresPriceListUpdate: Boolean(warnings.length),
       warnings,
-      currency:      '₪',
+      currency: '₪',
     };
   }
 
-  // ── מחיר לפי לקוח (שולף tier/discount מה-DB) ────────────────
-  // customer: { price_tier, discount_pct } או מזהה לקוח
   function calcOrderPriceForCustomer(items, customer, { wastePct = 3 } = {}) {
-    const tier        = customer?.price_tier  || 'list';
-    const discountPct = customer?.discount_pct ?? 0;
-    return calcOrderPrice(items, { tier, discountPct, wastePct });
+    const tier = customer?.price_tier === 'customer' ? 'customer' : 'general';
+    return calcOrderPrice(items, {
+      tier,
+      customerId: customer?.id || null,
+      discountPct: customer?.discount_pct ?? 0,
+      wastePct,
+    });
   }
 
-  // ── מחיר ₪/ק"ג מהמחירון (ללא tier/הנחה) — לחישוב עלות פנימי
   function getBaseListPrice(diameter) {
-    return getPriceRow(diameter)?.price_list ?? 0;
+    return resolveDiameterPrice(diameter, { tier: 'general' }).pricePerKg ?? 0;
   }
 
   return {

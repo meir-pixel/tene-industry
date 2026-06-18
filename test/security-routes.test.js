@@ -857,9 +857,50 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request('/api/priority/status', { headers: authHeaders(production) })).status, 403);
     assert.equal((await request('/api/priority/status', { headers: authHeaders(office) })).status, 200);
 
-    assert.equal((await request('/api/price-list')).status, 401);
-    assert.equal((await request('/api/price-list', { headers: authHeaders(production) })).status, 403);
-    assert.equal((await request('/api/price-list', { headers: authHeaders(office) })).status, 200);
+    assert.equal((await request('/api/pricing/price-books')).status, 401);
+    assert.equal((await request('/api/pricing/price-books', { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/pricing/price-books', { headers: authHeaders(office) })).status, 200);
+    assert.equal((await request('/api/pricing/price-books', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 403);
+    assert.equal((await request('/api/pricing/price-books', { method: 'POST', headers: authHeaders(finance), body: emptyBody })).status, 400);
+    const priceBookResponse = await request('/api/pricing/price-books', {
+      method: 'POST',
+      headers: authHeaders(finance),
+      body: JSON.stringify({
+        code: 'SEC-PRICE-BOOK',
+        name: 'Security Price Book',
+        customer_name: 'Security Customer',
+        payment_terms: 'net 30',
+      }),
+    });
+    assert.equal(priceBookResponse.status, 200);
+    const priceBook = (await priceBookResponse.json()).price_book;
+    assert.ok(priceBook.id);
+
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items`)).status, 401);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items`, { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items`, { headers: authHeaders(office) })).status, 200);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items`, { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 403);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items`, { method: 'POST', headers: authHeaders(finance), body: emptyBody })).status, 400);
+    const priceItemResponse = await request(`/api/pricing/price-books/${priceBook.id}/items`, {
+      method: 'POST',
+      headers: authHeaders(finance),
+      body: JSON.stringify({
+        sku: 'SEC-SKU-1',
+        description: 'Security test item',
+        category: 'Security',
+        unit: 'kg',
+        price_before_vat: 12.5,
+      }),
+    });
+    assert.equal(priceItemResponse.status, 200);
+    const priceItem = (await priceItemResponse.json()).item;
+    assert.ok(priceItem.id);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}`, { method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ name: 'Bad Update' }) })).status, 403);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}`, { method: 'PATCH', headers: authHeaders(finance), body: JSON.stringify({ status: 'active' }) })).status, 200);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items/${priceItem.id}`, { method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ price_before_vat: 13 }) })).status, 403);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items/${priceItem.id}`, { method: 'PATCH', headers: authHeaders(finance), body: JSON.stringify({ price_before_vat: 13 }) })).status, 200);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items/${priceItem.id}`, { method: 'DELETE', headers: authHeaders(office) })).status, 403);
+    assert.equal((await request(`/api/pricing/price-books/${priceBook.id}/items/${priceItem.id}`, { method: 'DELETE', headers: authHeaders(finance) })).status, 200);
 
     assert.equal((await request('/api/steel-prices')).status, 401);
     assert.equal((await request('/api/steel-prices', { headers: authHeaders(production) })).status, 403);

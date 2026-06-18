@@ -71,7 +71,8 @@ in the current codebase, such as auth/session and import-staging tables.
 
 | Entity/Table | Owner Module | Notes |
 | --- | --- | --- |
-| `price_list` | Finance | Price list by diameter/tier. |
+| `pricing_price_books` | Finance / Pricing | Price book header, customer binding, status, and terms. |
+| `pricing_price_items` | Finance / Pricing | Price book SKU/diameter rows. |
 | `credit_accounts` | Finance | Credit control model. |
 | `credit_transactions` | Finance | Credit transaction ledger. |
 | `invoices` | Finance | Invoice state. |

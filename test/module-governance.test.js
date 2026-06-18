@@ -522,8 +522,6 @@ test('catalog and pricing routes are split out of the server monolith', () => {
   const server = read('server.js');
 
   assert.match(route, /module\.exports = function createCatalogRouter/);
-  assert.ok(route.includes("router.get('/price-list'"));
-  assert.ok(route.includes("router.patch('/price-list'"));
   assert.ok(route.includes("router.get('/pricing/price-books'"));
   assert.ok(route.includes("router.post('/pricing/price-books'"));
   assert.ok(route.includes("router.patch('/pricing/price-books/:id'"));
@@ -531,7 +529,8 @@ test('catalog and pricing routes are split out of the server monolith', () => {
   assert.ok(route.includes("router.post('/pricing/price-books/:id/items'"));
   assert.ok(route.includes("router.patch('/pricing/price-books/:id/items/:itemId'"));
   assert.ok(route.includes("router.delete('/pricing/price-books/:id/items/:itemId'"));
-  assert.match(route, /function notifyPriceListUpdate/);
+  assert.doesNotMatch(route, /router\.(get|patch)\('\/price-list'/);
+  assert.doesNotMatch(route, /price_list/);
   assert.ok(route.includes("router.get('/shapes'"));
   assert.ok(route.includes("router.post('/shapes'"));
   assert.ok(route.includes("router.post('/shapes/seed'"));
@@ -1441,6 +1440,7 @@ test('finance schema is extracted from server startup', () => {
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS steel_prices/);
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS pricing_price_books/);
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS pricing_price_items/);
+  assert.doesNotMatch(coreSchema, /CREATE TABLE IF NOT EXISTS price_list/);
   assert.match(coreSchema, /require\('\.\/financeSchema'\)/);
   assert.match(coreSchema, /ensureFinanceSchema\(db\)/);
   assert.doesNotMatch(server, /FINANCIAL SCHEMA BOOTSTRAP/);

@@ -318,17 +318,16 @@ Screens:
 - `public/index.html`
 - `public/intake.html`
 - `public/customer.html`
-- `public/finance.html` for price maintenance UI until a dedicated catalog
-  screen exists
+- `public/pricing.html` for price book and SKU maintenance
 
 Extracted routes:
 
-- `routes/catalog.js` for shape catalog and internal price-list APIs
+- `routes/catalog.js` for shape catalog and internal pricing APIs
 
 API route families:
 
 - `/api/shapes*`
-- `/api/price-list*`
+- `/api/pricing/price-books*`
 
 Pricing architecture:
 
@@ -336,10 +335,10 @@ Pricing architecture:
   purchase price, base selling price, and customer-specific price.
 - Purchase price source of truth: `steel_price_history`, owned by Procurement/Finance.
   It changes frequently and is used for material cost and margin only.
-- Base selling price source of truth: `price_list.price_list`, owned by Catalog/Pricing.
-  This is the default Tene selling price.
-- Customer price source of truth: today `price_list.price_cust` with
-  `customers.price_tier`; future `customer_price_list` per customer.
+- Base selling price source of truth: active `pricing_price_books` with
+  `price_type IN ('general','sale')` and `pricing_price_items` rows.
+- Customer price source of truth: active `pricing_price_books` with
+  `price_type='customer'`, `customer_id`, and `pricing_price_items` rows.
 - Future import layer: `services/pricing-importer.js` should parse Excel, CSV,
   ERP/API, supplier files, customer price-list files, and images into a preview
   structure that requires approval before saving.

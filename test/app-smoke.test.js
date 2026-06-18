@@ -70,6 +70,7 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     '/intake.html',
     '/production-setup.html',
     '/finance.html',
+    '/pricing.html',
     '/projects.html',
     '/procurement.html',
     '/warroom.html',
@@ -101,7 +102,7 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     '/api/dashboard',
     '/api/production-queue',
     '/api/customers',
-    '/api/price-list',
+    '/api/pricing/price-books',
     '/api/audit-log',
   ];
 

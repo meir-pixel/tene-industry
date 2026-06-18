@@ -283,7 +283,8 @@ module.exports = function createPortalRouter(deps) {
     // Calculate price via pricer service
     const wastePct = settingsService.getNum('WASTE_PCT_DEFAULT', 3);
     const priceChecks = (items || []).map(item => pricer.resolveDiameterPrice(item.diameter, {
-      tier: c.price_tier || 'list',
+      tier: c.price_tier === 'customer' ? 'customer' : 'general',
+      customerId: c.id,
       discountPct: c.discount_pct || 0,
     }));
     const missingPrice = priceChecks.find(row => row.requiresPriceListUpdate);
@@ -317,7 +318,8 @@ module.exports = function createPortalRouter(deps) {
       const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
       const weight = industry.weightPerUnit({ diameter: item.diameter, total_length_mm: totalLengthMm }) * (item.qty || 1);
       const priceDecision = pricer.resolveDiameterPrice(item.diameter, {
-        tier: c.price_tier || 'list',
+        tier: c.price_tier === 'customer' ? 'customer' : 'general',
+        customerId: c.id,
         discountPct: c.discount_pct || 0,
       });
       const ppu = priceDecision.pricePerKg;
@@ -456,7 +458,13 @@ module.exports.manifest = {
   access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'portal',
   label: 'פורטל לקוח',
-  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'price_list' }, { table: 'customer_guarantee_documents' }],
+  consumes: [
+    { table: 'customers' },
+    { table: 'orders' },
+    { table: 'pricing_price_books' },
+    { table: 'pricing_price_items' },
+    { table: 'customer_guarantee_documents' },
+  ],
   produces: [
     { event: 'new_order' },
     { event: 'order_status' },

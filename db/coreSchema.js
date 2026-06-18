@@ -318,12 +318,6 @@ function ensureCoreSchema(db) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS price_list (
-      diameter    INTEGER PRIMARY KEY,
-      price_list  REAL DEFAULT 0,     -- מחיר מחירון (מזדמן) לק"ג
-      price_cust  REAL DEFAULT 0      -- מחיר לקוח קבוע לק"ג
-    );
-
     -- ── RAW MATERIAL INVENTORY ─────────────────────────────────────
     CREATE TABLE IF NOT EXISTS suppliers (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,

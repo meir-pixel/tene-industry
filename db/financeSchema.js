@@ -69,9 +69,68 @@ function ensureFinanceSchema(db) {
       source      TEXT DEFAULT 'manual',
       created_at  TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS pricing_price_books (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      code            TEXT NOT NULL UNIQUE,
+      name            TEXT NOT NULL,
+      customer_id     INTEGER REFERENCES customers(id),
+      customer_name   TEXT DEFAULT '',
+      price_type      TEXT DEFAULT 'customer',
+      currency        TEXT DEFAULT 'ILS',
+      payment_terms   TEXT DEFAULT '',
+      effective_date  TEXT DEFAULT (date('now')),
+      expires_at      TEXT,
+      status          TEXT DEFAULT 'draft',
+      source_type     TEXT DEFAULT 'manual',
+      source_ref      TEXT DEFAULT '',
+      notes           TEXT DEFAULT '',
+      created_at      TEXT DEFAULT (datetime('now')),
+      updated_at      TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS pricing_price_items (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      price_book_id     INTEGER NOT NULL REFERENCES pricing_price_books(id) ON DELETE CASCADE,
+      sku               TEXT NOT NULL,
+      diameter          INTEGER,
+      category          TEXT DEFAULT '',
+      description       TEXT NOT NULL,
+      quantity          REAL DEFAULT 1,
+      unit              TEXT DEFAULT 'kg',
+      price_before_vat  REAL DEFAULT 0,
+      currency          TEXT DEFAULT 'ILS',
+      exception_flag    INTEGER DEFAULT 0,
+      active            INTEGER DEFAULT 1,
+      valid_from        TEXT,
+      valid_to          TEXT,
+      sort_order        INTEGER DEFAULT 0,
+      notes             TEXT DEFAULT '',
+      created_at        TEXT DEFAULT (datetime('now')),
+      updated_at        TEXT DEFAULT (datetime('now')),
+      UNIQUE(price_book_id, sku)
+    );
+
   `);
   } catch (err) {
     console.warn('[DB] finance schema warn:', err.message);
+  }
+  try {
+    db.prepare('ALTER TABLE pricing_price_items ADD COLUMN diameter INTEGER').run();
+  } catch (err) {
+    if (!String(err.message || '').includes('duplicate column')) {
+      console.warn('[DB] pricing items diameter migration warn:', err.message);
+    }
+  }
+  try {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_pricing_price_books_active
+        ON pricing_price_books(status, price_type, customer_id, effective_date);
+      CREATE INDEX IF NOT EXISTS idx_pricing_price_items_book_diameter
+        ON pricing_price_items(price_book_id, diameter, active);
+    `);
+  } catch (err) {
+    console.warn('[DB] finance pricing index warn:', err.message);
   }
 }
 

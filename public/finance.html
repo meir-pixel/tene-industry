@@ -180,31 +180,6 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
     </div>
 
   </div>
-
-  <!-- Customer selling price list -->
-  <div class="table-card spaced" id="price-list">
-    <h3 class="table-title-row">
-      <span>💰 מחירון מכירה ללקוחות</span>
-      <span class="card-actions">
-        <span class="save-status" id="price-list-status"></span>
-        <button class="btn-sm btn-primary" id="save-price-list-btn" onclick="saveSalesPriceList()">שמור מחירון</button>
-      </span>
-    </h3>
-    <table class="finance-table" id="sales-price-table">
-      <thead>
-        <tr>
-          <th>קוטר (מ"מ)</th>
-          <th>מחיר מחירון (₪/ק"ג)</th>
-          <th>מחיר לקוח קבוע (₪/ק"ג)</th>
-        </tr>
-      </thead>
-      <tbody id="sales-price-body">
-        <tr><td colspan="3"><div class="skeleton-row"></div></td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Customer ledger -->
   <div class="table-card spaced">
     <h3>📒 כרטסת לקוח</h3>
     <div class="ledger-search">
@@ -219,7 +194,6 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 
 <script>
 let currentPeriod = 'week';
-let salesPriceRows = [];
 
 function escH(value) {
   if (window.IronBendSafe?.escapeHtml) return window.IronBendSafe.escapeHtml(value);
@@ -344,60 +318,6 @@ async function loadSteelPrices() {
   } catch(e) {}
 }
 
-async function loadSalesPriceList() {
-  const tbody = document.getElementById('sales-price-body');
-  try {
-    salesPriceRows = await fetch('/api/price-list').then(r=>r.json());
-    if (!Array.isArray(salesPriceRows)) throw new Error('Invalid price-list response');
-    if (!salesPriceRows.length) {
-      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:12px;">אין מחירים רשומים</td></tr>';
-      return;
-    }
-    tbody.innerHTML = salesPriceRows.map(row => `
-      <tr>
-        <td><b>Ø${row.diameter}</b></td>
-        <td>
-          <input class="price-list-input" type="number" step="0.1" min="0"
-            value="${Number(row.price_list || 0)}"
-            onchange="updateSalesPriceRow(${Number(row.diameter)}, 'price_list', this.value)">
-        </td>
-        <td>
-          <input class="price-list-input" type="number" step="0.1" min="0"
-            value="${Number(row.price_cust || 0)}"
-            onchange="updateSalesPriceRow(${Number(row.diameter)}, 'price_cust', this.value)">
-        </td>
-      </tr>
-    `).join('');
-  } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--danger);padding:12px;">שגיאה בטעינת מחירון</td></tr>';
-  }
-}
-
-function updateSalesPriceRow(diameter, field, value) {
-  const row = salesPriceRows.find(r => Number(r.diameter) === Number(diameter));
-  if (row) row[field] = Number(value || 0);
-}
-
-async function saveSalesPriceList() {
-  const btn = document.getElementById('save-price-list-btn');
-  const status = document.getElementById('price-list-status');
-  btn.disabled = true;
-  btn.textContent = 'שומר...';
-  status.textContent = '';
-  const result = await fetch('/api/price-list', {
-    method: 'PATCH',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(salesPriceRows)
-  }).then(r => r.json()).catch(() => null);
-  btn.disabled = false;
-  btn.textContent = 'שמור מחירון';
-  if (result?.success) {
-    status.textContent = 'נשמר';
-    loadSalesPriceList();
-  } else {
-    status.textContent = 'שגיאה בשמירה';
-  }
-}
 
 async function loadOrders() {
   try {
@@ -648,7 +568,6 @@ function setPeriod(p) {
 // Init
 loadKPIs();
 loadSteelPrices();
-loadSalesPriceList();
 loadOrders();
 loadCustomers();
 </script>

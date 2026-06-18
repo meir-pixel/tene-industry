@@ -365,10 +365,18 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
     </div>
 
     <div class="db-card">
-      <h4>💰 price_list</h4>
+      <h4>💰 pricing_price_books</h4>
       <div class="fields">
-        diameter (PK), price_list (מחיר מזדמן ₪/ק"ג),<br>
-        price_cust (מחיר לקוח קבוע ₪/ק"ג)
+        code, name, customer_id, price_type, currency,<br>
+        payment_terms, effective_date, status
+      </div>
+    </div>
+
+    <div class="db-card">
+      <h4>₪ pricing_price_items</h4>
+      <div class="fields">
+        price_book_id, sku, diameter, category, description,<br>
+        quantity, unit, price_before_vat, currency, valid_from, valid_to
       </div>
     </div>
 
@@ -676,8 +684,9 @@ p{font-size:14px;color:var(--dim);margin-bottom:8px;}
     <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/invoices</span><span class="api-desc">יצירת חשבונית</span></div>
     <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/invoices/:id/pay</span><span class="api-desc">תשלום חשבונית</span></div>
     <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/finance/kpis</span><span class="api-desc">KPIs פיננסיים (הכנסה, COGS, מרווח)</span></div>
-    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/price-list</span><span class="api-desc">מחירון לפי קוטר (list + cust)</span></div>
-    <div class="api-row"><span class="method PATCH">PATCH</span><span class="api-path">/api/price-list</span><span class="api-desc">עדכון מחירון</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/pricing/price-books</span><span class="api-desc">מחירונים פעילים וטיוטות</span></div>
+    <div class="api-row"><span class="method POST">POST</span><span class="api-path">/api/pricing/price-books</span><span class="api-desc">יצירת מחירון חדש</span></div>
+    <div class="api-row"><span class="method GET">GET</span><span class="api-path">/api/pricing/price-books/:id/items</span><span class="api-desc">שורות מק״ט במחירון</span></div>
   </div>
 
   <div class="api-group">

@@ -31,7 +31,7 @@ Directly protected route groups today:
 | Customer CRM | `/api/customers`, `/api/customers/:id` | read: `office/sales/manager/admin`; write: `office/manager/admin` |
 | Finance / credit / costs | `/api/finance/*`, `/api/credit*`, `/api/invoices*`, cost/margin/ledger/credit routes | `requireAnyRole(['finance', 'manager', 'admin'])` |
 | Customer pricing/token | `/api/customers/:id/token`, `/api/customers/:id/pricing` | `requireAnyRole(['office', 'manager', 'admin'])` |
-| Price/steel writes | `/api/price-list` PATCH, `/api/steel-prices` POST | `requireAnyRole(['finance', 'manager', 'admin'])` |
+| Price/steel writes | `/api/pricing/price-books*`, `/api/steel-prices` POST | `requireAnyRole(['finance', 'manager', 'admin'])` |
 | Cost lock | `/api/orders/:id/costs/lock` | `requireRole('manager')` |
 | Order commitments | `/api/orders/manual`, `/api/orders`, `/api/order-imports/preview`, `/api/order-imports/:id/approve`, `/api/intake/:id/approve`, `/api/intake/:id/reject` | `requireAnyRole(['office', 'manager', 'admin'])` |
 | Order reads/documents | `/api/orders`, `/api/orders/:id`, `/api/orders/:id/print-cards`, `/api/orders/:id/print-a4`, `/api/orders/:id/delivery-certificate` | read: `office/production/sales/manager/admin`; documents by operational role |
@@ -47,7 +47,7 @@ Directly protected route groups today:
 | Logistics/delivery | `/api/deliveries*`, `/api/packages*`, `/api/delivery-notes*` | delivery routes are scoped to driver/warehouse/office/manager/admin by action |
 | Fleet/inventory | `/api/drivers*`, `/api/vehicles*`, `/api/suppliers*`, `/api/inventory*` | fleet and inventory routes are scoped by operational role and action |
 | Quality/maintenance | `/api/quality*`, `/api/maintenance*`, `/api/incidents*`, `/api/ncr*`, `/api/capa*`, `/api/loto*`, `/api/pm-schedule*` | quality/maintenance module routes are scoped to quality/maintenance/production/office/manager/admin by action |
-| Catalog/project/procurement/AI | `/api/shapes*`, `/api/companies*`, `/api/holdings`, `/api/projects*`, `/api/sites*`, `/api/priority/status`, `/api/price-list`, `/api/steel-prices`, `/api/purchase-orders*`, `/api/ai/*` | protected by catalog, office, finance, procurement, and manager/admin policies by action |
+| Catalog/project/procurement/AI | `/api/shapes*`, `/api/companies*`, `/api/holdings`, `/api/projects*`, `/api/sites*`, `/api/priority/status`, `/api/pricing/price-books*`, `/api/steel-prices`, `/api/purchase-orders*`, `/api/ai/*` | protected by catalog, office, finance, procurement, and manager/admin policies by action |
 
 Current guard behavior: `requireRole()` and `requireAnyRole()` require real JWT-derived `req.auth` and do not trust `x-user-role`/`x-user-id` browser headers. Route coverage is guarded by `test/route-auth-coverage.test.js`; request-level tests still need to keep expanding for every critical workflow.
 
@@ -108,7 +108,7 @@ Current code-only roles that need reconciliation:
 | Drivers/fleet | `/api/drivers`, `/api/drivers/:id/*`, `/api/vehicles*` | Protected. Reads/actions are scoped to driver/warehouse/office/manager/admin; driver and vehicle management is office/manager/admin. | Driver scoped access to own operational data. Office/manager/admin manage. | P1 |
 | Delivery execution | `/api/deliveries`, `/api/deliveries/:id/*` | Protected. Reads/actions are scoped to driver/warehouse/office/manager/admin by delivery state. | Driver/warehouse/office can execute; manager/admin supervise. | P1 |
 | Priority ERP | `/api/priority/sync/:orderId`, `/api/priority/status` | Protected. Sync requires manager/admin. Status requires office/manager/admin. | Manager/admin for sync. Office/manager/admin for status. | P0 |
-| Price list | `/api/price-list` | Protected. Read: office/sales/finance/manager/admin. Patch: finance/manager/admin. Customer-facing price list remains customer-scoped under `/api/c/*`. | Read: office/sales/manager/admin. Patch: manager/admin. Customer-facing price list must be customer-scoped. | P0 |
+| Price books | `/api/pricing/price-books*` | Protected. Read: office/sales/finance/manager/admin. Writes: finance/manager/admin. Customer-facing price list remains customer-scoped under `/api/c/*`. | Read: office/sales/manager/admin. Writes: manager/admin. Customer-facing price list must be customer-scoped. | P0 |
 | Customer portal | `/api/c/auth`, `/api/c/auth/verify`, `/api/c/me`, `/api/c/shapes`, `/api/c/price-list`, `/api/c/quote`, `/api/c/order`, `/api/c/approve/*`, `/api/c/orders/:orderId` | Customer-scoped token logic with ownership checks, dedicated rate limits, OTP verification before phone bootstrap token issue, and token expiry/revocation checks. | Customer-scoped session/token, OTP phone bootstrap, order ownership checks, rate limits. Do not use internal role fallback. | P0 |
 | AI predictions | `/api/ai/*` | Protected by manager/admin pending data review. | Manager/admin by default; expose read-only predictions to office/production only after data review. | P2 |
 | Suppliers | `/api/suppliers` | Protected by warehouse/office/manager/admin. | Warehouse/procurement/office/manager/admin. Supplier role only for future supplier portal, scoped to own data. | P1 |

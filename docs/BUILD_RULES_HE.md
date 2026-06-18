@@ -156,7 +156,7 @@ Excel / CSV / ERP / Supplier API
         ↓
 services/pricing-importer.js
         ↓
-price_list canonical table
+pricing_price_books / pricing_price_items canonical tables
         ↓
 services/pricer.js
         ↓
@@ -164,10 +164,10 @@ portal / orders / finance / catalog
 ```
 
 - `pricing-importer.js` יתרגם פורמטים חיצוניים לפורמט פנימי אחד.
-- `price_list` הוא מקור האמת הקנוני.
+- `pricing_price_books` ו-`pricing_price_items` הם מקור האמת הקנוני.
 - `pricer.js` יענה כמה עולה מוצר ללקוח, לפי tier, discount, customer rules,
   ובהמשך לפי מודול תעשייה.
-- לא לשבור עכשיו את `price_list`; מוסיפים שכבות מעליו.
+- אין להוסיף שימושים חדשים ב-`price_list`; מחירונים נשמרים רק במבנה price-books/items.
 
 ## 10. קבצי docs שחובה לבדוק
 

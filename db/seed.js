@@ -12,15 +12,6 @@ function seedCoreData(db) {
       ('OTHER',      'אחר',                   '#95a5a6');
   `);
 
-  // ── SEED PRICE LIST ───────────────────────────────────────────────
-  const plCount = db.prepare('SELECT COUNT(*) as c FROM price_list').get().c;
-  if (plCount === 0) {
-    const ins = db.prepare('INSERT OR IGNORE INTO price_list (diameter,price_list,price_cust) VALUES (?,?,?)');
-    [[6,7.5,6.5],[8,7.5,6.5],[10,7.8,6.8],[12,8.0,7.0],[14,8.2,7.2],[16,8.5,7.3],
-     [18,8.7,7.5],[20,9.0,7.8],[22,9.5,8.2],[25,9.8,8.5],[28,10.5,9.0],[32,11.0,9.5],
-     [36,12.0,10.5],[40,13.0,11.5]].forEach(r => ins.run(...r));
-    console.log('[DB] Price list seeded');
-  }
 
   // ── SEED COMPANIES ────────────────────────────────────────────────
   db.exec(`

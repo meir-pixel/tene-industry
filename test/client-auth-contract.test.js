@@ -531,18 +531,25 @@ test('shop floor screens use shared item status values', () => {
   assert.match(productionQueue, /\/worker-visual\.html/);
 });
 
-test('price list management belongs to finance screen', () => {
+test('price list management belongs to pricing screen', () => {
   const admin = read('public/admin.html');
   const finance = read('public/finance.html');
+  const pricing = read('public/pricing.html');
+  const nav = read('public/nav.js');
 
   assert.doesNotMatch(admin, /tab-pricelist/);
   assert.doesNotMatch(admin, /loadPriceList/);
   assert.doesNotMatch(admin, /savePriceList/);
   assert.match(finance, /src="\/auth-client\.js"/);
   assert.match(finance, /src="\/safe-dom\.js"/);
-  assert.match(finance, /loadSalesPriceList/);
-  assert.match(finance, /saveSalesPriceList/);
-  assert.match(finance, /\/api\/price-list/);
+  assert.doesNotMatch(finance, /loadSalesPriceList/);
+  assert.doesNotMatch(finance, /saveSalesPriceList/);
+  assert.doesNotMatch(finance, /\/api\/price-list/);
+  assert.match(pricing, /src="\/auth-client\.js"/);
+  assert.match(pricing, /\/api\/pricing\/price-books/);
+  assert.match(pricing, /id="itemDialog"/);
+  assert.match(nav, /\/pricing\.html/);
+  assert.match(nav, /pricing: 'finance'/);
   assert.match(finance, /loadSteelPricesSafe/);
   assert.match(finance, /loadOrdersSafe/);
   assert.match(finance, /loadCustomersSafe/);
@@ -890,7 +897,7 @@ test('order OCR routes non-order documents to their owning modules before upload
   assert.match(intake, /documentType === 'supplier_delivery'/);
   assert.match(intake, /\/inventory\.html#receipts/);
   assert.match(intake, /documentType === 'price_list'/);
-  assert.match(intake, /\/finance\.html#price-list/);
+  assert.match(intake, /\/pricing\.html/);
   assert.match(intake, /if \(routeNonOrderOcrDocument\(documentType\)\) return/);
   assert.match(intake, /function handleOcrPickerClick\(event\)/);
   assert.match(intake, /function updateOcrDocumentRouteUi\(\)/);
@@ -899,7 +906,7 @@ test('order OCR routes non-order documents to their owning modules before upload
   assert.match(intake, /פתח פיננסים - מחירון/);
   assert.match(inventory, /function openInitialInventoryTab\(\)/);
   assert.match(inventory, /window\.location\.hash/);
-  assert.match(finance, /id="price-list"/);
+  assert.doesNotMatch(finance, /id="price-list"/);
 });
 
 test('local server command skips startup snapshot outside production', () => {

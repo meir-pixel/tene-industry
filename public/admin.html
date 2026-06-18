@@ -380,7 +380,7 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
       <a href="/ocr-training.html" class="qn"><div class="qn-icon">🧠</div><div class="qn-label">אימון OCR</div><div class="qn-sub">תיקוני זיהוי</div></a>
       <a href="/customers.html" class="qn"><div class="qn-icon">👥</div><div class="qn-label">לקוחות</div><div class="qn-sub">CRM ופורטל</div></a>
       <a href="/reports.html"   class="qn"><div class="qn-icon">📈</div><div class="qn-label">דוחות</div><div class="qn-sub">גרפים BI</div></a>
-      <a href="/finance.html"   class="qn"><div class="qn-icon">💰</div><div class="qn-label">פיננסים</div><div class="qn-sub">מחירון וחיובים</div></a>
+      <a href="/pricing.html"   class="qn"><div class="qn-icon">₪</div><div class="qn-label">מחירונים</div><div class="qn-sub">מק״טים ומחירי לקוח</div></a>
       <a href="/delivery-admin.html" class="qn"><div class="qn-icon">🚚</div><div class="qn-label">נהגים</div><div class="qn-sub">ניהול משלוחים</div></a>
       <a href="/production-setup.html" class="qn"><div class="qn-icon">⚙️</div><div class="qn-label">הגדרות ייצור</div><div class="qn-sub">מכונות ועמדות</div></a>
       <a href="/holdings.html"  class="qn"><div class="qn-icon">🏢</div><div class="qn-label">אחזקות</div><div class="qn-sub">ריבוי חברות</div></a>
@@ -1182,9 +1182,9 @@ const MODULES = [
     id:'MODULE_FINANCE', icon:'💰', name:'Finance', owner:'כספים',
     desc:'מחירונים, אשראי, עלות הזמנה, רווחיות, חשבוניות ו-ledger.',
     status:'partial', risk:'high', technical:'core',
-    screens:['finance.html','reports.html'], apis:['/api/price-list*','/api/credit*','/api/invoices*','/api/finance/*'],
+    screens:['pricing.html','finance.html','reports.html'], apis:['/api/pricing/price-books*','/api/credit*','/api/invoices*','/api/finance/*'],
     next:'לא להוסיף עוד פיננסים עד שמאחדים מודל אשראי ומגדירים הרשאות.',
-    links:[['פיננסים','/finance.html'],['דוחות','/reports.html']]
+    links:[['מחירונים','/pricing.html'],['פיננסים','/finance.html'],['דוחות','/reports.html']]
   },
   {
     id:'MODULE_QUALITY', icon:'🧪', name:'Quality', owner:'איכות',
