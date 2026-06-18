@@ -372,8 +372,8 @@ module.exports = function createPortalRouter(deps) {
     const pallets = db.prepare("SELECT id,pallet_num,'' AS notes FROM pallets WHERE order_id=?").all(order.id);
     pallets.forEach(p => {
       p.items = db.prepare(`
-        SELECT id,diameter,total_length_mm,quantity,weight_per_unit,total_weight,
-               machine,segments,struct_element,struct_floor,sheet_num,status
+        SELECT id,shape_name,diameter,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,
+               machine,segments,struct_element,struct_floor,sheet_num,status,note
         FROM items WHERE pallet_id=?
       `).all(p.id);
     });
