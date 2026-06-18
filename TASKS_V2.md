@@ -251,26 +251,235 @@
   - איפיון מסך קליטת מסמכים והשוואת OCR הועבר ל-modules/intake/README_HE.md.
   - ממתין לאישור מאיר לפני קוד.
 
-### V2-009 — Pricing Module Specification
+### V2-009 — Finance/Pricing Domain Split
+
+- status: done
+- owner: codex-finance-pricing
+- module: finance-pricing
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - future: `modules/pricing/README_HE.md`
+  - future: `modules/pricing/module.manifest.js`
+  - future: `modules/costing/README_HE.md`
+  - future: `modules/costing/module.manifest.js`
+  - future: `modules/invoicing/README_HE.md`
+  - future: `modules/invoicing/module.manifest.js`
+  - future: `modules/credit/README_HE.md`
+  - future: `modules/credit/module.manifest.js`
+  - future: `modules/payment-terms/README_HE.md`
+  - future: `modules/payment-terms/module.manifest.js`
+  - future: `modules/payments/README_HE.md`
+  - future: `modules/payments/module.manifest.js`
+- input:
+  - `docs/spec-dual-pricing.md`
+  - `docs/modules/finance.md`
+  - purchase price, sales price, customer price, quote date
+  - invoices, credit exposure, payment terms, guarantees, clearing provider
+- output:
+  - פירוק תחום Finance/Pricing למודולים עצמאיים.
+  - גבולות ownership ברורים לכל מקור מחיר/עלות/חיוב/אשראי/סליקה.
+  - משימות אפיון נפרדות לפני כתיבת קוד.
+- logic:
+  - Pricing עונה: כמה הלקוח צריך לשלם.
+  - Costing עונה: כמה זה עולה לנו.
+  - Invoicing עונה: מה חויב רשמית.
+  - Credit עונה: האם מותר להמשיך לעבוד מול הלקוח.
+  - Payment Terms / Guarantees עונה: אילו תנאים חייבים להתקיים לפני עבודה/אשראי.
+  - Payments עונה: איך תשלום בפועל נסלק/מתועד מול ספק חיצוני.
+  - אסור לערבב מחיר קנייה עם מחיר מכירה.
+  - אסור לחשב רווחיות ממחיר מכירה במקום מעלות.
+  - כל מודול יקבל README/manifest/API/events/screens/permissions/risks משלו לפני קוד.
+- definition_of_done:
+  - V2-009A עד V2-009F קיימות כמשימות אפיון נפרדות.
+  - ברור איזה מודול owns כל טבלה/אירוע/API.
+  - אין תלות בקוד V1 או ב-`server.js`.
+  - אין עבודה מחוץ ל-Finance/Pricing.
+
+### V2-009A — Pricing Module Specification
 
 - status: todo
-- owner: claude/either
+- owner: codex-finance-pricing
 - module: pricing
 - priority: high
 - scope:
-  - modules/pricing/README_HE.md
-  - modules/pricing/module.manifest.js
+  - future: `modules/pricing/README_HE.md`
+  - future: `modules/pricing/module.manifest.js`
 - input:
-  - purchase price, sales price, customer price, date
+  - sales price
+  - customer price
+  - customer pricing source
+  - discount
+  - quote date
 - output:
-  - quote, cost basis, snapshot
+  - quote price
+  - pricing snapshot for order
+  - price source label
 - logic:
-  - מחיר לקוח גובר על מחיר מכירה.
-  - מחיר קנייה משמש עלות.
-  - snapshot נשמר בהזמנה.
+  - מחירון כללי ומחירון לקוח הם שני מקורות מחיר בלבד להצעה.
+  - לקוח עם מחירון אישי לא נופל אוטומטית למחירון כללי.
+  - `discount_pct` חל רק אחרי בחירת מקור מחיר.
+  - snapshot מחיר נשמר בהזמנה ואינו משתנה בדיעבד.
+  - Pricing לא מחזיק מחיר קנייה ולא מחשב עלות.
 - definition_of_done:
-  - שלושת סוגי המחירון מופרדים.
-  - API חישוב מחיר מוגדר.
+  - README/manifest/API/events/screens/permissions/risks מוגדרים.
+  - מוגדר API חישוב מחיר להצעה.
+  - מוגדר snapshot מחיר להזמנה.
+  - מוגדר status `price_list_requires_update`.
+
+### V2-009B — Costing Module Specification
+
+- status: todo
+- owner: codex-finance-pricing
+- module: costing
+- priority: high
+- scope:
+  - future: `modules/costing/README_HE.md`
+  - future: `modules/costing/module.manifest.js`
+- input:
+  - purchase price
+  - steel price history
+  - order item weight
+  - labor cost rules
+  - overhead cost rules
+- output:
+  - cost basis
+  - material cost
+  - labor cost
+  - overhead cost
+  - margin input for Finance reports
+- logic:
+  - מחיר קנייה מגיע ממקור עלות בלבד, לא ממחיר מכירה.
+  - אם חסר מחיר קנייה, מחזירים `cost_basis_missing`.
+  - Costing לא יוצר הצעת מחיר ללקוח ולא מציג מחיר בפורטל.
+  - Cost snapshot ננעל לפי אירוע הזמנה מוגדר.
+- definition_of_done:
+  - README/manifest/API/events/screens/permissions/risks מוגדרים.
+  - מקור האמת למחיר קנייה מוגדר.
+  - מוגדר API חישוב עלות.
+  - מוגדר מתי cost snapshot נוצר וננעל.
+
+### V2-009C — Invoicing Module Specification
+
+- status: todo
+- owner: codex-finance-pricing
+- module: invoicing
+- priority: high
+- scope:
+  - future: `modules/invoicing/README_HE.md`
+  - future: `modules/invoicing/module.manifest.js`
+- input:
+  - approved order
+  - pricing snapshot
+  - customer billing details
+  - payment status
+- output:
+  - invoice
+  - invoice items
+  - payment mark
+  - cancellation/credit-note contract if approved
+- logic:
+  - חשבונית נוצרת ממקור עסקי מאושר, לא מטיוטת מחיר.
+  - סכום חשבונית נשען על snapshot, לא על מחירון חי.
+  - ביטול/זיכוי הוא מסלול מפורש, לא מחיקה שקטה.
+  - Invoicing לא מנהל מסגרת אשראי ולא מחשב עלות.
+- definition_of_done:
+  - README/manifest/API/events/screens/permissions/risks מוגדרים.
+  - lifecycle חשבונית מוגדר.
+  - API list/create/pay/cancel מוגדר.
+  - אירועי invoice מוגדרים.
+
+### V2-009D — Credit Module Specification
+
+- status: todo
+- owner: codex-finance-pricing
+- module: credit
+- priority: high
+- scope:
+  - future: `modules/credit/README_HE.md`
+  - future: `modules/credit/module.manifest.js`
+- input:
+  - customer
+  - credit limit
+  - ledger balance
+  - open orders
+  - unpaid invoices
+- output:
+  - credit exposure
+  - credit block status
+  - credit transaction log
+  - order approval gate result
+- logic:
+  - Credit מחליט האם מותר להמשיך לעבוד מול הלקוח.
+  - לא מערבבים בין ledger חשבונאי לבין מסגרת אשראי תפעולית בלי חוזה ברור.
+  - חסימת אשראי היא תוצאה מפורשת עם סיבה, לא side effect מוסתר.
+  - Credit לא יוצר חשבונית ולא מחשב מחיר.
+- definition_of_done:
+  - README/manifest/API/events/screens/permissions/risks מוגדרים.
+  - מוגדר מודל חשיפה וחסימה.
+  - מוגדר API בדיקת אשראי.
+  - מוגדרים אירועים לשינוי מסגרת/חסימה.
+
+### V2-009E — Payment Terms And Guarantees Module Specification
+
+- status: todo
+- owner: codex-finance-pricing
+- module: payment-terms
+- priority: high
+- scope:
+  - future: `modules/payment-terms/README_HE.md`
+  - future: `modules/payment-terms/module.manifest.js`
+- input:
+  - customer
+  - payment terms
+  - signed guarantee
+  - required guarantee amount
+  - customer onboarding status
+- output:
+  - terms contract
+  - guarantee status
+  - pre-work eligibility
+  - required action for customer/admin
+- logic:
+  - לקוח ללא תנאי תשלום חייב תשלום/אשראי מראש לפי החלטה עסקית.
+  - לקוח עם תנאי תשלום חייב ערבות חתומה אם כך הוגדר.
+  - תנאי תשלום וערבות הם חוזה לקוח, לא שדה צדדי בהזמנה.
+  - המודול לא סולק תשלום בפועל ולא יוצר חשבונית.
+- definition_of_done:
+  - README/manifest/API/events/screens/permissions/risks מוגדרים.
+  - מוגדר חוזה תנאי תשלום.
+  - מוגדר חוזה ערבות.
+  - מוגדרת בדיקת eligibility להזמנה/עבודה.
+
+### V2-009F — Payments Module Specification
+
+- status: todo
+- owner: codex-finance-pricing
+- module: payments
+- priority: medium
+- scope:
+  - future: `modules/payments/README_HE.md`
+  - future: `modules/payments/module.manifest.js`
+- input:
+  - invoice
+  - payment request
+  - clearing provider response
+  - receipt/reference number
+- output:
+  - payment attempt
+  - payment status
+  - provider reference
+  - invoice payment event
+- logic:
+  - Payments מחבר לספק סליקה חיצוני; לא בונים ספק סליקה פנימי.
+  - כל ניסיון תשלום נשמר עם provider/reference/status.
+  - הצלחת תשלום מעדכנת Invoicing דרך אירוע/חוזה מוגדר.
+  - Payments לא מחליט מחיר, עלות, אשראי או תנאי תשלום.
+- definition_of_done:
+  - README/manifest/API/events/screens/permissions/risks מוגדרים.
+  - מוגדר חוזה provider adapter.
+  - מוגדר payment lifecycle.
+  - מוגדרת אינטגרציה נקייה מול Invoicing.
 
 
 ### V2-010 — Integration Gate + Licensing Source of Truth
