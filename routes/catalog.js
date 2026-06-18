@@ -47,6 +47,16 @@ module.exports = function createCatalogRouter(deps) {
     };
   }
 
+  function pricingOcrContext(req) {
+    return {
+      requested_by_module: trimText(req.body.requested_by_module || req.body.requestedByModule || 'pricing') || 'pricing',
+      requested_use_case: trimText(req.body.requested_use_case || req.body.requestedUseCase || 'price_book_import') || 'price_book_import',
+      target_module: trimText(req.body.target_module || 'pricing') || 'pricing',
+      document_type: trimText(req.body.document_type_hint || req.body.document_type || 'price_book') || 'price_book',
+      result_endpoint: '/api/pricing/price-books/analyze-upload',
+    };
+  }
+
   async function analyzePriceListWithOpenAI(req) {
     const openaiKey = getOpenAiApiKey();
     if (!openaiKey) {
@@ -90,7 +100,10 @@ module.exports = function createCatalogRouter(deps) {
       },
       required: ['code', 'name', 'customer_name', 'currency', 'notes', 'items'],
     };
+    const context = pricingOcrContext(req);
     const prompt = `The operator is importing a steel/rebar price list into IronBend pricing.
+The upload context is requested_by_module=${context.requested_by_module}, requested_use_case=${context.requested_use_case}, target_module=${context.target_module}, document_type=${context.document_type}.
+This is not a customer order intake route. Return only a price-book draft for /api/pricing/price-books/analyze-upload.
 Extract only price-list rows. Do not extract payment terms, totals, VAT summaries, addresses, or legal text as item rows.
 Return a draft that the operator will edit before saving.
 For each row:
@@ -206,8 +219,10 @@ If a value is uncertain, still return the row with a note. Never invent prices t
       const items = (parsed.items || [])
         .map((item, index) => normalizeRecognizedItem(item, index, currency))
         .filter(item => item.sku && item.description && Number(item.price_before_vat) > 0);
+      const context = pricingOcrContext(req);
       res.json({
         success: true,
+        context,
         source: {
           filename: req.file.originalname || null,
           mime,

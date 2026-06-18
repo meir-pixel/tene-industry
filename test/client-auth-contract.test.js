@@ -550,6 +550,9 @@ test('price list management belongs to pricing screen', () => {
   assert.match(pricing, /id="importDialog"/);
   assert.match(pricing, /importOcrBtn/);
   assert.match(pricing, /\/api\/pricing\/price-books\/analyze-upload/);
+  assert.match(pricing, /requested_by_module', 'pricing'/);
+  assert.match(pricing, /requested_use_case', 'price_list_import'/);
+  assert.match(pricing, /document_type_hint', 'price_list'/);
   assert.match(pricing, /saveImportDraft/);
   assert.match(pricing, /id="itemDialog"/);
   assert.match(pricing, /updatedAtLabel/);
@@ -898,6 +901,8 @@ test('order OCR routes non-order documents to their owning modules before upload
   const intake = read('public/index.html');
   const inventory = read('public/inventory.html');
   const finance = read('public/finance.html');
+  const intakeRoute = read('routes/intake.js');
+  const catalogRoute = read('routes/catalog.js');
 
   assert.match(intake, /function routeNonOrderOcrDocument\(documentType\)/);
   assert.match(intake, /documentType === 'supplier_delivery'/);
@@ -910,6 +915,11 @@ test('order OCR routes non-order documents to their owning modules before upload
   assert.match(intake, /data-ocr-upload-label/);
   assert.match(intake, /פתח מלאי - קבלת חומר OCR/);
   assert.match(intake, /פתח פיננסים - מחירון/);
+  assert.match(intakeRoute, /requested_by_module/);
+  assert.match(intakeRoute, /requested_use_case/);
+  assert.match(intakeRoute, /\/api\/pricing\/price-books\/analyze-upload/);
+  assert.match(catalogRoute, /function pricingOcrContext\(req\)/);
+  assert.match(catalogRoute, /requested_by_module=\$\{context\.requested_by_module\}/);
   assert.match(inventory, /function openInitialInventoryTab\(\)/);
   assert.match(inventory, /window\.location\.hash/);
   assert.doesNotMatch(finance, /id="price-list"/);

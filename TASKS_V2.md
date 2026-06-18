@@ -229,20 +229,29 @@
 
 ### V2-008 — Intake/OCR Module Specification
 
-- status: approval
-- owner: gpt
+- status: in_progress
+- owner: codex-intake-ocr
 - module: intake-ocr
 - priority: critical
+- latest_change:
+  - added module-origin OCR context for pricing imports: uploads from pricing/price_list stay in Pricing and use `/api/pricing/price-books/analyze-upload`, not order intake.
 - scope:
   - modules/intake/README_HE.md
   - modules/intake/module.manifest.js
   - docs/event-registry.md
+  - routes/intake.js
+  - routes/catalog.js
+  - public/pricing.html
+  - test/client-auth-contract.test.js
 - input:
   - PDF, image, WhatsApp, email, manual, CSV
+  - requested_by_module / requested_use_case / target_module from modules that request OCR
 - output:
   - source document, OCR draft, corrections, approval
+  - price_list_import draft to Pricing when requested by pricing / price_list context
 - logic:
   - OCR יוצר טיוטה בלבד.
+  - OCR context from the calling module is a strong routing hint; `pricing / price_list` requests must not become order intake.
   - אישור מול מקור ויזואלי.
   - תיקון צורה פותח shape editor.
 - definition_of_done:

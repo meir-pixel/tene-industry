@@ -60,6 +60,7 @@ into a universal event/audit model.
 | `intake.duplicate.detected` | Intake/OCR | Duplicate check | UI, Audit | `eventId`, `sourceId`, `draftId`, `matchedSourceId`, `matchReason`, `confidence`, `createdAt` |
 | `intake.draft.approved` | Intake/OCR | Human approval | Orders, Audit | `eventId`, `sourceId`, `draftId`, `approvedBy`, `approvedAt`, `orderDraftPayload` |
 | `intake.draft.rejected` | Intake/OCR | Human rejection | Audit | `eventId`, `sourceId`, `draftId`, `rejectedBy`, `reason`, `createdAt` |
+| `intake.priceListImport.analyzed` | Intake/OCR + Pricing | Pricing OCR upload analysis | Pricing, Audit | `eventId`, `sourceId`, `requestedByModule`, `requestedUseCase`, `targetModule`, `draftItemCount`, `confidenceSummary`, `createdAt` |
 | `intake.training.example.created` | Intake/OCR Training | User-approved correction | OCR Training | `eventId`, `sourceId`, `draftId`, `correctionId`, `customerId`, `formatHint`, `createdAt` |
 ## Required Event Contract
 

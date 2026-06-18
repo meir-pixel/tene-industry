@@ -37,6 +37,62 @@
 - מלאי וקבלת חומר שייכים ל־Inventory/Procurement.
 - מחירונים ותמחור שייכים ל־Pricing.
 
+## הקשר מודול שקורא OCR
+
+כל מודול שמעלה מסמך ל־OCR חייב להעביר הקשר קריאה. ההקשר הוא רמז ניתוב חזק, כדי ש־Intake לא יתייחס למסמך מחירון כאל הזמנה ולא יתייחס למסמך מלאי כאל הזמנה.
+
+שדות חובה בבקשה:
+
+```json
+{
+  "requested_by_module": "pricing",
+  "requested_use_case": "price_list_import",
+  "target_module": "pricing",
+  "document_type_hint": "price_list"
+}
+```
+
+כללי ניתוב:
+
+| מקור פעולה | document_type_hint | יעד OCR | פלט |
+|---|---|---|---|
+| מסך הזמנות | `order` | Intake/Orders | טיוטת הזמנה להשוואה ואישור |
+| מסך מחירונים | `price_list` | Pricing | טיוטת מחירון לעריכה, לא מחירון פעיל |
+| מסך מלאי / קבלת חומר | `supplier_delivery` | Inventory | טיוטת קבלת חומר לבדיקה |
+
+כאשר הבקשה מגיעה מ־Pricing או עם `document_type_hint=price_list`, אין לנתב אותה לקליטת הזמנות. הנתיב הרשמי למחירונים הוא:
+
+```text
+POST /api/pricing/price-books/analyze-upload
+```
+
+הפלט למחירונים הוא טיוטת מחירון בלבד במבנה:
+
+```json
+{
+  "code": "OCR-...",
+  "name": "שם מחירון",
+  "customer_name": "לקוח אם זוהה",
+  "currency": "ILS",
+  "notes": "",
+  "items": [
+    {
+      "sku": "D8",
+      "diameter": 8,
+      "category": "rebar",
+      "description": "ברזל קוטר 8",
+      "quantity": 1,
+      "unit": "kg",
+      "price_before_vat": 3.52,
+      "currency": "ILS",
+      "notes": ""
+    }
+  ]
+}
+```
+
+Intake/OCR אינו כותב לטבלאות מחירון קנוניות. Pricing בלבד יוצר מחירון כללי או מחירון לקוח אחרי עריכת משתמש ואישור.
+
 ## קלט
 
 | סוג קלט | דוגמאות | הערות |

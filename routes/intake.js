@@ -32,7 +32,19 @@ module.exports = function createIntakeRouter(deps) {
 
   function requestedOcrDocumentType(req) {
     const raw = String(
-      req.body?.document_type_hint
+      req.body?.target_module
+      || req.body?.requested_by_module
+      || req.body?.requestedByModule
+      || req.body?.requested_use_case
+      || req.body?.requestedUseCase
+      || req.query.target_module
+      || req.query.requested_by_module
+      || req.query.requestedByModule
+      || req.query.requested_use_case
+      || req.query.requestedUseCase
+      || req.body?.ocr_target
+      || req.query.ocr_target
+      || req.body?.document_type_hint
       || req.body?.document_type
       || req.query.document_type_hint
       || req.query.document_type
@@ -91,9 +103,23 @@ module.exports = function createIntakeRouter(deps) {
       : { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' };
     const documentIntent = requestedOcrDocumentType(req);
     if (documentIntent !== 'order') {
+      const target = documentIntent === 'supplier_delivery'
+        ? {
+            module: 'inventory',
+            endpoint: null,
+            screen: '/inventory.html#receipts',
+            use_case: 'supplier_delivery_intake',
+          }
+        : {
+            module: 'pricing',
+            endpoint: '/api/pricing/price-books/analyze-upload',
+            screen: '/pricing.html',
+            use_case: 'price_list_import',
+          };
       return res.status(422).json({
         code: 'wrong_document_route',
         document_type_hint: documentIntent,
+        target,
         error: documentIntent === 'supplier_delivery'
           ? 'תעודת ספק / קבלת חומר נקלטת דרך מודול מלאי, לא דרך הזמנה חדשה.'
           : 'מחירון ברזל נקלט דרך מודול מחירונים, לא דרך הזמנה חדשה.',

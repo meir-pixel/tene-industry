@@ -679,6 +679,10 @@
         const fd = new FormData();
         fd.append('file', file);
         fd.append('currency', importForm.elements.currency.value || 'ILS');
+        fd.append('requested_by_module', 'pricing');
+        fd.append('requested_use_case', 'price_list_import');
+        fd.append('target_module', 'pricing');
+        fd.append('document_type_hint', 'price_list');
         const response = await fetch('/api/pricing/price-books/analyze-upload', {
           method: 'POST',
           headers: authHeaders(),
