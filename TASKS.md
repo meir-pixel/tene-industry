@@ -143,6 +143,15 @@
 - accept: פרמטרי הייצור ומסכי השטח בשלוש שפות; בחירת שפה למשתמש
 - notes: נכנס מהבוט (Meir 10/06). ממתין לאפיון ואישור היקף.
 
+### T-014 · פורטל לקוח: סליקה, ערבות ודשבורד הזמנות
+- status: todo
+- owner: gpt
+- priority: P1
+- scope: routes/portal.js, routes/portalAdmin.js, public/customer.html, services/pricer.js, services/portalAccess.js, docs/spec-portal-payments-dashboard.md
+- spec: docs/spec-portal-payments-dashboard.md
+- accept: לקוח ללא תנאי תשלום חייב סליקת אשראי לפני אישור הזמנה; לקוח עם תנאי תשלום חייב ערבות חתומה ומאושרת; פורטל מציג דשבורד עם הזמנות, תעודות, חשבוניות, ברזל לפי אתר והוצאה לפי פרויקט; Orders מקבל רק הזמנה שמותר לה להתקדם.
+- notes: לא לבנות סליקה עצמאית. Finance הוא מקור האמת למדיניות תשלום/אשראי; Documents שומר טפסי ערבות; Portal רק מציג ומפעיל את זרימת הלקוח.
+
 ---
 
 ## 📥 נכנס (ממתין לסידור)
