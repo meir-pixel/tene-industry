@@ -348,7 +348,13 @@ async function loadShapes() {
 async function loadPriceList() {
   const pl = await fetch(`/api/c/price-list?token=${TOKEN}`).then(r=>r.json()).catch(()=>[]);
   PRICE_LIST = {};
-  pl.forEach(r => { PRICE_LIST[r.diameter] = parseFloat(r.price_per_kg); });
+  if (Array.isArray(pl)) {
+    pl.forEach(r => {
+      if (!r.requiresPriceListUpdate && r.price_per_kg !== null) {
+        PRICE_LIST[r.diameter] = parseFloat(r.price_per_kg);
+      }
+    });
+  }
 }
 
 // ──────────────────────────────────────────────────────
@@ -963,10 +969,23 @@ async function calcQuote() {
   }).then(r=>r.json()).catch(()=>null);
 
   if (!data) { toast('שגיאה בחישוב', true); return; }
+  if (data.priceHidden) { toast('אין הרשאת צפייה במחיר', true); return; }
 
-  const bkd = data.breakdown.map(b =>
-    `<div class="price-row"><span>Ø${b.diameter} – ${b.weight.toFixed(2)} ק"ג × ₪${b.price_per_kg}</span><span>₪${b.price.toFixed(0)}</span></div>`
-  ).join('');
+  if (data.requiresPriceListUpdate) {
+    const missing = (data.warnings || []).map(w => `Ø${w.diameter} (${w.pricingLabel || 'מחירון'})`).join(', ');
+    document.getElementById('priceBreakdown').innerHTML = `
+      <div class="price-row total"><span>מחירון דורש עדכון</span><span>${escapeHtml(missing)}</span></div>
+    `;
+    document.getElementById('priceBox').style.display = '';
+    toast('מחירון דורש עדכון לפני הצעת מחיר', true);
+    return;
+  }
+  if (!Array.isArray(data.breakdown)) { toast('שגיאה בחישוב', true); return; }
+
+  const bkd = data.breakdown.map(b => {
+    const ppu = b.price_per_kg ?? b.pricePerKg;
+    return `<div class="price-row"><span>Ø${b.diameter} – ${b.weight.toFixed(2)} ק"ג × ₪${ppu}</span><span>₪${b.price.toFixed(0)}</span></div>`;
+  }).join('');
 
   document.getElementById('priceBreakdown').innerHTML = `
     ${bkd}

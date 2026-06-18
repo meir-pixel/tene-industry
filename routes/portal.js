@@ -195,13 +195,14 @@ module.exports = function createPortalRouter(deps) {
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
     if (!s.caps.seePrice) return res.json({ priceHidden: true, items: [] }); // מזמין לא רואה מחירון
     const c = s.customer;
-    const priceMap = pricer.buildPriceMap({
-      tier:        c?.price_tier  || 'list',
-      discountPct: c?.discount_pct || 0,
-    });
-    res.json(Object.entries(priceMap).map(([diameter, price_per_kg]) => ({
-      diameter: Number(diameter),
-      price_per_kg: +price_per_kg.toFixed(2),
+    res.json(pricer.listCustomerPrices(c).map(row => ({
+      diameter: row.diameter,
+      price_per_kg: row.price_per_kg === null ? null : +row.price_per_kg.toFixed(2),
+      pricingSource: row.pricingSource,
+      pricingLabel: row.pricingLabel,
+      status: row.status,
+      requiresPriceListUpdate: row.requiresPriceListUpdate,
+      warning: row.warning,
     })));
   });
 
@@ -233,10 +234,21 @@ module.exports = function createPortalRouter(deps) {
 
     // Calculate price via pricer service
     const wastePct = settingsService.getNum('WASTE_PCT_DEFAULT', 3);
-    const priceMap = pricer.buildPriceMap({
-      tier:        c.price_tier  || 'list',
+    const priceChecks = (items || []).map(item => pricer.resolveDiameterPrice(item.diameter, {
+      tier: c.price_tier || 'list',
       discountPct: c.discount_pct || 0,
-    });
+    }));
+    const missingPrice = priceChecks.find(row => row.requiresPriceListUpdate);
+    if (missingPrice) {
+      return res.status(409).json({
+        error: 'מחירון דורש עדכון',
+        status: 'price_list_requires_update',
+        requiresPriceListUpdate: true,
+        diameter: missingPrice.diameter,
+        pricingSource: missingPrice.pricingSource,
+        pricingLabel: missingPrice.pricingLabel,
+      });
+    }
     let totalWeight = 0, totalPrice = 0;
     const orderNum = generateOrderNum();
     const confirmToken = crypto.randomBytes(16).toString('hex');
@@ -256,7 +268,11 @@ module.exports = function createPortalRouter(deps) {
     items.forEach(item => {
       const totalLengthMm = (item.sides || []).reduce((s,v) => s+v, 0);
       const weight = industry.weightPerUnit({ diameter: item.diameter, total_length_mm: totalLengthMm }) * (item.qty || 1);
-      const ppu = priceMap[item.diameter] || 0;
+      const priceDecision = pricer.resolveDiameterPrice(item.diameter, {
+        tier: c.price_tier || 'list',
+        discountPct: c.discount_pct || 0,
+      });
+      const ppu = priceDecision.pricePerKg;
       totalWeight += weight;
       totalPrice += weight * ppu;
       const segments = JSON.stringify((item.sides || []).map((l,i) => ({ length_mm:l, angle_deg:(item.angles||[])[i]??0 })));
