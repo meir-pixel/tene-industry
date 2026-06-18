@@ -139,13 +139,14 @@
 
 ### V2-004 — Licensing Gate
 
-- status: todo
-- owner: claude/either
+- status: done
+- owner: codex-admin-system-licensing
 - module: licensing
 - priority: high
 - scope:
   - core/licensing
   - core/module-gates
+  - test/core-module-gates.test.js
 - input:
   - license entitlements
   - module registry
