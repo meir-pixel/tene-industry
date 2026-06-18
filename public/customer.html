@@ -36,6 +36,11 @@
     .auth-box h2{font-size:22px;margin-bottom:8px}
     .auth-box p{color:var(--dim);font-size:14px;margin-bottom:24px}
     .auth-logo{font-size:48px;margin-bottom:16px}
+    .auth-divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--dim);font-size:12px}
+    .auth-divider:before,.auth-divider:after{content:'';height:1px;background:var(--border);flex:1}
+    .portal-code-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+    .portal-code-row .field{margin-bottom:0}
+    .portal-code-help{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.5}
 
     /* ── Inputs ── */
     input,select,textarea{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-family:inherit;direction:rtl;background:#fff;color:var(--text)}
@@ -154,6 +159,15 @@
     <div class="auth-logo">🏗️</div>
     <h2>ברוכים הבאים</h2>
     <p>הכנסו פרטים כדי לבצע הזמנה ולעקוב אחרי הזמנות קיימות</p>
+    <div class="field">
+      <label>קוד גישה שקיבלת מטנא</label>
+      <div class="portal-code-row">
+        <input type="text" id="portalAccessCode" placeholder="לדוגמה: 1A2B-3C4D-5E6F" autocomplete="one-time-code"/>
+        <button class="btn btn-secondary btn-sm" type="button" onclick="loginWithPortalCode()">כניסה בקוד</button>
+      </div>
+      <div class="portal-code-help">אפשר להדביק כאן גם קישור מלא שקיבלת.</div>
+    </div>
+    <div class="auth-divider">או כניסה לפי טלפון</div>
     <div class="field">
       <label>מספר טלפון</label>
       <input type="tel" id="authPhone" placeholder="05X-XXXXXXX" inputmode="numeric"/>
@@ -297,6 +311,29 @@ async function loadPriceList() {
 let _needName = false;
 let _otpRequested = false;
 let _pendingOtpPhone = '';
+
+function normalizePortalAccessCode(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw, location.origin);
+    const token = parsed.searchParams.get('token');
+    if (token) return token.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  } catch {}
+  return raw.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
+async function loginWithPortalCode() {
+  const token = normalizePortalAccessCode(document.getElementById('portalAccessCode').value);
+  if (token.length < 12) { toast('הכנס קוד גישה תקין', true); return; }
+  const data = await fetch(`/api/c/me?token=${encodeURIComponent(token)}`).then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+  if (!data || !data.ok || !data.data?.customer) {
+    toast('קוד הגישה לא תקין או בוטל', true);
+    return;
+  }
+  await completeAuth({ token, customer:data.data.customer });
+}
+
 async function doAuth() {
   const phone = document.getElementById('authPhone').value.replace(/\D/g,'');
   if (phone.length < 9) { toast('הכנס מספר טלפון תקין', true); return; }

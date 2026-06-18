@@ -16,12 +16,21 @@ module.exports = function createPortalAdminRouter(deps) {
 
   const portalAccess = createPortalAccessService({ db, crypto, settingsService, PORT });
 
+  function portalTokenPayload(result) {
+    const accessCode = String(result.token || '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toUpperCase()
+      .match(/.{1,4}/g)
+      ?.join('-') || '';
+    return { token: result.token, accessCode, link: result.link, expiresAt: result.expiresAt };
+  }
+
   // Generate / fetch portal token for a customer.
   router.get('/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
     if (!c) return res.status(404).json({ error: 'לא נמצא' });
     const result = portalAccess.portalAuthResponse(c);
-    res.json({ token: result.token, link: result.link, expiresAt: result.expiresAt });
+    res.json(portalTokenPayload(result));
   });
 
   router.post('/customers/:id/token/rotate', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
@@ -29,7 +38,7 @@ module.exports = function createPortalAdminRouter(deps) {
     if (!c) return res.status(404).json({ error: 'not found' });
     const result = portalAccess.portalAuthResponse(c, { forceRotate: true });
     auditLog('customer', c.id, null, 'portal_token_rotate', null, null, null, null, req.userId || null, null);
-    res.json({ token: result.token, link: result.link, expiresAt: result.expiresAt });
+    res.json(portalTokenPayload(result));
   });
 
   router.delete('/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {

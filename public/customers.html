@@ -483,6 +483,69 @@ body { font-family:'Heebo',sans-serif; background:#f0f4f8; color:var(--text); mi
   cursor:pointer;
 }
 .portal-link-box:hover { border-color:var(--accent); color:var(--accent); }
+.portal-section.portal-section-open {
+  align-items:stretch;
+  flex-wrap:wrap;
+}
+.portal-access-card {
+  flex:1 1 100%;
+  background:#fff;
+  border:1px solid rgba(201,98,26,0.22);
+  border-radius:10px;
+  padding:12px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(170px,220px);
+  gap:10px;
+  align-items:start;
+}
+.portal-access-label {
+  font-size:11px;
+  font-weight:800;
+  color:var(--text-faint);
+  margin-bottom:4px;
+}
+.portal-access-value {
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:8px 10px;
+  background:#f8fafc;
+  font-size:12px;
+  color:var(--text-dim);
+  direction:ltr;
+  text-align:left;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.portal-access-code {
+  font-size:18px;
+  font-weight:900;
+  letter-spacing:1.5px;
+  color:var(--accent);
+}
+.portal-access-actions {
+  grid-column:1/-1;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.portal-access-actions button {
+  border:1px solid var(--border-strong);
+  background:#fff;
+  border-radius:8px;
+  padding:7px 12px;
+  font-family:'Heebo',sans-serif;
+  font-weight:800;
+  cursor:pointer;
+  color:var(--text-dim);
+}
+.portal-access-actions button:hover {
+  border-color:var(--accent);
+  color:var(--accent);
+}
+@media(max-width:760px) {
+  .portal-access-card { grid-template-columns:1fr; }
+}
 
 /* ── MODAL ── */
 .modal-backdrop {
@@ -1098,25 +1161,95 @@ function newOrderFor(id, name) {
 }
 
 // ── PORTAL LINK ──
+function portalTokenFromResponse(d) {
+  if (d?.token) return String(d.token);
+  try {
+    return new URL(d?.link || '', location.origin).searchParams.get('token') || '';
+  } catch {
+    return '';
+  }
+}
+
+function formatPortalAccessCode(token) {
+  const clean = String(token || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  return clean.match(/.{1,4}/g)?.join('-') || '';
+}
+
+function copyPortalText(text, msg) {
+  navigator.clipboard.writeText(text).catch(() => {});
+  window.showToast && window.showToast(msg || 'הועתק ✓');
+}
+
+function portalMessage(customerName, link, code) {
+  return [
+    'שלום ' + (customerName || ''),
+    'זה הקישור האישי שלך לפורטל ההזמנות של טנא:',
+    link,
+    'קוד כניסה ידני: ' + code
+  ].join('\n');
+}
+
+function showPortalAccess(d, toastMsg) {
+  const token = portalTokenFromResponse(d);
+  const link = d?.link || (token ? location.origin + '/customer.html?token=' + encodeURIComponent(token) : '');
+  const code = formatPortalAccessCode(token);
+  if (!link || !code) return;
+
+  const ps = document.querySelector('.portal-section');
+  if (!ps) return;
+  ps.classList.add('portal-section-open');
+  const existing = ps.querySelector('.portal-access-card');
+  if (existing) existing.remove();
+
+  const customerName = document.querySelector('.detail-name')?.textContent?.trim() || '';
+  const card = document.createElement('div');
+  card.className = 'portal-access-card';
+
+  const linkWrap = document.createElement('div');
+  linkWrap.innerHTML = '<div class="portal-access-label">קישור אישי ללקוח</div>';
+  const linkBox = document.createElement('div');
+  linkBox.className = 'portal-access-value';
+  linkBox.title = 'לחץ להעתקת קישור';
+  linkBox.textContent = link;
+  linkBox.onclick = () => copyPortalText(link, 'הקישור הועתק ✓');
+  linkWrap.appendChild(linkBox);
+
+  const codeWrap = document.createElement('div');
+  codeWrap.innerHTML = '<div class="portal-access-label">קוד כניסה ידני</div>';
+  const codeBox = document.createElement('div');
+  codeBox.className = 'portal-access-value portal-access-code';
+  codeBox.title = 'לחץ להעתקת קוד';
+  codeBox.textContent = code;
+  codeBox.onclick = () => copyPortalText(code, 'קוד הכניסה הועתק ✓');
+  codeWrap.appendChild(codeBox);
+
+  const actions = document.createElement('div');
+  actions.className = 'portal-access-actions';
+  const copyLink = document.createElement('button');
+  copyLink.type = 'button';
+  copyLink.textContent = 'העתק קישור';
+  copyLink.onclick = () => copyPortalText(link, 'הקישור הועתק ✓');
+  const copyCode = document.createElement('button');
+  copyCode.type = 'button';
+  copyCode.textContent = 'העתק קוד';
+  copyCode.onclick = () => copyPortalText(code, 'קוד הכניסה הועתק ✓');
+  const copyMsg = document.createElement('button');
+  copyMsg.type = 'button';
+  copyMsg.textContent = 'העתק הודעה ללקוח';
+  copyMsg.onclick = () => copyPortalText(portalMessage(customerName, link, code), 'הודעה מוכנה הועתקה ✓');
+  actions.append(copyLink, copyCode, copyMsg);
+
+  card.append(linkWrap, codeWrap, actions);
+  ps.appendChild(card);
+  window.showToast && window.showToast(toastMsg || 'קישור וקוד כניסה מוכנים ✓');
+}
+
 async function getPortalLink(id) {
   try {
     const r = await fetch('/api/customers/' + id + '/token');
     const d = await r.json();
     if (d.link) {
-      await navigator.clipboard.writeText(d.link).catch(() => {});
-      window.showToast && window.showToast('הקישור הועתק ✓');
-      // show inline
-      const ps = document.querySelector('.portal-section');
-      if (ps) {
-        const existing = ps.querySelector('.portal-link-box');
-        if (existing) existing.remove();
-        const box = document.createElement('div');
-        box.className = 'portal-link-box';
-        box.title = 'לחץ להעתקה';
-        box.textContent = d.link;
-        box.onclick = () => { navigator.clipboard.writeText(d.link).catch(()=>{}); window.showToast && window.showToast('הועתק ✓'); };
-        ps.appendChild(box);
-      }
+      showPortalAccess(d, 'קישור וקוד כניסה מוכנים ✓');
     }
   } catch(e) {
     window.showToast && window.showToast('שגיאה בקבלת קישור', true);
@@ -1129,19 +1262,7 @@ async function rotatePortalLink(id) {
     const r = await fetch('/api/customers/' + id + '/token/rotate', { method: 'POST' });
     const d = await r.json();
     if (d.link) {
-      await navigator.clipboard.writeText(d.link).catch(() => {});
-      window.showToast && window.showToast('קישור חדש הועתק ✓');
-      const ps = document.querySelector('.portal-section');
-      if (ps) {
-        const existing = ps.querySelector('.portal-link-box');
-        if (existing) existing.remove();
-        const box = document.createElement('div');
-        box.className = 'portal-link-box';
-        box.title = 'לחץ להעתקה';
-        box.textContent = d.link;
-        box.onclick = () => { navigator.clipboard.writeText(d.link).catch(()=>{}); window.showToast && window.showToast('הועתק ✓'); };
-        ps.appendChild(box);
-      }
+      showPortalAccess(d, 'קישור חדש וקוד כניסה חדשים מוכנים ✓');
     }
   } catch(e) {
     window.showToast && window.showToast('שגיאה ביצירת קישור חדש', true);
@@ -1154,8 +1275,9 @@ async function revokePortalLink(id) {
     const r = await fetch('/api/customers/' + id + '/token', { method: 'DELETE' });
     if (!r.ok) throw new Error('revoke failed');
     const ps = document.querySelector('.portal-section');
-    const existing = ps && ps.querySelector('.portal-link-box');
+    const existing = ps && ps.querySelector('.portal-access-card, .portal-link-box');
     if (existing) existing.remove();
+    if (ps) ps.classList.remove('portal-section-open');
     window.showToast && window.showToast('הגישה בוטלה');
   } catch(e) {
     window.showToast && window.showToast('שגיאה בביטול גישה', true);
