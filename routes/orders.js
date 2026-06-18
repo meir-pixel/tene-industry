@@ -172,6 +172,81 @@ module.exports = function createOrdersRouter(deps) {
     res.json({ success: true });
   });
 
+  router.patch('/orders/:orderId/items/:itemId', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const item = db.prepare(`
+      SELECT i.*, p.order_id, o.order_num
+      FROM items i
+      JOIN pallets p ON p.id = i.pallet_id
+      JOIN orders o ON o.id = p.order_id
+      WHERE i.id=? AND p.order_id=?
+    `).get(req.params.itemId, req.params.orderId);
+    if (!item) return res.status(404).json({ error: 'item not found' });
+
+    let segments = item.segments;
+    if (req.body.segments !== undefined) {
+      if (!Array.isArray(req.body.segments)) return res.status(400).json({ error: 'segments must be an array' });
+      const clean = [];
+      for (const [index, segment] of req.body.segments.entries()) {
+        const length = Number(segment?.length_mm ?? segment?.length);
+        const angle = Number(segment?.angle_deg ?? segment?.angle ?? 180);
+        if (!Number.isFinite(length) || length < 0) return res.status(400).json({ error: `invalid segment length at ${index + 1}` });
+        if (!Number.isFinite(angle) || angle < 0 || angle > 180) return res.status(400).json({ error: `invalid segment angle at ${index + 1}` });
+        clean.push({ length_mm: length, angle_deg: angle });
+      }
+      segments = JSON.stringify(clean);
+    }
+
+    const shapeName = req.body.shape_name !== undefined ? String(req.body.shape_name || '').trim() : item.shape_name;
+    const diameter = req.body.diameter !== undefined ? Number(req.body.diameter) : Number(item.diameter);
+    const quantity = req.body.quantity !== undefined ? Number(req.body.quantity) : Number(item.quantity);
+    const totalLengthMm = req.body.total_length_mm !== undefined
+      ? Number(req.body.total_length_mm)
+      : (Array.isArray(req.body.segments)
+        ? req.body.segments.reduce((sum, segment) => sum + Number(segment?.length_mm ?? segment?.length ?? 0), 0)
+        : Number(item.total_length_mm));
+    const spiralDiameter = req.body.spiral_diameter_mm !== undefined ? Number(req.body.spiral_diameter_mm) : item.spiral_diameter_mm;
+    const spiralTurns = req.body.spiral_turns !== undefined ? Number(req.body.spiral_turns) : item.spiral_turns;
+    const note = req.body.note !== undefined ? String(req.body.note || '') : item.note;
+
+    if (!shapeName) return res.status(400).json({ error: 'shape_name is required' });
+    if (!Number.isFinite(diameter) || diameter <= 0) return res.status(400).json({ error: 'invalid diameter' });
+    if (!Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ error: 'invalid quantity' });
+    if (!Number.isFinite(totalLengthMm) || totalLengthMm < 0) return res.status(400).json({ error: 'invalid total_length_mm' });
+
+    const weightPerUnit = industry.weightPerUnit({ diameter, total_length_mm: totalLengthMm });
+    const totalWeight = weightPerUnit * quantity;
+    const before = JSON.stringify({
+      shape_name: item.shape_name,
+      diameter: item.diameter,
+      quantity: item.quantity,
+      total_length_mm: item.total_length_mm,
+      segments: item.segments,
+    });
+    db.prepare(`
+      UPDATE items
+      SET shape_name=?, diameter=?, quantity=?, production_qty=?, total_length_mm=?,
+          segments=?, spiral_diameter_mm=?, spiral_turns=?, weight_per_unit=?, total_weight=?,
+          note=?, review_status='pending', reviewed_by=NULL, reviewed_at=NULL
+      WHERE id=?
+    `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, note, item.id);
+
+    const orderTotal = db.prepare(`
+      SELECT COALESCE(SUM(i.total_weight),0) AS total_weight
+      FROM items i JOIN pallets p ON p.id=i.pallet_id
+      WHERE p.order_id=?
+    `).get(req.params.orderId).total_weight || 0;
+    db.prepare('UPDATE orders SET total_weight=?, billing_weight=? WHERE id=?').run(orderTotal, orderTotal * 1.03, req.params.orderId);
+    db.prepare(`
+      UPDATE pallets
+      SET total_weight=(SELECT COALESCE(SUM(total_weight),0) FROM items WHERE pallet_id=pallets.id)
+      WHERE order_id=?
+    `).run(req.params.orderId);
+
+    auditLog('item', item.id, item.order_num, 'item_update', 'shape_payload', before, JSON.stringify(req.body), note || null, req.auth?.sub || null, req.auth?.display_name || null);
+    wsBroadcast('order_item_updated', { orderId: Number(req.params.orderId), itemId: Number(item.id), orderNum: item.order_num });
+    res.json({ success: true, itemId: Number(item.id), total_weight: totalWeight, order_total_weight: orderTotal });
+  });
+
   router.patch('/orders/:orderId/items/:itemId/review', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const status = String(req.body?.status || 'approved').trim();
     if (!['approved', 'pending'].includes(status)) {

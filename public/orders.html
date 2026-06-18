@@ -170,6 +170,26 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .review-approved{background:#e7f8ed;color:#166b37}
 .review-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 10px;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;color:var(--text)}
 .review-btn.primary{border-color:var(--success);background:#f2fbf5;color:var(--success)}
+.raw-data{border:1px dashed rgba(2,26,72,.18);background:#fff;border-radius:10px;padding:8px 10px;font-size:12px;color:var(--dim);line-height:1.55}
+.raw-data b{color:var(--text)}
+.shape-warning{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:10px;padding:7px 10px;font-size:12px;font-weight:900}
+.item-visual{cursor:pointer}
+.item-visual:hover{box-shadow:0 0 0 2px rgba(224,123,57,.25)}
+.edit-overlay{position:fixed;inset:0;background:rgba(2,26,72,.56);z-index:760;display:none;padding:18px;backdrop-filter:blur(4px)}
+.edit-overlay.show{display:flex}
+.edit-panel{background:#fff;border:1px solid var(--border);border-radius:16px;width:min(720px,100%);max-height:min(760px,100%);margin:auto;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(2,26,72,.30)}
+.edit-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#f8fafc}
+.edit-title{font-size:18px;font-weight:900;color:var(--text)}
+.edit-body{padding:16px;overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.edit-field{display:flex;flex-direction:column;gap:5px}
+.edit-field label{font-size:11px;font-weight:900;color:var(--dim)}
+.edit-field input,.edit-field textarea{border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-family:inherit;font-size:14px;background:#f8fafc;color:var(--text)}
+.edit-field textarea{min-height:110px;resize:vertical;direction:ltr;text-align:left}
+.edit-wide{grid-column:1/-1}
+.edit-actions{padding:14px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-start;background:#fff}
+.edit-save{background:linear-gradient(135deg,var(--accent),var(--accent-light));color:#fff;border:0;border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:900;cursor:pointer}
+.edit-cancel{background:#fff;color:var(--dim);border:1px solid var(--border);border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:900;cursor:pointer}
+@media(max-width:640px){.edit-body{grid-template-columns:1fr}.edit-overlay{padding:0}.edit-panel{height:100%;max-height:100%;border-radius:0}}
 .source-overlay{position:fixed;inset:0;background:rgba(2,26,72,.55);z-index:720;display:none;padding:18px;backdrop-filter:blur(3px)}
 .source-overlay.show{display:flex}
 .source-panel{background:#fff;border:1px solid var(--border);border-radius:14px;width:min(1200px,100%);height:min(860px,100%);margin:auto;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(2,26,72,.28)}
@@ -285,8 +305,40 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   </div>
 </div>
 
+<div class="edit-overlay" id="itemEditOverlay" onclick="closeItemEditOverlay(event)">
+  <div class="edit-panel">
+    <div class="edit-head">
+      <div>
+        <div class="edit-title">עריכת פריט קיים</div>
+        <div class="detail-customer" id="itemEditMeta"></div>
+      </div>
+      <button class="detail-close" onclick="closeItemEditPanel()">✕</button>
+    </div>
+    <div class="edit-body">
+      <input type="hidden" id="editOrderId">
+      <input type="hidden" id="editItemId">
+      <div class="edit-field"><label>צורה</label><input id="editShapeName"></div>
+      <div class="edit-field"><label>קוטר ברזל Ø</label><input id="editDiameter" type="number" step="1"></div>
+      <div class="edit-field"><label>כמות</label><input id="editQuantity" type="number" step="1"></div>
+      <div class="edit-field"><label>אורך כולל מ"מ</label><input id="editTotalLength" type="number" step="1"></div>
+      <div class="edit-field"><label>קוטר ספיראלה</label><input id="editSpiralDiameter" type="number" step="1"></div>
+      <div class="edit-field"><label>מספר כריכות</label><input id="editSpiralTurns" type="number" step="1"></div>
+      <div class="edit-field edit-wide">
+        <label>צלעות וזוויות לפי סדר מכונה: אורך@זווית-אחרי-צלע</label>
+        <textarea id="editSegments" placeholder="300@90&#10;950@90&#10;300@0"></textarea>
+      </div>
+      <div class="edit-field edit-wide"><label>הערה</label><textarea id="editNote"></textarea></div>
+      <div class="raw-data edit-wide" id="editShapeAdvice"></div>
+    </div>
+    <div class="edit-actions">
+      <button class="edit-save" onclick="saveItemEdit(event)">שמור שינוי בפריט</button>
+      <button class="edit-cancel" onclick="closeItemEditPanel()">ביטול</button>
+    </div>
+  </div>
+</div>
+
 <script>
-let allOrders = [], activeStatus = '', ws, _wsDelay = 1000;
+let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null;
 const STATUS_CONTRACT = window.IronBendStatus || {};
 const ORDER_STATUS = STATUS_CONTRACT.ORDER_STATUS || {};
 const allowedOrderTransitions = STATUS_CONTRACT.allowedOrderTransitions || (() => []);
@@ -494,6 +546,7 @@ async function openDetail(id) {
   ]);
   const o = await r.json();
   const pkgs = await pkgR.json().catch(() => []);
+  currentDetailOrder = o;
   document.getElementById('detailOrderNum').textContent = o.order_num;
   document.getElementById('detailCustomer').textContent = o.customer_name ?? '';
   document.getElementById('detailBody').innerHTML = buildDetailHTML(o, pkgs);
@@ -580,6 +633,43 @@ function itemAngles(item) {
     const angle = segment && typeof segment === 'object' ? Number(segment.angle_deg) : 180;
     return Number.isFinite(angle) && angle > 0 ? angle : 180;
   });
+}
+
+function rawItemSegments(item) {
+  if (isRealSpiralItem(item)) return [];
+  return safeJson(item.segments).map(segment => (
+    segment && typeof segment === 'object'
+      ? { length_mm: segmentLength(segment), angle_deg: Number(segment.angle_deg ?? segment.angle ?? 180) }
+      : { length_mm: segmentLength(segment), angle_deg: 180 }
+  )).filter(segment => Number.isFinite(segment.length_mm) && segment.length_mm > 0);
+}
+
+function isOpenUShape(item, sides) {
+  const name = String(item?.shape_name || '').toLowerCase();
+  const angleList = itemAngles(item);
+  const hasTwoRightBends = angleList.length >= 2
+    && angleList.slice(0, 2).every(angle => Math.abs(Number(angle) - 90) <= 1);
+  return !isRealSpiralItem(item)
+    && Array.isArray(sides)
+    && sides.length === 3
+    && (/open|hook|anchor|צורת ח|צורת u|פתוח|פתוחה|\bu\b/.test(name) || hasTwoRightBends);
+}
+
+function openULegWarning(item, sides) {
+  if (!isOpenUShape(item, sides)) return '';
+  const first = Number(sides[0]);
+  const last = Number(sides[2]);
+  if (!Number.isFinite(first) || !Number.isFinite(last)) return '';
+  if (Math.abs(first - last) <= 1) return '';
+  return `צורת ח עם צלעות מקבילות לא שוות: צלע א ${first} מ"מ מול צלע ג ${last} מ"מ. דרוש תיקון לפני ייצור.`;
+}
+
+function itemMachineSequence(item) {
+  const segments = rawItemSegments(item);
+  if (isRealSpiralItem(item)) {
+    return `ספיראלה: קוטר ברזל ${item.diameter || '-'}, קוטר ספיראלה ${item.spiral_diameter_mm || '-'}, כריכות ${item.spiral_turns || '-'}`;
+  }
+  return segments.map((segment, idx) => `צלע ${idx + 1}: ${Math.round(segment.length_mm)} מ"מ | זווית אחרי: ${Number.isFinite(segment.angle_deg) ? segment.angle_deg : 180}°`).join(' · ');
 }
 
 function renderDetailShapes() {
@@ -785,16 +875,19 @@ function buildDetailHTML(o, pkgs) {
       const angles = itemAngles(item);
       const dims = sides.length ? sides.join(' / ') : itemDimensions(item);
       const shapeMismatch = shapeMismatchWarning(item, sides);
+      const openUWarning = openULegWarning(item, sides);
       const review = needsItemReview(item, sides);
       const displayNote = visibleItemNote(item.note);
       const measuredWeight = actualWeight(item);
       const deviationPct = weightDeviationPct(item);
       const visualHtml = isRealSpiralItem(item)
-        ? `<div class="item-visual" data-spiral-shape="1" data-spiral-diameter="${escHtml(item.spiral_diameter_mm)}" data-spiral-turns="${escHtml(item.spiral_turns)}"></div>`
+        ? `<div class="item-visual" data-spiral-shape="1" data-spiral-diameter="${escHtml(item.spiral_diameter_mm)}" data-spiral-turns="${escHtml(item.spiral_turns)}" onclick="openItemEdit(event, ${o.id}, ${item.id})" title="ערוך צורה"></div>`
         : `<div class="item-visual"
           data-detail-shape="1"
           data-sides="${encodeURIComponent(JSON.stringify(sides))}"
-          data-angles="${encodeURIComponent(JSON.stringify(angles))}"></div>`;
+          data-angles="${encodeURIComponent(JSON.stringify(angles))}"
+          onclick="openItemEdit(event, ${o.id}, ${item.id})"
+          title="ערוך צורה"></div>`;
       return `<div class="item-row">
         ${visualHtml}
         <div class="item-main">
@@ -810,12 +903,15 @@ function buildDetailHTML(o, pkgs) {
             <div class="item-kpi"><div class="item-kpi-label">משקל רצוי</div><div class="item-kpi-value">${weight.toFixed(1)} ק"ג</div></div>
             <div class="item-kpi"><div class="item-kpi-label">יוצר</div><div class="item-kpi-value">${produced}/${qty}</div></div>
           </div>
+          <div class="raw-data"><b>מה שמור לפריט:</b> ${escHtml(itemMachineSequence(item))}</div>
+          ${openUWarning ? `<div class="shape-warning">⚠ ${escHtml(openUWarning)}</div>` : ''}
           ${dims ? `<div class="item-dims">${dims.split(' / ').map((d, idx) => `<span class="dim-chip">${String.fromCharCode(0x05D0 + idx)}: ${d} מ"מ</span>`).join('')}</div>` : ''}
           ${measuredWeight ? `<div class="item-dims"><span class="dim-chip">משקל מצוי: ${measuredWeight.toFixed(1)} ק"ג</span><span class="dim-chip"${weightDeviationClass(deviationPct)}>סטייה: ${deviationPct > 0 ? '+' : ''}${deviationPct.toFixed(1)}%</span></div>` : ''}
           ${shapeMismatch && !isReviewApproved(item) ? `<div class="note-chip">⚠ שם הצורה המקורי היה "${escHtml(item.shape_name)}", אבל הגיאומטריה כוללת צלע אחת בלבד ולכן מוצג כמוט ישר.</div>` : ''}
           ${displayNote ? `<div class="note-chip">⚠ ${escHtml(displayNote)}</div>` : ''}
           ${review ? `<div class="review-actions">
             <button class="review-btn" onclick="openOrderIntakeSource(event, ${o.id})">פתח מקור להשוואה</button>
+            <button class="review-btn" onclick="openItemEdit(event, ${o.id}, ${item.id})">ערוך פריט</button>
             <button class="review-btn primary" onclick="approveItemReview(event, ${o.id}, ${item.id})">אשר הערה</button>
           </div>` : ''}
           ${item.status==='בייצור'&&qty>0?`<div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100,produced/qty*100).toFixed(0)}%"></div></div><div style="font-size:11px;color:var(--muted)">${produced}/${qty}</div>`:''}
@@ -932,6 +1028,106 @@ function closeSourceOverlay(event) {
 
 function closeSourcePanel() {
   document.getElementById('sourceOverlay').classList.remove('show');
+}
+
+function findDetailItem(orderId, itemId) {
+  const order = currentDetailOrder && Number(currentDetailOrder.id) === Number(orderId) ? currentDetailOrder : null;
+  if (!order) return null;
+  for (const pallet of order.pallets || []) {
+    const found = (pallet.items || []).find(item => Number(item.id) === Number(itemId));
+    if (found) return found;
+  }
+  return null;
+}
+
+function segmentsToEditText(item) {
+  return rawItemSegments(item)
+    .map(segment => `${Math.round(segment.length_mm)}@${Number.isFinite(segment.angle_deg) ? segment.angle_deg : 180}`)
+    .join('\n');
+}
+
+function parseEditSegmentsText(text) {
+  return String(text || '')
+    .split(/\n|,/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const [lengthPart, anglePart] = line.split('@');
+      const length = Number(String(lengthPart || '').replace(/[^\d.-]/g, ''));
+      const angle = anglePart === undefined ? 180 : Number(String(anglePart).replace(/[^\d.-]/g, ''));
+      if (!Number.isFinite(length) || length < 0) throw new Error(`צלע ${index + 1}: אורך לא תקין`);
+      if (!Number.isFinite(angle) || angle < 0 || angle > 180) throw new Error(`צלע ${index + 1}: זווית לא תקינה`);
+      return { length_mm: length, angle_deg: angle };
+    });
+}
+
+function openItemEdit(event, orderId, itemId) {
+  event?.stopPropagation?.();
+  const item = findDetailItem(orderId, itemId);
+  if (!item) {
+    alert('לא נמצא הפריט לעריכה. סגור ופתח את ההזמנה מחדש.');
+    return;
+  }
+  const sides = itemSegments(item);
+  const warning = openULegWarning(item, sides);
+  document.getElementById('editOrderId').value = orderId;
+  document.getElementById('editItemId').value = itemId;
+  document.getElementById('itemEditMeta').textContent = `פריט ${itemId} · ${shapeLabel(item.shape_name, sides, item)}`;
+  document.getElementById('editShapeName').value = item.shape_name || '';
+  document.getElementById('editDiameter').value = item.diameter || '';
+  document.getElementById('editQuantity').value = item.quantity || '';
+  document.getElementById('editTotalLength').value = item.total_length_mm || '';
+  document.getElementById('editSpiralDiameter').value = item.spiral_diameter_mm || '';
+  document.getElementById('editSpiralTurns').value = item.spiral_turns || '';
+  document.getElementById('editSegments').value = segmentsToEditText(item);
+  document.getElementById('editNote').value = item.note || '';
+  document.getElementById('editShapeAdvice').innerHTML = warning
+    ? `<b>אזהרת צורת ח:</b> ${escHtml(warning)}`
+    : `<b>סדר מכונה שמור:</b> ${escHtml(itemMachineSequence(item))}`;
+  document.getElementById('itemEditOverlay').classList.add('show');
+}
+
+function closeItemEditOverlay(event) {
+  if (event.target === document.getElementById('itemEditOverlay')) closeItemEditPanel();
+}
+
+function closeItemEditPanel() {
+  document.getElementById('itemEditOverlay').classList.remove('show');
+}
+
+async function saveItemEdit(event) {
+  event?.stopPropagation?.();
+  const orderId = Number(document.getElementById('editOrderId').value);
+  const itemId = Number(document.getElementById('editItemId').value);
+  let segments;
+  try {
+    segments = parseEditSegmentsText(document.getElementById('editSegments').value);
+  } catch (error) {
+    alert(error.message);
+    return;
+  }
+  const payload = {
+    shape_name: document.getElementById('editShapeName').value.trim(),
+    diameter: Number(document.getElementById('editDiameter').value),
+    quantity: Number(document.getElementById('editQuantity').value),
+    total_length_mm: Number(document.getElementById('editTotalLength').value),
+    spiral_diameter_mm: document.getElementById('editSpiralDiameter').value ? Number(document.getElementById('editSpiralDiameter').value) : null,
+    spiral_turns: document.getElementById('editSpiralTurns').value ? Number(document.getElementById('editSpiralTurns').value) : null,
+    segments,
+    note: document.getElementById('editNote').value,
+  };
+  const response = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    alert(result.error || 'שמירת הפריט נכשלה');
+    return;
+  }
+  closeItemEditPanel();
+  await openDetail(orderId);
 }
 async function approveItemReview(event, orderId, itemId) {
   event?.stopPropagation?.();
