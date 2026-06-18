@@ -8,6 +8,7 @@ function required(name, value) {
 function createPortalAccessService(deps) {
   const db = required('db', deps.db);
   const crypto = required('crypto', deps.crypto);
+  const bcrypt = require('bcryptjs');
   const settingsService = required('settingsService', deps.settingsService);
   const PORT = required('PORT', deps.PORT);
 
@@ -28,6 +29,8 @@ function createPortalAccessService(deps) {
   `);
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN token TEXT`); } catch {}
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN token_expires_at TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN password_hash TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN password_changed_at TEXT`); } catch {}
 
   // Backfill חד-פעמי: כל לקוח קיים עם טלפון → משתמש פורטל role=both (שומר התנהגות קיימת)
   try {
@@ -71,6 +74,37 @@ function createPortalAccessService(deps) {
     const expiresAt = portalTokenExpiresAt();
     db.prepare('UPDATE portal_users SET token=?, token_expires_at=? WHERE id=?').run(token, expiresAt, portalUser.id);
     return { token, expiresAt };
+  }
+
+  function normalizePortalPassword(password) {
+    return String(password || '').trim();
+  }
+
+  function validatePortalPassword(password) {
+    const clean = normalizePortalPassword(password);
+    if (clean.length < 4) return { ok: false, error: 'הסיסמה חייבת להכיל לפחות 4 תווים' };
+    if (clean.length > 64) return { ok: false, error: 'הסיסמה ארוכה מדי' };
+    return { ok: true, password: clean };
+  }
+
+  function setPortalPassword(userId, password) {
+    const valid = validatePortalPassword(password);
+    if (!valid.ok) return valid;
+    const hash = bcrypt.hashSync(valid.password, 10);
+    db.prepare('UPDATE portal_users SET password_hash=?, password_changed_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(hash, userId);
+    return { ok: true };
+  }
+
+  function verifyPortalPassword(portalUser, password) {
+    if (!portalUser || !portalUser.password_hash) return false;
+    const clean = normalizePortalPassword(password);
+    if (!clean) return false;
+    return bcrypt.compareSync(clean, portalUser.password_hash);
+  }
+
+  function generatePortalPassword() {
+    return String(crypto.randomInt(100000, 1000000));
   }
 
   // טוקן פר-משתמש → {customer, user, role}. נופל ל-null אם לא קיים/פג.
@@ -190,6 +224,9 @@ function createPortalAccessService(deps) {
     resolvePortalUser,
     findOrCreatePortalUser,
     issueUserToken,
+    setPortalPassword,
+    verifyPortalPassword,
+    generatePortalPassword,
     resolvePortalSession,
     roleCaps,
     issuePortalOtp,

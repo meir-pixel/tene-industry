@@ -65,6 +65,8 @@
     .welcome-banner{background:linear-gradient(135deg,var(--dark),#2d2d5e);color:#fff;border-radius:16px;padding:20px;margin-bottom:20px}
     .welcome-banner h2{font-size:20px;margin-bottom:4px}
     .welcome-banner p{font-size:13px;color:#bbb}
+    .welcome-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+    .welcome-actions .btn{width:auto;margin:0}
     .new-order-btn{background:var(--orange);color:#fff;border:none;border-radius:14px;padding:16px;width:100%;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:10px}
 
     .order-card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:10px;cursor:pointer;border-right:4px solid transparent}
@@ -182,6 +184,12 @@
       <label>מספר טלפון</label>
       <input type="tel" id="authPhone" placeholder="05X-XXXXXXX" inputmode="numeric"/>
     </div>
+    <div class="field">
+      <label>סיסמה / PIN</label>
+      <input type="password" id="authPassword" placeholder="סיסמה שקיבלת מטנא" autocomplete="current-password"/>
+    </div>
+    <button class="btn btn-secondary" type="button" onclick="loginWithPassword()" style="width:100%;margin-bottom:8px">כניסה עם סיסמה</button>
+    <button class="btn btn-secondary btn-sm" type="button" onclick="forgotPortalPassword()" style="margin-bottom:8px">שכחתי סיסמה</button>
     <div class="field" id="authNameField" style="display:none">
       <label>שם מלא</label>
       <input type="text" id="authName" placeholder="שם ושם משפחה"/>
@@ -199,6 +207,10 @@
   <div class="welcome-banner">
     <h2 id="welcomeName">שלום 👋</h2>
     <p id="welcomeSub">מחירון <span id="tierLabel">מחירון</span></p>
+    <div class="welcome-actions">
+      <button class="btn btn-secondary btn-sm" onclick="changePortalPassword()">שינוי סיסמה</button>
+      <button class="btn btn-secondary btn-sm" onclick="logoutPortal()">החלף לקוח / יציאה</button>
+    </div>
   </div>
   <button class="new-order-btn" onclick="showScreen('screenOrder')">
     ➕ הזמנה חדשה
@@ -357,6 +369,25 @@ async function loginWithPortalCode() {
   await completeAuth({ token, customer:data.data.customer });
 }
 
+async function loginWithPassword() {
+  const phone = document.getElementById('authPhone').value.replace(/\D/g,'');
+  const password = document.getElementById('authPassword').value.trim();
+  if (phone.length < 9) { toast('הכנס מספר טלפון תקין', true); return; }
+  if (!password) { toast('הכנס סיסמה או PIN', true); return; }
+  const res = await fetch('/api/c/auth/password', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ phone, password })
+  }).then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+  if (!res) { toast('שגיאה בחיבור לשרת', true); return; }
+  if (!res.ok) { toast(res.data?.error || 'טלפון או סיסמה שגויים', true); return; }
+  await completeAuth(res.data);
+}
+
+function forgotPortalPassword() {
+  toast('פנה לטנא לקבלת סיסמה זמנית. מנהל יכול לאפס אותה במסך לקוחות.');
+}
+
 async function doAuth() {
   const phone = document.getElementById('authPhone').value.replace(/\D/g,'');
   if (phone.length < 9) { toast('הכנס מספר טלפון תקין', true); return; }
@@ -420,6 +451,31 @@ async function completeAuth(data) {
   await loadShapes();
   await loadPriceList();
   showHome(null);
+}
+
+async function changePortalPassword() {
+  if (!TOKEN) return;
+  const oldPassword = prompt('הכנס סיסמה נוכחית. אם זו סיסמה זמנית ראשונה, אפשר להשאיר ריק:') || '';
+  const newPassword = prompt('בחר סיסמה / PIN חדש. לפחות 4 תווים:') || '';
+  if (!newPassword) return;
+  const res = await fetch('/api/c/password/change', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ token:TOKEN, oldPassword, newPassword })
+  }).then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+  if (!res) { toast('שגיאה בחיבור לשרת', true); return; }
+  if (!res.ok) { toast(res.data?.error || 'לא ניתן לשנות סיסמה', true); return; }
+  toast('הסיסמה עודכנה');
+}
+
+function logoutPortal() {
+  localStorage.removeItem('ib_token');
+  TOKEN = null;
+  ME = null;
+  const url = new URL(location.href);
+  url.searchParams.delete('token');
+  history.replaceState({}, '', url);
+  showScreen('screenAuth');
 }
 
 // ──────────────────────────────────────────────────────

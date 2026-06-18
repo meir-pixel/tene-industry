@@ -26,6 +26,8 @@ module.exports = function createPortalRouter(deps) {
     resolveCustomer,
     findOrCreatePortalUser,
     issueUserToken,
+    setPortalPassword,
+    verifyPortalPassword,
     resolvePortalSession,
     roleCaps,
     issuePortalOtp,
@@ -36,9 +38,9 @@ module.exports = function createPortalRouter(deps) {
   // session(token) → {customer, role}. טוקן פר-משתמש; נפילה לטוקן חברה ישן (role=both, תאימות לאחור).
   function session(token) {
     const s = resolvePortalSession(token);
-    if (s) return { customer: s.customer, role: s.role, caps: roleCaps(s.role) };
+    if (s) return { customer: s.customer, user: s.user, role: s.role, caps: roleCaps(s.role) };
     const c = resolveCustomer(token);
-    if (c) return { customer: c, role: 'both', caps: roleCaps('both') };
+    if (c) return { customer: c, user: null, role: 'both', caps: roleCaps('both') };
     return null;
   }
 
@@ -91,6 +93,43 @@ module.exports = function createPortalRouter(deps) {
       caps,
       customer: { id: c.id, name: c.name, phone: c.phone, price_tier: caps.seePrice ? c.price_tier : undefined }
     });
+  });
+
+  router.post('/c/auth/password', customerPortalAuthLimiter, (req, res) => {
+    const phone = normalizePortalPhone(req.body.phone);
+    const password = String(req.body.password || '');
+    if (!phone || !password) return res.status(400).json({ error: 'טלפון וסיסמה חובה' });
+    const user = portalAccess.resolvePortalUser(phone);
+    if (!user || !verifyPortalPassword(user, password)) {
+      return res.status(401).json({ error: 'שם משתמש או סיסמה שגויים' });
+    }
+    const customer = db.prepare('SELECT * FROM customers WHERE id=?').get(user.customer_id);
+    if (!customer) return res.status(401).json({ error: 'לקוח לא פעיל' });
+    const { token, expiresAt } = issueUserToken(user);
+    const caps = roleCaps(user.role);
+    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+    res.json({
+      token,
+      link: `${baseUrl}/customer.html?token=${token}`,
+      expiresAt,
+      role: user.role,
+      caps,
+      customer: { id: customer.id, name: customer.name, phone: customer.phone, price_tier: caps.seePrice ? customer.price_tier : undefined }
+    });
+  });
+
+  router.post('/c/password/change', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.body.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.user) return res.status(400).json({ error: 'כניסה בקישור ישן אינה תומכת בשינוי סיסמה. היכנס עם משתמש פורטל.' });
+    const oldPassword = String(req.body.oldPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (s.user.password_hash && !verifyPortalPassword(s.user, oldPassword)) {
+      return res.status(401).json({ error: 'הסיסמה הנוכחית שגויה' });
+    }
+    const result = setPortalPassword(s.user.id, newPassword);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ success: true });
   });
 
   // ── ניהול משתמשי פורטל (מאשר בלבד) ────────────────────────────

@@ -41,6 +41,25 @@ module.exports = function createPortalAdminRouter(deps) {
     res.json(portalTokenPayload(result));
   });
 
+  router.post('/customers/:id/portal-password/reset', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
+    if (!c) return res.status(404).json({ error: 'not found' });
+    const phone = portalAccess.normalizePortalPhone(req.body.phone || c.phone);
+    if (!phone) return res.status(400).json({ error: 'אין טלפון ללקוח. עדכן טלפון לפני יצירת סיסמת פורטל.' });
+    const user = portalAccess.findOrCreatePortalUser(c.id, phone, req.body.name || c.name);
+    const temporaryPassword = portalAccess.generatePortalPassword();
+    const result = portalAccess.setPortalPassword(user.id, temporaryPassword);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    auditLog('customer', c.id, null, 'portal_password_reset', null, null, null, null, req.userId || null, null);
+    res.json({
+      success: true,
+      phone,
+      userId: user.id,
+      temporaryPassword,
+      message: `שלום ${c.name || ''}, הכניסה לפורטל טנא: ${process.env.BASE_URL || `http://localhost:${PORT}`}/customer.html\nטלפון: ${phone}\nסיסמה זמנית: ${temporaryPassword}`
+    });
+  });
+
   router.delete('/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const c = db.prepare('SELECT id FROM customers WHERE id=?').get(req.params.id);
     if (!c) return res.status(404).json({ error: 'not found' });

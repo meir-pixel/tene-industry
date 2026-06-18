@@ -1102,6 +1102,7 @@ function renderDetail(c) {
     '</div>' +
     '<button class="btn-action" onclick="getPortalLink('+c.id+')">🔑 קבל קישור</button>' +
     '<button class="btn-action" onclick="rotatePortalLink('+c.id+')">↻ קישור חדש</button>' +
+    '<button class="btn-action" onclick="resetPortalPassword('+c.id+')">🔐 סיסמה זמנית</button>' +
     '<button class="btn-action" onclick="revokePortalLink('+c.id+')">⛔ בטל גישה</button>' +
   '</div>';
 
@@ -1189,6 +1190,17 @@ function portalMessage(customerName, link, code) {
   ].join('\n');
 }
 
+function portalPasswordMessage(customerName, link, phone, password) {
+  return [
+    'שלום ' + (customerName || ''),
+    'פרטי כניסה לפורטל ההזמנות של טנא:',
+    link,
+    'טלפון: ' + (phone || ''),
+    'סיסמה זמנית: ' + (password || ''),
+    'לאחר הכניסה ניתן להחליף סיסמה.'
+  ].join('\n');
+}
+
 function showPortalAccess(d, toastMsg) {
   const token = portalTokenFromResponse(d);
   const link = d?.link || (token ? location.origin + '/customer.html?token=' + encodeURIComponent(token) : '');
@@ -1223,6 +1235,18 @@ function showPortalAccess(d, toastMsg) {
   codeBox.onclick = () => copyPortalText(code, 'קוד הכניסה הועתק ✓');
   codeWrap.appendChild(codeBox);
 
+  let passwordWrap = null;
+  if (d?.temporaryPassword) {
+    passwordWrap = document.createElement('div');
+    passwordWrap.innerHTML = '<div class="portal-access-label">סיסמה זמנית</div>';
+    const passwordBox = document.createElement('div');
+    passwordBox.className = 'portal-access-value portal-access-code';
+    passwordBox.title = 'לחץ להעתקת סיסמה זמנית';
+    passwordBox.textContent = d.temporaryPassword;
+    passwordBox.onclick = () => copyPortalText(d.temporaryPassword, 'הסיסמה הזמנית הועתקה ✓');
+    passwordWrap.appendChild(passwordBox);
+  }
+
   const actions = document.createElement('div');
   actions.className = 'portal-access-actions';
   const copyLink = document.createElement('button');
@@ -1237,9 +1261,15 @@ function showPortalAccess(d, toastMsg) {
   copyMsg.type = 'button';
   copyMsg.textContent = 'העתק הודעה ללקוח';
   copyMsg.onclick = () => copyPortalText(portalMessage(customerName, link, code), 'הודעה מוכנה הועתקה ✓');
-  actions.append(copyLink, copyCode, copyMsg);
+  const copyPasswordMsg = document.createElement('button');
+  copyPasswordMsg.type = 'button';
+  copyPasswordMsg.textContent = 'העתק הודעת סיסמה';
+  copyPasswordMsg.style.display = d?.temporaryPassword ? '' : 'none';
+  copyPasswordMsg.onclick = () => copyPortalText(portalPasswordMessage(customerName, link, d?.phone, d?.temporaryPassword), 'הודעת סיסמה הועתקה ✓');
+  actions.append(copyLink, copyCode, copyMsg, copyPasswordMsg);
 
-  card.append(linkWrap, codeWrap, actions);
+  if (passwordWrap) card.append(linkWrap, codeWrap, passwordWrap, actions);
+  else card.append(linkWrap, codeWrap, actions);
   ps.appendChild(card);
   window.showToast && window.showToast(toastMsg || 'קישור וקוד כניסה מוכנים ✓');
 }
@@ -1266,6 +1296,23 @@ async function rotatePortalLink(id) {
     }
   } catch(e) {
     window.showToast && window.showToast('שגיאה ביצירת קישור חדש', true);
+  }
+}
+
+async function resetPortalPassword(id) {
+  if (!confirm('ליצור סיסמה זמנית חדשה לפורטל הלקוח?')) return;
+  try {
+    const linkResp = await fetch('/api/customers/' + id + '/token').then(r => r.json());
+    const r = await fetch('/api/customers/' + id + '/portal-password/reset', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || 'reset failed');
+    showPortalAccess(Object.assign({}, linkResp, d), 'סיסמה זמנית נוצרה ✓');
+  } catch(e) {
+    window.showToast && window.showToast(e.message || 'שגיאה ביצירת סיסמה זמנית', true);
   }
 }
 
