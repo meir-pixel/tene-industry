@@ -12,13 +12,17 @@ services:
       - key: NODE_ENV
         value: "production"
       - key: DB_PATH
-        value: "./ironbend.db"
+        value: "/data/ironbend.db"
       - key: BACKUP_DIR
-        value: "./backups"
+        value: "/data/backups"
       - key: ALLOW_EMPTY_DB_INIT
-        value: "false"
+        value: "true"
       - key: ALLOW_DATABASE_UPLOAD
         value: "false"
+      - key: LICENSE_SERVER
+        value: "https://tene-license.onrender.com"
+      - key: BASE_URL
+        value: "https://ironbend.onrender.com"
       - key: AI_ENABLED
         value: "false"
       - key: INTAKE_AI_ENABLED
@@ -39,3 +43,7 @@ services:
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN
         sync: false
+    disk:
+      name: ironbend-data
+      mountPath: /data
+      sizeGB: 1
