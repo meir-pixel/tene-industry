@@ -658,6 +658,12 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /openOcrShapeEditor/);
   assert.match(intake, /isStraightOcrItem/);
   assert.match(intake, /straight-ocr-no-angles/);
+  assert.match(intake, /element_name/);
+  assert.match(intake, /shape_description/);
+  assert.match(intake, /review_status/);
+  assert.match(intake, /ocrRowStatus_/);
+  assert.match(intake, /\\u05e9\\u05dd \\u05d4\\u05d0\\u05dc\\u05de\\u05e0\\u05d8/);
+  assert.match(intake, /\\u05ea\\u05d9\\u05d0\\u05d5\\u05e8 \\u05e6\\u05d5\\u05e8\\u05d4/);
   assert.match(intake, /spiral_diameter_mm/);
   assert.match(intake, /spiral_turns/);
   assert.match(intake, /ShapeEditorModal/);
@@ -667,6 +673,9 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(route, /original_data_url/);
   assert.match(route, /original_mime/);
   assert.match(route, /saveAnalysisToIntake/);
+  assert.match(route, /element_name/);
+  assert.match(route, /shape_description/);
+  assert.match(route, /shape_name is the canonical shape/);
   assert.match(startup, /addCol\('intake_log', 'original_data_url'/);
 });
 

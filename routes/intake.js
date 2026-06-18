@@ -142,6 +142,9 @@ module.exports = function createIntakeRouter(deps) {
             type: 'object',
             additionalProperties: false,
             properties: {
+              item_number: { type: ['string', 'null'] },
+              element_name: { type: ['string', 'null'] },
+              shape_description: { type: ['string', 'null'] },
               diameter: { type: 'number' },
               shape_name: { type: 'string' },
               quantity: { type: 'integer' },
@@ -163,7 +166,7 @@ module.exports = function createIntakeRouter(deps) {
               material_grade: { type: 'string' },
               note: { type: 'string' },
             },
-            required: ['diameter', 'shape_name', 'quantity', 'spiral_diameter_mm', 'spiral_turns', 'segments', 'total_length_cm', 'material_grade', 'note'],
+            required: ['item_number', 'element_name', 'shape_description', 'diameter', 'shape_name', 'quantity', 'spiral_diameter_mm', 'spiral_turns', 'segments', 'total_length_cm', 'material_grade', 'note'],
           },
         },
       },
@@ -175,6 +178,11 @@ module.exports = function createIntakeRouter(deps) {
   Do not classify the document yourself as supplier delivery, inventory receipt, or price list. If the selected route is wrong, return no items and explain in notes.
   Read this photographed or PDF steel production order carefully.
   Return every printed or handwritten table row as a separate item.
+  For Tene-style production cards / bar card tables, preserve the comparison columns:
+  - item_number from "מס' פריט" or the visible row number.
+  - element_name from "שם האלמנט" exactly as the customer described it, such as beam/column/tie names.
+  - shape_description from the customer's shape wording, such as ח, ספסל, ליפט, חישוק, רתמה, ספירלה, or מוט ישר.
+  - shape_name is the canonical shape used for geometry and machine review; do not overwrite customer wording into shape_name when shape_description can preserve it.
   ${trainingGuidance}
   If it is a TASSA / טסה supplier order used as a customer order source:
   - Page 1 is usually a cover page. Extract the supplier order number from "הזמנה לספק מס'", the requested delivery date from "מועד אספקה", customer/contact name from "לכבוד" or the handwritten body, and phone from the handwritten body if present.

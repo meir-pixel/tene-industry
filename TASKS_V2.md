@@ -234,6 +234,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - aligned order OCR comparison with production-card table format: element name, customer shape description, editable shape drawing, row-level review save.
   - added module-origin OCR context for pricing imports: uploads from pricing/price_list stay in Pricing and use `/api/pricing/price-books/analyze-upload`, not order intake.
 - scope:
   - modules/intake/README_HE.md
@@ -241,6 +242,7 @@
   - docs/event-registry.md
   - routes/intake.js
   - routes/catalog.js
+  - public/intake.html
   - public/pricing.html
   - test/client-auth-contract.test.js
 - input:
@@ -248,12 +250,14 @@
   - requested_by_module / requested_use_case / target_module from modules that request OCR
 - output:
   - source document, OCR draft, corrections, approval
+  - order OCR rows with `item_number`, `element_name`, `shape_description`, geometry, quantities, lengths, calculated weight, and row review status
   - price_list_import draft to Pricing when requested by pricing / price_list context
 - logic:
   - OCR יוצר טיוטה בלבד.
   - OCR context from the calling module is a strong routing hint; `pricing / price_list` requests must not become order intake.
   - אישור מול מקור ויזואלי.
   - תיקון צורה פותח shape editor.
+  - comparison rows follow the production-card/table format and can be marked reviewed one row at a time.
 - definition_of_done:
   - compare flow מוגדר.
   - training flow מוגדר.
