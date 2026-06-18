@@ -30,6 +30,23 @@ function ensureCoreSchema(db) {
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
 
+    CREATE TABLE IF NOT EXISTS customer_guarantee_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      portal_user_id INTEGER,
+      original_name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT,
+      data_url TEXT NOT NULL,
+      size_bytes INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'uploaded_pending_review',
+      notes TEXT,
+      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at TEXT,
+      reviewed_by TEXT,
+      FOREIGN KEY (customer_id) REFERENCES customers(id)
+    );
+
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_num TEXT UNIQUE NOT NULL,

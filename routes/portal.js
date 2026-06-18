@@ -17,6 +17,7 @@ module.exports = function createPortalRouter(deps) {
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
   const pricer          = required('pricer',          deps.pricer);
   const settingsService = required('settingsService', deps.settingsService);
+  const upload          = required('upload',          deps.upload);
   const PORT = required('PORT', deps.PORT);
   const IS_TEST = Boolean(deps.IS_TEST);
 
@@ -204,6 +205,53 @@ module.exports = function createPortalRouter(deps) {
       requiresPriceListUpdate: row.requiresPriceListUpdate,
       warning: row.warning,
     })));
+  });
+
+  router.get('/c/guarantee-documents', customerPortalActionLimiter, (req, res) => {
+    const { token } = req.query;
+    const s = session(token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    const rows = db.prepare(`
+      SELECT id, original_name, mime_type, size_bytes, status, notes, uploaded_at, reviewed_at
+      FROM customer_guarantee_documents
+      WHERE customer_id=?
+      ORDER BY uploaded_at DESC, id DESC
+    `).all(s.customer.id);
+    res.json({ documents: rows });
+  });
+
+  router.post('/c/guarantee-documents', customerPortalActionLimiter, upload.single('file'), (req, res) => {
+    const token = req.body.token || req.query.token;
+    const s = session(token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!req.file) return res.status(400).json({ error: 'חסר קובץ להעלאה' });
+    const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+    if (!allowed.has(req.file.mimetype)) {
+      return res.status(400).json({ error: 'אפשר להעלות PDF, JPG או PNG בלבד' });
+    }
+    const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const r = db.prepare(`
+      INSERT INTO customer_guarantee_documents
+        (customer_id, portal_user_id, original_name, file_name, mime_type, data_url, size_bytes, status, notes)
+      VALUES (?,?,?,?,?,?,?,?,?)
+    `).run(
+      s.customer.id,
+      s.user?.id || null,
+      req.file.originalname,
+      req.file.originalname,
+      req.file.mimetype,
+      dataUrl,
+      req.file.size || req.file.buffer.length || 0,
+      'uploaded_pending_review',
+      req.body.notes || null
+    );
+    wsBroadcast('portal_guarantee_uploaded', {
+      customerId: s.customer.id,
+      documentId: r.lastInsertRowid,
+      fileName: req.file.originalname,
+      status: 'uploaded_pending_review',
+    });
+    res.json({ success: true, id: r.lastInsertRowid, status: 'uploaded_pending_review' });
   });
 
   // Quote — calculate price for items before ordering
@@ -408,9 +456,10 @@ module.exports.manifest = {
   access: { default: 'hidden', roles: { admin: 'edit' } },
   id: 'portal',
   label: 'פורטל לקוח',
-  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'price_list' }],
+  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'price_list' }, { table: 'customer_guarantee_documents' }],
   produces: [
     { event: 'new_order' },
     { event: 'order_status' },
+    { event: 'portal_guarantee_uploaded' },
   ],
 };

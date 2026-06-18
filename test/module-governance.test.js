@@ -524,6 +524,13 @@ test('catalog and pricing routes are split out of the server monolith', () => {
   assert.match(route, /module\.exports = function createCatalogRouter/);
   assert.ok(route.includes("router.get('/price-list'"));
   assert.ok(route.includes("router.patch('/price-list'"));
+  assert.ok(route.includes("router.get('/pricing/price-books'"));
+  assert.ok(route.includes("router.post('/pricing/price-books'"));
+  assert.ok(route.includes("router.patch('/pricing/price-books/:id'"));
+  assert.ok(route.includes("router.get('/pricing/price-books/:id/items'"));
+  assert.ok(route.includes("router.post('/pricing/price-books/:id/items'"));
+  assert.ok(route.includes("router.patch('/pricing/price-books/:id/items/:itemId'"));
+  assert.ok(route.includes("router.delete('/pricing/price-books/:id/items/:itemId'"));
   assert.match(route, /function notifyPriceListUpdate/);
   assert.ok(route.includes("router.get('/shapes'"));
   assert.ok(route.includes("router.post('/shapes'"));
@@ -532,8 +539,11 @@ test('catalog and pricing routes are split out of the server monolith', () => {
   assert.ok(server.includes("app.use('/api', requireModule('production'), createCatalogRouter"));
   assert.ok(!finance.includes("router.get('/price-list'"));
   assert.ok(!finance.includes("router.patch('/price-list'"));
+  assert.ok(!finance.includes("router.get('/pricing/price-books'"));
   assert.ok(!server.includes("app.get('/api/price-list'"));
   assert.ok(!server.includes("app.patch('/api/price-list'"));
+  assert.ok(!server.includes("app.get('/api/pricing/price-books'"));
+  assert.ok(!server.includes("app.post('/api/pricing/price-books'"));
   assert.ok(!server.includes("app.get('/api/shapes'"));
   assert.ok(!server.includes("app.post('/api/shapes'"));
 });
@@ -749,6 +759,8 @@ test('customer portal and portal management routes are split out of the server m
   assert.ok(route.includes("router.get('/c/price-list'"));
   assert.ok(route.includes("router.post('/c/quote'"));
   assert.ok(route.includes("router.post('/c/order'"));
+  assert.ok(route.includes("router.get('/c/guarantee-documents'"));
+  assert.ok(route.includes("router.post('/c/guarantee-documents'"));
   assert.ok(route.includes("router.get('/c/approve/:token'"));
   assert.ok(route.includes("router.post('/c/approve'"));
   assert.ok(route.includes("router.get('/c/orders/:orderId'"));
@@ -759,6 +771,9 @@ test('customer portal and portal management routes are split out of the server m
   assert.match(route, /createPortalAccessService/);
   assert.match(route, /customerPortalAuthLimiter/);
   assert.match(route, /customerPortalActionLimiter/);
+  assert.match(route, /required\('upload',\s+deps\.upload\)/);
+  assert.match(route, /customer_guarantee_documents/);
+  assert.match(route, /portal_guarantee_uploaded/);
 
   assert.match(adminRoute, /module[.]exports = function createPortalAdminRouter/);
   assert.ok(adminRoute.includes('routes/portalAdmin missing dependency'));
@@ -782,6 +797,7 @@ test('customer portal and portal management routes are split out of the server m
   assert.match(server, /createPortalAdminRouter/);
   assert.ok(server.includes("app.use('/api', requireModule('portal'), createPortalAdminRouter"));
   assert.ok(server.includes("app.use('/api', requireModule('portal'), createPortalRouter"));
+  assert.match(server, /createPortalRouter\(\{[\s\S]*upload,[\s\S]*PORT,[\s\S]*IS_TEST,[\s\S]*\}\)/);
   for (const forbiddenSnippet of [
     "app.get('/api/customers/:id/token'",
     "app.post('/api/customers/:id/token/rotate'",
@@ -793,6 +809,8 @@ test('customer portal and portal management routes are split out of the server m
     "app.get('/api/c/price-list'",
     "app.post('/api/c/quote'",
     "app.post('/api/c/order'",
+    "app.get('/api/c/guarantee-documents'",
+    "app.post('/api/c/guarantee-documents'",
     "app.get('/api/c/approve/:token'",
     "app.post('/api/c/approve'",
     "app.get('/api/c/orders/:orderId'",
@@ -1421,6 +1439,8 @@ test('finance schema is extracted from server startup', () => {
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS customer_credit/);
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS financial_events/);
   assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS steel_prices/);
+  assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS pricing_price_books/);
+  assert.match(financeSchema, /CREATE TABLE IF NOT EXISTS pricing_price_items/);
   assert.match(coreSchema, /require\('\.\/financeSchema'\)/);
   assert.match(coreSchema, /ensureFinanceSchema\(db\)/);
   assert.doesNotMatch(server, /FINANCIAL SCHEMA BOOTSTRAP/);

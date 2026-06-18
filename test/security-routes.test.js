@@ -488,6 +488,44 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request(`/api/c/orders/${orderB}?token=portal-token-a`)).status, 404);
   });
 
+  await t.test('customer portal guarantee documents are token scoped and file type checked', async () => {
+    const customerA = seedPortalCustomer('Portal Guarantee A', '0500000011', 'portal-guarantee-a');
+    const customerB = seedPortalCustomer('Portal Guarantee B', '0500000012', 'portal-guarantee-b');
+    db.prepare(`
+      INSERT INTO customer_guarantee_documents
+        (customer_id, original_name, file_name, mime_type, data_url, status)
+      VALUES (?,?,?,?,?,?)
+    `).run(customerA, 'a.pdf', 'a.pdf', 'application/pdf', 'data:application/pdf;base64,QQ==', 'uploaded_pending_review');
+    db.prepare(`
+      INSERT INTO customer_guarantee_documents
+        (customer_id, original_name, file_name, mime_type, data_url, status)
+      VALUES (?,?,?,?,?,?)
+    `).run(customerB, 'b.pdf', 'b.pdf', 'application/pdf', 'data:application/pdf;base64,Qg==', 'approved');
+
+    assert.equal((await request('/api/c/guarantee-documents')).status, 401);
+
+    const listA = await request('/api/c/guarantee-documents?token=portal-guarantee-a');
+    assert.equal(listA.status, 200);
+    const bodyA = await listA.json();
+    assert.deepEqual(bodyA.documents.map(doc => doc.original_name), ['a.pdf']);
+
+    const badForm = new FormData();
+    badForm.append('token', 'portal-guarantee-a');
+    badForm.append('file', new Blob(['not allowed'], { type: 'text/plain' }), 'guarantee.txt');
+    assert.equal((await request('/api/c/guarantee-documents', { method: 'POST', body: badForm })).status, 400);
+
+    const goodForm = new FormData();
+    goodForm.append('token', 'portal-guarantee-a');
+    goodForm.append('file', new Blob(['png'], { type: 'image/png' }), 'guarantee.png');
+    const uploadResponse = await request('/api/c/guarantee-documents', { method: 'POST', body: goodForm });
+    assert.equal(uploadResponse.status, 200);
+    const uploaded = await uploadResponse.json();
+    assert.equal(uploaded.status, 'uploaded_pending_review');
+
+    const rowsForA = db.prepare('SELECT original_name FROM customer_guarantee_documents WHERE customer_id=? ORDER BY id').all(customerA);
+    assert.deepEqual(rowsForA.map(row => row.original_name), ['a.pdf', 'guarantee.png']);
+  });
+
   await t.test('customer portal approval is scoped to portal token owner', async () => {
     const customerA = seedPortalCustomer('Portal Customer C', '0500000003', 'portal-token-c');
     const customerB = seedPortalCustomer('Portal Customer D', '0500000004', 'portal-token-d');

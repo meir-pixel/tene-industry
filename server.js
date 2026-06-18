@@ -694,6 +694,7 @@ app.use('/api', requireModule('portal'), createPortalRouter({
   wsBroadcast,
   pricer,
   settingsService,
+  upload,
   PORT,
   IS_TEST,
 }));

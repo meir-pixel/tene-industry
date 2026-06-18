@@ -119,6 +119,15 @@
     .portal-upload-note{font-size:12px;color:var(--dim);line-height:1.5;margin-top:8px}
     .attached-docs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .attached-doc{background:#eef5fb;border:1px solid #d9e8f6;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;color:#31506b}
+    .guarantee-panel{border:1.5px solid #d8e5d8;background:#fbfffb}
+    .guarantee-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px}
+    .guarantee-head p{font-size:12px;color:var(--dim);line-height:1.55;margin-top:4px}
+    .guarantee-status{background:#fff7e8;border:1px solid #f3d19b;color:#9b6200;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;white-space:nowrap}
+    .guarantee-status.ok{background:#eafaf1;border-color:#bde9cf;color:#176a37}
+    .guarantee-list{display:grid;gap:7px;margin-top:10px}
+    .guarantee-row{display:flex;justify-content:space-between;gap:10px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-size:12px}
+    .guarantee-row b{font-size:13px}
+    .guarantee-row span{color:var(--dim)}
 
     /* ── Price box ── */
     .price-box{background:linear-gradient(135deg,#1a1a2e,#2d3a5e);color:#fff;border-radius:14px;padding:18px;margin-bottom:16px}
@@ -226,6 +235,20 @@
   <button class="new-order-btn" onclick="showScreen('screenOrder')">
     ➕ הזמנה חדשה
   </button>
+  <div class="section-card guarantee-panel">
+    <div class="guarantee-head">
+      <div>
+        <div class="card-title">מסמכי ערבות ותנאי תשלום</div>
+        <p>אם יש לך תנאי תשלום, העלה כאן את טופס הערבות החתום. המשרד יבדוק ויאשר.</p>
+      </div>
+      <span id="guaranteeStatus" class="guarantee-status">לא הועלה</span>
+    </div>
+    <div class="portal-upload-grid">
+      <input type="file" id="guaranteeFile" accept=".pdf,.jpg,.jpeg,.png"/>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="uploadGuaranteeDocument()">העלה טופס חתום</button>
+    </div>
+    <div id="guaranteeDocsList" class="guarantee-list"></div>
+  </div>
   <div class="card-title" style="margin-bottom:10px">הזמנות אחרונות</div>
   <div id="ordersList"><div class="loader">טוען...</div></div>
 </div>
@@ -308,6 +331,7 @@ let SHAPES = [];
 let PRICE_LIST = {};  // {diameter: price_per_kg}
 let orderItems  = []; // [{id, shapeId, shapeName, diameter, sides, angles, qty, note}]
 let portalSourceFiles = [];
+let guaranteeDocuments = [];
 let itemIdSeq   = 0;
 let portalShapeEditor = null;
 let portalShapeTargetId = null;
@@ -506,7 +530,52 @@ async function showHome(preloaded) {
   showScreen('screenHome');
 
   const orders = preloaded ?? await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json()).then(d=>d.orders).catch(()=>[]);
+  await loadGuaranteeDocuments();
   renderOrdersList(orders);
+}
+
+async function loadGuaranteeDocuments() {
+  const data = await fetch(`/api/c/guarantee-documents?token=${encodeURIComponent(TOKEN)}`)
+    .then(r=>r.json()).catch(()=>({ documents: [] }));
+  guaranteeDocuments = Array.isArray(data.documents) ? data.documents : [];
+  renderGuaranteeDocuments();
+}
+
+function renderGuaranteeDocuments() {
+  const status = document.getElementById('guaranteeStatus');
+  const list = document.getElementById('guaranteeDocsList');
+  if (!status || !list) return;
+  const latest = guaranteeDocuments[0];
+  if (!latest) {
+    status.textContent = 'לא הועלה';
+    status.className = 'guarantee-status';
+    list.innerHTML = '<div class="portal-upload-note">אין עדיין טופס ערבות חתום במערכת.</div>';
+    return;
+  }
+  const approved = latest.status === 'approved';
+  status.textContent = approved ? 'מאושר' : 'ממתין לבדיקת משרד';
+  status.className = 'guarantee-status' + (approved ? ' ok' : '');
+  list.innerHTML = guaranteeDocuments.map(doc => `
+    <div class="guarantee-row">
+      <div><b>${escapeHtml(doc.original_name)}</b><br><span>${formatDateTime(doc.uploaded_at)}</span></div>
+      <span>${doc.status === 'approved' ? 'מאושר' : 'ממתין לבדיקה'}</span>
+    </div>
+  `).join('');
+}
+
+async function uploadGuaranteeDocument() {
+  const input = document.getElementById('guaranteeFile');
+  const file = input?.files?.[0];
+  if (!file) { toast('בחר קובץ ערבות חתום', true); return; }
+  const fd = new FormData();
+  fd.append('token', TOKEN);
+  fd.append('file', file);
+  const res = await fetch('/api/c/guarantee-documents', { method:'POST', body: fd })
+    .then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+  if (!res?.ok) { toast(res?.data?.error || 'העלאת הטופס נכשלה', true); return; }
+  input.value = '';
+  toast('הטופס הועלה וממתין לבדיקת משרד');
+  await loadGuaranteeDocuments();
 }
 
 function renderOrdersList(orders) {
@@ -899,6 +968,13 @@ function portalShapeSelected(data) {
 function formatMm(value) {
   const n = Number(value) || 0;
   return `${n} מ"מ`;
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function handlePortalFiles(files) {
