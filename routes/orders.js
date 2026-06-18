@@ -304,6 +304,7 @@ module.exports.manifest = {
     { event: 'new_order' },
     { event: 'order_status' },
     { event: 'order_review' },
+    { event: 'order_item_updated' },
     { event: 'machine_assign' },
   ],
 };
