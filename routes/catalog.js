@@ -8,6 +8,10 @@ function required(name, value) {
 module.exports = function createCatalogRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
+  const upload = deps.upload;
+  const imageAnalysisLimiter = deps.imageAnalysisLimiter || ((_req, _res, next) => next());
+  const getSetting = deps.getSetting || (() => null);
+  const getOpenAiApiKey = deps.getOpenAiApiKey || (() => null);
 
   function trimText(value) {
     return String(value ?? '').trim();
@@ -25,6 +29,92 @@ module.exports = function createCatalogRouter(deps) {
   function syncCustomerPriceTier(priceBook) {
     if (priceBook.price_type !== 'customer' || priceBook.status !== 'active' || !priceBook.customer_id) return;
     db.prepare("UPDATE customers SET price_tier = 'customer' WHERE id = ?").run(Number(priceBook.customer_id));
+  }
+
+  function normalizeRecognizedItem(item = {}, index = 0, currency = 'ILS') {
+    const sku = trimText(item.sku) || (item.diameter ? `D${Number(item.diameter)}` : `OCR-${index + 1}`);
+    const description = trimText(item.description) || sku;
+    return {
+      sku,
+      diameter: item.diameter === null || item.diameter === undefined || item.diameter === '' ? null : Number(item.diameter),
+      category: trimText(item.category),
+      description,
+      quantity: toNumber(item.quantity, 1) || 1,
+      unit: trimText(item.unit || 'kg') || 'kg',
+      price_before_vat: toNumber(item.price_before_vat, 0),
+      currency: trimText(item.currency || currency || 'ILS') || 'ILS',
+      notes: trimText(item.notes),
+    };
+  }
+
+  async function analyzePriceListWithOpenAI(req) {
+    const openaiKey = getOpenAiApiKey();
+    if (!openaiKey) {
+      const error = new Error('OPENAI_API_KEY is not configured');
+      error.status = 500;
+      throw error;
+    }
+    const mime = req.file.mimetype || 'application/octet-stream';
+    const fileData = req.file.buffer.toString('base64');
+    const attachment = mime === 'application/pdf'
+      ? { type: 'input_file', filename: req.file.originalname || 'price-list.pdf', file_data: `data:application/pdf;base64,${fileData}` }
+      : { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' };
+    const schema = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        code: { type: ['string', 'null'] },
+        name: { type: ['string', 'null'] },
+        customer_name: { type: ['string', 'null'] },
+        currency: { type: ['string', 'null'] },
+        notes: { type: ['string', 'null'] },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              sku: { type: ['string', 'null'] },
+              diameter: { type: ['number', 'null'] },
+              category: { type: ['string', 'null'] },
+              description: { type: ['string', 'null'] },
+              quantity: { type: ['number', 'null'] },
+              unit: { type: ['string', 'null'] },
+              price_before_vat: { type: ['number', 'null'] },
+              currency: { type: ['string', 'null'] },
+              notes: { type: ['string', 'null'] },
+            },
+            required: ['sku', 'diameter', 'category', 'description', 'quantity', 'unit', 'price_before_vat', 'currency', 'notes'],
+          },
+        },
+      },
+      required: ['code', 'name', 'customer_name', 'currency', 'notes', 'items'],
+    };
+    const prompt = `The operator is importing a steel/rebar price list into IronBend pricing.
+Extract only price-list rows. Do not extract payment terms, totals, VAT summaries, addresses, or legal text as item rows.
+Return a draft that the operator will edit before saving.
+For each row:
+- sku is the printed catalog/item code when visible. For diameter-only rebar rows use D8, D10, D12, etc.
+- diameter is the rebar diameter in millimeters when the item is a bar diameter row; otherwise null.
+- category is a short category such as rebar, mesh, delivery, processing, or other.
+- description is the visible item description.
+- quantity defaults to 1 unless the row clearly has a price quantity basis.
+- unit should be kg for price per kilogram, ton for ton, unit for fixed item, or m for meter.
+- price_before_vat is the customer-facing unit price before VAT as a number.
+- currency should be ILS unless the document clearly states otherwise.
+If a value is uncertain, still return the row with a note. Never invent prices that are not visible.`;
+    const response = await require('axios').post('https://api.openai.com/v1/responses', {
+      model: getSetting('OPENAI_MODEL') || 'gpt-5.4-mini',
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }, attachment] }],
+      text: { format: { type: 'json_schema', name: 'ironbend_pricing_book', strict: true, schema } },
+    }, {
+      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      timeout: 60000,
+    });
+    const text = (response.data?.output || [])
+      .flatMap(entry => entry.content || [])
+      .find(entry => entry.type === 'output_text')?.text;
+    return JSON.parse(text || '{}');
   }
 
   function validatePriceBook(body, existing = {}) {
@@ -99,6 +189,44 @@ module.exports = function createCatalogRouter(deps) {
       ORDER BY CASE b.status WHEN 'active' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END, b.updated_at DESC, b.id DESC
     `).all(...params);
     res.json(books);
+  });
+
+  router.post('/pricing/price-books/analyze-upload', requireAnyRole(['finance', 'manager', 'admin']), imageAnalysisLimiter, (req, res, next) => {
+    if (!upload) return res.status(501).json({ error: 'pricing_ocr_upload_not_configured' });
+    return upload.single('file')(req, res, next);
+  }, async (req, res) => {
+    if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.status(501).json({ error: 'Document recognition is disabled', feature: 'pricing-ocr' });
+    if (!req.file) return res.status(400).json({ error: 'file_required' });
+    const mime = req.file.mimetype || 'application/octet-stream';
+    if (mime !== 'application/pdf' && !mime.startsWith('image/')) return res.status(400).json({ error: 'unsupported_file_type' });
+    try {
+      const parsed = await analyzePriceListWithOpenAI(req);
+      const currency = trimText(parsed.currency || req.body.currency || 'ILS') || 'ILS';
+      const fileStem = trimText((req.file.originalname || 'price-list').replace(/\.[^.]+$/, ''));
+      const items = (parsed.items || [])
+        .map((item, index) => normalizeRecognizedItem(item, index, currency))
+        .filter(item => item.sku && item.description && Number(item.price_before_vat) > 0);
+      res.json({
+        success: true,
+        source: {
+          filename: req.file.originalname || null,
+          mime,
+        },
+        draft: {
+          code: trimText(parsed.code) || `OCR-${Date.now()}`,
+          name: trimText(parsed.name) || fileStem,
+          customer_name: trimText(parsed.customer_name),
+          currency,
+          status: 'draft',
+          source_type: 'ocr',
+          source_ref: req.file.originalname || '',
+          notes: trimText(parsed.notes),
+          items,
+        },
+      });
+    } catch (err) {
+      res.status(err.status || 500).json({ error: `pricing_ocr_failed: ${err.response?.data?.error?.message || err.message}` });
+    }
   });
 
   router.post('/pricing/price-books', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {

@@ -134,7 +134,12 @@
     }
     .modal-head h3 { margin:0; font-size:18px; }
     .modal-body { padding:16px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    .modal-body.import-body { grid-template-columns:repeat(4,1fr); }
     .modal-foot { padding:14px 16px; display:flex; justify-content:flex-start; gap:8px; border-top:1px solid var(--line); }
+    .import-table { grid-column:1/-1; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+    .import-table table { min-width:980px; }
+    .import-table input, .import-table select { min-height:32px; padding:5px 7px; }
+    .import-status { grid-column:1/-1; color:var(--muted); font-weight:800; }
     .toast {
       position:fixed; left:24px; bottom:24px; z-index:1000;
       background:#10233f; color:#fff; padding:11px 16px; border-radius:8px;
@@ -167,6 +172,7 @@
       </div>
       <div class="actions">
         <button class="btn" id="sampleBtn" type="button">דוגמת ש. כהן</button>
+        <button class="btn blue" id="importOcrBtn" type="button">ייבוא OCR</button>
         <button class="btn primary" id="newBookBtn" type="button">מחירון חדש</button>
       </div>
     </header>
@@ -357,6 +363,63 @@
     </form>
   </dialog>
 
+  <dialog id="importDialog">
+    <form id="importForm" method="dialog">
+      <div class="modal-head">
+        <h3>ייבוא מחירון מ־OCR</h3>
+        <button class="icon-btn" value="cancel" type="submit">×</button>
+      </div>
+      <div class="modal-body import-body">
+        <label class="field full">
+          <span>PDF או תמונה של מחירון</span>
+          <input name="file" type="file" accept="image/*,.pdf,application/pdf" required>
+        </label>
+        <label class="field">
+          <span>סוג מחירון</span>
+          <select name="price_type">
+            <option value="general">מחירון כללי</option>
+            <option value="customer">מחירון לקוח</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>מס׳ לקוח</span>
+          <input name="customer_id" type="number" min="1">
+        </label>
+        <label class="field wide">
+          <span>לקוח</span>
+          <input name="customer_name">
+        </label>
+        <label class="field">
+          <span>קוד מחירון</span>
+          <input name="code">
+        </label>
+        <label class="field wide">
+          <span>שם מחירון</span>
+          <input name="name">
+        </label>
+        <label class="field">
+          <span>מטבע</span>
+          <select name="currency">
+            <option value="ILS">ILS</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+          </select>
+        </label>
+        <label class="field full">
+          <span>הערות</span>
+          <textarea name="notes"></textarea>
+        </label>
+        <div class="import-status" id="importStatus">בחר קובץ ולחץ “זהה מחירון”.</div>
+        <div class="import-table" id="importTable"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn blue" id="analyzeImportBtn" value="analyze" type="submit">זהה מחירון</button>
+        <button class="btn primary" id="saveImportBtn" value="save" type="submit" disabled>צור טיוטת מחירון</button>
+        <button class="btn" value="cancel" type="submit">ביטול</button>
+      </div>
+    </form>
+  </dialog>
+
   <datalist id="categories">
     <option value="ברזל מעובד"></option>
     <option value="מוטות"></option>
@@ -373,6 +436,7 @@
       currentBook: null,
       items: [],
       editingItem: null,
+      importDraft: null,
       mode: 'general',
     };
 
@@ -380,6 +444,8 @@
     const bookForm = $('#bookForm');
     const itemForm = $('#itemForm');
     const itemDialog = $('#itemDialog');
+    const importForm = $('#importForm');
+    const importDialog = $('#importDialog');
 
     function authHeaders(extra = {}) {
       const headers = { ...extra };
@@ -421,6 +487,7 @@
     function setForm(form, data = {}) {
       for (const field of form.elements) {
         if (!field.name) continue;
+        if (field.type === 'file') continue;
         field.value = data[field.name] ?? '';
       }
     }
@@ -536,6 +603,141 @@
 
     function formatNumber(value) {
       return Number(value || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 });
+    }
+
+    function openImportDialog() {
+      state.importDraft = null;
+      setForm(importForm, { price_type: state.mode, currency: 'ILS' });
+      $('#importStatus').textContent = 'בחר קובץ ולחץ “זהה מחירון”.';
+      $('#importTable').innerHTML = '';
+      $('#saveImportBtn').disabled = true;
+      importDialog.showModal();
+    }
+
+    function renderImportDraft() {
+      const draft = state.importDraft || { items: [] };
+      $('#importTable').innerHTML = draft.items.length ? `
+        <table>
+          <thead>
+            <tr>
+              <th>מק״ט</th>
+              <th>קוטר</th>
+              <th>קטגוריה</th>
+              <th>תיאור</th>
+              <th>כמות</th>
+              <th>יחידה</th>
+              <th>מחיר לפני מע״מ</th>
+              <th>הערות</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${draft.items.map((item, index) => `
+              <tr data-import-row="${index}">
+                <td><input data-import-field="sku" value="${escapeHtml(item.sku || '')}"></td>
+                <td><input data-import-field="diameter" type="number" step="1" value="${escapeHtml(item.diameter ?? '')}"></td>
+                <td><input data-import-field="category" value="${escapeHtml(item.category || '')}"></td>
+                <td><input data-import-field="description" value="${escapeHtml(item.description || '')}"></td>
+                <td><input data-import-field="quantity" type="number" step="0.001" value="${escapeHtml(item.quantity ?? 1)}"></td>
+                <td>
+                  <select data-import-field="unit">
+                    ${['kg','ton','unit','m'].map(unit => `<option value="${unit}" ${item.unit === unit ? 'selected' : ''}>${unit}</option>`).join('')}
+                  </select>
+                </td>
+                <td><input data-import-field="price_before_vat" type="number" step="0.01" value="${escapeHtml(item.price_before_vat ?? 0)}"></td>
+                <td><input data-import-field="notes" value="${escapeHtml(item.notes || '')}"></td>
+                <td><button class="icon-btn" type="button" data-remove-import-row="${index}">×</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<div class="empty">לא זוהו שורות מחיר. אפשר לנסות קובץ ברור יותר.</div>';
+      $('#saveImportBtn').disabled = !draft.items.length;
+    }
+
+    function syncImportDraftFromTable() {
+      if (!state.importDraft) return;
+      state.importDraft.items = Array.from(document.querySelectorAll('[data-import-row]')).map(row => {
+        const item = {};
+        row.querySelectorAll('[data-import-field]').forEach(field => {
+          item[field.dataset.importField] = field.value;
+        });
+        item.diameter = item.diameter === '' ? null : Number(item.diameter);
+        item.quantity = Number(item.quantity || 1);
+        item.price_before_vat = Number(item.price_before_vat || 0);
+        item.currency = importForm.elements.currency.value || state.importDraft.currency || 'ILS';
+        return item;
+      });
+    }
+
+    async function analyzeImport() {
+      const file = importForm.elements.file.files[0];
+      if (!file) return toast('צריך לבחור קובץ מחירון');
+      $('#importStatus').textContent = 'מזהה מחירון...';
+      $('#analyzeImportBtn').disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('currency', importForm.elements.currency.value || 'ILS');
+        const response = await fetch('/api/pricing/price-books/analyze-upload', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: fd,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        state.importDraft = data.draft || { items: [] };
+        setForm(importForm, {
+          ...formData(importForm),
+          code: state.importDraft.code,
+          name: state.importDraft.name,
+          customer_name: importForm.elements.customer_name.value || state.importDraft.customer_name,
+          currency: state.importDraft.currency || 'ILS',
+          notes: state.importDraft.notes,
+        });
+        $('#importStatus').textContent = `זוהו ${state.importDraft.items.length} שורות. ערוך לפני שמירה.`;
+        renderImportDraft();
+      } finally {
+        $('#analyzeImportBtn').disabled = false;
+      }
+    }
+
+    async function saveImportDraft() {
+      if (!state.importDraft) return;
+      syncImportDraftFromTable();
+      const meta = formData(importForm);
+      const priceType = meta.price_type === 'customer' ? 'customer' : 'general';
+      const data = await api('/api/pricing/price-books', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: meta.code || state.importDraft.code,
+          name: meta.name || state.importDraft.name,
+          price_type: priceType,
+          customer_id: priceType === 'customer' ? (meta.customer_id || null) : null,
+          customer_name: priceType === 'customer' ? meta.customer_name : '',
+          currency: meta.currency || 'ILS',
+          status: 'draft',
+          source_type: 'ocr',
+          source_ref: importForm.elements.file.files[0]?.name || '',
+          notes: meta.notes || '',
+        }),
+      });
+      for (const [index, item] of state.importDraft.items.entries()) {
+        if (!item.sku || !item.description) continue;
+        await api(`/api/pricing/price-books/${data.price_book.id}/items`, {
+          method: 'POST',
+          body: JSON.stringify({
+            ...item,
+            sort_order: index + 1,
+            currency: meta.currency || item.currency || 'ILS',
+          }),
+        });
+      }
+      state.mode = priceType;
+      state.currentBook = data.price_book;
+      importDialog.close();
+      toast('נוצרה טיוטת מחירון מה־OCR');
+      await loadBooks(data.price_book.id);
     }
 
     async function loadBooks(selectId) {
@@ -692,6 +894,26 @@
       saveItem(event).catch(err => toast(err.message));
     });
     $('#sampleBtn').addEventListener('click', () => createSample().catch(err => toast(err.message)));
+    $('#importOcrBtn').addEventListener('click', openImportDialog);
+    $('#importTable').addEventListener('click', event => {
+      const remove = event.target.closest('[data-remove-import-row]');
+      if (!remove || !state.importDraft) return;
+      syncImportDraftFromTable();
+      state.importDraft.items.splice(Number(remove.dataset.removeImportRow), 1);
+      renderImportDraft();
+    });
+    importForm.addEventListener('submit', event => {
+      if (!event.submitter || event.submitter.value === 'cancel') return;
+      event.preventDefault();
+      if (event.submitter.value === 'analyze') {
+        analyzeImport().catch(err => {
+          $('#importStatus').textContent = err.message;
+          toast(err.message);
+        });
+      } else if (event.submitter.value === 'save') {
+        saveImportDraft().catch(err => toast(err.message));
+      }
+    });
 
     loadBooks().catch(err => toast(err.message));
   </script>

@@ -862,6 +862,10 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request('/api/pricing/price-books', { headers: authHeaders(office) })).status, 200);
     assert.equal((await request('/api/pricing/price-books', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 403);
     assert.equal((await request('/api/pricing/price-books', { method: 'POST', headers: authHeaders(finance), body: emptyBody })).status, 400);
+    assert.equal((await request('/api/pricing/price-books/analyze-upload', { method: 'POST' })).status, 401);
+    assert.equal((await request('/api/pricing/price-books/analyze-upload', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
+    assert.equal((await request('/api/pricing/price-books/analyze-upload', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 403);
+    assert.equal((await request('/api/pricing/price-books/analyze-upload', { method: 'POST', headers: authHeaders(finance), body: emptyBody })).status, 501);
     const priceBookResponse = await request('/api/pricing/price-books', {
       method: 'POST',
       headers: authHeaders(finance),

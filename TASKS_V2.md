@@ -334,6 +334,8 @@
 - owner: codex-finance-pricing
 - module: pricing
 - priority: high
+- latest_change:
+  - added pricing OCR import flow: PDF/image recognition creates an editable draft before assigning it to a general or customer price book.
 - scope:
   - `docs/mockups/pricing-manager.html`
   - `public/pricing.html`

@@ -715,6 +715,10 @@ app.use('/api', requireModule('production'), createCatalogRouter({
   requireAnyRole,
   intake,
   PORT,
+  upload,
+  imageAnalysisLimiter,
+  getSetting,
+  getOpenAiApiKey,
 }));
 
 app.use('/api', requireModule('reports'), createAlertsRouter({ db, requireRole, requireAnyRole, wsBroadcast }));

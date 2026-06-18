@@ -523,6 +523,7 @@ test('catalog and pricing routes are split out of the server monolith', () => {
 
   assert.match(route, /module\.exports = function createCatalogRouter/);
   assert.ok(route.includes("router.get('/pricing/price-books'"));
+  assert.ok(route.includes("router.post('/pricing/price-books/analyze-upload'"));
   assert.ok(route.includes("router.post('/pricing/price-books'"));
   assert.ok(route.includes("router.patch('/pricing/price-books/:id'"));
   assert.ok(route.includes("router.get('/pricing/price-books/:id/items'"));
