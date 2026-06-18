@@ -336,7 +336,7 @@ Pricing architecture:
 - Purchase price source of truth: `steel_price_history`, owned by Procurement/Finance.
   It changes frequently and is used for material cost and margin only.
 - Base selling price source of truth: active `pricing_price_books` with
-  `price_type IN ('general','sale')` and `pricing_price_items` rows.
+  `price_type='general'` and `pricing_price_items` rows.
 - Customer price source of truth: active `pricing_price_books` with
   `price_type='customer'`, `customer_id`, and `pricing_price_items` rows.
 - Future import layer: `services/pricing-importer.js` should parse Excel, CSV,

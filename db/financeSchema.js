@@ -78,9 +78,6 @@ function ensureFinanceSchema(db) {
       customer_name   TEXT DEFAULT '',
       price_type      TEXT DEFAULT 'customer',
       currency        TEXT DEFAULT 'ILS',
-      payment_terms   TEXT DEFAULT '',
-      effective_date  TEXT DEFAULT (date('now')),
-      expires_at      TEXT,
       status          TEXT DEFAULT 'draft',
       source_type     TEXT DEFAULT 'manual',
       source_ref      TEXT DEFAULT '',
@@ -125,7 +122,7 @@ function ensureFinanceSchema(db) {
   try {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_pricing_price_books_active
-        ON pricing_price_books(status, price_type, customer_id, effective_date);
+        ON pricing_price_books(status, price_type, customer_id, updated_at);
       CREATE INDEX IF NOT EXISTS idx_pricing_price_items_book_diameter
         ON pricing_price_items(price_book_id, diameter, active);
     `);

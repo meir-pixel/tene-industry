@@ -48,7 +48,7 @@ function createPricer(db) {
         WHERE status = 'active'
           AND price_type = 'customer'
           AND customer_id = ?
-        ORDER BY COALESCE(effective_date, '') DESC, updated_at DESC, id DESC
+        ORDER BY updated_at DESC, id DESC
         LIMIT 1
       `).get(Number(customerId)) || null;
     }
@@ -56,9 +56,9 @@ function createPricer(db) {
       SELECT *
       FROM pricing_price_books
       WHERE status = 'active'
-        AND price_type IN ('general', 'sale')
+        AND price_type = 'general'
         AND customer_id IS NULL
-      ORDER BY COALESCE(effective_date, '') DESC, updated_at DESC, id DESC
+      ORDER BY updated_at DESC, id DESC
       LIMIT 1
     `).get() || null;
   }

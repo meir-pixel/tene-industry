@@ -548,6 +548,8 @@ test('price list management belongs to pricing screen', () => {
   assert.match(pricing, /src="\/auth-client\.js"/);
   assert.match(pricing, /\/api\/pricing\/price-books/);
   assert.match(pricing, /id="itemDialog"/);
+  assert.match(pricing, /updatedAtLabel/);
+  assert.doesNotMatch(pricing, /payment_terms/);
   assert.match(nav, /\/pricing\.html/);
   assert.match(nav, /pricing: 'finance'/);
   assert.match(finance, /loadSteelPricesSafe/);

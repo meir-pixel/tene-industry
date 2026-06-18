@@ -27,18 +27,21 @@ module.exports = function createCatalogRouter(deps) {
     const name = trimText(body.name ?? existing.name);
     if (!code) return { error: 'code_required' };
     if (!name) return { error: 'name_required' };
+    const priceType = trimText(body.price_type ?? existing.price_type ?? 'general') === 'customer' ? 'customer' : 'general';
+    const customerId = body.customer_id === '' || body.customer_id === undefined || body.customer_id === null
+      ? (priceType === 'general' ? null : (existing.customer_id ?? null))
+      : Number(body.customer_id);
+    const status = trimText(body.status ?? existing.status ?? 'draft') || 'draft';
+    if (priceType === 'customer' && status === 'active' && !customerId) return { error: 'customer_required_for_active_customer_price_book' };
     return {
       value: {
         code,
         name,
-        customer_id: body.customer_id === '' || body.customer_id === undefined ? (existing.customer_id ?? null) : Number(body.customer_id),
+        customer_id: customerId,
         customer_name: trimText(body.customer_name ?? existing.customer_name),
-        price_type: trimText(body.price_type ?? existing.price_type ?? 'customer') || 'customer',
+        price_type: priceType,
         currency: trimText(body.currency ?? existing.currency ?? 'ILS') || 'ILS',
-        payment_terms: trimText(body.payment_terms ?? existing.payment_terms),
-        effective_date: trimText(body.effective_date ?? existing.effective_date) || null,
-        expires_at: trimText(body.expires_at ?? existing.expires_at) || null,
-        status: trimText(body.status ?? existing.status ?? 'draft') || 'draft',
+        status,
         source_type: trimText(body.source_type ?? existing.source_type ?? 'manual') || 'manual',
         source_ref: trimText(body.source_ref ?? existing.source_ref),
         notes: trimText(body.notes ?? existing.notes),
@@ -72,15 +75,24 @@ module.exports = function createCatalogRouter(deps) {
   }
 
   router.get('/pricing/price-books', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
+    const type = trimText(req.query.type);
+    const where = [];
+    const params = [];
+    if (type === 'customer') {
+      where.push("b.price_type = 'customer'");
+    } else if (type === 'general') {
+      where.push("b.price_type = 'general'");
+    }
     const books = db.prepare(`
       SELECT b.*,
         COUNT(i.id) AS item_count,
         COALESCE(SUM(CASE WHEN i.active = 1 THEN 1 ELSE 0 END), 0) AS active_item_count
       FROM pricing_price_books b
       LEFT JOIN pricing_price_items i ON i.price_book_id = b.id
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       GROUP BY b.id
       ORDER BY CASE b.status WHEN 'active' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END, b.updated_at DESC, b.id DESC
-    `).all();
+    `).all(...params);
     res.json(books);
   });
 
@@ -91,11 +103,11 @@ module.exports = function createCatalogRouter(deps) {
     try {
       const result = db.prepare(`
         INSERT INTO pricing_price_books
-          (code, name, customer_id, customer_name, price_type, currency, payment_terms, effective_date, expires_at, status, source_type, source_ref, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (code, name, customer_id, customer_name, price_type, currency, status, source_type, source_ref, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        b.code, b.name, b.customer_id, b.customer_name, b.price_type, b.currency, b.payment_terms,
-        b.effective_date, b.expires_at, b.status, b.source_type, b.source_ref, b.notes
+        b.code, b.name, b.customer_id, b.customer_name, b.price_type, b.currency,
+        b.status, b.source_type, b.source_ref, b.notes
       );
       res.json({ success: true, price_book: priceBookById(result.lastInsertRowid) });
     } catch (err) {
@@ -114,12 +126,11 @@ module.exports = function createCatalogRouter(deps) {
       db.prepare(`
         UPDATE pricing_price_books
         SET code = ?, name = ?, customer_id = ?, customer_name = ?, price_type = ?, currency = ?,
-            payment_terms = ?, effective_date = ?, expires_at = ?, status = ?, source_type = ?,
-            source_ref = ?, notes = ?, updated_at = datetime('now')
+            status = ?, source_type = ?, source_ref = ?, notes = ?, updated_at = datetime('now')
         WHERE id = ?
       `).run(
-        b.code, b.name, b.customer_id, b.customer_name, b.price_type, b.currency, b.payment_terms,
-        b.effective_date, b.expires_at, b.status, b.source_type, b.source_ref, b.notes, existing.id
+        b.code, b.name, b.customer_id, b.customer_name, b.price_type, b.currency,
+        b.status, b.source_type, b.source_ref, b.notes, existing.id
       );
       res.json({ success: true, price_book: priceBookById(existing.id) });
     } catch (err) {

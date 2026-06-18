@@ -869,7 +869,6 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
         code: 'SEC-PRICE-BOOK',
         name: 'Security Price Book',
         customer_name: 'Security Customer',
-        payment_terms: 'net 30',
       }),
     });
     assert.equal(priceBookResponse.status, 200);

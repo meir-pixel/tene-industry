@@ -40,6 +40,16 @@
     .title h1 { margin:0 0 6px; font-size:28px; line-height:1.2; }
     .title p { margin:0; color:var(--muted); font-weight:700; }
     .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .segmented {
+      display:inline-flex; gap:0; border:1px solid var(--line); border-radius:8px; overflow:hidden;
+      background:#fff;
+    }
+    .segmented button {
+      min-height:38px; padding:8px 13px; border:0; border-inline-start:1px solid var(--line);
+      background:#fff; color:var(--muted); font-weight:900;
+    }
+    .segmented button:first-child { border-inline-start:0; }
+    .segmented button.active { background:#10233f; color:#fff; }
     .btn {
       border:1px solid var(--line); background:#fff; color:var(--ink);
       min-height:38px; padding:8px 13px; border-radius:7px; font-weight:900;
@@ -153,7 +163,7 @@
     <header class="head">
       <div class="title">
         <h1>ניהול מחירונים</h1>
-        <p>מחירוני מכירה ולקוח עם מק״טים, תוקף, חריגים ותנאי תשלום.</p>
+        <p>מחירון כללי ומחירון לקוח עם מק״טים, קוטר, מחיר ועדכון אחרון.</p>
       </div>
       <div class="actions">
         <button class="btn" id="sampleBtn" type="button">דוגמת ש. כהן</button>
@@ -164,8 +174,14 @@
     <section class="grid">
       <aside class="panel">
         <div class="panel-head">
-          <h2>מחירונים</h2>
+          <h2 id="listTitle">מחירון כללי</h2>
           <span class="badge" id="bookCount">0</span>
+        </div>
+        <div class="search">
+          <div class="segmented" aria-label="סוג מחירון">
+            <button class="active" id="generalModeBtn" type="button" data-mode="general">מחירון כללי</button>
+            <button id="customerModeBtn" type="button" data-mode="customer">מחירון לקוח</button>
+          </div>
         </div>
         <div class="search">
           <label class="field">
@@ -182,6 +198,7 @@
           <span class="badge" id="currentStatus">טיוטה</span>
         </div>
         <form class="form-grid" id="bookForm">
+          <input name="price_type" type="hidden" value="general">
           <label class="field">
             <span>קוד מחירון</span>
             <input name="code" required>
@@ -190,15 +207,11 @@
             <span>שם מחירון</span>
             <input name="name" required>
           </label>
-          <label class="field">
-            <span>סוג</span>
-            <select name="price_type">
-              <option value="customer">מחירון לקוח</option>
-              <option value="general">מחירון כללי</option>
-              <option value="sale">מחירון מכירה</option>
-            </select>
+          <label class="field" id="customerIdField">
+            <span>מס׳ לקוח</span>
+            <input name="customer_id" type="number" min="1">
           </label>
-          <label class="field">
+          <label class="field" id="customerNameField">
             <span>לקוח</span>
             <input name="customer_name">
           </label>
@@ -209,14 +222,6 @@
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
             </select>
-          </label>
-          <label class="field">
-            <span>תנאי תשלום</span>
-            <input name="payment_terms" placeholder="שוטף 95">
-          </label>
-          <label class="field">
-            <span>בתוקף מתאריך</span>
-            <input name="effective_date" type="date">
           </label>
           <label class="field">
             <span>סטטוס</span>
@@ -230,6 +235,10 @@
             <span>הערות</span>
             <textarea name="notes"></textarea>
           </label>
+          <div class="field full">
+            <span>עודכן</span>
+            <strong id="updatedAtLabel">עדיין לא נשמר</strong>
+          </div>
           <div class="field full">
             <button class="btn blue" type="submit">שמור מחירון</button>
           </div>
@@ -364,6 +373,7 @@
       currentBook: null,
       items: [],
       editingItem: null,
+      mode: 'general',
     };
 
     const $ = selector => document.querySelector(selector);
@@ -419,6 +429,28 @@
       return status === 'active' ? 'פעיל' : status === 'archived' ? 'ארכיון' : 'טיוטה';
     }
 
+    function modeLabel(mode = state.mode) {
+      return mode === 'customer' ? 'מחירון לקוח' : 'מחירון כללי';
+    }
+
+    function formatDateTime(value) {
+      if (!value) return 'עדיין לא נשמר';
+      const date = new Date(String(value).replace(' ', 'T'));
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function applyModeUi() {
+      $('#listTitle').textContent = modeLabel();
+      $('#newBookBtn').textContent = `${modeLabel()} חדש`;
+      $('#bookSearch').placeholder = state.mode === 'customer' ? 'קוד, לקוח או שם מחירון' : 'קוד או שם מחירון';
+      $('#customerIdField').style.display = state.mode === 'customer' ? '' : 'none';
+      $('#customerNameField').style.display = state.mode === 'customer' ? '' : 'none';
+      $('#generalModeBtn').classList.toggle('active', state.mode === 'general');
+      $('#customerModeBtn').classList.toggle('active', state.mode === 'customer');
+      bookForm.elements.price_type.value = state.mode;
+    }
+
     function renderBooks() {
       const query = $('#bookSearch').value.trim().toLowerCase();
       const books = state.books.filter(book => {
@@ -433,9 +465,9 @@
             <span class="badge ${book.status === 'active' ? 'active' : 'draft'}">${statusLabel(book.status)}</span>
           </span>
           <span class="book-meta">
-            <span>${escapeHtml(book.customer_name || 'כללי')}</span>
+            <span>${escapeHtml(book.price_type === 'customer' ? (book.customer_name || 'לקוח ללא שם') : 'כללי')}</span>
             <span>${Number(book.active_item_count || 0)} שורות</span>
-            <span>${escapeHtml(book.payment_terms || '')}</span>
+            <span>עודכן ${escapeHtml(formatDateTime(book.updated_at))}</span>
           </span>
         </button>
       `).join('') : '<div class="empty">אין מחירונים להצגה.</div>';
@@ -444,9 +476,12 @@
     function renderCurrentBook() {
       const book = state.currentBook;
       if (!book) {
-        $('#currentTitle').textContent = 'בחר מחירון';
+        $('#currentTitle').textContent = `בחר ${modeLabel()}`;
         $('#currentStatus').textContent = 'טיוטה';
-        setForm(bookForm, { currency: 'ILS', price_type: 'customer', status: 'draft' });
+        $('#currentStatus').className = 'badge draft';
+        $('#updatedAtLabel').textContent = 'עדיין לא נשמר';
+        setForm(bookForm, { currency: 'ILS', price_type: state.mode, status: 'draft' });
+        applyModeUi();
         renderItems();
         return;
       }
@@ -454,6 +489,8 @@
       $('#currentStatus').textContent = statusLabel(book.status);
       $('#currentStatus').className = `badge ${book.status === 'active' ? 'active' : 'draft'}`;
       setForm(bookForm, book);
+      $('#updatedAtLabel').textContent = formatDateTime(book.updated_at);
+      applyModeUi();
     }
 
     function renderItems() {
@@ -502,7 +539,8 @@
     }
 
     async function loadBooks(selectId) {
-      state.books = await api('/api/pricing/price-books');
+      applyModeUi();
+      state.books = await api(`/api/pricing/price-books?type=${state.mode}`);
       if (selectId) state.currentBook = state.books.find(book => book.id === selectId) || state.currentBook;
       if (!state.currentBook && state.books.length) state.currentBook = state.books[0];
       renderBooks();
@@ -522,6 +560,11 @@
     async function saveBook(event) {
       event.preventDefault();
       const body = formData(bookForm);
+      body.price_type = state.mode;
+      if (state.mode === 'general') {
+        body.customer_id = null;
+        body.customer_name = '';
+      }
       const method = state.currentBook ? 'PATCH' : 'POST';
       const url = state.currentBook ? `/api/pricing/price-books/${state.currentBook.id}` : '/api/pricing/price-books';
       const data = await api(url, { method, body: JSON.stringify(body) });
@@ -576,8 +619,6 @@
           customer_name: 'י.ד עשוש תשתיות בע"מ',
           price_type: 'customer',
           currency: 'ILS',
-          payment_terms: 'שוטף 95',
-          effective_date: '2026-04-15',
           status: 'draft',
           source_type: 'pdf',
           source_ref: '301401685-S1',
@@ -597,6 +638,7 @@
         });
       }
       state.currentBook = data.price_book;
+      state.mode = 'customer';
       toast('נוצר מחירון דוגמה');
       await loadBooks(data.price_book.id);
     }
@@ -612,6 +654,17 @@
     });
     $('#bookSearch').addEventListener('input', renderBooks);
     $('#itemSearch').addEventListener('input', renderItems);
+    document.querySelectorAll('[data-mode]').forEach(button => {
+      button.addEventListener('click', async () => {
+        state.mode = button.dataset.mode;
+        state.currentBook = null;
+        state.items = [];
+        $('#bookSearch').value = '';
+        renderCurrentBook();
+        renderItems();
+        await loadBooks();
+      });
+    });
     $('#newBookBtn').addEventListener('click', () => {
       state.currentBook = null;
       state.items = [];
