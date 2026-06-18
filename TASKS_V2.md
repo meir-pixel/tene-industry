@@ -91,8 +91,8 @@
 
 ### V2-002 — Auth / Users / Permissions Contract
 
-- status: todo
-- owner: claude/either
+- status: approval
+- owner: codex-admin-system-licensing
 - module: core-auth
 - priority: critical
 - scope:
