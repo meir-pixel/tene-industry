@@ -190,7 +190,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
-  - aligned the customer portal login logo with the uploaded customer price-list PDF logo asset.
+  - replaced direct Tene logo image references across customer-facing and shared public shells with the uploaded customer price-list PDF logo asset.
 - scope:
   - `TASKS_V2.md`
   - `db/coreSchema.js`
@@ -200,6 +200,12 @@
   - `services/portalAccess.js`
   - `public/customers.html`
   - `public/customer.html`
+  - `public/login.html`
+  - `public/nav.js`
+  - `public/portal.html`
+  - `public/production-queue.html`
+  - `public/supplier.html`
+  - `public/sw.js`
 - input:
   - customer profile
   - customer tax id / company id

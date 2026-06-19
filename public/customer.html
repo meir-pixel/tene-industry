@@ -192,7 +192,7 @@
 <body>
 
 <div class="header">
-  <div class="header-logo"><img src="/brand/tene-logo.svg" alt="טנא תעשיות ברזל"></div>
+  <div class="header-logo"><img src="/brand/tene-pdf-logo.jpg" alt="טנא תעשיות ברזל"></div>
   <div class="header-sub">כיפוף ברזל מקצועי</div>
   <div class="header-name" id="headerName"></div>
 </div>
@@ -645,6 +645,7 @@ function buildPriceListPrintHtml() {
   body{font-family:Arial,'Segoe UI',sans-serif;color:#111;margin:0;background:#fff;direction:rtl}
   .sheet{width:100%;min-height:260mm;padding:0}
   .top{display:grid;grid-template-columns:1fr 1fr;gap:18px;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:14px}
+  .brand img{width:170px;height:auto;display:block;margin-bottom:4px}
   .brand{font-size:22px;font-weight:900}
   .brand small{display:block;font-size:12px;font-weight:400;margin-top:4px}
   .title{text-align:left;font-size:24px;font-weight:900}
@@ -668,7 +669,7 @@ function buildPriceListPrintHtml() {
 <body>
   <main class="sheet">
     <section class="top">
-      <div class="brand">טנא תעשיות ברזל<small>ברזל בניין, כיפוף, אספקה ותכנון ייצור</small></div>
+      <div class="brand"><img src="/brand/tene-pdf-logo.jpg" alt="טנא תעשיות ברזל"><small>ברזל בניין, כיפוף, אספקה ותכנון ייצור</small></div>
       <div class="title">מחירון ללקוח<span>תאריך מחירון: ${escapeHtml(date)}</span></div>
     </section>
     <section class="customer-box">
