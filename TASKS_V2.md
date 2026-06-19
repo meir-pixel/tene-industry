@@ -189,6 +189,8 @@
 - owner: codex-customer-portal
 - module: customers/portal
 - priority: high
+- latest_change:
+  - replaced the customer portal login crane icon with the Tene logo so the entry screen matches customer-facing branding.
 - scope:
   - `TASKS_V2.md`
   - `db/coreSchema.js`
