@@ -9,7 +9,7 @@ module.exports = function createCustomersRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
 
-  router.get('/customers', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res) => {
+  router.get('/customers', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const q = req.query.q || '';
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     // BUG-26: no portal_token in list response

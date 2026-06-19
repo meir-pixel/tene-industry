@@ -140,72 +140,6 @@
     .import-table table { min-width:980px; }
     .import-table input, .import-table select { min-height:32px; padding:5px 7px; }
     .import-status { grid-column:1/-1; color:var(--muted); font-weight:800; }
-    .customer-match {
-      grid-column:1/-1; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
-      background:#f8fafc; color:var(--muted); font-size:13px; font-weight:800;
-    }
-    .customer-match.good { border-color:#8fd3b4; background:#ecfdf5; color:#126146; }
-    .customer-match.warn { border-color:#f2ce80; background:#fff8e5; color:#8a5a10; }
-    .link-btn {
-      border:0; background:transparent; color:var(--accent-2); padding:0;
-      font-weight:900; text-decoration:underline; cursor:pointer;
-    }
-    .price-preview-dialog { width:min(1120px,96vw); }
-    .preview-body { padding:0; background:#eef3f9; max-height:82vh; overflow:auto; }
-    .price-doc {
-      width:210mm; min-height:297mm; margin:0 auto; padding:8mm 12mm 16mm;
-      background:#fff; color:#333; font-family:Arial, Helvetica, sans-serif;
-      font-size:10.5pt; line-height:1.25; box-shadow:0 14px 40px rgba(15,35,70,.18);
-    }
-    .price-doc * { box-sizing:border-box; }
-    .price-doc-header {
-      display:grid; grid-template-columns:1fr 260px; gap:16px; align-items:end;
-      border-bottom:2px solid #1a3b5c; padding-bottom:8px; margin-bottom:10px;
-    }
-    .price-doc h1 { margin:0 0 10px; color:#1a3b5c; font-size:26pt; line-height:1; }
-    .client-info-box {
-      background:#f8f9fa; border:1px solid #ddd; border-radius:4px;
-      padding:10px 14px;
-    }
-    .client-info-grid { display:grid; grid-template-columns:1.4fr 1fr; gap:6px 16px; }
-    .company-box { text-align:left; color:#1a3b5c; line-height:1.45; }
-    .company-logo {
-      color:#1a3b5c; font-size:24px; font-weight:900; line-height:1;
-      margin-bottom:10px;
-    }
-    .price-doc-table { width:100%; border-collapse:collapse; margin-bottom:8px; }
-    .price-doc-table th, .price-doc-table td {
-      border:1px solid #ddd; padding:5px 6px; text-align:center; vertical-align:middle;
-    }
-    .price-doc-table th { background:#1a3b5c; color:#fff; font-weight:bold; }
-    .price-doc-table .desc-col { text-align:right; width:42%; }
-    .price-doc-table .section-row td {
-      background:#e9ecef; color:#1a3b5c; font-weight:bold; text-align:right;
-    }
-    .section-definition {
-      display:block; color:#536173; font-size:8.5pt; font-weight:normal; margin-top:2px;
-    }
-    .price-doc-table .price-col { color:#1a3b5c; font-weight:bold; }
-    .vat-box {
-      display:inline-block; background:#1a3b5c; color:#fff; font-weight:bold;
-      padding:4px 12px; border-radius:4px; font-size:10pt; margin:3px 0 12px;
-    }
-    .terms-section { margin-top:8px; font-size:9.5pt; page-break-inside:avoid; }
-    .terms-title { color:#1a3b5c; font-weight:bold; font-size:11.5pt; margin-bottom:6px; }
-    .terms-list { width:100%; border-collapse:collapse; }
-    .terms-list td { border:0; vertical-align:top; padding:0 0 3px; }
-    .terms-list .term-num { width:26px; text-align:right; }
-    .signature-section {
-      margin-top:15px; border:1px solid #ddd; background:#fafafa; padding:12px;
-      border-radius:4px; page-break-inside:avoid;
-    }
-    .signature-title { font-weight:bold; color:#1a3b5c; margin-bottom:10px; }
-    .signature-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 28px; }
-    .line-space { display:inline-block; border-bottom:1px solid #333; min-width:180px; height:18px; vertical-align:bottom; }
-    .signature-instructions {
-      margin-top:10px; font-weight:bold; color:#1a3b5c; text-align:center;
-      border-top:1px dashed #ddd; padding-top:8px;
-    }
     .toast {
       position:fixed; left:24px; bottom:24px; z-index:1000;
       background:#10233f; color:#fff; padding:11px 16px; border-radius:8px;
@@ -227,18 +161,6 @@
       .toolbar { align-items:stretch; flex-direction:column; }
       .btn { width:100%; }
     }
-    @media print {
-      body { background:#fff; }
-      body * { visibility:hidden !important; }
-      #previewDialog, #previewDialog * { visibility:visible !important; }
-      #previewDialog {
-        position:absolute; inset:0; width:100vw; max-width:none; height:auto;
-        box-shadow:none; border:0; margin:0; padding:0;
-      }
-      #previewDialog::backdrop, #previewDialog .modal-head, #previewDialog .modal-foot { display:none !important; }
-      .preview-body { max-height:none; overflow:visible; padding:0; background:#fff; }
-      .price-doc { width:auto; min-height:auto; margin:0; padding:5mm 12mm 14mm; box-shadow:none; }
-    }
   </style>
 </head>
 <body data-page="pricing">
@@ -249,9 +171,8 @@
         <p>מחירון כללי ומחירון לקוח עם מק״טים, קוטר, מחיר ועדכון אחרון.</p>
       </div>
       <div class="actions">
-        <button class="btn" id="sampleBtn" type="button">דוגמת עשוש</button>
+        <button class="btn" id="sampleBtn" type="button">דוגמה כללית</button>
         <button class="btn blue" id="importOcrBtn" type="button">ייבוא OCR</button>
-        <button class="btn" id="previewBookBtn" type="button">תצוגת מחירון</button>
         <button class="btn primary" id="newBookBtn" type="button">מחירון חדש</button>
       </div>
     </header>
@@ -468,7 +389,6 @@
           <span>לקוח</span>
           <input name="customer_name">
         </label>
-        <div class="customer-match" id="importCustomerMatch">לקוח מזוהה ייבדק מול מודול לקוחות אחרי OCR או הזנה.</div>
         <label class="field">
           <span>קוד מחירון</span>
           <input name="code">
@@ -500,20 +420,6 @@
     </form>
   </dialog>
 
-  <dialog id="previewDialog" class="price-preview-dialog">
-    <div class="modal-head">
-      <h3>תצוגת מחירון ללקוח</h3>
-      <button class="icon-btn" id="closePreviewBtn" type="button">×</button>
-    </div>
-    <div class="preview-body">
-      <section class="price-doc" id="pricePreviewDoc"></section>
-    </div>
-    <div class="modal-foot">
-      <button class="btn primary" id="printPreviewBtn" type="button">הדפס / שמור PDF</button>
-      <button class="btn" id="closePreviewFootBtn" type="button">סגור</button>
-    </div>
-  </dialog>
-
   <datalist id="categories">
     <option value="ברזל מעובד"></option>
     <option value="מוטות"></option>
@@ -540,49 +446,6 @@
     const itemDialog = $('#itemDialog');
     const importForm = $('#importForm');
     const importDialog = $('#importDialog');
-    const previewDialog = $('#previewDialog');
-    const PRICE_SECTION_DEFINITIONS = {
-      'ברזל מעובד': {
-        role: 'processed_rebar',
-        label: 'ברזל בניין לעיבוד; מקושר לפריטי הזמנה לפי קוטר/משקל כאשר ההזמנה כוללת עיבוד.',
-      },
-      'מוטות': {
-        role: 'straight_rebar_bundle',
-        label: 'אספקת מוטות בחבילות; מקושר לפי מק״ט, קוטר, אורך/משקל ללא עיבוד נוסף.',
-      },
-      'סלילים עגולים-חוטים': {
-        role: 'round_coil_wire',
-        label: 'סלילים וחוטים עגולים; מקושר לפריט הזמנה לפי סוג חומר, קוטר ומשקל.',
-      },
-      'עיבודי ברזל': {
-        role: 'rebar_processing_addon',
-        label: 'תוספות עיבוד לברזל כגון חיתוך, כיפוף, חישוקים, כסאות וספירלות.',
-      },
-      'רשת סטנדרט': {
-        role: 'standard_mesh',
-        label: 'רשת סטנדרטית; מקושרת לפריטי רשת לפי מק״ט/סוג ומשקל.',
-      },
-      'רשת לפי תוכנית': {
-        role: 'custom_mesh',
-        label: 'רשת לפי תוכנית; מקושרת לפריט הזמנה לפי סוג רשת, קוטר/מפרט ומשקל.',
-      },
-      'עיבודי רשת': {
-        role: 'mesh_processing_addon',
-        label: 'תוספות עיבוד לרשת כגון חיתוך, כיפוף או חיוב מינימום.',
-      },
-      'הובלות': {
-        role: 'delivery_charge',
-        label: 'חיובי הובלה ופריקה; מקושרים לשורת לוגיסטיקה בהזמנה ולא למשקל ברזל.',
-      },
-      'צינורות גמא': {
-        role: 'gamma_pipe',
-        label: 'צינורות גמא; מקושרים לפי מק״ט, סוג צינור ואורך במטרים.',
-      },
-      'ללא קטגוריה': {
-        role: 'unclassified_price_item',
-        label: 'שורה ללא סעיף מוגדר; נדרשת בחירת סעיף לפני קישור אוטומטי להזמנה.',
-      },
-    };
 
     function authHeaders(extra = {}) {
       const headers = { ...extra };
@@ -742,220 +605,10 @@
       return Number(value || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 });
     }
 
-    function currencyLabel(value) {
-      return value === 'ILS' ? 'ש"ח' : (value || 'ILS');
-    }
-
-    function unitLabel(value) {
-      const labels = { kg: 'ק"ג', ton: 'טון', unit: 'יח׳', m: 'מטר' };
-      return labels[value] || value || '';
-    }
-
-    function normalizeCustomerName(value) {
-      return String(value || '').replace(/[״"]/g, '"').replace(/\s+/g, ' ').trim().toLowerCase();
-    }
-
-    function sectionDefinition(category) {
-      return PRICE_SECTION_DEFINITIONS[category || 'ללא קטגוריה'] || {
-        role: 'custom_price_item',
-        label: 'סעיף מחירון מותאם; נדרש מיפוי ידני לפני קישור אוטומטי להזמנה.',
-      };
-    }
-
-    function priceRoleForItem(item) {
-      return sectionDefinition(item && item.category).role;
-    }
-
-    function recognizedCustomerHints() {
-      const draft = state.importDraft || {};
-      return [
-        draft.customer_vat_id ? `ח.פ ${draft.customer_vat_id}` : '',
-        draft.customer_phone ? `טלפון ${draft.customer_phone}` : '',
-        draft.customer_address ? `כתובת ${draft.customer_address}` : '',
-      ].filter(Boolean).join(' · ');
-    }
-
-    function openCustomerFromImport() {
-      const params = new URLSearchParams({
-        from: 'pricing',
-        name: importForm.elements.customer_name.value.trim(),
-        vat_id: state.importDraft?.customer_vat_id || '',
-        phone: state.importDraft?.customer_phone || '',
-        address: state.importDraft?.customer_address || '',
-      });
-      window.open(`/customers.html?${params.toString()}`, '_blank', 'noopener');
-    }
-
-    async function checkImportCustomer() {
-      const box = $('#importCustomerMatch');
-      const priceType = importForm.elements.price_type.value === 'customer' ? 'customer' : 'general';
-      const customerName = importForm.elements.customer_name.value.trim();
-      const hints = recognizedCustomerHints();
-      if (priceType !== 'customer') {
-        box.className = 'customer-match';
-        box.textContent = 'מחירון כללי לא משויך ללקוח.';
-        return;
-      }
-      if (!customerName) {
-        box.className = 'customer-match';
-        box.textContent = hints ? `זוהו פרטי לקוח: ${hints}. יש להזין שם לקוח לשיוך.` : 'מחירון לקוח דורש שם לקוח או מספר לקוח.';
-        return;
-      }
-      box.className = 'customer-match';
-      box.textContent = 'בודק אם הלקוח כבר קיים במודול לקוחות...';
-      try {
-        const customers = await api(`/api/customers?q=${encodeURIComponent(customerName)}&limit=5`);
-        const exact = (customers || []).find(customer => normalizeCustomerName(customer.name) === normalizeCustomerName(customerName));
-        if (exact) {
-          importForm.elements.customer_id.value = exact.id;
-          box.className = 'customer-match good';
-          box.textContent = `נמצא לקוח קיים: ${exact.name} (#${exact.id}). המחירון ישויך אליו.`;
-          return;
-        }
-        box.className = 'customer-match warn';
-        box.innerHTML = `
-          לא נמצא לקוח בשם ${escapeHtml(customerName)}.
-          ${hints ? `<span> זוהו פרטים: ${escapeHtml(hints)}.</span>` : ''}
-          <button class="link-btn" type="button" data-open-customer-create>פתח לקוח חדש</button>
-        `;
-      } catch (err) {
-        box.className = 'customer-match warn';
-        box.textContent = `לא ניתן לבדוק לקוחות כרגע: ${err.message}`;
-      }
-    }
-
-    function priceBookTerms() {
-      return [
-        'מחיר סופי לעיבוד של כלונסאות ואלמנטים יינתן בהתאם לסקיצה סופית וחתומה על ידי המזמין.',
-        'כלונסאות במשקל תאורטי מתחת ל-200 ק"ג תהיה תוספת מחיר.',
-        'אלמנטים במשקל תאורטי מתחת ל-300 ק"ג תהיה תוספת מחיר.',
-        'באחריות הלקוח, לאחר תאום ההובלה, לדאוג לגישה נוחה למשאית עבור הפריקה. פריקת המנוף תתבצע אך ורק בסמוך לארגז המשאית על הרציפה.',
-        'הובלה תחויב לגופו של עניין, כל כניסה / פריקה נוספת תחויב בתוספת מחיר.',
-        'ברזל בקטרים 16-22 מ"מ באורך 16 מטר והובלה בקטרים 25-36 באורך מעל 16 מ׳ ומעל 3.2 מטר מצריכה הובלה מתארכת ורכבי ליווי בתוספת 550 ש"ח.',
-        'בסיס החישוב לתעודות משלוח יעשה לפי שקילה בפועל במפעלי טנא תעשיות ברזל בע"מ.',
-        'מוסכם שהסטייה המותרת בין השקילה בפועל לחישוב המשקל התאורטי היא עד 3 אחוז.',
-        'חתימת הלקוח או נציגו באתר על גבי תעודת המשלוח תהווה ראייה מכרעת לקבלתו בשלמות על פי המצוין בתעודת המשלוח.',
-        'הזמנה שמוכנה למשלוח ושלא נדרשה ע"י הלקוח במהלך זמן סביר, תופק חשבונית פיננסית עבור ההזמנה בתאום עם הלקוח וימי האשראי יספרו מאותו מועד.',
-        'הסחורה בבעלות החברה עד לתשלום מלא בעבורה.',
-        'עם קבלת ההזמנה ואישורה אין אפשרות לשינוי וזאת מאחר שההזמנה מיוצרת במיוחד לבקשת הלקוח.',
-      ];
-    }
-
-    function extractCustomerId(book) {
-      const text = `${book.notes || ''} ${book.source_ref || ''}`;
-      const match = text.match(/ח\.פ\s*([0-9]{6,})/);
-      return match ? match[1] : '';
-    }
-
-    function groupedPriceRows() {
-      const groups = [];
-      const byName = new Map();
-      for (const item of state.items) {
-        const category = item.category || 'ללא קטגוריה';
-        if (!byName.has(category)) {
-          const group = { name: category, items: [] };
-          byName.set(category, group);
-          groups.push(group);
-        }
-        byName.get(category).items.push(item);
-      }
-      return groups;
-    }
-
-    function renderPricePreview() {
-      const book = state.currentBook;
-      if (!book) return toast('צריך לבחור מחירון לתצוגה');
-      const printDate = formatDateTime(book.updated_at || new Date().toISOString()).split(',')[0];
-      const customerName = book.price_type === 'customer' ? (book.customer_name || '') : 'מחירון כללי';
-      const customerId = extractCustomerId(book);
-      const rows = groupedPriceRows();
-      $('#pricePreviewDoc').innerHTML = `
-        <header class="price-doc-header">
-          <div>
-            <h1>מחירון ללקוח</h1>
-            <div class="client-info-box">
-              <div class="client-info-grid">
-                <div><strong>לכבוד:</strong> ${escapeHtml(customerName || book.name)}</div>
-                <div><strong>תאריך מחירון:</strong> ${escapeHtml(printDate)}</div>
-                <div><strong>ח.פ:</strong> ${escapeHtml(customerId || '-')}</div>
-                <div><strong>תנאי תשלום:</strong> לפי כרטיס לקוח</div>
-              </div>
-            </div>
-          </div>
-          <div class="company-box">
-            <div class="company-logo">טנא<br>תעשיות ברזל</div>
-            <div>
-              ח.פ. 517312872<br>
-              רכסים 1, טנא<br>
-              office@tene-ind.com
-            </div>
-          </div>
-        </header>
-        <table class="price-doc-table">
-          <thead>
-            <tr>
-              <th>מק״ט</th>
-              <th class="desc-col">תאור מוצר</th>
-              <th>כמות</th>
-              <th>יח'</th>
-              <th>מחיר לפני מע"מ</th>
-              <th>מטבע</th>
-              <th>חריגה</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map(group => `
-              <tr class="section-row" data-price-role="${escapeHtml(sectionDefinition(group.name).role)}">
-                <td colspan="7">
-                  ${escapeHtml(group.name)}
-                  <span class="section-definition">${escapeHtml(sectionDefinition(group.name).label)}</span>
-                </td>
-              </tr>
-              ${group.items.map(item => `
-                <tr data-price-role="${escapeHtml(priceRoleForItem(item))}">
-                  <td>${escapeHtml(item.sku)}</td>
-                  <td class="desc-col">${escapeHtml(item.description)}</td>
-                  <td>${formatNumber(item.quantity)}</td>
-                  <td>${escapeHtml(unitLabel(item.unit))}</td>
-                  <td class="price-col">${formatNumber(item.price_before_vat)}</td>
-                  <td>${escapeHtml(currencyLabel(item.currency || book.currency))}</td>
-                  <td>${item.exception_flag ? '✓' : ''}</td>
-                </tr>
-              `).join('')}
-            `).join('')}
-          </tbody>
-        </table>
-        <div class="vat-box">המחירים אינם כוללים מע"מ</div>
-        <section class="terms-section">
-          <div class="terms-title">תנאים והערות:</div>
-          <table class="terms-list">
-            <tbody>
-              ${priceBookTerms().map((term, index) => `
-                <tr><td class="term-num">.${index + 1}</td><td>${escapeHtml(term)}</td></tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </section>
-        <section class="signature-section">
-          <div class="signature-title">אישור המחירון ע"י הלקוח:</div>
-          <div class="signature-grid">
-            <div><strong>שם מלא:</strong> <span class="line-space"></span></div>
-            <div><strong>תפקיד:</strong> <span class="line-space"></span></div>
-            <div><strong>חתימה וחותמת:</strong> <span class="line-space"></span></div>
-            <div><strong>תאריך:</strong> <span class="line-space"></span></div>
-          </div>
-          <div class="signature-instructions">נא לחתום על כל דף במקום המיועד ולשלוח העתק חתום למייל: office@tene-ind.com</div>
-        </section>
-      `;
-      previewDialog.showModal();
-    }
-
     function openImportDialog() {
       state.importDraft = null;
       setForm(importForm, { price_type: state.mode, currency: 'ILS' });
       $('#importStatus').textContent = 'בחר קובץ ולחץ “זהה מחירון”.';
-      $('#importCustomerMatch').className = 'customer-match';
-      $('#importCustomerMatch').textContent = 'לקוח מזוהה ייבדק מול מודול לקוחות אחרי OCR או הזנה.';
       $('#importTable').innerHTML = '';
       $('#saveImportBtn').disabled = true;
       importDialog.showModal();
@@ -974,7 +627,6 @@
               <th>כמות</th>
               <th>יחידה</th>
               <th>מחיר לפני מע״מ</th>
-              <th>חריג</th>
               <th>הערות</th>
               <th></th>
             </tr>
@@ -993,12 +645,6 @@
                   </select>
                 </td>
                 <td><input data-import-field="price_before_vat" type="number" step="0.01" value="${escapeHtml(item.price_before_vat ?? 0)}"></td>
-                <td>
-                  <select data-import-field="exception_flag">
-                    <option value="0" ${item.exception_flag ? '' : 'selected'}>לא</option>
-                    <option value="1" ${item.exception_flag ? 'selected' : ''}>כן</option>
-                  </select>
-                </td>
                 <td><input data-import-field="notes" value="${escapeHtml(item.notes || '')}"></td>
                 <td><button class="icon-btn" type="button" data-remove-import-row="${index}">×</button></td>
               </tr>
@@ -1019,7 +665,6 @@
         item.diameter = item.diameter === '' ? null : Number(item.diameter);
         item.quantity = Number(item.quantity || 1);
         item.price_before_vat = Number(item.price_before_vat || 0);
-        item.exception_flag = item.exception_flag === '1';
         item.currency = importForm.elements.currency.value || state.importDraft.currency || 'ILS';
         return item;
       });
@@ -1056,7 +701,6 @@
         });
         $('#importStatus').textContent = `זוהו ${state.importDraft.items.length} שורות. ערוך לפני שמירה.`;
         renderImportDraft();
-        await checkImportCustomer();
       } finally {
         $('#analyzeImportBtn').disabled = false;
       }
@@ -1176,67 +820,32 @@
       const data = await api('/api/pricing/price-books', {
         method: 'POST',
         body: JSON.stringify({
-          code: `301401685-S1-${stamp}`,
-          name: 'מחירון לקוח - י.ד עשוש תשתיות בע"מ',
-          customer_name: 'י.ד עשוש תשתיות בע"מ',
-          price_type: 'customer',
+          code: `GENERAL-SAMPLE-${stamp}`,
+          name: 'מחירון כללי לדוגמה',
+          customer_name: '',
+          price_type: 'general',
           currency: 'ILS',
           status: 'draft',
-          source_type: 'pdf',
-          source_ref: 'מחירון לקוח - י.ד עשוש תשתיות בעמ.pdf',
-          notes: [
-            'מבוסס על מחירון 301401685-S1 ללקוח י.ד עשוש תשתיות בע"מ, ח.פ 513432856.',
-            'המחירים אינם כוללים מע"מ.',
-            'תנאי תשלום אינם מנוהלים במחירון ונשארים במודול לקוחות/תנאי תשלום.',
-          ].join('\n'),
+          source_type: 'sample',
+          source_ref: 'general-sample',
         }),
       });
       const rows = [
-        ['2010', null, 'ברזל מעובד', 'ברזל בניין 8-25 מ"מ לעיבוד C500 / רתיך', 1, 'kg', 2.65, false],
-        ['2019', null, 'ברזל מעובד', 'ברזל לבניין 28-36 מ"מ לעיבוד C500 / רתיך', 1, 'kg', 2.75, false],
-        ['2005', null, 'מוטות', 'ברזל בניין 8-25 מ"מ חבילות C500 עד 16 מטר אורך', 1, 'kg', 2.65, true],
-        ['2007', null, 'מוטות', 'ברזל בניין 8-16 מ"מ חבילות 6 מטר ו-12 מטר', 1, 'kg', 2.65, false],
-        ['2014', null, 'מוטות', 'ברזל לבניין 28-36 מ"מ בחבילות C500 / רתיך', 1, 'kg', 2.75, false],
-        ['2045', null, 'סלילים עגולים-חוטים', 'ברזל עגול חלק 6-14 מ"מ', 1, 'kg', 2.75, false],
-        ['2046', null, 'סלילים עגולים-חוטים', 'ברזל עגול חלק 16-18 מ"מ', 1, 'kg', 3.92, false],
-        ['2047', null, 'סלילים עגולים-חוטים', 'עגול 20 ומעלה', 1, 'kg', 4.12, false],
-        ['2515', null, 'עיבודי ברזל', 'חיתוך', 1, 'kg', 0.07, false],
-        ['2520', null, 'עיבודי ברזל', 'כיפוף', 1, 'kg', 0.17, false],
-        ['2530', null, 'עיבודי ברזל', 'חישוקים', 1, 'unit', 0.2, false],
-        ['2535', null, 'עיבודי ברזל', 'כסאות', 1, 'unit', 0.4, false],
-        ['2540', null, 'עיבודי ברזל', 'ציפורים / אזני הרמה / קרומים', 1, 'unit', 0.4, false],
-        ['2575', null, 'עיבודי ברזל', 'עיבוד ספירלות טבעות עד קוטר 12 כולל', 1, 'kg', 0.3, false],
-        ['2576', null, 'עיבודי ברזל', 'עיבוד ספירלות מקוטר 14 ומעלה', 1, 'kg', 0.4, false],
-        ['3005', null, 'רשת סטנדרט', 'רשת לבניין סטנדרט בחבילות', 1, 'kg', 2.9, false],
-        ['3015', null, 'רשת סטנדרט', 'רשת לממ"ד / קירות ברזל משוך (ש.כהן)', 1, 'kg', 2.95, false],
-        ['3010', null, 'רשת לפי תוכנית', 'רשת בניין לפי תוכנית - 50 יח׳ לפריט ברזל משוך / ספסלים', 1, 'kg', 3.0, false],
-        ['3010W', null, 'רשת לפי תוכנית', 'רשת רתיכה עד קוטר 12 B500 / רתיך', 1, 'kg', 3.1, false],
-        ['3011W', null, 'רשת לפי תוכנית', 'רשת רתיכה קוטר 14 מ"מ C500', 1, 'kg', 3.3, false],
-        ['3012W', null, 'רשת לפי תוכנית', 'רשת רתיכה קוטר 16 C500', 1, 'kg', 3.45, false],
-        ['3013W', null, 'רשת לפי תוכנית', 'רשת רתיכה קוטר 18-25 מ"מ C500', 1, 'kg', 3.75, false],
-        ['3019', null, 'רשת לפי תוכנית', 'אומניות', 1, 'kg', 3.8, false],
-        ['3505', null, 'עיבודי רשת', 'חיתוך רשת ל-1.3', 1, 'kg', 0.3, false],
-        ['3510', null, 'עיבודי רשת', 'כיפוף רשת', 1, 'kg', 0.45, false],
-        ['3515', null, 'עיבודי רשת', 'חיוב לרשת מכופפת פחות מ-10 ק"ג', 1, 'unit', 4.0, false],
-        ['630100', null, 'הובלות', 'כניסה נוספת', 1, 'unit', 220, false],
-        ['630101', null, 'הובלות', 'חיוב המתנה מהשעה השנייה', 1, 'unit', 220, false],
-        ['630103', null, 'הובלות', 'פריקת מנוף גדול דאבל', 1, 'unit', 500, false],
-        ['630104', null, 'הובלות', 'פריקת מנוף גדול טריילר', 1, 'unit', 720, false],
-        ['630106', null, 'הובלות', 'ליווי', 1, 'unit', 550, false],
-        ['630110', null, 'הובלות', 'פריקה נוספת', 1, 'unit', 220, false],
-        ['630113', null, 'הובלות', 'תוספת לעגלה מסתובבת', 1, 'unit', 440, false],
-        ['3050', null, 'צינורות גמא', 'צינור גמא 2" עובי 2.20', 1, 'm', 28, true],
+        ['D8', 8, 'ברזל מעובד', 'ברזל מעובד קוטר 8', 1, 'kg', 3.52],
+        ['D10', 10, 'ברזל מעובד', 'ברזל מעובד קוטר 10', 1, 'kg', 3.62],
+        ['D12', 12, 'ברזל מעובד', 'ברזל מעובד קוטר 12', 1, 'kg', 3.72],
+        ['729020', null, 'רשת', 'רשת מרותכת לפי מפרט', 1, 'unit', 64],
+        ['729040', null, 'הובלות', 'הובלה לאתר לקוח', 1, 'unit', 450],
       ];
-      for (const [index, row] of rows.entries()) {
-        const [sku, diameter, category, description, quantity, unit, price_before_vat, exception_flag] = row;
+      for (const [sku, diameter, category, description, quantity, unit, price_before_vat] of rows) {
         await api(`/api/pricing/price-books/${data.price_book.id}/items`, {
           method: 'POST',
-          body: JSON.stringify({ sku, diameter, category, description, quantity, unit, price_before_vat, currency: 'ILS', exception_flag, sort_order: index + 1 }),
+          body: JSON.stringify({ sku, diameter, category, description, quantity, unit, price_before_vat, currency: 'ILS' }),
         });
       }
       state.currentBook = data.price_book;
-      state.mode = 'customer';
-      toast('נוצר מחירון עשוש לדוגמה');
+      state.mode = 'general';
+      toast('נוצר מחירון דוגמה');
       await loadBooks(data.price_book.id);
     }
 
@@ -1290,10 +899,6 @@
     });
     $('#sampleBtn').addEventListener('click', () => createSample().catch(err => toast(err.message)));
     $('#importOcrBtn').addEventListener('click', openImportDialog);
-    $('#previewBookBtn').addEventListener('click', renderPricePreview);
-    $('#printPreviewBtn').addEventListener('click', () => window.print());
-    $('#closePreviewBtn').addEventListener('click', () => previewDialog.close());
-    $('#closePreviewFootBtn').addEventListener('click', () => previewDialog.close());
     $('#importTable').addEventListener('click', event => {
       const remove = event.target.closest('[data-remove-import-row]');
       if (!remove || !state.importDraft) return;
@@ -1301,14 +906,6 @@
       state.importDraft.items.splice(Number(remove.dataset.removeImportRow), 1);
       renderImportDraft();
     });
-    $('#importCustomerMatch').addEventListener('click', event => {
-      if (event.target.closest('[data-open-customer-create]')) openCustomerFromImport();
-    });
-    importForm.elements.customer_name.addEventListener('input', () => {
-      clearTimeout(checkImportCustomer.timer);
-      checkImportCustomer.timer = setTimeout(() => checkImportCustomer(), 350);
-    });
-    importForm.elements.price_type.addEventListener('change', () => checkImportCustomer());
     importForm.addEventListener('submit', event => {
       if (!event.submitter || event.submitter.value === 'cancel') return;
       event.preventDefault();
