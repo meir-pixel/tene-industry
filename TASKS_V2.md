@@ -190,6 +190,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
+  - fixed the PDF logo rollout by cropping the source asset and locking shared navigation logo dimensions so the image cannot expand over dashboard screens.
   - replaced direct Tene logo image references across customer-facing and shared public shells with the uploaded customer price-list PDF logo asset.
 - scope:
   - `TASKS_V2.md`
@@ -206,6 +207,7 @@
   - `public/production-queue.html`
   - `public/supplier.html`
   - `public/sw.js`
+  - `public/theme.css`
 - input:
   - customer profile
   - customer tax id / company id
