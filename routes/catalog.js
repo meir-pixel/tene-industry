@@ -77,6 +77,9 @@ module.exports = function createCatalogRouter(deps) {
         code: { type: ['string', 'null'] },
         name: { type: ['string', 'null'] },
         customer_name: { type: ['string', 'null'] },
+        customer_vat_id: { type: ['string', 'null'] },
+        customer_phone: { type: ['string', 'null'] },
+        customer_address: { type: ['string', 'null'] },
         currency: { type: ['string', 'null'] },
         notes: { type: ['string', 'null'] },
         items: {
@@ -100,7 +103,7 @@ module.exports = function createCatalogRouter(deps) {
           },
         },
       },
-      required: ['code', 'name', 'customer_name', 'currency', 'notes', 'items'],
+      required: ['code', 'name', 'customer_name', 'customer_vat_id', 'customer_phone', 'customer_address', 'currency', 'notes', 'items'],
     };
     const context = pricingOcrContext(req);
     const prompt = `The operator is importing a steel/rebar price list into IronBend pricing.
@@ -108,11 +111,12 @@ The upload context is requested_by_module=${context.requested_by_module}, reques
 This is not a customer order intake route. Return only a price-book draft for /api/pricing/price-books/analyze-upload.
 Extract only price-list rows. Do not extract payment terms, totals, VAT summaries, addresses, or legal text as item rows.
 Keep price-list-level comments in notes only when they affect the price list itself. Payment terms belong to Customers/Payment Terms, not Pricing.
+Extract visible customer identification fields from the price-list header into customer_name, customer_vat_id, customer_phone, and customer_address for matching only. These fields do not make customer records inside Pricing.
 Return a draft that the operator will edit before saving.
 For each row:
 - sku is the printed catalog/item code when visible, such as 2010, 2019, 630100, or 3050. For diameter-only rebar rows use D8, D10, D12, etc.
 - diameter is the rebar diameter in millimeters when the item is a bar diameter row; otherwise null.
-- category is the visible section/category heading when available, such as ברזל מעובד, מוטות, עיבודי ברזל, רשת סטנדרט, רשת לפי תוכנית, עיבודי רשת, הובלות, or other.
+- category is the visible section/category heading when available, such as ברזל מעובד, מוטות, סלילים עגולים-חוטים, עיבודי ברזל, רשת סטנדרט, רשת לפי תוכנית, עיבודי רשת, הובלות, צינורות גמא, or other.
 - description is the visible item description.
 - quantity defaults to 1 unless the row clearly has a price quantity basis.
 - unit should be kg for price per kilogram, ton for ton, unit for fixed item, or m for meter.
@@ -235,6 +239,9 @@ If a value is uncertain, still return the row with a note. Never invent prices t
           code: trimText(parsed.code) || `OCR-${Date.now()}`,
           name: trimText(parsed.name) || fileStem,
           customer_name: trimText(parsed.customer_name),
+          customer_vat_id: trimText(parsed.customer_vat_id),
+          customer_phone: trimText(parsed.customer_phone),
+          customer_address: trimText(parsed.customer_address),
           currency,
           status: 'draft',
           source_type: 'ocr',

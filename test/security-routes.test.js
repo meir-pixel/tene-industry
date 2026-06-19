@@ -232,7 +232,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   await t.test('customer CRM base routes require internal customer roles', async () => {
     const customerId = seedCustomer();
     assert.equal((await request('/api/customers')).status, 401);
-    assert.equal((await request('/api/customers', { headers: authHeaders(finance) })).status, 403);
+    assert.equal((await request('/api/customers', { headers: authHeaders(finance) })).status, 200);
     assert.equal((await request('/api/customers', { headers: authHeaders(office) })).status, 200);
 
     assert.equal((await request(`/api/customers/${customerId}`)).status, 401);

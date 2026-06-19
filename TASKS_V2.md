@@ -348,6 +348,7 @@
 - module: pricing
 - priority: high
 - latest_change:
+  - added customer-price-list OCR handoff: recognized customer details are checked against Customers, missing customers are offered as a Customers-module create flow, and price sections now carry business roles for future order-item pricing.
   - added the official customer price-list preview/print format in Pricing, matching the Ashush price-list layout with grouped categories, VAT note, terms, and signature block.
   - aligned the pricing screen and OCR draft with the Ashush customer price-list PDF: printed SKU codes, full categories, exception markers, and editable import rows.
   - prepared the main IronBend Render blueprint for cloud access to pricing: persistent `/data` disk, `/data/ironbend.db`, `/data/backups`, license server URL, and external `BASE_URL`.
@@ -383,6 +384,8 @@
   - המוקאפ אושר כהכוונת UI ומוטמע במסך מערכת.
   - מחירונים חדשים נשמרים כטיוטה עד הפעלה ידנית.
   - מחירון כללי ומחירון לקוח מוצגים ומנוהלים כהפרדה ברורה.
+  - אם OCR מזהה לקוח שלא קיים, Pricing מציע לפתוח לקוח חדש במודול Customers עם פרטי הזיהוי שזוהו.
+  - לכל סעיף מחירון מוגדר תפקיד עסקי כדי לקשר בעתיד שורת מחיר לשורת הזמנה.
   - תנאי תשלום אינם שדה במחירון; הם שייכים למודול Payment Terms / Customers.
   - תאריך מחירון אינו מוזן ידנית; כל שינוי מעדכן `updated_at` ומוצג כ"עודכן".
   - כל שורת מחירון חייבת להיות ניתנת לעריכה/הוספה.

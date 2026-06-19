@@ -560,6 +560,12 @@ test('price list management belongs to pricing screen', () => {
   assert.match(pricing, /data-import-field="exception_flag"/);
   assert.match(pricing, /previewBookBtn/);
   assert.match(pricing, /price-doc-table/);
+  assert.match(pricing, /PRICE_SECTION_DEFINITIONS/);
+  assert.match(pricing, /priceRoleForItem/);
+  assert.match(pricing, /data-price-role/);
+  assert.match(pricing, /id="importCustomerMatch"/);
+  assert.match(pricing, /\/api\/customers\?q=/);
+  assert.match(pricing, /data-open-customer-create/);
   assert.match(pricing, /אישור המחירון ע"י הלקוח/);
   assert.match(pricing, /המחירים אינם כוללים מע"מ/);
   assert.match(pricing, /id="itemDialog"/);

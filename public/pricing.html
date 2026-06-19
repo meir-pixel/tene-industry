@@ -140,6 +140,16 @@
     .import-table table { min-width:980px; }
     .import-table input, .import-table select { min-height:32px; padding:5px 7px; }
     .import-status { grid-column:1/-1; color:var(--muted); font-weight:800; }
+    .customer-match {
+      grid-column:1/-1; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
+      background:#f8fafc; color:var(--muted); font-size:13px; font-weight:800;
+    }
+    .customer-match.good { border-color:#8fd3b4; background:#ecfdf5; color:#126146; }
+    .customer-match.warn { border-color:#f2ce80; background:#fff8e5; color:#8a5a10; }
+    .link-btn {
+      border:0; background:transparent; color:var(--accent-2); padding:0;
+      font-weight:900; text-decoration:underline; cursor:pointer;
+    }
     .price-preview-dialog { width:min(1120px,96vw); }
     .preview-body { padding:0; background:#eef3f9; max-height:82vh; overflow:auto; }
     .price-doc {
@@ -171,6 +181,9 @@
     .price-doc-table .desc-col { text-align:right; width:42%; }
     .price-doc-table .section-row td {
       background:#e9ecef; color:#1a3b5c; font-weight:bold; text-align:right;
+    }
+    .section-definition {
+      display:block; color:#536173; font-size:8.5pt; font-weight:normal; margin-top:2px;
     }
     .price-doc-table .price-col { color:#1a3b5c; font-weight:bold; }
     .vat-box {
@@ -455,6 +468,7 @@
           <span>לקוח</span>
           <input name="customer_name">
         </label>
+        <div class="customer-match" id="importCustomerMatch">לקוח מזוהה ייבדק מול מודול לקוחות אחרי OCR או הזנה.</div>
         <label class="field">
           <span>קוד מחירון</span>
           <input name="code">
@@ -527,6 +541,48 @@
     const importForm = $('#importForm');
     const importDialog = $('#importDialog');
     const previewDialog = $('#previewDialog');
+    const PRICE_SECTION_DEFINITIONS = {
+      'ברזל מעובד': {
+        role: 'processed_rebar',
+        label: 'ברזל בניין לעיבוד; מקושר לפריטי הזמנה לפי קוטר/משקל כאשר ההזמנה כוללת עיבוד.',
+      },
+      'מוטות': {
+        role: 'straight_rebar_bundle',
+        label: 'אספקת מוטות בחבילות; מקושר לפי מק״ט, קוטר, אורך/משקל ללא עיבוד נוסף.',
+      },
+      'סלילים עגולים-חוטים': {
+        role: 'round_coil_wire',
+        label: 'סלילים וחוטים עגולים; מקושר לפריט הזמנה לפי סוג חומר, קוטר ומשקל.',
+      },
+      'עיבודי ברזל': {
+        role: 'rebar_processing_addon',
+        label: 'תוספות עיבוד לברזל כגון חיתוך, כיפוף, חישוקים, כסאות וספירלות.',
+      },
+      'רשת סטנדרט': {
+        role: 'standard_mesh',
+        label: 'רשת סטנדרטית; מקושרת לפריטי רשת לפי מק״ט/סוג ומשקל.',
+      },
+      'רשת לפי תוכנית': {
+        role: 'custom_mesh',
+        label: 'רשת לפי תוכנית; מקושרת לפריט הזמנה לפי סוג רשת, קוטר/מפרט ומשקל.',
+      },
+      'עיבודי רשת': {
+        role: 'mesh_processing_addon',
+        label: 'תוספות עיבוד לרשת כגון חיתוך, כיפוף או חיוב מינימום.',
+      },
+      'הובלות': {
+        role: 'delivery_charge',
+        label: 'חיובי הובלה ופריקה; מקושרים לשורת לוגיסטיקה בהזמנה ולא למשקל ברזל.',
+      },
+      'צינורות גמא': {
+        role: 'gamma_pipe',
+        label: 'צינורות גמא; מקושרים לפי מק״ט, סוג צינור ואורך במטרים.',
+      },
+      'ללא קטגוריה': {
+        role: 'unclassified_price_item',
+        label: 'שורה ללא סעיף מוגדר; נדרשת בחירת סעיף לפני קישור אוטומטי להזמנה.',
+      },
+    };
 
     function authHeaders(extra = {}) {
       const headers = { ...extra };
@@ -695,6 +751,79 @@
       return labels[value] || value || '';
     }
 
+    function normalizeCustomerName(value) {
+      return String(value || '').replace(/[״"]/g, '"').replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+
+    function sectionDefinition(category) {
+      return PRICE_SECTION_DEFINITIONS[category || 'ללא קטגוריה'] || {
+        role: 'custom_price_item',
+        label: 'סעיף מחירון מותאם; נדרש מיפוי ידני לפני קישור אוטומטי להזמנה.',
+      };
+    }
+
+    function priceRoleForItem(item) {
+      return sectionDefinition(item && item.category).role;
+    }
+
+    function recognizedCustomerHints() {
+      const draft = state.importDraft || {};
+      return [
+        draft.customer_vat_id ? `ח.פ ${draft.customer_vat_id}` : '',
+        draft.customer_phone ? `טלפון ${draft.customer_phone}` : '',
+        draft.customer_address ? `כתובת ${draft.customer_address}` : '',
+      ].filter(Boolean).join(' · ');
+    }
+
+    function openCustomerFromImport() {
+      const params = new URLSearchParams({
+        from: 'pricing',
+        name: importForm.elements.customer_name.value.trim(),
+        vat_id: state.importDraft?.customer_vat_id || '',
+        phone: state.importDraft?.customer_phone || '',
+        address: state.importDraft?.customer_address || '',
+      });
+      window.open(`/customers.html?${params.toString()}`, '_blank', 'noopener');
+    }
+
+    async function checkImportCustomer() {
+      const box = $('#importCustomerMatch');
+      const priceType = importForm.elements.price_type.value === 'customer' ? 'customer' : 'general';
+      const customerName = importForm.elements.customer_name.value.trim();
+      const hints = recognizedCustomerHints();
+      if (priceType !== 'customer') {
+        box.className = 'customer-match';
+        box.textContent = 'מחירון כללי לא משויך ללקוח.';
+        return;
+      }
+      if (!customerName) {
+        box.className = 'customer-match';
+        box.textContent = hints ? `זוהו פרטי לקוח: ${hints}. יש להזין שם לקוח לשיוך.` : 'מחירון לקוח דורש שם לקוח או מספר לקוח.';
+        return;
+      }
+      box.className = 'customer-match';
+      box.textContent = 'בודק אם הלקוח כבר קיים במודול לקוחות...';
+      try {
+        const customers = await api(`/api/customers?q=${encodeURIComponent(customerName)}&limit=5`);
+        const exact = (customers || []).find(customer => normalizeCustomerName(customer.name) === normalizeCustomerName(customerName));
+        if (exact) {
+          importForm.elements.customer_id.value = exact.id;
+          box.className = 'customer-match good';
+          box.textContent = `נמצא לקוח קיים: ${exact.name} (#${exact.id}). המחירון ישויך אליו.`;
+          return;
+        }
+        box.className = 'customer-match warn';
+        box.innerHTML = `
+          לא נמצא לקוח בשם ${escapeHtml(customerName)}.
+          ${hints ? `<span> זוהו פרטים: ${escapeHtml(hints)}.</span>` : ''}
+          <button class="link-btn" type="button" data-open-customer-create>פתח לקוח חדש</button>
+        `;
+      } catch (err) {
+        box.className = 'customer-match warn';
+        box.textContent = `לא ניתן לבדוק לקוחות כרגע: ${err.message}`;
+      }
+    }
+
     function priceBookTerms() {
       return [
         'מחיר סופי לעיבוד של כלונסאות ואלמנטים יינתן בהתאם לסקיצה סופית וחתומה על ידי המזמין.',
@@ -776,9 +905,14 @@
           </thead>
           <tbody>
             ${rows.map(group => `
-              <tr class="section-row"><td colspan="7">${escapeHtml(group.name)}</td></tr>
+              <tr class="section-row" data-price-role="${escapeHtml(sectionDefinition(group.name).role)}">
+                <td colspan="7">
+                  ${escapeHtml(group.name)}
+                  <span class="section-definition">${escapeHtml(sectionDefinition(group.name).label)}</span>
+                </td>
+              </tr>
               ${group.items.map(item => `
-                <tr>
+                <tr data-price-role="${escapeHtml(priceRoleForItem(item))}">
                   <td>${escapeHtml(item.sku)}</td>
                   <td class="desc-col">${escapeHtml(item.description)}</td>
                   <td>${formatNumber(item.quantity)}</td>
@@ -820,6 +954,8 @@
       state.importDraft = null;
       setForm(importForm, { price_type: state.mode, currency: 'ILS' });
       $('#importStatus').textContent = 'בחר קובץ ולחץ “זהה מחירון”.';
+      $('#importCustomerMatch').className = 'customer-match';
+      $('#importCustomerMatch').textContent = 'לקוח מזוהה ייבדק מול מודול לקוחות אחרי OCR או הזנה.';
       $('#importTable').innerHTML = '';
       $('#saveImportBtn').disabled = true;
       importDialog.showModal();
@@ -920,6 +1056,7 @@
         });
         $('#importStatus').textContent = `זוהו ${state.importDraft.items.length} שורות. ערוך לפני שמירה.`;
         renderImportDraft();
+        await checkImportCustomer();
       } finally {
         $('#analyzeImportBtn').disabled = false;
       }
@@ -1164,6 +1301,14 @@
       state.importDraft.items.splice(Number(remove.dataset.removeImportRow), 1);
       renderImportDraft();
     });
+    $('#importCustomerMatch').addEventListener('click', event => {
+      if (event.target.closest('[data-open-customer-create]')) openCustomerFromImport();
+    });
+    importForm.elements.customer_name.addEventListener('input', () => {
+      clearTimeout(checkImportCustomer.timer);
+      checkImportCustomer.timer = setTimeout(() => checkImportCustomer(), 350);
+    });
+    importForm.elements.price_type.addEventListener('change', () => checkImportCustomer());
     importForm.addEventListener('submit', event => {
       if (!event.submitter || event.submitter.value === 'cancel') return;
       event.preventDefault();
