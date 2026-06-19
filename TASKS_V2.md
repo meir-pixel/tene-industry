@@ -348,6 +348,7 @@
 - module: pricing
 - priority: high
 - latest_change:
+  - added the official customer price-list preview/print format in Pricing, matching the Ashush price-list layout with grouped categories, VAT note, terms, and signature block.
   - aligned the pricing screen and OCR draft with the Ashush customer price-list PDF: printed SKU codes, full categories, exception markers, and editable import rows.
   - prepared the main IronBend Render blueprint for cloud access to pricing: persistent `/data` disk, `/data/ironbend.db`, `/data/backups`, license server URL, and external `BASE_URL`.
   - added pricing OCR import flow: PDF/image recognition creates an editable draft before assigning it to a general or customer price book.

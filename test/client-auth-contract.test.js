@@ -558,6 +558,10 @@ test('price list management belongs to pricing screen', () => {
   assert.match(pricing, /301401685-S1/);
   assert.match(pricing, /630100/);
   assert.match(pricing, /data-import-field="exception_flag"/);
+  assert.match(pricing, /previewBookBtn/);
+  assert.match(pricing, /price-doc-table/);
+  assert.match(pricing, /אישור המחירון ע"י הלקוח/);
+  assert.match(pricing, /המחירים אינם כוללים מע"מ/);
   assert.match(pricing, /id="itemDialog"/);
   assert.match(pricing, /updatedAtLabel/);
   assert.doesNotMatch(pricing, /payment_terms/);
