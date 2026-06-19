@@ -190,6 +190,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
+  - removed the legacy TNA logo source from branding defaults, client-side brand cache, and static assets so runtime branding cannot swap the PDF logo back to the old SVG.
   - fixed the PDF logo rollout by cropping the source asset and locking shared navigation logo dimensions so the image cannot expand over dashboard screens.
   - replaced direct Tene logo image references across customer-facing and shared public shells with the uploaded customer price-list PDF logo asset.
 - scope:
@@ -208,6 +209,10 @@
   - `public/supplier.html`
   - `public/sw.js`
   - `public/theme.css`
+  - `public/brand-client.js`
+  - `services/branding.js`
+  - `services/settings.js`
+  - `docs/spec-customer-side.md`
 - input:
   - customer profile
   - customer tax id / company id

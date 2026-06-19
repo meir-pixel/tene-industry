@@ -10,7 +10,17 @@
  */
 (function () {
   'use strict';
-  var CACHE_KEY = 'ib_brand_v1';
+  var CACHE_KEY = 'ib_brand_v2';
+  var LEGACY_CACHE_KEYS = ['ib_brand_v1'];
+  var LEGACY_LOGO_URL = '/brand/tene-' + 'logo.svg';
+  var CURRENT_LOGO_URL = '/brand/tene-pdf-logo.jpg';
+
+  function normalizeLogoUrl(value) {
+    if (!value || value === LEGACY_LOGO_URL || value.indexOf(LEGACY_LOGO_URL) >= 0) {
+      return CURRENT_LOGO_URL;
+    }
+    return value;
+  }
 
   function apply(b) {
     if (!b) return;
@@ -23,6 +33,7 @@
       if (b.primaryColor) {
         document.documentElement.style.setProperty('--brand-primary', b.primaryColor);
       }
+      b.logoUrl = normalizeLogoUrl(b.logoUrl);
       var nameEl = document.querySelector('[data-brand-name]');
       if (nameEl && b.name) nameEl.textContent = b.name;
       var logoEl = document.querySelector('[data-brand-logo]');
@@ -33,6 +44,7 @@
 
   // 1) החלת cache מיידית — מונע הבהוב מותג
   try {
+    LEGACY_CACHE_KEYS.forEach(function (key) { localStorage.removeItem(key); });
     var cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
     if (cached) apply(cached);
   } catch (e) { /* no-op */ }

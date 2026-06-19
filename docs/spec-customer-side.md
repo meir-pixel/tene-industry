@@ -35,7 +35,7 @@
 **1. הגדרות מיתוג ב-`services/settings.js`** (קבוצה חדשה "מיתוג", `customer_permission='edit'` — גם הלקוח עורך):
 ```
 ['BRAND_NAME',          10, 'שם המערכת',  'השם שמוצג ללקוח',        'string',  'IronBend', ... 'edit'],
-['BRAND_LOGO_URL',      10, 'לוגו',        'קישור/נתיב ללוגו',       'url',     '/brand/tene-logo.svg', ... 'edit'],
+['BRAND_LOGO_URL',      10, 'לוגו',        'קישור/נתיב ללוגו',       'url',     '/brand/tene-pdf-logo.jpg', ... 'edit'],
 ['BRAND_PRIMARY_COLOR', 10, 'צבע ראשי',   'צבע מותג ראשי',          'string',  '#2E75B6', ... 'edit'],
 ['BRAND_SUPPORT_PHONE', 10, 'טלפון תמיכה', 'מוצג בתחתית',           'phone',   '', ... 'edit'],
 ```

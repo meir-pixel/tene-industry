@@ -13,7 +13,7 @@ function required(name, value) {
 
 const BRAND_DEFAULTS = {
   name: 'טנא תעשיות ברזל בע"מ',
-  logoUrl: '/brand/tene-logo.svg',
+  logoUrl: '/brand/tene-pdf-logo.jpg',
   primaryColor: '#2E75B6',
   supportPhone: '',
 };
@@ -21,10 +21,18 @@ const BRAND_DEFAULTS = {
 function createBrandingService(settingsService) {
   required('settingsService', settingsService);
 
+  function normalizeLogoUrl(value) {
+    const legacyLogoUrl = '/brand/tene-' + 'logo.svg';
+    if (!value || value === legacyLogoUrl || value.endsWith(legacyLogoUrl)) {
+      return BRAND_DEFAULTS.logoUrl;
+    }
+    return value;
+  }
+
   function get() {
     return {
       name:         settingsService.get('BRAND_NAME',          BRAND_DEFAULTS.name)         || BRAND_DEFAULTS.name,
-      logoUrl:      settingsService.get('BRAND_LOGO_URL',      BRAND_DEFAULTS.logoUrl)      || BRAND_DEFAULTS.logoUrl,
+      logoUrl:      normalizeLogoUrl(settingsService.get('BRAND_LOGO_URL', BRAND_DEFAULTS.logoUrl)),
       primaryColor: settingsService.get('BRAND_PRIMARY_COLOR', BRAND_DEFAULTS.primaryColor) || BRAND_DEFAULTS.primaryColor,
       supportPhone: settingsService.get('BRAND_SUPPORT_PHONE', BRAND_DEFAULTS.supportPhone) || BRAND_DEFAULTS.supportPhone,
     };
