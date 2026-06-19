@@ -3,365 +3,440 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ניהול מחירונים | IronBend</title>
+  <title>מחירונים | IronBend</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <script src="/auth-client.js"></script>
   <script src="/safe-dom.js"></script>
   <script src="/nav.js"></script>
   <style>
     :root {
-      --bg:#f4f7fb;
-      --panel:#fff;
-      --ink:#172234;
+      --bg:#e9eef5;
+      --paper:#fff;
+      --ink:#333;
+      --blue:#173a5d;
       --muted:#66758a;
-      --line:#dbe3ee;
+      --line:#d9dde3;
+      --section:#e9ecef;
       --accent:#c9621a;
-      --accent-2:#0b6bcb;
-      --ok:#12805c;
-      --warn:#b7791f;
-      --bad:#b42318;
-      --shadow:0 12px 34px rgba(15,35,70,.12);
+      --shadow:0 18px 44px rgba(15,35,70,.16);
     }
     * { box-sizing:border-box; }
     body {
       margin:0;
       background:var(--bg);
       color:var(--ink);
-      font-family:Heebo,Arial,sans-serif;
+      font-family:Arial, Helvetica, sans-serif;
       min-height:100vh;
     }
     button, input, select, textarea { font:inherit; }
     button { cursor:pointer; }
-    .wrap { max-width:1480px; margin:0 auto; padding:24px; }
-    .head {
-      display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
-      margin-bottom:18px;
+    .screen {
+      max-width:1280px;
+      margin:0 auto;
+      padding:18px 18px 36px;
     }
-    .title h1 { margin:0 0 6px; font-size:28px; line-height:1.2; }
-    .title p { margin:0; color:var(--muted); font-weight:700; }
-    .actions { display:flex; gap:8px; flex-wrap:wrap; }
-    .segmented {
-      display:inline-flex; gap:0; border:1px solid var(--line); border-radius:8px; overflow:hidden;
+    .topbar {
+      position:sticky;
+      top:0;
+      z-index:20;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      padding:10px 0 14px;
+      background:linear-gradient(180deg,var(--bg) 80%,rgba(233,238,245,0));
+    }
+    .toolbar-group { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .btn {
+      border:1px solid #cbd5e1;
+      background:#fff;
+      color:#172234;
+      min-height:36px;
+      padding:7px 12px;
+      border-radius:6px;
+      font-weight:800;
+    }
+    .btn.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+    .btn.orange { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .btn.danger { color:#b42318; }
+    .btn:disabled { opacity:.55; cursor:not-allowed; }
+    .toolbar-select {
+      min-height:36px;
+      max-width:360px;
+      border:1px solid #cbd5e1;
+      border-radius:6px;
+      padding:6px 10px;
+      background:#fff;
+      color:#172234;
+      font-weight:700;
+    }
+    .sheet-shell {
+      display:flex;
+      justify-content:center;
+      overflow:auto;
+      padding:8px 0 24px;
+    }
+    .price-sheet {
+      width:min(100%, 920px);
+      min-height:1180px;
+      background:var(--paper);
+      box-shadow:var(--shadow);
+      padding:44px 56px 70px;
+      color:var(--ink);
+    }
+    .doc-head {
+      display:grid;
+      grid-template-columns:300px 1fr;
+      gap:22px;
+      align-items:start;
+      margin-bottom:10px;
+      direction:ltr;
+    }
+    .company-block {
+      direction:ltr;
+      text-align:left;
+      color:var(--blue);
+      font-size:16px;
+      line-height:1.45;
+    }
+    .company-block img {
+      width:230px;
+      height:auto;
+      display:block;
+      margin-bottom:20px;
+    }
+    .doc-main-head {
+      direction:rtl;
+      display:grid;
+      gap:18px;
+      align-content:start;
+    }
+    .doc-title {
+      margin:20px 0 0;
+      color:var(--blue);
+      font-size:44px;
+      font-weight:900;
+      line-height:1;
+      text-align:right;
+    }
+    .client-box {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:4px 26px;
+      border:1px solid #d4d8dd;
+      border-radius:4px;
+      padding:12px 16px;
+      background:#fafafa;
+      color:#444;
+      font-size:18px;
+      font-weight:700;
+    }
+    .client-box label {
+      display:flex;
+      align-items:center;
+      gap:4px;
+      white-space:nowrap;
+      min-width:0;
+    }
+    .sheet-input {
+      border:0;
+      border-bottom:1px solid transparent;
+      background:transparent;
+      color:inherit;
+      min-width:0;
+      width:100%;
+      padding:2px 3px;
+      font-weight:inherit;
+      text-align:inherit;
+    }
+    #priceDateInput { direction:ltr; text-align:right; }
+    .sheet-input:focus {
+      outline:0;
+      border-bottom-color:var(--blue);
       background:#fff;
     }
-    .segmented button {
-      min-height:38px; padding:8px 13px; border:0; border-inline-start:1px solid var(--line);
-      background:#fff; color:var(--muted); font-weight:900;
+    .top-rule {
+      height:3px;
+      background:var(--blue);
+      margin:8px 0 12px;
     }
-    .segmented button:first-child { border-inline-start:0; }
-    .segmented button.active { background:#10233f; color:#fff; }
-    .btn {
-      border:1px solid var(--line); background:#fff; color:var(--ink);
-      min-height:38px; padding:8px 13px; border-radius:7px; font-weight:900;
-      display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    .price-table {
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      font-size:18px;
     }
-    .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-    .btn.blue { background:var(--accent-2); border-color:var(--accent-2); color:#fff; }
-    .btn.danger { color:var(--bad); }
-    .btn:disabled { opacity:.55; cursor:not-allowed; }
-    .grid {
-      display:grid;
-      grid-template-columns:minmax(260px,340px) 1fr;
-      gap:16px;
-      align-items:start;
-    }
-    .panel {
-      background:var(--panel);
+    .price-table th,
+    .price-table td {
       border:1px solid var(--line);
-      border-radius:8px;
-      box-shadow:var(--shadow);
-      overflow:hidden;
+      padding:8px 9px;
+      vertical-align:middle;
+      height:38px;
     }
-    .panel-head {
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      padding:14px 16px; border-bottom:1px solid var(--line);
-      background:#fbfcfe;
+    .price-table th {
+      background:var(--blue);
+      color:#fff;
+      font-size:18px;
+      font-weight:900;
+      text-align:center;
     }
-    .panel-head h2 { margin:0; font-size:16px; }
-    .search { padding:12px; border-bottom:1px solid var(--line); }
-    .field { display:flex; flex-direction:column; gap:6px; min-width:0; }
-    .field span { color:var(--muted); font-size:12px; font-weight:900; }
-    input, select, textarea {
-      width:100%; border:1px solid var(--line); border-radius:7px; background:#fff;
-      min-height:38px; padding:8px 10px; color:var(--ink);
+    .price-table .desc-col { width:45%; text-align:right; }
+    .price-table .qty-col { width:11%; }
+    .price-table .unit-col { width:8%; }
+    .price-table .price-col { width:25%; }
+    .price-table .currency-col { width:11%; }
+    .section-row td {
+      background:var(--section);
+      color:var(--blue);
+      font-weight:900;
+      text-align:right;
+      font-size:19px;
     }
-    textarea { min-height:78px; resize:vertical; }
-    .book-list { max-height:calc(100vh - 235px); overflow:auto; }
-    .book {
-      width:100%; border:0; border-bottom:1px solid var(--line); background:#fff;
-      padding:12px; text-align:right; display:grid; gap:6px;
+    .row-input {
+      width:100%;
+      min-height:26px;
+      border:0;
+      background:transparent;
+      color:#444;
+      padding:0 2px;
+      text-align:center;
     }
-    .book:hover, .book.active { background:#f7fbff; }
-    .book-title { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:900; }
-    .book-meta { color:var(--muted); font-size:12px; display:flex; gap:8px; flex-wrap:wrap; }
-    .badge {
-      display:inline-flex; align-items:center; min-height:22px; padding:2px 7px;
-      border-radius:999px; font-size:11px; font-weight:900; background:#eef3f9; color:#405168;
+    .row-input.desc,
+    .section-row .row-input {
+      text-align:right;
+      font-weight:inherit;
+      color:inherit;
     }
-    .badge.active { background:#e7f6ef; color:var(--ok); }
-    .badge.draft { background:#fff5df; color:var(--warn); }
-    .form-grid {
-      display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:12px;
-      padding:16px; border-bottom:1px solid var(--line);
-    }
-    .field.wide { grid-column:span 2; }
-    .field.full { grid-column:1/-1; }
-    .toolbar {
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      padding:12px 16px; border-bottom:1px solid var(--line);
-    }
-    .toolbar .field { max-width:360px; flex:1; }
-    .table-wrap { overflow:auto; }
-    table { width:100%; border-collapse:collapse; min-width:980px; }
-    th, td { border-bottom:1px solid var(--line); padding:10px; text-align:right; vertical-align:middle; }
-    th { background:#f8fafc; color:#516176; font-size:12px; font-weight:900; position:sticky; top:0; }
-    td { font-size:13px; }
-    .num { direction:ltr; text-align:left; font-variant-numeric:tabular-nums; }
-    .empty { padding:42px 20px; color:var(--muted); text-align:center; font-weight:800; }
-    .row-actions { display:flex; gap:6px; justify-content:flex-start; }
-    .icon-btn {
-      width:32px; height:32px; border-radius:7px; border:1px solid var(--line);
-      background:#fff; display:inline-flex; align-items:center; justify-content:center;
+    .row-input.price {
+      color:var(--blue);
       font-weight:900;
     }
+    .row-input:focus {
+      outline:1px solid rgba(23,58,93,.35);
+      background:#fff;
+    }
+    .row-tools {
+      position:absolute;
+      left:-42px;
+      display:none;
+      gap:4px;
+      top:5px;
+    }
+    .data-row { position:relative; }
+    .data-row:hover .row-tools { display:flex; }
+    .mini-btn {
+      width:28px;
+      height:28px;
+      border:1px solid #cbd5e1;
+      border-radius:5px;
+      background:#fff;
+      font-weight:900;
+      line-height:1;
+    }
+    .vat-note {
+      display:block;
+      margin:10px 0 0;
+      margin-inline-start:auto;
+      width:max-content;
+      background:var(--blue);
+      color:#fff;
+      border-radius:5px;
+      padding:8px 28px;
+      font-size:18px;
+      font-weight:900;
+    }
+    .signature {
+      margin-top:250px;
+      color:var(--blue);
+      font-size:17px;
+      font-weight:800;
+      text-align:left;
+      direction:ltr;
+    }
+    .signature-line {
+      display:inline-block;
+      width:150px;
+      border-bottom:1px solid var(--blue);
+      margin-inline-end:8px;
+      transform:translateY(-4px);
+    }
     dialog {
-      width:min(760px,94vw); border:0; border-radius:8px; padding:0; box-shadow:0 30px 90px rgba(0,0,0,.32);
+      width:min(760px,94vw);
+      border:0;
+      border-radius:8px;
+      padding:0;
+      box-shadow:0 30px 90px rgba(0,0,0,.32);
     }
     dialog::backdrop { background:rgba(5,16,34,.42); }
     .modal-head {
-      display:flex; align-items:center; justify-content:space-between; padding:16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:16px;
       border-bottom:1px solid var(--line);
     }
     .modal-head h3 { margin:0; font-size:18px; }
-    .modal-body { padding:16px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    .modal-body {
+      padding:16px;
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:12px;
+    }
     .modal-body.import-body { grid-template-columns:repeat(4,1fr); }
-    .modal-foot { padding:14px 16px; display:flex; justify-content:flex-start; gap:8px; border-top:1px solid var(--line); }
-    .import-table { grid-column:1/-1; overflow:auto; border:1px solid var(--line); border-radius:8px; }
-    .import-table table { min-width:980px; }
-    .import-table input, .import-table select { min-height:32px; padding:5px 7px; }
+    .modal-foot {
+      padding:14px 16px;
+      display:flex;
+      justify-content:flex-start;
+      gap:8px;
+      border-top:1px solid var(--line);
+    }
+    .field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+    .field span { color:var(--muted); font-size:12px; font-weight:900; }
+    .field.full { grid-column:1/-1; }
+    .field.wide { grid-column:span 2; }
+    .field input,
+    .field select,
+    .field textarea,
+    .import-table input,
+    .import-table select {
+      width:100%;
+      border:1px solid #cbd5e1;
+      border-radius:6px;
+      background:#fff;
+      min-height:36px;
+      padding:7px 9px;
+      color:#172234;
+    }
+    .field textarea { min-height:74px; resize:vertical; }
+    .icon-btn {
+      width:32px;
+      height:32px;
+      border-radius:6px;
+      border:1px solid #cbd5e1;
+      background:#fff;
+      font-weight:900;
+    }
+    .import-table {
+      grid-column:1/-1;
+      overflow:auto;
+      border:1px solid var(--line);
+      border-radius:8px;
+    }
+    .import-table table { width:100%; min-width:860px; border-collapse:collapse; }
+    .import-table th,
+    .import-table td { border-bottom:1px solid var(--line); padding:8px; }
     .import-status { grid-column:1/-1; color:var(--muted); font-weight:800; }
+    .empty-state {
+      padding:80px 20px;
+      text-align:center;
+      color:var(--muted);
+      font-weight:800;
+      border:1px dashed #cbd5e1;
+      margin-top:24px;
+    }
     .toast {
-      position:fixed; left:24px; bottom:24px; z-index:1000;
-      background:#10233f; color:#fff; padding:11px 16px; border-radius:8px;
-      opacity:0; transform:translateY(8px); transition:.2s; font-weight:900;
+      position:fixed;
+      left:24px;
+      bottom:24px;
+      z-index:1000;
+      background:#10233f;
+      color:#fff;
+      padding:11px 16px;
+      border-radius:8px;
+      opacity:0;
+      transform:translateY(8px);
+      transition:.2s;
+      font-weight:900;
     }
     .toast.show { opacity:1; transform:none; }
     @media(max-width:980px) {
-      .grid { grid-template-columns:1fr; }
-      .book-list { max-height:320px; }
-      .form-grid { grid-template-columns:repeat(2,1fr); }
-      .modal-body { grid-template-columns:1fr 1fr; }
+      .topbar { position:static; align-items:stretch; flex-direction:column; }
+      .toolbar-group { width:100%; }
+      .toolbar-select { max-width:none; flex:1; }
+      .price-sheet { width:100%; min-width:0; padding:24px 16px 48px; }
+      .sheet-shell { justify-content:center; overflow:visible; }
+      .doc-head { grid-template-columns:1fr; direction:rtl; }
+      .company-block { direction:rtl; text-align:right; }
+      .company-block img { width:190px; }
+      .doc-title { font-size:36px; }
+      .client-box { grid-template-columns:1fr; font-size:15px; }
+      .price-table { font-size:14px; }
+      .price-table th { font-size:14px; }
+      .price-table th, .price-table td { padding:6px 5px; }
     }
-    @media(max-width:640px) {
-      .wrap { padding:14px; }
-      .head { flex-direction:column; }
-      .actions, .toolbar { width:100%; }
-      .form-grid, .modal-body { grid-template-columns:1fr; }
-      .field.wide { grid-column:auto; }
-      .toolbar { align-items:stretch; flex-direction:column; }
-      .btn { width:100%; }
+    @media print {
+      body { background:#fff; }
+      .topbar, .toast, dialog, .row-tools { display:none !important; }
+      .screen { padding:0; max-width:none; }
+      .sheet-shell { display:block; padding:0; overflow:visible; }
+      .price-sheet {
+        width:auto;
+        min-height:auto;
+        box-shadow:none;
+        padding:26px 44px 50px;
+      }
+      .sheet-input,
+      .row-input { border:0 !important; outline:0 !important; background:transparent !important; }
     }
   </style>
 </head>
 <body data-page="pricing">
-  <main class="wrap">
-    <header class="head">
-      <div class="title">
-        <h1>ניהול מחירונים</h1>
-        <p>מחירון כללי ומחירון לקוח עם מק״טים, קוטר, מחיר ועדכון אחרון.</p>
+  <main class="screen">
+    <div class="topbar">
+      <div class="toolbar-group">
+        <select class="toolbar-select" id="bookPicker" aria-label="בחירת מחירון"></select>
+        <button class="btn" id="generalModeBtn" type="button" data-mode="general">מחירון כללי</button>
+        <button class="btn" id="customerModeBtn" type="button" data-mode="customer">מחירון לקוח</button>
       </div>
-      <div class="actions">
-        <button class="btn" id="sampleBtn" type="button">דוגמה כללית</button>
-        <button class="btn blue" id="importOcrBtn" type="button">ייבוא OCR</button>
-        <button class="btn primary" id="newBookBtn" type="button">מחירון חדש</button>
+      <div class="toolbar-group">
+        <button class="btn" id="newBookBtn" type="button">מחירון חדש</button>
+        <button class="btn" id="importOcrBtn" type="button">ייבוא OCR</button>
+        <button class="btn orange" id="addRowBtn" type="button">הוסף שורה</button>
+        <button class="btn" id="addSectionBtn" type="button">הוסף סעיף</button>
+        <button class="btn primary" id="saveDocBtn" type="button">שמור</button>
+        <button class="btn" id="printDocBtn" type="button">הדפס</button>
       </div>
-    </header>
+    </div>
 
-    <section class="grid">
-      <aside class="panel">
-        <div class="panel-head">
-          <h2 id="listTitle">מחירון כללי</h2>
-          <span class="badge" id="bookCount">0</span>
-        </div>
-        <div class="search">
-          <div class="segmented" aria-label="סוג מחירון">
-            <button class="active" id="generalModeBtn" type="button" data-mode="general">מחירון כללי</button>
-            <button id="customerModeBtn" type="button" data-mode="customer">מחירון לקוח</button>
-          </div>
-        </div>
-        <div class="search">
-          <label class="field">
-            <span>חיפוש</span>
-            <input id="bookSearch" autocomplete="off" placeholder="קוד, לקוח או שם מחירון">
-          </label>
-        </div>
-        <div class="book-list" id="bookList"></div>
-      </aside>
+    <section class="sheet-shell">
+      <article class="price-sheet" id="priceSheet">
+        <header class="doc-head">
+          <section class="company-block">
+            <img src="/brand/tene-pdf-logo.jpg" alt="טנא תעשיות ברזל">
+            <div>ח.פ. 517312872</div>
+            <div>רכסים 1, טנא</div>
+            <div>office@tene-ind.com</div>
+          </section>
+          <section class="doc-main-head">
+            <h1 class="doc-title">מחירון ללקוח</h1>
+            <div class="client-box">
+              <label><strong>לכבוד:</strong><input class="sheet-input" id="customerNameInput" value=""></label>
+              <label><strong>תאריך מחירון:</strong><input class="sheet-input" id="priceDateInput" value=""></label>
+              <label><strong>ח.פ:</strong><input class="sheet-input" id="customerTaxInput" value=""></label>
+              <label><strong>תנאי תשלום:</strong><input class="sheet-input" id="paymentTermsInput" value=""></label>
+            </div>
+          </section>
+        </header>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2 id="currentTitle">בחר מחירון</h2>
-          <span class="badge" id="currentStatus">טיוטה</span>
-        </div>
-        <form class="form-grid" id="bookForm">
-          <input name="price_type" type="hidden" value="general">
-          <label class="field">
-            <span>קוד מחירון</span>
-            <input name="code" required>
-          </label>
-          <label class="field wide">
-            <span>שם מחירון</span>
-            <input name="name" required>
-          </label>
-          <label class="field" id="customerIdField">
-            <span>מס׳ לקוח</span>
-            <input name="customer_id" type="number" min="1">
-          </label>
-          <label class="field" id="customerNameField">
-            <span>לקוח</span>
-            <input name="customer_name">
-          </label>
-          <label class="field">
-            <span>מטבע</span>
-            <select name="currency">
-              <option value="ILS">ILS</option>
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>סטטוס</span>
-            <select name="status">
-              <option value="draft">טיוטה</option>
-              <option value="active">פעיל</option>
-              <option value="archived">ארכיון</option>
-            </select>
-          </label>
-          <label class="field full">
-            <span>הערות</span>
-            <textarea name="notes"></textarea>
-          </label>
-          <div class="field full">
-            <span>עודכן</span>
-            <strong id="updatedAtLabel">עדיין לא נשמר</strong>
-          </div>
-          <div class="field full">
-            <button class="btn blue" type="submit">שמור מחירון</button>
-          </div>
-        </form>
-
-        <div class="toolbar">
-          <label class="field">
-            <span>חיפוש שורה</span>
-            <input id="itemSearch" autocomplete="off" placeholder="מק״ט, תיאור או קטגוריה">
-          </label>
-          <button class="btn primary" id="addItemBtn" type="button">הוסף שורת מק״ט</button>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>מק״ט</th>
-                <th>קוטר</th>
-                <th>קטגוריה</th>
-                <th>תיאור</th>
-                <th>כמות</th>
-                <th>יחידה</th>
-                <th>מחיר לפני מע״מ</th>
-                <th>מטבע</th>
-                <th>חריג</th>
-                <th>תוקף</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="itemBody">
-              <tr><td class="empty" colspan="11">עדיין לא נבחר מחירון.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+        <div class="top-rule"></div>
+        <table class="price-table" id="priceTable">
+          <thead>
+            <tr>
+              <th class="desc-col">תאור מוצר</th>
+              <th class="qty-col">כמות</th>
+              <th class="unit-col">יח׳</th>
+              <th class="price-col">מחיר לפני מע״מ</th>
+              <th class="currency-col">מטבע</th>
+            </tr>
+          </thead>
+          <tbody id="priceRows"></tbody>
+        </table>
+        <div class="empty-state" id="emptyState">בחר מחירון או צור מחירון חדש.</div>
+        <strong class="vat-note">המחירים אינם כוללים מע״מ</strong>
+        <footer class="signature"><span class="signature-line"></span>חתימה וחותמת הלקוח:</footer>
+      </article>
     </section>
   </main>
-
-  <dialog id="itemDialog">
-    <form id="itemForm" method="dialog">
-      <div class="modal-head">
-        <h3 id="itemDialogTitle">שורת מחירון</h3>
-        <button class="icon-btn" value="cancel" type="submit">×</button>
-      </div>
-      <div class="modal-body">
-        <label class="field">
-          <span>מק״ט</span>
-          <input name="sku" required>
-        </label>
-        <label class="field">
-          <span>קוטר</span>
-          <input name="diameter" type="number" step="1" min="0" placeholder="8">
-        </label>
-        <label class="field">
-          <span>קטגוריה</span>
-          <input name="category" list="categories">
-        </label>
-        <label class="field">
-          <span>יחידה</span>
-          <select name="unit">
-            <option value="kg">ק״ג</option>
-            <option value="ton">טון</option>
-            <option value="unit">יח׳</option>
-            <option value="m">מטר</option>
-          </select>
-        </label>
-        <label class="field full">
-          <span>תיאור</span>
-          <input name="description" required>
-        </label>
-        <label class="field">
-          <span>כמות</span>
-          <input name="quantity" type="number" step="0.001" value="1">
-        </label>
-        <label class="field">
-          <span>מחיר לפני מע״מ</span>
-          <input name="price_before_vat" type="number" step="0.01" value="0">
-        </label>
-        <label class="field">
-          <span>מטבע</span>
-          <select name="currency">
-            <option value="ILS">ILS</option>
-            <option value="USD">USD</option>
-            <option value="EUR">EUR</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>תקף מ</span>
-          <input name="valid_from" type="date">
-        </label>
-        <label class="field">
-          <span>תקף עד</span>
-          <input name="valid_to" type="date">
-        </label>
-        <label class="field">
-          <span>סדר</span>
-          <input name="sort_order" type="number" step="1" value="0">
-        </label>
-        <label class="field full">
-          <span>הערות</span>
-          <textarea name="notes"></textarea>
-        </label>
-        <label class="field">
-          <span>חריג מחיר</span>
-          <select name="exception_flag">
-            <option value="0">לא</option>
-            <option value="1">כן</option>
-          </select>
-        </label>
-      </div>
-      <div class="modal-foot">
-        <button class="btn primary" id="saveItemBtn" value="default" type="submit">שמור שורה</button>
-        <button class="btn" value="cancel" type="submit">ביטול</button>
-      </div>
-    </form>
-  </dialog>
 
   <dialog id="importDialog">
     <form id="importForm" method="dialog">
@@ -413,7 +488,7 @@
         <div class="import-table" id="importTable"></div>
       </div>
       <div class="modal-foot">
-        <button class="btn blue" id="analyzeImportBtn" value="analyze" type="submit">זהה מחירון</button>
+        <button class="btn" id="analyzeImportBtn" value="analyze" type="submit">זהה מחירון</button>
         <button class="btn primary" id="saveImportBtn" value="save" type="submit" disabled>צור טיוטת מחירון</button>
         <button class="btn" value="cancel" type="submit">ביטול</button>
       </div>
@@ -423,8 +498,11 @@
   <datalist id="categories">
     <option value="ברזל מעובד"></option>
     <option value="מוטות"></option>
-    <option value="עיבודי ברזל"></option>
-    <option value="רשת"></option>
+    <option value="סלילים עגולים-חוטים"></option>
+    <option value="עיבודים ברזל"></option>
+    <option value="רשת סטנדרט"></option>
+    <option value="רשת לפי תוכנית"></option>
+    <option value="עיבודי רשת"></option>
     <option value="הובלות"></option>
   </datalist>
 
@@ -435,15 +513,13 @@
       books: [],
       currentBook: null,
       items: [],
-      editingItem: null,
+      deletedItems: new Set(),
       importDraft: null,
       mode: 'general',
+      dirty: false,
     };
 
     const $ = selector => document.querySelector(selector);
-    const bookForm = $('#bookForm');
-    const itemForm = $('#itemForm');
-    const itemDialog = $('#itemDialog');
     const importForm = $('#importForm');
     const importDialog = $('#importDialog');
 
@@ -477,7 +553,11 @@
       el.textContent = message;
       el.classList.add('show');
       clearTimeout(toast.timer);
-      toast.timer = setTimeout(() => el.classList.remove('show'), 2400);
+      toast.timer = setTimeout(() => el.classList.remove('show'), 2600);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
     }
 
     function formData(form) {
@@ -486,123 +566,345 @@
 
     function setForm(form, data = {}) {
       for (const field of form.elements) {
-        if (!field.name) continue;
-        if (field.type === 'file') continue;
+        if (!field.name || field.type === 'file') continue;
         field.value = data[field.name] ?? '';
       }
     }
 
-    function statusLabel(status) {
-      return status === 'active' ? 'פעיל' : status === 'archived' ? 'ארכיון' : 'טיוטה';
-    }
-
-    function modeLabel(mode = state.mode) {
-      return mode === 'customer' ? 'מחירון לקוח' : 'מחירון כללי';
-    }
-
-    function formatDateTime(value) {
-      if (!value) return 'עדיין לא נשמר';
+    function formatDate(value) {
+      if (!value) return new Date().toLocaleDateString('he-IL');
       const date = new Date(String(value).replace(' ', 'T'));
-      if (Number.isNaN(date.getTime())) return value;
-      return date.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' });
+      if (Number.isNaN(date.getTime())) return String(value).split(',')[0];
+      return date.toLocaleDateString('he-IL');
     }
 
-    function applyModeUi() {
-      $('#listTitle').textContent = modeLabel();
-      $('#newBookBtn').textContent = `${modeLabel()} חדש`;
-      $('#bookSearch').placeholder = state.mode === 'customer' ? 'קוד, לקוח או שם מחירון' : 'קוד או שם מחירון';
-      $('#customerIdField').style.display = state.mode === 'customer' ? '' : 'none';
-      $('#customerNameField').style.display = state.mode === 'customer' ? '' : 'none';
-      $('#generalModeBtn').classList.toggle('active', state.mode === 'general');
-      $('#customerModeBtn').classList.toggle('active', state.mode === 'customer');
-      bookForm.elements.price_type.value = state.mode;
+    function formatQuantity(value) {
+      return Number(value || 1).toLocaleString('he-IL', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
     }
 
-    function renderBooks() {
-      const query = $('#bookSearch').value.trim().toLowerCase();
-      const books = state.books.filter(book => {
-        const haystack = `${book.code} ${book.name} ${book.customer_name}`.toLowerCase();
-        return !query || haystack.includes(query);
-      });
-      $('#bookCount').textContent = String(books.length);
-      $('#bookList').innerHTML = books.length ? books.map(book => `
-        <button class="book ${state.currentBook && state.currentBook.id === book.id ? 'active' : ''}" type="button" data-id="${book.id}">
-          <span class="book-title">
-            <span>${escapeHtml(book.code)} · ${escapeHtml(book.name)}</span>
-            <span class="badge ${book.status === 'active' ? 'active' : 'draft'}">${statusLabel(book.status)}</span>
-          </span>
-          <span class="book-meta">
-            <span>${escapeHtml(book.price_type === 'customer' ? (book.customer_name || 'לקוח ללא שם') : 'כללי')}</span>
-            <span>${Number(book.active_item_count || 0)} שורות</span>
-            <span>עודכן ${escapeHtml(formatDateTime(book.updated_at))}</span>
-          </span>
-        </button>
-      `).join('') : '<div class="empty">אין מחירונים להצגה.</div>';
+    function formatPrice(value) {
+      return Number(value || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    function renderCurrentBook() {
+    function currencySymbol(value) {
+      return value === 'ILS' ? 'ש"ח' : (value || 'ILS');
+    }
+
+    function unitLabel(value) {
+      const labels = { kg: 'ק"ג', ton: 'טון', unit: 'יח׳', m: 'מטר' };
+      return labels[value] || value || 'ק"ג';
+    }
+
+    function defaultCode() {
+      return `PRICE-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}`;
+    }
+
+    function templateItem(index, category, description, unit = 'kg', price = 0) {
+      return {
+        _key: `template-${index}`,
+        sku: `ROW-${index + 1}`,
+        category,
+        description,
+        quantity: 1,
+        unit,
+        price_before_vat: price,
+        currency: 'ILS',
+        active: 1,
+        sort_order: index + 1,
+      };
+    }
+
+    function defaultTemplateItems() {
+      return [
+        ['ברזל מעובד', 'ברזל בניין 8-25 מ"מ לעיבוד רתיך', 'kg', 2.65],
+        ['ברזל מעובד', 'ברזל לבניין 28-36 מ"מ לעיבוד רתיך', 'kg', 2.75],
+        ['מוטות', 'ברזל בניין 8-25 מ"מ חב׳ עד 16 מ"א', 'kg', 2.65],
+        ['מוטות', 'ברזל בניין 8-16 מ"מ חב׳ 6 מטר ו 12 מטר', 'kg', 2.65],
+        ['מוטות', 'ברזל לבניין 28-36 מ"מ בחב׳ רתיך', 'kg', 2.75],
+        ['סלילים עגולים-חוטים', 'ברזל עגול חלק 6-14 מ"מ', 'kg', 2.75],
+        ['סלילים עגולים-חוטים', 'ברזל עגול חלק 16-18 מ"מ', 'kg', 3.92],
+        ['סלילים עגולים-חוטים', 'עגול 20 ומעלה', 'kg', 4.12],
+        ['עיבודים ברזל', 'חיתוך', 'kg', 0.07],
+        ['עיבודים ברזל', 'כיפוף', 'kg', 0.17],
+        ['עיבודים ברזל', 'חישוקים', 'unit', 0.2],
+        ['עיבודים ברזל', 'כסאות', 'unit', 0.4],
+        ['עיבודים ברזל', 'ציפורים/אזני הרמה/קרומים', 'unit', 0.4],
+        ['עיבודים ברזל', 'עיבוד ספירלות טבעות עד קוטר 12 כולל', 'kg', 0.3],
+        ['רשת סטנדרט', 'רשת לבניין סטנדרט בחבילות', 'kg', 2.9],
+      ].map((row, index) => templateItem(index, ...row));
+    }
+
+    function parseDocMeta(book) {
+      const notes = String(book?.notes || '');
+      const tax = notes.match(/ח\.פ[:\s]*([0-9]+)/)?.[1] || '';
+      const terms = notes.match(/תנאי תשלום[:\s]*([^\n]+)/)?.[1] || '';
+      return {
+        tax,
+        terms: terms || 'לפי כרטיס לקוח',
+      };
+    }
+
+    function buildNotes(baseNotes = '') {
+      const clean = String(baseNotes || '')
+        .split('\n')
+        .filter(line => !/^ח\.פ[:\s]/.test(line) && !/^תנאי תשלום[:\s]/.test(line))
+        .join('\n')
+        .trim();
+      return [
+        clean,
+        $('#customerTaxInput').value.trim() ? `ח.פ: ${$('#customerTaxInput').value.trim()}` : '',
+        $('#paymentTermsInput').value.trim() ? `תנאי תשלום: ${$('#paymentTermsInput').value.trim()}` : '',
+      ].filter(Boolean).join('\n');
+    }
+
+    function markDirty() {
+      state.dirty = true;
+      $('#saveDocBtn').textContent = 'שמור שינויים';
+    }
+
+    function setMode(mode) {
+      state.mode = mode === 'customer' ? 'customer' : 'general';
+      $('#generalModeBtn').classList.toggle('primary', state.mode === 'general');
+      $('#customerModeBtn').classList.toggle('primary', state.mode === 'customer');
+    }
+
+    function groupedItems() {
+      const groups = [];
+      const byCategory = new Map();
+      for (const item of state.items.filter(item => !item._deleted)) {
+        const category = item.category || 'סעיף חדש';
+        if (!byCategory.has(category)) {
+          const group = { category, items: [] };
+          byCategory.set(category, group);
+          groups.push(group);
+        }
+        byCategory.get(category).items.push(item);
+      }
+      return groups;
+    }
+
+    function renderBookPicker() {
+      const picker = $('#bookPicker');
+      picker.innerHTML = state.books.length
+        ? state.books.map(book => `<option value="${book.id}" ${state.currentBook?.id === book.id ? 'selected' : ''}>${escapeHtml(book.price_type === 'customer' ? 'לקוח' : 'כללי')} - ${escapeHtml(book.name || book.code)}</option>`).join('')
+        : '<option value="">אין מחירונים</option>';
+    }
+
+    function renderDocument() {
       const book = state.currentBook;
-      if (!book) {
-        $('#currentTitle').textContent = `בחר ${modeLabel()}`;
-        $('#currentStatus').textContent = 'טיוטה';
-        $('#currentStatus').className = 'badge draft';
-        $('#updatedAtLabel').textContent = 'עדיין לא נשמר';
-        setForm(bookForm, { currency: 'ILS', price_type: state.mode, status: 'draft' });
-        applyModeUi();
-        renderItems();
-        return;
-      }
-      $('#currentTitle').textContent = `${book.code} · ${book.name}`;
-      $('#currentStatus').textContent = statusLabel(book.status);
-      $('#currentStatus').className = `badge ${book.status === 'active' ? 'active' : 'draft'}`;
-      setForm(bookForm, book);
-      $('#updatedAtLabel').textContent = formatDateTime(book.updated_at);
-      applyModeUi();
+      const hasBook = Boolean(book);
+      const meta = parseDocMeta(book);
+      setMode(book?.price_type || state.mode);
+      $('#customerNameInput').value = hasBook ? (book.price_type === 'customer' ? (book.customer_name || book.name || '') : (book.name || 'מחירון כללי')) : '';
+      $('#priceDateInput').value = hasBook ? formatDate(book.updated_at) : formatDate();
+      $('#customerTaxInput').value = hasBook ? meta.tax : '';
+      $('#paymentTermsInput').value = hasBook ? meta.terms : 'לפי כרטיס לקוח';
+      $('#emptyState').style.display = state.items.length ? 'none' : '';
+      renderRows();
+      renderBookPicker();
+      $('#saveDocBtn').textContent = state.dirty ? 'שמור שינויים' : 'שמור';
     }
 
-    function renderItems() {
-      const tbody = $('#itemBody');
-      if (!state.currentBook) {
-        tbody.innerHTML = '<tr><td class="empty" colspan="11">עדיין לא נבחר מחירון.</td></tr>';
-        return;
-      }
-      const query = $('#itemSearch').value.trim().toLowerCase();
-      const rows = state.items.filter(item => {
-        const haystack = `${item.sku} ${item.diameter || ''} ${item.category} ${item.description}`.toLowerCase();
-        return !query || haystack.includes(query);
-      });
-      if (!rows.length) {
-        tbody.innerHTML = '<tr><td class="empty" colspan="11">אין שורות במחירון הזה.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = rows.map(item => `
-        <tr>
-          <td><strong>${escapeHtml(item.sku)}</strong></td>
-          <td class="num">${item.diameter ? formatNumber(item.diameter) : ''}</td>
-          <td>${escapeHtml(item.category || '')}</td>
-          <td>${escapeHtml(item.description)}</td>
-          <td class="num">${formatNumber(item.quantity)}</td>
-          <td>${escapeHtml(item.unit)}</td>
-          <td class="num">${formatNumber(item.price_before_vat)}</td>
-          <td>${escapeHtml(item.currency)}</td>
-          <td>${item.exception_flag ? '<span class="badge draft">כן</span>' : ''}</td>
-          <td>${escapeHtml([item.valid_from, item.valid_to].filter(Boolean).join(' - '))}</td>
-          <td>
-            <div class="row-actions">
-              <button class="icon-btn" type="button" title="עריכה" data-edit="${item.id}">✎</button>
-              <button class="icon-btn" type="button" title="מחיקה" data-delete="${item.id}">×</button>
-            </div>
-          </td>
+    function renderRows() {
+      const rowsEl = $('#priceRows');
+      const groups = groupedItems();
+      rowsEl.innerHTML = groups.map(group => `
+        <tr class="section-row" data-category="${escapeHtml(group.category)}">
+          <td colspan="5"><input class="row-input" data-section="${escapeHtml(group.category)}" value="${escapeHtml(group.category)}" list="categories"></td>
         </tr>
+        ${group.items.map(item => `
+          <tr class="data-row" data-row-key="${escapeHtml(item._key)}">
+            <td class="desc-col">
+              <input class="row-input desc" data-field="description" value="${escapeHtml(item.description || '')}">
+              <span class="row-tools">
+                <button class="mini-btn" type="button" title="מחיקה" data-delete-row="${escapeHtml(item._key)}">×</button>
+              </span>
+            </td>
+            <td class="qty-col"><input class="row-input" data-field="quantity" type="number" step="0.001" value="${escapeHtml(item.quantity ?? 1)}"></td>
+            <td class="unit-col">
+              <select class="row-input" data-field="unit">
+                ${['kg','unit','m','ton'].map(unit => `<option value="${unit}" ${item.unit === unit ? 'selected' : ''}>${unitLabel(unit)}</option>`).join('')}
+              </select>
+            </td>
+            <td class="price-col"><input class="row-input price" data-field="price_before_vat" type="number" step="0.01" value="${escapeHtml(item.price_before_vat ?? 0)}"></td>
+            <td class="currency-col">
+              <select class="row-input" data-field="currency">
+                ${['ILS','USD','EUR'].map(currency => `<option value="${currency}" ${(item.currency || state.currentBook?.currency || 'ILS') === currency ? 'selected' : ''}>${currencySymbol(currency)}</option>`).join('')}
+              </select>
+            </td>
+          </tr>
+        `).join('')}
       `).join('');
     }
 
-    function escapeHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+    function hydrateRowsFromDocument() {
+      document.querySelectorAll('[data-row-key]').forEach(row => {
+        const key = row.dataset.rowKey;
+        const item = state.items.find(candidate => candidate._key === key);
+        if (!item) return;
+        row.querySelectorAll('[data-field]').forEach(field => {
+          const name = field.dataset.field;
+          item[name] = field.value;
+        });
+        item.quantity = Number(item.quantity || 1);
+        item.price_before_vat = Number(item.price_before_vat || 0);
+      });
     }
 
-    function formatNumber(value) {
-      return Number(value || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 });
+    function renameSection(oldCategory, newCategory) {
+      const clean = newCategory.trim() || 'סעיף חדש';
+      state.items.forEach(item => {
+        if ((item.category || 'סעיף חדש') === oldCategory) item.category = clean;
+      });
+      markDirty();
+      renderRows();
+    }
+
+    function addRow(category = null) {
+      const groups = groupedItems();
+      const targetCategory = category || groups[groups.length - 1]?.category || 'ברזל מעובד';
+      state.items.push({
+        _key: `new-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        sku: `ROW-${state.items.length + 1}`,
+        category: targetCategory,
+        description: '',
+        quantity: 1,
+        unit: 'kg',
+        price_before_vat: 0,
+        currency: state.currentBook?.currency || 'ILS',
+        active: 1,
+        sort_order: state.items.length + 1,
+      });
+      markDirty();
+      renderRows();
+    }
+
+    function addSection() {
+      const category = 'סעיף חדש';
+      addRow(category);
+    }
+
+    function deleteRow(key) {
+      const item = state.items.find(candidate => candidate._key === key);
+      if (!item) return;
+      if (item.id) {
+        item._deleted = true;
+        state.deletedItems.add(item.id);
+      } else {
+        state.items = state.items.filter(candidate => candidate._key !== key);
+      }
+      markDirty();
+      renderRows();
+    }
+
+    function startNewBook() {
+      state.currentBook = null;
+      state.items = [];
+      state.deletedItems = new Set();
+      state.dirty = true;
+      setMode(state.mode);
+      $('#customerNameInput').value = state.mode === 'customer' ? '' : 'מחירון כללי';
+      $('#priceDateInput').value = formatDate();
+      $('#customerTaxInput').value = '';
+      $('#paymentTermsInput').value = 'לפי כרטיס לקוח';
+      state.items = defaultTemplateItems();
+      renderDocument();
+      markDirty();
+    }
+
+    function normalizeLoadedItems(items) {
+      return (items || []).map((item, index) => ({
+        ...item,
+        _key: String(item.id || `loaded-${index}`),
+        quantity: Number(item.quantity || 1),
+        price_before_vat: Number(item.price_before_vat || 0),
+        unit: item.unit || 'kg',
+        currency: item.currency || 'ILS',
+      }));
+    }
+
+    async function loadBooks(selectId = null) {
+      const [general, customer] = await Promise.all([
+        api('/api/pricing/price-books?type=general'),
+        api('/api/pricing/price-books?type=customer'),
+      ]);
+      state.books = [...(customer || []), ...(general || [])];
+      if (selectId) {
+        state.currentBook = state.books.find(book => String(book.id) === String(selectId)) || null;
+      }
+      if (!state.currentBook && state.books.length) state.currentBook = state.books[0];
+      renderBookPicker();
+      if (state.currentBook) {
+        await loadItems(state.currentBook.id);
+      } else {
+        state.items = defaultTemplateItems();
+        state.dirty = true;
+        renderDocument();
+      }
+    }
+
+    async function loadItems(bookId) {
+      const data = await api(`/api/pricing/price-books/${bookId}/items`);
+      state.currentBook = data.price_book;
+      state.items = normalizeLoadedItems(data.items);
+      state.deletedItems = new Set();
+      state.dirty = false;
+      renderDocument();
+    }
+
+    function documentBookPayload() {
+      const customerName = $('#customerNameInput').value.trim();
+      const dateCode = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+      const existing = state.currentBook || {};
+      return {
+        code: existing.code || defaultCode(),
+        name: state.mode === 'customer' ? (customerName || existing.name || `מחירון לקוח ${dateCode}`) : (customerName || existing.name || 'מחירון כללי'),
+        price_type: state.mode,
+        customer_id: state.mode === 'customer' ? (existing.customer_id || null) : null,
+        customer_name: state.mode === 'customer' ? customerName : '',
+        currency: state.items.find(item => !item._deleted)?.currency || existing.currency || 'ILS',
+        status: existing.status || 'draft',
+        source_type: existing.source_type || 'manual',
+        source_ref: existing.source_ref || '',
+        notes: buildNotes(existing.notes),
+      };
+    }
+
+    async function saveDocument() {
+      hydrateRowsFromDocument();
+      const payload = documentBookPayload();
+      const method = state.currentBook ? 'PATCH' : 'POST';
+      const url = state.currentBook ? `/api/pricing/price-books/${state.currentBook.id}` : '/api/pricing/price-books';
+      const saved = await api(url, { method, body: JSON.stringify(payload) });
+      const book = saved.price_book;
+      for (const id of state.deletedItems) {
+        await api(`/api/pricing/price-books/${book.id}/items/${id}`, { method: 'DELETE' });
+      }
+      const activeItems = state.items.filter(item => !item._deleted);
+      for (const [index, item] of activeItems.entries()) {
+        const body = {
+          sku: item.sku || `ROW-${index + 1}`,
+          diameter: item.diameter || null,
+          category: item.category || 'סעיף חדש',
+          description: item.description || 'שורה חדשה',
+          quantity: Number(item.quantity || 1),
+          unit: item.unit || 'kg',
+          price_before_vat: Number(item.price_before_vat || 0),
+          currency: item.currency || payload.currency || 'ILS',
+          exception_flag: Boolean(item.exception_flag),
+          active: 1,
+          sort_order: index + 1,
+          notes: item.notes || '',
+        };
+        const itemUrl = item.id
+          ? `/api/pricing/price-books/${book.id}/items/${item.id}`
+          : `/api/pricing/price-books/${book.id}/items`;
+        await api(itemUrl, { method: item.id ? 'PATCH' : 'POST', body: JSON.stringify(body) });
+      }
+      state.currentBook = book;
+      state.dirty = false;
+      toast('המחירון נשמר');
+      await loadBooks(book.id);
     }
 
     function openImportDialog() {
@@ -620,49 +922,42 @@
         <table>
           <thead>
             <tr>
-              <th>מק״ט</th>
-              <th>קוטר</th>
-              <th>קטגוריה</th>
+              <th>סעיף</th>
               <th>תיאור</th>
               <th>כמות</th>
               <th>יחידה</th>
-              <th>מחיר לפני מע״מ</th>
-              <th>הערות</th>
+              <th>מחיר</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             ${draft.items.map((item, index) => `
               <tr data-import-row="${index}">
-                <td><input data-import-field="sku" value="${escapeHtml(item.sku || '')}"></td>
-                <td><input data-import-field="diameter" type="number" step="1" value="${escapeHtml(item.diameter ?? '')}"></td>
                 <td><input data-import-field="category" value="${escapeHtml(item.category || '')}"></td>
                 <td><input data-import-field="description" value="${escapeHtml(item.description || '')}"></td>
                 <td><input data-import-field="quantity" type="number" step="0.001" value="${escapeHtml(item.quantity ?? 1)}"></td>
                 <td>
                   <select data-import-field="unit">
-                    ${['kg','ton','unit','m'].map(unit => `<option value="${unit}" ${item.unit === unit ? 'selected' : ''}>${unit}</option>`).join('')}
+                    ${['kg','unit','m','ton'].map(unit => `<option value="${unit}" ${item.unit === unit ? 'selected' : ''}>${unitLabel(unit)}</option>`).join('')}
                   </select>
                 </td>
                 <td><input data-import-field="price_before_vat" type="number" step="0.01" value="${escapeHtml(item.price_before_vat ?? 0)}"></td>
-                <td><input data-import-field="notes" value="${escapeHtml(item.notes || '')}"></td>
                 <td><button class="icon-btn" type="button" data-remove-import-row="${index}">×</button></td>
               </tr>
             `).join('')}
           </tbody>
         </table>
-      ` : '<div class="empty">לא זוהו שורות מחיר. אפשר לנסות קובץ ברור יותר.</div>';
+      ` : '<div class="empty-state">לא זוהו שורות מחיר. אפשר לנסות קובץ ברור יותר.</div>';
       $('#saveImportBtn').disabled = !draft.items.length;
     }
 
     function syncImportDraftFromTable() {
       if (!state.importDraft) return;
-      state.importDraft.items = Array.from(document.querySelectorAll('[data-import-row]')).map(row => {
-        const item = {};
+      state.importDraft.items = Array.from(document.querySelectorAll('[data-import-row]')).map((row, index) => {
+        const item = { sku: state.importDraft.items[index]?.sku || `ROW-${index + 1}` };
         row.querySelectorAll('[data-import-field]').forEach(field => {
           item[field.dataset.importField] = field.value;
         });
-        item.diameter = item.diameter === '' ? null : Number(item.diameter);
         item.quantity = Number(item.quantity || 1);
         item.price_before_vat = Number(item.price_before_vat || 0);
         item.currency = importForm.elements.currency.value || state.importDraft.currency || 'ILS';
@@ -727,178 +1022,53 @@
         }),
       });
       for (const [index, item] of state.importDraft.items.entries()) {
-        if (!item.sku || !item.description) continue;
+        if (!item.description) continue;
         await api(`/api/pricing/price-books/${data.price_book.id}/items`, {
           method: 'POST',
           body: JSON.stringify({
             ...item,
+            sku: item.sku || `ROW-${index + 1}`,
             sort_order: index + 1,
             currency: meta.currency || item.currency || 'ILS',
           }),
         });
       }
-      state.mode = priceType;
-      state.currentBook = data.price_book;
       importDialog.close();
       toast('נוצרה טיוטת מחירון מה־OCR');
       await loadBooks(data.price_book.id);
     }
 
-    async function loadBooks(selectId) {
-      applyModeUi();
-      state.books = await api(`/api/pricing/price-books?type=${state.mode}`);
-      if (selectId) state.currentBook = state.books.find(book => book.id === selectId) || state.currentBook;
-      if (!state.currentBook && state.books.length) state.currentBook = state.books[0];
-      renderBooks();
-      renderCurrentBook();
-      if (state.currentBook) await loadItems(state.currentBook.id);
-    }
-
-    async function loadItems(bookId) {
-      const data = await api(`/api/pricing/price-books/${bookId}/items`);
-      state.currentBook = data.price_book;
-      state.items = data.items || [];
-      renderCurrentBook();
-      renderBooks();
-      renderItems();
-    }
-
-    async function saveBook(event) {
-      event.preventDefault();
-      const body = formData(bookForm);
-      body.price_type = state.mode;
-      if (state.mode === 'general') {
-        body.customer_id = null;
-        body.customer_name = '';
-      }
-      const method = state.currentBook ? 'PATCH' : 'POST';
-      const url = state.currentBook ? `/api/pricing/price-books/${state.currentBook.id}` : '/api/pricing/price-books';
-      const data = await api(url, { method, body: JSON.stringify(body) });
-      state.currentBook = data.price_book;
-      toast('המחירון נשמר');
-      await loadBooks(state.currentBook.id);
-    }
-
-    function openItem(item = null) {
-      state.editingItem = item;
-      $('#itemDialogTitle').textContent = item ? 'עריכת שורת מחירון' : 'שורת מחירון חדשה';
-      setForm(itemForm, item || {
-        quantity: 1,
-        unit: 'kg',
-        price_before_vat: 0,
-        currency: (state.currentBook && state.currentBook.currency) || 'ILS',
-        exception_flag: 0,
-        sort_order: state.items.length + 1,
-      });
-      itemDialog.showModal();
-    }
-
-    async function saveItem(event) {
-      event.preventDefault();
-      if (!state.currentBook) return;
-      const body = formData(itemForm);
-      body.exception_flag = body.exception_flag === '1';
-      const method = state.editingItem ? 'PATCH' : 'POST';
-      const suffix = state.editingItem ? `/${state.editingItem.id}` : '';
-      await api(`/api/pricing/price-books/${state.currentBook.id}/items${suffix}`, { method, body: JSON.stringify(body) });
-      itemDialog.close();
-      toast('שורת המחירון נשמרה');
-      await loadItems(state.currentBook.id);
-      await loadBooks(state.currentBook.id);
-    }
-
-    async function deleteItem(itemId) {
-      if (!state.currentBook || !confirm('למחוק את שורת המחירון?')) return;
-      await api(`/api/pricing/price-books/${state.currentBook.id}/items/${itemId}`, { method: 'DELETE' });
-      toast('השורה נמחקה');
-      await loadItems(state.currentBook.id);
-      await loadBooks(state.currentBook.id);
-    }
-
-    async function createSample() {
-      const stamp = new Date().toISOString().slice(0, 10).replaceAll('-', '');
-      const data = await api('/api/pricing/price-books', {
-        method: 'POST',
-        body: JSON.stringify({
-          code: `GENERAL-SAMPLE-${stamp}`,
-          name: 'מחירון כללי לדוגמה',
-          customer_name: '',
-          price_type: 'general',
-          currency: 'ILS',
-          status: 'draft',
-          source_type: 'sample',
-          source_ref: 'general-sample',
-        }),
-      });
-      const rows = [
-        ['D8', 8, 'ברזל מעובד', 'ברזל מעובד קוטר 8', 1, 'kg', 3.52],
-        ['D10', 10, 'ברזל מעובד', 'ברזל מעובד קוטר 10', 1, 'kg', 3.62],
-        ['D12', 12, 'ברזל מעובד', 'ברזל מעובד קוטר 12', 1, 'kg', 3.72],
-        ['729020', null, 'רשת', 'רשת מרותכת לפי מפרט', 1, 'unit', 64],
-        ['729040', null, 'הובלות', 'הובלה לאתר לקוח', 1, 'unit', 450],
-      ];
-      for (const [sku, diameter, category, description, quantity, unit, price_before_vat] of rows) {
-        await api(`/api/pricing/price-books/${data.price_book.id}/items`, {
-          method: 'POST',
-          body: JSON.stringify({ sku, diameter, category, description, quantity, unit, price_before_vat, currency: 'ILS' }),
-        });
-      }
-      state.currentBook = data.price_book;
-      state.mode = 'general';
-      toast('נוצר מחירון דוגמה');
-      await loadBooks(data.price_book.id);
-    }
-
-    $('#bookList').addEventListener('click', event => {
-      const button = event.target.closest('[data-id]');
-      if (!button) return;
-      const id = Number(button.dataset.id);
-      const book = state.books.find(candidate => candidate.id === id);
-      if (!book) return;
-      state.currentBook = book;
-      loadItems(id).catch(err => toast(err.message));
-    });
-    $('#bookSearch').addEventListener('input', renderBooks);
-    $('#itemSearch').addEventListener('input', renderItems);
-    document.querySelectorAll('[data-mode]').forEach(button => {
-      button.addEventListener('click', async () => {
-        state.mode = button.dataset.mode;
-        state.currentBook = null;
-        state.items = [];
-        $('#bookSearch').value = '';
-        renderCurrentBook();
-        renderItems();
-        await loadBooks();
-      });
-    });
-    $('#newBookBtn').addEventListener('click', () => {
-      state.currentBook = null;
-      state.items = [];
-      renderBooks();
-      renderCurrentBook();
-      renderItems();
-      bookForm.elements.code.focus();
-    });
-    $('#addItemBtn').addEventListener('click', () => {
-      if (!state.currentBook) return toast('צריך לבחור או לשמור מחירון קודם');
-      openItem();
-    });
-    $('#itemBody').addEventListener('click', event => {
-      const edit = event.target.closest('[data-edit]');
-      const del = event.target.closest('[data-delete]');
-      if (edit) {
-        const item = state.items.find(candidate => candidate.id === Number(edit.dataset.edit));
-        if (item) openItem(item);
-      }
-      if (del) deleteItem(Number(del.dataset.delete)).catch(err => toast(err.message));
-    });
-    bookForm.addEventListener('submit', event => saveBook(event).catch(err => toast(err.message)));
-    itemForm.addEventListener('submit', event => {
-      if (event.submitter && event.submitter.value === 'cancel') return;
-      saveItem(event).catch(err => toast(err.message));
-    });
-    $('#sampleBtn').addEventListener('click', () => createSample().catch(err => toast(err.message)));
+    $('#bookPicker').addEventListener('change', event => loadItems(event.target.value).catch(err => toast(err.message)));
+    $('#generalModeBtn').addEventListener('click', () => { setMode('general'); markDirty(); renderDocument(); });
+    $('#customerModeBtn').addEventListener('click', () => { setMode('customer'); markDirty(); renderDocument(); });
+    $('#newBookBtn').addEventListener('click', startNewBook);
     $('#importOcrBtn').addEventListener('click', openImportDialog);
+    $('#addRowBtn').addEventListener('click', () => addRow());
+    $('#addSectionBtn').addEventListener('click', addSection);
+    $('#saveDocBtn').addEventListener('click', () => saveDocument().catch(err => toast(err.message)));
+    $('#printDocBtn').addEventListener('click', () => window.print());
+
+    ['customerNameInput','priceDateInput','customerTaxInput','paymentTermsInput'].forEach(id => {
+      $(`#${id}`).addEventListener('input', markDirty);
+    });
+
+    $('#priceRows').addEventListener('input', event => {
+      const section = event.target.closest('[data-section]');
+      if (section) {
+        renameSection(section.dataset.section, section.value);
+        return;
+      }
+      hydrateRowsFromDocument();
+      markDirty();
+    });
+    $('#priceRows').addEventListener('change', event => {
+      hydrateRowsFromDocument();
+      markDirty();
+    });
+    $('#priceRows').addEventListener('click', event => {
+      const del = event.target.closest('[data-delete-row]');
+      if (del) deleteRow(del.dataset.deleteRow);
+    });
     $('#importTable').addEventListener('click', event => {
       const remove = event.target.closest('[data-remove-import-row]');
       if (!remove || !state.importDraft) return;
@@ -919,7 +1089,10 @@
       }
     });
 
-    loadBooks().catch(err => toast(err.message));
+    loadBooks().catch(err => {
+      toast(err.message);
+      renderDocument();
+    });
   </script>
 </body>
 </html>

@@ -393,6 +393,7 @@
 - module: pricing
 - priority: high
 - latest_change:
+  - changed Pricing Manager into a document-style price-list editor based on the uploaded printable PDF format: minimal toolbar, editable page fields, inline row editing, add row/section, save and print.
   - prepared the main IronBend Render blueprint for cloud access to pricing: persistent `/data` disk, `/data/ironbend.db`, `/data/backups`, license server URL, and external `BASE_URL`.
   - added pricing OCR import flow: PDF/image recognition creates an editable draft before assigning it to a general or customer price book.
 - scope:
@@ -426,6 +427,7 @@
   - המוקאפ אושר כהכוונת UI ומוטמע במסך מערכת.
   - מחירונים חדשים נשמרים כטיוטה עד הפעלה ידנית.
   - מחירון כללי ומחירון לקוח מוצגים ומנוהלים כהפרדה ברורה.
+  - מסך המחירון מציג את המחירון כמסמך עבודה אחד לפי פורמט PDF, ולא כפאנל ניהול עם חלונות עריכה.
   - תנאי תשלום אינם שדה במחירון; הם שייכים למודול Payment Terms / Customers.
   - תאריך מחירון אינו מוזן ידנית; כל שינוי מעדכן `updated_at` ומוצג כ"עודכן".
   - כל שורת מחירון חייבת להיות ניתנת לעריכה/הוספה.

@@ -554,8 +554,13 @@ test('price list management belongs to pricing screen', () => {
   assert.match(pricing, /requested_use_case', 'price_list_import'/);
   assert.match(pricing, /document_type_hint', 'price_list'/);
   assert.match(pricing, /saveImportDraft/);
-  assert.match(pricing, /id="itemDialog"/);
-  assert.match(pricing, /updatedAtLabel/);
+  assert.match(pricing, /id="priceSheet"/);
+  assert.match(pricing, /id="priceRows"/);
+  assert.match(pricing, /brand\/tene-pdf-logo\.jpg/);
+  assert.match(pricing, /המחירים אינם כוללים מע״מ/);
+  assert.match(pricing, /addRowBtn/);
+  assert.match(pricing, /saveDocument/);
+  assert.doesNotMatch(pricing, /id="itemDialog"/);
   assert.doesNotMatch(pricing, /payment_terms/);
   assert.match(nav, /\/pricing\.html/);
   assert.match(nav, /pricing: 'finance'/);
