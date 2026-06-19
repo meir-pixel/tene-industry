@@ -43,6 +43,7 @@ module.exports = function createCatalogRouter(deps) {
       unit: trimText(item.unit || 'kg') || 'kg',
       price_before_vat: toNumber(item.price_before_vat, 0),
       currency: trimText(item.currency || currency || 'ILS') || 'ILS',
+      exception_flag: item.exception_flag || item.exception === true || item.is_exception ? 1 : 0,
       notes: trimText(item.notes),
     };
   }
@@ -92,9 +93,10 @@ module.exports = function createCatalogRouter(deps) {
               unit: { type: ['string', 'null'] },
               price_before_vat: { type: ['number', 'null'] },
               currency: { type: ['string', 'null'] },
+              exception_flag: { type: ['boolean', 'null'] },
               notes: { type: ['string', 'null'] },
             },
-            required: ['sku', 'diameter', 'category', 'description', 'quantity', 'unit', 'price_before_vat', 'currency', 'notes'],
+            required: ['sku', 'diameter', 'category', 'description', 'quantity', 'unit', 'price_before_vat', 'currency', 'exception_flag', 'notes'],
           },
         },
       },
@@ -105,16 +107,18 @@ module.exports = function createCatalogRouter(deps) {
 The upload context is requested_by_module=${context.requested_by_module}, requested_use_case=${context.requested_use_case}, target_module=${context.target_module}, document_type=${context.document_type}.
 This is not a customer order intake route. Return only a price-book draft for /api/pricing/price-books/analyze-upload.
 Extract only price-list rows. Do not extract payment terms, totals, VAT summaries, addresses, or legal text as item rows.
+Keep price-list-level comments in notes only when they affect the price list itself. Payment terms belong to Customers/Payment Terms, not Pricing.
 Return a draft that the operator will edit before saving.
 For each row:
-- sku is the printed catalog/item code when visible. For diameter-only rebar rows use D8, D10, D12, etc.
+- sku is the printed catalog/item code when visible, such as 2010, 2019, 630100, or 3050. For diameter-only rebar rows use D8, D10, D12, etc.
 - diameter is the rebar diameter in millimeters when the item is a bar diameter row; otherwise null.
-- category is a short category such as rebar, mesh, delivery, processing, or other.
+- category is the visible section/category heading when available, such as ברזל מעובד, מוטות, עיבודי ברזל, רשת סטנדרט, רשת לפי תוכנית, עיבודי רשת, הובלות, or other.
 - description is the visible item description.
 - quantity defaults to 1 unless the row clearly has a price quantity basis.
 - unit should be kg for price per kilogram, ton for ton, unit for fixed item, or m for meter.
 - price_before_vat is the customer-facing unit price before VAT as a number.
 - currency should be ILS unless the document clearly states otherwise.
+- exception_flag is true when the row has a visible exception/חריגה marker such as v.
 If a value is uncertain, still return the row with a note. Never invent prices that are not visible.`;
     const response = await require('axios').post('https://api.openai.com/v1/responses', {
       model: getSetting('OPENAI_MODEL') || 'gpt-5.4-mini',

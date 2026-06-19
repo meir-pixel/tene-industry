@@ -554,6 +554,10 @@ test('price list management belongs to pricing screen', () => {
   assert.match(pricing, /requested_use_case', 'price_list_import'/);
   assert.match(pricing, /document_type_hint', 'price_list'/);
   assert.match(pricing, /saveImportDraft/);
+  assert.match(pricing, /דוגמת עשוש/);
+  assert.match(pricing, /301401685-S1/);
+  assert.match(pricing, /630100/);
+  assert.match(pricing, /data-import-field="exception_flag"/);
   assert.match(pricing, /id="itemDialog"/);
   assert.match(pricing, /updatedAtLabel/);
   assert.doesNotMatch(pricing, /payment_terms/);

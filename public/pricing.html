@@ -171,7 +171,7 @@
         <p>מחירון כללי ומחירון לקוח עם מק״טים, קוטר, מחיר ועדכון אחרון.</p>
       </div>
       <div class="actions">
-        <button class="btn" id="sampleBtn" type="button">דוגמת ש. כהן</button>
+        <button class="btn" id="sampleBtn" type="button">דוגמת עשוש</button>
         <button class="btn blue" id="importOcrBtn" type="button">ייבוא OCR</button>
         <button class="btn primary" id="newBookBtn" type="button">מחירון חדש</button>
       </div>
@@ -627,6 +627,7 @@
               <th>כמות</th>
               <th>יחידה</th>
               <th>מחיר לפני מע״מ</th>
+              <th>חריג</th>
               <th>הערות</th>
               <th></th>
             </tr>
@@ -645,6 +646,12 @@
                   </select>
                 </td>
                 <td><input data-import-field="price_before_vat" type="number" step="0.01" value="${escapeHtml(item.price_before_vat ?? 0)}"></td>
+                <td>
+                  <select data-import-field="exception_flag">
+                    <option value="0" ${item.exception_flag ? '' : 'selected'}>לא</option>
+                    <option value="1" ${item.exception_flag ? 'selected' : ''}>כן</option>
+                  </select>
+                </td>
                 <td><input data-import-field="notes" value="${escapeHtml(item.notes || '')}"></td>
                 <td><button class="icon-btn" type="button" data-remove-import-row="${index}">×</button></td>
               </tr>
@@ -665,6 +672,7 @@
         item.diameter = item.diameter === '' ? null : Number(item.diameter);
         item.quantity = Number(item.quantity || 1);
         item.price_before_vat = Number(item.price_before_vat || 0);
+        item.exception_flag = item.exception_flag === '1';
         item.currency = importForm.elements.currency.value || state.importDraft.currency || 'ILS';
         return item;
       });
@@ -821,31 +829,66 @@
         method: 'POST',
         body: JSON.stringify({
           code: `301401685-S1-${stamp}`,
-          name: 'הדפסת מחירון - ש. כהן',
+          name: 'מחירון לקוח - י.ד עשוש תשתיות בע"מ',
           customer_name: 'י.ד עשוש תשתיות בע"מ',
           price_type: 'customer',
           currency: 'ILS',
           status: 'draft',
           source_type: 'pdf',
-          source_ref: '301401685-S1',
+          source_ref: 'מחירון לקוח - י.ד עשוש תשתיות בעמ.pdf',
+          notes: [
+            'מבוסס על מחירון 301401685-S1 ללקוח י.ד עשוש תשתיות בע"מ, ח.פ 513432856.',
+            'המחירים אינם כוללים מע"מ.',
+            'תנאי תשלום אינם מנוהלים במחירון ונשארים במודול לקוחות/תנאי תשלום.',
+          ].join('\n'),
         }),
       });
       const rows = [
-        ['D8', 8, 'ברזל מעובד', 'ברזל מעובד קוטר 8', 1, 'kg', 3.52],
-        ['D10', 10, 'ברזל מעובד', 'ברזל מעובד קוטר 10', 1, 'kg', 3.62],
-        ['D12', 12, 'ברזל מעובד', 'ברזל מעובד קוטר 12', 1, 'kg', 3.72],
-        ['729020', null, 'רשת', 'רשת מרותכת לפי מפרט', 1, 'unit', 64],
-        ['729040', null, 'הובלות', 'הובלה לאתר לקוח', 1, 'unit', 450],
+        ['2010', null, 'ברזל מעובד', 'ברזל בניין 8-25 מ"מ לעיבוד C500 / רתיך', 1, 'kg', 2.65, false],
+        ['2019', null, 'ברזל מעובד', 'ברזל לבניין 28-36 מ"מ לעיבוד C500 / רתיך', 1, 'kg', 2.75, false],
+        ['2005', null, 'מוטות', 'ברזל בניין 8-25 מ"מ חבילות C500 עד 16 מטר אורך', 1, 'kg', 2.65, true],
+        ['2007', null, 'מוטות', 'ברזל בניין 8-16 מ"מ חבילות 6 מטר ו-12 מטר', 1, 'kg', 2.65, false],
+        ['2014', null, 'מוטות', 'ברזל לבניין 28-36 מ"מ בחבילות C500 / רתיך', 1, 'kg', 2.75, false],
+        ['2045', null, 'סלילים עגולים-חוטים', 'ברזל עגול חלק 6-14 מ"מ', 1, 'kg', 2.75, false],
+        ['2046', null, 'סלילים עגולים-חוטים', 'ברזל עגול חלק 16-18 מ"מ', 1, 'kg', 3.92, false],
+        ['2047', null, 'סלילים עגולים-חוטים', 'עגול 20 ומעלה', 1, 'kg', 4.12, false],
+        ['2515', null, 'עיבודי ברזל', 'חיתוך', 1, 'kg', 0.07, false],
+        ['2520', null, 'עיבודי ברזל', 'כיפוף', 1, 'kg', 0.17, false],
+        ['2530', null, 'עיבודי ברזל', 'חישוקים', 1, 'unit', 0.2, false],
+        ['2535', null, 'עיבודי ברזל', 'כסאות', 1, 'unit', 0.4, false],
+        ['2540', null, 'עיבודי ברזל', 'ציפורים / אזני הרמה / קרומים', 1, 'unit', 0.4, false],
+        ['2575', null, 'עיבודי ברזל', 'עיבוד ספירלות טבעות עד קוטר 12 כולל', 1, 'kg', 0.3, false],
+        ['2576', null, 'עיבודי ברזל', 'עיבוד ספירלות מקוטר 14 ומעלה', 1, 'kg', 0.4, false],
+        ['3005', null, 'רשת סטנדרט', 'רשת לבניין סטנדרט בחבילות', 1, 'kg', 2.9, false],
+        ['3015', null, 'רשת סטנדרט', 'רשת לממ"ד / קירות ברזל משוך (ש.כהן)', 1, 'kg', 2.95, false],
+        ['3010', null, 'רשת לפי תוכנית', 'רשת בניין לפי תוכנית - 50 יח׳ לפריט ברזל משוך / ספסלים', 1, 'kg', 3.0, false],
+        ['3010W', null, 'רשת לפי תוכנית', 'רשת רתיכה עד קוטר 12 B500 / רתיך', 1, 'kg', 3.1, false],
+        ['3011W', null, 'רשת לפי תוכנית', 'רשת רתיכה קוטר 14 מ"מ C500', 1, 'kg', 3.3, false],
+        ['3012W', null, 'רשת לפי תוכנית', 'רשת רתיכה קוטר 16 C500', 1, 'kg', 3.45, false],
+        ['3013W', null, 'רשת לפי תוכנית', 'רשת רתיכה קוטר 18-25 מ"מ C500', 1, 'kg', 3.75, false],
+        ['3019', null, 'רשת לפי תוכנית', 'אומניות', 1, 'kg', 3.8, false],
+        ['3505', null, 'עיבודי רשת', 'חיתוך רשת ל-1.3', 1, 'kg', 0.3, false],
+        ['3510', null, 'עיבודי רשת', 'כיפוף רשת', 1, 'kg', 0.45, false],
+        ['3515', null, 'עיבודי רשת', 'חיוב לרשת מכופפת פחות מ-10 ק"ג', 1, 'unit', 4.0, false],
+        ['630100', null, 'הובלות', 'כניסה נוספת', 1, 'unit', 220, false],
+        ['630101', null, 'הובלות', 'חיוב המתנה מהשעה השנייה', 1, 'unit', 220, false],
+        ['630103', null, 'הובלות', 'פריקת מנוף גדול דאבל', 1, 'unit', 500, false],
+        ['630104', null, 'הובלות', 'פריקת מנוף גדול טריילר', 1, 'unit', 720, false],
+        ['630106', null, 'הובלות', 'ליווי', 1, 'unit', 550, false],
+        ['630110', null, 'הובלות', 'פריקה נוספת', 1, 'unit', 220, false],
+        ['630113', null, 'הובלות', 'תוספת לעגלה מסתובבת', 1, 'unit', 440, false],
+        ['3050', null, 'צינורות גמא', 'צינור גמא 2" עובי 2.20', 1, 'm', 28, true],
       ];
-      for (const [sku, diameter, category, description, quantity, unit, price_before_vat] of rows) {
+      for (const [index, row] of rows.entries()) {
+        const [sku, diameter, category, description, quantity, unit, price_before_vat, exception_flag] = row;
         await api(`/api/pricing/price-books/${data.price_book.id}/items`, {
           method: 'POST',
-          body: JSON.stringify({ sku, diameter, category, description, quantity, unit, price_before_vat, currency: 'ILS' }),
+          body: JSON.stringify({ sku, diameter, category, description, quantity, unit, price_before_vat, currency: 'ILS', exception_flag, sort_order: index + 1 }),
         });
       }
       state.currentBook = data.price_book;
       state.mode = 'customer';
-      toast('נוצר מחירון דוגמה');
+      toast('נוצר מחירון עשוש לדוגמה');
       await loadBooks(data.price_book.id);
     }
 

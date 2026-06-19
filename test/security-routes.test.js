@@ -893,11 +893,13 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
         category: 'Security',
         unit: 'kg',
         price_before_vat: 12.5,
+        exception_flag: true,
       }),
     });
     assert.equal(priceItemResponse.status, 200);
     const priceItem = (await priceItemResponse.json()).item;
     assert.ok(priceItem.id);
+    assert.equal(priceItem.exception_flag, 1);
     assert.equal((await request(`/api/pricing/price-books/${priceBook.id}`, { method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ name: 'Bad Update' }) })).status, 403);
     assert.equal((await request(`/api/pricing/price-books/${priceBook.id}`, { method: 'PATCH', headers: authHeaders(finance), body: JSON.stringify({ status: 'active' }) })).status, 200);
 
