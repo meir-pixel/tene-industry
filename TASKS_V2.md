@@ -393,6 +393,7 @@
 - module: pricing
 - priority: high
 - latest_change:
+  - tightened the Pricing document editor to match the printable PDF more closely: app chrome hidden on pricing, A4-like page sizing, plain editable table cells, PDF date/quantity formatting, and reference-style table spacing.
   - changed Pricing Manager into a document-style price-list editor based on the uploaded printable PDF format: minimal toolbar, editable page fields, inline row editing, add row/section, save and print.
   - prepared the main IronBend Render blueprint for cloud access to pricing: persistent `/data` disk, `/data/ironbend.db`, `/data/backups`, license server URL, and external `BASE_URL`.
   - added pricing OCR import flow: PDF/image recognition creates an editable draft before assigning it to a general or customer price book.

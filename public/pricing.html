@@ -28,12 +28,22 @@
       font-family:Arial, Helvetica, sans-serif;
       min-height:100vh;
     }
+    body[data-page="pricing"] {
+      padding:0 !important;
+      background:#f2f4f7 !important;
+    }
+    body[data-page="pricing"] #ib-topnav,
+    body[data-page="pricing"] #ib-bottom,
+    body[data-page="pricing"] #ib-drawer,
+    body[data-page="pricing"] #ib-search-overlay {
+      display:none !important;
+    }
     button, input, select, textarea { font:inherit; }
     button { cursor:pointer; }
     .screen {
-      max-width:1280px;
+      max-width:1120px;
       margin:0 auto;
-      padding:18px 18px 36px;
+      padding:10px 18px 36px;
     }
     .topbar {
       position:sticky;
@@ -43,8 +53,8 @@
       justify-content:space-between;
       align-items:center;
       gap:12px;
-      padding:10px 0 14px;
-      background:linear-gradient(180deg,var(--bg) 80%,rgba(233,238,245,0));
+      padding:6px 0 10px;
+      background:#f2f4f7;
     }
     .toolbar-group { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
     .btn {
@@ -77,17 +87,17 @@
       padding:8px 0 24px;
     }
     .price-sheet {
-      width:min(100%, 920px);
-      min-height:1180px;
+      width:960px;
+      min-height:1358px;
       background:var(--paper);
       box-shadow:var(--shadow);
-      padding:44px 56px 70px;
+      padding:54px 58px 76px;
       color:var(--ink);
     }
     .doc-head {
       display:grid;
       grid-template-columns:300px 1fr;
-      gap:22px;
+      gap:28px;
       align-items:start;
       margin-bottom:10px;
       direction:ltr;
@@ -100,7 +110,7 @@
       line-height:1.45;
     }
     .company-block img {
-      width:230px;
+      width:238px;
       height:auto;
       display:block;
       margin-bottom:20px;
@@ -112,9 +122,9 @@
       align-content:start;
     }
     .doc-title {
-      margin:20px 0 0;
+      margin:28px 0 0;
       color:var(--blue);
-      font-size:44px;
+      font-size:46px;
       font-weight:900;
       line-height:1;
       text-align:right;
@@ -122,13 +132,13 @@
     .client-box {
       display:grid;
       grid-template-columns:1fr 1fr;
-      gap:4px 26px;
+      gap:5px 30px;
       border:1px solid #d4d8dd;
       border-radius:4px;
       padding:12px 16px;
       background:#fafafa;
       color:#444;
-      font-size:18px;
+      font-size:17px;
       font-weight:700;
     }
     .client-box label {
@@ -158,25 +168,25 @@
     .top-rule {
       height:3px;
       background:var(--blue);
-      margin:8px 0 12px;
+      margin:8px 0 10px;
     }
     .price-table {
       width:100%;
       border-collapse:collapse;
       table-layout:fixed;
-      font-size:18px;
+      font-size:17px;
     }
     .price-table th,
     .price-table td {
       border:1px solid var(--line);
-      padding:8px 9px;
+      padding:7px 9px;
       vertical-align:middle;
-      height:38px;
+      height:36px;
     }
     .price-table th {
       background:var(--blue);
       color:#fff;
-      font-size:18px;
+      font-size:17px;
       font-weight:900;
       text-align:center;
     }
@@ -190,7 +200,7 @@
       color:var(--blue);
       font-weight:900;
       text-align:right;
-      font-size:19px;
+      font-size:18px;
     }
     .row-input {
       width:100%;
@@ -246,7 +256,7 @@
       font-weight:900;
     }
     .signature {
-      margin-top:250px;
+      margin-top:280px;
       color:var(--blue);
       font-size:17px;
       font-weight:800;
@@ -572,10 +582,11 @@
     }
 
     function formatDate(value) {
-      if (!value) return new Date().toLocaleDateString('he-IL');
-      const date = new Date(String(value).replace(' ', 'T'));
-      if (Number.isNaN(date.getTime())) return String(value).split(',')[0];
-      return date.toLocaleDateString('he-IL');
+      const source = value ? new Date(String(value).replace(' ', 'T')) : new Date();
+      const date = Number.isNaN(source.getTime()) ? new Date() : source;
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      return `${day}/${month}/${date.getFullYear()}`;
     }
 
     function formatQuantity(value) {
@@ -720,18 +731,10 @@
                 <button class="mini-btn" type="button" title="מחיקה" data-delete-row="${escapeHtml(item._key)}">×</button>
               </span>
             </td>
-            <td class="qty-col"><input class="row-input" data-field="quantity" type="number" step="0.001" value="${escapeHtml(item.quantity ?? 1)}"></td>
-            <td class="unit-col">
-              <select class="row-input" data-field="unit">
-                ${['kg','unit','m','ton'].map(unit => `<option value="${unit}" ${item.unit === unit ? 'selected' : ''}>${unitLabel(unit)}</option>`).join('')}
-              </select>
-            </td>
+            <td class="qty-col"><input class="row-input" data-field="quantity" value="${escapeHtml(formatQuantity(item.quantity))}"></td>
+            <td class="unit-col"><input class="row-input" data-field="unit" value="${escapeHtml(unitLabel(item.unit))}"></td>
             <td class="price-col"><input class="row-input price" data-field="price_before_vat" type="number" step="0.01" value="${escapeHtml(item.price_before_vat ?? 0)}"></td>
-            <td class="currency-col">
-              <select class="row-input" data-field="currency">
-                ${['ILS','USD','EUR'].map(currency => `<option value="${currency}" ${(item.currency || state.currentBook?.currency || 'ILS') === currency ? 'selected' : ''}>${currencySymbol(currency)}</option>`).join('')}
-              </select>
-            </td>
+            <td class="currency-col"><input class="row-input" data-field="currency" value="${escapeHtml(currencySymbol(item.currency || state.currentBook?.currency || 'ILS'))}"></td>
           </tr>
         `).join('')}
       `).join('');
@@ -746,8 +749,13 @@
           const name = field.dataset.field;
           item[name] = field.value;
         });
-        item.quantity = Number(item.quantity || 1);
+        item.quantity = Number(String(item.quantity || 1).replace(',', '.'));
         item.price_before_vat = Number(item.price_before_vat || 0);
+        if (item.unit === 'ק"ג') item.unit = 'kg';
+        if (item.unit === 'יח׳') item.unit = 'unit';
+        if (item.unit === 'מטר') item.unit = 'm';
+        if (item.unit === 'טון') item.unit = 'ton';
+        if (item.currency === 'ש"ח') item.currency = 'ILS';
       });
     }
 
