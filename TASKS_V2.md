@@ -393,6 +393,7 @@
 - module: pricing
 - priority: high
 - latest_change:
+  - added the PDF bottom section to Pricing: editable תנאים והערות, customer approval fields, and signed-copy email line saved with the price book.
   - tightened the Pricing document editor to match the printable PDF more closely: app chrome hidden on pricing, A4-like page sizing, plain editable table cells, PDF date/quantity formatting, and reference-style table spacing.
   - changed Pricing Manager into a document-style price-list editor based on the uploaded printable PDF format: minimal toolbar, editable page fields, inline row editing, add row/section, save and print.
   - prepared the main IronBend Render blueprint for cloud access to pricing: persistent `/data` disk, `/data/ironbend.db`, `/data/backups`, license server URL, and external `BASE_URL`.
@@ -429,6 +430,7 @@
   - מחירונים חדשים נשמרים כטיוטה עד הפעלה ידנית.
   - מחירון כללי ומחירון לקוח מוצגים ומנוהלים כהפרדה ברורה.
   - מסך המחירון מציג את המחירון כמסמך עבודה אחד לפי פורמט PDF, ולא כפאנל ניהול עם חלונות עריכה.
+  - הערות/תנאים ואישור לקוח מופיעים בתחתית המסמך ונשמרים עם המחירון.
   - תנאי תשלום אינם שדה במחירון; הם שייכים למודול Payment Terms / Customers.
   - תאריך מחירון אינו מוזן ידנית; כל שינוי מעדכן `updated_at` ומוצג כ"עודכן".
   - כל שורת מחירון חייבת להיות ניתנת לעריכה/הוספה.

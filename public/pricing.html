@@ -255,20 +255,87 @@
       font-size:18px;
       font-weight:900;
     }
-    .signature {
-      margin-top:280px;
-      color:var(--blue);
-      font-size:17px;
-      font-weight:800;
-      text-align:left;
-      direction:ltr;
+    .notes-section {
+      margin-top:26px;
+      color:#4a4f57;
+      font-size:16px;
+      line-height:1.55;
     }
-    .signature-line {
-      display:inline-block;
-      width:150px;
-      border-bottom:1px solid var(--blue);
-      margin-inline-end:8px;
-      transform:translateY(-4px);
+    .notes-title {
+      color:var(--blue);
+      font-size:22px;
+      font-weight:900;
+      margin-bottom:8px;
+      text-align:right;
+    }
+    .notes-input {
+      width:100%;
+      min-height:270px;
+      border:0;
+      background:transparent;
+      color:#4a4f57;
+      resize:vertical;
+      padding:0;
+      line-height:1.55;
+      font:inherit;
+      text-align:right;
+      direction:rtl;
+      overflow:hidden;
+    }
+    .notes-input:focus {
+      outline:1px solid rgba(23,58,93,.28);
+      background:#fff;
+    }
+    .approval-box {
+      margin-top:20px;
+      border:1px solid #d4d8dd;
+      border-radius:4px;
+      padding:18px 18px 16px;
+      color:var(--blue);
+      font-size:18px;
+      font-weight:900;
+    }
+    .approval-title {
+      font-size:22px;
+      margin-bottom:16px;
+      text-align:right;
+    }
+    .approval-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:18px 54px;
+      color:#333;
+      font-size:17px;
+      font-weight:900;
+    }
+    .approval-field {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-width:0;
+    }
+    .approval-line {
+      flex:1;
+      min-width:120px;
+      border:0;
+      border-bottom:2px solid #444;
+      background:transparent;
+      height:24px;
+      padding:0 4px;
+    }
+    .approval-line:focus {
+      outline:0;
+      border-bottom-color:var(--blue);
+      background:#fff;
+    }
+    .approval-mail {
+      margin-top:18px;
+      padding-top:12px;
+      border-top:1px dashed #d4d8dd;
+      text-align:center;
+      color:var(--blue);
+      font-size:18px;
+      font-weight:900;
     }
     dialog {
       width:min(760px,94vw);
@@ -373,6 +440,8 @@
       .price-table { font-size:14px; }
       .price-table th { font-size:14px; }
       .price-table th, .price-table td { padding:6px 5px; }
+      .notes-input { min-height:360px; font-size:14px; }
+      .approval-grid { grid-template-columns:1fr; gap:12px; }
     }
     @media print {
       body { background:#fff; }
@@ -386,7 +455,9 @@
         padding:26px 44px 50px;
       }
       .sheet-input,
-      .row-input { border:0 !important; outline:0 !important; background:transparent !important; }
+      .row-input,
+      .notes-input,
+      .approval-line { border-top:0 !important; border-left:0 !important; border-right:0 !important; outline:0 !important; background:transparent !important; }
     }
   </style>
 </head>
@@ -443,7 +514,20 @@
         </table>
         <div class="empty-state" id="emptyState">בחר מחירון או צור מחירון חדש.</div>
         <strong class="vat-note">המחירים אינם כוללים מע״מ</strong>
-        <footer class="signature"><span class="signature-line"></span>חתימה וחותמת הלקוח:</footer>
+        <section class="notes-section">
+          <div class="notes-title">תנאים והערות:</div>
+          <textarea class="notes-input" id="notesInput" spellcheck="false"></textarea>
+        </section>
+        <section class="approval-box">
+          <div class="approval-title">אישור המחירון ע״י הלקוח:</div>
+          <div class="approval-grid">
+            <label class="approval-field">שם מלא:<input class="approval-line" id="approverNameInput"></label>
+            <label class="approval-field">תפקיד:<input class="approval-line" id="approverRoleInput"></label>
+            <label class="approval-field">חתימה וחותמת:<input class="approval-line" id="approverSignatureInput"></label>
+            <label class="approval-field">תאריך:<input class="approval-line" id="approverDateInput"></label>
+          </div>
+          <div class="approval-mail">נא לחתום על כל דף במקום המיועד ולשלוח העתק חתום למייל: office@tene-ind.com</div>
+        </section>
       </article>
     </section>
   </main>
@@ -610,6 +694,23 @@
       return `PRICE-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}`;
     }
 
+    function defaultNotesText() {
+      return [
+        '1. מחיר סופי לעיבוד של כלונסאות ואלמנטים יינתן בהתאם לסקיצה סופית וחתומה על ידי המזמין.',
+        '2. כלונסאות במשקל תאורטי מתחת ל-200 ק״ג תהיה תוספת מחיר.',
+        '3. אלמנטים במשקל תאורטי מתחת ל-300 ק״ג תהיה תוספת מחיר.',
+        '4. באחריות הלקוח, לאחר תאום ההובלה, לדאוג לגישה נוחה למשאית עבור הפריקה. פריקת המנוף תתבצע אך ורק בסמוך לארגז המשאית על הרציפה.',
+        '5. הובלה תחויב לגופו של עניין, כל כניסה / פריקה נוספת תחויב בתוספת מחיר.',
+        '6. ברזל בקטרים 16-22 מ״מ באורך 16 מטר והובלה בקטרים 25-36 באורך מעל 16 מ׳ ומעל 3.2 מטר מצריכה הובלה מתארכת ורכבי ליווי בתוספת 550 ש״ח.',
+        '7. בסיס החישוב לתעודות משלוח יעשה לפי שקילה בפועל במפעלי טנא תעשיות ברזל בע״מ.',
+        '8. מוסכם שהסטייה המותרת בין השקילה בפועל לחישוב המשקל התאורטי היא עד 3 אחוז.',
+        '9. חתימת הלקוח או נציגו באתר על גבי תעודת המשלוח תהווה ראייה מכרעת לקבלתו בשלמות על פי המצוין בתעודת המשלוח.',
+        '10. הזמנה שמוכנה למשלוח ושלא נדרשה ע״י הלקוח במהלך זמן סביר, תופק חשבונית פיננסית עבור ההזמנה בתאום עם הלקוח וימי האשראי יספרו מאותו מועד.',
+        '11. הסחורה בבעלות החברה עד לתשלום מלא בעבורה.',
+        '12. עם קבלת ההזמנה ואישורה אין אפשרות לשינוי וזאת מאחר שההזמנה מיוצרת במיוחד לבקשת הלקוח.',
+      ].join('\n');
+    }
+
     function templateItem(index, category, description, unit = 'kg', price = 0) {
       return {
         _key: `template-${index}`,
@@ -649,9 +750,15 @@
       const notes = String(book?.notes || '');
       const tax = notes.match(/ח\.פ[:\s]*([0-9]+)/)?.[1] || '';
       const terms = notes.match(/תנאי תשלום[:\s]*([^\n]+)/)?.[1] || '';
+      const notesMatch = notes.match(/תנאים והערות:\n([\s\S]*?)(?:\nאישור המחירון ע״י הלקוח:|$)/);
       return {
         tax,
         terms: terms || 'לפי כרטיס לקוח',
+        notesText: notesMatch ? notesMatch[1].trim() : defaultNotesText(),
+        approverName: notes.match(/שם מלא[:\s]*([^\n]+)/)?.[1] || '',
+        approverRole: notes.match(/תפקיד[:\s]*([^\n]+)/)?.[1] || '',
+        approverSignature: notes.match(/חתימה וחותמת[:\s]*([^\n]+)/)?.[1] || '',
+        approverDate: notes.match(/תאריך אישור[:\s]*([^\n]+)/)?.[1] || '',
       };
     }
 
@@ -660,11 +767,20 @@
         .split('\n')
         .filter(line => !/^ח\.פ[:\s]/.test(line) && !/^תנאי תשלום[:\s]/.test(line))
         .join('\n')
+        .replace(/תנאים והערות:\n[\s\S]*?(?:\nאישור המחירון ע״י הלקוח:|$)/, '')
+        .split('\n')
+        .join('\n')
         .trim();
       return [
         clean,
         $('#customerTaxInput').value.trim() ? `ח.פ: ${$('#customerTaxInput').value.trim()}` : '',
         $('#paymentTermsInput').value.trim() ? `תנאי תשלום: ${$('#paymentTermsInput').value.trim()}` : '',
+        `תנאים והערות:\n${$('#notesInput').value.trim() || defaultNotesText()}`,
+        'אישור המחירון ע״י הלקוח:',
+        $('#approverNameInput').value.trim() ? `שם מלא: ${$('#approverNameInput').value.trim()}` : '',
+        $('#approverRoleInput').value.trim() ? `תפקיד: ${$('#approverRoleInput').value.trim()}` : '',
+        $('#approverSignatureInput').value.trim() ? `חתימה וחותמת: ${$('#approverSignatureInput').value.trim()}` : '',
+        $('#approverDateInput').value.trim() ? `תאריך אישור: ${$('#approverDateInput').value.trim()}` : '',
       ].filter(Boolean).join('\n');
     }
 
@@ -710,6 +826,11 @@
       $('#priceDateInput').value = hasBook ? formatDate(book.updated_at) : formatDate();
       $('#customerTaxInput').value = hasBook ? meta.tax : '';
       $('#paymentTermsInput').value = hasBook ? meta.terms : 'לפי כרטיס לקוח';
+      $('#notesInput').value = meta.notesText;
+      $('#approverNameInput').value = meta.approverName;
+      $('#approverRoleInput').value = meta.approverRole;
+      $('#approverSignatureInput').value = meta.approverSignature;
+      $('#approverDateInput').value = meta.approverDate;
       $('#emptyState').style.display = state.items.length ? 'none' : '';
       renderRows();
       renderBookPicker();
@@ -1056,7 +1177,7 @@
     $('#saveDocBtn').addEventListener('click', () => saveDocument().catch(err => toast(err.message)));
     $('#printDocBtn').addEventListener('click', () => window.print());
 
-    ['customerNameInput','priceDateInput','customerTaxInput','paymentTermsInput'].forEach(id => {
+    ['customerNameInput','priceDateInput','customerTaxInput','paymentTermsInput','notesInput','approverNameInput','approverRoleInput','approverSignatureInput','approverDateInput'].forEach(id => {
       $(`#${id}`).addEventListener('input', markDirty);
     });
 
