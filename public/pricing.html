@@ -70,6 +70,13 @@
     .btn.orange { background:var(--accent); border-color:var(--accent); color:#fff; }
     .btn.danger { color:#b42318; }
     .btn:disabled { opacity:.55; cursor:not-allowed; }
+    .price-sheet.is-readonly input,
+    .price-sheet.is-readonly textarea {
+      pointer-events:none;
+    }
+    .price-sheet.is-readonly .row-tools {
+      display:none;
+    }
     .toolbar-select {
       min-height:36px;
       max-width:360px;
@@ -470,6 +477,7 @@
         <button class="btn" id="customerModeBtn" type="button" data-mode="customer">מחירון לקוח</button>
       </div>
       <div class="toolbar-group">
+        <button class="btn primary" id="editDocBtn" type="button">&#1506;&#1512;&#1497;&#1499;&#1492;</button>
         <button class="btn" id="newBookBtn" type="button">מחירון חדש</button>
         <button class="btn" id="importOcrBtn" type="button">ייבוא OCR</button>
         <button class="btn orange" id="addRowBtn" type="button">הוסף שורה</button>
@@ -611,6 +619,7 @@
       importDraft: null,
       mode: 'general',
       dirty: false,
+      editing: false,
     };
 
     const $ = selector => document.querySelector(selector);
@@ -785,8 +794,33 @@
     }
 
     function markDirty() {
+      if (!state.editing) return;
       state.dirty = true;
       $('#saveDocBtn').textContent = 'שמור שינויים';
+      updateEditMode();
+    }
+
+    function setEditing(editing) {
+      state.editing = Boolean(editing);
+      updateEditMode();
+    }
+
+    function updateEditMode() {
+      const canSave = state.editing && state.dirty;
+      $('#priceSheet').classList.toggle('is-readonly', !state.editing);
+      $('#editDocBtn').textContent = state.editing ? 'סיים עריכה' : 'עריכה';
+      $('#editDocBtn').classList.toggle('primary', !state.editing);
+      $('#editDocBtn').classList.toggle('orange', state.editing);
+      ['generalModeBtn','customerModeBtn','newBookBtn','importOcrBtn','addRowBtn','addSectionBtn'].forEach(id => {
+        $(`#${id}`).disabled = !state.editing;
+      });
+      $('#saveDocBtn').disabled = !canSave;
+      document.querySelectorAll('#priceSheet input, #priceSheet textarea').forEach(field => {
+        field.readOnly = !state.editing;
+      });
+      document.querySelectorAll('[data-delete-row]').forEach(button => {
+        button.disabled = !state.editing;
+      });
     }
 
     function setMode(mode) {
@@ -835,6 +869,7 @@
       renderRows();
       renderBookPicker();
       $('#saveDocBtn').textContent = state.dirty ? 'שמור שינויים' : 'שמור';
+      updateEditMode();
     }
 
     function renderRows() {
@@ -849,7 +884,7 @@
             <td class="desc-col">
               <input class="row-input desc" data-field="description" value="${escapeHtml(item.description || '')}">
               <span class="row-tools">
-                <button class="mini-btn" type="button" title="מחיקה" data-delete-row="${escapeHtml(item._key)}">×</button>
+                <button class="mini-btn" type="button" title="מחיקה" data-delete-row="${escapeHtml(item._key)}" ${state.editing ? '' : 'disabled'}>×</button>
               </span>
             </td>
             <td class="qty-col"><input class="row-input" data-field="quantity" value="${escapeHtml(formatQuantity(item.quantity))}"></td>
@@ -881,6 +916,7 @@
     }
 
     function renameSection(oldCategory, newCategory) {
+      if (!state.editing) return;
       const clean = newCategory.trim() || 'סעיף חדש';
       state.items.forEach(item => {
         if ((item.category || 'סעיף חדש') === oldCategory) item.category = clean;
@@ -890,6 +926,7 @@
     }
 
     function addRow(category = null) {
+      if (!state.editing) return;
       const groups = groupedItems();
       const targetCategory = category || groups[groups.length - 1]?.category || 'ברזל מעובד';
       state.items.push({
@@ -909,11 +946,13 @@
     }
 
     function addSection() {
+      if (!state.editing) return;
       const category = 'סעיף חדש';
       addRow(category);
     }
 
     function deleteRow(key) {
+      if (!state.editing) return;
       const item = state.items.find(candidate => candidate._key === key);
       if (!item) return;
       if (item.id) {
@@ -931,6 +970,7 @@
       state.items = [];
       state.deletedItems = new Set();
       state.dirty = true;
+      state.editing = true;
       setMode(state.mode);
       $('#customerNameInput').value = state.mode === 'customer' ? '' : 'מחירון כללי';
       $('#priceDateInput').value = formatDate();
@@ -978,6 +1018,7 @@
       state.items = normalizeLoadedItems(data.items);
       state.deletedItems = new Set();
       state.dirty = false;
+      state.editing = false;
       renderDocument();
     }
 
@@ -1000,6 +1041,7 @@
     }
 
     async function saveDocument() {
+      if (!state.editing || !state.dirty) return;
       hydrateRowsFromDocument();
       const payload = documentBookPayload();
       const method = state.currentBook ? 'PATCH' : 'POST';
@@ -1032,6 +1074,7 @@
       }
       state.currentBook = book;
       state.dirty = false;
+      state.editing = false;
       toast('המחירון נשמר');
       await loadBooks(book.id);
     }
@@ -1168,6 +1211,7 @@
     }
 
     $('#bookPicker').addEventListener('change', event => loadItems(event.target.value).catch(err => toast(err.message)));
+    $('#editDocBtn').addEventListener('click', () => setEditing(!state.editing));
     $('#generalModeBtn').addEventListener('click', () => { setMode('general'); markDirty(); renderDocument(); });
     $('#customerModeBtn').addEventListener('click', () => { setMode('customer'); markDirty(); renderDocument(); });
     $('#newBookBtn').addEventListener('click', startNewBook);
@@ -1182,6 +1226,7 @@
     });
 
     $('#priceRows').addEventListener('input', event => {
+      if (!state.editing) return;
       const section = event.target.closest('[data-section]');
       if (section) {
         renameSection(section.dataset.section, section.value);
@@ -1191,10 +1236,12 @@
       markDirty();
     });
     $('#priceRows').addEventListener('change', event => {
+      if (!state.editing) return;
       hydrateRowsFromDocument();
       markDirty();
     });
     $('#priceRows').addEventListener('click', event => {
+      if (!state.editing) return;
       const del = event.target.closest('[data-delete-row]');
       if (del) deleteRow(del.dataset.deleteRow);
     });
