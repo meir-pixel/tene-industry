@@ -190,7 +190,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
-  - replaced the customer portal login crane icon with the Tene logo so the entry screen matches customer-facing branding.
+  - aligned the customer portal login logo with the uploaded customer price-list PDF logo asset.
 - scope:
   - `TASKS_V2.md`
   - `db/coreSchema.js`
