@@ -862,10 +862,30 @@ body { font-family:'Heebo',sans-serif; background:#f0f4f8; color:var(--text); mi
           <input type="text" id="fPriorityId" placeholder="קוד לקוח ב-Priority" dir="ltr">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ח.פ / עוסק מורשה</label>
+          <input type="text" id="fTaxId" placeholder="מספר ח.פ" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label>תצוגת מחירון בפורטל</label>
+          <select id="fPortalPriceListVisibility">
+            <option value="none">ללא מחירון</option>
+            <option value="general">מחירון כללי</option>
+            <option value="customer">מחירון לקוח</option>
+          </select>
+        </div>
+      </div>
       <div class="form-row full">
         <div class="form-group">
           <label>כתובת</label>
           <input type="text" id="fAddress" placeholder="רחוב, עיר">
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-group">
+          <label>תנאי תשלום</label>
+          <input type="text" id="fPaymentTerms" placeholder="לדוגמה: שוטף + 30 / מזומן / לפי הסכם">
         </div>
       </div>
 
@@ -939,6 +959,14 @@ function fmtWeight(w) {
   const n = Number(w) || 0;
   if (n >= 1000) return (n/1000).toFixed(1) + ' ט';
   return n.toFixed(0) + ' ק"ג';
+}
+
+function priceListVisibilityLabel(value) {
+  return ({
+    none: 'ללא מחירון',
+    general: 'מחירון כללי',
+    customer: 'מחירון לקוח',
+  })[value] || 'ללא מחירון';
 }
 
 // ── LOAD LIST ──
@@ -1074,6 +1102,7 @@ function renderDetail(c) {
   html += '<div class="info-section"><h4>📇 פרטי קשר</h4>';
   html += infoRow('טלפון',     c.phone    ? '<a href="tel:'+esc(c.phone)+'">'+esc(c.phone)+'</a>' : null);
   html += infoRow('אימייל',    c.email    ? '<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>' : null);
+  html += infoRow('ח.פ',        c.tax_id);
   html += infoRow('כתובת',     c.address);
   html += infoRow('Priority',  c.priority_id);
   html += infoRow('תאריך הצטרפות', fmtDate(c.created_at));
@@ -1089,6 +1118,18 @@ function renderDetail(c) {
   }
   html += '</div>';
   html += '</div>'; // info-grid
+
+  html += '<div class="info-grid">';
+  html += '<div class="info-section"><h4>💳 תנאי לקוח</h4>';
+  html += infoRow('תנאי תשלום', c.payment_terms);
+  html += infoRow('תצוגת מחירון בפורטל', priceListVisibilityLabel(c.portal_price_list_visibility));
+  html += infoRow('סוג חישוב מחיר', c.price_tier === 'customer' ? 'מחירון לקוח' : 'מחירון כללי');
+  html += '</div>';
+  html += '<div class="info-section"><h4>🖨️ שיקוף לקוח</h4>';
+  html += infoRow('מה הלקוח רואה', c.portal_price_list_visibility === 'none' ? 'אין טאב מחירון בפורטל' : 'מחירון נקי להדפסה ללא שם מחירון פנימי');
+  html += '<button class="btn-action" onclick="getPortalLink('+c.id+')">צפה / שלח קישור פורטל</button>';
+  html += '</div>';
+  html += '</div>';
 
   // ── Notes ──
   if (c.notes) {
@@ -1348,6 +1389,9 @@ function openModal(id) {
       document.getElementById('fPhone').value        = c.phone        || '';
       document.getElementById('fEmail').value        = c.email        || '';
       document.getElementById('fAddress').value      = c.address      || '';
+      document.getElementById('fTaxId').value        = c.tax_id       || '';
+      document.getElementById('fPaymentTerms').value = c.payment_terms|| '';
+      document.getElementById('fPortalPriceListVisibility').value = c.portal_price_list_visibility || 'none';
       document.getElementById('fPriorityId').value   = c.priority_id  || '';
       document.getElementById('fContactName').value  = c.contact_name || '';
       document.getElementById('fContactPhone').value = c.contact_phone|| '';
@@ -1359,6 +1403,9 @@ function openModal(id) {
         document.getElementById('fPhone').value        = c.phone        || '';
         document.getElementById('fEmail').value        = c.email        || '';
         document.getElementById('fAddress').value      = c.address      || '';
+        document.getElementById('fTaxId').value        = c.tax_id       || '';
+        document.getElementById('fPaymentTerms').value = c.payment_terms|| '';
+        document.getElementById('fPortalPriceListVisibility').value = c.portal_price_list_visibility || 'none';
         document.getElementById('fPriorityId').value   = c.priority_id  || '';
         document.getElementById('fContactName').value  = c.contact_name || '';
         document.getElementById('fContactPhone').value = c.contact_phone|| '';
@@ -1372,6 +1419,9 @@ function openModal(id) {
     document.getElementById('fPhone').value       = '';
     document.getElementById('fEmail').value       = '';
     document.getElementById('fAddress').value     = '';
+    document.getElementById('fTaxId').value       = '';
+    document.getElementById('fPaymentTerms').value= '';
+    document.getElementById('fPortalPriceListVisibility').value = 'none';
     document.getElementById('fPriorityId').value  = '';
     document.getElementById('fContactName').value = '';
     document.getElementById('fContactPhone').value= '';
@@ -1403,6 +1453,9 @@ async function saveCustomer() {
     phone:        document.getElementById('fPhone').value.trim()        || null,
     email:        document.getElementById('fEmail').value.trim()        || null,
     address:      document.getElementById('fAddress').value.trim()      || null,
+    taxId:        document.getElementById('fTaxId').value.trim()        || null,
+    paymentTerms: document.getElementById('fPaymentTerms').value.trim() || null,
+    portalPriceListVisibility: document.getElementById('fPortalPriceListVisibility').value || 'none',
     priorityId:   document.getElementById('fPriorityId').value.trim()   || null,
     contactName:  document.getElementById('fContactName').value.trim()  || null,
     contactPhone: document.getElementById('fContactPhone').value.trim() || null,

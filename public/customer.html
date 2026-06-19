@@ -128,6 +128,19 @@
     .guarantee-row{display:flex;justify-content:space-between;gap:10px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-size:12px}
     .guarantee-row b{font-size:13px}
     .guarantee-row span{color:var(--dim)}
+    .portal-price-panel{border:1.5px solid #d8e2ef;background:#fbfdff}
+    .portal-price-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+    .portal-price-head p{font-size:12px;color:var(--dim);line-height:1.55;margin-top:4px}
+    .portal-price-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .portal-price-preview{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .portal-price-preview table{width:100%;border-collapse:collapse;font-size:12px}
+    .portal-price-preview th,.portal-price-preview td{border-bottom:1px solid #edf1f5;padding:8px 9px;text-align:right}
+    .portal-price-preview th{background:#f4f6f9;color:#526070;font-size:11px;font-weight:800}
+    .portal-price-preview .empty{padding:18px;text-align:center;color:var(--dim);font-size:13px}
+    .portal-price-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+    .portal-price-meta div{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+    .portal-price-meta span{display:block;color:var(--dim);font-size:11px;font-weight:700}
+    .portal-price-meta strong{display:block;font-size:13px;margin-top:2px}
 
     /* ── Price box ── */
     .price-box{background:linear-gradient(135deg,#1a1a2e,#2d3a5e);color:#fff;border-radius:14px;padding:18px;margin-bottom:16px}
@@ -235,6 +248,7 @@
   <button class="new-order-btn" onclick="showScreen('screenOrder')">
     ➕ הזמנה חדשה
   </button>
+  <div id="portalPriceListPanel"></div>
   <div class="section-card guarantee-panel">
     <div class="guarantee-head">
       <div>
@@ -329,6 +343,7 @@ let TOKEN = null;
 let ME    = null;
 let SHAPES = [];
 let PRICE_LIST = {};  // {diameter: price_per_kg}
+let PRICE_LIST_DOCUMENT = null;
 let orderItems  = []; // [{id, shapeId, shapeName, diameter, sides, angles, qty, note}]
 let portalSourceFiles = [];
 let guaranteeDocuments = [];
@@ -370,14 +385,17 @@ async function loadShapes() {
 }
 
 async function loadPriceList() {
-  const pl = await fetch(`/api/c/price-list?token=${TOKEN}`).then(r=>r.json()).catch(()=>[]);
+  const pl = await fetch(`/api/c/price-list?token=${TOKEN}`).then(r=>r.json()).catch(()=>({ priceHidden:true, items:[] }));
   PRICE_LIST = {};
-  if (Array.isArray(pl)) {
-    pl.forEach(r => {
-      if (!r.requiresPriceListUpdate && r.price_per_kg !== null) {
-        PRICE_LIST[r.diameter] = parseFloat(r.price_per_kg);
-      }
-    });
+  PRICE_LIST_DOCUMENT = null;
+  const rows = Array.isArray(pl) ? pl : (Array.isArray(pl.items) ? pl.items : []);
+  rows.forEach(r => {
+    if (!r.requiresPriceListUpdate && r.price_per_kg !== null) {
+      PRICE_LIST[r.diameter] = parseFloat(r.price_per_kg);
+    }
+  });
+  if (!Array.isArray(pl) && !pl.priceHidden) {
+    PRICE_LIST_DOCUMENT = pl;
   }
 }
 
@@ -531,7 +549,167 @@ async function showHome(preloaded) {
 
   const orders = preloaded ?? await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json()).then(d=>d.orders).catch(()=>[]);
   await loadGuaranteeDocuments();
+  renderPortalPriceListPanel();
   renderOrdersList(orders);
+}
+
+function formatPriceListDate(value) {
+  if (!value) return new Date().toLocaleDateString('he-IL');
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return date.toLocaleDateString('he-IL');
+}
+
+function formatMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return '₪' + n.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderPortalPriceListPanel() {
+  const host = document.getElementById('portalPriceListPanel');
+  if (!host) return;
+  if (!PRICE_LIST_DOCUMENT || PRICE_LIST_DOCUMENT.priceHidden) {
+    host.innerHTML = '';
+    return;
+  }
+
+  const items = Array.isArray(PRICE_LIST_DOCUMENT.items) ? PRICE_LIST_DOCUMENT.items : [];
+  const previewRows = items.slice(0, 8).map((row, idx) => `
+    <tr>
+      <td>${idx + 1}</td>
+      <td>${escapeHtml(row.description || row.category || 'פריט מחירון')}</td>
+      <td>${escapeHtml(row.diameter ? 'Ø' + row.diameter : (row.category || ''))}</td>
+      <td>${escapeHtml(row.unit || 'ק"ג')}</td>
+      <td>${formatMoney(row.price_per_kg ?? row.price)}</td>
+    </tr>
+  `).join('');
+
+  host.innerHTML = `
+    <div class="section-card portal-price-panel">
+      <div class="portal-price-head">
+        <div>
+          <div class="card-title">מחירון</div>
+          <p>המחירון מוצג לפי פרטי הלקוח המעודכנים בטנא. שם מחירון פנימי אינו מוצג.</p>
+        </div>
+        <div class="portal-price-actions">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="printPortalPriceList()">הדפס מחירון</button>
+        </div>
+      </div>
+      <div class="portal-price-meta">
+        <div><span>לקוח</span><strong>${escapeHtml(PRICE_LIST_DOCUMENT.customer?.name || ME?.name || '')}</strong></div>
+        <div><span>ח.פ</span><strong>${escapeHtml(PRICE_LIST_DOCUMENT.customer?.tax_id || ME?.tax_id || '-')}</strong></div>
+        <div><span>תאריך מחירון</span><strong>${escapeHtml(formatPriceListDate(PRICE_LIST_DOCUMENT.updatedAt))}</strong></div>
+      </div>
+      <div class="portal-price-preview">
+        ${items.length ? `<table>
+          <thead><tr><th>#</th><th>תיאור</th><th>טווח / קוטר</th><th>יח'</th><th>מחיר</th></tr></thead>
+          <tbody>${previewRows}</tbody>
+        </table>` : '<div class="empty">אין שורות מחירון פעילות להצגה.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function priceListRowsHtml(items) {
+  if (!items.length) {
+    return '<tr><td colspan="6" class="empty-row">אין שורות מחירון פעילות להצגה.</td></tr>';
+  }
+  return items.map((row, idx) => `
+    <tr>
+      <td>${idx + 1}</td>
+      <td>${escapeHtml(row.sku || '')}</td>
+      <td>${escapeHtml(row.description || row.category || 'פריט מחירון')}</td>
+      <td>${escapeHtml(row.diameter ? 'Ø' + row.diameter : (row.category || ''))}</td>
+      <td>${escapeHtml(row.unit || 'ק"ג')}</td>
+      <td>${formatMoney(row.price_per_kg ?? row.price)}</td>
+    </tr>
+  `).join('');
+}
+
+function buildPriceListPrintHtml() {
+  const doc = PRICE_LIST_DOCUMENT || {};
+  const customer = doc.customer || ME || {};
+  const items = Array.isArray(doc.items) ? doc.items : [];
+  const date = formatPriceListDate(doc.updatedAt);
+  const vatNote = doc.vatNote || 'המחירים אינם כוללים מע"מ';
+  return `<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>מחירון ללקוח</title>
+<style>
+  @page{size:A4;margin:14mm}
+  *{box-sizing:border-box}
+  body{font-family:Arial,'Segoe UI',sans-serif;color:#111;margin:0;background:#fff;direction:rtl}
+  .sheet{width:100%;min-height:260mm;padding:0}
+  .top{display:grid;grid-template-columns:1fr 1fr;gap:18px;border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:14px}
+  .brand{font-size:22px;font-weight:900}
+  .brand small{display:block;font-size:12px;font-weight:400;margin-top:4px}
+  .title{text-align:left;font-size:24px;font-weight:900}
+  .title span{display:block;font-size:13px;font-weight:700;margin-top:6px}
+  .customer-box{display:grid;grid-template-columns:1.3fr 1fr;gap:12px;margin:12px 0 16px}
+  .box{border:1px solid #111;padding:10px;min-height:74px}
+  .box h2{font-size:15px;margin:0 0 8px;font-weight:900}
+  .line{font-size:13px;line-height:1.7}
+  .line b{display:inline-block;min-width:86px}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  th,td{border:1px solid #111;padding:7px 8px;text-align:right;vertical-align:top}
+  th{background:#efefef;font-weight:900}
+  td:first-child,th:first-child{text-align:center;width:34px}
+  .empty-row{text-align:center;color:#666;padding:20px}
+  .note{font-size:13px;font-weight:900;margin-top:14px}
+  .terms{font-size:12px;margin-top:6px;line-height:1.6}
+  .sign{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:24px;font-size:13px}
+  .sign div{border-top:1px solid #111;padding-top:8px;text-align:center}
+</style>
+</head>
+<body>
+  <main class="sheet">
+    <section class="top">
+      <div class="brand">טנא תעשיות ברזל<small>ברזל בניין, כיפוף, אספקה ותכנון ייצור</small></div>
+      <div class="title">מחירון ללקוח<span>תאריך מחירון: ${escapeHtml(date)}</span></div>
+    </section>
+    <section class="customer-box">
+      <div class="box">
+        <h2>לכבוד</h2>
+        <div class="line"><b>שם לקוח:</b> ${escapeHtml(customer.name || '')}</div>
+        <div class="line"><b>ח.פ:</b> ${escapeHtml(customer.tax_id || '-')}</div>
+        <div class="line"><b>כתובת:</b> ${escapeHtml(customer.address || '-')}</div>
+      </div>
+      <div class="box">
+        <h2>פרטי התקשרות</h2>
+        <div class="line"><b>טלפון:</b> ${escapeHtml(customer.phone || '-')}</div>
+        <div class="line"><b>אימייל:</b> ${escapeHtml(customer.email || '-')}</div>
+        <div class="line"><b>תנאי תשלום:</b> ${escapeHtml(customer.payment_terms || '-')}</div>
+      </div>
+    </section>
+    <table>
+      <thead>
+        <tr><th>#</th><th>מק"ט</th><th>תיאור</th><th>טווח / קוטר</th><th>יח'</th><th>מחיר</th></tr>
+      </thead>
+      <tbody>${priceListRowsHtml(items)}</tbody>
+    </table>
+    <div class="note">${escapeHtml(vatNote)}</div>
+    <div class="terms">המחירון מיועד ללקוח הרשום בלבד. המחירים כפופים לאישור הזמנה ולנתוני הייצור בפועל.</div>
+    <section class="sign">
+      <div>חתימה וחותמת הלקוח</div>
+      <div>אישור טנא</div>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function printPortalPriceList() {
+  if (!PRICE_LIST_DOCUMENT || PRICE_LIST_DOCUMENT.priceHidden) return;
+  const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
+  if (!w) { toast('הדפדפן חסם פתיחת חלון הדפסה', true); return; }
+  w.document.open();
+  w.document.write(buildPriceListPrintHtml());
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 250);
 }
 
 async function loadGuaranteeDocuments() {

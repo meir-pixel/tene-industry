@@ -182,6 +182,43 @@
   - אפיון מלא לפני קוד.
   - owner/input/output/db/api/events/screens מוגדרים.
 
+
+### V2-005A — Customer Portal Price List Visibility And Print Template
+
+- status: done
+- owner: codex-customer-portal
+- module: customers/portal
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `db/coreSchema.js`
+  - `db/startup.js`
+  - `routes/customers.js`
+  - `routes/portal.js`
+  - `services/portalAccess.js`
+  - `public/customers.html`
+  - `public/customer.html`
+- input:
+  - customer profile
+  - customer tax id / company id
+  - portal price list visibility: none / general / customer
+  - active general or customer price book
+  - reference PDF: customer printable price list layout
+- output:
+  - customer card controls whether the portal shows no price list, a general price list, or the customer price list.
+  - customer-facing portal never exposes internal price book names, tiers, labels, or management source fields.
+  - printable customer price list uses customer fields dynamically: name, tax id, address, phone, email, price date, rows, VAT note, signature area.
+- logic:
+  - order quote calculation remains separate from price-list visibility.
+  - customers with no visible price list can still receive order quotes according to their pricing rules.
+  - a customer configured for a visible general price list sees a printable public document, not the internal price book name.
+  - a customer configured for a visible customer price list sees the same public document format with customer-specific rows.
+- definition_of_done:
+  - admin customer detail includes tax id and price-list visibility.
+  - portal `/api/c/price-list` returns hidden state unless visibility allows a printable document.
+  - portal price list print view matches the uploaded reference structure closely enough for operational use.
+  - frontend and backend syntax checks pass.
+
 ### V2-006 — Steel/Rebar Industry Specification
 
 - status: todo

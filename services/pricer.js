@@ -67,7 +67,8 @@ function createPricer(db) {
     const book = getActivePriceBook(options);
     if (!book) return null;
     const row = db.prepare(`
-      SELECT i.*, b.id AS price_book_id, b.code AS price_book_code, b.name AS price_book_name, b.price_type
+      SELECT i.*, b.id AS price_book_id, b.code AS price_book_code, b.name AS price_book_name, b.price_type,
+             b.updated_at AS price_book_updated_at
       FROM pricing_price_items i
       JOIN pricing_price_books b ON b.id = i.price_book_id
       WHERE i.price_book_id = ?
@@ -87,7 +88,8 @@ function createPricer(db) {
     const book = getActivePriceBook(options);
     if (!book) return [];
     return db.prepare(`
-      SELECT i.*, b.id AS price_book_id, b.code AS price_book_code, b.name AS price_book_name, b.price_type
+      SELECT i.*, b.id AS price_book_id, b.code AS price_book_code, b.name AS price_book_name, b.price_type,
+             b.updated_at AS price_book_updated_at
       FROM pricing_price_items i
       JOIN pricing_price_books b ON b.id = i.price_book_id
       WHERE i.price_book_id = ? AND i.active = 1
@@ -143,6 +145,51 @@ function createPricer(db) {
         customerId: customer.id,
         discountPct: customer.discount_pct || 0,
       }));
+  }
+
+  function normalizePortalVisibility(visibility) {
+    return ['none', 'general', 'customer'].includes(visibility) ? visibility : 'none';
+  }
+
+  function listPortalPriceList(customer = {}) {
+    const visibility = normalizePortalVisibility(customer.portal_price_list_visibility);
+    if (visibility === 'none') {
+      return { priceHidden: true, visibility, items: [] };
+    }
+
+    const tier = visibility === 'customer' ? 'customer' : 'general';
+    const rows = getAllPriceRows({ tier, customerId: customer.id });
+    const items = rows.map(row => {
+      const price = resolveDiameterPrice(row.diameter || row.sku, {
+        tier,
+        customerId: customer.id,
+        discountPct: customer.discount_pct || 0,
+      });
+      return {
+        sku: row.sku || null,
+        description: row.description || row.item_name || row.name || (row.diameter ? `ברזל בניין ${row.diameter} מ"מ` : ''),
+        diameter: row.diameter || null,
+        category: row.category || '',
+        unit: row.unit || 'ק"ג',
+        quantity: row.quantity || 1,
+        price_per_kg: price.price_per_kg,
+        price: price.price_per_kg,
+        status: price.status,
+        requiresPriceListUpdate: price.requiresPriceListUpdate,
+        warning: price.warning,
+        public_note: row.public_note || row.note || '',
+        updated_at: row.price_book_updated_at || row.updated_at || null,
+      };
+    });
+
+    return {
+      priceHidden: false,
+      visibility,
+      title: 'מחירון',
+      updatedAt: items.find(item => item.updated_at)?.updated_at || null,
+      vatNote: 'המחירים אינם כוללים מע"מ',
+      items,
+    };
   }
 
   function calcItemPrice(item, { tier = 'general', customerId = null, discountPct = 0 } = {}) {
@@ -217,6 +264,7 @@ function createPricer(db) {
     calcOrderPriceForCustomer,
     getBaseListPrice,
     getAllPriceRows,
+    listPortalPriceList,
   };
 }
 

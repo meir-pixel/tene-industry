@@ -13,7 +13,7 @@ function createPortalAccessService(deps) {
   const PORT = required('PORT', deps.PORT);
 
   // BUG-41: limited projection - never return sensitive fields via portal resolver.
-  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct';
+  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct,price_approved_at';
 
   // ── משתמשי פורטל עם תפקידים (מזמין/מאשר) — ראה docs/spec-portal-roles.md ──
   db.exec(`
@@ -214,7 +214,16 @@ function createPortalAccessService(deps) {
       token,
       link: `${baseUrl}/customer.html?token=${token}`,
       expiresAt: customer.portal_token_expires_at || null,
-      customer: { id: customer.id, name: customer.name, phone: customer.phone, price_tier: customer.price_tier }
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        address: customer.address,
+        tax_id: customer.tax_id,
+        payment_terms: customer.payment_terms,
+        portal_price_list_visibility: customer.portal_price_list_visibility,
+        price_tier: customer.price_tier,
+      }
     };
   }
 

@@ -92,7 +92,17 @@ module.exports = function createPortalRouter(deps) {
       expiresAt,
       role: user.role,
       caps,
-      customer: { id: c.id, name: c.name, phone: c.phone, price_tier: caps.seePrice ? c.price_tier : undefined }
+      customer: {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        tax_id: c.tax_id,
+        payment_terms: c.payment_terms,
+        portal_price_list_visibility: c.portal_price_list_visibility,
+        price_tier: caps.seePrice ? c.price_tier : undefined
+      }
     });
   });
 
@@ -115,7 +125,17 @@ module.exports = function createPortalRouter(deps) {
       expiresAt,
       role: user.role,
       caps,
-      customer: { id: customer.id, name: customer.name, phone: customer.phone, price_tier: caps.seePrice ? customer.price_tier : undefined }
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+        tax_id: customer.tax_id,
+        payment_terms: customer.payment_terms,
+        portal_price_list_visibility: customer.portal_price_list_visibility,
+        price_tier: caps.seePrice ? customer.price_tier : undefined
+      }
     });
   });
 
@@ -181,7 +201,21 @@ module.exports = function createPortalRouter(deps) {
       FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 20
     `).all(c.id);
     if (!s.caps.seePrice) orders = orders.map(({ portal_price, ...o }) => o); // מזמין (שטח) לא רואה מחיר
-    res.json({ customer: { id: c.id, name: c.name, phone: c.phone }, role: s.role, caps: s.caps, orders }); // BUG-40: ללא price_tier/discount_pct
+    res.json({
+      customer: {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        tax_id: c.tax_id,
+        payment_terms: c.payment_terms,
+        portal_price_list_visibility: c.portal_price_list_visibility
+      },
+      role: s.role,
+      caps: s.caps,
+      orders
+    }); // BUG-40: ללא price_tier/discount_pct
   });
 
   // Shapes (public)
@@ -194,17 +228,35 @@ module.exports = function createPortalRouter(deps) {
     const { token } = req.query;
     const s = session(token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
-    if (!s.caps.seePrice) return res.json({ priceHidden: true, items: [] }); // מזמין לא רואה מחירון
+    if (!s.caps.seePrice) return res.json({ priceHidden: true, visibility: 'none', items: [] }); // מזמין לא רואה מחירון
     const c = s.customer;
-    res.json(pricer.listCustomerPrices(c).map(row => ({
-      diameter: row.diameter,
-      price_per_kg: row.price_per_kg === null ? null : +row.price_per_kg.toFixed(2),
-      pricingSource: row.pricingSource,
-      pricingLabel: row.pricingLabel,
-      status: row.status,
-      requiresPriceListUpdate: row.requiresPriceListUpdate,
-      warning: row.warning,
-    })));
+    const doc = pricer.listPortalPriceList(c);
+    if (doc.priceHidden) return res.json(doc);
+    res.json({
+      ...doc,
+      customer: {
+        name: c.name,
+        tax_id: c.tax_id,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        payment_terms: c.payment_terms,
+      },
+      items: doc.items.map(row => ({
+        sku: row.sku,
+        description: row.description,
+        diameter: row.diameter,
+        category: row.category,
+        unit: row.unit,
+        quantity: row.quantity,
+        price_per_kg: row.price_per_kg === null ? null : +row.price_per_kg.toFixed(2),
+        price: row.price === null ? null : +row.price.toFixed(2),
+        status: row.status,
+        requiresPriceListUpdate: row.requiresPriceListUpdate,
+        warning: row.warning,
+        public_note: row.public_note,
+      })),
+    });
   });
 
   router.get('/c/guarantee-documents', customerPortalActionLimiter, (req, res) => {

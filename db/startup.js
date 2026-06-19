@@ -15,6 +15,9 @@ function runCoreMigrations(db) {
   }
   addCol('customers',  'email',              'TEXT');
   addCol('customers',  'notes',              'TEXT');
+  addCol('customers',  'tax_id',             'TEXT');
+  addCol('customers',  'payment_terms',      'TEXT');
+  addCol('customers',  'portal_price_list_visibility', "TEXT DEFAULT 'none'"); // 'none' | 'general' | 'customer'
   addCol('drivers',    'vehicle_desc',       'TEXT');       // e.g. "משאית מרצדס 2018"
   addCol('drivers',    'license_plate',      'TEXT');       // plate number
   addCol('drivers',    'license_expiry',     'TEXT');       // YYYY-MM-DD

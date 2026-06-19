@@ -9,13 +9,17 @@ module.exports = function createCustomersRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
 
+  function normalizePortalPriceListVisibility(value) {
+    return ['none', 'general', 'customer'].includes(value) ? value : 'none';
+  }
+
   router.get('/customers', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const q = req.query.q || '';
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     // BUG-26: no portal_token in list response
     const rows = db.prepare(`
-      SELECT c.id,c.name,c.phone,c.email,c.address,c.contact_name,c.contact_phone,c.priority_id,c.notes,
-             c.price_tier,c.discount_pct,
+      SELECT c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,
+             c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,
              COALESCE(cc.open_debt,0) AS balance,
              COALESCE(cc.credit_limit,0) AS credit_limit,
              c.created_at,
@@ -34,7 +38,7 @@ module.exports = function createCustomersRouter(deps) {
   });
 
   // BUG-26: no portal_token in admin customer detail — use dedicated /token endpoint
-  const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
+  const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
   router.get('/customers/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers c LEFT JOIN customer_credit cc ON cc.customer_id=c.id WHERE c.id=?`).get(req.params.id);
     if (!c) return res.status(404).json({ error: 'לא נמצא' });
@@ -53,17 +57,17 @@ module.exports = function createCustomersRouter(deps) {
   });
 
   router.post('/customers', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-    const { name, phone, email, address, contactName, contactPhone, priorityId, notes } = req.body;
+    const { name, phone, email, address, taxId, paymentTerms, portalPriceListVisibility, contactName, contactPhone, priorityId, notes } = req.body;
     if (!name) return res.status(400).json({ error: 'שם חובה' });
-    const r = db.prepare(`INSERT INTO customers (name,phone,email,address,contact_name,contact_phone,priority_id,notes) VALUES (?,?,?,?,?,?,?,?)`)
-      .run(name, phone, email, address, contactName, contactPhone, priorityId, notes);
+    const r = db.prepare(`INSERT INTO customers (name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,contact_name,contact_phone,priority_id,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(name, phone, email, address, taxId, paymentTerms, normalizePortalPriceListVisibility(portalPriceListVisibility), contactName, contactPhone, priorityId, notes);
     res.json({ id: r.lastInsertRowid });
   });
 
   router.patch('/customers/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-    const { name, phone, email, address, contactName, contactPhone, priorityId, notes } = req.body;
-    db.prepare(`UPDATE customers SET name=?,phone=?,email=?,address=?,contact_name=?,contact_phone=?,priority_id=?,notes=? WHERE id=?`)
-      .run(name, phone, email, address, contactName, contactPhone, priorityId, notes, req.params.id);
+    const { name, phone, email, address, taxId, paymentTerms, portalPriceListVisibility, contactName, contactPhone, priorityId, notes } = req.body;
+    db.prepare(`UPDATE customers SET name=?,phone=?,email=?,address=?,tax_id=?,payment_terms=?,portal_price_list_visibility=?,contact_name=?,contact_phone=?,priority_id=?,notes=? WHERE id=?`)
+      .run(name, phone, email, address, taxId, paymentTerms, normalizePortalPriceListVisibility(portalPriceListVisibility), contactName, contactPhone, priorityId, notes, req.params.id);
     res.json({ success: true });
   });
 
