@@ -234,6 +234,55 @@
   - portal price list print view matches the uploaded reference structure closely enough for operational use.
   - frontend and backend syntax checks pass.
 
+### V2-005B — Customer Portal Sites, Field Users And Budget Control
+
+- status: todo
+- owner: codex-customer-portal
+- module: customers/portal
+- priority: high
+- latest_change:
+  - captured the customer-site hierarchy requirement: customer admins create sites, assign foremen, delegate permissions, control price visibility, and track steel quantity/spend against project budgets.
+- scope:
+  - `TASKS_V2.md`
+  - `docs/modules/portal.md`
+  - future: `db/coreSchema.js`
+  - future: `routes/customers.js`
+  - future: `routes/portal.js`
+  - future: `services/portalAccess.js`
+  - future: `public/customers.html`
+  - future: `public/customer.html`
+- input:
+  - customer
+  - customer sites/projects
+  - customer portal users
+  - site assignment and default site
+  - delegated permissions from customer manager to finance/project/field users
+  - project budget in money and steel quantity
+  - order totals, delivery totals, invoice totals
+- output:
+  - customer portal users see only the sites they are authorized for.
+  - a field manager assigned to one site opens orders directly for that site without choosing a site.
+  - multi-site users can choose only from their authorized sites.
+  - customer managers can create sites and invite/manage users when Tene grants that capability.
+  - budget dashboards show ordered/approved/delivered/invoiced steel and spend per site, respecting price permissions.
+  - field users can be blocked from seeing prices while finance users can see money, budgets, invoices, and overruns.
+- logic:
+  - permission delegation is hierarchical: a user can grant only permissions they already have and only inside their allowed sites.
+  - Tene controls the top-level customer capabilities: portal active, can manage users, can create sites, can set budgets, can expose prices to customer users.
+  - customer managers control their own internal users inside the limits granted by Tene.
+  - every order created in the portal must resolve to an authorized `site_id`; client-provided site IDs are never trusted without server validation.
+  - budget usage should be visible in layers: ordered, approved, delivered, invoiced.
+  - budget overrun requires an explicit approval path by a user with `can_approve_budget_overrun`.
+  - every permission change is audit logged with actor, target user, before/after, time, and affected sites.
+- definition_of_done:
+  - DB contract exists for customer sites, portal users, site assignments, permissions, budgets, and audit log.
+  - portal auth response includes role, allowed sites, default site, and capability flags.
+  - single-site field users never see a site picker when opening an order.
+  - customer admin can create sites and assign users according to delegated permissions.
+  - price/budget/invoice visibility is enforced server-side and reflected in the UI.
+  - site dashboard summarizes steel quantity and money usage without leaking prices to unauthorized users.
+  - tests cover site authorization, price visibility, budget overrun approval, and forbidden cross-site access.
+
 ### V2-006 — Steel/Rebar Industry Specification
 
 - status: todo
