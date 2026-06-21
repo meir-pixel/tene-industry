@@ -379,6 +379,12 @@ const WEIGHTS   = {6:0.222,8:0.395,10:0.617,12:0.888,14:1.21,16:1.58,18:2.00,20:
     try {
       const me = await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json());
       if (me.customer) {
+        if (me.token) {
+          TOKEN = me.token;
+          const url = new URL(location.href);
+          url.searchParams.set('token', TOKEN);
+          history.replaceState({}, '', url);
+        }
         setPortalContext(me);
         localStorage.setItem('ib_token', TOKEN);
         await loadShapes();

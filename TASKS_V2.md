@@ -241,6 +241,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
+  - removed the visible old/new portal split by converting legacy customer links into per-user portal tokens on first portal load.
   - fixed the customer portal home view so saved customer sites are shown automatically after refresh instead of hiding behind the Sites button.
   - added customer self-service site creation in the customer portal so authorized customer managers can open their own project sites before placing orders.
   - added the first runtime foundation for customer sites, portal-user site assignments, delegated permission flags, budget fields, audit log, authorized site summaries, and portal order site binding.

@@ -38,19 +38,34 @@ module.exports = function createPortalRouter(deps) {
     portalAuthResponse,
   } = portalAccess;
 
-  // session(token) → {customer, role}. טוקן פר-משתמש; נפילה לטוקן חברה ישן (role=both, תאימות לאחור).
+  // session(token) -> {customer, user, role}. Only per-user portal tokens are active sessions.
   function session(token) {
     const s = resolvePortalSession(token);
     if (s) {
       const ctx = portalContext(s.customer, s.user);
       return { customer: s.customer, user: s.user, role: ctx.role, caps: ctx.caps, portal: ctx };
     }
-    const c = resolveCustomer(token);
-    if (c) {
-      const ctx = portalContext(c, null);
-      return { customer: c, user: null, role: ctx.role, caps: ctx.caps, portal: ctx };
-    }
-    return null;
+    return upgradeLegacyCustomerToken(token);
+  }
+
+  function upgradeLegacyCustomerToken(token) {
+    const customer = resolveCustomer(token);
+    if (!customer || !customer.phone) return null;
+    const user = findOrCreatePortalUser(customer.id, customer.phone, customer.name);
+    const issued = issueUserToken(user);
+    const freshUser = db.prepare('SELECT * FROM portal_users WHERE id=?').get(user.id);
+    const ctx = portalContext(customer, freshUser);
+    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+    return {
+      customer,
+      user: freshUser,
+      role: ctx.role,
+      caps: ctx.caps,
+      portal: ctx,
+      upgradedToken: issued.token,
+      upgradedExpiresAt: issued.expiresAt,
+      upgradedLink: `${baseUrl}/customer.html?token=${issued.token}`,
+    };
   }
 
   function publicPortalUser(user, portal) {
@@ -173,7 +188,6 @@ module.exports = function createPortalRouter(deps) {
   router.post('/c/password/change', customerPortalActionLimiter, (req, res) => {
     const s = session(req.body.token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
-    if (!s.user) return res.status(400).json({ error: 'כניסה בקישור ישן אינה תומכת בשינוי סיסמה. היכנס עם משתמש פורטל.' });
     const oldPassword = String(req.body.oldPassword || '');
     const newPassword = String(req.body.newPassword || '');
     if (s.user.password_hash && !verifyPortalPassword(s.user, oldPassword)) {
@@ -224,7 +238,7 @@ module.exports = function createPortalRouter(deps) {
   // Get customer info + recent orders
   router.get('/c/me', customerPortalActionLimiter, (req, res) => {
     const { token } = req.query;
-    const s = session(token);
+    const s = session(token) || upgradeLegacyCustomerToken(token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
     const c = s.customer;
     let orders = db.prepare(`
@@ -259,6 +273,9 @@ module.exports = function createPortalRouter(deps) {
       sites: s.portal.sites,
       defaultSiteId: s.portal.defaultSiteId,
       canChooseSite: s.portal.canChooseSite,
+      token: s.upgradedToken,
+      link: s.upgradedLink,
+      expiresAt: s.upgradedExpiresAt,
       orders
     }); // BUG-40: ללא price_tier/discount_pct
   });
