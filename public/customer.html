@@ -497,6 +497,19 @@ function renderCustomerSitesPanel() {
   `;
 }
 
+function syncCustomerSitesPanel() {
+  const btn = document.getElementById('manageSitesBtn');
+  const panel = document.getElementById('customerSitesPanel');
+  if (btn) btn.style.display = (canManagePortalSites() || PORTAL_SITES.length) ? '' : 'none';
+  if (!panel) return;
+  if (PORTAL_SITES.length) {
+    panel.style.display = '';
+    renderCustomerSitesPanel();
+  } else if (panel.style.display !== 'none') {
+    renderCustomerSitesPanel();
+  }
+}
+
 async function createPortalSite() {
   const name = document.getElementById('newSiteName')?.value.trim();
   if (!name) { toast('שם אתר חובה', true); return; }
@@ -516,7 +529,7 @@ async function createPortalSite() {
   toast('האתר נפתח');
   const sitesData = await fetch(`/api/c/sites?token=${TOKEN}`).then(r=>r.json()).catch(()=>null);
   setPortalContext(sitesData);
-  renderCustomerSitesPanel();
+  syncCustomerSitesPanel();
   renderOrderSitePicker();
 }
 
@@ -666,10 +679,10 @@ async function showHome(preloaded) {
   document.getElementById('welcomeName').textContent = `שלום, ${ME?.name || ''}! 👋`;
   const tierTxt = ME?.price_tier === 'customer' ? 'לקוח קבוע' : 'מחירון';
   document.getElementById('tierLabel').textContent = tierTxt;
-  document.getElementById('manageSitesBtn').style.display = (canManagePortalSites() || PORTAL_SITES.length) ? '' : 'none';
   showScreen('screenHome');
 
   const orders = preloaded ?? await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json()).then(d=>{ setPortalContext(d); return d.orders; }).catch(()=>[]);
+  syncCustomerSitesPanel();
   await loadGuaranteeDocuments();
   renderPortalPriceListPanel();
   renderOrdersList(orders);
