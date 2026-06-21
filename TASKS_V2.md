@@ -236,21 +236,23 @@
 
 ### V2-005B — Customer Portal Sites, Field Users And Budget Control
 
-- status: todo
+- status: in_progress
 - owner: codex-customer-portal
 - module: customers/portal
 - priority: high
 - latest_change:
+  - added the first runtime foundation for customer sites, portal-user site assignments, delegated permission flags, budget fields, audit log, authorized site summaries, and portal order site binding.
   - captured the customer-site hierarchy requirement: customer admins create sites, assign foremen, delegate permissions, control price visibility, and track steel quantity/spend against project budgets.
 - scope:
   - `TASKS_V2.md`
   - `docs/modules/portal.md`
-  - future: `db/coreSchema.js`
-  - future: `routes/customers.js`
-  - future: `routes/portal.js`
-  - future: `services/portalAccess.js`
+  - `db/coreSchema.js`
+  - `db/startup.js`
+  - `routes/customers.js`
+  - `routes/portal.js`
+  - `services/portalAccess.js`
+  - `public/customer.html`
   - future: `public/customers.html`
-  - future: `public/customer.html`
 - input:
   - customer
   - customer sites/projects

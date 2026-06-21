@@ -13,12 +13,21 @@ module.exports = function createCustomersRouter(deps) {
     return ['none', 'general', 'customer'].includes(value) ? value : 'none';
   }
 
+  function boolFlag(value) {
+    return value === true || value === 1 || value === '1' ? 1 : 0;
+  }
+
+  function normalizePhone(value) {
+    return String(value || '').replace(/\D/g, '');
+  }
+
   router.get('/customers', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const q = req.query.q || '';
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     // BUG-26: no portal_token in list response
     const rows = db.prepare(`
       SELECT c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,
+             c.portal_can_manage_users,c.portal_can_create_sites,c.portal_can_set_budgets,c.portal_can_expose_prices,
              c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,
              COALESCE(cc.open_debt,0) AS balance,
              COALESCE(cc.credit_limit,0) AS credit_limit,
@@ -38,7 +47,7 @@ module.exports = function createCustomersRouter(deps) {
   });
 
   // BUG-26: no portal_token in admin customer detail — use dedicated /token endpoint
-  const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
+  const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,c.portal_can_manage_users,c.portal_can_create_sites,c.portal_can_set_budgets,c.portal_can_expose_prices,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
   router.get('/customers/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers c LEFT JOIN customer_credit cc ON cc.customer_id=c.id WHERE c.id=?`).get(req.params.id);
     if (!c) return res.status(404).json({ error: 'לא נמצא' });
@@ -57,18 +66,133 @@ module.exports = function createCustomersRouter(deps) {
   });
 
   router.post('/customers', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-    const { name, phone, email, address, taxId, paymentTerms, portalPriceListVisibility, contactName, contactPhone, priorityId, notes } = req.body;
+    const { name, phone, email, address, taxId, paymentTerms, portalPriceListVisibility, portalCanManageUsers, portalCanCreateSites, portalCanSetBudgets, portalCanExposePrices, contactName, contactPhone, priorityId, notes } = req.body;
     if (!name) return res.status(400).json({ error: 'שם חובה' });
-    const r = db.prepare(`INSERT INTO customers (name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,contact_name,contact_phone,priority_id,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(name, phone, email, address, taxId, paymentTerms, normalizePortalPriceListVisibility(portalPriceListVisibility), contactName, contactPhone, priorityId, notes);
+    const r = db.prepare(`INSERT INTO customers (name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_can_manage_users,portal_can_create_sites,portal_can_set_budgets,portal_can_expose_prices,contact_name,contact_phone,priority_id,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(name, phone, email, address, taxId, paymentTerms, normalizePortalPriceListVisibility(portalPriceListVisibility), boolFlag(portalCanManageUsers), boolFlag(portalCanCreateSites), boolFlag(portalCanSetBudgets), boolFlag(portalCanExposePrices), contactName, contactPhone, priorityId, notes);
     res.json({ id: r.lastInsertRowid });
   });
 
   router.patch('/customers/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
-    const { name, phone, email, address, taxId, paymentTerms, portalPriceListVisibility, contactName, contactPhone, priorityId, notes } = req.body;
-    db.prepare(`UPDATE customers SET name=?,phone=?,email=?,address=?,tax_id=?,payment_terms=?,portal_price_list_visibility=?,contact_name=?,contact_phone=?,priority_id=?,notes=? WHERE id=?`)
-      .run(name, phone, email, address, taxId, paymentTerms, normalizePortalPriceListVisibility(portalPriceListVisibility), contactName, contactPhone, priorityId, notes, req.params.id);
+    const { name, phone, email, address, taxId, paymentTerms, portalPriceListVisibility, portalCanManageUsers, portalCanCreateSites, portalCanSetBudgets, portalCanExposePrices, contactName, contactPhone, priorityId, notes } = req.body;
+    db.prepare(`UPDATE customers SET name=?,phone=?,email=?,address=?,tax_id=?,payment_terms=?,portal_price_list_visibility=?,portal_can_manage_users=?,portal_can_create_sites=?,portal_can_set_budgets=?,portal_can_expose_prices=?,contact_name=?,contact_phone=?,priority_id=?,notes=? WHERE id=?`)
+      .run(name, phone, email, address, taxId, paymentTerms, normalizePortalPriceListVisibility(portalPriceListVisibility), boolFlag(portalCanManageUsers), boolFlag(portalCanCreateSites), boolFlag(portalCanSetBudgets), boolFlag(portalCanExposePrices), contactName, contactPhone, priorityId, notes, req.params.id);
     res.json({ success: true });
+  });
+
+  router.get('/customers/:id/portal-sites', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    const customer = db.prepare('SELECT id FROM customers WHERE id=?').get(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'לא נמצא לקוח' });
+    const sites = db.prepare(`
+      SELECT id,customer_id,name,address,city,status,manager_name,manager_phone,budget_amount,budget_kg,alert_pct,block_over_budget,created_at,updated_at
+      FROM customer_sites
+      WHERE customer_id=?
+      ORDER BY status='active' DESC, name
+    `).all(customer.id);
+    res.json({ sites });
+  });
+
+  router.post('/customers/:id/portal-sites', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const customer = db.prepare('SELECT id FROM customers WHERE id=?').get(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'לא נמצא לקוח' });
+    const f = req.body || {};
+    if (!f.name) return res.status(400).json({ error: 'שם אתר חובה' });
+    const r = db.prepare(`
+      INSERT INTO customer_sites
+        (customer_id,name,address,city,status,manager_name,manager_phone,budget_amount,budget_kg,alert_pct,block_over_budget,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    `).run(
+      customer.id,
+      f.name,
+      f.address || null,
+      f.city || null,
+      f.status || 'active',
+      f.managerName || f.manager_name || null,
+      f.managerPhone || f.manager_phone || null,
+      Number(f.budgetAmount || f.budget_amount || 0),
+      Number(f.budgetKg || f.budget_kg || 0),
+      Number(f.alertPct || f.alert_pct || 80),
+      boolFlag(f.blockOverBudget || f.block_over_budget)
+    );
+    res.json({ id: r.lastInsertRowid });
+  });
+
+  router.get('/customers/:id/portal-users', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    const customer = db.prepare('SELECT id FROM customers WHERE id=?').get(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'לא נמצא לקוח' });
+    const users = db.prepare(`
+      SELECT id,customer_id,phone,name,email,role,active,default_site_id,
+             can_manage_users,can_create_sites,can_assign_site_users,can_create_orders,can_approve_orders,
+             can_view_prices,can_view_budget,can_set_budget,can_approve_budget_overrun,can_view_invoices,can_view_delivery_notes
+      FROM portal_users
+      WHERE customer_id=?
+      ORDER BY active DESC, name, phone
+    `).all(customer.id);
+    const assignments = db.prepare(`
+      SELECT su.portal_user_id,su.site_id,su.is_default,cs.name AS site_name
+      FROM customer_site_users su
+      JOIN customer_sites cs ON cs.id=su.site_id
+      WHERE su.customer_id=?
+      ORDER BY su.is_default DESC, cs.name
+    `).all(customer.id);
+    res.json({ users, assignments });
+  });
+
+  router.post('/customers/:id/portal-users', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const customer = db.prepare('SELECT id FROM customers WHERE id=?').get(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'לא נמצא לקוח' });
+    const f = req.body || {};
+    const phone = normalizePhone(f.phone);
+    if (!phone) return res.status(400).json({ error: 'טלפון חובה' });
+    const allowedRoles = new Set(['orderer', 'approver', 'both']);
+    const role = allowedRoles.has(f.role) ? f.role : 'orderer';
+    const siteIds = Array.isArray(f.siteIds) ? f.siteIds.map(Number).filter(Boolean) : [];
+    const defaultSiteId = Number(f.defaultSiteId || siteIds[0] || 0) || null;
+    const existing = db.prepare('SELECT * FROM portal_users WHERE phone=?').get(phone);
+    if (existing && existing.customer_id !== customer.id) return res.status(409).json({ error: 'הטלפון משויך ללקוח אחר' });
+    const beforeJson = existing ? JSON.stringify(existing) : null;
+    let userId;
+    if (existing) {
+      userId = existing.id;
+      db.prepare(`
+        UPDATE portal_users SET name=COALESCE(?,name),email=?,role=?,active=1,default_site_id=?,
+          can_manage_users=?,can_create_sites=?,can_assign_site_users=?,can_create_orders=?,can_approve_orders=?,
+          can_view_prices=?,can_view_budget=?,can_set_budget=?,can_approve_budget_overrun=?,can_view_invoices=?,
+          can_view_delivery_notes=?,updated_at=CURRENT_TIMESTAMP
+        WHERE id=? AND customer_id=?
+      `).run(
+        f.name || null, f.email || null, role, defaultSiteId,
+        boolFlag(f.canManageUsers), boolFlag(f.canCreateSites), boolFlag(f.canAssignSiteUsers), f.canCreateOrders === false ? 0 : 1, boolFlag(f.canApproveOrders),
+        boolFlag(f.canViewPrices), boolFlag(f.canViewBudget), boolFlag(f.canSetBudget), boolFlag(f.canApproveBudgetOverrun), boolFlag(f.canViewInvoices),
+        f.canViewDeliveryNotes === false ? 0 : 1, userId, customer.id
+      );
+    } else {
+      const r = db.prepare(`
+        INSERT INTO portal_users
+          (customer_id,phone,name,email,role,default_site_id,can_manage_users,can_create_sites,can_assign_site_users,
+           can_create_orders,can_approve_orders,can_view_prices,can_view_budget,can_set_budget,can_approve_budget_overrun,
+           can_view_invoices,can_view_delivery_notes)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(
+        customer.id, phone, f.name || null, f.email || null, role, defaultSiteId,
+        boolFlag(f.canManageUsers), boolFlag(f.canCreateSites), boolFlag(f.canAssignSiteUsers),
+        f.canCreateOrders === false ? 0 : 1, boolFlag(f.canApproveOrders), boolFlag(f.canViewPrices), boolFlag(f.canViewBudget),
+        boolFlag(f.canSetBudget), boolFlag(f.canApproveBudgetOverrun), boolFlag(f.canViewInvoices), f.canViewDeliveryNotes === false ? 0 : 1
+      );
+      userId = r.lastInsertRowid;
+    }
+    db.prepare('DELETE FROM customer_site_users WHERE customer_id=? AND portal_user_id=?').run(customer.id, userId);
+    const addSite = db.prepare('INSERT OR IGNORE INTO customer_site_users (customer_id,site_id,portal_user_id,is_default) VALUES (?,?,?,?)');
+    for (const siteId of siteIds) {
+      const site = db.prepare('SELECT id FROM customer_sites WHERE id=? AND customer_id=?').get(siteId, customer.id);
+      if (site) addSite.run(customer.id, site.id, userId, defaultSiteId === site.id ? 1 : 0);
+    }
+    const afterRow = db.prepare('SELECT * FROM portal_users WHERE id=?').get(userId);
+    db.prepare(`
+      INSERT INTO customer_portal_permission_audit (customer_id,target_portal_user_id,action,before_json,after_json)
+      VALUES (?,?,?,?,?)
+    `).run(customer.id, userId, existing ? 'update_portal_user' : 'create_portal_user', beforeJson, JSON.stringify({ user: afterRow, siteIds }));
+    res.json({ success: true, id: userId });
   });
 
   router.get('/projects', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
@@ -137,6 +261,13 @@ module.exports.manifest = {
     default: 'hidden',
     roles: { admin: 'edit', manager: 'edit', office: 'edit', finance: 'read', sales: 'read' },
   },
-  consumes: [{ table: 'customers' }, { table: 'projects' }, { table: 'sites' }],
+  consumes: [
+    { table: 'customers' },
+    { table: 'projects' },
+    { table: 'sites' },
+    { table: 'customer_sites' },
+    { table: 'portal_users' },
+    { table: 'customer_site_users' },
+  ],
   produces: [],
 };

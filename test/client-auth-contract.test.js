@@ -92,6 +92,39 @@ test('customer CRM can rotate and revoke portal links', () => {
   assert.doesNotMatch(admin, /copyCustomerLink/);
 });
 
+test('customer portal enforces site-scoped users and order site binding', () => {
+  const coreSchema = read('db/coreSchema.js');
+  const startup = read('db/startup.js');
+  const portalAccess = read('services/portalAccess.js');
+  const portalRoute = read('routes/portal.js');
+  const customerRoute = read('routes/customers.js');
+  const customerPage = read('public/customer.html');
+
+  assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS customer_sites/);
+  assert.match(coreSchema, /CREATE TABLE IF NOT EXISTS customer_site_users/);
+  assert.match(coreSchema, /customer_portal_permission_audit/);
+  assert.match(startup, /portal_can_manage_users/);
+  assert.match(startup, /customer_sites/);
+  assert.match(portalAccess, /function portalContext/);
+  assert.match(portalAccess, /function resolveAuthorizedSite/);
+  assert.match(portalAccess, /canChooseSite/);
+  assert.match(portalRoute, /router\.get\('\/c\/sites'/);
+  assert.match(portalRoute, /router\.get\('\/c\/sites\/:siteId\/summary'/);
+  assert.match(portalRoute, /resolveAuthorizedSite\(c\.id, s\.user, siteId\)/);
+  assert.match(portalRoute, /UPDATE orders SET site_id=\? WHERE id=\? AND customer_id=\?/);
+  assert.match(customerRoute, /\/customers\/:id\/portal-sites/);
+  assert.match(customerRoute, /\/customers\/:id\/portal-users/);
+  assert.match(customerPage, /id="orderSiteWrap"/);
+  assert.match(customerPage, /function renderOrderSitePicker/);
+  assert.match(customerPage, /siteId:\s+selectedPortalSiteId\(\)/);
+});
+
+test('customer portal price visibility remains compatible with configured visible price lists', () => {
+  const portalAccess = read('services/portalAccess.js');
+
+  assert.match(portalAccess, /priceExposureAllowed = customerCaps\.canExposePrices \|\| customer\.portal_price_list_visibility !== 'none'/);
+});
+
 test('high-risk screens load shared safe DOM helper', () => {
   const files = [
     'public/admin.html',

@@ -13,7 +13,7 @@ function createPortalAccessService(deps) {
   const PORT = required('PORT', deps.PORT);
 
   // BUG-41: limited projection - never return sensitive fields via portal resolver.
-  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct,price_approved_at';
+  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_can_manage_users,portal_can_create_sites,portal_can_set_budgets,portal_can_expose_prices,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct,price_approved_at';
 
   // ── משתמשי פורטל עם תפקידים (מזמין/מאשר) — ראה docs/spec-portal-roles.md ──
   db.exec(`
@@ -31,6 +31,20 @@ function createPortalAccessService(deps) {
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN token_expires_at TEXT`); } catch {}
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN password_hash TEXT`); } catch {}
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN password_changed_at TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN email TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_manage_users INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_create_sites INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_assign_site_users INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_create_orders INTEGER DEFAULT 1`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_approve_orders INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_view_prices INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_view_budget INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_set_budget INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_approve_budget_overrun INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_view_invoices INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_view_delivery_notes INTEGER DEFAULT 1`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN default_site_id INTEGER`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN updated_at TEXT`); } catch {}
 
   // Backfill חד-פעמי: כל לקוח קיים עם טלפון → משתמש פורטל role=both (שומר התנהגות קיימת)
   try {
@@ -42,14 +56,129 @@ function createPortalAccessService(deps) {
   } catch (e) { console.warn('[portal_users backfill]', e.message); }
 
   // יכולות לפי תפקיד — כולם מזמינים; מחיר ואישור רק ל-approver/both
-  function roleCaps(role) {
+  function bool(value) {
+    return Number(value || 0) === 1;
+  }
+
+  function customerPortalCaps(customer = {}) {
+    return {
+      canManageUsers: bool(customer.portal_can_manage_users),
+      canCreateSites: bool(customer.portal_can_create_sites),
+      canSetBudgets: bool(customer.portal_can_set_budgets),
+      canExposePrices: bool(customer.portal_can_expose_prices),
+    };
+  }
+
+  function roleCaps(portalUserOrRole, customer = {}) {
+    const isUser = portalUserOrRole && typeof portalUserOrRole === 'object';
+    const role = isUser ? portalUserOrRole.role : portalUserOrRole;
     const r = role || 'both';
+    const customerCaps = customerPortalCaps(customer);
+    const oldApprover = r === 'approver' || r === 'both';
+    const fieldManager = r === 'field_manager' || r === 'orderer';
+    const finance = r === 'finance';
+    const customerAdmin = r === 'customer_admin';
+    const userCan = name => isUser ? bool(portalUserOrRole[name]) : false;
+    const priceExposureAllowed = customerCaps.canExposePrices || customer.portal_price_list_visibility !== 'none';
+    const canViewPrices = priceExposureAllowed && (oldApprover || finance || customerAdmin || userCan('can_view_prices'));
     return {
       role: r,
-      canOrder: true,
-      seePrice: r === 'approver' || r === 'both',
-      canApprove: r === 'approver' || r === 'both',
+      canOrder: !isUser || userCan('can_create_orders') || oldApprover || fieldManager || customerAdmin,
+      seePrice: canViewPrices,
+      canApprove: oldApprover || customerAdmin || userCan('can_approve_orders'),
+      canManageUsers: customerCaps.canManageUsers && (customerAdmin || oldApprover || userCan('can_manage_users')),
+      canCreateSites: customerCaps.canCreateSites && (customerAdmin || userCan('can_create_sites')),
+      canAssignSiteUsers: customerCaps.canManageUsers && (customerAdmin || userCan('can_assign_site_users')),
+      canViewBudget: (customerAdmin || finance || userCan('can_view_budget')) && (customerCaps.canSetBudgets || userCan('can_view_budget')),
+      canSetBudget: customerCaps.canSetBudgets && (customerAdmin || finance || userCan('can_set_budget')),
+      canApproveBudgetOverrun: customerCaps.canSetBudgets && (customerAdmin || finance || userCan('can_approve_budget_overrun')),
+      canViewInvoices: finance || customerAdmin || userCan('can_view_invoices'),
+      canViewDeliveryNotes: !isUser || userCan('can_view_delivery_notes') || oldApprover || fieldManager || finance || customerAdmin,
     };
+  }
+
+  function normalizeSite(row, caps = {}) {
+    if (!row) return null;
+    const site = {
+      id: row.id,
+      customer_id: row.customer_id,
+      name: row.name,
+      address: row.address,
+      city: row.city,
+      status: row.status,
+      manager_name: row.manager_name,
+      manager_phone: row.manager_phone,
+      alert_pct: row.alert_pct,
+      block_over_budget: Number(row.block_over_budget || 0) === 1,
+    };
+    if (caps.canViewBudget || caps.canSetBudget || caps.canApproveBudgetOverrun) {
+      site.budget_amount = Number(row.budget_amount || 0);
+      site.budget_kg = Number(row.budget_kg || 0);
+    }
+    return site;
+  }
+
+  function listAuthorizedSites(customerId, portalUser = null, caps = null) {
+    const effectiveCaps = caps || roleCaps(portalUser, {});
+    let rows;
+    if (!portalUser) {
+      rows = db.prepare(`
+        SELECT id,customer_id,name,address,city,status,manager_name,manager_phone,budget_amount,budget_kg,alert_pct,block_over_budget
+        FROM customer_sites
+        WHERE customer_id=? AND COALESCE(status,'active')<>'inactive'
+        ORDER BY name
+      `).all(customerId);
+    } else {
+      rows = db.prepare(`
+        SELECT s.id,s.customer_id,s.name,s.address,s.city,s.status,s.manager_name,s.manager_phone,
+               s.budget_amount,s.budget_kg,s.alert_pct,s.block_over_budget,su.is_default
+        FROM customer_sites s
+        JOIN customer_site_users su ON su.site_id=s.id AND su.portal_user_id=?
+        WHERE s.customer_id=? AND COALESCE(s.status,'active')<>'inactive'
+        ORDER BY su.is_default DESC, s.name
+      `).all(portalUser.id, customerId);
+      if (!rows.length && (portalUser.default_site_id || 0)) {
+        const row = db.prepare(`
+          SELECT id,customer_id,name,address,city,status,manager_name,manager_phone,budget_amount,budget_kg,alert_pct,block_over_budget
+          FROM customer_sites WHERE id=? AND customer_id=? AND COALESCE(status,'active')<>'inactive'
+        `).get(portalUser.default_site_id, customerId);
+        rows = row ? [row] : [];
+      }
+    }
+    return rows.map(row => normalizeSite(row, effectiveCaps));
+  }
+
+  function portalContext(customer, portalUser = null) {
+    const caps = roleCaps(portalUser || 'both', customer);
+    const sites = listAuthorizedSites(customer.id, portalUser, caps);
+    const defaultSiteId = portalUser?.default_site_id && sites.some(site => site.id === portalUser.default_site_id)
+      ? portalUser.default_site_id
+      : sites[0]?.id || null;
+    return {
+      role: portalUser?.role || 'both',
+      caps,
+      portalUser: portalUser ? {
+        id: portalUser.id,
+        name: portalUser.name,
+        phone: portalUser.phone,
+        email: portalUser.email,
+        role: portalUser.role,
+        default_site_id: defaultSiteId,
+      } : null,
+      sites,
+      defaultSiteId,
+      canChooseSite: sites.length > 1,
+    };
+  }
+
+  function resolveAuthorizedSite(customerId, portalUser, requestedSiteId) {
+    const customer = db.prepare(`SELECT ${CUSTOMER_PORTAL_COLS} FROM customers WHERE id=?`).get(customerId) || { id: customerId };
+    const ctx = portalContext(customer, portalUser);
+    if (!ctx.sites.length) return { ok: true, site: null, context: ctx };
+    const wanted = Number(requestedSiteId || ctx.defaultSiteId || 0);
+    const site = ctx.sites.find(row => Number(row.id) === wanted);
+    if (!site) return { ok: false, status: 403, error: 'האתר לא מורשה למשתמש זה', context: ctx };
+    return { ok: true, site, context: ctx };
   }
 
   function resolvePortalUser(phone) {
@@ -210,10 +339,17 @@ function createPortalAccessService(deps) {
   function portalAuthResponse(customer, options = {}) {
     const token = ensurePortalToken(customer, options);
     const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+    const ctx = portalContext(customer, options.portalUser || null);
     return {
       token,
       link: `${baseUrl}/customer.html?token=${token}`,
       expiresAt: customer.portal_token_expires_at || null,
+      role: ctx.role,
+      caps: ctx.caps,
+      portalUser: ctx.portalUser,
+      sites: ctx.sites,
+      defaultSiteId: ctx.defaultSiteId,
+      canChooseSite: ctx.canChooseSite,
       customer: {
         id: customer.id,
         name: customer.name,
@@ -238,6 +374,10 @@ function createPortalAccessService(deps) {
     generatePortalPassword,
     resolvePortalSession,
     roleCaps,
+    customerPortalCaps,
+    portalContext,
+    listAuthorizedSites,
+    resolveAuthorizedSite,
     issuePortalOtp,
     verifyPortalOtp,
     portalAuthResponse,

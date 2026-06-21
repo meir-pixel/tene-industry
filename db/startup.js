@@ -18,6 +18,10 @@ function runCoreMigrations(db) {
   addCol('customers',  'tax_id',             'TEXT');
   addCol('customers',  'payment_terms',      'TEXT');
   addCol('customers',  'portal_price_list_visibility', "TEXT DEFAULT 'none'"); // 'none' | 'general' | 'customer'
+  addCol('customers',  'portal_can_manage_users', 'INTEGER DEFAULT 0');
+  addCol('customers',  'portal_can_create_sites', 'INTEGER DEFAULT 0');
+  addCol('customers',  'portal_can_set_budgets',  'INTEGER DEFAULT 0');
+  addCol('customers',  'portal_can_expose_prices','INTEGER DEFAULT 0');
   addCol('drivers',    'vehicle_desc',       'TEXT');       // e.g. "משאית מרצדס 2018"
   addCol('drivers',    'license_plate',      'TEXT');       // plate number
   addCol('drivers',    'license_expiry',     'TEXT');       // YYYY-MM-DD
@@ -120,6 +124,80 @@ function runCoreMigrations(db) {
 
   ensureVehicleCompatibility(db);
   db.exec(`
+    CREATE TABLE IF NOT EXISTS customer_sites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      address TEXT,
+      city TEXT,
+      status TEXT DEFAULT 'active',
+      manager_name TEXT,
+      manager_phone TEXT,
+      budget_amount REAL DEFAULT 0,
+      budget_kg REAL DEFAULT 0,
+      alert_pct REAL DEFAULT 80,
+      block_over_budget INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS portal_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL REFERENCES customers(id),
+      phone TEXT NOT NULL UNIQUE,
+      name TEXT,
+      email TEXT,
+      role TEXT NOT NULL DEFAULT 'both',
+      active INTEGER NOT NULL DEFAULT 1,
+      token TEXT,
+      token_expires_at TEXT,
+      password_hash TEXT,
+      password_changed_at TEXT,
+      can_manage_users INTEGER DEFAULT 0,
+      can_create_sites INTEGER DEFAULT 0,
+      can_assign_site_users INTEGER DEFAULT 0,
+      can_create_orders INTEGER DEFAULT 1,
+      can_approve_orders INTEGER DEFAULT 0,
+      can_view_prices INTEGER DEFAULT 0,
+      can_view_budget INTEGER DEFAULT 0,
+      can_set_budget INTEGER DEFAULT 0,
+      can_approve_budget_overrun INTEGER DEFAULT 0,
+      can_view_invoices INTEGER DEFAULT 0,
+      can_view_delivery_notes INTEGER DEFAULT 1,
+      default_site_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (default_site_id) REFERENCES customer_sites(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS customer_site_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      site_id INTEGER NOT NULL,
+      portal_user_id INTEGER NOT NULL,
+      is_default INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(site_id, portal_user_id),
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (site_id) REFERENCES customer_sites(id),
+      FOREIGN KEY (portal_user_id) REFERENCES portal_users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS customer_portal_permission_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      actor_portal_user_id INTEGER,
+      target_portal_user_id INTEGER,
+      action TEXT NOT NULL,
+      before_json TEXT,
+      after_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (actor_portal_user_id) REFERENCES portal_users(id),
+      FOREIGN KEY (target_portal_user_id) REFERENCES portal_users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS order_imports (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       filename TEXT,
@@ -129,6 +207,30 @@ function runCoreMigrations(db) {
       approved_at DATETIME
     );
   `);
+
+  addCol('customer_sites', 'city', 'TEXT');
+  addCol('customer_sites', 'status', "TEXT DEFAULT 'active'");
+  addCol('customer_sites', 'manager_name', 'TEXT');
+  addCol('customer_sites', 'manager_phone', 'TEXT');
+  addCol('customer_sites', 'budget_amount', 'REAL DEFAULT 0');
+  addCol('customer_sites', 'budget_kg', 'REAL DEFAULT 0');
+  addCol('customer_sites', 'alert_pct', 'REAL DEFAULT 80');
+  addCol('customer_sites', 'block_over_budget', 'INTEGER DEFAULT 0');
+  addCol('customer_sites', 'updated_at', 'TEXT');
+  addCol('portal_users', 'email', 'TEXT');
+  addCol('portal_users', 'can_manage_users', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_create_sites', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_assign_site_users', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_create_orders', 'INTEGER DEFAULT 1');
+  addCol('portal_users', 'can_approve_orders', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_view_prices', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_view_budget', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_set_budget', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_approve_budget_overrun', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_view_invoices', 'INTEGER DEFAULT 0');
+  addCol('portal_users', 'can_view_delivery_notes', 'INTEGER DEFAULT 1');
+  addCol('portal_users', 'default_site_id', 'INTEGER');
+  addCol('portal_users', 'updated_at', 'TEXT');
 
 }
 
