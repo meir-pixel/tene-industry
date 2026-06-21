@@ -474,3 +474,146 @@ button, a.print-btn, .submit-btn, .channel-btn, .priority-btn, .add-pallet-btn,
     margin-top: 0 !important;
   }
 }
+
+/* Responsive foundation: shared layout rules for operational screens. */
+html {
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+}
+
+body {
+  min-width: 0 !important;
+  overflow-x: clip !important;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box !important;
+}
+
+img, svg, canvas, video, iframe {
+  max-width: 100% !important;
+}
+
+.page, .content, main, .main,
+.layout, .grid, .panel, .card, .table-card, .orders-wrap,
+.modal, .modal-body, .detail-panel, .detail-body, .d-section {
+  min-width: 0 !important;
+}
+
+.page, .content, main, .main {
+  max-width: min(1480px, calc(100vw - 28px)) !important;
+  padding-inline: clamp(10px, 1.4vw, 18px) !important;
+}
+
+@media (min-width: 1024px) {
+  .page, .content, main, .main {
+    max-width: min(1480px, calc(100vw - 184px)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .page, .content, main, .main {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-inline: 10px !important;
+  }
+
+  .head, .page-header, .detail-header, .panel-head, .table-header,
+  .toolbar, .filters, .header-actions, .modal-actions, .status-actions,
+  .actions, .success-actions {
+    max-width: 100% !important;
+  }
+}
+
+/* Tables: keep dense desktop tables readable without breaking mobile width. */
+.table-scroll, .table-wrap, .orders-table-wrap, .flow-wrap,
+.ocr-items-sheet, .ocr-order-form,
+.table-card, .orders-wrap, .report-card, .costs-panel,
+div[style*="overflow-x:auto"], div[style*="overflow-x: auto"] {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-inline: contain !important;
+}
+
+table {
+  width: 100% !important;
+}
+
+.table-scroll table, .table-wrap table, .orders-table-wrap table,
+.ocr-items-table, .ocr-order-form-head, .ocr-order-row,
+.finance-table, .admin-table, .doc-table, .data-table {
+  min-width: max-content !important;
+}
+
+th, td {
+  overflow-wrap: anywhere !important;
+}
+
+@media (max-width: 768px) {
+  th, td {
+    padding-inline: 9px !important;
+  }
+
+  .btn, .btn-sm, .filter-btn, .status-btn, .machine-tab, .new-order-btn,
+  button, a.print-btn, .submit-btn, .channel-btn, .priority-btn,
+  .add-pallet-btn, .add-item-btn, .delete-btn, .tab-btn, .btn-new,
+  .btn-save, .btn-cancel, .action-btn, .item-btn, .period-btn, .go-btn,
+  .alert-resolve {
+    max-width: 100% !important;
+    white-space: normal !important;
+    line-height: 1.25 !important;
+  }
+}
+
+/* Small rebar shape cells: same reference style everywhere shapes appear in lists. */
+:root {
+  --shape-ink: #17365f !important;
+  --shape-line: #d8e1ea !important;
+  --shape-bg: #ffffff !important;
+  --shape-muted-bg: #f8fafc !important;
+}
+
+.ib-shape-cell, .ocr-table-shape, .ocr-shape-preview, .ocr-shape-large,
+.queue-shape, .item-visual, .item-detail-preview, .portal-shape-preview,
+.shape-preview, .shape-card-preview {
+  background: var(--shape-bg) !important;
+  border-color: var(--shape-line) !important;
+  color: var(--shape-ink) !important;
+  min-width: 0 !important;
+}
+
+.ib-shape-cell svg, .ocr-table-shape svg, .ocr-shape-preview svg,
+.ocr-shape-large svg, .queue-shape svg, .item-visual svg,
+.item-detail-preview svg, .portal-shape-preview svg, .shape-preview svg,
+.shape-card-preview svg {
+  display: block !important;
+  width: 100% !important;
+  max-width: 190px !important;
+  height: auto !important;
+  margin-inline: auto !important;
+}
+
+.ib-shape-cell svg :is(path, polyline, line),
+.ocr-table-shape svg :is(path, polyline, line),
+.ocr-shape-preview svg :is(path, polyline, line),
+.ocr-shape-large svg :is(path, polyline, line),
+.queue-shape svg :is(path, polyline, line),
+.item-visual svg :is(path, polyline, line),
+.item-detail-preview svg :is(path, polyline, line),
+.portal-shape-preview svg :is(path, polyline, line),
+.shape-preview svg :is(path, polyline, line),
+.shape-card-preview svg :is(path, polyline, line) {
+  stroke: var(--shape-ink) !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+.ib-shape-cell svg text, .ocr-table-shape svg text,
+.ocr-shape-preview svg text, .ocr-shape-large svg text,
+.queue-shape svg text, .item-visual svg text,
+.item-detail-preview svg text, .portal-shape-preview svg text,
+.shape-preview svg text, .shape-card-preview svg text {
+  fill: var(--shape-ink) !important;
+  font-weight: 900 !important;
+}
