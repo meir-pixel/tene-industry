@@ -475,6 +475,7 @@ function toggleSitesPanel(forceOpen) {
 function renderCustomerSitesPanel() {
   const panel = document.getElementById('customerSitesPanel');
   if (!panel) return;
+  const formDisplay = PORTAL_SITES.length ? 'none' : 'grid';
   const list = PORTAL_SITES.length
     ? PORTAL_SITES.map(site => `
       <div class="guarantee-row">
@@ -484,7 +485,8 @@ function renderCustomerSitesPanel() {
     `).join('')
     : '<div class="loader" style="padding:12px">אין אתרים עדיין</div>';
   const form = canManagePortalSites() ? `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+    ${PORTAL_SITES.length ? `<button class="btn btn-secondary btn-sm" type="button" onclick="toggleNewSiteForm()" style="margin-top:12px">הוסף אתר</button>` : ''}
+    <div id="newSiteForm" style="display:${formDisplay};grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
       <input id="newSiteName" placeholder="שם אתר" />
       <input id="newSiteCity" placeholder="עיר" />
       <input id="newSiteAddress" placeholder="כתובת" style="grid-column:1/-1" />
@@ -501,6 +503,13 @@ function renderCustomerSitesPanel() {
     <div class="guarantee-list">${list}</div>
     ${form}
   `;
+}
+
+function toggleNewSiteForm(forceOpen) {
+  const form = document.getElementById('newSiteForm');
+  if (!form) return;
+  const open = typeof forceOpen === 'boolean' ? forceOpen : form.style.display === 'none';
+  form.style.display = open ? 'grid' : 'none';
 }
 
 function syncCustomerSitesPanel() {
@@ -536,6 +545,7 @@ async function createPortalSite() {
   const sitesData = await fetch(`/api/c/sites?token=${TOKEN}`).then(r=>r.json()).catch(()=>null);
   setPortalContext(sitesData);
   syncCustomerSitesPanel();
+  toggleNewSiteForm(false);
   renderOrderSitePicker();
 }
 
