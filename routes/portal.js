@@ -274,6 +274,50 @@ module.exports = function createPortalRouter(deps) {
     });
   });
 
+  router.post('/c/sites', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.body.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.caps.canCreateSites && !s.caps.canManageUsers && !s.caps.canApprove) {
+      return res.status(403).json({ error: 'אין הרשאה לפתוח אתר' });
+    }
+    const f = req.body || {};
+    const name = String(f.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'שם אתר חובה' });
+    const r = db.prepare(`
+      INSERT INTO customer_sites
+        (customer_id,name,address,city,status,manager_name,manager_phone,budget_amount,budget_kg,alert_pct,block_over_budget,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    `).run(
+      s.customer.id,
+      name,
+      f.address || null,
+      f.city || null,
+      'active',
+      f.managerName || s.user?.name || null,
+      f.managerPhone || s.user?.phone || null,
+      s.caps.canSetBudget || s.caps.canViewBudget ? Number(f.budgetAmount || 0) : 0,
+      s.caps.canSetBudget || s.caps.canViewBudget ? Number(f.budgetKg || 0) : 0,
+      80,
+      0
+    );
+    const siteId = r.lastInsertRowid;
+    if (s.user) {
+      const currentCount = db.prepare('SELECT COUNT(*) AS c FROM customer_site_users WHERE customer_id=? AND portal_user_id=?')
+        .get(s.customer.id, s.user.id).c;
+      db.prepare('INSERT OR IGNORE INTO customer_site_users (customer_id,site_id,portal_user_id,is_default) VALUES (?,?,?,?)')
+        .run(s.customer.id, siteId, s.user.id, currentCount ? 0 : 1);
+      if (!s.user.default_site_id) {
+        db.prepare('UPDATE portal_users SET default_site_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND customer_id=?')
+          .run(siteId, s.user.id, s.customer.id);
+      }
+    }
+    db.prepare(`
+      INSERT INTO customer_portal_permission_audit (customer_id,actor_portal_user_id,action,after_json)
+      VALUES (?,?,?,?)
+    `).run(s.customer.id, s.user?.id || null, 'customer_created_site', JSON.stringify({ siteId, name }));
+    res.json({ success: true, id: siteId });
+  });
+
   router.get('/c/sites/:siteId/summary', customerPortalActionLimiter, (req, res) => {
     const s = session(req.query.token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });

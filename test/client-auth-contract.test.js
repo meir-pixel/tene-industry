@@ -109,12 +109,17 @@ test('customer portal enforces site-scoped users and order site binding', () => 
   assert.match(portalAccess, /function resolveAuthorizedSite/);
   assert.match(portalAccess, /canChooseSite/);
   assert.match(portalRoute, /router\.get\('\/c\/sites'/);
+  assert.match(portalRoute, /router\.post\('\/c\/sites'/);
   assert.match(portalRoute, /router\.get\('\/c\/sites\/:siteId\/summary'/);
+  assert.match(portalRoute, /customer_created_site/);
   assert.match(portalRoute, /resolveAuthorizedSite\(c\.id, s\.user, siteId\)/);
   assert.match(portalRoute, /UPDATE orders SET site_id=\? WHERE id=\? AND customer_id=\?/);
   assert.match(customerRoute, /\/customers\/:id\/portal-sites/);
   assert.match(customerRoute, /\/customers\/:id\/portal-users/);
   assert.match(customerPage, /id="orderSiteWrap"/);
+  assert.match(customerPage, /id="manageSitesBtn"/);
+  assert.match(customerPage, /function createPortalSite/);
+  assert.match(customerPage, /\/api\/c\/sites/);
   assert.match(customerPage, /function renderOrderSitePicker/);
   assert.match(customerPage, /siteId:\s+selectedPortalSiteId\(\)/);
 });

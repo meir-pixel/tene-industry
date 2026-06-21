@@ -243,12 +243,14 @@
     <p id="welcomeSub">מחירון <span id="tierLabel">מחירון</span></p>
     <div class="welcome-actions">
       <button class="btn btn-secondary btn-sm" onclick="changePortalPassword()">שינוי סיסמה</button>
+      <button class="btn btn-secondary btn-sm" id="manageSitesBtn" onclick="toggleSitesPanel()" style="display:none">אתרים</button>
       <button class="btn btn-secondary btn-sm" onclick="logoutPortal()">החלף לקוח / יציאה</button>
     </div>
   </div>
   <button class="new-order-btn" onclick="showScreen('screenOrder')">
     ➕ הזמנה חדשה
   </button>
+  <div id="customerSitesPanel" class="section-card" style="display:none"></div>
   <div id="portalPriceListPanel"></div>
   <div class="section-card guarantee-panel">
     <div class="guarantee-head">
@@ -354,6 +356,7 @@ let PORTAL_SITES = [];
 let PORTAL_DEFAULT_SITE_ID = null;
 let PORTAL_CAN_CHOOSE_SITE = false;
 let PORTAL_USER = null;
+let PORTAL_CAPS = {};
 let orderItems  = []; // [{id, shapeId, shapeName, diameter, sides, angles, qty, note}]
 let portalSourceFiles = [];
 let guaranteeDocuments = [];
@@ -416,6 +419,8 @@ function setPortalContext(data) {
   PORTAL_DEFAULT_SITE_ID = data.defaultSiteId || data.default_site_id || PORTAL_DEFAULT_SITE_ID || null;
   PORTAL_CAN_CHOOSE_SITE = Boolean(data.canChooseSite || data.can_choose_site);
   PORTAL_USER = data.portalUser || data.portal_user || PORTAL_USER;
+  PORTAL_CAPS = data.caps || PORTAL_CAPS || {};
+  window.PORTAL_CAPS = PORTAL_CAPS;
 }
 
 function selectedPortalSiteId() {
@@ -446,6 +451,73 @@ function renderOrderSitePicker() {
     fixed.style.display = '';
     fixed.textContent = site ? `${site.name}${site.address ? ' - ' + site.address : ''}` : '';
   }
+}
+
+function canManagePortalSites() {
+  const caps = window.PORTAL_CAPS || {};
+  return Boolean(caps.canCreateSites || caps.canManageUsers || caps.canApprove);
+}
+
+function toggleSitesPanel(forceOpen) {
+  const panel = document.getElementById('customerSitesPanel');
+  if (!panel) return;
+  const open = typeof forceOpen === 'boolean' ? forceOpen : panel.style.display === 'none';
+  panel.style.display = open ? '' : 'none';
+  if (open) renderCustomerSitesPanel();
+}
+
+function renderCustomerSitesPanel() {
+  const panel = document.getElementById('customerSitesPanel');
+  if (!panel) return;
+  const list = PORTAL_SITES.length
+    ? PORTAL_SITES.map(site => `
+      <div class="guarantee-row">
+        <b>${escapeHtml(site.name)}</b>
+        <span>${escapeHtml([site.address, site.city].filter(Boolean).join(', ') || 'ללא כתובת')}</span>
+      </div>
+    `).join('')
+    : '<div class="loader" style="padding:12px">אין אתרים עדיין</div>';
+  const form = canManagePortalSites() ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+      <input id="newSiteName" placeholder="שם אתר" />
+      <input id="newSiteCity" placeholder="עיר" />
+      <input id="newSiteAddress" placeholder="כתובת" style="grid-column:1/-1" />
+      <button class="btn btn-primary" style="grid-column:1/-1;margin-top:0" onclick="createPortalSite()">פתח אתר</button>
+    </div>
+  ` : '';
+  panel.innerHTML = `
+    <div class="guarantee-head">
+      <div>
+        <div class="card-title">אתרים ופרויקטים</div>
+      </div>
+      <span class="guarantee-status">${PORTAL_SITES.length}</span>
+    </div>
+    <div class="guarantee-list">${list}</div>
+    ${form}
+  `;
+}
+
+async function createPortalSite() {
+  const name = document.getElementById('newSiteName')?.value.trim();
+  if (!name) { toast('שם אתר חובה', true); return; }
+  const body = {
+    token: TOKEN,
+    name,
+    city: document.getElementById('newSiteCity')?.value.trim() || null,
+    address: document.getElementById('newSiteAddress')?.value.trim() || null,
+  };
+  const res = await fetch('/api/c/sites', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+  if (!res) { toast('שגיאה בחיבור לשרת', true); return; }
+  if (!res.ok || !res.data?.success) { toast(res.data?.error || 'לא ניתן לפתוח אתר', true); return; }
+  toast('האתר נפתח');
+  const sitesData = await fetch(`/api/c/sites?token=${TOKEN}`).then(r=>r.json()).catch(()=>null);
+  setPortalContext(sitesData);
+  renderCustomerSitesPanel();
+  renderOrderSitePicker();
 }
 
 // ──────────────────────────────────────────────────────
@@ -594,6 +666,7 @@ async function showHome(preloaded) {
   document.getElementById('welcomeName').textContent = `שלום, ${ME?.name || ''}! 👋`;
   const tierTxt = ME?.price_tier === 'customer' ? 'לקוח קבוע' : 'מחירון';
   document.getElementById('tierLabel').textContent = tierTxt;
+  document.getElementById('manageSitesBtn').style.display = (canManagePortalSites() || PORTAL_SITES.length) ? '' : 'none';
   showScreen('screenHome');
 
   const orders = preloaded ?? await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json()).then(d=>{ setPortalContext(d); return d.orders; }).catch(()=>[]);
