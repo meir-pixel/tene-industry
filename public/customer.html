@@ -142,6 +142,29 @@
     .portal-price-meta div{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px}
     .portal-price-meta span{display:block;color:var(--dim);font-size:11px;font-weight:700}
     .portal-price-meta strong{display:block;font-size:13px;margin-top:2px}
+    .finance-dashboard{border:1.5px solid #d8e2ef;background:#fbfdff}
+    .finance-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+    .finance-head p{font-size:12px;color:var(--dim);line-height:1.55;margin-top:4px}
+    .finance-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+    .finance-kpi{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px}
+    .finance-kpi span{display:block;color:var(--dim);font-size:11px;font-weight:800}
+    .finance-kpi strong{display:block;font-size:18px;margin-top:3px;color:#16213e}
+    .finance-kpi.due strong{color:#c0392b}
+    .finance-alert{background:#fff4e8;border:1px solid #ffd2ae;border-radius:12px;padding:10px;margin-bottom:10px}
+    .finance-alert b{display:block;font-size:13px;color:#8a4300;margin-bottom:4px}
+    .finance-alert p{font-size:12px;color:#5f4a35;line-height:1.45}
+    .finance-sites{display:grid;gap:8px;margin-top:10px}
+    .finance-site{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px}
+    .finance-site-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+    .finance-site-head b{font-size:14px}
+    .finance-site-head span{font-size:12px;color:var(--dim)}
+    .finance-site-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+    .finance-site-metrics div{background:#f6f9fc;border-radius:8px;padding:7px}
+    .finance-site-metrics span{display:block;font-size:10px;color:var(--dim);font-weight:800}
+    .finance-site-metrics strong{display:block;font-size:12px;margin-top:2px}
+    .finance-site.over{border-color:#f1a6a6;background:#fffafa}
+    .finance-history-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+    .finance-future-doc{background:#eef5fb;border:1px solid #d9e8f6;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;color:#31506b}
 
     /* ── Price box ── */
     .price-box{background:linear-gradient(135deg,#1a1a2e,#2d3a5e);color:#fff;border-radius:14px;padding:18px;margin-bottom:16px}
@@ -185,7 +208,7 @@
     .loader{text-align:center;padding:40px;color:var(--dim);font-size:14px}
 
     @media(min-width:600px){.shapes-grid{grid-template-columns:repeat(4,1fr)}}
-    @media(max-width:720px){.portal-shape-edit{grid-template-columns:1fr}.portal-shape-preview{min-height:150px}.portal-upload-grid{grid-template-columns:1fr}}
+    @media(max-width:720px){.portal-shape-edit{grid-template-columns:1fr}.portal-shape-preview{min-height:150px}.portal-upload-grid{grid-template-columns:1fr}.finance-kpis,.finance-site-metrics{grid-template-columns:1fr 1fr}}
   </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -251,6 +274,7 @@
     ➕ הזמנה חדשה
   </button>
   <div id="customerSitesPanel" class="section-card" style="display:none"></div>
+  <div id="customerFinanceDashboard"></div>
   <div id="portalPriceListPanel"></div>
   <div class="section-card guarantee-panel">
     <div class="guarantee-head">
@@ -357,6 +381,7 @@ let PORTAL_DEFAULT_SITE_ID = null;
 let PORTAL_CAN_CHOOSE_SITE = false;
 let PORTAL_USER = null;
 let PORTAL_CAPS = {};
+let PORTAL_FINANCE = null;
 let orderItems  = []; // [{id, shapeId, shapeName, diameter, sides, angles, qty, note}]
 let portalSourceFiles = [];
 let guaranteeDocuments = [];
@@ -461,7 +486,12 @@ function renderOrderSitePicker() {
 
 function canManagePortalSites() {
   const caps = window.PORTAL_CAPS || {};
-  return Boolean(caps.canCreateSites || caps.canManageUsers || caps.canApprove);
+  return Boolean(caps.canCreateSites || caps.canManageUsers);
+}
+
+function canViewCustomerFinance() {
+  const caps = window.PORTAL_CAPS || {};
+  return Boolean(caps.seePrice || caps.canViewBudget || caps.canSetBudget || caps.canViewInvoices || caps.canViewPaymentAlerts);
 }
 
 function toggleSitesPanel(forceOpen) {
@@ -699,9 +729,110 @@ async function showHome(preloaded) {
 
   const orders = preloaded ?? await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json()).then(d=>{ setPortalContext(d); return d.orders; }).catch(()=>[]);
   syncCustomerSitesPanel();
+  await loadCustomerFinanceDashboard();
   await loadGuaranteeDocuments();
   renderPortalPriceListPanel();
   renderOrdersList(orders);
+}
+
+function formatKg(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return `${n.toLocaleString('he-IL', { maximumFractionDigits: 1 })} ק"ג`;
+}
+
+function paymentStatusText(status, days) {
+  if (status === 'overdue') return `באיחור ${Math.abs(days)} ימים`;
+  if (status === 'due_now') return 'לתשלום היום';
+  if (status === 'due_soon') return `בעוד ${days} ימים`;
+  return 'לא הגיע מועד';
+}
+
+async function loadCustomerFinanceDashboard() {
+  const host = document.getElementById('customerFinanceDashboard');
+  if (!host) return;
+  if (!canViewCustomerFinance()) {
+    host.innerHTML = '';
+    return;
+  }
+  host.innerHTML = '<div class="section-card finance-dashboard"><div class="loader" style="padding:18px">טוען מסך בקרה כספי...</div></div>';
+  const [summaryData, sitesData, paymentsData, historyData] = await Promise.all([
+    fetch(`/api/c/finance/summary?token=${TOKEN}`).then(r=>r.json()).catch(()=>null),
+    fetch(`/api/c/finance/sites?token=${TOKEN}`).then(r=>r.json()).catch(()=>null),
+    fetch(`/api/c/finance/payments-due?token=${TOKEN}`).then(r=>r.json()).catch(()=>null),
+    fetch(`/api/c/orders/history?token=${TOKEN}`).then(r=>r.json()).catch(()=>null),
+  ]);
+  PORTAL_FINANCE = {
+    summary: summaryData?.summary || null,
+    sites: Array.isArray(sitesData?.sites) ? sitesData.sites : [],
+    payments: Array.isArray(paymentsData?.payments) ? paymentsData.payments : [],
+    history: Array.isArray(historyData?.orders) ? historyData.orders : [],
+    canSeeMoney: Boolean(summaryData?.summary?.canSeeMoney || sitesData?.canSeeMoney || paymentsData?.canSeeMoney),
+  };
+  renderCustomerFinanceDashboard();
+}
+
+function renderCustomerFinanceDashboard() {
+  const host = document.getElementById('customerFinanceDashboard');
+  if (!host || !PORTAL_FINANCE?.summary) {
+    if (host) host.innerHTML = '';
+    return;
+  }
+  const s = PORTAL_FINANCE.summary;
+  const canMoney = PORTAL_FINANCE.canSeeMoney;
+  const payments = PORTAL_FINANCE.payments.slice(0, 3);
+  const siteRows = PORTAL_FINANCE.sites.slice(0, 5).map(site => `
+    <div class="finance-site ${site.overBudget ? 'over' : ''}">
+      <div class="finance-site-head">
+        <div>
+          <b>${escapeHtml(site.name || 'אתר')}</b>
+          <span>${escapeHtml([site.address, site.city].filter(Boolean).join(', ') || 'ללא כתובת')}</span>
+        </div>
+        <span>${site.orderCount || 0} הזמנות</span>
+      </div>
+      <div class="finance-site-metrics">
+        <div><span>הוזמן</span><strong>${formatKg(site.orderedKg)}</strong></div>
+        <div><span>לחיוב</span><strong>${formatKg(site.billingKg)}</strong></div>
+        ${canMoney ? `<div><span>כסף</span><strong>${formatMoney(site.amount || 0)}</strong></div>` : '<div><span>כסף</span><strong>מוסתר</strong></div>'}
+        ${canMoney ? `<div><span>תקציב</span><strong>${site.budgetAmount ? formatMoney(site.budgetAmount) : '-'}</strong></div>` : ''}
+        ${canMoney ? `<div><span>ניצול כסף</span><strong>${site.moneyUsagePct || 0}%</strong></div>` : ''}
+        <div><span>ניצול משקל</span><strong>${site.kgUsagePct || 0}%</strong></div>
+      </div>
+    </div>
+  `).join('');
+  const paymentRows = payments.length ? payments.map(row => `
+    <div class="finance-alert">
+      <b>${escapeHtml(paymentStatusText(row.status, row.days))} · ${escapeHtml(row.siteName || 'ללא אתר')}</b>
+      <p>${escapeHtml(row.orderNum || '')} · מועד ${escapeHtml(row.dueDate || '')}${canMoney ? ` · ${formatMoney(row.amount || 0)}` : ''}</p>
+    </div>
+  `).join('') : '<div class="finance-alert"><b>אין תשלום שהגיע זמנו</b><p>ברגע שתנאי התשלום יגיעו למועד, תופיע כאן התראה עם הפירוט.</p></div>';
+  const historyCount = PORTAL_FINANCE.history.length;
+  host.innerHTML = `
+    <div class="section-card finance-dashboard">
+      <div class="finance-head">
+        <div>
+          <div class="card-title">מסך בקרה כספי</div>
+          <p>תצוגה למנהל כספים: תשלומים לפי תנאי תשלום, תקציב והיסטוריית הזמנות לפי אתר.</p>
+        </div>
+        <span class="guarantee-status">${historyCount} הזמנות</span>
+      </div>
+      <div class="finance-kpis">
+        <div class="finance-kpi due"><span>לתשלום עכשיו</span><strong>${canMoney ? formatMoney(s.dueNow || 0) : 'מוסתר'}</strong></div>
+        <div class="finance-kpi"><span>לתשלום בקרוב</span><strong>${canMoney ? formatMoney(s.dueSoon || 0) : 'מוסתר'}</strong></div>
+        <div class="finance-kpi"><span>משקל שהוזמן</span><strong>${formatKg(s.orderedKg)}</strong></div>
+        <div class="finance-kpi"><span>אתרים בחריגה</span><strong>${s.overBudgetSites || 0}</strong></div>
+      </div>
+      ${paymentRows}
+      <div class="card-title" style="margin-top:12px">פירוק לפי אתר</div>
+      <div class="finance-sites">${siteRows || '<div class="loader" style="padding:12px">אין אתרים להצגה</div>'}</div>
+      <div class="finance-history-actions">
+        <span class="finance-future-doc">סיכום הזמנה</span>
+        <span class="finance-future-doc">תעודת משלוח</span>
+        <span class="finance-future-doc">חשבונית</span>
+        <span class="finance-future-doc">דוח אתר</span>
+      </div>
+    </div>
+  `;
 }
 
 function formatPriceListDate(value) {

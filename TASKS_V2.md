@@ -291,10 +291,12 @@
 
 ### V2-005C — Customer Finance Control Dashboard
 
-- status: approval
+- status: in_progress
 - owner: codex-customer-portal
 - module: customers/portal
 - priority: high
+- latest_change:
+  - started runtime implementation for the customer finance control dashboard: explicit finance/payment-alert permission, customer-scoped finance APIs, and portal UI dashboard.
 - scope:
   - `TASKS_V2.md`
   - `docs/spec-customer-finance-control-dashboard.md`

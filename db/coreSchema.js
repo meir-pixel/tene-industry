@@ -95,6 +95,7 @@ function ensureCoreSchema(db) {
       can_approve_budget_overrun INTEGER DEFAULT 0,
       can_view_invoices INTEGER DEFAULT 0,
       can_view_delivery_notes INTEGER DEFAULT 1,
+      can_view_payment_alerts INTEGER DEFAULT 0,
       default_site_id INTEGER,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,

@@ -80,6 +80,99 @@ module.exports = function createPortalRouter(deps) {
     };
   }
 
+  function canViewCustomerFinance(caps = {}) {
+    return Boolean(caps.seePrice || caps.canViewBudget || caps.canSetBudget || caps.canViewInvoices || caps.canViewPaymentAlerts);
+  }
+
+  function orderAccessWhere(s, alias = 'o', siteId = null) {
+    const where = [`${alias}.customer_id=?`];
+    const params = [s.customer.id];
+    if (siteId) {
+      where.push(`${alias}.site_id=?`);
+      params.push(Number(siteId));
+    } else if (s.user) {
+      where.push(`(
+        ${alias}.site_id IS NULL
+        OR ${alias}.site_id IN (SELECT site_id FROM customer_site_users WHERE portal_user_id=?)
+        OR ${alias}.site_id=?
+      )`);
+      params.push(s.user.id, s.user.default_site_id || 0);
+    }
+    return { where: where.join(' AND '), params };
+  }
+
+  function resolveFinanceSiteId(s, rawSiteId) {
+    const siteId = Number(rawSiteId || 0);
+    if (!siteId) return { ok: true, siteId: null };
+    const resolved = resolveAuthorizedSite(s.customer.id, s.user, siteId);
+    if (!resolved.ok) return resolved;
+    return { ok: true, siteId: resolved.site?.id || null };
+  }
+
+  function parsePaymentTermsDays(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return 0;
+    const match = raw.match(/(?:שוטף\s*\+|net\s*)?(\d{1,3})/i);
+    return match ? Math.max(0, Number(match[1]) || 0) : 0;
+  }
+
+  function dateOnly(value) {
+    if (!value) return new Date().toISOString().slice(0, 10);
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function addDays(value, days) {
+    const d = new Date(dateOnly(value));
+    d.setDate(d.getDate() + Number(days || 0));
+    return d.toISOString().slice(0, 10);
+  }
+
+  function paymentDueStatus(dueDate) {
+    const today = new Date(dateOnly(new Date()));
+    const due = new Date(dateOnly(dueDate));
+    const diffDays = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+    if (diffDays < 0) return { status: 'overdue', days: diffDays };
+    if (diffDays === 0) return { status: 'due_now', days: 0 };
+    if (diffDays <= 30) return { status: 'due_soon', days: diffDays };
+    return { status: 'not_due', days: diffDays };
+  }
+
+  function customerPaymentAlerts(s, siteId = null) {
+    if (!s.caps.canViewPaymentAlerts && !s.caps.canViewInvoices && !s.caps.seePrice) return [];
+    const termsDays = parsePaymentTermsDays(s.customer.payment_terms);
+    const access = orderAccessWhere(s, 'o', siteId);
+    const rows = db.prepare(`
+      SELECT o.id,o.order_num,o.status,o.created_at,o.delivery_date,o.portal_price,o.billing_weight,o.site_id,cs.name AS site_name
+      FROM orders o
+      LEFT JOIN customer_sites cs ON cs.id=o.site_id
+      WHERE ${access.where}
+        AND COALESCE(o.portal_price,0)>0
+      ORDER BY COALESCE(o.delivery_date,o.created_at) DESC
+      LIMIT 100
+    `).all(...access.params);
+    return rows.map(row => {
+      const anchorDate = row.delivery_date || row.created_at;
+      const dueDate = addDays(anchorDate, termsDays);
+      const due = paymentDueStatus(dueDate);
+      return {
+        source: 'order',
+        orderId: row.id,
+        orderNum: row.order_num,
+        siteId: row.site_id,
+        siteName: row.site_name || 'ללא אתר',
+        anchor: 'delivery_or_order_date',
+        anchorDate: dateOnly(anchorDate),
+        dueDate,
+        amount: Number(row.portal_price || 0),
+        billingWeight: Number(row.billing_weight || 0),
+        status: due.status,
+        days: due.days,
+      };
+    }).filter(row => row.status !== 'not_due');
+  }
+
   // Auth: get/create customer by phone (walk-in) or by token
   router.post('/c/auth', customerPortalAuthLimiter, (req, res) => {
     const { name } = req.body;
@@ -294,7 +387,7 @@ module.exports = function createPortalRouter(deps) {
   router.post('/c/sites', customerPortalActionLimiter, (req, res) => {
     const s = session(req.body.token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
-    if (!s.caps.canCreateSites && !s.caps.canManageUsers && !s.caps.canApprove) {
+    if (!s.caps.canCreateSites && !s.caps.canManageUsers) {
       return res.status(403).json({ error: 'אין הרשאה לפתוח אתר' });
     }
     const f = req.body || {};
@@ -363,6 +456,136 @@ module.exports = function createPortalRouter(deps) {
       summary.kg_usage_pct = summary.budget_kg ? Math.round(summary.billing_kg / summary.budget_kg * 100) : 0;
     }
     res.json(summary);
+  });
+
+  router.get('/c/finance/summary', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.query.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!canViewCustomerFinance(s.caps)) return res.json({ financeHidden: true });
+    const resolvedSite = resolveFinanceSiteId(s, req.query.siteId);
+    if (!resolvedSite.ok) return res.status(resolvedSite.status).json({ error: resolvedSite.error });
+    const access = orderAccessWhere(s, 'o', resolvedSite.siteId);
+    const totals = db.prepare(`
+      SELECT COUNT(*) AS order_count,
+             COALESCE(SUM(o.total_weight),0) AS ordered_kg,
+             COALESCE(SUM(o.billing_weight),0) AS billing_kg,
+             COALESCE(SUM(o.portal_price),0) AS ordered_amount,
+             COALESCE(SUM(CASE WHEN o.status LIKE '%אושרה%' THEN o.billing_weight ELSE 0 END),0) AS approved_kg,
+             COALESCE(SUM(CASE WHEN o.status LIKE '%אושרה%' THEN o.portal_price ELSE 0 END),0) AS approved_amount
+      FROM orders o
+      WHERE ${access.where}
+    `).get(...access.params);
+    const alerts = customerPaymentAlerts(s, resolvedSite.siteId);
+    const dueNow = alerts
+      .filter(row => row.status === 'due_now' || row.status === 'overdue')
+      .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const dueSoon = alerts
+      .filter(row => row.status === 'due_soon')
+      .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const overBudgetSites = s.portal.sites.filter(site => {
+      if (!site.budget_amount && !site.budget_kg) return false;
+      const siteAccess = orderAccessWhere(s, 'o', site.id);
+      const row = db.prepare(`
+        SELECT COALESCE(SUM(o.billing_weight),0) AS kg, COALESCE(SUM(o.portal_price),0) AS amount
+        FROM orders o
+        WHERE ${siteAccess.where}
+      `).get(...siteAccess.params);
+      return (site.budget_amount && Number(row.amount || 0) > site.budget_amount)
+        || (site.budget_kg && Number(row.kg || 0) > site.budget_kg);
+    }).length;
+    const summary = {
+      orderCount: totals.order_count || 0,
+      orderedKg: Number(totals.ordered_kg || 0),
+      billingKg: Number(totals.billing_kg || 0),
+      approvedKg: Number(totals.approved_kg || 0),
+      paymentTerms: s.customer.payment_terms || '',
+      dueAlertsCount: alerts.length,
+      overBudgetSites,
+      canSeeMoney: Boolean(s.caps.seePrice || s.caps.canViewBudget || s.caps.canViewInvoices),
+    };
+    if (summary.canSeeMoney) {
+      summary.orderedAmount = Number(totals.ordered_amount || 0);
+      summary.approvedAmount = Number(totals.approved_amount || 0);
+      summary.openExposure = Number(totals.ordered_amount || 0);
+      summary.dueNow = dueNow;
+      summary.dueSoon = dueSoon;
+    }
+    res.json({ summary, caps: s.caps });
+  });
+
+  router.get('/c/finance/sites', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.query.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!canViewCustomerFinance(s.caps)) return res.json({ financeHidden: true, sites: [] });
+    const sites = s.portal.sites.map(site => {
+      const access = orderAccessWhere(s, 'o', site.id);
+      const totals = db.prepare(`
+        SELECT COUNT(*) AS order_count,
+               COALESCE(SUM(o.total_weight),0) AS ordered_kg,
+               COALESCE(SUM(o.billing_weight),0) AS billing_kg,
+               COALESCE(SUM(o.portal_price),0) AS amount
+        FROM orders o
+        WHERE ${access.where}
+      `).get(...access.params);
+      const row = {
+        id: site.id,
+        name: site.name,
+        address: site.address,
+        city: site.city,
+        managerName: site.manager_name,
+        orderCount: totals.order_count || 0,
+        orderedKg: Number(totals.ordered_kg || 0),
+        billingKg: Number(totals.billing_kg || 0),
+      };
+      if (s.caps.seePrice || s.caps.canViewBudget || s.caps.canViewInvoices) {
+        row.amount = Number(totals.amount || 0);
+        row.budgetAmount = Number(site.budget_amount || 0);
+        row.budgetKg = Number(site.budget_kg || 0);
+        row.moneyUsagePct = row.budgetAmount ? Math.round(row.amount / row.budgetAmount * 100) : 0;
+        row.kgUsagePct = row.budgetKg ? Math.round(row.billingKg / row.budgetKg * 100) : 0;
+        row.overBudget = Boolean((row.budgetAmount && row.amount > row.budgetAmount) || (row.budgetKg && row.billingKg > row.budgetKg));
+      }
+      return row;
+    });
+    res.json({ sites, canSeeMoney: Boolean(s.caps.seePrice || s.caps.canViewBudget || s.caps.canViewInvoices), caps: s.caps });
+  });
+
+  router.get('/c/finance/payments-due', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.query.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (!s.caps.canViewPaymentAlerts && !s.caps.canViewInvoices && !s.caps.seePrice) {
+      return res.json({ financeHidden: true, payments: [] });
+    }
+    const resolvedSite = resolveFinanceSiteId(s, req.query.siteId);
+    if (!resolvedSite.ok) return res.status(resolvedSite.status).json({ error: resolvedSite.error });
+    const payments = customerPaymentAlerts(s, resolvedSite.siteId);
+    res.json({
+      payments,
+      termsDays: parsePaymentTermsDays(s.customer.payment_terms),
+      paymentTerms: s.customer.payment_terms || '',
+      canSeeMoney: Boolean(s.caps.seePrice || s.caps.canViewInvoices || s.caps.canViewBudget),
+    });
+  });
+
+  router.get('/c/orders/history', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.query.token);
+    if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    const resolvedSite = resolveFinanceSiteId(s, req.query.siteId);
+    if (!resolvedSite.ok) return res.status(resolvedSite.status).json({ error: resolvedSite.error });
+    const access = orderAccessWhere(s, 'o', resolvedSite.siteId);
+    const rows = db.prepare(`
+      SELECT o.id,o.order_num,o.status,o.created_at,o.delivery_date,o.delivery_time,o.total_weight,o.billing_weight,
+             o.portal_price,o.site_id,cs.name AS site_name
+      FROM orders o
+      LEFT JOIN customer_sites cs ON cs.id=o.site_id
+      WHERE ${access.where}
+      ORDER BY o.created_at DESC
+      LIMIT 100
+    `).all(...access.params);
+    const orders = s.caps.seePrice || s.caps.canViewBudget || s.caps.canViewInvoices
+      ? rows
+      : rows.map(({ portal_price, ...row }) => row);
+    res.json({ orders, caps: s.caps });
   });
 
   // Shapes (public)

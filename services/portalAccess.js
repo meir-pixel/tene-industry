@@ -22,7 +22,7 @@ function createPortalAccessService(deps) {
       customer_id INTEGER NOT NULL REFERENCES customers(id),
       phone       TEXT NOT NULL UNIQUE,
       name        TEXT,
-      role        TEXT NOT NULL DEFAULT 'both' CHECK (role IN ('orderer','approver','both')),
+      role        TEXT NOT NULL DEFAULT 'both' CHECK (role IN ('orderer','approver','both','finance','field_manager','customer_admin')),
       active      INTEGER NOT NULL DEFAULT 1,
       created_at  TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -43,6 +43,7 @@ function createPortalAccessService(deps) {
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_approve_budget_overrun INTEGER DEFAULT 0`); } catch {}
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_view_invoices INTEGER DEFAULT 0`); } catch {}
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_view_delivery_notes INTEGER DEFAULT 1`); } catch {}
+  try { db.exec(`ALTER TABLE portal_users ADD COLUMN can_view_payment_alerts INTEGER DEFAULT 0`); } catch {}
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN default_site_id INTEGER`); } catch {}
   try { db.exec(`ALTER TABLE portal_users ADD COLUMN updated_at TEXT`); } catch {}
 
@@ -81,6 +82,8 @@ function createPortalAccessService(deps) {
     const userCan = name => isUser ? bool(portalUserOrRole[name]) : false;
     const priceExposureAllowed = customerCaps.canExposePrices || customer.portal_price_list_visibility !== 'none';
     const canViewPrices = priceExposureAllowed && (oldApprover || finance || customerAdmin || userCan('can_view_prices'));
+    const canViewInvoices = finance || customerAdmin || userCan('can_view_invoices');
+    const canViewPaymentAlerts = finance || customerAdmin || canViewInvoices || userCan('can_view_payment_alerts');
     return {
       role: r,
       canOrder: !isUser || userCan('can_create_orders') || oldApprover || fieldManager || customerAdmin,
@@ -92,7 +95,8 @@ function createPortalAccessService(deps) {
       canViewBudget: (customerAdmin || finance || userCan('can_view_budget')) && (customerCaps.canSetBudgets || userCan('can_view_budget')),
       canSetBudget: customerCaps.canSetBudgets && (customerAdmin || finance || userCan('can_set_budget')),
       canApproveBudgetOverrun: customerCaps.canSetBudgets && (customerAdmin || finance || userCan('can_approve_budget_overrun')),
-      canViewInvoices: finance || customerAdmin || userCan('can_view_invoices'),
+      canViewInvoices,
+      canViewPaymentAlerts,
       canViewDeliveryNotes: !isUser || userCan('can_view_delivery_notes') || oldApprover || fieldManager || finance || customerAdmin,
     };
   }

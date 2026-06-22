@@ -124,6 +124,34 @@ test('customer portal enforces site-scoped users and order site binding', () => 
   assert.match(customerPage, /siteId:\s+selectedPortalSiteId\(\)/);
 });
 
+test('customer portal exposes finance dashboard with explicit money permissions', () => {
+  const coreSchema = read('db/coreSchema.js');
+  const startup = read('db/startup.js');
+  const portalAccess = read('services/portalAccess.js');
+  const portalRoute = read('routes/portal.js');
+  const customerPage = read('public/customer.html');
+
+  assert.match(coreSchema, /can_view_payment_alerts/);
+  assert.match(startup, /can_view_payment_alerts/);
+  assert.match(portalAccess, /canViewPaymentAlerts/);
+  assert.match(portalAccess, /role IN \('orderer','approver','both','finance','field_manager','customer_admin'\)/);
+  assert.match(portalRoute, /router\.get\('\/c\/finance\/summary'/);
+  assert.match(portalRoute, /router\.get\('\/c\/finance\/sites'/);
+  assert.match(portalRoute, /router\.get\('\/c\/finance\/payments-due'/);
+  assert.match(portalRoute, /router\.get\('\/c\/orders\/history'/);
+  assert.match(portalRoute, /canViewCustomerFinance/);
+  assert.match(portalRoute, /delete order\.portal_price|rows\.map\(\(\{ portal_price/);
+  assert.doesNotMatch(portalRoute, /canCreateSites && !s\.caps\.canManageUsers && !s\.caps\.canApprove/);
+  assert.match(customerPage, /id="customerFinanceDashboard"/);
+  assert.match(customerPage, /function loadCustomerFinanceDashboard/);
+  assert.match(customerPage, /\/api\/c\/finance\/summary/);
+  assert.match(customerPage, /\/api\/c\/finance\/payments-due/);
+  assert.match(customerPage, /\/api\/c\/orders\/history/);
+  assert.match(customerPage, /function canViewCustomerFinance/);
+  assert.match(customerPage, /formatMoney\(s\.dueNow/);
+  assert.doesNotMatch(customerPage, /caps\.canCreateSites \|\| caps\.canManageUsers \|\| caps\.canApprove/);
+});
+
 test('customer portal price visibility remains compatible with configured visible price lists', () => {
   const portalAccess = read('services/portalAccess.js');
 
