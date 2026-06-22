@@ -289,6 +289,46 @@
   - site dashboard summarizes steel quantity and money usage without leaking prices to unauthorized users.
   - tests cover site authorization, price visibility, budget overrun approval, and forbidden cross-site access.
 
+### V2-005C — Customer Finance Control Dashboard
+
+- status: approval
+- owner: codex-customer-portal
+- module: customers/portal
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `docs/spec-customer-finance-control-dashboard.md`
+  - future: `routes/portal.js`
+  - future: `public/customer.html`
+  - future: `test/client-auth-contract.test.js`
+- input:
+  - customer sites/projects
+  - customer portal users and site assignments
+  - delegated finance permissions
+  - project budgets in money and steel quantity
+  - order history
+  - delivery notes
+  - invoices
+  - payment terms
+- output:
+  - finance-manager dashboard inside the customer portal.
+  - visual cards for due now, due soon, open exposure, budget usage, and over-budget sites.
+  - per-site breakdown of ordered, approved, delivered, invoiced, paid, and unpaid amounts.
+  - payment alerts that pop when due dates arrive according to payment terms.
+  - order history prepared for future customer document generation.
+- logic:
+  - the customer defines its own sites and internal users inside the capabilities granted by Tene.
+  - a single-site field manager never chooses a site; their orders are automatically bound to their assigned site.
+  - finance users can see prices, budgets, invoices, payment alerts, and document history according to explicit permissions.
+  - field users do not receive money fields unless they have explicit price permissions.
+  - `canApprove` is not a shortcut for creating sites, viewing money, or managing users; use explicit capabilities.
+  - payment due dates are calculated from the configured payment-term anchor: invoice date, delivery-note date, order-approval date, or manual due date.
+- definition_of_done:
+  - customer finance dashboard specification exists and is linked from this task.
+  - implementation exposes finance summary, sites breakdown, payments due, and order history through customer-scoped APIs.
+  - UI shows payment alerts and site budget status without leaking money fields to unauthorized users.
+  - tests cover finance manager visibility, field manager restrictions, single-site order binding, and payment due calculations.
+
 ### V2-006 — Steel/Rebar Industry Specification
 
 - status: todo
