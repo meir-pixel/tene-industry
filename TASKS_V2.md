@@ -453,6 +453,27 @@
 - definition_of_done:
   - `sePageCount` מוסתר בכל כניסה למסך עריכה.
   - קיימת בדיקת מקור שמכסה את חוזה הניווט הזה.
+### V2-006E — Shape Editor One-Screen Edit Layout
+
+- status: done
+- owner: codex-shape-editor
+- module: industry-steel-rebar/shape-editor
+- priority: high
+- scope:
+  - TASKS_V2.md
+  - public/shape-editor.js
+  - test/shape-geometry.test.js
+- input:
+  - עריכת צורה אחת צריכה להיכנס במסך בלי גלילת עמוד.
+- output:
+  - מסך העריכה משתמש בגובה viewport מלא עם פוטר נמוך וקנבס דחוס.
+  - טבלת הצלעות מקבלת גלילה פנימית רק כשיש הרבה שורות.
+- logic:
+  - `#sePageEdit` מקבל גובה מחושב לפי `100vh` והמודל נשאר `overflow:hidden`.
+  - אזור השרטוט מקבל גובה מחושב יציב שאינו דוחף את הפוטר מחוץ למסך.
+- definition_of_done:
+  - עריכת צורה רגילה אינה דורשת גלילת עמוד.
+  - קיימת בדיקת מקור שמכסה את חוזה הפריסה החדשה.
 ### V2-007 — Orders Module Specification
 
 - status: todo

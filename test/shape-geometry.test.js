@@ -85,6 +85,15 @@ test('shape editor direct-open hides the count picker before edit page', () => {
   assert.match(match[0], /document\.getElementById\('sePageSelect'\)\.style\.display\s*=\s*'none'/);
   assert.match(match[0], /document\.getElementById\('sePageEdit'\)\.style\.display\s*=\s*''/);
 });
+test('shape editor one-screen edit layout keeps editing inside the viewport', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /One-screen shape edit layout/);
+  assert.match(editor, /#sePageEdit\{[\s\S]*height:calc\(100vh - 118px\)/);
+  assert.match(editor, /#seModal \.se-svg-wrap\{[\s\S]*height:calc\(100vh - 246px\)/);
+  assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-y:auto/);
+  assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:58px/);
+});
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },

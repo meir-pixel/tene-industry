@@ -848,6 +848,87 @@ class ShapeEditorModal {
   box-shadow:0 0 0 2px rgba(255,64,71,.16);
 }
 
+
+/* One-screen shape edit layout: keep a single shape editable without page scroll */
+#seModal{overflow:hidden;}
+#sePageEdit{
+  height:calc(100vh - 118px);
+  max-height:calc(100vh - 118px);
+  overflow:hidden;
+}
+#sePageEdit .se-preview-panel,
+#sePageEdit .se-data-panel{
+  height:100%;
+  min-height:0;
+}
+.se-preview-panel{
+  padding:10px 18px 8px;
+  gap:8px;
+}
+#seModal .se-canvas-topbar{
+  min-height:44px;
+  gap:10px;
+}
+#seModal .se-svg-wrap{
+  flex:1 1 auto;
+  min-height:0;
+  height:calc(100vh - 246px);
+  max-height:calc(100vh - 246px);
+}
+#seModal .se-svg-wrap svg{
+  height:100%;
+  min-height:0;
+}
+.se-data-panel{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+.se-data-panel-head{
+  min-height:42px;
+  padding:12px 18px 8px;
+  font-size:16px;
+}
+#seModal .se-mode-note{
+  padding:10px 16px;
+  flex-shrink:0;
+}
+#seModal .se-3d-help{
+  font-size:10px;
+  line-height:1.35;
+}
+#seModal .se-table-wrap{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  padding:8px 14px 10px;
+}
+#seModal .se-table{border-spacing:0 6px;}
+#seModal .se-table td{padding:6px 8px;}
+#seModal .se-input{min-height:36px;padding:6px 10px;}
+#seModal .se-angle-btn{padding:5px 8px;min-width:54px;}
+#seModal .se-add-row{padding:6px 0 0!important;}
+#seModal .se-add-btn{min-height:34px;}
+#seModal .se-foot{
+  min-height:58px;
+  height:58px;
+  padding:8px 16px;
+}
+#seModal .se-ok-btn,
+#seModal .se-save-shape-btn,
+#seModal .se-cancel-btn{
+  min-height:40px;
+  padding-top:8px;
+  padding-bottom:8px;
+}
+@media(max-height:760px){
+  #seModal .se-head{min-height:48px;padding-top:8px;padding-bottom:8px;}
+  #sePageEdit{height:calc(100vh - 102px);max-height:calc(100vh - 102px);}
+  #seModal .se-svg-wrap{height:calc(100vh - 220px);max-height:calc(100vh - 220px);}
+  #seModal .se-stat{padding:6px 10px;}
+  #seModal .se-stat-value{font-size:17px;}
+  #seModal .se-foot{height:54px;min-height:54px;}
+}
 @media(max-width:760px){
   #seModal{width:100vw;height:100vh;max-height:100vh;border-radius:0;}
   #sePageEdit{flex-direction:column;}
