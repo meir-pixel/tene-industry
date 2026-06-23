@@ -23,6 +23,65 @@ module.exports = function createOrdersRouter(deps) {
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
   const auditLog = required('auditLog', deps.auditLog);
 
+  function cleanItemPayload(body, existingItem = {}) {
+    let segments = existingItem.segments || '[]';
+    if (body.segments !== undefined) {
+      if (!Array.isArray(body.segments)) throw Object.assign(new Error('segments must be an array'), { statusCode: 400 });
+      const clean = [];
+      for (const [index, segment] of body.segments.entries()) {
+        const length = Number(segment?.length_mm ?? segment?.length);
+        const angle = Number(segment?.angle_deg ?? segment?.angle ?? 180);
+        if (!Number.isFinite(length) || length < 0) throw Object.assign(new Error(`invalid segment length at ${index + 1}`), { statusCode: 400 });
+        if (!Number.isFinite(angle) || angle < 0 || angle > 180) throw Object.assign(new Error(`invalid segment angle at ${index + 1}`), { statusCode: 400 });
+        clean.push({ length_mm: length, angle_deg: angle });
+      }
+      segments = JSON.stringify(clean);
+    }
+
+    const shapeName = body.shape_name !== undefined ? String(body.shape_name || '').trim() : existingItem.shape_name;
+    const diameter = body.diameter !== undefined ? Number(body.diameter) : Number(existingItem.diameter);
+    const quantity = body.quantity !== undefined ? Number(body.quantity) : Number(existingItem.quantity);
+    const totalLengthMm = body.total_length_mm !== undefined
+      ? Number(body.total_length_mm)
+      : (Array.isArray(body.segments)
+        ? body.segments.reduce((sum, segment) => sum + Number(segment?.length_mm ?? segment?.length ?? 0), 0)
+        : Number(existingItem.total_length_mm));
+    const spiralDiameter = body.spiral_diameter_mm !== undefined ? Number(body.spiral_diameter_mm) : existingItem.spiral_diameter_mm;
+    const spiralTurns = body.spiral_turns !== undefined ? Number(body.spiral_turns) : existingItem.spiral_turns;
+    const note = body.note !== undefined ? String(body.note || '') : (existingItem.note || '');
+
+    if (!shapeName) throw Object.assign(new Error('shape_name is required'), { statusCode: 400 });
+    if (!Number.isFinite(diameter) || diameter <= 0) throw Object.assign(new Error('invalid diameter'), { statusCode: 400 });
+    if (!Number.isFinite(quantity) || quantity <= 0) throw Object.assign(new Error('invalid quantity'), { statusCode: 400 });
+    if (!Number.isFinite(totalLengthMm) || totalLengthMm < 0) throw Object.assign(new Error('invalid total_length_mm'), { statusCode: 400 });
+
+    const weightPerUnit = industry.weightPerUnit({ diameter, total_length_mm: totalLengthMm });
+    const totalWeight = weightPerUnit * quantity;
+    return { shapeName, diameter, quantity, totalLengthMm, segments, spiralDiameter, spiralTurns, note, weightPerUnit, totalWeight };
+  }
+
+  function recalcOrderWeights(orderId) {
+    const orderTotal = db.prepare(`
+      SELECT COALESCE(SUM(i.total_weight),0) AS total_weight
+      FROM items i JOIN pallets p ON p.id=i.pallet_id
+      WHERE p.order_id=?
+    `).get(orderId).total_weight || 0;
+    db.prepare('UPDATE orders SET total_weight=?, billing_weight=? WHERE id=?').run(orderTotal, orderTotal * 1.03, orderId);
+    db.prepare(`
+      UPDATE pallets
+      SET total_weight=(SELECT COALESCE(SUM(total_weight),0) FROM items WHERE pallet_id=pallets.id)
+      WHERE order_id=?
+    `).run(orderId);
+    return orderTotal;
+  }
+
+  function firstOrCreatePallet(orderId) {
+    const existing = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num LIMIT 1').get(orderId);
+    if (existing) return existing;
+    const next = db.prepare('SELECT COALESCE(MAX(pallet_num),0)+1 AS pallet_num FROM pallets WHERE order_id=?').get(orderId).pallet_num || 1;
+    const result = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight,total_weight) VALUES (?,?,?,0)').run(orderId, next, 500);
+    return { id: result.lastInsertRowid, order_id: Number(orderId), pallet_num: next };
+  }
   router.get('/orders', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
     const { status, date, priority } = req.query;
     const page = listPage(req.query, { limit: 100, max: 500 });
@@ -172,6 +231,32 @@ module.exports = function createOrdersRouter(deps) {
     res.json({ success: true });
   });
 
+  router.post('/orders/:orderId/items', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.orderId);
+    if (!order) return res.status(404).json({ error: 'order not found' });
+    if (order.locked) return res.status(403).json({ error: 'הזמנה נעולה' });
+
+    try {
+      const item = cleanItemPayload(req.body, { shape_name: '', diameter: 12, quantity: 1, total_length_mm: 0, segments: '[]' });
+      const pallet = firstOrCreatePallet(order.id);
+      const hasOrderIdColumn = db.prepare("PRAGMA table_info(items)").all().some(column => column.name === 'order_id');
+      const columns = ['pallet_id', 'shape_id', 'shape_name', 'diameter', 'quantity', 'production_qty', 'segments', 'total_length_mm', 'weight_per_unit', 'total_weight', 'note', 'status', 'spiral_diameter_mm', 'spiral_turns', 'review_status'];
+      const values = [pallet.id, item.shapeName, item.shapeName, item.diameter, item.quantity, item.quantity, item.segments, item.totalLengthMm, item.weightPerUnit, item.totalWeight, item.note, 'ממתין', item.spiralDiameter || null, item.spiralTurns || null, 'pending'];
+      if (hasOrderIdColumn) {
+        columns.splice(1, 0, 'order_id');
+        values.splice(1, 0, order.id);
+      }
+      const placeholders = columns.map(() => '?').join(',');
+      const result = db.prepare(`INSERT INTO items (${columns.join(',')}) VALUES (${placeholders})`).run(...values);
+      const orderTotal = recalcOrderWeights(order.id);
+
+      auditLog('item', result.lastInsertRowid, order.order_num, 'item_add', 'shape_payload', null, JSON.stringify(req.body), item.note || null, req.auth?.sub || null, req.auth?.display_name || null);
+      wsBroadcast('order_item_added', { orderId: Number(order.id), itemId: Number(result.lastInsertRowid), orderNum: order.order_num });
+      res.json({ success: true, itemId: Number(result.lastInsertRowid), total_weight: item.totalWeight, order_total_weight: orderTotal });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+  });
   router.patch('/orders/:orderId/items/:itemId', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const item = db.prepare(`
       SELECT i.*, p.order_id, o.order_num
@@ -182,39 +267,13 @@ module.exports = function createOrdersRouter(deps) {
     `).get(req.params.itemId, req.params.orderId);
     if (!item) return res.status(404).json({ error: 'item not found' });
 
-    let segments = item.segments;
-    if (req.body.segments !== undefined) {
-      if (!Array.isArray(req.body.segments)) return res.status(400).json({ error: 'segments must be an array' });
-      const clean = [];
-      for (const [index, segment] of req.body.segments.entries()) {
-        const length = Number(segment?.length_mm ?? segment?.length);
-        const angle = Number(segment?.angle_deg ?? segment?.angle ?? 180);
-        if (!Number.isFinite(length) || length < 0) return res.status(400).json({ error: `invalid segment length at ${index + 1}` });
-        if (!Number.isFinite(angle) || angle < 0 || angle > 180) return res.status(400).json({ error: `invalid segment angle at ${index + 1}` });
-        clean.push({ length_mm: length, angle_deg: angle });
-      }
-      segments = JSON.stringify(clean);
+    let cleanItem;
+    try {
+      cleanItem = cleanItemPayload(req.body, item);
+    } catch (error) {
+      return res.status(error.statusCode || 400).json({ error: error.message });
     }
-
-    const shapeName = req.body.shape_name !== undefined ? String(req.body.shape_name || '').trim() : item.shape_name;
-    const diameter = req.body.diameter !== undefined ? Number(req.body.diameter) : Number(item.diameter);
-    const quantity = req.body.quantity !== undefined ? Number(req.body.quantity) : Number(item.quantity);
-    const totalLengthMm = req.body.total_length_mm !== undefined
-      ? Number(req.body.total_length_mm)
-      : (Array.isArray(req.body.segments)
-        ? req.body.segments.reduce((sum, segment) => sum + Number(segment?.length_mm ?? segment?.length ?? 0), 0)
-        : Number(item.total_length_mm));
-    const spiralDiameter = req.body.spiral_diameter_mm !== undefined ? Number(req.body.spiral_diameter_mm) : item.spiral_diameter_mm;
-    const spiralTurns = req.body.spiral_turns !== undefined ? Number(req.body.spiral_turns) : item.spiral_turns;
-    const note = req.body.note !== undefined ? String(req.body.note || '') : item.note;
-
-    if (!shapeName) return res.status(400).json({ error: 'shape_name is required' });
-    if (!Number.isFinite(diameter) || diameter <= 0) return res.status(400).json({ error: 'invalid diameter' });
-    if (!Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ error: 'invalid quantity' });
-    if (!Number.isFinite(totalLengthMm) || totalLengthMm < 0) return res.status(400).json({ error: 'invalid total_length_mm' });
-
-    const weightPerUnit = industry.weightPerUnit({ diameter, total_length_mm: totalLengthMm });
-    const totalWeight = weightPerUnit * quantity;
+    const { shapeName, diameter, quantity, totalLengthMm, segments, spiralDiameter, spiralTurns, note, weightPerUnit, totalWeight } = cleanItem;
     const before = JSON.stringify({
       shape_name: item.shape_name,
       diameter: item.diameter,
@@ -230,17 +289,8 @@ module.exports = function createOrdersRouter(deps) {
       WHERE id=?
     `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, note, item.id);
 
-    const orderTotal = db.prepare(`
-      SELECT COALESCE(SUM(i.total_weight),0) AS total_weight
-      FROM items i JOIN pallets p ON p.id=i.pallet_id
-      WHERE p.order_id=?
-    `).get(req.params.orderId).total_weight || 0;
-    db.prepare('UPDATE orders SET total_weight=?, billing_weight=? WHERE id=?').run(orderTotal, orderTotal * 1.03, req.params.orderId);
-    db.prepare(`
-      UPDATE pallets
-      SET total_weight=(SELECT COALESCE(SUM(total_weight),0) FROM items WHERE pallet_id=pallets.id)
-      WHERE order_id=?
-    `).run(req.params.orderId);
+    const orderTotal = recalcOrderWeights(req.params.orderId);
+
 
     auditLog('item', item.id, item.order_num, 'item_update', 'shape_payload', before, JSON.stringify(req.body), note || null, req.auth?.sub || null, req.auth?.display_name || null);
     wsBroadcast('order_item_updated', { orderId: Number(req.params.orderId), itemId: Number(item.id), orderNum: item.order_num });
@@ -305,6 +355,7 @@ module.exports.manifest = {
     { event: 'order_status' },
     { event: 'order_review' },
     { event: 'order_item_updated' },
+    { event: 'order_item_added' },
     { event: 'machine_assign' },
   ],
 };

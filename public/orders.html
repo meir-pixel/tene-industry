@@ -309,7 +309,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   <div class="edit-panel">
     <div class="edit-head">
       <div>
-        <div class="edit-title">עריכת פריט קיים</div>
+        <div class="edit-title" id="itemEditTitle">עריכת פריט קיים</div>
         <div class="detail-customer" id="itemEditMeta"></div>
       </div>
       <button class="detail-close" onclick="closeItemEditPanel()">✕</button>
@@ -331,7 +331,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
       <div class="raw-data edit-wide" id="editShapeAdvice"></div>
     </div>
     <div class="edit-actions">
-      <button class="edit-save" onclick="saveItemEdit(event)">שמור שינוי בפריט</button>
+      <button class="edit-save" id="itemEditSaveBtn" onclick="saveItemEdit(event)">שמור שינוי בפריט</button>
       <button class="edit-cancel" onclick="closeItemEditPanel()">ביטול</button>
     </div>
   </div>
@@ -927,7 +927,7 @@ function buildDetailHTML(o, pkgs) {
   }).join('');
 
   const itemsSec = `<div class="d-section">
-    <div class="d-title">📦 פריטים לייצור</div>
+    <div class="d-title" style="justify-content:space-between"><span>📦 פריטים לייצור</span><button class="review-btn primary" onclick="openAddItem(event, ${o.id})">➕ הוסף להזמנה</button></div>
     ${palletsHtml||'<div style="color:var(--muted);font-size:13px">אין פריטים</div>'}
   </div>`;
 
@@ -1061,6 +1061,24 @@ function parseEditSegmentsText(text) {
     });
 }
 
+function openAddItem(event, orderId) {
+  event?.stopPropagation?.();
+  document.getElementById('editOrderId').value = orderId;
+  document.getElementById('editItemId').value = '';
+  document.getElementById('itemEditTitle').textContent = 'הוסף פריט להזמנה';
+  document.getElementById('itemEditSaveBtn').textContent = 'הוסף להזמנה';
+  document.getElementById('itemEditMeta').textContent = currentDetailOrder?.order_num ? `הזמנה ${currentDetailOrder.order_num}` : `הזמנה ${orderId}`;
+  document.getElementById('editShapeName').value = 'ישר';
+  document.getElementById('editDiameter').value = 12;
+  document.getElementById('editQuantity').value = 1;
+  document.getElementById('editTotalLength').value = 0;
+  document.getElementById('editSpiralDiameter').value = '';
+  document.getElementById('editSpiralTurns').value = '';
+  document.getElementById('editSegments').value = '0@180';
+  document.getElementById('editNote').value = '';
+  document.getElementById('editShapeAdvice').innerHTML = '<b>פריט חדש:</b> מלא צורה, קוטר, כמות וצלעות ואז לחץ הוסף להזמנה.';
+  document.getElementById('itemEditOverlay').classList.add('show');
+}
 function openItemEdit(event, orderId, itemId) {
   event?.stopPropagation?.();
   const item = findDetailItem(orderId, itemId);
@@ -1072,6 +1090,8 @@ function openItemEdit(event, orderId, itemId) {
   const warning = openULegWarning(item, sides);
   document.getElementById('editOrderId').value = orderId;
   document.getElementById('editItemId').value = itemId;
+  document.getElementById('itemEditTitle').textContent = 'עריכת פריט קיים';
+  document.getElementById('itemEditSaveBtn').textContent = 'שמור שינוי בפריט';
   document.getElementById('itemEditMeta').textContent = `פריט ${itemId} · ${shapeLabel(item.shape_name, sides, item)}`;
   document.getElementById('editShapeName').value = item.shape_name || '';
   document.getElementById('editDiameter').value = item.diameter || '';
@@ -1116,14 +1136,15 @@ async function saveItemEdit(event) {
     segments,
     note: document.getElementById('editNote').value,
   };
-  const response = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
-    method: 'PATCH',
+  const isNewItem = !itemId;
+  const response = await fetch(isNewItem ? `/api/orders/${orderId}/items` : `/api/orders/${orderId}/items/${itemId}`, {
+    method: isNewItem ? 'POST' : 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
-    alert(result.error || 'שמירת הפריט נכשלה');
+    alert(result.error || (isNewItem ? 'הוספת הפריט נכשלה' : 'שמירת הפריט נכשלה'));
     return;
   }
   closeItemEditPanel();
