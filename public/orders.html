@@ -170,6 +170,16 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .review-approved{background:#e7f8ed;color:#166b37}
 .review-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 10px;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;color:var(--text)}
 .review-btn.primary{border-color:var(--success);background:#f2fbf5;color:var(--success)}
+.add-choice-overlay{position:fixed;inset:0;background:rgba(2,26,72,.50);z-index:750;display:none;padding:18px;backdrop-filter:blur(4px)}
+.add-choice-overlay.show{display:flex}
+.add-choice-panel{background:#fff;border:1px solid var(--border);border-radius:16px;width:min(520px,100%);margin:auto;overflow:hidden;box-shadow:0 24px 80px rgba(2,26,72,.30)}
+.add-choice-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:#f8fafc}
+.add-choice-title{font-size:20px;font-weight:900;color:var(--text)}
+.add-choice-body{padding:18px;display:grid;gap:12px}
+.add-choice-btn{border:1px solid var(--border);background:#fff;border-radius:12px;padding:16px;text-align:right;font-family:inherit;cursor:pointer;color:var(--text);display:grid;gap:5px}
+.add-choice-btn:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(224,123,57,.12)}
+.add-choice-btn b{font-size:16px;color:var(--text)}
+.add-choice-btn span{font-size:12px;color:var(--dim);line-height:1.45}
 .raw-data{border:1px dashed rgba(2,26,72,.18);background:#fff;border-radius:10px;padding:8px 10px;font-size:12px;color:var(--dim);line-height:1.55}
 .raw-data b{color:var(--text)}
 .shape-warning{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:10px;padding:7px 10px;font-size:12px;font-weight:900}
@@ -289,6 +299,28 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   </div>
 </div>
 
+<div class="add-choice-overlay" id="addChoiceOverlay" onclick="closeAddChoiceOverlay(event)">
+  <div class="add-choice-panel">
+    <div class="add-choice-head">
+      <div>
+        <div class="add-choice-title">הוסף להזמנה</div>
+        <div class="detail-customer" id="addChoiceMeta"></div>
+      </div>
+      <button class="detail-close" onclick="closeAddChoicePanel()">✕</button>
+    </div>
+    <div class="add-choice-body">
+      <button class="add-choice-btn" onclick="openAddFromOcr(event)">
+        <b>הוסף מ־OCR</b>
+        <span>פתח את מקור הקליטה והפענוח שנשמרו להזמנה, ובחר שורה להוספה.</span>
+      </button>
+      <button class="add-choice-btn" onclick="openAddManualItem(event)">
+        <b>הוסף צורה ידנית</b>
+        <span>פתח טופס צורה, קוטר, כמות וצלעות להוספה ידנית להזמנה.</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="source-overlay" id="sourceOverlay" onclick="closeSourceOverlay(event)">
   <div class="source-panel">
     <div class="source-head">
@@ -338,7 +370,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 </div>
 
 <script>
-let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null;
+let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null, addChoiceOrderId = null, ocrAddItems = [];
 const STATUS_CONTRACT = window.IronBendStatus || {};
 const ORDER_STATUS = STATUS_CONTRACT.ORDER_STATUS || {};
 const allowedOrderTransitions = STATUS_CONTRACT.allowedOrderTransitions || (() => []);
@@ -977,11 +1009,13 @@ function sourceOriginalHtml(row) {
   return `<pre class="raw-content">${escHtml(row.raw_content || 'אין מקור שמור')}</pre>`;
 }
 
-function parsedItemsHtml(parsed) {
+function parsedItemsHtml(parsed, options = {}) {
   const items = Array.isArray(parsed?.items) ? parsed.items : [];
+  ocrAddItems = options.canAdd ? items : [];
   if (!items.length) return '<div class="note-chip">לא נשמרו פריטים בפענוח המקורי.</div>';
+  const actionHead = options.canAdd ? '<th></th>' : '';
   return `<table>
-    <thead><tr><th>#</th><th>קוטר</th><th>כמות</th><th>אורך</th><th>צורה / צלעות</th><th>הערה</th></tr></thead>
+    <thead><tr><th>#</th><th>קוטר</th><th>כמות</th><th>אורך</th><th>צורה / צלעות</th><th>הערה</th>${actionHead}</tr></thead>
     <tbody>${items.map((item, index) => {
       const sides = Array.isArray(item.sides)
         ? item.sides
@@ -995,12 +1029,13 @@ function parsedItemsHtml(parsed) {
         <td>${escHtml(item.length ?? item.length_mm ?? item.total_length_mm ?? '-')}</td>
         <td>${escHtml(item.shape_name || item.shapeName || item.shape || '')}<br><span class="detail-customer">${escHtml(sides.join(' / '))}</span></td>
         <td>${escHtml(item.note || item.notes || '')}</td>
+        ${options.canAdd ? `<td><button class="review-btn primary" onclick="addParsedItemToOrder(event, ${index})">הוסף שורה</button></td>` : ''}
       </tr>`;
     }).join('')}</tbody>
   </table>`;
 }
 
-async function openOrderIntakeSource(event, orderId) {
+async function openOrderIntakeSource(event, orderId, mode = 'view') {
   event?.stopPropagation?.();
   const overlay = document.getElementById('sourceOverlay');
   document.getElementById('sourceTitle').textContent = 'טוען מקור קליטה...';
@@ -1015,7 +1050,9 @@ async function openOrderIntakeSource(event, orderId) {
     document.getElementById('sourceTitle').textContent = `מקור קליטה - ${row.order_num || ''}`;
     document.getElementById('sourceMeta').textContent = `${row.customer_name || ''} · ${row.source || ''} · ${row.created_at || ''}`;
     document.getElementById('sourceOriginal').innerHTML = sourceOriginalHtml(row);
-    document.getElementById('sourceParsed').innerHTML = `<div class="d-title">פענוח שנשמר לפני יצירת ההזמנה</div>${parsedItemsHtml(row.parsed || {})}`;
+    const canAdd = mode === 'add';
+    const parsedTitle = canAdd ? 'בחר שורה מה־OCR להוספה להזמנה' : 'פענוח שנשמר לפני יצירת ההזמנה';
+    document.getElementById('sourceParsed').innerHTML = `<div class="d-title">${parsedTitle}</div>${parsedItemsHtml(row.parsed || {}, { canAdd, orderId })}`;
   } catch (error) {
     document.getElementById('sourceTitle').textContent = 'מקור קליטה לא נמצא';
     document.getElementById('sourceOriginal').innerHTML = `<div class="note-chip">${escHtml(error.message)}</div>`;
@@ -1061,7 +1098,36 @@ function parseEditSegmentsText(text) {
     });
 }
 
+function closeAddChoiceOverlay(event) {
+  if (event.target === document.getElementById('addChoiceOverlay')) closeAddChoicePanel();
+}
+
+function closeAddChoicePanel() {
+  document.getElementById('addChoiceOverlay').classList.remove('show');
+}
+
 function openAddItem(event, orderId) {
+  event?.stopPropagation?.();
+  addChoiceOrderId = orderId;
+  document.getElementById('addChoiceMeta').textContent = currentDetailOrder?.order_num ? `הזמנה ${currentDetailOrder.order_num}` : `הזמנה ${orderId}`;
+  document.getElementById('addChoiceOverlay').classList.add('show');
+}
+
+function openAddFromOcr(event) {
+  event?.stopPropagation?.();
+  const orderId = addChoiceOrderId || currentDetailOrder?.id;
+  closeAddChoicePanel();
+  openOrderIntakeSource(event, orderId, 'add');
+}
+
+function openAddManualItem(event) {
+  event?.stopPropagation?.();
+  const orderId = addChoiceOrderId || currentDetailOrder?.id;
+  closeAddChoicePanel();
+  openManualItemAdd(event, orderId);
+}
+
+function openManualItemAdd(event, orderId) {
   event?.stopPropagation?.();
   document.getElementById('editOrderId').value = orderId;
   document.getElementById('editItemId').value = '';
@@ -1150,6 +1216,58 @@ async function saveItemEdit(event) {
   closeItemEditPanel();
   await openDetail(orderId);
 }
+function parsedOcrSegments(item) {
+  if (Array.isArray(item?.segments) && item.segments.length) {
+    return item.segments.map(segment => ({
+      length_mm: Number(segment?.length_mm ?? segment?.length ?? segment) || 0,
+      angle_deg: Number(segment?.angle_deg ?? segment?.angle ?? 180) || 180,
+    }));
+  }
+  if (Array.isArray(item?.sides) && item.sides.length) {
+    const angles = Array.isArray(item?.angles) ? item.angles : [];
+    return item.sides.map((side, index) => ({
+      length_mm: Number(side) || 0,
+      angle_deg: Number(angles[index] ?? 180) || 180,
+    }));
+  }
+  const length = Number(item?.length_mm ?? item?.length ?? item?.total_length_mm) || 0;
+  return length ? [{ length_mm: length, angle_deg: 180 }] : [];
+}
+
+function parsedOcrItemPayload(item) {
+  const segments = parsedOcrSegments(item);
+  const totalLength = Number(item?.total_length_mm ?? item?.length_mm ?? item?.length) || segments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
+  return {
+    shape_name: String(item?.shape_name || item?.shapeName || item?.shape || 'ישר').trim(),
+    diameter: Number(item?.diameter ?? item?.diameter_mm) || 12,
+    quantity: Number(item?.quantity ?? item?.qty) || 1,
+    total_length_mm: totalLength,
+    spiral_diameter_mm: item?.spiral_diameter_mm ? Number(item.spiral_diameter_mm) : null,
+    spiral_turns: item?.spiral_turns ? Number(item.spiral_turns) : null,
+    segments,
+    note: item?.note || item?.notes || 'נוסף מ־OCR להזמנה קיימת',
+  };
+}
+
+async function addParsedItemToOrder(event, index) {
+  event?.stopPropagation?.();
+  const orderId = addChoiceOrderId || currentDetailOrder?.id;
+  const item = ocrAddItems[index];
+  if (!orderId || !item) return;
+  const response = await fetch(`/api/orders/${orderId}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(parsedOcrItemPayload(item)),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    alert(result.error || 'הוספת שורת OCR נכשלה');
+    return;
+  }
+  closeSourcePanel();
+  await openDetail(orderId);
+}
+
 async function approveItemReview(event, orderId, itemId) {
   event?.stopPropagation?.();
   const response = await fetch(`/api/orders/${orderId}/items/${itemId}/review`, {

@@ -400,7 +400,11 @@ test('orders review warnings have an approval path and source comparison', () =>
   assert.match(orders, /\/api\/orders\/\$\{orderId\}\/intake-source/);
   assert.match(orders, /\/api\/orders\/\$\{orderId\}\/items\/\$\{itemId\}\/review/);
   assert.match(orders, /openAddItem\(event, \$\{o\.id\}\)/);
-  assert.match(orders, /הוסף להזמנה/);
+  assert.match(orders, /openAddFromOcr/);
+  assert.match(orders, /openAddManualItem/);
+  assert.match(orders, /הוסף מ־OCR/);
+  assert.match(orders, /הוסף צורה ידנית/);
+  assert.match(orders, /addParsedItemToOrder/);
   assert.match(orders, /isNewItem \? `\/api\/orders\/\$\{orderId\}\/items`/);
   assert.match(ordersRoute, /router\.post\('\/orders\/:orderId\/items'/);
   assert.match(ordersRoute, /order_item_added/);
