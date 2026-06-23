@@ -37,6 +37,16 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .empty{color:var(--text-muted);padding:18px;border:1px dashed var(--border);border-radius:10px;text-align:center;background:#fbfcfe}
 .intake-list{display:grid;gap:12px}
 .intake-compose{border:0;background:transparent;padding:0;display:grid;gap:10px}
+.intake-compose-details{border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden}
+.intake-compose-details>summary{list-style:none;cursor:pointer;padding:11px 13px;font-weight:900;display:flex;justify-content:space-between;align-items:center;background:#fbfcfe}
+.intake-compose-details>summary::-webkit-details-marker{display:none}
+.intake-compose-details>summary:after{content:'+';font-size:18px;color:var(--accent);font-weight:900}
+.intake-compose-details[open]>summary:after{content:'-' }
+.intake-compose-details .intake-compose{padding:12px;border-top:1px solid var(--border)}
+.work-steps-details{border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden}
+.work-steps-details>summary{list-style:none;cursor:pointer;padding:10px 12px;font-size:12px;font-weight:900;color:var(--text-muted);background:#fbfcfe}
+.work-steps-details>summary::-webkit-details-marker{display:none}
+.work-steps-details .work-steps{padding:10px;margin:0}
 .compose-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .compose-title{font-size:16px;font-weight:900;color:var(--text)}
 .compose-grid{display:grid;grid-template-columns:1fr;gap:8px;align-items:end}
@@ -336,49 +346,49 @@ body[data-page="intake"] #seOverlay{z-index:980}
       <div class="panel-head">
         <div>
           <div class="panel-title">הכנסה לתור</div>
-          <div class="meta">כל פנייה נכנסת קודם לתור בדיקה. רק אחרי אימות מול המקור היא הופכת להזמנה.</div>
+          <div class="meta">המסך נשאר נקי: התור וההשוואה במרכז, והכנסה ידנית נפתחת רק כשצריך.</div>
         </div>
       </div>
       <div class="panel-body">
-        <div class="intake-compose">
-          <div class="compose-head">
-            <div>
-              <div class="compose-title">הכנסה ידנית לתור</div>
-              <div class="meta">הדבק טקסט מטלפון, וואטסאפ או מייל. המערכת תכניס אותו לתור ותאפשר אישור אחרי בדיקה.</div>
+        <details class="intake-compose-details">
+          <summary>הכנסה ידנית לתור</summary>
+          <div class="intake-compose">
+            <div class="compose-grid">
+              <div class="field">
+                <label>מקור</label>
+                <select id="manualIntakeSource">
+                  <option value="phone">טלפון</option>
+                  <option value="whatsapp">וואטסאפ</option>
+                  <option value="email">מייל</option>
+                  <option value="manual">ידני</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>תוכן ההזמנה</label>
+                <textarea id="manualIntakeText" placeholder="לדוגמה: מאיר, טלפון 050..., אספקה 03/06/2026, קוטר 12, אורך 1000, כמות 1"></textarea>
+              </div>
+              <button class="btn btn-primary" id="manualIntakeBtn" onclick="saveManualIntake()">הכנס לתור</button>
+            </div>
+            <div id="manualIntakeResult" class="compose-result"></div>
+          </div>
+        </details>
+        <details class="work-steps-details">
+          <summary>מסלול קליטה</summary>
+          <div class="work-steps" aria-label="מסלול קליטת הזמנה">
+            <div class="work-step">
+              <div class="work-step-num">1</div>
+              <div><div class="work-step-title">קבלת מקור</div><div class="work-step-copy">טלפון, וואטסאפ, מייל, תמונה או מסמך.</div></div>
+            </div>
+            <div class="work-step">
+              <div class="work-step-num">2</div>
+              <div><div class="work-step-title">השוואה ואימות</div><div class="work-step-copy">פותחים מקור מול פענוח רק כשצריך לבדוק.</div></div>
+            </div>
+            <div class="work-step">
+              <div class="work-step-num">3</div>
+              <div><div class="work-step-title">יצירת הזמנה</div><div class="work-step-copy">רק נתונים מאומתים עוברים להזמנות ולייצור.</div></div>
             </div>
           </div>
-          <div class="compose-grid">
-            <div class="field">
-              <label>מקור</label>
-              <select id="manualIntakeSource">
-                <option value="phone">טלפון</option>
-                <option value="whatsapp">וואטסאפ</option>
-                <option value="email">מייל</option>
-                <option value="manual">ידני</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>תוכן ההזמנה</label>
-              <textarea id="manualIntakeText" placeholder="לדוגמה: מאיר, טלפון 050..., אספקה 03/06/2026, קוטר 12, אורך 1000, כמות 1"></textarea>
-            </div>
-            <button class="btn btn-primary" id="manualIntakeBtn" onclick="saveManualIntake()">הכנס לתור</button>
-          </div>
-          <div id="manualIntakeResult" class="compose-result"></div>
-        </div>
-        <div class="work-steps" aria-label="מסלול קליטת הזמנה">
-          <div class="work-step">
-            <div class="work-step-num">1</div>
-            <div><div class="work-step-title">קבלת מקור</div><div class="work-step-copy">טלפון, וואטסאפ, מייל, תמונה או מסמך.</div></div>
-          </div>
-          <div class="work-step">
-            <div class="work-step-num">2</div>
-            <div><div class="work-step-title">השוואה ואימות</div><div class="work-step-copy">המקור והפענוח נפתחים צד ליד צד לפני אישור.</div></div>
-          </div>
-          <div class="work-step">
-            <div class="work-step-num">3</div>
-            <div><div class="work-step-title">יצירת הזמנה</div><div class="work-step-copy">רק נתונים מאומתים עוברים להזמנות ולייצור.</div></div>
-          </div>
-        </div>
+        </details>
       </div>
     </aside>
 
@@ -645,7 +655,10 @@ function ocrText(value, fallback = '-') {
 }
 
 function ocrShapeRaw(item) {
-  return String(item?.shape_name || item?.shapeName || item?.shape || item?.type || '').trim();
+  return [item?.shape_name, item?.shapeName, item?.shape, item?.type, item?.shape_description, item?.shapeDescription, item?.customer_shape_description, item?.shape_desc]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 }
 
 function hasAnyToken(text, tokens) {
@@ -720,6 +733,38 @@ function ocrClosedStirrupSvg(sides, item, width = 300, height = 210) {
   </svg>`;
 }
 
+function ocrHasBentHint(item) {
+  const raw = ocrShapeRaw(item);
+  return /open\s*u|u-shaped|u shape|stirrup|closed|bench|lift|bent/i.test(raw)
+    || hasAnyToken(raw, ['צורת ח', 'ספסל', 'ליפט', 'חישוק', 'סגור', 'מסגרת', 'כיפוף', 'זווית', 'זוית']);
+}
+
+function ocrHasAcceptedReview(item) {
+  const raw = String(item?.review_status || item?.ocr_review_status || '').trim().toLowerCase();
+  return raw === 'accepted' || raw === 'verified' || raw === 'reviewed';
+}
+
+function ocrUncertainShapeSvg(item, width = 300, height = 210) {
+  const raw = ocrShapeRaw(item);
+  const rawStraight = (/straight/i.test(raw) || hasAnyToken(raw, ['מוט ישר', 'ישר', 'ברזל ישר'])) && !ocrHasBentHint(item);
+  const label = rawStraight && !ocrHasAcceptedReview(item) ? 'צורה לבדיקה' : (ocrDisplayName(item) || 'צורה לבדיקה');
+  const cx = width / 2;
+  const cy = height / 2;
+  let shapePath = `M ${cx-52} ${cy+30} L ${cx-52} ${cy-28} L ${cx+52} ${cy-28} L ${cx+52} ${cy+30}`;
+  if (/bench|lift/i.test(raw) || hasAnyToken(raw, ['ספסל', 'ליפט'])) {
+    shapePath = `M ${cx-64} ${cy+28} L ${cx-20} ${cy+28} L ${cx-20} ${cy-18} L ${cx+24} ${cy-18} L ${cx+24} ${cy+28} L ${cx+64} ${cy+28}`;
+  } else if (/closed|stirrup/i.test(raw) || hasAnyToken(raw, ['חישוק', 'סגור', 'מסגרת'])) {
+    shapePath = `M ${cx-54} ${cy-34} L ${cx+54} ${cy-34} L ${cx+54} ${cy+34} L ${cx-54} ${cy+34} Z`;
+  } else if (/bent/i.test(raw) || hasAnyToken(raw, ['כיפוף', 'זווית', 'זוית'])) {
+    shapePath = `M ${cx-60} ${cy+28} L ${cx-6} ${cy+28} L ${cx+54} ${cy-28}`;
+  }
+  return `<svg viewBox="0 0 ${width} ${height}" data-shape-kind="ocr-uncertain" aria-label="shape needs review">
+    <rect x="10" y="10" width="${width-20}" height="${height-20}" rx="10" fill="#fffaf2" stroke="#f0c36a" stroke-width="2" stroke-dasharray="7 5"/>
+    <path d="${shapePath}" fill="none" stroke="#0f5f78" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
+    <path d="${shapePath}" fill="none" stroke="#d9651c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
+    <text x="${cx}" y="${height-18}" text-anchor="middle" font-size="12" font-weight="900" fill="#9a6a00">${escapeHtml(label)} - לבדיקה</text>
+  </svg>`;
+}
 function ocrStraightSvg(item, width = 300, height = 210) {
   const length = toNumber(item?.total_length_mm ?? item?.length_mm ?? item?.length) || itemSidesAngles(item).sides[0] || 0;
   const y = Math.round(height / 2);
@@ -756,9 +801,14 @@ function ocrOpenShapeSvg(item, sides, angles, width = 300, height = 210) {
 
 function ocrShapeSvgHtml(item, width = 300, height = 210) {
   if (isSpiralOcrItem(item)) return spiralOcrSvg(item);
+  const explicitSegments = itemSegmentsOf(item);
   const { sides, angles } = itemSidesAngles(item);
+  const raw = ocrShapeRaw(item);
+  const explicitStraight = (/straight/i.test(raw) || hasAnyToken(raw, ['מוט ישר', 'ישר', 'ברזל ישר'])) && !ocrHasBentHint(item);
   if (isClosedStirrupOcr(item, sides, angles)) return ocrClosedStirrupSvg(sides, item, width, height);
-  if (!sides.length || /straight/i.test(ocrShapeRaw(item)) || hasAnyToken(ocrShapeRaw(item), ['\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8', '\u05d9\u05e9\u05e8'])) return ocrStraightSvg(item, width, height);
+  if (!explicitSegments.length && !ocrHasAcceptedReview(item)) return ocrUncertainShapeSvg(item, width, height);
+  if (explicitStraight) return ocrStraightSvg(item, width, height);
+  if (!sides.length) return ocrUncertainShapeSvg(item, width, height);
   return ocrOpenShapeSvg(item, sides, angles, width, height);
 }
 
@@ -1440,15 +1490,15 @@ function renderIntakeQueue() {
           <div class="card-actions">
             <span class="task-type">${row.post_order_review ? 'אימות אחרי פתיחת הזמנה' : 'פנייה לפני יצירת הזמנה'}</span>
             <span class="urgency-badge urgency-${urgency.level}" title="דירוג דחיפות ${urgency.score}">${urgency.label} · ${urgency.score}</span>
-            <button class="btn btn-success" onclick="openIntakeCompare(${row.id})">${row.post_order_review ? 'השוואה למקור' : 'השוואה ואישור'}</button>
-            ${row.post_order_review ? `<button class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה לאימות</button>` : `<button class="btn" onclick="openManualOrder(${row.id})">פתח להשוואה ועריכה</button><button class="btn btn-danger" onclick="intakeReject(${row.id})">דחה</button>`}
+            <button type="button" class="btn btn-success" data-intake-action="compare" data-intake-id="${row.id}">${row.post_order_review ? 'השוואה למקור' : 'השוואה ואישור'}</button>
+            ${row.post_order_review ? `<button class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה לאימות</button>` : `<button type="button" class="btn" data-intake-action="compare" data-intake-id="${row.id}">פתח להשוואה ועריכה</button><button type="button" class="btn btn-danger" data-intake-action="reject" data-intake-id="${row.id}">דחה</button>`}
           </div>
         </div>
         <div class="card-grid">
           <div class="box source-box">
             <div class="box-title">מקור הפנייה</div>
             <div class="intake-source-preview">${intakeSourceHtml(row)}</div>
-            <button class="btn" style="margin-top:8px;width:100%" onclick="openIntakeCompare(${row.id})">השוואה במסך מלא</button>
+            <button type="button" class="btn" style="margin-top:8px;width:100%" data-intake-action="compare" data-intake-id="${row.id}">השוואה במסך מלא</button>
           </div>
           <div class="box data-box">
             <div class="box-title">${row.post_order_review ? `משימת אימות פתוחה · ${row.review_count || 0} הערות` : 'פענוח להזמנה'}</div>
@@ -1466,6 +1516,26 @@ function renderIntakeQueue() {
   scrollToHashIntake();
 }
 
+function handleIntakeListClick(event) {
+  const button = event.target.closest('[data-intake-action]');
+  if (!button) return;
+  const id = Number(button.dataset.intakeId);
+  if (!Number.isFinite(id)) return;
+  event.preventDefault();
+  if (button.dataset.intakeAction === 'compare') return safeOpenIntakeCompare(id);
+  if (button.dataset.intakeAction === 'reject') return intakeReject(id);
+}
+
+function safeOpenIntakeCompare(id) {
+  try {
+    openIntakeCompare(id);
+  } catch (error) {
+    console.error('intake compare failed', error);
+    toast('פתיחת ההשוואה נכשלה. רענן או בדוק את נתוני ה-OCR.', true);
+  }
+}
+
+document.getElementById('intakeList')?.addEventListener('click', handleIntakeListClick);
 function scrollToHashIntake() {
   const id = decodeURIComponent(location.hash || '').replace(/^#/, '');
   if (!id) return;
