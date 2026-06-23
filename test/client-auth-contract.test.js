@@ -773,6 +773,11 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /ocr-queue-title/);
   assert.doesNotMatch(intake, /ocr-queue-edit-row/);
   assert.match(intake, /isDimensionPairMarker/);
+  assert.match(intake, /isCardDimensionPair/);
+  assert.match(intake, /cardDimensionPairSides/);
+  assert.match(intake, /ocrCardShapeSvg/);
+  assert.match(intake, /data-shape-kind="ocr-card-shape"/);
+  assert.match(intake, /safeIntakeRender/);
   assert.match(intake, /expandSegmentPart/);
   assert.match(intake, /normalizeOcrSegments/);
   assert.match(intake, /angle_deg: 90/);
