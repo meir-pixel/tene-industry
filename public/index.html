@@ -225,8 +225,8 @@
   #customer-section { grid-column: 1; }
   #delivery-section { grid-column: 2; }
   #delivery-section.delivery-collapsed { overflow: visible; }
-  .delivery-toggle { display: block; }
-  .delivery-toggle > summary {
+  .delivery-toggle, .compact-toggle { display: block; }
+  .delivery-toggle > summary, .compact-toggle > summary {
     list-style: none;
     cursor: pointer;
     display: flex;
@@ -236,18 +236,18 @@
     padding: 12px 14px;
     min-height: 58px;
   }
-  .delivery-toggle > summary::-webkit-details-marker { display: none; }
-  .delivery-summary-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
-  .delivery-summary-icon {
+  .delivery-toggle > summary::-webkit-details-marker, .compact-toggle > summary::-webkit-details-marker { display: none; }
+  .delivery-summary-main, .compact-summary-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .delivery-summary-icon, .compact-summary-icon {
     width: 36px; height: 36px; border-radius: 9px;
     display: flex; align-items: center; justify-content: center;
     background: rgba(201,98,26,0.12); font-size: 18px; flex-shrink: 0;
   }
-  .delivery-summary-title { font-weight: 800; font-size: 14px; color: var(--text); }
-  .delivery-summary-sub { color: var(--text-dim); font-size: 12px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
-  .delivery-edit-pill { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 6px 10px; color: var(--accent); font-size: 12px; font-weight: 900; white-space: nowrap; }
-  .delivery-toggle[open] .delivery-edit-pill { color: var(--text-dim); }
-  .delivery-toggle .section-body { border-top: 1px solid var(--border); }
+  .delivery-summary-title, .compact-summary-title { font-weight: 800; font-size: 14px; color: var(--text); }
+  .delivery-summary-sub, .compact-summary-sub { color: var(--text-dim); font-size: 12px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+  .delivery-edit-pill, .compact-edit-pill { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 6px 10px; color: var(--accent); font-size: 12px; font-weight: 900; white-space: nowrap; }
+  .delivery-toggle[open] .delivery-edit-pill, .compact-toggle[open] .compact-edit-pill { color: var(--text-dim); }
+  .delivery-toggle .section-body, .compact-toggle .section-body { border-top: 1px solid var(--border); }
   #items-section { grid-column: 1 / 3; }
   .notes-section { grid-column: 1 / 3; }
 
@@ -1246,14 +1246,18 @@
   </div>
 
   <div class="section order-import-section" id="order-import-section-anchor">
-    <div class="section-header">
-      <div class="section-icon" style="background:rgba(26,122,66,0.12)">📊</div>
-      <div>
-        <div class="section-title">קליטת הזמנה</div>
-        <div class="section-subtitle">בחר מקור הזמנה, העלה PDF/תמונה ל-OCR או ייבא טבלת CSV/TSV.</div>
-      </div>
-    </div>
-    <div class="section-body">
+    <details class="compact-toggle" id="intakeDetails">
+      <summary>
+        <div class="compact-summary-main">
+          <div class="compact-summary-icon" style="background:rgba(26,122,66,0.12)">&#128202;</div>
+          <div>
+            <div class="compact-summary-title">&#1511;&#1500;&#1497;&#1496;&#1514; &#1492;&#1494;&#1502;&#1504;&#1492;</div>
+            <div class="compact-summary-sub" id="intakeSummaryText">OCR / &#1497;&#1491;&#1504;&#1497; / CSV &#1500;&#1508;&#1497; &#1492;&#1510;&#1493;&#1512;&#1498;</div>
+          </div>
+        </div>
+        <span class="compact-edit-pill">&#1508;&#1514;&#1495;</span>
+      </summary>
+      <div class="section-body">
       <div class="intake-controls">
         <div class="ocr-quick-action">
           <div class="intake-row-label">OCR</div>
@@ -1311,50 +1315,55 @@
           </div>
         </details>
       </div>
-    </div>
+      </div>
+    </details>
   </div>
 
   <!-- SECTION 1: CUSTOMER -->
   <div class="section" id="customer-section">
-    <div class="section-header">
-      <div class="section-icon" style="background:rgba(21,96,168,0.12)">👤</div>
-      <div>
-        <div class="section-title">שיוך לקוח להזמנה</div>
-        <div class="section-subtitle">לא מקימים כאן תיק לקוח מלא. רק מזהים את הלקוח הדרוש להזמנה הזו.</div>
-      </div>
-    </div>
-    <div class="section-body">
-      <div class="customer-assignment-card">
-        <div class="customer-quick-row">
-          <div class="field">
-            <label><span class="required">*</span>חיפוש / שם לקוח</label>
-            <div class="customer-search-wrap">
-              <input type="text" id="customerSearch" placeholder="שם לקוח, טלפון או מספר לקוח..." autocomplete="off" oninput="searchCustomer(this.value)">
-              <div class="customer-results" id="customerResults"></div>
+    <details class="compact-toggle" id="customerDetails">
+      <summary>
+        <div class="compact-summary-main">
+          <div class="compact-summary-icon" style="background:rgba(21,96,168,0.12)">&#128100;</div>
+          <div>
+            <div class="compact-summary-title">&#1500;&#1511;&#1493;&#1495;</div>
+            <div class="compact-summary-sub" id="customerSummaryText">&#1500;&#1511;&#1493;&#1495; &#1500;&#1488; &#1513;&#1493;&#1497;&#1498;</div>
+          </div>
+        </div>
+        <span class="compact-edit-pill">&#1508;&#1514;&#1495;</span>
+      </summary>
+      <div class="section-body">
+        <div class="customer-assignment-card">
+          <div class="customer-quick-row">
+            <div class="field">
+              <label><span class="required">*</span>&#1495;&#1497;&#1508;&#1493;&#1513; / &#1513;&#1501; &#1500;&#1511;&#1493;&#1495;</label>
+              <div class="customer-search-wrap">
+                <input type="text" id="customerSearch" placeholder="&#1513;&#1501; &#1500;&#1511;&#1493;&#1495;, &#1496;&#1500;&#1508;&#1493;&#1503; &#1488;&#1493; &#1502;&#1505;&#1508;&#1512; &#1500;&#1511;&#1493;&#1495;..." autocomplete="off" oninput="searchCustomer(this.value);updateCustomerSummary()">
+                <div class="customer-results" id="customerResults"></div>
+              </div>
+            </div>
+            <div class="field">
+              <label>&#1496;&#1500;&#1508;&#1493;&#1503; &#1500;&#1492;&#1494;&#1502;&#1504;&#1492;</label>
+              <input type="tel" id="customerPhone" placeholder="050-0000000" oninput="updateCustomerSummary()">
             </div>
           </div>
-          <div class="field">
-            <label>טלפון להזמנה</label>
-            <input type="tel" id="customerPhone" placeholder="050-0000000">
+          <div class="customer-status-row">
+            <div>
+              <div class="customer-status-pill" id="customerStatePill">&#1500;&#1511;&#1493;&#1495; &#1500;&#1488; &#1513;&#1493;&#1497;&#1498;</div>
+              <input type="hidden" id="customerPriorityId">
+              <input type="hidden" id="contactName">
+              <input type="hidden" id="contactPhone">
+            </div>
+            <div class="customer-status-copy">&#1499;&#1488;&#1503; &#1504;&#1513;&#1502;&#1512; &#1512;&#1511; &#1492;&#1513;&#1497;&#1493;&#1498; &#1500;&#1492;&#1494;&#1502;&#1504;&#1492;. &#1488;&#1513;&#1512;&#1488;&#1497;, &#1502;&#1495;&#1497;&#1512;&#1493;&#1503;, &#1488;&#1504;&#1513;&#1497; &#1511;&#1513;&#1512; &#1493;&#1499;&#1514;&#1493;&#1489;&#1493;&#1514; &#1511;&#1489;&#1493;&#1506;&#1493;&#1514; &#1502;&#1504;&#1493;&#1492;&#1500;&#1497;&#1501; &#1489;&#1499;&#1512;&#1496;&#1497;&#1505; &#1492;&#1500;&#1511;&#1493;&#1495;.</div>
           </div>
-        </div>
-        <div class="customer-status-row">
-          <div>
-            <div class="customer-status-pill" id="customerStatePill">לקוח לא שויך</div>
-            <input type="hidden" id="customerPriorityId">
-            <input type="hidden" id="contactName">
-            <input type="hidden" id="contactPhone">
+          <div class="customer-handoff">
+            <span>&#1510;&#1512;&#1497;&#1498; &#1500;&#1506;&#1512;&#1493;&#1498; &#1508;&#1512;&#1496;&#1497; &#1500;&#1511;&#1493;&#1495; &#1488;&#1493; &#1500;&#1508;&#1514;&#1493;&#1495; &#1514;&#1497;&#1511; &#1502;&#1500;&#1488;?</span>
+            <a href="/customers.html">&#1508;&#1514;&#1495; &#1502;&#1493;&#1491;&#1493;&#1500; &#1500;&#1511;&#1493;&#1495;&#1493;&#1514;</a>
           </div>
-          <div class="customer-status-copy">כאן נשמר רק השיוך להזמנה. אשראי, מחירון, אנשי קשר וכתובות קבועות מנוהלים בכרטיס הלקוח.</div>
-        </div>
-        <div class="customer-handoff">
-          <span>צריך לערוך פרטי לקוח או לפתוח תיק מלא?</span>
-          <a href="/customers.html">פתח מודול לקוחות</a>
         </div>
       </div>
-    </div>
+    </details>
   </div>
-
   <!-- SECTION 2: DELIVERY -->
   <div class="section delivery-collapsed" id="delivery-section">
     <details class="delivery-toggle" id="deliveryDetails">
@@ -1479,18 +1488,24 @@
 
   <!-- SECTION 4: NOTES -->
   <div class="section notes-section">
-    <div class="section-header">
-      <div class="section-icon" style="background:rgba(255,255,255,0.06)">📝</div>
-      <div>
-        <div class="section-title">הערות כלליות</div>
-      </div>
-    </div>
-    <div class="section-body">
+    <details class="compact-toggle" id="notesDetails">
+      <summary>
+        <div class="compact-summary-main">
+          <div class="compact-summary-icon" style="background:rgba(21,96,168,0.10)">&#128221;</div>
+          <div>
+            <div class="compact-summary-title">&#1492;&#1506;&#1512;&#1493;&#1514;</div>
+            <div class="compact-summary-sub" id="notesSummaryText">&#1488;&#1497;&#1503; &#1492;&#1506;&#1512;&#1493;&#1514;</div>
+          </div>
+        </div>
+        <span class="compact-edit-pill">&#1508;&#1514;&#1495;</span>
+      </summary>
+      <div class="section-body">
       <div class="field">
         <label>הערות להזמנה</label>
-        <textarea id="generalNotes" placeholder="כל מידע נוסף שחשוב לדעת על ההזמנה..."></textarea>
+        <textarea id="generalNotes" placeholder="כל מידע נוסף שחשוב לדעת על ההזמנה..." oninput="updateNotesSummary()"></textarea>
       </div>
-    </div>
+      </div>
+    </details>
   </div>
 
   <!-- SUMMARY BAR -->
@@ -1570,6 +1585,8 @@ function init() {
   const deliveryDate = document.getElementById('deliveryDate');
   if (deliveryDate) deliveryDate.value = tomorrow.toISOString().split('T')[0];
   updateDeliverySummary();
+  updateCustomerSummary();
+  updateNotesSummary();
 
   // First pallet
   addPallet();
@@ -1592,6 +1609,7 @@ function init() {
           document.getElementById('customerSearch').value = c.name;
           if (c.phone) document.getElementById('customerPhone').value = c.phone;
           window._selectedCustomerId = c.id;
+          updateCustomerSummary();
         }
       }).catch(() => {});
   }
@@ -1619,13 +1637,50 @@ function updateDeliverySummary() {
     const date = new Date(dateValue + 'T00:00:00');
     parts.push(Number.isNaN(date.getTime()) ? dateValue : date.toLocaleDateString('he-IL'));
   }
-  summary.textContent = parts.length ? parts.join(' · ') : '\u05e9\u05dd \u05d0\u05ea\u05e8 \u05d5\u05db\u05ea\u05d5\u05d1\u05ea \u05d1\u05dc\u05d7\u05d9\u05e6\u05d4';
+  summary.textContent = parts.length ? parts.join(' | ') : '\u05e9\u05dd \u05d0\u05ea\u05e8 \u05d5\u05db\u05ea\u05d5\u05d1\u05ea \u05d1\u05dc\u05d7\u05d9\u05e6\u05d4';
 }
 
 function openDeliveryDetails() {
   const details = document.getElementById('deliveryDetails');
   if (details) details.open = true;
   updateDeliverySummary();
+}
+
+function openCustomerDetails() {
+  const details = document.getElementById('customerDetails');
+  if (details) details.open = true;
+  updateCustomerSummary();
+}
+
+function openIntakeDetails() {
+  const details = document.getElementById('intakeDetails');
+  if (details) details.open = true;
+}
+
+function openNotesDetails() {
+  const details = document.getElementById('notesDetails');
+  if (details) details.open = true;
+  updateNotesSummary();
+}
+
+function updateCustomerSummary() {
+  const summary = document.getElementById('customerSummaryText');
+  if (!summary) return;
+  const name = (document.getElementById('customerSearch')?.value || '').trim();
+  const phone = (document.getElementById('customerPhone')?.value || '').trim();
+  const state = (document.getElementById('customerStatePill')?.textContent || '').trim();
+  const parts = [];
+  if (name) parts.push(name);
+  if (phone) parts.push(phone);
+  if (!parts.length && state) parts.push(state);
+  summary.textContent = parts.join(' | ') || '\u05dc\u05e7\u05d5\u05d7 \u05dc\u05d0 \u05e9\u05d5\u05d9\u05da';
+}
+
+function updateNotesSummary() {
+  const summary = document.getElementById('notesSummaryText');
+  if (!summary) return;
+  const notes = (document.getElementById('generalNotes')?.value || '').trim().replace(/\s+/g, ' ');
+  summary.textContent = notes ? notes.slice(0, 70) : '\u05d0\u05d9\u05df \u05d4\u05e2\u05e8\u05d5\u05ea';
 }
 
 // ── CHANNEL ──────────────────────────────────────────────
@@ -1635,6 +1690,8 @@ function setChannel(btn, value) {
   document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('orderChannel').value = value;
+  const intakeSummary = document.getElementById('intakeSummaryText');
+  if (intakeSummary) intakeSummary.textContent = value || 'OCR / ידני / CSV לפי הצורך';
   // Hide all panels
   document.querySelectorAll('.channel-panel').forEach(p => p.style.display = 'none');
   // Show relevant panel
@@ -1742,6 +1799,7 @@ function escapeHtml(value) {
 function setCustomerState(text) {
   const pill = document.getElementById('customerStatePill');
   if (pill) pill.textContent = text;
+  updateCustomerSummary();
 }
 
 function searchCustomer(query) {
@@ -1781,6 +1839,7 @@ function newCustomer(name) {
   document.getElementById('customerPriorityId').value = 'יוצר אוטומטית';
   document.getElementById('customerResults').classList.remove('show');
   setCustomerState('לקוח חדש מינימלי');
+  updateCustomerSummary();
   document.getElementById('customerPhone').focus();
 }
 
@@ -2141,6 +2200,8 @@ function newOrder() {
   document.getElementById('generalNotes').value = '';
   document.getElementById('driverNotes').value = '';
   updateDeliverySummary();
+  updateCustomerSummary();
+  updateNotesSummary();
   const num = String(orderCounter).padStart(3, '0');
   const orderNumDisplay = document.getElementById('orderNumDisplay');
   if (orderNumDisplay) orderNumDisplay.textContent = `#2024-${num}`;
@@ -2148,6 +2209,10 @@ function newOrder() {
 }
 
 function scrollToSection(id) {
+  if (id === 'order-import-section-anchor') openIntakeDetails();
+  if (id === 'customer-section') openCustomerDetails();
+  if (id === 'delivery-section') openDeliveryDetails();
+  if (id === 'summary-section') openNotesDetails();
   document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -2159,7 +2224,7 @@ async function submitOrder() {
   const address = document.getElementById('deliveryAddress').value;
   const date = document.getElementById('deliveryDate').value;
 
-  if (!customer) { alert('נא להזין שם לקוח'); return; }
+  if (!customer) { openCustomerDetails(); alert('נא להזין שם לקוח'); return; }
   if (!address) { openDeliveryDetails(); alert('נא להזין כתובת אספקה'); return; }
   if (!date) { openDeliveryDetails(); alert('נא להזין תאריך אספקה'); return; }
   const hasItems = pallets.some(p => p.items.length > 0);
