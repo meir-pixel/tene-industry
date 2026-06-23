@@ -69,10 +69,10 @@ test('production card split keeps item cards and master card in sync', () => {
   assert.match(productionCardsRoute, /function printCards\(\)[\s\S]*generateCards\(\);[\s\S]*window\.print\(\);/);
   assert.match(productionCardsRoute, /'-C' \+ \(cardIdx\+1\) \+ 'OF' \+ totalCards/);
   assert.match(productionCardsRoute, /להדפיס גם מאסטר מעודכן/);
-  assert.match(productionCardsRoute, /@page\{size:A4 portrait;margin:0;\}/);
+  assert.match(productionCardsRoute, /@page\{size:A4 portrait;margin:0!important;\}/);
   assert.match(productionCardsRoute, /grid-template-columns:repeat\(2, 105mm\)/);
-  assert.match(productionCardsRoute, /grid-auto-rows:75mm/);
-  assert.match(productionCardsRoute, /height:75mm!important/);
+  assert.match(productionCardsRoute, /grid-auto-rows:74\.25mm/);
+  assert.match(productionCardsRoute, /height:74\.25mm!important/);
 });
 
 test('customer portal UI uses OTP verification before storing token', () => {
