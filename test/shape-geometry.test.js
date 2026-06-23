@@ -65,6 +65,17 @@ test('shape editor supports bend angles from -360 to 360 with quick 90, -90 and 
   assert.match(editor, /data-angle-value="\$\{a\.value\}"/);
 });
 
+test('shape editor opens as a fullscreen clean workspace with direct drawing edits', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /width:100vw;height:100vh/);
+  assert.match(editor, /se-direct-edit-note/);
+  assert.match(editor, /_editSideFromDrawing\(i\)/);
+  assert.match(editor, /_editAngleFromDrawing\(i\)/);
+  assert.match(editor, /addEventListener\('dblclick'/);
+  assert.match(editor, /דאבל-קליק לעריכת אורך/);
+  assert.match(editor, /דאבל-קליק לעריכת זווית/);
+});
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },

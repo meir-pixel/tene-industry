@@ -764,13 +764,13 @@ class ShapeEditorModal {
   background:#ffffff;
   border:0;
   border-radius:0;
-  min-height:0;
+  min-height:420px;
   box-shadow:none;
 }
 #seModal .se-svg-wrap svg{
-  min-height:0;
-  height:100%;
   width:100%;
+  height:380px;
+  max-height:100%;
 }
 #seModal .se-stats-bar{
   background:#d9d9d9;

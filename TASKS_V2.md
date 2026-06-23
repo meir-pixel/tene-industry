@@ -408,6 +408,32 @@
   - יש לפחות מוט, פיגורה, חישוק, ספירלה, רשת וכלונס.
   - השדות והציור מתעדכנים באותו מסך.
 
+### V2-006C — Shape Editor Fullscreen Clean Runtime
+
+- status: done
+- owner: codex-shape-editor
+- module: industry-steel-rebar/shape-editor
+- priority: high
+- scope:
+  - public/index.html
+  - public/intake.html
+  - public/customer.html
+  - public/shape-editor.js
+  - test/shape-geometry.test.js
+- input:
+  - דרישה שעורך הצורות ייפתח במסך מלא.
+  - השראה ממסך נקי שבו שינוי זווית משנה מיד את השרטוט והמספרים ניתנים לעריכה גם על הצורה.
+- output:
+  - מודל עורך הצורות נפתח כ-workspace מלא, נקי ורחב בכל המסכים שמחברים אליו.
+  - תוויות אורך וזווית בתוך השרטוט מאפשרות דאבל-קליק לעריכה מהירה.
+  - טעינת `shape-editor.js` קודמה ל-`v47` כדי לעקוף cache ישן.
+- logic:
+  - אין חלון נוסף מעל חלון: אותו עורך קיים הופך למסך עבודה מלא.
+  - קליק רגיל על תווית ממשיך למקד את השורה, דאבל-קליק פותח עריכה מהירה ומעדכן state/preview.
+- definition_of_done:
+  - `#seModal` משתמש ב-`100vw` ו-`100vh` ללא override קומפקטי בפורטל הלקוח.
+  - קיימות פונקציות עריכת תוויות ישירה לאורך ולזווית.
+  - בדיקת shape geometry מכסה את חוזה המסך המלא והעריכה מהאיור.
 ### V2-007 — Orders Module Specification
 
 - status: todo
@@ -580,6 +606,35 @@
   - new order creation deducts stock when matching inventory exists.
   - order item can choose a specific inventory batch from the new-order screen.
   - tests cover automatic stock deduction and usage audit rows.
+
+### V2-012B ? Inventory Shortage Procurement Handoff
+
+- status: done
+- owner: codex-inventory-procurement
+- module: inventory/procurement
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `services/inventory.js`
+  - `services/orders.js`
+  - `test/app-smoke.test.js`
+  - `test/module-governance.test.js`
+- input:
+  - order items
+  - inventory allocation result
+  - missing diameter/material quantity
+- output:
+  - open alert for stock shortage on the order
+  - procurement request in `purchase_orders` with status `inventory_shortage`
+  - API response includes created procurement requests
+- logic:
+  - automatic FIFO still consumes stock when available.
+  - when no matching stock exists or stock is insufficient, the order is created and the missing material is handed to procurement.
+  - shortages are grouped by diameter and material type.
+- definition_of_done:
+  - stockless order creates an inventory shortage alert.
+  - stockless order creates a procurement request visible to procurement.
+  - tests cover the shortage handoff.
 
 ### V2-009A-UI — Pricing Manager Runtime Screen
 
