@@ -69,6 +69,13 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .split-detail{font-size:11px;color:#666;margin-top:3px;}
 .split-summary{margin-top:8px;font-size:12px;font-weight:700;color:#1a2332;}
 .split-summary.warn{color:#9f4f00;background:#fff3d7;border:1px solid #ffd6a0;border-radius:6px;padding:7px 9px;}
+.pc-weight-entry{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;align-items:end;padding:7px 10px;background:#eef8f2;border-bottom:1px solid #d8eadf;}
+.pc-weight-entry label{display:block;font-size:9px;font-weight:900;color:#45645a;margin-bottom:2px;}
+.pc-weight-entry input{width:100%;border:1px solid #aac7b4;border-radius:5px;padding:5px 6px;font-family:inherit;font-size:12px;background:#fff;}
+.pc-weight-entry button{border:0;border-radius:6px;background:#1a7a3c;color:#fff;padding:7px 8px;font-family:inherit;font-weight:900;cursor:pointer;}
+.pc-weight-chip{min-height:30px;border-radius:6px;background:#fff;border:1px solid #c8ddcf;padding:5px 6px;font-size:11px;font-weight:900;color:#1a2332;display:flex;align-items:center;}
+.pc-weight-chip.warn{color:#9f4f00;background:#fff7ed;border-color:#fed7aa;}
+.pc-weight-chip.bad{color:#991b1b;background:#fef2f2;border-color:#fecaca;}
 
 /* ── Cards ── */
 .cards-grid{display:flex;flex-wrap:wrap;gap:8px;}
@@ -194,6 +201,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .pc-spec-cell{font-size:7px;}
   .pc-spec-sep{height:10px;margin:0 3px;}
   .pc-note{padding:1px 5px;font-size:7px;}
+  .pc-weight-entry{display:none!important;}
   .pc-footer{padding:2px 5px;}
   .pc-brand{font-size:7px;}
   .pc-brand-num{font-size:11px;}
@@ -237,6 +245,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 
 <script>
 // ── Server data ───────────────────────────────────────────────────
+var ORDER_ID      = ${Number(order.id) || 0};
 var ORDER_NUM     = ${JSON.stringify(order.order_num || '')};
 var CUSTOMER      = ${JSON.stringify(order.customer_name || '')};
 var PRINT_DATE    = ${JSON.stringify(printDate)};
@@ -257,6 +266,15 @@ var allItems      = ${JSON.stringify(allItems.map(it => ({
   struct_element: it.struct_element || '',
   pallet_num:     it._palletNum  || 1,
   material_grade: it.material_grade || 'B500B',
+  actual_weight_kg:+(it.actual_weight_kg || 0),
+  card_weights:   Array.isArray(it.card_weights) ? it.card_weights.map(function(weight){ return {
+    card_index: +(weight.card_index || 0),
+    card_total: +(weight.card_total || 0),
+    card_qty: +(weight.card_qty || 0),
+    target_weight_kg: +(weight.target_weight_kg || 0),
+    actual_weight_kg: +(weight.actual_weight_kg || 0),
+    weight_deviation_pct: weight.weight_deviation_pct == null ? null : +(weight.weight_deviation_pct || 0)
+  }; }) : [],
   is_3d:          it.is_3d       || 0
 })))};
 
@@ -308,6 +326,27 @@ function splitQty(total, n) {
 function splitWeight(item, subQty) {
   if (!item.quantity) return 0;
   return Number(item.total_weight || 0) * subQty / Number(item.quantity || 1);
+}
+
+function cardWeightFor(item, cardTotal, cardIdx) {
+  var weights = item.card_weights || [];
+  for (var i = 0; i < weights.length; i++) {
+    if (Number(weights[i].card_total) === Number(cardTotal) && Number(weights[i].card_index) === cardIdx + 1) return weights[i];
+  }
+  return null;
+}
+
+function deviationClass(pct) {
+  if (pct == null || !Number.isFinite(Number(pct))) return '';
+  var abs = Math.abs(Number(pct));
+  if (abs >= 10) return ' bad';
+  if (abs >= 3) return ' warn';
+  return '';
+}
+
+function fmtPct(pct) {
+  if (pct == null || !Number.isFinite(Number(pct))) return '-';
+  return (Number(pct) > 0 ? '+' : '') + Number(pct).toFixed(1) + '%';
 }
 
 function cardPlan() {
@@ -577,6 +616,15 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-wq-sep"></div>';
   h += '<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">'+CUSTOMER+'</span></div>';
   h += '</div>';
+  var savedWeight = cardWeightFor(item, totalCards, cardIdx);
+  var savedActual = savedWeight ? Number(savedWeight.actual_weight_kg || 0) : 0;
+  var savedDeviation = savedWeight ? savedWeight.weight_deviation_pct : null;
+  h += '<div class="pc-weight-entry">';
+  h += '<div><label>משקל רצוי לכרטיסייה</label><div class="pc-weight-chip">'+wProp+' ק"ג</div></div>';
+  h += '<div><label>משקל מצוי</label><input id="card-weight-'+uid+'" type="number" min="0" step="0.01" value="'+(savedActual || '')+'" placeholder="ק״ג"></div>';
+  h += '<div><label>סטייה</label><div id="card-weight-dev-'+uid+'" class="pc-weight-chip'+deviationClass(savedDeviation)+'">'+fmtPct(savedDeviation)+'</div></div>';
+  h += '<button onclick="saveCardWeight('+item.id+','+(cardIdx+1)+','+totalCards+','+subQty+',\''+uid+'\',event)">שמור משקל</button>';
+  h += '</div>';
   h += '<div class="pc-shape-area">'+buildShapeSVG(segs)+'</div>';
   if (dimHtml) h += '<div class="pc-dims">'+dimHtml+'</div>';
   h += '<div class="pc-spec-row">';
@@ -683,6 +731,28 @@ function generateCards() {
       if (d2.firstElementChild) grid.appendChild(d2.firstElementChild);
     } catch(e2) { console.error('buildCard item', row.item.id, e2); }
   }
+}
+
+async function saveCardWeight(itemId, cardIndex, cardTotal, cardQty, uid, event) {
+  if (event) event.stopPropagation();
+  var input = document.getElementById('card-weight-' + uid);
+  var value = Number(input && input.value);
+  if (!Number.isFinite(value) || value < 0) { alert('משקל לא תקין'); return; }
+  var res = await fetch('/api/orders/' + ORDER_ID + '/production-card-weight', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_id: itemId, card_index: cardIndex, card_total: cardTotal, card_qty: cardQty, actual_weight_kg: value })
+  });
+  var body = await res.json().catch(function(){ return {}; });
+  if (!res.ok) { alert(body.error || 'שמירת משקל נכשלה'); return; }
+  var item = allItems.find(function(row){ return Number(row.id) === Number(itemId); });
+  if (item) {
+    item.actual_weight_kg = Number(body.item_actual_weight_kg || 0);
+    item.card_weights = (item.card_weights || []).filter(function(row){ return !(Number(row.card_total) !== Number(cardTotal) || (Number(row.card_total) === Number(cardTotal) && Number(row.card_index) === Number(cardIndex))); });
+    item.card_weights.push({ card_index: cardIndex, card_total: cardTotal, card_qty: cardQty, target_weight_kg: Number(body.card_target_weight_kg || 0), actual_weight_kg: value, weight_deviation_pct: body.card_deviation_pct });
+  }
+  var dev = document.getElementById('card-weight-dev-' + uid);
+  if (dev) { dev.textContent = fmtPct(body.card_deviation_pct); dev.className = 'pc-weight-chip' + deviationClass(body.card_deviation_pct); }
 }
 
 function printCards() {

@@ -200,6 +200,23 @@ function ensureCoreSchema(db) {
       FOREIGN KEY (pallet_id) REFERENCES pallets(id)
     );
 
+    CREATE TABLE IF NOT EXISTS production_card_weights (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      item_id INTEGER NOT NULL,
+      card_index INTEGER NOT NULL,
+      card_total INTEGER NOT NULL DEFAULT 1,
+      card_qty INTEGER DEFAULT 0,
+      target_weight_kg REAL DEFAULT 0,
+      actual_weight_kg REAL NOT NULL,
+      weight_deviation_pct REAL,
+      updated_by INTEGER,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(item_id, card_index, card_total),
+      FOREIGN KEY (order_id) REFERENCES orders(id),
+      FOREIGN KEY (item_id) REFERENCES items(id)
+    );
+
     CREATE TABLE IF NOT EXISTS machines (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,

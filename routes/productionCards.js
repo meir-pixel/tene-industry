@@ -34,6 +34,16 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
   order.pallets = pallets;
 
   const allItems = pallets.flatMap(p => p.items);
+  const cardWeights = db.prepare('SELECT * FROM production_card_weights WHERE order_id=? ORDER BY item_id, card_total, card_index').all(order.id);
+  const weightsByItem = new Map();
+  for (const row of cardWeights) {
+    const key = Number(row.item_id);
+    if (!weightsByItem.has(key)) weightsByItem.set(key, []);
+    weightsByItem.get(key).push(row);
+  }
+  allItems.forEach(item => {
+    item.card_weights = weightsByItem.get(Number(item.id)) || [];
+  });
 
   // Format date dd-mm-yyyy
   const today = new Date();
@@ -59,6 +69,60 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
+});
+
+router.patch('/orders/:orderId/production-card-weight', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
+  const orderId = Number(req.params.orderId);
+  const itemId = Number(req.body.item_id);
+  const cardIndex = Number(req.body.card_index);
+  const cardTotal = Number(req.body.card_total || 1);
+  const cardQty = Number(req.body.card_qty || 0);
+  const actualWeight = Number(req.body.actual_weight_kg);
+
+  if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'invalid orderId' });
+  if (!Number.isInteger(itemId) || itemId <= 0) return res.status(400).json({ error: 'invalid item_id' });
+  if (!Number.isInteger(cardIndex) || cardIndex < 1) return res.status(400).json({ error: 'invalid card_index' });
+  if (!Number.isInteger(cardTotal) || cardTotal < 1 || cardIndex > cardTotal) return res.status(400).json({ error: 'invalid card_total' });
+  if (!Number.isFinite(actualWeight) || actualWeight < 0) return res.status(400).json({ error: 'invalid actual_weight_kg' });
+
+  const item = db.prepare(`
+    SELECT i.*, p.order_id
+    FROM items i JOIN pallets p ON p.id=i.pallet_id
+    WHERE i.id=? AND p.order_id=?
+  `).get(itemId, orderId);
+  if (!item) return res.status(404).json({ error: 'item not found' });
+
+  const targetWeight = Number(item.total_weight) || 0;
+  const targetCardWeight = targetWeight > 0 && Number(item.quantity) > 0 && cardQty > 0
+    ? targetWeight * cardQty / Number(item.quantity)
+    : targetWeight / cardTotal;
+  const deviationPct = targetCardWeight > 0 ? ((actualWeight - targetCardWeight) / targetCardWeight) * 100 : null;
+
+  db.prepare('DELETE FROM production_card_weights WHERE item_id=? AND card_total<>?').run(itemId, cardTotal);
+  db.prepare(`
+    INSERT INTO production_card_weights
+      (order_id,item_id,card_index,card_total,card_qty,target_weight_kg,actual_weight_kg,weight_deviation_pct,updated_by,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(item_id, card_index, card_total) DO UPDATE SET
+      order_id=excluded.order_id,
+      card_qty=excluded.card_qty,
+      target_weight_kg=excluded.target_weight_kg,
+      actual_weight_kg=excluded.actual_weight_kg,
+      weight_deviation_pct=excluded.weight_deviation_pct,
+      updated_by=excluded.updated_by,
+      updated_at=CURRENT_TIMESTAMP
+  `).run(orderId, itemId, cardIndex, cardTotal, cardQty, targetCardWeight, actualWeight, deviationPct, req.auth?.sub || null);
+
+  const summary = db.prepare(`
+    SELECT COUNT(*) AS saved_cards, COALESCE(SUM(actual_weight_kg),0) AS actual_weight_kg
+    FROM production_card_weights
+    WHERE item_id=? AND card_total=?
+  `).get(itemId, cardTotal);
+  const itemActualWeight = Number(summary.actual_weight_kg) || 0;
+  const itemDeviationPct = targetWeight > 0 ? ((itemActualWeight - targetWeight) / targetWeight) * 100 : null;
+  db.prepare('UPDATE items SET actual_weight_kg=?, weight_deviation_pct=? WHERE id=?').run(itemActualWeight, itemDeviationPct, itemId);
+
+  res.json({ success: true, card_target_weight_kg: targetCardWeight, card_deviation_pct: deviationPct, item_actual_weight_kg: itemActualWeight, item_deviation_pct: itemDeviationPct, saved_cards: Number(summary.saved_cards) || 0, expected_cards: cardTotal });
 });
 
   return router;
