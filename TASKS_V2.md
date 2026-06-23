@@ -880,12 +880,17 @@
 
 ### V2-011 — Production Cards Module Specification
 
-- status: todo
-- owner: gpt
+- status: in_progress
+- owner: codex-production-cards-printing
 - module: production-cards
 - priority: high
+- latest_change:
+  - started worker-phone scan flow: printed card tokens open the responsive worker card screen directly for status and weight updates.
 - scope:
   - `docs/modules/production-cards.md`
+  - `services/productionCardPrintPage.js`
+  - `public/worker-visual.html`
+  - `test/client-auth-contract.test.js`
   - future: `modules/production-cards/README_HE.md`
   - future: `modules/production-cards/module.manifest.js`
 - input:
