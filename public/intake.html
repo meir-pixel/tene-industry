@@ -206,146 +206,61 @@ body[data-page="intake"] #seOverlay{z-index:980}
 @media(max-width:980px){.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-source{min-height:45vh;border-left:0;border-bottom:1px solid var(--border)}}
 /* OCR order form visual review override */
 .ocr-order-form{
-  border:1px solid #bfcbd8;
-  border-radius:10px;
+  border:1px solid #cfd8e3;
+  border-radius:8px;
   background:#fff;
   display:grid;
   gap:0;
   overflow:auto;
 }
-.ocr-order-form-head{
-  display:grid;
-  grid-template-columns:72px minmax(128px,.85fr) minmax(132px,.9fr) minmax(260px,1.55fr) 84px 88px 104px 112px 142px;
-  min-width:1220px;
-  background:#f1f5f9;
-  border-bottom:1px solid #d2dce8;
-  color:#475569;
-  font-size:11px;
-  font-weight:900;
-}
-.ocr-order-form-head>div{
-  padding:9px 7px;
-  border-left:1px solid #d2dce8;
-  text-align:center;
-}
+.ocr-order-form-head,
 .ocr-order-row{
   display:grid;
-  grid-template-columns:72px minmax(128px,.85fr) minmax(132px,.9fr) minmax(260px,1.55fr) 84px 88px 104px 112px 142px;
-  min-width:1220px;
-  min-height:132px;
-  border-bottom:1px solid #d2dce8;
-  background:#fff;
+  grid-template-columns:64px minmax(96px,1fr) minmax(126px,1.15fr) 72px 78px 76px 96px 86px 86px;
+  min-width:780px;
 }
-.ocr-order-row:last-child{border-bottom:0}
-.ocr-order-row.verified{border-color:#9bd6c0;background:#f6fcf8}
-.ocr-order-row.edited{background:#fffdf5}
+.ocr-order-form-head{
+  background:#f4f7fb;
+  border-bottom:2px solid #c3ccd6;
+  color:#1f3a5c;
+  font-size:13px;
+  font-weight:900;
+}
+.ocr-order-form-head>div,
 .ocr-order-cell{
-  padding:8px;
-  border-left:1px solid #e3ebf3;
+  border-left:1px solid #e3e9f0;
   display:grid;
-  align-content:start;
-  gap:6px;
+  align-items:center;
   min-width:0;
 }
-.ocr-order-num{
-  font-size:20px;
-  font-weight:900;
-  color:#102033;
-  text-align:center;
-  align-content:center;
-  background:#fafbfd;
-}
-.ocr-order-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.ocr-table-shape{display:block}
-.ocr-visual-card{
-  border:1px solid #d8e4ef;
-  border-radius:8px;
+.ocr-order-form-head>div{padding:9px 6px;text-align:center}
+.ocr-order-row{
+  min-height:60px;
+  border-bottom:1px solid #e6ebf1;
   background:#fff;
-  overflow:hidden;
 }
-.ocr-shape-large,
-.ocr-table-shape button.ocr-shape-drawing{
-  width:100%;
-  min-height:96px;
-  border:0;
-  border-radius:0;
-  background:#fff;
-  display:grid;
-  place-items:center;
-  cursor:pointer;
-  padding:12px;
-}
-.ocr-shape-large svg,
-.ocr-table-shape svg{
-  width:100%;
-  height:104px;
-  max-width:240px;
-}
-.ocr-visual-footer{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
-  padding:9px 10px;
-  border-top:1px solid #e4edf5;
-  background:#fffaf5;
-  color:#b85200;
-  font-size:11px;
-  font-weight:900;
-}
-.ocr-order-input{
-  font-size:13px;
-  padding:7px 6px;
-  background:#f8fbff;
-}
-.ocr-order-label{
-  font-size:10px;
-  color:#60748a;
-}
-.ocr-order-textarea{
-  min-height:64px;
-  font-size:12px;
-}
-.ocr-order-note{
-  border-color:#f0d082;
-  background:#fff6d8;
-  color:#835300;
-}
-.ocr-order-static{
-  min-height:34px;
-  display:grid;
-  place-items:center;
-  border:1px solid #d6e0ea;
-  border-radius:8px;
-  background:#f8fbff;
-  font-size:13px;
-  font-weight:900;
-  color:#102033;
-  text-align:center;
-  padding:6px;
-}
-.ocr-row-status{
-  border:1px solid #dbe6ef;
-  border-radius:8px;
-  background:#f8fafc;
-  color:#64748b;
-  font-size:11px;
-  font-weight:900;
-  text-align:center;
-  padding:6px;
-}
-.ocr-row-status.verified{
-  border-color:#9bd6c0;
-  background:#edf9f2;
-  color:#1f6f3c;
-}
-.ocr-shape-dimensions{
-  font-size:11px;
-  line-height:1.45;
-  color:#64748b;
-  font-weight:800;
-  text-align:center;
-}
+.ocr-order-row:nth-child(odd){background:#fbfcfe}
+.ocr-order-row.verified{background:#f2fbf5}
+.ocr-order-row.edited{background:#fffdf3}
+.ocr-order-cell{padding:6px;text-align:center;gap:4px}
+.ocr-order-input{width:100%;border:1px solid transparent;border-radius:6px;background:transparent;font-family:inherit;font-size:15px;color:var(--text);padding:6px;outline:0;text-align:center;font-weight:700}
+.ocr-order-input:focus,.ocr-order-textarea:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 2px rgba(201,98,26,.12)}
+.ocr-order-label{display:none}
+.ocr-order-textarea{display:none}
+.ocr-order-static{min-height:30px;display:grid;place-items:center;font-size:15px;font-weight:700;color:#2f3a46;text-align:center;padding:4px}
+.ocr-table-shape{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:4px;align-items:center}
+.ocr-visual-card{border:0;background:transparent;overflow:visible;display:grid;gap:2px}
+.ocr-shape-large,.ocr-table-shape button.ocr-shape-drawing{width:100%;min-height:44px;border:0;border-radius:4px;background:transparent;display:grid;place-items:center;cursor:pointer;padding:0}
+.ocr-shape-large svg,.ocr-table-shape svg{width:100%;height:48px;max-width:118px}
+.ocr-visual-footer{display:none}
+.ocr-shape-dimensions{font-size:10px;line-height:1.1;color:#153863;font-weight:900;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ocr-row-status{font-size:11px;font-weight:900;color:#64748b;text-align:center;line-height:1.2}
+.ocr-row-status.verified{color:#1f6f3c}
+.ocr-icon-btn{width:28px;height:28px;border:1px solid #cfd8e3;border-radius:7px;background:#fff;color:#153863;font-family:inherit;font-size:16px;font-weight:900;display:grid;place-items:center;cursor:pointer;padding:0}
+.ocr-icon-btn:hover{border-color:var(--accent);color:var(--accent);background:#fff8f1}
+.ocr-row-actions{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}
+.ocr-order-note{display:none}
+@media(max-width:1180px){.ocr-order-form-head,.ocr-order-row{min-width:760px;grid-template-columns:58px minmax(88px,1fr) minmax(118px,1.2fr) 66px 72px 72px 90px 78px 80px}.ocr-order-input,.ocr-order-static{font-size:13px}}
 
 </style>
 </head>
@@ -907,26 +822,30 @@ function ocrOrderCellTextarea(index, field, value, low = false) {
 }
 
 function ocrShapeCellHtml(item, index) {
-  const dimensions = isSpiralOcrItem(item)
-    ? `\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4 ${item.spiral_diameter_mm ?? '-'} \u05de"\u05de / ${item.spiral_turns ?? '-'} \u05db\u05e8\u05d9\u05db\u05d5\u05ea`
-    : (segmentsToText(item) || `${item.total_length_mm ?? item.length_mm ?? item.length ?? '-'} \u05de"\u05de`);
+  const diameter = item.diameter ?? item.diameter_mm ?? '-';
+  const quantity = item.qty ?? item.quantity ?? item.pcs ?? '-';
+  const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '-';
+  const targetWeight = ocrTargetWeightKg(item) || '-';
   return `
     <div class="ocr-table-shape" id="ocrShapeCell_${index}">
       <div class="ocr-visual-card">
-        <button type="button" class="ocr-shape-large ocr-shape-drawing" onclick="openOcrShapeEditor(${index})" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4">
+        <div class="ocr-visual-metrics">
+          <div class="ocr-visual-metric"><span>כמות</span><strong>${escapeHtml(quantity)} יח'</strong></div>
+          <div class="ocr-visual-metric"><span>קוטר</span><strong>Ø ${escapeHtml(diameter)}</strong></div>
+          <div class="ocr-visual-metric"><span>אורך כללי</span><strong>${escapeHtml(totalLength)} מ"מ</strong></div>
+          <div class="ocr-visual-metric"><span>משקל רצוי</span><strong class="accent">${escapeHtml(targetWeight)} ק"ג</strong></div>
+        </div>
+        <button type="button" class="ocr-shape-large ocr-shape-drawing" onclick="openOcrShapeEditor(${index})" title="\u05ea\u05d9\u05d0\u05d5\u05e8 \u05e6\u05d5\u05e8\u05d4 - \u05e2\u05e8\u05d5\u05da \u05de\u05d9\u05d3\u05d5\u05ea">
           ${ocrShapeSvgHtml(item, 340, 230)}
         </button>
         <div class="ocr-visual-footer">
-          <span>\u05dc\u05d7\u05e5 \u05dc\u05ea\u05d9\u05e7\u05d5\u05df \u05e6\u05d5\u05e8\u05d4</span>
-          <button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">\u05e2\u05e8\u05d5\u05da</button>
+          <span>לחץ על הצורה כדי לתקן ולאשר את הפריט</span>
+          <button type="button" class="ocr-small-btn primary" onclick="openOcrShapeEditor(${index})">ערוך צורה</button>
         </div>
       </div>
-      <div class="ocr-shape-dimensions">${escapeHtml(dimensions)}</div>
     </div>
   `;
 }
-
-
 
 function removeOcrItem(index) {
   if (!activeCompareOriginal || !Array.isArray(activeCompareOriginal.items)) return;
@@ -951,8 +870,8 @@ function verifyOcrItem(index) {
 
 function ocrItemTableRowHtml(parsed, item, index) {
   const isSpiral = isSpiralOcrItem(item);
-  const isStraight = isStraightOcrItem(item);
   const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
+  const straightClass = isStraightOcrItem(item) ? ' straight-ocr-no-angles' : '';
   const diameter = item.diameter ?? item.diameter_mm ?? '';
   const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
   const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '';
@@ -964,74 +883,36 @@ function ocrItemTableRowHtml(parsed, item, index) {
   const reviewStatus = ocrReviewStatus(item);
   const lengthMeters = ocrLengthMeters(item);
   const totalLengthMeters = ocrTotalLengthMeters(item);
-  let measureHtml;
-  if (isSpiral) {
-    measureHtml = `
-      <div><div class="ocr-order-label">\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05dc\u05d4</div>
-        ${ocrOrderCellInput(index, 'spiral_diameter_mm', item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_diameter_mm`, item.spiral_diameter_mm ?? item.spiralDiameterMm))}</div>
-      <div><div class="ocr-order-label">\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea</div>
-        ${ocrOrderCellInput(index, 'spiral_turns', item.spiral_turns ?? item.spiralTurns ?? '', 'number', isLowConfidence(parsed, `items.${index}.spiral_turns`, item.spiral_turns ?? item.spiralTurns))}</div>
-      <input type="hidden" value="" data-item-index="${index}" data-item-field="segments">
-    `;
-  } else if (isStraight) {
-    measureHtml = `
-      <div class="straight-ocr-no-angles">
-        <div class="ocr-order-label">\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8</div>
-        <div class="ocr-order-static">\u05dc\u05d7\u05e5 \u05e2\u05dc \u05d4\u05e9\u05e8\u05d8\u05d5\u05d8 \u05dc\u05e9\u05d9\u05e0\u05d5\u05d9 \u05e6\u05d5\u05e8\u05d4</div>
-      </div>
-      <input type="hidden" value="" data-item-index="${index}" data-item-field="segments">
-    `;
-  } else {
-    measureHtml = `
-      <div><div class="ocr-order-label">\u05e6\u05dc\u05e2\u05d5\u05ea: \u05d0\u05d5\u05e8\u05da@\u05d6\u05d5\u05d5\u05d9\u05ea</div>
-        ${ocrOrderCellTextarea(index, 'segments', segmentsToText(item), isLowConfidence(parsed, `items.${index}.segments`, segmentsToText(item)))}</div>
-    `;
-  }
-  const warning = note ? `<div class="ocr-order-note">${escapeHtml(note)}</div>` : '';
+  const segmentsValue = isSpiral ? '' : segmentsToText(item);
   return `
-    <div class="ocr-order-row ${reviewStatus === 'accepted' ? 'verified' : ''}" id="ocrOrderRow_${index}">
-      <div class="ocr-order-cell ocr-order-num">
+    <div class="ocr-order-row ${reviewStatus === 'accepted' ? 'verified' : ''}${straightClass}" id="ocrOrderRow_${index}">
+      <div class="ocr-order-cell">
         ${ocrOrderCellInput(index, 'item_number', itemNumber, 'text', isLowConfidence(parsed, `items.${index}.item_number`, itemNumber))}
         <input type="hidden" value="${escapeHtml(shape)}" data-item-index="${index}" data-item-field="shape_name">
         <input type="hidden" value="${escapeHtml(reviewStatus)}" data-item-index="${index}" data-item-field="review_status">
+        <input type="hidden" value="${escapeHtml(note)}" data-item-index="${index}" data-item-field="note">
+        <input type="hidden" value="${escapeHtml(segmentsValue)}" data-item-index="${index}" data-item-field="segments">
+        <input type="hidden" value="${escapeHtml(item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '')}" data-item-index="${index}" data-item-field="spiral_diameter_mm">
+        <input type="hidden" value="${escapeHtml(item.spiral_turns ?? item.spiralTurns ?? '')}" data-item-index="${index}" data-item-field="spiral_turns">
       </div>
+      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'element_name', elementName, 'text', isLowConfidence(parsed, `items.${index}.element_name`, elementName))}</div>
+      <div class="ocr-order-cell">${ocrShapeCellHtml(item, index)}</div>
+      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</div>
+      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</div>
+      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}<div class="ocr-shape-dimensions">${escapeHtml(lengthMeters || '-')} m</div></div>
+      <div class="ocr-order-cell"><div class="ocr-order-static" id="ocrTotalLength_${index}">${escapeHtml(totalLengthMeters || '-')} m</div></div>
+      <div class="ocr-order-cell"><div class="ocr-order-static" id="ocrWeight_${index}">${escapeHtml(targetWeight || '-')} ק"ג</div></div>
       <div class="ocr-order-cell">
-        ${ocrOrderCellInput(index, 'element_name', elementName, 'text', isLowConfidence(parsed, `items.${index}.element_name`, elementName))}
-      </div>
-      <div class="ocr-order-cell">
-        ${ocrOrderCellInput(index, 'shape_description', shapeDescription, 'text', isLowConfidence(parsed, `items.${index}.shape_description`, shapeDescription))}
-        ${measureHtml}
-      </div>
-      <div class="ocr-order-cell">
-        ${ocrShapeCellHtml(item, index)}
-      </div>
-      <div class="ocr-order-cell">
-        ${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}
-      </div>
-      <div class="ocr-order-cell">
-        ${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}
-      </div>
-      <div class="ocr-order-cell">
-        ${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}
-        <div class="ocr-shape-dimensions">${escapeHtml(lengthMeters || '-')} m</div>
-      </div>
-      <div class="ocr-order-cell">
-        <div class="ocr-order-static" id="ocrTotalLength_${index}">${escapeHtml(totalLengthMeters || '-')} m</div>
-      </div>
-      <div class="ocr-order-cell">
-        <div class="ocr-order-static" id="ocrWeight_${index}">${escapeHtml(targetWeight || '-')} \u05e7"\u05d2</div>
-        <div class="ocr-row-status ${reviewStatus === 'accepted' ? 'verified' : ''}" id="ocrRowStatus_${index}">${ocrReviewStatusLabel(reviewStatus)}</div>
-        <div><div class="ocr-order-label">\u05d4\u05e2\u05e8\u05d4</div>${ocrOrderCellTextarea(index, 'note', note, isLowConfidence(parsed, `items.${index}.note`, note))}</div>
-        ${warning}
-        <div class="ocr-order-actions">
-          <button type="button" class="ocr-small-btn primary" onclick="verifyOcrItem(${index})">\u05e9\u05de\u05d5\u05e8 \u05e9\u05d5\u05e8\u05d4</button>
-          <button type="button" class="ocr-small-btn danger" onclick="removeOcrItem(${index})">\u05d4\u05e1\u05e8</button>
+        <div class="ocr-row-actions">
+          <button type="button" class="ocr-icon-btn" onclick="verifyOcrItem(${index})" title="שמור שורה" aria-label="שמור שורה">✓</button>
+          <button type="button" class="ocr-icon-btn" onclick="removeOcrItem(${index})" title="הסר שורה" aria-label="הסר שורה">×</button>
         </div>
+        <div class="ocr-row-status ${reviewStatus === 'accepted' ? 'verified' : ''}" id="ocrRowStatus_${index}">${ocrReviewStatusLabel(reviewStatus)}</div>
       </div>
+      <input type="hidden" value="${escapeHtml(shapeDescription)}" data-item-index="${index}" data-item-field="shape_description">
     </div>
   `;
 }
-
 
 
 function ocrItemFieldsHtml(parsed, item, index) {
@@ -1052,7 +933,7 @@ function intakeEditableForm(parsed) {
       ${items.length ? `
         <div class="ocr-order-form" aria-label="\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4">
           <div class="ocr-order-form-head">
-            <div>\u05de\u05e1' \u05e4\u05e8\u05d9\u05d8</div><div>\u05e9\u05dd \u05d4\u05d0\u05dc\u05de\u05e0\u05d8</div><div>\u05ea\u05d9\u05d0\u05d5\u05e8 \u05e6\u05d5\u05e8\u05d4</div><div>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</div><div>\u05e7\u05d5\u05d8\u05e8 (\u00d8)</div><div>\u05db\u05de\u05d5\u05ea</div><div>\u05d0\u05d5\u05e8\u05da (m)</div><div>\u05e1\u05d4"\u05db \u05d0\u05d5\u05e8\u05da (m)</div><div>\u05de\u05e9\u05e7\u05dc / \u05d1\u05d3\u05d9\u05e7\u05d4</div>
+            <div>\u05de\u05e1' \u05e4\u05e8\u05d9\u05d8</div><div>\u05e9\u05dd \u05d4\u05d0\u05dc\u05de\u05e0\u05d8</div><div>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</div><div>\u05e7\u05d5\u05d8\u05e8 (\u00d8)</div><div>\u05db\u05de\u05d5\u05ea</div><div>\u05d0\u05d5\u05e8\u05da (m)</div><div>\u05e1\u05d4"\u05db \u05d0\u05d5\u05e8\u05da (m)</div><div>\u05de\u05e9\u05e7\u05dc (kg)</div><div>\u05d1\u05d3\u05d9\u05e7\u05d4</div>
           </div>
           ${items.map((item, index) => ocrItemTableRowHtml(parsed, item, index)).join('')}
         </div>
@@ -1641,3 +1522,6 @@ loadIntakeQueue();
 </script>
 </body>
 </html>
+
+
+
