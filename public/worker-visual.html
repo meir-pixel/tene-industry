@@ -195,5 +195,6 @@
     function ws(){try{const socket=new WebSocket(window.IronBendAuth?.webSocketUrl?.('/')||`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=event=>{try{if(['item_status','new_order','order_status'].includes(JSON.parse(event.data).type))load()}catch{}};socket.onclose=()=>setTimeout(ws,2000)}catch{}}
     load();ws();
   </script>
+<script src="/production-i18n.js" defer></script>
 </body>
 </html>
