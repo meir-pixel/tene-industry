@@ -81,24 +81,20 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .raw-content{white-space:pre-wrap;max-height:190px;overflow:auto;font-size:12px;line-height:1.7}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .chip{background:#e8f0fe;border:1px solid #d8e4fb;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800}
-.ocr-queue-table-wrap{margin-top:10px;border:1px solid #dbe4ee;border-radius:8px;overflow:auto;max-height:460px;background:#fff}
-.ocr-queue-table{width:100%;border-collapse:collapse;min-width:720px;font-size:13px;text-align:center}
-.ocr-queue-table th{background:#f4f7fb;color:#1f3a5c;font-weight:900;padding:8px 6px;border-bottom:2px solid #c3ccd6;border-left:1px solid #e3e9f0;white-space:nowrap}
-.ocr-queue-table td{padding:5px 6px;border-bottom:1px solid #e6ebf1;border-left:1px solid #e6ebf1;vertical-align:middle;color:#2f3a46;font-weight:700}
-.ocr-queue-table tr:nth-child(even){background:#fbfcfe}
-.ocr-queue-shape{display:grid;grid-template-columns:minmax(80px,1fr) 28px;gap:4px;align-items:center;justify-items:center}
-.ocr-queue-shape svg{width:92px;height:48px;display:block}
-.ocr-queue-dims{font-size:10px;color:#153863;font-weight:900;line-height:1.1;max-width:116px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ocr-queue-table-wrap{margin-top:14px;overflow:auto;max-height:560px;background:#fff;border-top:3px solid #b9c3cc;border-radius:0}
+.ocr-queue-title{margin:0 0 8px;color:#1f3a5c;font-size:18px;font-weight:900;text-align:right;letter-spacing:0;border-bottom:3px solid #b9c3cc;padding-bottom:8px}
+.ocr-queue-table{width:100%;border-collapse:collapse;min-width:860px;font-size:14px;text-align:center;direction:rtl;background:#fff}
+.ocr-queue-table th{background:#f4f6f8;color:#18365c;font-weight:900;padding:10px 8px;border:1px solid #e1e6eb;white-space:nowrap;line-height:1.2}
+.ocr-queue-table td{height:70px;padding:6px 8px;border:1px solid #e6ebef;vertical-align:middle;color:#30343a;font-weight:500;background:#fff;line-height:1.25}
+.ocr-queue-table tr:nth-child(even) td{background:#fbfbfc}
+.ocr-queue-table tfoot td{height:38px;background:#e8f2fb;color:#18365c;font-weight:900;text-align:right;font-size:15px}
+.ocr-queue-shape{display:grid;grid-template-columns:28px minmax(96px,1fr);gap:6px;align-items:center;justify-items:center;direction:ltr}
+.ocr-queue-shape svg{width:98px;height:52px;display:block}
+.ocr-queue-shape-main{display:grid;gap:2px;justify-items:center;min-width:0}
+.ocr-queue-dims{font-size:10px;color:#153863;font-weight:900;line-height:1.05;max-width:116px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ocr-queue-edit{width:26px;height:26px;border:1px solid #cfd8e3;border-radius:7px;background:#fff;color:#153863;font-family:inherit;font-size:15px;font-weight:900;display:grid;place-items:center;cursor:pointer;padding:0}
 .ocr-queue-edit:hover{border-color:var(--accent);color:var(--accent);background:#fff8f1}
-.ocr-queue-edit-row{display:none;background:#f8fafc!important}
-.ocr-queue-edit-row.open{display:table-row}
-.ocr-queue-inline-editor{display:grid;grid-template-columns:repeat(6,minmax(92px,1fr));gap:8px;align-items:end;text-align:right;padding:10px;background:#fff;border:1px solid #dbe4ee;border-radius:8px}
-.ocr-queue-inline-editor label{display:grid;gap:4px;font-size:10px;font-weight:900;color:#536579}
-.ocr-queue-inline-editor input{width:100%;border:1px solid #cfd8e3;border-radius:7px;padding:7px 8px;font-family:inherit;font-size:12px;background:#f9fbfd;color:#1f2937}
-.ocr-queue-inline-actions{display:flex;gap:6px;align-items:center;justify-content:flex-start}
-.ocr-queue-inline-note{grid-column:1/-1;font-size:11px;font-weight:800;color:#7a8796}
-@media(max-width:900px){.ocr-queue-inline-editor{grid-template-columns:repeat(2,minmax(110px,1fr))}}
+@media(max-width:900px){.ocr-queue-table-wrap{max-height:480px}.ocr-queue-title{font-size:16px}.ocr-queue-table{min-width:820px;font-size:13px}}
 .order-metrics{display:grid;grid-template-columns:repeat(4,minmax(92px,1fr));gap:8px;margin:10px 0}
 .metric-cell{border:1px solid var(--border);border-radius:8px;background:#fff;padding:8px}
 .metric-label{font-size:10px;font-weight:900;color:var(--text-muted)}
@@ -425,6 +421,7 @@ let activeCompareOriginal = null;
 let intakeCompareZoom = 1;
 let intakeShapeEditor = null;
 let activeOcrShapeIndex = null;
+let activeQueueShapeContext = null;
 
 function escapeHtml(value) {
   return window.IronBendSafe
@@ -1098,6 +1095,7 @@ function ensureIntakeShapeEditor() {
 }
 
 function openOcrShapeEditor(index) {
+  activeQueueShapeContext = null;
   activeOcrShapeIndex = index;
   const item = currentOcrItemFromFields(index);
   if (isSpiralOcrItem(item) || /spiral|ring|coil/i.test(String(item.shape_name || '')) || hasAnyToken(item.shape_name, ['\u05e1\u05e4\u05d9\u05e8', '\u05d8\u05d1\u05e2\u05ea', '\u05e1\u05dc\u05d9\u05dc', '\u05dc\u05d5\u05dc\u05d0\u05d4', '\u05e7\u05e4\u05d9\u05e5'])) {
@@ -1145,13 +1143,30 @@ function refreshOcrShapeVisual(index) {
 }
 
 function shapeSelectedFromIntake(data) {
+  if (activeQueueShapeContext) {
+    const { rowId, index } = activeQueueShapeContext;
+    const row = intakeRows.find(item => item.id === rowId);
+    if (!row) {
+      activeQueueShapeContext = null;
+      return toast('פניית OCR לא נמצאה', true);
+    }
+    const parsed = parsedOf(row);
+    parsed.items = Array.isArray(parsed.items) ? parsed.items : [];
+    parsed.items[index] = applyShapeSelectionToItem(parsed.items[index] || {}, data);
+    row.parsed = parsed;
+    row.parsed_data = JSON.stringify(parsed);
+    activeQueueShapeContext = null;
+    renderIntakeQueue();
+    toast('הצורה נשמרה בשורת OCR');
+    return;
+  }
   if (activeOcrShapeIndex === null) return;
   const index = activeOcrShapeIndex;
   const shapeInput = ocrItemInput(index, 'shape_name');
   const segmentsInput = ocrItemInput(index, 'segments');
   const totalLengthInput = ocrItemInput(index, 'total_length_mm');
   if (shapeInput) {
-    shapeInput.value = data.presetName || '\u05e6\u05d5\u05e8\u05d4 \u05de\u05d5\u05ea\u05d0\u05de\u05ea';
+    shapeInput.value = data.presetName || 'צורה מותאמת';
     markOcrEdited(shapeInput);
   }
   if (segmentsInput) {
@@ -1268,74 +1283,72 @@ function formatIntakeItem(item) {
   return `<span class="chip">${parts.join(' · ')}</span>`;
 }
 
-function queueItemEditId(rowId, index, field) {
-  return `queueItem_${rowId}_${index}_${field}`;
+function applyShapeSelectionToItem(item, data) {
+  const sides = Array.isArray(data.sides) ? data.sides.map(toNumber).filter(Boolean) : [];
+  const angles = Array.isArray(data.angles) ? data.angles.map(toNumber) : [];
+  item.shape_name = data.presetName || item.shape_name || item.shape || item.type || 'custom';
+  item.shape_description = item.shape_description || item.shapeDescription || item.shape_name;
+  item.segments = sides.map((side, i) => ({ length_mm: side, angle_deg: angles[i] ?? 0 }));
+  item.sides = sides;
+  item.angles = angles.slice(0, Math.max(0, sides.length - 1));
+  item.total_length_mm = sides.reduce((sum, side) => sum + Number(side || 0), 0) || toNumber(item.total_length_mm ?? item.length_mm ?? item.length);
+  item.review_status = 'accepted';
+  return item;
 }
 
-function queueItemInlineEditorHtml(rowId, index, item) {
-  const shapeDescription = ocrShapeDescription(item);
-  const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '';
-  const segments = isSpiralOcrItem(item) ? '' : segmentsToText(item);
-  return `<tr class="ocr-queue-edit-row" id="queueEditRow_${rowId}_${index}"><td colspan="8">
-    <div class="ocr-queue-inline-editor" aria-label="עריכת שורת OCR">
-      <label>שם האלמנט<input id="${queueItemEditId(rowId, index, 'element_name')}" value="${escapeHtml(ocrElementName(item))}"></label>
-      <label>תיאור צורה<input id="${queueItemEditId(rowId, index, 'shape_description')}" value="${escapeHtml(shapeDescription)}" placeholder="ח, ספסל, ליפט, חישוק"></label>
-      <label>קוטר Ø<input id="${queueItemEditId(rowId, index, 'diameter')}" type="number" value="${escapeHtml(item.diameter ?? item.diameter_mm ?? '')}"></label>
-      <label>כמות<input id="${queueItemEditId(rowId, index, 'quantity')}" type="number" value="${escapeHtml(item.qty ?? item.quantity ?? item.pcs ?? '')}"></label>
-      <label>אורך כללי מ״מ<input id="${queueItemEditId(rowId, index, 'total_length_mm')}" type="number" value="${escapeHtml(totalLength)}"></label>
-      <label>מידות צורה<input id="${queueItemEditId(rowId, index, 'segments')}" value="${escapeHtml(segments)}" placeholder="120@90 / 500@90"></label>
-      <div class="ocr-queue-inline-actions">
-        <button type="button" class="btn btn-success" onclick="saveQueueItemEditor(${rowId}, ${index})">שמור שורה</button>
-        <button type="button" class="btn" onclick="closeQueueItemEditor(${rowId}, ${index})">סגור</button>
-      </div>
-      <div class="ocr-queue-inline-note">השמירה כאן מעדכנת את טיוטת הקליטה ומסמנת את השורה כנבדקה, בלי לפתוח חלון נוסף.</div>
-    </div>
-  </td></tr>`;
-}
-
-function openQueueItemEditor(rowId, index) {
-  document.querySelectorAll(`#intake_${rowId} .ocr-queue-edit-row.open`).forEach(row => row.classList.remove('open'));
-  const editRow = document.getElementById(`queueEditRow_${rowId}_${index}`);
-  if (editRow) editRow.classList.add('open');
-}
-
-function closeQueueItemEditor(rowId, index) {
-  document.getElementById(`queueEditRow_${rowId}_${index}`)?.classList.remove('open');
-}
-
-function saveQueueItemEditor(rowId, index) {
+function openQueueItemShapeEditor(rowId, index) {
   const row = intakeRows.find(item => item.id === rowId);
   if (!row) return toast('פניית OCR לא נמצאה', true);
   const parsed = parsedOf(row);
   parsed.items = Array.isArray(parsed.items) ? parsed.items : [];
   const item = parsed.items[index] || {};
-  const get = field => document.getElementById(queueItemEditId(rowId, index, field))?.value?.trim() || '';
-  const segmentsText = get('segments');
-  const numberOrEmpty = value => value === '' ? '' : toNumber(value);
-  item.element_name = get('element_name');
-  item.shape_description = get('shape_description');
-  item.shape_name = item.shape_name || item.shape || item.type || item.shape_description || 'custom';
-  item.diameter = numberOrEmpty(get('diameter'));
-  item.quantity = numberOrEmpty(get('quantity'));
-  item.qty = item.quantity;
-  item.total_length_mm = numberOrEmpty(get('total_length_mm'));
-  if (segmentsText) {
-    item.segments = parseSegmentsText(segmentsText);
-    item.total_length_mm = item.total_length_mm || item.segments.reduce((sum, seg) => sum + toNumber(seg.length_mm), 0);
+  if (isSpiralOcrItem(item)) {
+    const diameter = window.prompt('קוטר ספירלה במ״מ', item.spiral_diameter_mm || item.spiralDiameterMm || '');
+    if (diameter === null) return;
+    const turns = window.prompt('מספר כריכות', item.spiral_turns || item.spiralTurns || '');
+    if (turns === null) return;
+    item.shape_name = 'spiral';
+    item.spiral_diameter_mm = toNumber(diameter);
+    item.spiral_turns = toNumber(turns);
+    item.segments = [];
+    item.sides = [];
+    item.angles = [];
+    item.total_length_mm = spiralOcrLengthMm(item);
+    item.review_status = 'accepted';
+    parsed.items[index] = item;
+    row.parsed = parsed;
+    row.parsed_data = JSON.stringify(parsed);
+    renderIntakeQueue();
+    toast('צורת הספירלה נשמרה בשורת OCR');
+    return;
   }
-  item.review_status = 'accepted';
-  parsed.items[index] = item;
-  row.parsed = parsed;
-  row.parsed_data = JSON.stringify(parsed);
-  renderIntakeQueue();
-  toast('השורה נשמרה בטיוטת OCR');
+  const editor = ensureIntakeShapeEditor();
+  if (!editor) return toast('עורך הצורה לא נטען', true);
+  const { sides, angles } = itemSidesAngles(item);
+  activeQueueShapeContext = { rowId, index };
+  activeOcrShapeIndex = null;
+  editor.open({
+    presetId: item.shape_id || item.shapeId || item.presetId || null,
+    presetName: item.shape_name || item.shapeName || item.shape || item.type || 'צורה מותאמת',
+    sides: sides.length ? sides : [1000],
+    angles,
+    is3d: item.is3d || 0,
+    azAngles: item.azAngles || null,
+    elAngles: item.elAngles || null,
+  });
 }
+
+function queueTotalWeight(items) {
+  return items.reduce((sum, item) => sum + toNumber(ocrTargetWeightKg(item)), 0).toFixed(1);
+}
+
 function intakeQueueItemsTable(parsed, rowId) {
   const items = Array.isArray(parsed.items) ? parsed.items : [];
-  if (!items.length) return '<span class="meta">לא זוהו פריטים. פתח לעריכה לפני אישור.</span>';
+  if (!items.length) return '<span class="meta">לא זוהו פריטים. פתח להשוואה לפני אישור.</span>';
   return `<div class="ocr-queue-table-wrap" aria-label="פירוט פריטים להזמנה">
+    <div class="ocr-queue-title">פירוט פריטים להזמנה</div>
     <table class="ocr-queue-table">
-      <thead><tr><th>מס' פריט</th><th>שם האלמנט</th><th>צורה ומידות</th><th>קוטר (Ø)</th><th>כמות</th><th>אורך (m)</th><th>סה"כ אורך (m)</th><th>משקל (kg)</th></tr></thead>
+      <thead><tr><th>מס' פריט</th><th>שם האלמנט</th><th>צורה ומידות</th><th>קוטר (Ø)</th><th>כמות (PCS)</th><th>אורך (m)</th><th>סה"כ אורך (m)</th><th>משקל (kg)</th></tr></thead>
       <tbody>${items.map((item, index) => {
         const itemNumber = ocrItemNumber(item, index);
         const elementName = ocrElementName(item) || '-';
@@ -1350,14 +1363,15 @@ function intakeQueueItemsTable(parsed, rowId) {
         return `<tr>
           <td>${escapeHtml(itemNumber)}</td>
           <td>${escapeHtml(elementName)}</td>
-          <td><div class="ocr-queue-shape"><div>${ocrShapeSvgHtml(item, 130, 70)}<div class="ocr-queue-dims">${escapeHtml(dimensions)}</div></div><button type="button" class="ocr-queue-edit" onclick="openQueueItemEditor(${rowId}, ${index})" title="ערוך שורה" aria-label="ערוך שורה">✎</button></div></td>
+          <td><div class="ocr-queue-shape"><button type="button" class="ocr-queue-edit" onclick="openQueueItemShapeEditor(${rowId}, ${index})" title="ערוך צורה" aria-label="ערוך צורה">✎</button><div class="ocr-queue-shape-main">${ocrShapeSvgHtml(item, 130, 70)}<div class="ocr-queue-dims">${escapeHtml(dimensions)}</div></div></div></td>
           <td>${escapeHtml(diameter)}</td>
           <td>${escapeHtml(quantity)}</td>
           <td>${escapeHtml(lengthMeters)}</td>
           <td>${escapeHtml(totalLengthMeters)}</td>
           <td>${escapeHtml(targetWeight)}</td>
-        </tr>${queueItemInlineEditorHtml(rowId, index, item)}`;
+        </tr>`;
       }).join('')}</tbody>
+      <tfoot><tr><td colspan="8">סה"כ משקל: ${escapeHtml(queueTotalWeight(items))} ק"ג</td></tr></tfoot>
     </table>
   </div>`;
 }
