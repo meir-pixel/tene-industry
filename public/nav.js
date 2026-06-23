@@ -172,6 +172,12 @@
     #ib-search-box { width:min(620px,92vw); background:#fff; border-radius:14px; box-shadow:0 24px 80px rgba(0,0,0,.24); overflow:hidden; }
     #ib-search-input { width:100%; border:0; border-bottom:1px solid #e2e8f0; padding:16px 18px; font:inherit; outline:0; }
     #ib-search-results { max-height:420px; overflow:auto; padding:8px; }
+    body[data-page="pricing"] #ib-topnav,
+    body[data-page="pricing"] #ib-bottom,
+    body[data-page="pricing"] #ib-drawer,
+    body[data-page="pricing"] #ib-search-bar {
+      display:none !important;
+    }
     .ib-sr-empty { padding:18px; color:#64748b; text-align:center; }
     .ib-sr-item { display:flex; gap:10px; padding:11px; border-radius:9px; text-decoration:none; color:#172234; }
     .ib-sr-item:hover { background:#f5f8fb; }
