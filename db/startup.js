@@ -121,6 +121,7 @@ function runCoreMigrations(db) {
   addCol('raw_material','bending_shape_segments','TEXT');
   addCol('raw_material','bending_shape_source','TEXT');
   addCol('raw_material','bending_shape_confidence','REAL');
+  addCol('raw_material_usage','allocation_policy','TEXT');
 
   ensureVehicleCompatibility(db);
   db.exec(`

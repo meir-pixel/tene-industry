@@ -444,6 +444,7 @@ function ensureCoreSchema(db) {
       order_id        INTEGER,
       item_id         INTEGER,
       weight_used     REAL DEFAULT 0,
+      allocation_policy TEXT,
       used_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (raw_material_id) REFERENCES raw_material(id)
     );

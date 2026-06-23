@@ -529,6 +529,8 @@
     transition: all 0.2s;
   }
   .delete-btn:hover { background: rgba(231,76,60,0.15); border-color: var(--danger); color: var(--danger); }
+  .stock-select { min-width: 170px; }
+  .stock-pill { display:block; margin-top:4px; color:var(--text-dim); font-size:11px; font-weight:700; }
 
   .add-item-btn {
     width: 100%;
@@ -1531,6 +1533,8 @@ const DIAMETERS = [6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40];
 
 // ── STATE ──────────────────────────────────────────────
 let pallets = [];
+let inventoryBatches = [];
+let inventoryByDiameter = {};
 let orderCounter = 1;
 let shapeEditor = null;
 
@@ -1807,6 +1811,7 @@ function renderPalletHTML(p, idx) {
             <th>פרימטר (מ"מ)</th>
             <th>כמות</th>
             <th>משקל ק"ג</th>
+            <th>מלאי</th>
             <th>הערה</th>
             <th style="width:36px"></th>
           </tr>
@@ -1906,6 +1911,7 @@ function renderItemRow(palletId, item) {
     <td class="weight-cell">
       ${w > 0 ? `<span title="${weightPerMeter(item.diameter)} ק&quot;ג/מ׳">${w.toFixed(2)}</span>` : '—'}
     </td>
+    <td>${renderStockSelect(palletId, item)}</td>
     <td>
       <input type="text" value="${item.note||''}" placeholder="הערה..."
         onchange="updateItem(${palletId},'${item.id}','note',this.value)">
@@ -1949,10 +1955,47 @@ function shapeSelected(data) {
   renderPallets();
 }
 
+function escapeAttr(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+function renderStockSelect(palletId, item) {
+  const options = inventoryByDiameter[Number(item.diameter)] || [];
+  const selected = item.raw_material_id || 'auto';
+  const htmlOptions = [
+    '<option value="auto">אוטומטי FIFO</option>',
+    '<option value="none">ללא ניכוי</option>',
+    ...options.map(batch => {
+      const available = Number(batch.weight_available ?? (batch.weight_received - batch.weight_used - batch.weight_scrapped)) || 0;
+      const label = '#' + batch.id + ' · ' + (batch.lot_number || 'ללא אצווה') + ' · ' + Math.round(available) + ' קג' + (batch.warehouse_loc ? ' · ' + batch.warehouse_loc : '');
+      return '<option value="' + batch.id + '" ' + (String(selected) === String(batch.id) ? 'selected' : '') + '>' + escapeAttr(label) + '</option>';
+    })
+  ].join('');
+  return '<select class="stock-select" onchange="updateItem(' + palletId + ',\'' + item.id + '\',\'raw_material_id\',this.value)">' + htmlOptions + '</select>'
+    + '<span class="stock-pill">ברירת מחדל: FIFO, ניתן לשנות לכל שורה</span>';
+}
+
+async function loadInventoryBatches() {
+  try {
+    const rows = await fetch('/api/inventory').then(r => r.ok ? r.json() : []);
+    inventoryBatches = Array.isArray(rows) ? rows : [];
+    inventoryByDiameter = inventoryBatches.reduce((map, batch) => {
+      const diameter = Number(batch.diameter);
+      if (!map[diameter]) map[diameter] = [];
+      map[diameter].push(batch);
+      return map;
+    }, {});
+    renderPallets();
+  } catch (err) {
+    inventoryBatches = [];
+    inventoryByDiameter = {};
+  }
+}
+
 function addItem(palletId) {
   const pallet = pallets.find(p => p.id === palletId);
   if (!pallet) return;
-  pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: '?', shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '' });
+  pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: '?', shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' });
   renderPallets();
 }
 
@@ -1999,6 +2042,7 @@ function updateItem(palletId, itemId, field, value) {
   const item = pallet.items.find(i => i.id == itemId);
   if (!item) return;
   item[field] = ['diameter','length','qty'].includes(field) ? Number(value) : value;
+  if (field === 'diameter') item.raw_material_id = 'auto';
   renderPallets();
 }
 
@@ -2070,6 +2114,7 @@ function scrollToSection(id) {
 
 // ── START ──────────────────────────────────────────────
 init();
+loadInventoryBatches();
 async function submitOrder() {
   const customer = document.getElementById('customerSearch').value;
   const address = document.getElementById('deliveryAddress').value;
@@ -2116,6 +2161,7 @@ async function submitOrder() {
         qty: item.qty,
         weight: calcItemWeight(item),
         note: item.note || '',
+        raw_material_id: item.raw_material_id || 'auto',
         is_3d: item.is3d || 0,
         structElement: item.structElement || '',
         structFloor: item.structFloor || '',

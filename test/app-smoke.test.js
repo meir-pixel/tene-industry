@@ -173,6 +173,22 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   assert.equal(approvedMaterial.lot_number, 'HEAT-SMOKE');
   assert.equal(approvedMaterial.weight_received, 250);
 
+  const stockOrder = await request('/api/orders', {
+    method: 'POST',
+    headers: authHeaders(admin),
+    body: JSON.stringify({
+      customer: { name: 'Stock Smoke', phone: '050-9000000' },
+      order: { channel: 'manual', totalWeight: 4, inventoryAllocationPolicy: 'auto_fifo' },
+      pallets: [{ totalWeight: 4, items: [{ shapeId: 's1', shapeName: 'straight', diameter: 12, length: 1000, qty: 4 }] }],
+    }),
+  });
+  assert.equal(stockOrder.status, 200);
+  const stockOrderBody = await stockOrder.json();
+  const usedAfterOrder = db.prepare('SELECT weight_used FROM raw_material WHERE id=?').get(reviewResult.raw_material_ids[0]).weight_used;
+  assert.ok(usedAfterOrder > 0, 'order should consume matching inventory by default');
+  const usageRow = db.prepare('SELECT * FROM raw_material_usage WHERE order_id=?').get(stockOrderBody.orderId);
+  assert.equal(usageRow.raw_material_id, reviewResult.raw_material_ids[0]);
+
   const manualIntake = await request('/api/intake/parse-text', {
     method: 'POST',
     headers: authHeaders(admin),

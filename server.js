@@ -368,6 +368,7 @@ function checkOrderComplete(orderId) {
 const { createOrderFromPayload, createOrderTransaction, calcWeightPerUnit } = createOrderFactory(db, {
   generateOrderNum,
   industry,
+  settingsService,
 });
 
 function resolveIntakeCustomer(parsed = {}, rawContent = '') {

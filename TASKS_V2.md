@@ -519,6 +519,44 @@
   - מוגדר snapshot מחיר להזמנה.
   - מוגדר status `price_list_requires_update`.
 
+### V2-012A — Inventory Deduction Source Selection
+
+- status: done
+- owner: codex-inventory-procurement
+- module: inventory/procurement
+- priority: high
+- latest_change:
+  - added default FIFO inventory deduction for new orders with per-item batch override and a system setting to require manual selection or disable deduction.
+- scope:
+  - `TASKS_V2.md`
+  - `services/inventory.js`
+  - `services/orders.js`
+  - `services/settings.js`
+  - `db/coreSchema.js`
+  - `db/startup.js`
+  - `server.js`
+  - `public/index.html`
+  - `test/app-smoke.test.js`
+  - `test/module-governance.test.js`
+- input:
+  - approved/manual order item
+  - raw material batches by diameter
+  - optional selected raw material batch per item
+  - inventory allocation default policy
+- output:
+  - order item consumes matching raw material by default using FIFO.
+  - selected batch overrides default allocation.
+  - consumption is recorded in `raw_material_usage` and reflected in `raw_material.weight_used`.
+- logic:
+  - default policy `INVENTORY_ALLOCATION_POLICY=auto_fifo`.
+  - `manual_required` requires a matching batch or fails the order.
+  - `disabled` or item-level `raw_material_id=none` skips deduction.
+  - manual batch must match diameter/material and have enough available stock.
+- definition_of_done:
+  - new order creation deducts stock when matching inventory exists.
+  - order item can choose a specific inventory batch from the new-order screen.
+  - tests cover automatic stock deduction and usage audit rows.
+
 ### V2-009A-UI — Pricing Manager Runtime Screen
 
 - status: done

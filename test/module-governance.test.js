@@ -266,6 +266,7 @@ test('order creation logic lives in an orders module service', () => {
   assert.match(service, /createOrderTransaction: db\.transaction\(createOrderFromPayload\)/);
   assert.match(server, /require\('\.\/services\/orders'\)/);
   assert.match(server, /createOrderFactory\(db, \{/);
+  assert.match(server, /settingsService,/);
   assert.doesNotMatch(server, /function createOrderFromPayload/);
   assert.doesNotMatch(server, /function validateShapeGeometry/);
 });
@@ -280,6 +281,8 @@ test('inventory receiving and bent-shape parsing live in an inventory service', 
   assert.match(service, /function bendingShapeColumns/);
   assert.match(service, /function normalizeReceiptReviewItem/);
   assert.match(service, /function parseReceiptReviewPayload/);
+  assert.match(service, /function allocateOrderItemStock/);
+  assert.match(service, /function normalizeStockAllocationPolicy/);
   assert.match(route, /require\('\.\.\/services\/inventory'\)/);
   assert.match(route, /const \{\s+MATERIAL_TYPES,\s+bendingShapeColumns,\s+normalizeReceiptReviewItem,\s+parseReceiptReviewPayload,\s+\} = require\('\.\.\/services\/inventory'\);/);
   assert.match(visionRoute, /const \{\s+normalizeBendingShapeInput,\s+parseReceiptReviewPayload,\s+\} = require\('\.\.\/services\/inventory'\);/);

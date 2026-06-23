@@ -25,8 +25,13 @@ function validateShapeGeometry(segments) {
 
 const steelModule = require('../modules/steel-rebar');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
+const {
+  allocateOrderItemStock,
+  normalizeStockAllocationPolicy,
+  selectedRawMaterialId,
+} = require('./inventory');
 
-function createOrderFactory(db, { generateOrderNum, industry }) {
+function createOrderFactory(db, { generateOrderNum, industry, settingsService = null }) {
   if (!db) throw new Error('services/orders missing dependency: db');
   if (!generateOrderNum) throw new Error('services/orders missing dependency: generateOrderNum');
   if (!industry) throw new Error('services/orders missing dependency: industry');
@@ -90,6 +95,9 @@ function createOrderFactory(db, { generateOrderNum, industry }) {
     }
 
     const orderNum = order.orderNum || generateOrderNum();
+    const inventoryPolicy = normalizeStockAllocationPolicy(
+      order.inventoryAllocationPolicy || order.stockAllocationPolicy || settingsService?.get('INVENTORY_ALLOCATION_POLICY', 'auto_fifo')
+    );
     const wastePct = order.wastePctCharged ?? 3;
     const totalWeight = order.totalWeight ?? 0;
     const billingWeight = totalWeight * (1 + wastePct / 100);
@@ -137,15 +145,28 @@ function createOrderFactory(db, { generateOrderNum, industry }) {
         const productionQty = Math.ceil((item.qty || 1) * (1 + wastePct / 100));
         const machine = assignResource(item.diameter);
 
-        db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
+        const totalWeight = weightPerUnit * (item.qty || 1);
+        const itemResult = db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(pr.lastInsertRowid, item.shapeId, shapeName, item.diameter,
             spiral.isSpiral ? spiral.spiralDiameterMm : null,
             spiral.isSpiral ? spiral.turns : null,
             segments, totalLengthMm, item.qty || 1, productionQty,
-            weightPerUnit, weightPerUnit * (item.qty || 1),
+            weightPerUnit, totalWeight,
             item.note, item.structElement, item.structFloor, item.sheetNum, machine,
             item.is_3d ? 1 : 0);
+
+        allocateOrderItemStock(db, {
+          orderId,
+          itemId: itemResult.lastInsertRowid,
+          item: {
+            diameter: item.diameter,
+            material_type: item.material_type || item.materialType || null,
+          },
+          requiredWeightKg: totalWeight,
+          requestedRawMaterialId: selectedRawMaterialId(item),
+          policy: inventoryPolicy,
+        });
       });
     });
 
