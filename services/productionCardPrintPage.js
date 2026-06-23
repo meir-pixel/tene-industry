@@ -154,15 +154,15 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .screen-only{display:none!important;}
   .cards-grid{
     display:grid!important;
-    grid-template-columns:repeat(2, 96mm);
-    grid-auto-rows:68mm;
-    gap:2mm;
+    grid-template-columns:repeat(2, 105mm);
+    grid-auto-rows:75mm;
+    gap:0;
     align-items:stretch;
     justify-content:center;
   }
   .prod-card{
-    width:96mm!important;
-    height:68mm!important;
+    width:105mm!important;
+    height:75mm!important;
     margin:0!important;
     box-shadow:none;
     break-inside:avoid;
@@ -202,7 +202,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .master-shape-cell{width:42px;}
   .master-shape-cell svg{width:40px;max-height:21px;}
   .master-totals{padding:2px 5px;font-size:7px;}
-  @page{size:A4 portrait;margin:5mm;}
+  @page{size:A4 portrait;margin:0;}
 }
 </style>
 </head>
