@@ -70,6 +70,9 @@ test('production card split keeps item cards and master card in sync', () => {
   assert.match(productionCardsRoute, /'-C' \+ \(cardIdx\+1\) \+ 'OF' \+ totalCards/);
   assert.match(productionCardsRoute, /להדפיס גם מאסטר מעודכן/);
   assert.match(productionCardsRoute, /@page\{size:A4 portrait;margin:0!important;\}/);
+  assert.match(productionCardsRoute, /data-worker-card-url/);
+  assert.match(productionCardsRoute, /worker-visual\.html\?card=/);
+  assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);
   assert.match(productionCardsRoute, /grid-template-columns:repeat\(2, 105mm\)/);
   assert.match(productionCardsRoute, /grid-auto-rows:74\.25mm/);
   assert.match(productionCardsRoute, /height:74\.25mm!important/);
@@ -610,6 +613,10 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /משקל מצוי/);
   assert.match(workerVisual, /spiral\|ring\|coil/);
   assert.match(workerVisual, /דשבורד איסוף כרטיסים/);
+  assert.match(workerVisual, /function parseCardToken/);
+  assert.match(workerVisual, /openScannedCard/);
+  assert.match(workerVisual, /data-item-id/);
+  assert.match(workerVisual, /כרטיס נסרק/);
   assert.match(workerVisual, /הזמנות ממתינות/);
   assert.match(workerVisual, /כרטיסים/);
   assert.match(nav, /\/worker-visual\.html/);

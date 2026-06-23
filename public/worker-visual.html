@@ -11,6 +11,7 @@
     header h1{margin:0;font-size:24px}.brand{min-width:0}.brand small{display:block;letter-spacing:2px;color:#bce0ed;margin-bottom:3px}
     .live{display:flex;align-items:center;gap:8px;font-weight:700}.dot{width:11px;height:11px;border-radius:50%;background:#4fe083;box-shadow:0 0 0 5px #ffffff18}
     .progress{background:#073653;padding:9px 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;color:#fff;position:sticky;top:67px;z-index:3}
+    .scan-panel{max-width:1500px;margin:14px auto 0;padding:0 18px}.scan-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.scan-box input{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px 12px;font-size:16px;font-weight:700;color:var(--ink);direction:ltr}.scan-box button{border:0;background:var(--teal);color:#fff;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:800;cursor:pointer}.scan-hint{font-size:12px;color:#55737e;margin-top:6px}.scan-result{margin-top:8px;border-radius:12px;padding:10px 12px;font-size:13px;font-weight:800;display:none}.scan-result.ok{display:block;background:#e5f5f2;color:#0f5f56;border:1px solid #99d8cd}.scan-result.err{display:block;background:#fff7ed;color:#9a3412;border:1px solid #fdba74}
     .metric{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:12px;font-weight:700}
     .bar{height:8px;background:#ffffff2c;border-radius:6px;overflow:hidden}.bar i{height:100%;display:block;background:#7cd8cf;border-radius:6px}
     main{padding:18px;max-width:1500px;margin:auto}.tabs{display:none;margin-bottom:12px;gap:8px}.tabs button{flex:1;padding:12px;border:1px solid var(--line);background:#fff;border-radius:8px;font-weight:700;color:var(--ink)}
@@ -20,7 +21,7 @@
     .order strong,.order span{display:block}.order span{font-size:12px;margin-top:4px;color:#446777}
     .stage{min-width:0}.order-head{background:var(--blue);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
     .order-head h2{font-size:21px;margin:0}.order-head span{display:block;margin-top:4px;font-size:13px;color:#d8f2fa}.order-head .badge{background:#ffffff22;border-radius:20px;padding:7px 12px;font-weight:700}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;min-width:0}.card{background:#fff;border:2px solid var(--blue);border-radius:15px;overflow:hidden;min-width:0}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;min-width:0}.card{background:#fff;border:2px solid var(--blue);border-radius:15px;overflow:hidden;min-width:0}.card.scanned{border-color:var(--teal);box-shadow:0 0 0 4px #17766d22,0 12px 26px #063a4f18}.card.scanned .card-head{background:#dff4ef}.card.scanned::before{content:'כרטיס נסרק';display:block;background:var(--teal);color:#fff;font-weight:900;text-align:center;padding:7px 10px}
     .card-head{background:#e4f1f5;padding:10px 12px;display:grid;gap:9px;min-width:0}.worker-card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.worker-card-title b{font-size:19px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.worker-status-pill{border-radius:999px;padding:5px 9px;font-size:12px;font-weight:700;background:#fff;color:var(--ink);border:1px solid var(--line);white-space:nowrap}.worker-status-pill.production{background:#fff7ed;border-color:#fdba74;color:#9a3412}.worker-status-pill.done{background:#ecfdf5;border-color:#86efac;color:#166534}.worker-status-pill.supplied{background:#f4f0ff;border-color:#c4b5fd;color:#4c1d95}.worker-card-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.worker-metric{background:#fff;border:1px solid var(--line);border-radius:10px;padding:7px 8px;text-align:center;min-width:0}.worker-metric span{display:block;color:#55737e;font-size:11px;font-weight:700}.worker-metric strong{display:block;margin-top:2px;color:var(--ink);font-size:19px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .drawing{height:215px;padding:6px;background:#fff;position:relative}.drawing svg{width:100%;height:100%;display:block}.shape{fill:none;stroke:#0c5475;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}.angle{fill:none;stroke:#0c5475;stroke-width:4}.measure{fill:#062c46;font-size:15px;font-weight:700}.detail{fill:#79510a;font-size:13px;font-weight:700}.shape-scale-note{position:absolute;left:8px;bottom:7px;border:1px solid var(--line);background:#ffffffde;border-radius:999px;padding:4px 8px;color:#55737e;font-size:10px;font-weight:700}
     .weight-check{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:7px;padding:9px;background:#f8fcfd;border-top:1px solid var(--line);align-items:end}.weight-check label{font-size:10px;font-weight:700;color:#55737e}.weight-check input{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 7px;font-size:14px;font-weight:700;color:var(--ink)}.weight-check button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:8px;padding:9px 10px;font-weight:800;cursor:pointer}.weight-chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 7px;font-size:14px;font-weight:900;text-align:center}.weight-chip.warn{border-color:#f59e0b;background:#fff7ed;color:#9a3412}.weight-chip.bad{border-color:#dc2626;background:#fef2f2;color:#991b1b}
@@ -35,6 +36,7 @@
       .progress{top:58px;padding:8px;gap:6px;grid-template-columns:repeat(2,minmax(0,1fr))}
       .metric{grid-template-columns:1fr auto;font-size:11px;min-width:0}
       .metric .bar{grid-column:1/-1}
+      .scan-panel{padding:0 10px;margin-top:10px}.scan-box{grid-template-columns:1fr}.scan-box input,.scan-box button{font-size:16px;padding:14px 12px}
       main{padding:10px}
       .columns{display:block}
       .tabs{display:flex;position:sticky;top:122px;z-index:2}
@@ -62,6 +64,14 @@
     <a href="/production-queue.html" style="color:#fff;text-decoration:none;border:1px solid #ffffff55;border-radius:8px;padding:8px 11px;font-weight:700">תור ייצור</a>
   </header>
   <div class="progress" id="progress"></div>
+  <section class="scan-panel">
+    <div class="scan-box">
+      <input id="cardScanInput" autocomplete="off" inputmode="text" placeholder="סרוק QR או הקלד מספר כרטיס">
+      <button type="button" onclick="openScannedCard()">פתח כרטיס</button>
+    </div>
+    <div class="scan-hint">סריקת QR מהכרטיס המודפס תפתח כאן ישירות את הכרטיס לעדכון סטטוס, משקל ועבודה נוכחית.</div>
+    <div id="scanResult" class="scan-result"></div>
+  </section>
   <main>
     <nav class="tabs"><button data-pane="stage">הזמנה פתוחה</button><button data-pane="panel">הזמנות ממתינות</button></nav>
     <div class="columns">
@@ -72,7 +82,7 @@
   <script src="/auth-client.js"></script>
   <script src="/status-contracts-client.js"></script>
   <script>
-    const state={items:[],selected:null};
+    const state={items:[],selected:null,focusItemId:null,scanToken:null};
     const ITEM_STATUS=(window.IronBendStatus&&window.IronBendStatus.ITEM_STATUS)||{WAITING:'ממתין',IN_PRODUCTION:'בייצור',DONE:'הושלם',DELIVERED:'סופק'};
     const statusKey=s=>s===ITEM_STATUS.IN_PRODUCTION?'production':s===ITEM_STATUS.DONE?'done':s===ITEM_STATUS.DELIVERED?'supplied':'waiting';
     const statusText={waiting:'ממתין',production:'בייצור',done:'בוצע',supplied:'סופק'};
@@ -81,6 +91,39 @@
     const segments=item=>{try{return JSON.parse(item.segments||'[]')}catch{return[]}};
     const total=item=>Number(item.total_length_mm)||segments(item).reduce((n,s)=>n+Number(s.length_mm||0),0);
     const supplied=o=>/סופק|נשלח/.test(o.order_status||'');
+    function parseCardToken(raw){
+      const value=String(raw||'').trim();
+      if(!value)return null;
+      let token=value;
+      try{const url=new URL(value,location.origin);token=url.searchParams.get('card')||url.searchParams.get('item')||value}catch{}
+      const clean=String(token||'').trim();
+      const itemParam=/^\d+$/.test(clean)?Number(clean):null;
+      const match=clean.match(/-(\d{1,12})(?:-C(\d+)OF(\d+))?$/i);
+      return {raw:value,token:clean,itemId:itemParam||(match?Number(match[1]):null),cardIndex:match&&match[2]?Number(match[2]):1,cardTotal:match&&match[3]?Number(match[3]):1};
+    }
+    function scanFromLocation(){
+      const params=new URLSearchParams(location.search);
+      return parseCardToken(params.get('card')||params.get('item')||'');
+    }
+    function showScanResult(message,kind='ok'){const el=document.querySelector('#scanResult');if(!el)return;el.textContent=message;el.className=`scan-result ${kind}`;}
+    function focusScannedCard(parsed){
+      if(!parsed||!parsed.itemId)return false;
+      const item=state.items.find(row=>Number(row.id)===Number(parsed.itemId));
+      if(!item)return false;
+      state.focusItemId=Number(item.id);
+      state.scanToken=parsed.token;
+      state.selected=item.order_id;
+      const input=document.querySelector('#cardScanInput');
+      if(input)input.value=parsed.token||String(item.id);
+      render();
+      requestAnimationFrame(()=>document.querySelector(`[data-item-id="${item.id}"]`)?.scrollIntoView({behavior:'smooth',block:'start'}));
+      showScanResult(`נפתח כרטיס ${parsed.cardTotal>1?parsed.cardIndex+'/'+parsed.cardTotal+' · ':''}${item.order_num||item.order_id}`,'ok');
+      return true;
+    }
+    function openScannedCard(){
+      const parsed=parseCardToken(document.querySelector('#cardScanInput')?.value||'');
+      if(!focusScannedCard(parsed))showScanResult('לא נמצא כרטיס מתאים בתור הייצור. בדוק שההזמנה קיימת ושהקוד נסרק במלואו.','err');
+    }
     function grouped(){const map=new Map();state.items.forEach(item=>{if(!map.has(item.order_id))map.set(item.order_id,{...item,items:[]});map.get(item.order_id).items.push(item)});return [...map.values()]}
     function allProgress(){
       const orders=grouped(),items=state.items,totalItems=items.length||1;
@@ -99,11 +142,13 @@
       document.querySelector('#orders').innerHTML=orders.length?orders.map(o=>`<button class="order ${o.order_id===state.selected?'active':''}" onclick="selectOrder(${o.order_id})"><strong>${esc(o.order_num||`הזמנה ${o.order_id}`)}</strong><span>${esc(o.customer_name||'לקוח')} · ${o.items.length} כרטיסים</span><span>${o.items.filter(i=>statusKey(i.status)==='done').length}/${o.items.length} בוצעו</span></button>`).join(''):'<div class="empty">אין הזמנות ממתינות</div>';
       const order=orders.find(o=>o.order_id===state.selected);
       document.querySelector('#orderHead').innerHTML=order?`<div class="order-head"><div><h2>${esc(order.order_num||`הזמנה ${order.order_id}`)}</h2><span>${esc(order.customer_name||'לקוח')} · עדיפות ${esc(order.priority||'רגיל')}</span></div><div class="badge">${order.items.length} כרטיסים</div></div>`:'';
-      document.querySelector('#cards').innerHTML=order?order.items.map((item,index)=>card(item,index)).join(''):'<div class="empty">אין הזמנה פתוחה</div>';
+      const visibleItems=order?(state.focusItemId?order.items.filter(item=>Number(item.id)===Number(state.focusItemId)):order.items):[];
+      document.querySelector('#cards').innerHTML=order&&visibleItems.length?visibleItems.map((item,index)=>card(item,index)).join(''):order?'<div class="empty">הכרטיס שנסרק לא נמצא בהזמנה הפתוחה</div>':'<div class="empty">אין הזמנה פתוחה</div>';
     }
     function card(item,index){
       const key=supplied(item)?'supplied':statusKey(item.status);
-      return `<article class="card"><div class="card-head"><div class="worker-card-title"><b>כרטיס ${index+1}</b><span class="worker-status-pill ${key}">${statusText[key]}</span></div><div class="worker-card-summary"><div class="worker-metric"><span>כמות</span><strong>${Number(item.quantity)||0} יח׳</strong></div><div class="worker-metric"><span>קוטר</span><strong>Ø ${esc(item.diameter||'-')}</strong></div><div class="worker-metric"><span>אורך כללי</span><strong>${total(item)} מ״מ</strong></div><div class="worker-metric"><span>משקל רצוי</span><strong>${fmtWeight(targetWeight(item))}</strong></div></div></div><div class="drawing">${drawing(item)}<span class="shape-scale-note">תצוגה קריאה</span></div>${weightCheck(item)}<div class="card-foot"><div class="actions">${['waiting','production','done','supplied'].map(k=>`<button class="${k==='done'?'done ':''}${k==='supplied'?'supplied ':''}${k===key?'active':''}" onclick="setStatus(${item.id},'${k}')">${statusText[k]}</button>`).join('')}</div><div class="meta"><span>${esc(item.machine||'לא משויך')}</span><span>${key==='supplied'?'סופק':esc(item.shape_name||'צורה')}</span></div></div></article>`
+      const scanned=Number(item.id)===Number(state.focusItemId);
+      return `<article class="card ${scanned?'scanned':''}" data-item-id="${item.id}"><div class="card-head"><div class="worker-card-title"><b>כרטיס ${scanned&&state.scanToken?esc(state.scanToken):index+1}</b><span class="worker-status-pill ${key}">${statusText[key]}</span></div><div class="worker-card-summary"><div class="worker-metric"><span>כמות</span><strong>${Number(item.quantity)||0} יח׳</strong></div><div class="worker-metric"><span>קוטר</span><strong>Ø ${esc(item.diameter||'-')}</strong></div><div class="worker-metric"><span>אורך כללי</span><strong>${total(item)} מ״מ</strong></div><div class="worker-metric"><span>משקל רצוי</span><strong>${fmtWeight(targetWeight(item))}</strong></div></div></div><div class="drawing">${drawing(item)}<span class="shape-scale-note">תצוגה קריאה</span></div>${weightCheck(item)}<div class="card-foot"><div class="actions">${['waiting','production','done','supplied'].map(k=>`<button class="${k==='done'?'done ':''}${k==='supplied'?'supplied ':''}${k===key?'active':''}" onclick="setStatus(${item.id},'${k}')">${statusText[k]}</button>`).join('')}</div><div class="meta"><span>${esc(item.machine||'לא משויך')}</span><span>${key==='supplied'?'סופק':esc(item.shape_name||'צורה')}</span></div></div></article>`
     }
     function targetWeight(item){return Number(item.weight ?? item.total_weight ?? 0)||0}
     function actualWeight(item){return Number(item.actual_weight_kg ?? 0)||0}
@@ -189,8 +234,8 @@
     }
     async function saveActualWeight(id,event){event&&event.stopPropagation();const input=document.getElementById(`actual-weight-${id}`);const value=Number(input?.value||0);if(!Number.isFinite(value)||value<0)return;const r=await fetch(`/api/items/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({actual_weight_kg:value})});if(r.ok){const item=state.items.find(item=>item.id===id);if(item){item.actual_weight_kg=value;const target=targetWeight(item);item.weight_deviation_pct=target?((value-target)/target)*100:null}render()}}
     async function setStatus(id,key){const r=await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:apiStatus[key]})});if(r.ok){const item=state.items.find(item=>item.id===id);if(item)item.status=apiStatus[key];render()}}
-    function selectOrder(id){state.selected=id;render();document.querySelector('.panel').classList.add('mobile-hidden');document.querySelector('.stage').classList.remove('mobile-hidden')}
-    async function load(){try{const r=await fetch('/api/production-queue?visual=1');if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='חי';render()}catch{document.querySelector('#sync').textContent='מתחבר מחדש'}}
+    function selectOrder(id){state.selected=id;state.focusItemId=null;state.scanToken=null;render();document.querySelector('.panel').classList.add('mobile-hidden');document.querySelector('.stage').classList.remove('mobile-hidden')}
+    async function load(){try{const r=await fetch('/api/production-queue?visual=1');if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='חי';const parsed=state.focusItemId?null:scanFromLocation();if(parsed&&parsed.itemId){if(!focusScannedCard(parsed)){render();showScanResult('הקוד נסרק, אבל הכרטיס לא נמצא בתור הייצור הנוכחי.','err')}}else render()}catch{document.querySelector('#sync').textContent='מתחבר מחדש'}}
     document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelector('.panel').classList.toggle('mobile-hidden',b.dataset.pane!=='panel');document.querySelector('.stage').classList.toggle('mobile-hidden',b.dataset.pane!=='stage')});
     function ws(){try{const socket=new WebSocket(window.IronBendAuth?.webSocketUrl?.('/')||`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=event=>{try{if(['item_status','new_order','order_status'].includes(JSON.parse(event.data).type))load()}catch{}};socket.onclose=()=>setTimeout(ws,2000)}catch{}}
     load();ws();

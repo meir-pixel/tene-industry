@@ -41,6 +41,7 @@ const serverCardsHtml = (allItems.length
 <title>כרטיסיות ייצור – ${order.order_num}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&family=Libre+Barcode+128&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direction:rtl;}
@@ -133,6 +134,11 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .master-totals{padding:5px 10px;font-size:11px;color:#333;background:#f5f5f5;border-top:1px solid #ddd;}
 .qr-box-center{display:flex;justify-content:center;padding:8px;}
 .qr-box-center canvas,.qr-box-center img{width:72px!important;height:72px!important;}
+.pc-scan-row{display:flex;align-items:center;gap:6px;padding:3px 10px;background:#f7fbff;border-bottom:1px solid #e3edf5;}
+.pc-scan-qr{width:46px;height:46px;flex:0 0 46px;background:#fff;border:1px solid #cfd8e3;border-radius:4px;display:flex;align-items:center;justify-content:center;}
+.pc-scan-qr canvas,.pc-scan-qr img{width:42px!important;height:42px!important;display:block;}
+.pc-scan-text{min-width:0;font-size:8px;line-height:1.25;color:#1a2332;font-family:monospace;direction:ltr;overflow:hidden;text-overflow:ellipsis;}
+.pc-scan-label{font-size:8px;font-weight:900;color:#45645a;white-space:nowrap;}
 
 @media screen and (max-width: 760px){
   body{padding:8px;overflow-x:hidden;}
@@ -201,6 +207,10 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .pc-spec-cell{font-size:7px;}
   .pc-spec-sep{height:10px;margin:0 3px;}
   .pc-note{padding:1px 5px;font-size:7px;}
+  .pc-scan-row{padding:1px 5px;gap:3px;}
+  .pc-scan-qr{width:28px;height:28px;flex-basis:28px;}
+  .pc-scan-qr canvas,.pc-scan-qr img{width:25px!important;height:25px!important;}
+  .pc-scan-text,.pc-scan-label{font-size:5.5px;}
   .pc-weight-entry{display:none!important;}
   .pc-footer{padding:2px 5px;}
   .pc-brand{font-size:7px;}
@@ -586,6 +596,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var cardNum = totalCards > 1 ? (cardIdx+1) + '/' + totalCards : '';
   var uid     = 'g' + item.id + (totalCards > 1 ? 'c' + (cardIdx+1) : '');
   var barData = ORDER_NUM + '-' + String(item.id).padStart(6,'0') + (totalCards > 1 ? '-C' + (cardIdx+1) + 'OF' + totalCards : '');
+  var workerUrl = '/worker-visual.html?card=' + encodeURIComponent(barData);
   var segs    = item.segments || [];
   var wProp   = item.quantity > 0 ? (item.total_weight * subQty / item.quantity).toFixed(2) : '0.00';
   var title   = item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף';
@@ -609,6 +620,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-order-barcode"><div class="bc-font-mid">'+ORDER_NUM+'</div><div class="bc-ord-text">'+ORDER_NUM+'</div></div>';
   h += '<div class="pc-pallet">משטח: <b>'+item.pallet_num+'</b></div>';
   h += '</div>';
+  h += '<div class="pc-scan-row"><div class="pc-scan-qr" data-worker-card-url="'+workerUrl+'"></div><div><div class="pc-scan-label">סריקה לעדכון עבודה</div><div class="pc-scan-text">'+barData+'</div></div></div>';
   h += '<div class="pc-wq-row">';
   h += '<div class="pc-wq-cell"><span class="wq-lbl">ק"ג:</span> <span class="wq-val">'+wProp+'</span></div>';
   h += '<div class="pc-wq-sep"></div>';
@@ -755,9 +767,26 @@ async function saveCardWeight(itemId, cardIndex, cardTotal, cardQty, uid, event)
   if (dev) { dev.textContent = fmtPct(body.card_deviation_pct); dev.className = 'pc-weight-chip' + deviationClass(body.card_deviation_pct); }
 }
 
+function renderWorkerCardQrCodes() {
+  var nodes = document.querySelectorAll('[data-worker-card-url]');
+  nodes.forEach(function(node) {
+    var target = new URL(node.getAttribute('data-worker-card-url'), window.location.origin).href;
+    node.innerHTML = '';
+    if (window.QRCode && window.QRCode.toCanvas) {
+      var canvas = document.createElement('canvas');
+      node.appendChild(canvas);
+      window.QRCode.toCanvas(canvas, target, { width: 42, margin: 0 }, function(){});
+    } else {
+      node.textContent = 'QR';
+      node.title = target;
+    }
+  });
+}
+
 function printCards() {
   generateCards();
-  window.print();
+  renderWorkerCardQrCodes();
+  setTimeout(function(){ window.print(); }, 120);
 }
 
 // ── Init: read split config from server-rendered rows ────────────
@@ -766,6 +795,7 @@ function printCards() {
     splitCfg[inp.id.replace('sp-','')] = 1;
   });
   generateCards();
+  renderWorkerCardQrCodes();
 })();
 </script>
 </body>
