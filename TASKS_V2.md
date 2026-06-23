@@ -434,6 +434,25 @@
   - `#seModal` משתמש ב-`100vw` ו-`100vh` ללא override קומפקטי בפורטל הלקוח.
   - קיימות פונקציות עריכת תוויות ישירה לאורך ולזווית.
   - בדיקת shape geometry מכסה את חוזה המסך המלא והעריכה מהאיור.
+### V2-006D — Shape Editor Direct-Open Page State Fix
+
+- status: done
+- owner: codex-shape-editor
+- module: industry-steel-rebar/shape-editor
+- priority: high
+- scope:
+  - TASKS_V2.md
+  - public/shape-editor.js
+  - test/shape-geometry.test.js
+- input:
+  - בפתיחה מקליטת הזמנה לעורך הצורות נשאר מסך בחירת מספר צלעות מעל מסך העריכה.
+- output:
+  - פתיחת צורה קיימת עוברת למסך עריכה יחיד ונקי ללא מסך count פתוח מעליו.
+- logic:
+  - `_goToEdit` מאפס במפורש את מצב כל עמודי העורך, כולל `sePageCount`.
+- definition_of_done:
+  - `sePageCount` מוסתר בכל כניסה למסך עריכה.
+  - קיימת בדיקת מקור שמכסה את חוזה הניווט הזה.
 ### V2-007 — Orders Module Specification
 
 - status: todo

@@ -76,6 +76,15 @@ test('shape editor opens as a fullscreen clean workspace with direct drawing edi
   assert.match(editor, /דאבל-קליק לעריכת אורך/);
   assert.match(editor, /דאבל-קליק לעריכת זווית/);
 });
+test('shape editor direct-open hides the count picker before edit page', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const match = editor.match(/_goToEdit\(\) \{[\s\S]*?document\.getElementById\('seHeadTitle'\)/);
+
+  assert.ok(match, 'expected _goToEdit body');
+  assert.match(match[0], /document\.getElementById\('sePageCount'\)\.style\.display\s*=\s*'none'/);
+  assert.match(match[0], /document\.getElementById\('sePageSelect'\)\.style\.display\s*=\s*'none'/);
+  assert.match(match[0], /document\.getElementById\('sePageEdit'\)\.style\.display\s*=\s*''/);
+});
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },

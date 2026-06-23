@@ -1098,6 +1098,7 @@ class ShapeEditorModal {
 
   _goToEdit() {
     this._activeSeg = null; // clear selection when entering edit page
+    document.getElementById('sePageCount').style.display  = 'none';
     document.getElementById('sePageSelect').style.display = 'none';
     document.getElementById('sePageEdit').style.display   = '';
     document.getElementById('seFoot').style.display       = '';
