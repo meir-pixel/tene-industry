@@ -384,6 +384,30 @@
   - `shape-editor.js` נטען ב־`v46` במסכים שמשתמשים בעורך.
   - בדיקת shape geometry מכסה את החוזה.
 
+### V2-006B — Shape Editor Clean Preview Mockup
+
+- status: done
+- owner: codex-shape-editor
+- module: industry-steel-rebar/shape-editor
+- priority: high
+- scope:
+  - docs/mockups/shape-editor-v2-preview.html
+- input:
+  - השראה ממסכי Easybar שצורפו בצילומי מסך
+  - דרישה למסך נקי בלי הרבה חלונות
+- output:
+  - תצוגה מקדימה אינטראקטיבית לעורך צורות V2.
+  - מסך יחיד עם קנבס מרכזי, פאנל ימני דינמי ורשימת פריטים שמאלית.
+  - גלריית צורות עם סינון בלי modal נוסף.
+- logic:
+  - בחירת צורה מחליפה את שדות הפאנל במקום לפתוח חלון.
+  - ציור SVG נוצר מאותו state שמייצג את הנתונים.
+  - שדות מתקדמים נשארים סגורים כברירת מחדל.
+- definition_of_done:
+  - קיים mockup HTML עצמאי שנפתח בדפדפן.
+  - יש לפחות מוט, פיגורה, חישוק, ספירלה, רשת וכלונס.
+  - השדות והציור מתעדכנים באותו מסך.
+
 ### V2-007 — Orders Module Specification
 
 - status: todo
