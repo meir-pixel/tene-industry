@@ -104,6 +104,90 @@ function candidateRawMaterials(db, item) {
   `).all(item.diameter);
 }
 
+function normalizeShortageMaterialType(item = {}) {
+  return MATERIAL_TYPES.has(item.material_type) ? item.material_type : 'coil';
+}
+
+function shortageKey(shortage) {
+  return String(Number(shortage.diameter) || 0) + '|' + normalizeShortageMaterialType(shortage);
+}
+
+function summarizeStockShortages(shortages = []) {
+  const grouped = new Map();
+  for (const shortage of shortages) {
+    const diameter = Number(shortage.diameter);
+    const shortageKg = Number(shortage.shortageKg || shortage.requiredWeightKg || 0);
+    if (!Number.isFinite(diameter) || diameter <= 0 || !Number.isFinite(shortageKg) || shortageKg <= 0) continue;
+    const material_type = normalizeShortageMaterialType(shortage);
+    const key = shortageKey({ diameter, material_type });
+    const row = grouped.get(key) || {
+      diameter,
+      material_type,
+      shortageKg: 0,
+      items: [],
+      reasons: new Set(),
+    };
+    row.shortageKg += shortageKg;
+    if (shortage.itemId) row.items.push(shortage.itemId);
+    if (shortage.reason) row.reasons.add(shortage.reason);
+    grouped.set(key, row);
+  }
+  return [...grouped.values()].map(row => ({
+    diameter: row.diameter,
+    material_type: row.material_type,
+    shortageKg: Number(row.shortageKg.toFixed(3)),
+    quantity_ton: Number((row.shortageKg / 1000).toFixed(3)),
+    itemIds: row.items,
+    reasons: [...row.reasons],
+  }));
+}
+
+function nextProcurementRequestNum(db) {
+  const seq = db.prepare('SELECT COUNT(*)+1 as n FROM purchase_orders').get().n;
+  return 'REQ-' + new Date().getFullYear() + '-' + String(seq).padStart(4, '0');
+}
+
+function openProcurementForStockShortages(db, { orderId, orderNum, shortages = [], createdBy = 'inventory-shortage' } = {}) {
+  const summary = summarizeStockShortages(shortages);
+  if (!summary.length) return [];
+
+  const insertPurchaseOrder = db.prepare(`
+    INSERT INTO purchase_orders
+      (po_num,supplier_id,diameter,material_type,quantity_ton,price_per_ton,total_amount,expected_date,status,notes,created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+  `);
+  const created = [];
+  for (const shortage of summary) {
+    const poNum = nextProcurementRequestNum(db);
+    const notes = [
+      'Auto procurement request from order ' + (orderNum || orderId),
+      'Missing ' + shortage.shortageKg + ' kg for diameter ' + shortage.diameter + ' ' + shortage.material_type,
+      shortage.itemIds.length ? 'items: ' + shortage.itemIds.join(',') : null,
+    ].filter(Boolean).join(' | ');
+    const result = insertPurchaseOrder.run(
+      poNum,
+      null,
+      shortage.diameter,
+      shortage.material_type,
+      shortage.quantity_ton,
+      0,
+      0,
+      '',
+      'inventory_shortage',
+      notes,
+      createdBy
+    );
+    created.push({ ...shortage, purchase_order_id: result.lastInsertRowid, po_num: poNum });
+  }
+
+  const detail = summary
+    .map(row => 'diameter ' + row.diameter + ': missing ' + row.shortageKg + ' kg')
+    .join('; ');
+  db.prepare('INSERT INTO alerts (type,level,message,order_id) VALUES (?,?,?,?)')
+    .run('inventory_shortage', 'warning', 'Inventory shortage for order ' + (orderNum || orderId) + ': ' + detail + '. Procurement request opened.', orderId || null);
+
+  return created;
+}
 function allocateOrderItemStock(db, {
   orderId,
   itemId,
@@ -171,10 +255,12 @@ module.exports = {
   MATERIAL_TYPES,
   STOCK_ALLOCATION_POLICIES,
   allocateOrderItemStock,
+  openProcurementForStockShortages,
   bendingShapeColumns,
   normalizeBendingShapeInput,
   normalizeReceiptReviewItem,
   normalizeStockAllocationPolicy,
   selectedRawMaterialId,
   parseReceiptReviewPayload,
+  summarizeStockShortages,
 };

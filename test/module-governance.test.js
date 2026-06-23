@@ -282,6 +282,8 @@ test('inventory receiving and bent-shape parsing live in an inventory service', 
   assert.match(service, /function normalizeReceiptReviewItem/);
   assert.match(service, /function parseReceiptReviewPayload/);
   assert.match(service, /function allocateOrderItemStock/);
+  assert.match(service, /function openProcurementForStockShortages/);
+  assert.match(service, /function summarizeStockShortages/);
   assert.match(service, /function normalizeStockAllocationPolicy/);
   assert.match(route, /require\('\.\.\/services\/inventory'\)/);
   assert.match(route, /const \{\s+MATERIAL_TYPES,\s+bendingShapeColumns,\s+normalizeReceiptReviewItem,\s+parseReceiptReviewPayload,\s+\} = require\('\.\.\/services\/inventory'\);/);

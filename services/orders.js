@@ -27,6 +27,7 @@ const steelModule = require('../modules/steel-rebar');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 const {
   allocateOrderItemStock,
+  openProcurementForStockShortages,
   normalizeStockAllocationPolicy,
   selectedRawMaterialId,
 } = require('./inventory');
@@ -110,6 +111,7 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
       totalWeight, wastePct, billingWeight, order.createdBy || null);
 
     const orderId = orderResult.lastInsertRowid;
+    const inventoryShortages = [];
 
     (pallets || []).forEach((pallet, idx) => {
       const pr = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight,total_weight) VALUES (?,?,?,?)')
@@ -156,7 +158,7 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
             item.note, item.structElement, item.structFloor, item.sheetNum, machine,
             item.is_3d ? 1 : 0);
 
-        allocateOrderItemStock(db, {
+        const allocation = allocateOrderItemStock(db, {
           orderId,
           itemId: itemResult.lastInsertRowid,
           item: {
@@ -167,10 +169,27 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
           requestedRawMaterialId: selectedRawMaterialId(item),
           policy: inventoryPolicy,
         });
+        if (!allocation.allocated && ['no_stock', 'insufficient_stock'].includes(allocation.reason)) {
+          inventoryShortages.push({
+            itemId: itemResult.lastInsertRowid,
+            diameter: item.diameter,
+            material_type: item.material_type || item.materialType || 'coil',
+            shortageKg: allocation.missingWeightKg || totalWeight,
+            requiredWeightKg: totalWeight,
+            reason: allocation.reason,
+          });
+        }
       });
     });
 
-    return { success: true, orderNum, orderId };
+    const procurementRequests = openProcurementForStockShortages(db, {
+      orderId,
+      orderNum,
+      shortages: inventoryShortages,
+      createdBy: order.createdBy || 'order-create',
+    });
+
+    return { success: true, orderNum, orderId, inventoryShortages: procurementRequests };
   }
 
   return {
