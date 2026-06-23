@@ -524,12 +524,62 @@ function ocrFieldHtml({ label, path, value = '', type = 'text', low = false, ite
   return `<label class="${cls}"><span>${escapeHtml(label)}</span>${body}${confidence}</label>`;
 }
 
+function segmentLengthOf(seg) {
+  return typeof seg === 'object' ? (seg.length_mm ?? seg.length ?? seg.length_cm ?? '') : seg;
+}
+
+function segmentAngleOf(seg) {
+  return typeof seg === 'object' ? (seg.angle_deg ?? seg.angle ?? '') : '';
+}
+
+function isDimensionPairMarker(value) {
+  const marker = toNumber(value);
+  return Number.isFinite(marker) && Math.abs(marker) > 360;
+}
+
+function expandSegmentPart(lengthValue, markerValue = '') {
+  const length = toNumber(lengthValue);
+  if (!length) return [];
+  if (isDimensionPairMarker(markerValue)) {
+    const nextLength = toNumber(markerValue);
+    return [
+      { length_mm: length, angle_deg: 90 },
+      { length_mm: nextLength, angle_deg: 0 },
+    ].filter(seg => seg.length_mm > 0);
+  }
+  return [{ length_mm: length, angle_deg: markerValue === undefined || markerValue === '' ? 0 : toNumber(markerValue) }];
+}
+
+function normalizeOcrSegments(segments) {
+  return (Array.isArray(segments) ? segments : []).flatMap(seg => {
+    if (typeof seg === 'object') return expandSegmentPart(segmentLengthOf(seg), segmentAngleOf(seg));
+    const [len, marker] = String(seg).split('@').map(v => v.trim());
+    return expandSegmentPart(len, marker);
+  });
+}
+
+function compactDimensionPairText(segments) {
+  if (!Array.isArray(segments) || segments.length !== 2) return '';
+  const firstLength = toNumber(segmentLengthOf(segments[0]));
+  const secondLength = toNumber(segmentLengthOf(segments[1]));
+  const firstAngle = toNumber(segmentAngleOf(segments[0]));
+  const secondAngle = toNumber(segmentAngleOf(segments[1]));
+  if (firstLength > 0 && secondLength > 0 && Math.abs(firstAngle - 90) < 0.1 && Math.abs(secondAngle) < 0.1) {
+    return `${firstLength}@${secondLength}`;
+  }
+  return '';
+}
+
 function segmentsToText(item) {
   const segments = Array.isArray(item.segments) ? item.segments : Array.isArray(item.sides) ? item.sides : [];
+  const directPair = segments.length === 1 && typeof segments[0] === 'object' && isDimensionPairMarker(segmentAngleOf(segments[0]));
+  if (directPair) return `${segmentLengthOf(segments[0])}@${segmentAngleOf(segments[0])}`;
+  const compactPair = compactDimensionPairText(segments);
+  if (compactPair) return compactPair;
   return segments.map(seg => {
     if (typeof seg === 'object') {
-      const len = seg.length_mm ?? seg.length ?? seg.length_cm ?? '';
-      const angle = seg.angle_deg ?? seg.angle ?? '';
+      const len = segmentLengthOf(seg);
+      const angle = segmentAngleOf(seg);
       return angle !== '' ? `${len}@${angle}` : String(len);
     }
     return String(seg);
@@ -537,12 +587,9 @@ function segmentsToText(item) {
 }
 
 function parseSegmentsText(text) {
-  return String(text || '').split(/[\/,\n]+/).map(part => part.trim()).filter(Boolean).map(part => {
-    const [len, angle] = part.split('@').map(v => v.trim());
-    return {
-      length_mm: toNumber(len),
-      angle_deg: angle === undefined || angle === '' ? 0 : toNumber(angle),
-    };
+  return String(text || '').split(/[\/,\n]+/).map(part => part.trim()).filter(Boolean).flatMap(part => {
+    const [len, marker] = part.split('@').map(v => v.trim());
+    return expandSegmentPart(len, marker);
   });
 }
 
@@ -562,12 +609,12 @@ function ocrItemInput(index, field) {
 }
 
 function itemSegmentsOf(item) {
-  if (Array.isArray(item?.segments) && item.segments.length) return item.segments;
+  if (Array.isArray(item?.segments) && item.segments.length) return normalizeOcrSegments(item.segments);
   if (Array.isArray(item?.sides) && item.sides.length) {
-    return item.sides.map((length, index) => ({
+    return normalizeOcrSegments(item.sides.map((length, index) => ({
       length_mm: length,
       angle_deg: Array.isArray(item.angles) ? (item.angles[index] ?? 0) : 0,
-    }));
+    })));
   }
   return [];
 }
@@ -596,12 +643,19 @@ function isSpiralOcrItem(item) {
   return /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(shape) && diameter > 0 && turns > 0;
 }
 
+function ocrHasBentGeometry(item) {
+  const { sides, angles } = itemSidesAngles(item);
+  const realAngles = (angles || []).map(toNumber).filter(angle => angle && Math.abs(angle) !== 180);
+  return sides.length > 1 && realAngles.length > 0;
+}
+
 function isStraightOcrItem(item) {
   if (isSpiralOcrItem(item)) return false;
+  if (ocrHasBentGeometry(item)) return false;
   const raw = ocrShapeRaw(item);
-  if (/straight|bar/i.test(raw) || hasAnyToken(raw, ['\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8', '\u05d9\u05e9\u05e8', '\u05d1\u05e8\u05d6\u05dc \u05d9\u05e9\u05e8'])) return true;
+  if (/straight|bar/i.test(raw) || hasAnyToken(raw, ['מוט ישר', 'ישר', 'ברזל ישר'])) return true;
   const { sides, angles } = itemSidesAngles(item);
-  const realAngles = (angles || []).map(toNumber).filter(angle => angle && angle !== 180);
+  const realAngles = (angles || []).map(toNumber).filter(angle => angle && Math.abs(angle) !== 180);
   return sides.length <= 1 && realAngles.length === 0;
 }
 
@@ -746,7 +800,7 @@ function ocrHasAcceptedReview(item) {
 
 function ocrUncertainShapeSvg(item, width = 300, height = 210) {
   const raw = ocrShapeRaw(item);
-  const rawStraight = (/straight/i.test(raw) || hasAnyToken(raw, ['מוט ישר', 'ישר', 'ברזל ישר'])) && !ocrHasBentHint(item);
+  const rawStraight = (/straight/i.test(raw) || hasAnyToken(raw, ['מוט ישר', 'ישר', 'ברזל ישר'])) && !ocrHasBentHint(item) && !ocrHasBentGeometry(item);
   const label = rawStraight && !ocrHasAcceptedReview(item) ? 'צורה לבדיקה' : (ocrDisplayName(item) || 'צורה לבדיקה');
   const cx = width / 2;
   const cy = height / 2;
@@ -777,12 +831,20 @@ function ocrStraightSvg(item, width = 300, height = 210) {
   </svg>`;
 }
 
+function ocrReadablePreviewSides(sides) {
+  const clean = sides.map(toNumber).filter(Boolean);
+  if (clean.length < 2) return clean;
+  const max = Math.max(...clean);
+  const minVisible = max * 0.18;
+  return clean.map(side => side > 0 && side < minVisible ? minVisible : side);
+}
 function ocrOpenShapeSvg(item, sides, angles, width = 300, height = 210) {
   const cleanSides = sides.map(toNumber).filter(Boolean);
   if (!cleanSides.length) return ocrStraightSvg(item, width, height);
   if (typeof IronBendShapeGeometry !== 'undefined') {
-    const pathData = IronBendShapeGeometry.shapeSVGPath(cleanSides, angles, width, height);
-    const pts = pathData.points || [];
+    const previewSides = ocrReadablePreviewSides(cleanSides);
+    const pathData = IronBendShapeGeometry.shapeSVGPath(previewSides, angles, width, height);
+    const pts = pathData.points || pathData.pts || [];
     const labels = [];
     for (let i = 0; i < cleanSides.length && i < pts.length - 1; i++) {
       const midX = Math.round((pts[i].x + pts[i + 1].x) / 2);
@@ -804,7 +866,7 @@ function ocrShapeSvgHtml(item, width = 300, height = 210) {
   const explicitSegments = itemSegmentsOf(item);
   const { sides, angles } = itemSidesAngles(item);
   const raw = ocrShapeRaw(item);
-  const explicitStraight = (/straight/i.test(raw) || hasAnyToken(raw, ['מוט ישר', 'ישר', 'ברזל ישר'])) && !ocrHasBentHint(item);
+  const explicitStraight = (/straight/i.test(raw) || hasAnyToken(raw, ['מוט ישר', 'ישר', 'ברזל ישר'])) && !ocrHasBentHint(item) && !ocrHasBentGeometry(item);
   if (isClosedStirrupOcr(item, sides, angles)) return ocrClosedStirrupSvg(sides, item, width, height);
   if (!explicitSegments.length && !ocrHasAcceptedReview(item)) return ocrUncertainShapeSvg(item, width, height);
   if (explicitStraight) return ocrStraightSvg(item, width, height);
@@ -1106,7 +1168,7 @@ function shapeSelectedFromIntake(data) {
 
 function readCorrectedParsed() {
   const row = intakeRows.find(item => item.id === activeCompareId);
-  const parsed = JSON.parse(JSON.stringify(activeCompareOriginal || parsedOf(row || {})));
+  const parsed = cloneParsedForCompare(activeCompareOriginal || parsedOf(row || {}));
   document.querySelectorAll('[data-ocr-field]').forEach(input => {
     const path = input.dataset.ocrField;
     if (path === 'customer_name') parsed.customer_name = input.value.trim();
@@ -1167,8 +1229,22 @@ function setSourceFilter(value) {
 }
 
 function parsedOf(row) {
-  if (row.parsed && typeof row.parsed === 'object') return row.parsed;
-  try { return JSON.parse(row.parsed_data || '{}'); } catch { return {}; }
+  if (row?.parsed && typeof row.parsed === 'object') return row.parsed;
+  try { return JSON.parse(row?.parsed_data || '{}'); } catch { return {}; }
+}
+
+function cloneParsedForCompare(parsed) {
+  try { return JSON.parse(JSON.stringify(parsed || {})); } catch { return {}; }
+}
+
+function requireIntakeCompareElements() {
+  const modal = document.getElementById('intakeCompareModal');
+  const title = document.getElementById('intakeCompareTitle');
+  const meta = document.getElementById('intakeCompareMeta');
+  const source = document.getElementById('intakeCompareSource');
+  const data = document.getElementById('intakeCompareData');
+  const approve = document.getElementById('intakeCompareApprove');
+  return modal && title && meta && source && data && approve ? { modal, title, meta, source, data, approve } : null;
 }
 
 function formatDate(value) {
@@ -1623,19 +1699,21 @@ function selectCustomerForIntake(id, customerId) {
 function openIntakeCompare(id) {
   const row = intakeRows.find(item => item.id === id);
   if (!row) return toast('פנייה לא נמצאה', true);
-  const parsed = parsedOf(row);
+  const elements = requireIntakeCompareElements();
+  if (!elements) return toast('חלון ההשוואה לא נטען במסך. רענן ונסה שוב.', true);
+  const parsed = parsedOf(row) || {};
   const isPostOrderReview = Boolean(row.post_order_review);
   activeCompareId = id;
-  activeCompareOriginal = JSON.parse(JSON.stringify(parsed));
+  activeCompareOriginal = cloneParsedForCompare(parsed);
   intakeCompareZoom = 1;
   const urgency = urgencyInfo(row);
   const title = parsed.customer_name || parsed.customerName || row.customer_match?.customer?.name || 'לקוח לא מזוהה';
-  document.getElementById('intakeCompareTitle').textContent = title;
-  document.getElementById('intakeCompareMeta').textContent = isPostOrderReview
-    ? `מקור: ${sourceLabel(row.source)} · הזמנה: ${row.order_num || row.order_id} · בדיקות פתוחות: ${row.review_count || 0}`
+  elements.title.textContent = title;
+  elements.meta.textContent = isPostOrderReview
+    ? `מקור: ${sourceLabel(row.source)} · הזמנה: ${row.order_num || row.order_id || '-'} · בדיקות פתוחות: ${row.review_count || 0}`
     : `מקור: ${sourceLabel(row.source)} · דחיפות: ${urgency.label} ${urgency.score} · פריטים: ${urgency.itemCount}`;
-  document.getElementById('intakeCompareSource').innerHTML = intakeCompareSourceHtml(row);
-  document.getElementById('intakeCompareData').innerHTML = `
+  elements.source.innerHTML = intakeCompareSourceHtml(row);
+  elements.data.innerHTML = `
     <div class="box">
       <div class="box-title">פענוח להזמנה</div>
       ${urgencyMetricsHtml(row)}
@@ -1645,10 +1723,9 @@ function openIntakeCompare(id) {
       ${isPostOrderReview ? '' : customerMatchHtml(row)}
     </div>
   `;
-  const approveButton = document.getElementById('intakeCompareApprove');
-  approveButton.textContent = isPostOrderReview ? 'פתח הזמנה לאימות' : 'אשר אחרי בדיקה';
-  approveButton.onclick = isPostOrderReview ? () => openLinkedOrder(row.order_id) : () => intakeApprove(id);
-  document.getElementById('intakeCompareModal').classList.add('open');
+  elements.approve.textContent = isPostOrderReview ? 'פתח הזמנה לאימות' : 'אשר אחרי בדיקה';
+  elements.approve.onclick = isPostOrderReview ? () => openLinkedOrder(row.order_id) : () => intakeApprove(id);
+  elements.modal.classList.add('open');
   applyIntakeCompareZoom();
 }
 
