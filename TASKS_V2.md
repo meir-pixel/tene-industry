@@ -362,6 +362,9 @@
 - module: industry-steel-rebar/shape-editor
 - priority: high
 - scope:
+  - public/index.html
+  - public/intake.html
+  - public/customer.html
   - public/shape-editor.js
   - test/shape-geometry.test.js
 - input:
@@ -370,6 +373,7 @@
 - output:
   - שדה זווית ניתן לעריכה עד 360 מעלות.
   - כפתורי shortcut מהירים ל־90 ול־45 בתוך טבלת הצלעות.
+  - מסכי הזמנה/קליטה/לקוח טוענים גרסת shape-editor חדשה כדי לעקוף cache ישן.
 - logic:
   - ערכי זווית נשמרים בטווח 1–360.
   - סנכרון תצוגת 3D ממשיך להישען על ערכי הזווית המעודכנים.
@@ -377,6 +381,7 @@
   - input זווית בעורך מאפשר `max=360`.
   - `_setAngle` מגביל עד 360 במקום 179.
   - קיימים כפתורי 90 ו־45 עם מצב active יציב.
+  - `shape-editor.js` נטען ב־`v45` במסכים שמשתמשים בעורך.
   - בדיקת shape geometry מכסה את החוזה.
 
 ### V2-007 — Orders Module Specification
