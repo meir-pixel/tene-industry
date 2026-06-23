@@ -474,6 +474,10 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
 
   assert.match(index, /grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(320px,\s*0\.72fr\) 290px/);
   assert.match(index, /order-import-section/);
+  assert.match(index, /\.order-import-section \.section-subtitle \{ display: none; \}/);
+  assert.match(index, /\.ocr-quick-action \{[\s\S]*gap: 8px;[\s\S]*flex-wrap: wrap;[\s\S]*\}/);
+  assert.doesNotMatch(index, /class="ocr-file-hint"/);
+  assert.doesNotMatch(index.match(/\.ocr-quick-action \{[\s\S]*?\}/)?.[0] || '', /border: 1px solid rgba\(201,98,26,\.16\)/);
   assert.doesNotMatch(index, /<nav class="topnav">/);
   assert.match(index, /summary-order-number" id="orderNumDisplay"/);
   assert.ok(channelStart > intakeStart && channelStart < customerStart);
