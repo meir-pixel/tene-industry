@@ -297,6 +297,39 @@ module.exports = function createOrdersRouter(deps) {
     res.json({ success: true, itemId: Number(item.id), total_weight: totalWeight, order_total_weight: orderTotal });
   });
 
+  router.delete('/orders/:orderId/items/:itemId', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const item = db.prepare(`
+      SELECT i.*, p.order_id, o.order_num, o.locked
+      FROM items i
+      JOIN pallets p ON p.id = i.pallet_id
+      JOIN orders o ON o.id = p.order_id
+      WHERE i.id=? AND p.order_id=?
+    `).get(req.params.itemId, req.params.orderId);
+    if (!item) return res.status(404).json({ error: 'item not found' });
+    if (item.locked) return res.status(403).json({ error: 'order is locked' });
+    if (Number(item.produced_qty || 0) > 0) {
+      return res.status(409).json({ error: 'cannot delete item after production started' });
+    }
+
+    const before = JSON.stringify({
+      shape_name: item.shape_name,
+      diameter: item.diameter,
+      quantity: item.quantity,
+      total_length_mm: item.total_length_mm,
+      segments: item.segments,
+    });
+    db.prepare('DELETE FROM items WHERE id=?').run(item.id);
+    db.prepare(`
+      DELETE FROM pallets
+      WHERE order_id=?
+        AND NOT EXISTS (SELECT 1 FROM items WHERE items.pallet_id=pallets.id)
+    `).run(req.params.orderId);
+    const orderTotal = recalcOrderWeights(req.params.orderId);
+
+    auditLog('item', item.id, item.order_num, 'item_delete', 'shape_payload', before, null, item.note || null, req.auth?.sub || null, req.auth?.display_name || null);
+    wsBroadcast('order_item_deleted', { orderId: Number(req.params.orderId), itemId: Number(item.id), orderNum: item.order_num });
+    res.json({ success: true, itemId: Number(item.id), order_total_weight: orderTotal });
+  });
   router.patch('/orders/:orderId/items/:itemId/review', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const status = String(req.body?.status || 'approved').trim();
     if (!['approved', 'pending'].includes(status)) {
@@ -356,6 +389,7 @@ module.exports.manifest = {
     { event: 'order_review' },
     { event: 'order_item_updated' },
     { event: 'order_item_added' },
+    { event: 'order_item_deleted' },
     { event: 'machine_assign' },
   ],
 };

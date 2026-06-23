@@ -1,4 +1,4 @@
-﻿const assert = require('node:assert/strict');
+const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -26,4 +26,11 @@ test('orders missing intake source add flow offers a manual shape editor fallbac
   const html = orders();
   assert.match(html, /sourceParsed'\)\.innerHTML = mode === 'add'/);
   assert.match(html, /openOrderShapeEditorForAdd\(event, \$\{Number\(orderId\) \|\| 0\}\)/);
+});
+
+test('orders items can be deleted from the order detail screen', () => {
+  const html = orders();
+  assert.match(html, /deleteOrderItem\(event, \$\{o\.id\}, \$\{item\.id\}\)/);
+  assert.match(html, /fetch\(`\/api\/orders\/\$\{orderId\}\/items\/\$\{itemId\}`,[\s\S]*method: 'DELETE'/);
+  assert.match(html, /confirm\('/);
 });

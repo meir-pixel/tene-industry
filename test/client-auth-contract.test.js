@@ -405,12 +405,16 @@ test('orders review warnings have an approval path and source comparison', () =>
   assert.match(orders, /הוסף מ־OCR/);
   assert.match(orders, /הוסף צורה ידנית/);
   assert.match(orders, /addParsedItemToOrder/);
+  assert.match(orders, /deleteOrderItem/);
+  assert.match(orders, /method: 'DELETE'/);
   assert.match(orders, /new ShapeEditorModal\(shapeSelectedFromOrder\)/);
   assert.match(orders, /shapeSelectedFromOrder/);
   assert.match(orders, /const url = isNewItem \? `\/api\/orders\/\$\{ctx\.orderId\}\/items`/);
   assert.doesNotMatch(orders, /itemEditOverlay|openManualItemAdd|saveItemEdit/);
   assert.match(ordersRoute, /router\.post\('\/orders\/:orderId\/items'/);
+  assert.match(ordersRoute, /router\.delete\('\/orders\/:orderId\/items\/:itemId'/);
   assert.match(ordersRoute, /order_item_added/);
+  assert.match(ordersRoute, /order_item_deleted/);
   assert.match(ordersRoute, /\/orders\/:id\/intake-source/);
   assert.match(ordersRoute, /\/orders\/:orderId\/items\/:itemId\/review/);
   assert.match(ordersRoute, /wsBroadcast\('order_review'/);

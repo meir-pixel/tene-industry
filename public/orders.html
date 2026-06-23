@@ -171,6 +171,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .review-approved{background:#e7f8ed;color:#166b37}
 .review-btn{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 10px;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;color:var(--text)}
 .review-btn.primary{border-color:var(--success);background:#f2fbf5;color:var(--success)}
+.review-btn.danger{border-color:var(--danger);background:#fff5f5;color:var(--danger)}
 .add-choice-overlay{position:fixed;inset:0;background:rgba(2,26,72,.50);z-index:750;display:none;padding:18px;backdrop-filter:blur(4px)}
 .add-choice-overlay.show{display:flex}
 .add-choice-panel{background:#fff;border:1px solid var(--border);border-radius:16px;width:min(520px,100%);margin:auto;overflow:hidden;box-shadow:0 24px 80px rgba(2,26,72,.30)}
@@ -911,6 +912,9 @@ function buildDetailHTML(o, pkgs) {
           ${measuredWeight ? `<div class="item-dims"><span class="dim-chip">משקל מצוי: ${measuredWeight.toFixed(1)} ק"ג</span><span class="dim-chip"${weightDeviationClass(deviationPct)}>סטייה: ${deviationPct > 0 ? '+' : ''}${deviationPct.toFixed(1)}%</span></div>` : ''}
           ${shapeMismatch && !isReviewApproved(item) ? `<div class="note-chip">⚠ שם הצורה המקורי היה "${escHtml(item.shape_name)}", אבל הגיאומטריה כוללת צלע אחת בלבד ולכן מוצג כמוט ישר.</div>` : ''}
           ${displayNote ? `<div class="note-chip">⚠ ${escHtml(displayNote)}</div>` : ''}
+          <div class="review-actions">
+            <button class="review-btn danger" onclick="deleteOrderItem(event, ${o.id}, ${item.id})">מחק פריט</button>
+          </div>
           ${review ? `<div class="review-actions">
             <button class="review-btn" onclick="openOrderIntakeSource(event, ${o.id})">פתח מקור להשוואה</button>
             <button class="review-btn" onclick="openItemEdit(event, ${o.id}, ${item.id})">ערוך פריט</button>
@@ -1240,6 +1244,17 @@ async function addParsedItemToOrder(event, index) {
   await openDetail(orderId);
 }
 
+async function deleteOrderItem(event, orderId, itemId) {
+  event?.stopPropagation?.();
+  if (!confirm('\u05dc\u05de\u05d7\u05d5\u05e7 \u05d0\u05ea \u05d4\u05e4\u05e8\u05d9\u05d8 \u05d4\u05d6\u05d4 \u05de\u05d4\u05d4\u05d6\u05de\u05e0\u05d4?')) return;
+  const response = await fetch(`/api/orders/${orderId}/items/${itemId}`, { method: 'DELETE' });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    alert(result.error || '\u05de\u05d7\u05d9\u05e7\u05ea \u05d4\u05e4\u05e8\u05d9\u05d8 \u05e0\u05db\u05e9\u05dc\u05d4');
+    return;
+  }
+  await openDetail(orderId);
+}
 async function approveItemReview(event, orderId, itemId) {
   event?.stopPropagation?.();
   const response = await fetch(`/api/orders/${orderId}/items/${itemId}/review`, {
