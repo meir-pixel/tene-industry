@@ -761,11 +761,7 @@ class ShapeEditorModal {
 }
 #seModal .se-add-btn:hover{background:#2f394b;color:#fff;}
 #seModal .se-svg-wrap{
-  background-color:#ffffff;
-  background-image:
-    linear-gradient(#edf0f4 1px, transparent 1px),
-    linear-gradient(90deg, #edf0f4 1px, transparent 1px);
-  background-size:28px 28px;
+  background:#ffffff;
   border:0;
   border-radius:0;
   min-height:0;
@@ -1709,36 +1705,67 @@ class ShapeEditorModal {
           data-seg-click="${i}" style="cursor:pointer"/>`;
       }
 
-      // Labels — letter badge + dimension
+      // Dimension tags: small white windows aligned with each side.
       for (let i = 0; i < segs.length; i++) {
         const s = segs[i];
         const isAct = i === _activeSeg2d;
-        const col = isAct ? '#2979ff' : '#526070';
+        const stroke = isAct ? '#ff4047' : '#9aa3b2';
+        const fill = isAct ? '#fff4f4' : '#ffffff';
         const mx=(s.x1+s.x2)/2, my=(s.y1+s.y2)/2;
         const lx=mx+s.nx*24, ly=my+s.ny*24;
-        const letter = String.fromCharCode(0x05D0 + i);
-        html += `<circle cx="${lx.toFixed(1)}" cy="${(ly-12).toFixed(1)}" r="11"
-            fill="${col}" stroke="white" stroke-width="1.5" data-seg-click="${i}" style="cursor:pointer"/>
-          <text x="${lx.toFixed(1)}" y="${(ly-7.5).toFixed(1)}" text-anchor="middle" font-size="11"
-            font-family="Heebo,Arial" font-weight="900" fill="white" data-seg-click="${i}" style="cursor:pointer">${letter}</text>
-          <rect x="${(lx-17).toFixed(1)}" y="${(ly+1).toFixed(1)}" width="34" height="13" rx="3"
-            fill="rgba(26,35,50,0.85)" stroke="${col}" stroke-width="1" data-seg-click="${i}" style="cursor:pointer"/>
-          <text x="${lx.toFixed(1)}" y="${(ly+11).toFixed(1)}" text-anchor="middle" font-size="9"
-            font-family="Heebo,Arial" font-weight="700" fill="#e8edf3" data-seg-click="${i}" style="cursor:pointer">${sides[i]}</text>`;
+        const rawAngle = Math.atan2(s.y2 - s.y1, s.x2 - s.x1) * 180 / Math.PI;
+        let labelAngle = rawAngle;
+        if (labelAngle > 90) labelAngle -= 180;
+        if (labelAngle < -90) labelAngle += 180;
+        const value = String(sides[i]);
+        const tagW = Math.max(36, Math.min(62, value.length * 9 + 18));
+        const letter = String.fromCharCode(65 + i);
+        html += `<g transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${labelAngle.toFixed(1)})"
+            data-seg-click="${i}" style="cursor:pointer">
+          <text x="0" y="-15" text-anchor="middle" font-size="12"
+            font-family="Heebo,Arial" font-weight="700" fill="#111827"
+            data-seg-click="${i}">${letter}</text>
+          <rect x="${(-tagW/2).toFixed(1)}" y="-9" width="${tagW}" height="18" rx="3"
+            fill="${fill}" stroke="${stroke}" stroke-width="1"
+            data-seg-click="${i}"/>
+          <text x="0" y="5" text-anchor="middle" font-size="13"
+            font-family="Heebo,Arial" font-weight="700" fill="#111827"
+            data-seg-click="${i}">${value}</text>
+        </g>`;
       }
 
-      // Angle dots at bends — use segs endpoints so dots align with the offset polyline
+      // Bend marks: right angle gets a clean corner marker without number.
       if (segs.length > 1) {
         for (let i = 0; i < segs.length - 1; i++) {
-          // The bend between seg[i] and seg[i+1] is at segs[i].x2/y2
           const bx = segs[i].x2, by = segs[i].y2;
-          if (angles[i] !== undefined && angles[i] !== 180) {
-            html += `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="12"
-                fill="rgba(201,98,26,0.90)" stroke="white" stroke-width="1.5"
-                data-ang-click="${i}" style="cursor:pointer"/>
-              <text x="${bx.toFixed(1)}" y="${(by+4.5).toFixed(1)}" text-anchor="middle" font-size="9"
-                font-family="Heebo,Arial" font-weight="700" fill="white"
-                data-ang-click="${i}" style="cursor:pointer">${angles[i]}°</text>`;
+          const angle = Number(angles[i]);
+          if (angles[i] === undefined || angle === 180) continue;
+          const s1 = segs[i], s2 = segs[i + 1];
+          const len1 = Math.hypot(s1.x2 - s1.x1, s1.y2 - s1.y1) || 1;
+          const len2 = Math.hypot(s2.x2 - s2.x1, s2.y2 - s2.y1) || 1;
+          const u1x = (s1.x1 - bx) / len1, u1y = (s1.y1 - by) / len1;
+          const u2x = (s2.x2 - bx) / len2, u2y = (s2.y2 - by) / len2;
+          if (Math.abs(Math.abs(angle) - 90) < 0.001) {
+            const m = 8;
+            const p1x = bx + u1x * m, p1y = by + u1y * m;
+            const p2x = p1x + u2x * m, p2y = p1y + u2y * m;
+            const p3x = bx + u2x * m, p3y = by + u2y * m;
+            html += `<path d="M ${p1x.toFixed(1)} ${p1y.toFixed(1)} L ${p2x.toFixed(1)} ${p2y.toFixed(1)} L ${p3x.toFixed(1)} ${p3y.toFixed(1)}"
+              fill="none" stroke="#c4c8cf" stroke-width="2"
+              data-ang-click="${i}" style="cursor:pointer"/>`;
+          } else {
+            const raw = Math.atan2(u1y + u2y, u1x + u2x);
+            const tx = bx + Math.cos(raw) * 22;
+            const ty = by + Math.sin(raw) * 22;
+            const value = String(angle) + '°';
+            const tagW = Math.max(34, Math.min(52, value.length * 8 + 14));
+            html += `<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})"
+                data-ang-click="${i}" style="cursor:pointer">
+              <rect x="${(-tagW/2).toFixed(1)}" y="-9" width="${tagW}" height="18" rx="3"
+                fill="#ffffff" stroke="#c9621a" stroke-width="1"/>
+              <text x="0" y="5" text-anchor="middle" font-size="11"
+                font-family="Heebo,Arial" font-weight="700" fill="#111827">${value}</text>
+            </g>`;
           }
         }
       }
