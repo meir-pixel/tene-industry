@@ -1754,17 +1754,23 @@ class ShapeEditorModal {
               fill="none" stroke="#c4c8cf" stroke-width="2"
               data-ang-click="${i}" style="cursor:pointer"/>`;
           } else {
-            const raw = Math.atan2(u1y + u2y, u1x + u2x);
-            const tx = bx + Math.cos(raw) * 22;
-            const ty = by + Math.sin(raw) * 22;
+            let bxOut = u1x + u2x;
+            let byOut = u1y + u2y;
+            const bLen = Math.hypot(bxOut, byOut) || 1;
+            bxOut /= bLen;
+            byOut /= bLen;
+            // Keep non-90 angle labels outside the bend so they do not cover the vertex or short side tag.
+            const dist = Math.max(34, Math.min(50, Math.min(len1, len2) * 0.42 + 24));
+            const tx = bx + bxOut * dist;
+            const ty = by + byOut * dist;
             const value = String(angle) + '°';
-            const tagW = Math.max(34, Math.min(52, value.length * 8 + 14));
+            const tagW = Math.max(36, Math.min(54, value.length * 8 + 16));
             html += `<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})"
                 data-ang-click="${i}" style="cursor:pointer">
-              <rect x="${(-tagW/2).toFixed(1)}" y="-9" width="${tagW}" height="18" rx="3"
-                fill="#ffffff" stroke="#c9621a" stroke-width="1"/>
-              <text x="0" y="5" text-anchor="middle" font-size="11"
-                font-family="Heebo,Arial" font-weight="700" fill="#111827">${value}</text>
+              <rect x="${(-tagW/2).toFixed(1)}" y="-10" width="${tagW}" height="20" rx="4"
+                fill="#ffffff" stroke="#c9621a" stroke-width="1.2"/>
+              <text x="0" y="5" text-anchor="middle" font-size="12"
+                font-family="Heebo,Arial" font-weight="800" fill="#111827">${value}</text>
             </g>`;
           }
         }
