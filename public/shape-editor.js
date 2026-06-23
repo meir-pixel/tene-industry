@@ -1129,11 +1129,15 @@ class ShapeEditorModal {
               data-side="${i}" oninput="window._seEditor._setSide(${i}, this.value)"></td>
             <td>${i < angles.length ? `
               <div style="display:flex;align-items:center;gap:6px">
-                <input class="se-input" type="number" min="1" max="179" value="${angles[i]}" style="width:70px"
+                <input class="se-input" type="number" min="1" max="360" value="${angles[i]}" style="width:70px"
                   data-angle="${i}" oninput="window._seEditor._setAngle(${i}, this.value)">
                 <div class="se-angle-btns">
-                  ${[45,90,135].map(a => `<button class="se-angle-btn ${angles[i]==a?'active':''}"
-                    onclick="window._seEditor._setAngle(${i},${a});this.closest('tr').querySelector('[data-angle]').value=${a}">${a}°</button>`).join('')}
+                  ${[
+                    { value: 90, label: '⌞ 90°', title: 'זווית ישרה 90°' },
+                    { value: 45, label: '∠ 45°', title: 'זווית 45°' },
+                  ].map(a => `<button class="se-angle-btn ${angles[i]==a.value?'active':''}" title="${a.title}"
+                    data-angle-value="${a.value}"
+                    onclick="window._seEditor._setAngle(${i},${a.value});this.closest('tr').querySelector('[data-angle]').value=${a.value}">${a.label}</button>`).join('')}
                 </div>
               </div>` : '<span style="color:var(--text-dim,#7a93ab);font-size:12px">—</span>'}</td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">✕</button>` : ''}</td>
@@ -1173,7 +1177,7 @@ class ShapeEditorModal {
 
   _setAngle(i, val) {
     if (!this.current) return;
-    const a = Math.min(179, Math.max(1, Number(val) || 90));
+    const a = Math.min(360, Math.max(1, Number(val) || 90));
     this.current.angles[i] = a;
     // ── Sync to azAngles (so 3D view stays consistent) ─────────────────
     // azAngles[i+1] = -(180 - angles[i])
@@ -1182,7 +1186,7 @@ class ShapeEditorModal {
     }
     // update active btn
     const row = document.querySelector(`[data-angle="${i}"]`)?.closest('tr');
-    row?.querySelectorAll('.se-angle-btn').forEach(b => b.classList.toggle('active', Number(b.textContent) === a));
+    row?.querySelectorAll('.se-angle-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.angleValue) === a));
     this._updatePreview();
   }
 
@@ -1195,11 +1199,11 @@ class ShapeEditorModal {
     // ── Sync back to 2D angles (machine data) ──────────────────────────
     // Inverse of: azAngles[i] = -(180 - angles[i-1])
     //             angles[i-1] = 180 + azAngles[i]
-    // Clamp to valid 2D range [1, 179]; angles outside this range mean
+    // Clamp to valid 2D range [1, 360]; angles outside this range mean
     // a purely-3D direction change with no classic 2D equivalent.
     const ang2d = 180 + az;
     if (i - 1 >= 0 && i - 1 < this.current.angles.length) {
-      if (ang2d >= 1 && ang2d <= 179) {
+      if (ang2d >= 1 && ang2d <= 360) {
         this.current.angles[i - 1] = ang2d;
       }
       // If outside range (e.g. "שמאל" +90 → ang2d=270), keep existing 2D angle

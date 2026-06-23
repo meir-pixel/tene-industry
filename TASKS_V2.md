@@ -355,6 +355,30 @@
   - כל סוג צורה מוגדר.
   - אין ambiguity בין ספירלה/חישוק/מקופף.
 
+### V2-006A — Shape Editor Angle Quick Controls
+
+- status: done
+- owner: codex-shape-editor
+- module: industry-steel-rebar/shape-editor
+- priority: high
+- scope:
+  - public/shape-editor.js
+  - test/shape-geometry.test.js
+- input:
+  - כל זווית בעורך צורות
+  - קיצור מהיר ל־90 ול־45
+- output:
+  - שדה זווית ניתן לעריכה עד 360 מעלות.
+  - כפתורי shortcut מהירים ל־90 ול־45 בתוך טבלת הצלעות.
+- logic:
+  - ערכי זווית נשמרים בטווח 1–360.
+  - סנכרון תצוגת 3D ממשיך להישען על ערכי הזווית המעודכנים.
+- definition_of_done:
+  - input זווית בעורך מאפשר `max=360`.
+  - `_setAngle` מגביל עד 360 במקום 179.
+  - קיימים כפתורי 90 ו־45 עם מצב active יציב.
+  - בדיקת shape geometry מכסה את החוזה.
+
 ### V2-007 — Orders Module Specification
 
 - status: todo
