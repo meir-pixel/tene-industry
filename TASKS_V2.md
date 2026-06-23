@@ -792,6 +792,29 @@
   - mockup ויזואלי לתחנת עובד וניהול כרטיסיות.
   - אין תלות ב־server.js הישן.
 
+### V2-011A — Production Card A4 Print Density
+
+- status: done
+- owner: codex-orders
+- module: production-cards/orders
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `services/productionCardPrintPage.js`
+  - `test/client-auth-contract.test.js`
+- input:
+  - בקשת מאיר: להדפיס כרטיסיות כך ש־8 כרטיסיות ייכנסו בדף A4.
+- output:
+  - מצב הדפסה של כרטיסיות ייצור משתמש ב־A4 portrait.
+  - כל דף הדפסה מכיל גריד 2 עמודות × 4 שורות.
+  - הכרטיסיות נשארות באותו HTML ולוגיקה, עם CSS הדפסה צפוף בלבד.
+- logic:
+  - לא משנים יצירת כרטיסיות, פיצול כמות, ברקוד, מאסטר או סטטוסים.
+  - השינוי חל רק ב־`@media print` כדי לא לפגוע בתצוגת המסך.
+- definition_of_done:
+  - `@page` מוגדר כ־A4 portrait.
+  - גריד ההדפסה מוגדר ל־2×4 כרטיסיות.
+  - בדיקת חוזה מגנה על מידות ההדפסה.
 ---
 
 ## ⛔ אסור כרגע
@@ -812,3 +835,4 @@
 - artifact:
   - `docs/PROJECT_TRUTH_HE.md`
   - Google Docs: IronBend V2 - מסמך אמת מודולרי
+

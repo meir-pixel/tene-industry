@@ -152,9 +152,57 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 @media print{
   body{background:#fff;padding:0;}
   .screen-only{display:none!important;}
-  .cards-grid{display:block!important;gap:0;}
-  .prod-card{display:block!important;margin:2mm;box-shadow:none;break-inside:avoid;page-break-inside:avoid;}
-  @page{margin:8mm;}
+  .cards-grid{
+    display:grid!important;
+    grid-template-columns:repeat(2, 96mm);
+    grid-auto-rows:68mm;
+    gap:2mm;
+    align-items:stretch;
+    justify-content:center;
+  }
+  .prod-card{
+    width:96mm!important;
+    height:68mm!important;
+    margin:0!important;
+    box-shadow:none;
+    break-inside:avoid;
+    page-break-inside:avoid;
+    border-width:1px;
+    border-radius:2px;
+    font-size:8px;
+  }
+  .pc-head{padding:3px 5px 2px;border-bottom-width:1px;}
+  .pc-title{font-size:9px;line-height:1.1;}
+  .pc-date{font-size:7px;margin-top:0;}
+  .bc-font-top{font-size:28px;max-height:28px;}
+  .bc-font-mid{font-size:23px;max-height:24px;}
+  .bc-font-footer{font-size:18px;max-height:18px;}
+  .bc-label,.bc-ord-text{font-size:6px;}
+  .split-badge{font-size:7px;padding:0 3px;margin-left:2px;}
+  .pc-order-row{gap:3px;padding:2px 5px;}
+  .pc-order-label,.pc-pallet{font-size:7px;}
+  .pc-wq-row{padding:2px 5px;gap:2px;}
+  .wq-lbl,.spec-lbl{font-size:7px;}
+  .wq-val{font-size:10px;}
+  .wq-cust{font-size:7px;}
+  .pc-wq-sep{height:11px;}
+  .pc-shape-area{min-height:33mm;padding:2mm 3mm;}
+  .pc-shape-svg,.pc-shape-area svg{max-height:31mm!important;}
+  .pc-dims{gap:2px;padding:2px 5px;}
+  .dim-seg,.dim-ang{font-size:6.5px;padding:1px 3px;}
+  .pc-spec-row{padding:2px 5px;}
+  .pc-spec-cell{font-size:7px;}
+  .pc-spec-sep{height:10px;margin:0 3px;}
+  .pc-note{padding:1px 5px;font-size:7px;}
+  .pc-footer{padding:2px 5px;}
+  .pc-brand{font-size:7px;}
+  .pc-brand-num{font-size:11px;}
+  .master-table{font-size:6.5px;}
+  .master-table th,.master-table td{padding:1px 2px;}
+  .master-shape-cell{width:42px;}
+  .master-shape-cell svg{width:40px;max-height:21px;}
+  .master-totals{padding:2px 5px;font-size:7px;}
+  @page{size:A4 portrait;margin:5mm;}
 }
 </style>
 </head>
@@ -657,3 +705,4 @@ function printCards() {
 module.exports = {
   renderPrintCardsPage,
 };
+

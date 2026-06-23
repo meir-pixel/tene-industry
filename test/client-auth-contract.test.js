@@ -69,6 +69,10 @@ test('production card split keeps item cards and master card in sync', () => {
   assert.match(productionCardsRoute, /function printCards\(\)[\s\S]*generateCards\(\);[\s\S]*window\.print\(\);/);
   assert.match(productionCardsRoute, /'-C' \+ \(cardIdx\+1\) \+ 'OF' \+ totalCards/);
   assert.match(productionCardsRoute, /להדפיס גם מאסטר מעודכן/);
+  assert.match(productionCardsRoute, /@page\{size:A4 portrait;margin:5mm;\}/);
+  assert.match(productionCardsRoute, /grid-template-columns:repeat\(2, 96mm\)/);
+  assert.match(productionCardsRoute, /grid-auto-rows:68mm/);
+  assert.match(productionCardsRoute, /height:68mm!important/);
 });
 
 test('customer portal UI uses OTP verification before storing token', () => {
@@ -1180,3 +1184,4 @@ test('server hardens production auth and websocket upgrades', () => {
     assert.match(read(file), /IronBendAuth\?\.webSocketUrl/, file);
   }
 });
+
