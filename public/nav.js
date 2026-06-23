@@ -178,6 +178,27 @@
     .ib-sr-icon { font-size:18px; flex-shrink:0; }
     .ib-sr-ref { font-weight:900; }
     .ib-sr-label { color:#64748b; font-size:12px; }
+    .ib-window-back-row {
+      position:sticky; top:0; z-index:35;
+      display:flex; justify-content:flex-start;
+      padding:10px 12px 0;
+      pointer-events:none;
+    }
+    .ib-window-back-btn {
+      pointer-events:auto;
+      border:1px solid rgba(2,26,72,.14);
+      background:#fff;
+      color:#c9621a;
+      border-radius:999px;
+      min-height:36px;
+      padding:7px 13px;
+      display:inline-flex; align-items:center; gap:6px;
+      font-family:Heebo,Arial,sans-serif;
+      font-size:13px; font-weight:900;
+      cursor:pointer;
+      box-shadow:0 6px 18px rgba(2,26,72,.10);
+    }
+    .ib-window-back-btn:hover { border-color:#c9621a; background:#fff7ef; }
     @media(max-width:768px) {
       #ib-logo-icon { width:132px; height:auto; }
       #ib-links { display:none; }
@@ -372,6 +393,85 @@
     if (results) results.innerHTML = '<div class="ib-sr-empty">הקלד לפחות 2 תווים לחיפוש</div>';
   }
 
+  const windowPanelSelector = [
+    '.modal-overlay.open > .modal',
+    '.modal-overlay.show > .modal',
+    '.modal-bg.open > .modal',
+    '.modal-bg.show > .modal',
+    '.modal-backdrop.open > .modal',
+    '.modal-backdrop.show > .modal',
+    '.status-modal-overlay.open > .modal',
+    '.detail-overlay.show > .detail-panel',
+    '.intake-fullscreen.open > .intake-fullscreen-inner',
+    '.receipt-fullscreen.open > .receipt-fullscreen-inner',
+    '.edit-overlay.show > .edit-panel',
+    '.img-modal-overlay.show > .img-modal'
+  ].join(',');
+
+  function isVisible(el) {
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+
+  function closeWindowPanel(panel) {
+    const closeCandidate = Array.from(panel.querySelectorAll(
+      '.modal-close, .detail-close, .close-btn, .btn-cancel, .btn-outline, [data-close], button, a'
+    )).find(el => {
+      if (el.classList.contains('ib-window-back-btn') || !isVisible(el)) return false;
+      const text = (el.textContent || '').trim();
+      const action = String(el.getAttribute('onclick') || '').toLowerCase();
+      return /close|back|showscreen/.test(action) || /[×✕x]|סגור|ביטול|בטל|חזרה/.test(text);
+    });
+    if (closeCandidate) {
+      closeCandidate.click();
+      return;
+    }
+
+    const shell = panel.closest(
+      '.modal-overlay, .modal-bg, .modal-backdrop, .status-modal-overlay, .detail-overlay, .intake-fullscreen, .receipt-fullscreen, .edit-overlay, .img-modal-overlay'
+    );
+    if (!shell) return;
+    shell.classList.remove('open', 'show');
+    if (getComputedStyle(shell).display !== 'none') shell.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function enhanceWindowBackControls(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll(windowPanelSelector).forEach(panel => {
+      if (panel.querySelector(':scope > .ib-window-back-row')) return;
+      const row = document.createElement('div');
+      row.className = 'ib-window-back-row';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ib-window-back-btn';
+      btn.setAttribute('aria-label', '\u05d7\u05d6\u05e8\u05d4');
+      btn.textContent = '\u2190 \u05d7\u05d6\u05e8\u05d4';
+      btn.addEventListener('click', () => closeWindowPanel(panel));
+      row.appendChild(btn);
+      panel.insertBefore(row, panel.firstChild);
+    });
+  }
+
+  function watchWindowBackControls() {
+    enhanceWindowBackControls(document);
+    const observer = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' || mutation.addedNodes.length) {
+          enhanceWindowBackControls(document);
+          break;
+        }
+      }
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+  }
+
   function mount() {
     document.querySelectorAll('nav.topnav, .topnav').forEach(el => el.remove());
     document.body.insertBefore(topnav, document.body.firstChild);
@@ -382,6 +482,7 @@
   document.body.appendChild(searchOverlay);
   refreshLicensedModules();
   applyAccessControl();
+  watchWindowBackControls();
 
     document.getElementById('ib-hamburger')?.addEventListener('click', openDrawer);
     document.getElementById('ib-drawer-close')?.addEventListener('click', closeDrawer);
