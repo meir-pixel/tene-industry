@@ -491,6 +491,11 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
   assert.doesNotMatch(customerBlock, /label>מקור לקוח/);
   assert.match(index, /#customer-section \{ grid-column: 1; \}/);
   assert.match(index, /#delivery-section \{ grid-column: 2; \}/);
+  assert.match(index, /<details class="delivery-toggle" id="deliveryDetails">/);
+  assert.match(index, /id="deliverySiteName"/);
+  assert.match(index, /function updateDeliverySummary\(\)/);
+  assert.match(index, /function openDeliveryDetails\(\)/);
+  assert.match(index, /driverNotes: driverNotes/);
   assert.match(index, /#items-section \{ grid-column: 1 \/ 3; \}/);
   assert.match(index, /\.summary-bar \{[\s\S]*position: sticky;[\s\S]*top: 72px/);
   assert.match(index, /@media \(max-width: 768px\)[\s\S]*\.main \{ display: flex; flex-direction: column/);

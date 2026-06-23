@@ -224,6 +224,30 @@
   }
   #customer-section { grid-column: 1; }
   #delivery-section { grid-column: 2; }
+  #delivery-section.delivery-collapsed { overflow: visible; }
+  .delivery-toggle { display: block; }
+  .delivery-toggle > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    min-height: 58px;
+  }
+  .delivery-toggle > summary::-webkit-details-marker { display: none; }
+  .delivery-summary-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .delivery-summary-icon {
+    width: 36px; height: 36px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(201,98,26,0.12); font-size: 18px; flex-shrink: 0;
+  }
+  .delivery-summary-title { font-weight: 800; font-size: 14px; color: var(--text); }
+  .delivery-summary-sub { color: var(--text-dim); font-size: 12px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+  .delivery-edit-pill { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 6px 10px; color: var(--accent); font-size: 12px; font-weight: 900; white-space: nowrap; }
+  .delivery-toggle[open] .delivery-edit-pill { color: var(--text-dim); }
+  .delivery-toggle .section-body { border-top: 1px solid var(--border); }
   #items-section { grid-column: 1 / 3; }
   .notes-section { grid-column: 1 / 3; }
 
@@ -1332,49 +1356,57 @@
   </div>
 
   <!-- SECTION 2: DELIVERY -->
-  <div class="section" id="delivery-section">
-    <div class="section-header">
-      <div class="section-icon" style="background:rgba(201,98,26,0.12)">🚚</div>
-      <div>
-        <div class="section-title">פרטי אספקה</div>
-        <div class="section-subtitle">מתי ולאן מספקים?</div>
-      </div>
-    </div>
-    <div class="section-body">
-      <div class="form-grid form-grid-2">
-        <div class="field">
-          <label><span class="required">*</span>תאריך אספקה מבוקש</label>
-          <input type="date" id="deliveryDate">
-        </div>
-        <div class="field">
-          <label>שעת אספקה מועדפת</label>
-          <select id="deliveryTime">
-            <option value="">ללא העדפה</option>
-            <option>בוקר (06:00-10:00)</option>
-            <option>אמצע היום (10:00-14:00)</option>
-            <option>אחר הצהריים (14:00-18:00)</option>
-          </select>
-        </div>
-        <div class="field span-2">
-          <label><span class="required">*</span>כתובת אתר הבנייה</label>
-          <input type="text" id="deliveryAddress" placeholder="רחוב, מספר, עיר">
-        </div>
-        <div class="field span-2">
-          <label>עדיפות הזמנה</label>
-          <div class="priority-selector">
-            <button class="priority-btn regular active" onclick="setPriority(this,'רגיל')">✓ רגיל</button>
-            <button class="priority-btn urgent" onclick="setPriority(this,'דחוף')">⚡ דחוף</button>
+  <div class="section delivery-collapsed" id="delivery-section">
+    <details class="delivery-toggle" id="deliveryDetails">
+      <summary>
+        <div class="delivery-summary-main">
+          <div class="delivery-summary-icon">&#128666;</div>
+          <div>
+            <div class="delivery-summary-title">&#1508;&#1512;&#1496;&#1497; &#1488;&#1505;&#1508;&#1511;&#1492;</div>
+            <div class="delivery-summary-sub" id="deliverySummaryText">&#1513;&#1501; &#1488;&#1514;&#1512; &#1493;&#1499;&#1514;&#1493;&#1489;&#1514; &#1489;&#1500;&#1495;&#1497;&#1510;&#1492;</div>
           </div>
-          <input type="hidden" id="orderPriority" value="רגיל">
         </div>
-        <div class="field span-2">
-          <label>הערות לנהג</label>
-          <textarea id="driverNotes" placeholder="הוראות כניסה לאתר, קומה, שם המנוף..."></textarea>
+        <span class="delivery-edit-pill">&#1506;&#1512;&#1493;&#1498;</span>
+      </summary>
+      <div class="section-body">
+        <div class="form-grid form-grid-2">
+          <div class="field span-2">
+            <label>&#1513;&#1501; &#1488;&#1514;&#1512;</label>
+            <input type="text" id="deliverySiteName" placeholder="&#1500;&#1491;&#1493;&#1490;&#1502;&#1492;: &#1489;&#1504;&#1497;&#1497;&#1503; A, &#1511;&#1493;&#1502;&#1492; 3" oninput="updateDeliverySummary()">
+          </div>
+          <div class="field span-2">
+            <label><span class="required">*</span>&#1499;&#1514;&#1493;&#1489;&#1514; &#1488;&#1514;&#1512; &#1492;&#1489;&#1504;&#1497;&#1497;&#1492;</label>
+            <input type="text" id="deliveryAddress" placeholder="&#1512;&#1495;&#1493;&#1489;, &#1502;&#1505;&#1508;&#1512;, &#1506;&#1497;&#1512;" oninput="updateDeliverySummary()">
+          </div>
+          <div class="field">
+            <label><span class="required">*</span>&#1514;&#1488;&#1512;&#1497;&#1498; &#1488;&#1505;&#1508;&#1511;&#1492; &#1502;&#1489;&#1493;&#1511;&#1513;</label>
+            <input type="date" id="deliveryDate" onchange="updateDeliverySummary()">
+          </div>
+          <div class="field">
+            <label>&#1513;&#1506;&#1514; &#1488;&#1505;&#1508;&#1511;&#1492; &#1502;&#1493;&#1506;&#1491;&#1508;&#1514;</label>
+            <select id="deliveryTime" onchange="updateDeliverySummary()">
+              <option value="">&#1500;&#1500;&#1488; &#1492;&#1506;&#1491;&#1508;&#1492;</option>
+              <option>&#1489;&#1493;&#1511;&#1512; (06:00-10:00)</option>
+              <option>&#1488;&#1502;&#1510;&#1506; &#1492;&#1497;&#1493;&#1501; (10:00-14:00)</option>
+              <option>&#1488;&#1495;&#1512; &#1492;&#1510;&#1492;&#1512;&#1497;&#1497;&#1501; (14:00-18:00)</option>
+            </select>
+          </div>
+          <div class="field span-2">
+            <label>&#1506;&#1491;&#1497;&#1508;&#1493;&#1514; &#1492;&#1494;&#1502;&#1504;&#1492;</label>
+            <div class="priority-selector">
+              <button class="priority-btn regular active" onclick="setPriority(this,'&#1512;&#1490;&#1497;&#1500;')">&#10003; &#1512;&#1490;&#1497;&#1500;</button>
+              <button class="priority-btn urgent" onclick="setPriority(this,'&#1491;&#1495;&#1493;&#1507;')">&#9889; &#1491;&#1495;&#1493;&#1507;</button>
+            </div>
+            <input type="hidden" id="orderPriority" value="&#1512;&#1490;&#1497;&#1500;">
+          </div>
+          <div class="field span-2">
+            <label>&#1492;&#1506;&#1512;&#1493;&#1514; &#1500;&#1504;&#1492;&#1490;</label>
+            <textarea id="driverNotes" placeholder="&#1492;&#1493;&#1512;&#1488;&#1493;&#1514; &#1499;&#1504;&#1497;&#1505;&#1492; &#1500;&#1488;&#1514;&#1512;, &#1511;&#1493;&#1502;&#1492;, &#1513;&#1501; &#1492;&#1502;&#1504;&#1493;&#1507;..." oninput="updateDeliverySummary()"></textarea>
+          </div>
         </div>
       </div>
-    </div>
+    </details>
   </div>
-
   <!-- SECTION 3: ITEMS -->
   <div class="section" id="items-section">
     <div class="section-header">
@@ -1537,6 +1569,7 @@ function init() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const deliveryDate = document.getElementById('deliveryDate');
   if (deliveryDate) deliveryDate.value = tomorrow.toISOString().split('T')[0];
+  updateDeliverySummary();
 
   // First pallet
   addPallet();
@@ -1573,6 +1606,28 @@ function updateDateTime() {
   }
 }
 
+function updateDeliverySummary() {
+  const summary = document.getElementById('deliverySummaryText');
+  if (!summary) return;
+  const site = (document.getElementById('deliverySiteName')?.value || '').trim();
+  const address = (document.getElementById('deliveryAddress')?.value || '').trim();
+  const dateValue = document.getElementById('deliveryDate')?.value || '';
+  const parts = [];
+  if (site) parts.push(site);
+  if (address) parts.push(address);
+  if (dateValue && parts.length) {
+    const date = new Date(dateValue + 'T00:00:00');
+    parts.push(Number.isNaN(date.getTime()) ? dateValue : date.toLocaleDateString('he-IL'));
+  }
+  summary.textContent = parts.length ? parts.join(' · ') : '\u05e9\u05dd \u05d0\u05ea\u05e8 \u05d5\u05db\u05ea\u05d5\u05d1\u05ea \u05d1\u05dc\u05d7\u05d9\u05e6\u05d4';
+}
+
+function openDeliveryDetails() {
+  const details = document.getElementById('deliveryDetails');
+  if (details) details.open = true;
+  updateDeliverySummary();
+}
+
 // ── CHANNEL ──────────────────────────────────────────────
 const CHANNEL_MAP = { 'וואטסאפ': 'whatsapp', 'מייל': 'email', 'תמונה': 'image' };
 
@@ -1606,6 +1661,7 @@ async function parseChannelText(source) {
     if (p.customerPhone) { document.getElementById('customerPhone').value = p.customerPhone; }
     if (p.deliveryAddress) { document.getElementById('deliveryAddress').value = p.deliveryAddress; }
     if (p.deliveryDate) { document.getElementById('deliveryDate').value = p.deliveryDate; }
+    updateDeliverySummary();
     appendParsedItems(p.items);
     resultEl.style.color = 'var(--success)';
     resultEl.textContent = '✅ הטופס מולא אוטומטית! בדוק ועדכן לפי הצורך.';
@@ -2081,8 +2137,10 @@ function newOrder() {
   document.getElementById('contactPhone').value = '';
   setCustomerState('לקוח לא שויך');
   document.getElementById('deliveryAddress').value = '';
+  document.getElementById('deliverySiteName').value = '';
   document.getElementById('generalNotes').value = '';
   document.getElementById('driverNotes').value = '';
+  updateDeliverySummary();
   const num = String(orderCounter).padStart(3, '0');
   const orderNumDisplay = document.getElementById('orderNumDisplay');
   if (orderNumDisplay) orderNumDisplay.textContent = `#2024-${num}`;
@@ -2102,12 +2160,15 @@ async function submitOrder() {
   const date = document.getElementById('deliveryDate').value;
 
   if (!customer) { alert('נא להזין שם לקוח'); return; }
-  if (!address) { alert('נא להזין כתובת אספקה'); return; }
-  if (!date) { alert('נא להזין תאריך אספקה'); return; }
+  if (!address) { openDeliveryDetails(); alert('נא להזין כתובת אספקה'); return; }
+  if (!date) { openDeliveryDetails(); alert('נא להזין תאריך אספקה'); return; }
   const hasItems = pallets.some(p => p.items.length > 0);
   if (!hasItems) { alert('נא להוסיף לפחות פריט ברזל אחד'); return; }
 
   const totalWeight = pallets.reduce((sum, p) => sum + calcPalletWeight(p), 0);
+  const deliverySiteName = (document.getElementById('deliverySiteName')?.value || '').trim();
+  const driverNotesRaw = (document.getElementById('driverNotes')?.value || '').trim();
+  const driverNotes = deliverySiteName ? (`\u05d0\u05ea\u05e8: ${deliverySiteName}` + (driverNotesRaw ? ` | ${driverNotesRaw}` : '')) : driverNotesRaw;
 
   const payload = {
     customer: {
@@ -2123,7 +2184,7 @@ async function submitOrder() {
       deliveryTime: document.getElementById('deliveryTime').value,
       deliveryAddress: document.getElementById('deliveryAddress').value,
       priority: document.getElementById('orderPriority').value,
-      driverNotes: document.getElementById('driverNotes').value,
+      driverNotes: driverNotes,
       generalNotes: document.getElementById('generalNotes').value,
       totalWeight: totalWeight,
     },
@@ -2403,6 +2464,7 @@ function applyAnalyzedMeta(data) {
     if (data.notes && !isTechnicalRecognitionNote(data.notes)) parts.push(data.notes);
     setIfEmpty('driverNotes', parts.join(' | '));
   }
+  updateDeliverySummary();
 }
 
 function renderImgItems(items) {
