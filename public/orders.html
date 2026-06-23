@@ -16,6 +16,7 @@
 <script src="/safe-dom.js" defer></script>
 <script src="/nav.js" defer></script>
 <script src="/shape-renderer.js" defer></script>
+<script src="/shape-editor.js?v=46"></script>
 <style>
 :root{
   --accent:#c9621a; --accent-light:#e07b39;
@@ -337,40 +338,9 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   </div>
 </div>
 
-<div class="edit-overlay" id="itemEditOverlay" onclick="closeItemEditOverlay(event)">
-  <div class="edit-panel">
-    <div class="edit-head">
-      <div>
-        <div class="edit-title" id="itemEditTitle">עריכת פריט קיים</div>
-        <div class="detail-customer" id="itemEditMeta"></div>
-      </div>
-      <button class="detail-close" onclick="closeItemEditPanel()">✕</button>
-    </div>
-    <div class="edit-body">
-      <input type="hidden" id="editOrderId">
-      <input type="hidden" id="editItemId">
-      <div class="edit-field"><label>צורה</label><input id="editShapeName"></div>
-      <div class="edit-field"><label>קוטר ברזל Ø</label><input id="editDiameter" type="number" step="1"></div>
-      <div class="edit-field"><label>כמות</label><input id="editQuantity" type="number" step="1"></div>
-      <div class="edit-field"><label>אורך כולל מ"מ</label><input id="editTotalLength" type="number" step="1"></div>
-      <div class="edit-field"><label>קוטר ספיראלה</label><input id="editSpiralDiameter" type="number" step="1"></div>
-      <div class="edit-field"><label>מספר כריכות</label><input id="editSpiralTurns" type="number" step="1"></div>
-      <div class="edit-field edit-wide">
-        <label>צלעות וזוויות לפי סדר מכונה: אורך@זווית-אחרי-צלע</label>
-        <textarea id="editSegments" placeholder="300@90&#10;950@90&#10;300@0"></textarea>
-      </div>
-      <div class="edit-field edit-wide"><label>הערה</label><textarea id="editNote"></textarea></div>
-      <div class="raw-data edit-wide" id="editShapeAdvice"></div>
-    </div>
-    <div class="edit-actions">
-      <button class="edit-save" id="itemEditSaveBtn" onclick="saveItemEdit(event)">שמור שינוי בפריט</button>
-      <button class="edit-cancel" onclick="closeItemEditPanel()">ביטול</button>
-    </div>
-  </div>
-</div>
-
 <script>
 let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null, addChoiceOrderId = null, ocrAddItems = [];
+let orderShapeEditor = null, pendingShapeEdit = null;
 const STATUS_CONTRACT = window.IronBendStatus || {};
 const ORDER_STATUS = STATUS_CONTRACT.ORDER_STATUS || {};
 const allowedOrderTransitions = STATUS_CONTRACT.allowedOrderTransitions || (() => []);
@@ -1054,8 +1024,17 @@ async function openOrderIntakeSource(event, orderId, mode = 'view') {
     const parsedTitle = canAdd ? 'בחר שורה מה־OCR להוספה להזמנה' : 'פענוח שנשמר לפני יצירת ההזמנה';
     document.getElementById('sourceParsed').innerHTML = `<div class="d-title">${parsedTitle}</div>${parsedItemsHtml(row.parsed || {}, { canAdd, orderId })}`;
   } catch (error) {
-    document.getElementById('sourceTitle').textContent = 'מקור קליטה לא נמצא';
+    document.getElementById('sourceTitle').textContent = '\u05de\u05e7\u05d5\u05e8 \u05e7\u05dc\u05d9\u05d8\u05d4 \u05dc\u05d0 \u05e0\u05de\u05e6\u05d0';
+    document.getElementById('sourceMeta').textContent = '';
     document.getElementById('sourceOriginal').innerHTML = `<div class="note-chip">${escHtml(error.message)}</div>`;
+    document.getElementById('sourceParsed').innerHTML = mode === 'add'
+      ? `<div class="d-title">\u05d0\u05d9\u05df OCR \u05e9\u05de\u05d5\u05e8 \u05dc\u05d4\u05d6\u05de\u05e0\u05d4 \u05d4\u05d6\u05d5</div>
+        <div class="note-chip">\u05d0\u05e4\u05e9\u05e8 \u05dc\u05d4\u05d5\u05e1\u05d9\u05e3 \u05d9\u05d3\u05e0\u05d9\u05ea \u05d3\u05e8\u05da \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d5\u05ea \u05d4\u05d1\u05e8\u05d6\u05dc \u05d4\u05e7\u05d9\u05d9\u05dd.</div>
+        <div class="review-actions" style="margin-top:10px">
+          <button class="review-btn" onclick="closeSourcePanel(); openAddItem(event, ${Number(orderId) || 0})">\u05d7\u05d6\u05d5\u05e8 \u05dc\u05d1\u05d7\u05d9\u05e8\u05d4</button>
+          <button class="review-btn primary" onclick="closeSourcePanel(); openOrderShapeEditorForAdd(event, ${Number(orderId) || 0})">\u05d4\u05d5\u05e1\u05e3 \u05e6\u05d5\u05e8\u05d4 \u05d9\u05d3\u05e0\u05d9\u05ea</button>
+        </div>`
+      : '<div class="note-chip">\u05dc\u05d0 \u05e0\u05de\u05e6\u05d0 \u05de\u05e7\u05d5\u05e8 OCR \u05e9\u05de\u05d5\u05e8 \u05dc\u05d4\u05d6\u05de\u05e0\u05d4 \u05d4\u05d6\u05d5.</div>';
   }
 }
 
@@ -1077,26 +1056,6 @@ function findDetailItem(orderId, itemId) {
   return null;
 }
 
-function segmentsToEditText(item) {
-  return rawItemSegments(item)
-    .map(segment => `${Math.round(segment.length_mm)}@${Number.isFinite(segment.angle_deg) ? segment.angle_deg : 180}`)
-    .join('\n');
-}
-
-function parseEditSegmentsText(text) {
-  return String(text || '')
-    .split(/\n|,/)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map((line, index) => {
-      const [lengthPart, anglePart] = line.split('@');
-      const length = Number(String(lengthPart || '').replace(/[^\d.-]/g, ''));
-      const angle = anglePart === undefined ? 180 : Number(String(anglePart).replace(/[^\d.-]/g, ''));
-      if (!Number.isFinite(length) || length < 0) throw new Error(`צלע ${index + 1}: אורך לא תקין`);
-      if (!Number.isFinite(angle) || angle < 0 || angle > 180) throw new Error(`צלע ${index + 1}: זווית לא תקינה`);
-      return { length_mm: length, angle_deg: angle };
-    });
-}
 
 function closeAddChoiceOverlay(event) {
   if (event.target === document.getElementById('addChoiceOverlay')) closeAddChoicePanel();
@@ -1124,98 +1083,111 @@ function openAddManualItem(event) {
   event?.stopPropagation?.();
   const orderId = addChoiceOrderId || currentDetailOrder?.id;
   closeAddChoicePanel();
-  openManualItemAdd(event, orderId);
+  openOrderShapeEditorForAdd(event, orderId);
 }
 
-function openManualItemAdd(event, orderId) {
-  event?.stopPropagation?.();
-  document.getElementById('editOrderId').value = orderId;
-  document.getElementById('editItemId').value = '';
-  document.getElementById('itemEditTitle').textContent = 'הוסף פריט להזמנה';
-  document.getElementById('itemEditSaveBtn').textContent = 'הוסף להזמנה';
-  document.getElementById('itemEditMeta').textContent = currentDetailOrder?.order_num ? `הזמנה ${currentDetailOrder.order_num}` : `הזמנה ${orderId}`;
-  document.getElementById('editShapeName').value = 'ישר';
-  document.getElementById('editDiameter').value = 12;
-  document.getElementById('editQuantity').value = 1;
-  document.getElementById('editTotalLength').value = 0;
-  document.getElementById('editSpiralDiameter').value = '';
-  document.getElementById('editSpiralTurns').value = '';
-  document.getElementById('editSegments').value = '0@180';
-  document.getElementById('editNote').value = '';
-  document.getElementById('editShapeAdvice').innerHTML = '<b>פריט חדש:</b> מלא צורה, קוטר, כמות וצלעות ואז לחץ הוסף להזמנה.';
-  document.getElementById('itemEditOverlay').classList.add('show');
-}
-function openItemEdit(event, orderId, itemId) {
-  event?.stopPropagation?.();
-  const item = findDetailItem(orderId, itemId);
-  if (!item) {
-    alert('לא נמצא הפריט לעריכה. סגור ופתח את ההזמנה מחדש.');
-    return;
+function ensureOrderShapeEditor() {
+  if (orderShapeEditor) return orderShapeEditor;
+  if (typeof ShapeEditorModal === 'undefined') {
+    alert('\u05e2\u05d5\u05e8\u05da \u05d4\u05e6\u05d5\u05e8\u05d5\u05ea \u05dc\u05d0 \u05e0\u05d8\u05e2\u05df. \u05e8\u05e2\u05e0\u05df \u05d0\u05ea \u05d4\u05de\u05e1\u05da \u05d5\u05e0\u05e1\u05d4 \u05e9\u05d5\u05d1.');
+    return null;
   }
-  const sides = itemSegments(item);
-  const warning = openULegWarning(item, sides);
-  document.getElementById('editOrderId').value = orderId;
-  document.getElementById('editItemId').value = itemId;
-  document.getElementById('itemEditTitle').textContent = 'עריכת פריט קיים';
-  document.getElementById('itemEditSaveBtn').textContent = 'שמור שינוי בפריט';
-  document.getElementById('itemEditMeta').textContent = `פריט ${itemId} · ${shapeLabel(item.shape_name, sides, item)}`;
-  document.getElementById('editShapeName').value = item.shape_name || '';
-  document.getElementById('editDiameter').value = item.diameter || '';
-  document.getElementById('editQuantity').value = item.quantity || '';
-  document.getElementById('editTotalLength').value = item.total_length_mm || '';
-  document.getElementById('editSpiralDiameter').value = item.spiral_diameter_mm || '';
-  document.getElementById('editSpiralTurns').value = item.spiral_turns || '';
-  document.getElementById('editSegments').value = segmentsToEditText(item);
-  document.getElementById('editNote').value = item.note || '';
-  document.getElementById('editShapeAdvice').innerHTML = warning
-    ? `<b>אזהרת צורת ח:</b> ${escHtml(warning)}`
-    : `<b>סדר מכונה שמור:</b> ${escHtml(itemMachineSequence(item))}`;
-  document.getElementById('itemEditOverlay').classList.add('show');
+  orderShapeEditor = new ShapeEditorModal(shapeSelectedFromOrder);
+  return orderShapeEditor;
 }
 
-function closeItemEditOverlay(event) {
-  if (event.target === document.getElementById('itemEditOverlay')) closeItemEditPanel();
+function orderShapeSegmentsFromEditor(data) {
+  const sides = Array.isArray(data?.sides) ? data.sides : [];
+  const angles = Array.isArray(data?.angles) ? data.angles : [];
+  return sides
+    .map((side, index) => ({
+      length_mm: Number(side) || 0,
+      angle_deg: Number(angles[index] ?? (index < sides.length - 1 ? 180 : 0)) || 0,
+    }))
+    .filter(segment => Number.isFinite(segment.length_mm) && segment.length_mm > 0);
 }
 
-function closeItemEditPanel() {
-  document.getElementById('itemEditOverlay').classList.remove('show');
-}
-
-async function saveItemEdit(event) {
-  event?.stopPropagation?.();
-  const orderId = Number(document.getElementById('editOrderId').value);
-  const itemId = Number(document.getElementById('editItemId').value);
-  let segments;
-  try {
-    segments = parseEditSegmentsText(document.getElementById('editSegments').value);
-  } catch (error) {
-    alert(error.message);
-    return;
-  }
-  const payload = {
-    shape_name: document.getElementById('editShapeName').value.trim(),
-    diameter: Number(document.getElementById('editDiameter').value),
-    quantity: Number(document.getElementById('editQuantity').value),
-    total_length_mm: Number(document.getElementById('editTotalLength').value),
-    spiral_diameter_mm: document.getElementById('editSpiralDiameter').value ? Number(document.getElementById('editSpiralDiameter').value) : null,
-    spiral_turns: document.getElementById('editSpiralTurns').value ? Number(document.getElementById('editSpiralTurns').value) : null,
-    segments,
-    note: document.getElementById('editNote').value,
+function orderShapeDataFromItem(item) {
+  const segments = rawItemSegments(item);
+  return {
+    sides: segments.length ? segments.map(segment => Math.round(segment.length_mm)) : [1000],
+    angles: segments.length ? segments.slice(0, -1).map(segment => Number(segment.angle_deg ?? 180) || 180) : [],
+    shapeName: item?.shape_name || '\u05d9\u05e9\u05e8',
+    presetName: item?.shape_name || '\u05d9\u05e9\u05e8',
+    diameter: Number(item?.diameter) || 12,
+    is3d: item?.is_3d ? 1 : 0,
   };
-  const isNewItem = !itemId;
-  const response = await fetch(isNewItem ? `/api/orders/${orderId}/items` : `/api/orders/${orderId}/items/${itemId}`, {
+}
+
+function openOrderShapeEditorForAdd(event, orderId) {
+  event?.stopPropagation?.();
+  const editor = ensureOrderShapeEditor();
+  if (!editor || !orderId) return;
+  const quantityText = prompt('\u05db\u05de\u05d5\u05ea \u05dc\u05e4\u05e8\u05d9\u05d8 \u05d4\u05d7\u05d3\u05e9', '1');
+  if (quantityText === null) return;
+  const quantity = Number(quantityText);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    alert('\u05db\u05de\u05d5\u05ea \u05dc\u05d0 \u05ea\u05e7\u05d9\u05e0\u05d4');
+    return;
+  }
+  pendingShapeEdit = { mode: 'add', orderId: Number(orderId), itemId: null, quantity, note: '\u05e0\u05d5\u05e1\u05e3 \u05d9\u05d3\u05e0\u05d9\u05ea \u05d1\u05e2\u05d5\u05e8\u05da \u05d4\u05e6\u05d5\u05e8\u05d5\u05ea' };
+  editor.open({ sides: [1000], angles: [], shapeName: '\u05d9\u05e9\u05e8', presetName: '\u05d9\u05e9\u05e8', diameter: 12, is3d: 0 });
+}
+
+async function shapeSelectedFromOrder(data) {
+  if (!pendingShapeEdit) return;
+  const ctx = pendingShapeEdit;
+  pendingShapeEdit = null;
+  const segments = orderShapeSegmentsFromEditor(data);
+  const totalLength = segments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
+  const payload = {
+    shape_name: String(data?.shapeName || data?.presetName || '\u05d9\u05e9\u05e8').trim(),
+    diameter: Number(data?.diameter) || 12,
+    quantity: Number(ctx.quantity) || 1,
+    total_length_mm: totalLength,
+    spiral_diameter_mm: null,
+    spiral_turns: null,
+    segments,
+    note: ctx.note || '',
+  };
+  const isNewItem = ctx.mode === 'add';
+  const url = isNewItem ? `/api/orders/${ctx.orderId}/items` : `/api/orders/${ctx.orderId}/items/${ctx.itemId}`;
+  const response = await fetch(url, {
     method: isNewItem ? 'POST' : 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
-    alert(result.error || (isNewItem ? 'הוספת הפריט נכשלה' : 'שמירת הפריט נכשלה'));
+    alert(result.error || (isNewItem ? '\u05d4\u05d5\u05e1\u05e4\u05ea \u05d4\u05e6\u05d5\u05e8\u05d4 \u05dc\u05d4\u05d6\u05de\u05e0\u05d4 \u05e0\u05db\u05e9\u05dc\u05d4' : '\u05e9\u05de\u05d9\u05e8\u05ea \u05d4\u05e6\u05d5\u05e8\u05d4 \u05e0\u05db\u05e9\u05dc\u05d4'));
     return;
   }
-  closeItemEditPanel();
-  await openDetail(orderId);
+  await openDetail(ctx.orderId);
 }
+
+function openItemEdit(event, orderId, itemId) {
+  event?.stopPropagation?.();
+  const item = findDetailItem(orderId, itemId);
+  if (!item) {
+    alert('\u05dc\u05d0 \u05e0\u05de\u05e6\u05d0 \u05d4\u05e4\u05e8\u05d9\u05d8 \u05dc\u05e2\u05e8\u05d9\u05db\u05d4. \u05e1\u05d2\u05d5\u05e8 \u05d5\u05e4\u05ea\u05d7 \u05d0\u05ea \u05d4\u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d7\u05d3\u05e9.');
+    return;
+  }
+  if (isRealSpiralItem(item)) {
+    alert('\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4 \u05e2\u05d3\u05d9\u05d9\u05df \u05e0\u05e2\u05e8\u05db\u05ea \u05d3\u05e8\u05da \u05e0\u05ea\u05d5\u05e0\u05d9 \u05d4\u05e4\u05e8\u05d9\u05d8 \u05d4\u05e9\u05de\u05d5\u05e8\u05d9\u05dd, \u05dc\u05d0 \u05d3\u05e8\u05da \u05e2\u05d5\u05e8\u05da \u05d4\u05e6\u05d5\u05e8\u05d5\u05ea.');
+    return;
+  }
+  const editor = ensureOrderShapeEditor();
+  if (!editor) return;
+  pendingShapeEdit = {
+    mode: 'edit',
+    orderId: Number(orderId),
+    itemId: Number(itemId),
+    quantity: Number(item.quantity) || 1,
+    note: item.note || '',
+  };
+  editor.open(orderShapeDataFromItem(item));
+}
+
 function parsedOcrSegments(item) {
   if (Array.isArray(item?.segments) && item.segments.length) {
     return item.segments.map(segment => ({
