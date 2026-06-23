@@ -753,6 +753,9 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /intakeQueueItemsTable/);
   assert.match(intake, /ocr-queue-table/);
   assert.match(intake, /ocr-queue-edit/);
+  assert.match(intake, /openQueueItemEditor/);
+  assert.match(intake, /saveQueueItemEditor/);
+  assert.match(intake, /ocr-queue-edit-row/);
   assert.match(intake, /\\u05e9\\u05dd \\u05d4\\u05d0\\u05dc\\u05de\\u05e0\\u05d8/);
   assert.match(intake, /צורה ומידות/);
   assert.match(intake, /spiral_diameter_mm/);
