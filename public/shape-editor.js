@@ -1129,11 +1129,12 @@ class ShapeEditorModal {
               data-side="${i}" oninput="window._seEditor._setSide(${i}, this.value)"></td>
             <td>${i < angles.length ? `
               <div style="display:flex;align-items:center;gap:6px">
-                <input class="se-input" type="number" min="1" max="360" value="${angles[i]}" style="width:70px"
+                <input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" style="width:70px"
                   data-angle="${i}" oninput="window._seEditor._setAngle(${i}, this.value)">
                 <div class="se-angle-btns">
                   ${[
                     { value: 90, label: '⌞ 90°', title: 'זווית ישרה 90°' },
+                    { value: -90, label: '⌜ -90°', title: 'זווית הפוכה -90°' },
                     { value: 45, label: '∠ 45°', title: 'זווית 45°' },
                   ].map(a => `<button class="se-angle-btn ${angles[i]==a.value?'active':''}" title="${a.title}"
                     data-angle-value="${a.value}"
@@ -1177,7 +1178,7 @@ class ShapeEditorModal {
 
   _setAngle(i, val) {
     if (!this.current) return;
-    const a = Math.min(360, Math.max(1, Number(val) || 90));
+    const a = Math.min(360, Math.max(-360, Number(val) || 90));
     this.current.angles[i] = a;
     // ── Sync to azAngles (so 3D view stays consistent) ─────────────────
     // azAngles[i+1] = -(180 - angles[i])
@@ -1199,11 +1200,11 @@ class ShapeEditorModal {
     // ── Sync back to 2D angles (machine data) ──────────────────────────
     // Inverse of: azAngles[i] = -(180 - angles[i-1])
     //             angles[i-1] = 180 + azAngles[i]
-    // Clamp to valid 2D range [1, 360]; angles outside this range mean
+    // Clamp to valid 2D range [-360, 360]; angles outside this range mean
     // a purely-3D direction change with no classic 2D equivalent.
     const ang2d = 180 + az;
     if (i - 1 >= 0 && i - 1 < this.current.angles.length) {
-      if (ang2d >= 1 && ang2d <= 360) {
+      if (ang2d >= -360 && ang2d <= 360) {
         this.current.angles[i - 1] = ang2d;
       }
       // If outside range (e.g. "שמאל" +90 → ang2d=270), keep existing 2D angle

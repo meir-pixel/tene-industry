@@ -52,13 +52,15 @@ test('visual-only 3D preview does not use true-3D azimuth arrays', () => {
   assert.match(editor, /azAngles:\s+has3D \?/);
 });
 
-test('shape editor supports bend angles up to 360 with quick 90 and 45 controls', () => {
+test('shape editor supports bend angles from -360 to 360 with quick 90, -90 and 45 controls', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
   assert.match(editor, /data-angle="\$\{i\}"/);
+  assert.match(editor, /min="-360"/);
   assert.match(editor, /max="360"/);
-  assert.match(editor, /Math\.min\(360,\s*Math\.max\(1,\s*Number\(val\) \|\| 90\)\)/);
+  assert.match(editor, /Math\.min\(360,\s*Math\.max\(-360,\s*Number\(val\) \|\| 90\)\)/);
   assert.match(editor, /value:\s*90,\s*label:\s*'⌞ 90°'/);
+  assert.match(editor, /value:\s*-90,\s*label:\s*'⌜ -90°'/);
   assert.match(editor, /value:\s*45,\s*label:\s*'∠ 45°'/);
   assert.match(editor, /data-angle-value="\$\{a\.value\}"/);
 });
