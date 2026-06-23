@@ -1,4 +1,4 @@
-﻿// ── REBAR WEIGHTS ─────────────────────────────────────────────────
+// ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
   const d = Number(diameter);
@@ -515,9 +515,10 @@ class ShapeEditorModal {
 .se-back-btn:hover{background:rgba(255,255,255,0.15);color:#fff;}
 /* SVG */
 #seModal .se-svg-wrap{
-  background:#f7f9fc;border:1px solid #e2e8ef;
+  background:#f7f9fc;border:1px solid #dbe4ef;
   border-radius:12px;flex:1;display:flex;align-items:center;justify-content:center;
-  min-height:360px;user-select:none;overflow:hidden;
+  min-height:420px;user-select:none;overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.9);
 }
 #seModal .se-svg-wrap.grab-mode{cursor:grab;}
 #seModal .se-svg-wrap.grab-mode:active{cursor:grabbing;}
@@ -534,7 +535,7 @@ class ShapeEditorModal {
 #se3DOrbitCtrl .se-rot-btn:hover{background:rgba(224,123,57,0.12);border-color:#e07b39;color:#e07b39;}
 #se3DOrbitCtrl .se-rot-btn:active{background:rgba(224,123,57,0.25);}
 #se3DOrbitCtrl .se-rot-label{font-size:9px;color:#7a93ab;font-family:Heebo,Arial;}
-#seModal .se-svg-wrap svg{width:100%;height:380px;max-height:100%;}
+#seModal .se-svg-wrap svg{width:100%;height:100%;min-height:520px;max-height:100%;}
 #seModal .se-info-col{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;}
 #seModal .se-stat{background:#f4f6f9;border:1px solid #e2e8ef;border-radius:8px;padding:12px 14px;}
 #seModal .se-stat-label{font-size:10px;font-weight:700;color:#7a93ab;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;}
@@ -558,7 +559,8 @@ class ShapeEditorModal {
 }
 #seModal .se-table td:nth-child(2) .se-input{max-width:96px;margin-inline-start:auto;}
 #seModal .se-table td:nth-child(3) .se-input{max-width:78px;margin-inline-start:auto;}
-#seModal .se-input:focus{outline:none;border-color:#e07b39;background:#fffaf6;}
+#seModal .se-input:focus{outline:none;border-color:#e07b39;background:#fffaf6;box-shadow:0 0 0 3px rgba(224,123,57,0.12);}
+#seModal .se-direct-edit-note{font-size:11px;font-weight:700;color:#7a93ab;margin-inline-start:12px;}
 #seModal .se-angle-btns{display:flex;gap:4px;flex-wrap:wrap;}
 #seModal .se-angle-btn{
   padding:4px 10px;border-radius:6px;border:1px solid #d8e2ec;
@@ -632,6 +634,232 @@ class ShapeEditorModal {
   box-shadow:0 4px 16px rgba(224,123,57,0.3);
 }
 #seModal .se-ok-btn:hover{transform:translateY(-1px);}
+
+/* Easybar-inspired production workspace */
+#seOverlay{
+  background:rgba(32,33,36,0.62);
+  backdrop-filter:none;
+  align-items:center;
+  justify-content:center;
+}
+#seOverlay.show #seModal{transform:none;}
+#seModal{
+  width:100vw;
+  height:100vh;
+  max-height:100vh;
+  border-radius:0;
+  border:0;
+  background:#d9d9d9;
+  box-shadow:none;
+  color:#243047;
+}
+#seModal .se-head{
+  min-height:54px;
+  padding:10px 20px;
+  background:#202633;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+#seModal .se-head h2{font-size:15px;color:#f3f6fa;}
+#sePageEdit{
+  flex:1;
+  display:flex;
+  min-height:0;
+  background:#d9d9d9;
+  direction:ltr;
+}
+#sePageEdit .se-preview-panel,
+#sePageEdit .se-data-panel{direction:rtl;}
+#sePageEdit[style*="display:none"]{display:none!important;}
+.se-preview-panel{
+  flex:1;
+  order:1;
+  background:#d9d9d9;
+  padding:16px 28px 18px;
+  gap:10px;
+}
+.se-data-panel{
+  order:2;
+  width:332px;
+  background:#eef0f3;
+  border-right:1px solid #c9cdd4;
+  border-left:0;
+}
+.se-data-panel-head{
+  min-height:56px;
+  padding:18px 22px 12px;
+  background:#eef0f3;
+  border-bottom:1px solid #c9cdd4;
+  color:#243047;
+  font-size:18px;
+  font-weight:900;
+  text-transform:none;
+  letter-spacing:0;
+}
+#seModal .se-mode-note{
+  background:#eef0f3;
+  border-bottom:1px solid #c9cdd4;
+  padding:14px 18px;
+}
+#seModal .se-3d-toggle{
+  border:0;
+  border-radius:0;
+  padding:0;
+  background:transparent;
+}
+#seModal .se-3d-toggle strong{font-size:14px;}
+#seModal .se-3d-toggle small{color:#667286;}
+#seModal .se-switch input:checked + .se-slider{background:#ff4047;}
+#seModal .se-table-wrap{
+  background:#eef0f3;
+  padding:12px 16px 16px;
+}
+#seModal .se-table{
+  border-collapse:separate;
+  border-spacing:0 8px;
+}
+#seModal .se-table th{
+  background:transparent;
+  border-bottom:0;
+  color:#667286;
+  font-size:11px;
+  position:static;
+}
+#seModal .se-table td{
+  background:#ffffff;
+  border-top:1px solid #d8dde5;
+  border-bottom:1px solid #d8dde5;
+  padding:8px;
+}
+#seModal .se-table td:first-child{
+  border-right:1px solid #d8dde5;
+  border-radius:0 8px 8px 0;
+}
+#seModal .se-table td:last-child{
+  border-left:1px solid #d8dde5;
+  border-radius:8px 0 0 8px;
+}
+#seModal .se-table tr:hover td{background:#fbfcfe;}
+#seModal .se-seg-label{
+  width:34px;
+  height:34px;
+  background:#2f394b;
+  border-radius:50%;
+  font-size:13px;
+}
+.se-row-active td{background:#fff3f3!important;border-color:#ff4047!important;}
+.se-row-active td:first-child{border-right:1px solid #ff4047!important;}
+.se-row-active .se-seg-label{background:#ff4047!important;}
+#seModal .se-add-row{justify-content:center;}
+#seModal .se-add-btn{
+  width:100%;
+  min-height:40px;
+  border-radius:8px;
+  border:0;
+  background:#5b6474;
+  color:#fff;
+  font-weight:800;
+}
+#seModal .se-add-btn:hover{background:#2f394b;color:#fff;}
+#seModal .se-svg-wrap{
+  background-color:#ffffff;
+  background-image:
+    linear-gradient(#edf0f4 1px, transparent 1px),
+    linear-gradient(90deg, #edf0f4 1px, transparent 1px);
+  background-size:28px 28px;
+  border:0;
+  border-radius:0;
+  min-height:0;
+  box-shadow:none;
+}
+#seModal .se-svg-wrap svg{
+  min-height:0;
+  height:100%;
+  width:100%;
+}
+#seModal .se-stats-bar{
+  background:#d9d9d9;
+  gap:8px;
+}
+#seModal .se-stat{
+  min-width:110px;
+  background:#eef0f3;
+  border:1px solid #c9cdd4;
+  border-radius:8px;
+  padding:8px 12px;
+}
+#seModal .se-stat-label{
+  color:#667286;
+  letter-spacing:0;
+  text-transform:none;
+}
+#seModal .se-stat-value{color:#243047;font-size:19px;}
+#seModal .se-direct-edit-note{
+  color:#667286;
+  white-space:nowrap;
+}
+#seView2D,#seView3D,#seResetCam{
+  min-height:34px;
+  border-radius:8px;
+}
+#se3DOrbitCtrl{
+  align-self:center;
+  background:#eef0f3!important;
+  border:1px solid #c9cdd4!important;
+  border-radius:10px!important;
+  padding:6px 10px!important;
+}
+#se3DOrbitCtrl .se-rot-btn{
+  border-radius:50%!important;
+  background:#858d9a!important;
+  border:0!important;
+  color:#fff!important;
+}
+#se3DOrbitCtrl .se-rot-btn:hover{background:#2f394b!important;color:#fff!important;}
+#seModal .se-foot{
+  background:#eef0f3;
+  border-top:1px solid #c9cdd4;
+}
+#seModal .se-ok-btn{
+  border-radius:8px;
+  background:#ff4047;
+  box-shadow:none;
+}
+#seModal .se-save-shape-btn{
+  border-color:#5b6474;
+  color:#2f394b;
+  background:#fff;
+}
+#seModal .se-cancel-btn{
+  border-color:#c9cdd4;
+  color:#2f394b;
+}
+#sePageSelect{
+  background:#d9d9d9!important;
+}
+#sePresets{
+  grid-template-columns:repeat(auto-fill,minmax(132px,1fr))!important;
+  gap:12px!important;
+}
+#seModal .se-preset-btn{
+  border-radius:8px;
+  border-color:#d5dae1;
+  min-height:118px;
+}
+#seModal .se-preset-btn.active{
+  background:#fff3f3;
+  border-color:#ff4047;
+  color:#ff4047;
+  box-shadow:0 0 0 2px rgba(255,64,71,.16);
+}
+
+@media(max-width:760px){
+  #seModal{width:100vw;height:100vh;max-height:100vh;border-radius:0;}
+  #sePageEdit{flex-direction:column;}
+  .se-preview-panel{order:1;padding:10px;background:#d9d9d9;}
+  .se-data-panel{order:2;width:100%;max-height:42vh;border-right:none;border-top:1px solid #c9cdd4;}
+  #seModal .se-svg-wrap{min-height:44vh;}
+  #seModal .se-direct-edit-note{display:none;}
+}
 @media(max-width:640px){
   #seModal{width:100vw;max-height:100vh;border-radius:0;}
   #sePageEdit{flex-direction:column;}
@@ -674,7 +902,7 @@ class ShapeEditorModal {
     <!-- Left: preview -->
     <div class="se-preview-panel">
       <!-- View toggle -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div class="se-canvas-topbar" style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
         <div class="se-stats-bar" id="seStatsBar">
           <div class="se-stat">
             <div class="se-stat-label">פרימטר כולל</div>
@@ -691,7 +919,8 @@ class ShapeEditorModal {
             <div class="se-stat-value" id="seBends">0</div>
           </div>
         </div>
-        <div style="display:flex;gap:4px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span class="se-direct-edit-note">דאבל-קליק על מספר בשרטוט לעריכה</span>
           <button id="seView2D" onclick="seSetView('2d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #e07b39;background:rgba(224,123,57,0.1);color:#e07b39;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">2D</button>
           <button id="seView3D" onclick="seSetView('3d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">3D</button>
           <button id="seResetCam" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}"
@@ -1291,13 +1520,56 @@ class ShapeEditorModal {
         e.stopPropagation();
         this._focusRow(parseInt(el.dataset.segClick), false);
       });
+      el.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        const i = parseInt(el.dataset.segClick);
+        this._editSideFromDrawing(i);
+      });
     });
     svg.querySelectorAll('[data-ang-click]').forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         this._focusRow(parseInt(el.dataset.angClick), true);
       });
+      el.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        const i = parseInt(el.dataset.angClick);
+        this._editAngleFromDrawing(i);
+      });
     });
+  }
+
+  _editSideFromDrawing(i) {
+    if (!this.current || !Number.isInteger(i) || i < 0 || i >= this.current.sides.length) return;
+    this._focusRow(i, false);
+    // דאבל-קליק לעריכת אורך
+    // ׳“׳׳‘׳-׳§׳׳™׳§ ׳׳¢׳¨׳™׳›׳× ׳׳•׳¨׳
+    const next = prompt('דאבל-קליק לעריכת אורך', this.current.sides[i]);
+    if (next == null) return;
+    const val = Math.max(1, Math.min(20000, Number(next) || this.current.sides[i]));
+    this.current.sides[i] = val;
+    const inp = document.querySelector(`[data-side="${i}"]`);
+    if (inp) inp.value = val;
+    this._renderTable();
+    this._updatePreview();
+  }
+
+  _editAngleFromDrawing(i) {
+    if (!this.current || !Number.isInteger(i) || i < 0 || i >= this.current.angles.length) return;
+    this._focusRow(i, true);
+    // דאבל-קליק לעריכת זווית
+    // ׳“׳׳‘׳-׳§׳׳™׳§ ׳׳¢׳¨׳™׳›׳× ׳–׳•׳•׳™׳×
+    const next = prompt('דאבל-קליק לעריכת זווית', this.current.angles[i]);
+    if (next == null) return;
+    const val = Math.min(360, Math.max(-360, Number(next) || this.current.angles[i]));
+    this.current.angles[i] = val;
+    if (this.current.azAngles && i + 1 < this.current.azAngles.length) {
+      this.current.azAngles[i + 1] = -(180 - val);
+    }
+    const inp = document.querySelector(`[data-angle="${i}"]`);
+    if (inp) inp.value = val;
+    this._renderTable();
+    this._updatePreview();
   }
 
   _focusRow(i, focusAngle) {
