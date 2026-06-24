@@ -1,3 +1,4 @@
+window.IRONBEND_ASSET_VERSION = "ed09ad7";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
