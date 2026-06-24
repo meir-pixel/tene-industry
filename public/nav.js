@@ -411,7 +411,9 @@
     '.intake-fullscreen.open > .intake-fullscreen-inner',
     '.receipt-fullscreen.open > .receipt-fullscreen-inner',
     '.edit-overlay.show > .edit-panel',
-    '.img-modal-overlay.show > .img-modal'
+    '.img-modal-overlay.show > .img-modal',
+    '#seOverlay.show > #seModal',
+    'dialog[open]'
   ].join(',');
 
   function isVisible(el) {
@@ -420,27 +422,59 @@
     return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
   }
 
+  const windowShellSelector = [
+    '.modal-overlay',
+    '.modal-bg',
+    '.modal-backdrop',
+    '.status-modal-overlay',
+    '.detail-overlay',
+    '.intake-fullscreen',
+    '.receipt-fullscreen',
+    '.edit-overlay',
+    '.img-modal-overlay',
+    '#seOverlay'
+  ].join(',');
+
   function closeWindowPanel(panel) {
+    // Window back must never click a broad generic button. It either calls an
+    // explicit close/back control or closes only the containing overlay shell.
+    if (panel?.matches?.('dialog[open]') && typeof panel.close === 'function') {
+      panel.close();
+      document.body.style.overflow = '';
+      return;
+    }
+
     const closeCandidate = Array.from(panel.querySelectorAll(
-      '.modal-close, .detail-close, .close-btn, .btn-cancel, .btn-outline, [data-close], button, a'
+      '.modal-close, .detail-close, .img-modal-close, .se-close, .close-btn, [data-close], [data-window-back]'
     )).find(el => {
       if (el.classList.contains('ib-window-back-btn') || !isVisible(el)) return false;
-      const text = (el.textContent || '').trim();
       const action = String(el.getAttribute('onclick') || '').toLowerCase();
-      return /close|back|showscreen/.test(action) || /[×✕x]|סגור|ביטול|בטל|חזרה/.test(text);
+      const aria = String(el.getAttribute('aria-label') || '').toLowerCase();
+      return /close|back|showscreen/.test(action) || /close|back/.test(aria);
     });
     if (closeCandidate) {
       closeCandidate.click();
       return;
     }
 
-    const shell = panel.closest(
-      '.modal-overlay, .modal-bg, .modal-backdrop, .status-modal-overlay, .detail-overlay, .intake-fullscreen, .receipt-fullscreen, .edit-overlay, .img-modal-overlay'
-    );
+    const shell = panel.closest(windowShellSelector);
     if (!shell) return;
     shell.classList.remove('open', 'show');
+    shell.removeAttribute('aria-modal');
     if (getComputedStyle(shell).display !== 'none') shell.style.display = 'none';
     document.body.style.overflow = '';
+  }
+
+  function topWindowPanel() {
+    const panels = Array.from(document.querySelectorAll(windowPanelSelector)).filter(isVisible);
+    return panels[panels.length - 1] || null;
+  }
+
+  function closeTopWindowPanel() {
+    const panel = topWindowPanel();
+    if (!panel) return false;
+    closeWindowPanel(panel);
+    return true;
   }
 
   function enhanceWindowBackControls(root) {
@@ -474,8 +508,9 @@
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'style']
+      attributeFilter: ['class', 'style', 'open']
     });
+    window.IronBendWindowBack = { closeTop: closeTopWindowPanel, enhance: enhanceWindowBackControls };
   }
 
   function mount() {
@@ -528,6 +563,10 @@
     });
     input?.addEventListener('keydown', e => { if (e.key === 'Escape') closeSearch(); });
     document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && closeTopWindowPanel()) {
+        e.preventDefault();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         openSearch();

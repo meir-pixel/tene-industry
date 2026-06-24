@@ -230,6 +230,18 @@ test('shared navigation module icons are clickable links', () => {
   assert.match(nav, /<a href="\/dashboard\.html" title="דשבורד" aria-label="דשבורד"><img id="ib-drawer-logo"/);
 });
 
+
+test('shared window back control only closes the active app window', () => {
+  const nav = read('public/nav.js');
+
+  assert.match(nav, /#seOverlay\.show > #seModal/);
+  assert.match(nav, /dialog\[open\]/);
+  assert.match(nav, /function closeTopWindowPanel\(\)/);
+  assert.match(nav, /IronBendWindowBack/);
+  assert.match(nav, /e\.key === 'Escape' && closeTopWindowPanel\(\)/);
+  assert.doesNotMatch(nav, /\.btn-outline, \[data-close\], button, a/);
+});
+
 test('shared navigation hides modules excluded by license entitlements', () => {
   const nav = read('public/nav.js');
 
