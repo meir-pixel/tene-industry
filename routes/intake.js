@@ -1,6 +1,11 @@
 const router = require('express').Router();
 const axios = require('axios');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
+const {
+  findSourceIdentityDuplicate,
+  sourceIdentityConflictError,
+  sourceIdentityFromRequest,
+} = require('../services/importSourceIdentity');
 
 function required(name, value) {
   if (value === undefined || value === null) throw new Error(`routes/intake missing dependency: ${name}`);
@@ -57,6 +62,9 @@ module.exports = function createIntakeRouter(deps) {
   }
 
   function saveAnalysisToIntake(req, payload) {
+    const identity = sourceIdentityFromRequest(req, 'ocr');
+    const duplicate = findSourceIdentityDuplicate(db, 'intake_log', identity);
+    if (duplicate) throw sourceIdentityConflictError('intake', duplicate);
     const originalMime = req.file.mimetype || 'application/octet-stream';
     const originalDataUrl = `data:${originalMime};base64,${req.file.buffer.toString('base64')}`;
     const rawContent = [
@@ -72,10 +80,12 @@ module.exports = function createIntakeRouter(deps) {
 
     const log = db.prepare(`
       INSERT INTO intake_log
-        (source,raw_content,parsed_data,original_filename,original_mime,original_data_url,status)
-      VALUES (?,?,?,?,?,?,?)
+        (source,source_system,external_id,raw_content,parsed_data,original_filename,original_mime,original_data_url,status)
+      VALUES (?,?,?,?,?,?,?,?,?)
     `).run(
       'ocr',
+      identity?.source_system || null,
+      identity?.external_id || null,
       rawContent,
       JSON.stringify(payload),
       req.file.originalname || 'ocr-upload',
@@ -301,7 +311,8 @@ module.exports = function createIntakeRouter(deps) {
       res.json(payload);
     } catch (err) {
       const message = err.response?.data?.error?.message || err.message;
-      res.status(500).json({ error: `Document recognition failed: ${message}` });
+      if (err.payload) return res.status(err.statusCode || 409).json(err.payload);
+      res.status(err.statusCode || 500).json({ error: `Document recognition failed: ${message}` });
     }
   });
 
@@ -309,16 +320,21 @@ module.exports = function createIntakeRouter(deps) {
     if (!INTAKE_AI_ENABLED) return res.status(501).json({ error: 'OCR לא זמין בשלב זה', feature: 'intake-ai' });
     if (!req.file) return res.status(400).json({ error: 'לא צורפה תמונה' });
     try {
+      const identity = sourceIdentityFromRequest(req, 'ocr');
+      const duplicate = findSourceIdentityDuplicate(db, 'intake_log', identity);
+      if (duplicate) return res.status(409).json(sourceIdentityConflictError('intake', duplicate).payload);
       const ocrResult = await intake.runOCR(req.file.buffer, { apiKey: getSetting('GOOGLE_VISION_API_KEY') });
       const parsed    = intake.parseOCRText(ocrResult.fullText);
       const originalMime = req.file.mimetype || 'image/jpeg';
       const originalDataUrl = `data:${originalMime};base64,${req.file.buffer.toString('base64')}`;
       const log = db.prepare(`
         INSERT INTO intake_log
-          (source,raw_content,parsed_data,original_filename,original_mime,original_data_url,status)
-        VALUES (?,?,?,?,?,?,?)
+          (source,source_system,external_id,raw_content,parsed_data,original_filename,original_mime,original_data_url,status)
+        VALUES (?,?,?,?,?,?,?,?,?)
       `).run(
         'ocr',
+        identity?.source_system || null,
+        identity?.external_id || null,
         ocrResult.fullText.slice(0, 2000),
         JSON.stringify(parsed),
         req.file.originalname || 'intake-upload',

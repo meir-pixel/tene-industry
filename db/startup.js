@@ -115,6 +115,8 @@ function runCoreMigrations(db) {
   addCol('orders',     'cost_material',      'REAL DEFAULT 0');   // cost of steel used
   addCol('orders',     'cost_labor',         'REAL DEFAULT 0');   // estimated labor cost
   addCol('orders',     'sale_price',         'REAL DEFAULT 0');   // actual sale price ILS
+  addCol('intake_log', 'source_system',     'TEXT');
+  addCol('intake_log', 'external_id',        'TEXT');
   addCol('intake_log', 'original_filename',  'TEXT');
   addCol('intake_log', 'original_mime',      'TEXT');
   addCol('intake_log', 'original_data_url',  'TEXT');
@@ -263,6 +265,24 @@ function runCoreMigrations(db) {
   addCol('portal_users', 'can_view_payment_alerts', 'INTEGER DEFAULT 0');
   addCol('portal_users', 'default_site_id', 'INTEGER');
   addCol('portal_users', 'updated_at', 'TEXT');
+  addCol('order_imports', 'source_system', 'TEXT');
+  addCol('order_imports', 'external_id', 'TEXT');
+  addCol('order_imports', 'order_ids_json', 'TEXT');
+
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_intake_log_source_identity
+      ON intake_log(source_system, external_id)
+      WHERE source_system IS NOT NULL AND external_id IS NOT NULL`);
+  } catch (error) {
+    console.warn('[DB] Migration warning: intake_log source identity index was not created:', error.message);
+  }
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_order_imports_source_identity
+      ON order_imports(source_system, external_id)
+      WHERE source_system IS NOT NULL AND external_id IS NOT NULL`);
+  } catch (error) {
+    console.warn('[DB] Migration warning: order_imports source identity index was not created:', error.message);
+  }
 
 }
 

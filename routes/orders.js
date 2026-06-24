@@ -5,6 +5,11 @@ const {
   shapeSnapshotJson,
   withShapeContractLegacyFields,
 } = require('../services/orderContracts');
+const {
+  findSourceIdentityDuplicate,
+  sourceIdentityConflictPayload,
+  sourceIdentityFromRequest,
+} = require('../services/importSourceIdentity');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -170,9 +175,13 @@ module.exports = function createOrdersRouter(deps) {
   router.post('/order-imports/preview', requireAnyRole(['office', 'manager', 'admin']), upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, error: 'Spreadsheet file is required' });
     try {
+      const identity = sourceIdentityFromRequest(req, 'order_import');
+      const duplicate = findSourceIdentityDuplicate(db, 'order_imports', identity);
+      if (duplicate) return res.status(409).json(sourceIdentityConflictPayload('order_import', duplicate));
       const preview = buildOrderImportPreview(req.file.buffer);
-      const result = db.prepare('INSERT INTO order_imports (filename,preview_data,status) VALUES (?,?,?)')
-        .run(req.file.originalname || 'orders.xlsx', JSON.stringify(preview), 'preview');
+      if (identity) preview.source_identity = identity;
+      const result = db.prepare('INSERT INTO order_imports (filename,source_system,external_id,preview_data,status) VALUES (?,?,?,?,?)')
+        .run(req.file.originalname || 'orders.xlsx', identity?.source_system || null, identity?.external_id || null, JSON.stringify(preview), 'preview');
       res.json({ success: true, importId: result.lastInsertRowid, preview });
     } catch (error) {
       res.status(error.statusCode || 400).json({ success: false, error: error.message });
@@ -191,7 +200,8 @@ module.exports = function createOrdersRouter(deps) {
       }
       const approve = db.transaction(() => {
         const created = (preview.orders || []).map(order => createOrderFromPayload(order.payload));
-        db.prepare("UPDATE order_imports SET status='approved',approved_at=CURRENT_TIMESTAMP WHERE id=?").run(row.id);
+        const orderIds = JSON.stringify(created.map(order => order.orderId).filter(Boolean));
+        db.prepare("UPDATE order_imports SET status='approved',approved_at=CURRENT_TIMESTAMP,order_ids_json=? WHERE id=?").run(orderIds, row.id);
         return created;
       });
       const created = approve();

@@ -1,4 +1,9 @@
 const router = require('express').Router();
+const {
+  findSourceIdentityDuplicate,
+  sourceIdentityConflictPayload,
+  sourceIdentityFromRequest,
+} = require('../services/importSourceIdentity');
 
 function required(name, value) {
   if (value === undefined || value === null) throw new Error(`routes/intakeReview missing dependency: ${name}`);
@@ -111,6 +116,10 @@ module.exports = function createIntakeReviewRouter(deps) {
         phone: body.customer_phone || null,
         email: body.customer_email || null,
       } : null;
+      const duplicate = findSourceIdentityDuplicate(db, 'intake_log', row, { excludeId: row.id });
+      if (duplicate) {
+        return res.status(409).json(sourceIdentityConflictPayload('intake', duplicate));
+      }
       const approve = db.transaction(() => {
         saveCorrectionExample(row, originalParsed, parsed);
         const result = createOrderFromPayload(intakeToOrderPayload(parsed, row.source || 'intake', customerOverride, row.raw_content || ''));
@@ -133,6 +142,9 @@ module.exports = function createIntakeReviewRouter(deps) {
 
   router.post('/intake/parse-text', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const { text, source } = req.body;
+    const identity = sourceIdentityFromRequest(req, source || 'manual');
+    const duplicate = findSourceIdentityDuplicate(db, 'intake_log', identity);
+    if (duplicate) return res.status(409).json(sourceIdentityConflictPayload('intake', duplicate));
     try {
       const parsed = intakeWorkflow.parseManualIntakeText({
         text,
@@ -140,8 +152,8 @@ module.exports = function createIntakeReviewRouter(deps) {
         parseWhatsAppMessage: intake.parseWhatsAppMessage,
         parseOCRText: intake.parseOCRText,
       });
-      const result = db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
-        .run(source || 'manual', text.slice(0, 2000), JSON.stringify(parsed), 'pending_review');
+      const result = db.prepare('INSERT INTO intake_log (source,source_system,external_id,raw_content,parsed_data,status) VALUES (?,?,?,?,?,?)')
+        .run(source || 'manual', identity?.source_system || null, identity?.external_id || null, text.slice(0, 2000), JSON.stringify(parsed), 'pending_review');
       res.json({ success: true, id: result.lastInsertRowid, parsed, item_count: (parsed.items || []).length });
     } catch (error) {
       res.status(error.statusCode || 400).json({ error: error.message });

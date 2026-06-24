@@ -367,6 +367,8 @@ function ensureCoreSchema(db) {
     CREATE TABLE IF NOT EXISTS intake_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source TEXT,
+      source_system TEXT,
+      external_id TEXT,
       raw_content TEXT,
       parsed_data JSON,
       original_filename TEXT,
@@ -850,6 +852,12 @@ function ensureCoreSchema(db) {
       created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
     );
+  `);
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_intake_log_source_identity
+      ON intake_log(source_system, external_id)
+      WHERE source_system IS NOT NULL AND external_id IS NOT NULL;
   `);
 
   ensureFinanceSchema(db);

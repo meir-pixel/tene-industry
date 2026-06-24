@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { findSourceIdentityDuplicate, normalizeSourceIdentity } = require('../services/importSourceIdentity');
 
 function required(name, value) {
   if (value === undefined || value === null) throw new Error(`routes/intakeChannels missing dependency: ${name}`);
@@ -44,15 +45,19 @@ module.exports = function createIntakeChannelsRouter(deps) {
         } else if (msg.type === 'image' || msg.type === 'document') {
           // Image/PDF - would need to download via WhatsApp API then OCR
           // Mark for manual review
-          db.prepare('INSERT INTO intake_log (source,raw_content,status) VALUES (?,?,?)')
-            .run('whatsapp_media', `media:${msg.type} from:${fromPhone}`, 'pending_review');
+          const identity = normalizeSourceIdentity({ source_system: 'whatsapp', external_id: msg.id }, 'whatsapp');
+          if (findSourceIdentityDuplicate(db, 'intake_log', identity)) continue;
+          db.prepare('INSERT INTO intake_log (source,source_system,external_id,raw_content,status) VALUES (?,?,?,?,?)')
+            .run('whatsapp_media', identity?.source_system || null, identity?.external_id || null, `media:${msg.type} from:${fromPhone}`, 'pending_review');
           await intake.sendWhatsApp(fromPhone, 'קיבלנו את התמונה, ניצור קשר בהקדם!');
           continue;
         }
 
         if (parsed) {
-          db.prepare('INSERT INTO intake_log (source,raw_content,parsed_data,status) VALUES (?,?,?,?)')
-            .run('whatsapp', msg.text?.body || '', JSON.stringify(parsed), 'pending_review');
+          const identity = normalizeSourceIdentity({ source_system: 'whatsapp', external_id: msg.id }, 'whatsapp');
+          if (findSourceIdentityDuplicate(db, 'intake_log', identity)) continue;
+          db.prepare('INSERT INTO intake_log (source,source_system,external_id,raw_content,parsed_data,status) VALUES (?,?,?,?,?,?)')
+            .run('whatsapp', identity?.source_system || null, identity?.external_id || null, msg.text?.body || '', JSON.stringify(parsed), 'pending_review');
           wsBroadcast('new_intake', { source: 'whatsapp', phone: fromPhone, parsed });
         }
       }
