@@ -903,6 +903,51 @@ class ShapeEditorModal {
   overflow-y:auto;
   padding:8px 14px 10px;
 }
+#seModal .se-panel-summary{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  padding:12px 16px 4px;
+  background:#eef0f3;
+  border-top:1px solid #d3d8df;
+}
+#seModal .se-panel-summary-item{
+  min-width:0;
+  background:#fff;
+  border:1px solid #d8dde5;
+  border-radius:8px;
+  padding:8px 10px;
+}
+#seModal .se-panel-summary-main{
+  grid-column:1 / -1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-color:#e07b39;
+  box-shadow:0 0 0 2px rgba(224,123,57,.10);
+}
+#seModal .se-panel-summary-item span{
+  display:block;
+  color:#667286;
+  font-size:10px;
+  font-weight:800;
+  line-height:1.2;
+}
+#seModal .se-panel-summary-item strong{
+  color:#243047;
+  font-size:18px;
+  font-weight:900;
+  line-height:1.15;
+}
+#seModal .se-panel-summary-main strong{
+  color:#df5000;
+}
+#seModal .se-panel-summary-item small{
+  margin-inline-start:3px;
+  color:#667286;
+  font-size:10px;
+  font-weight:700;
+}
 #seModal .se-table{border-spacing:0 6px;}
 #seModal .se-table td{padding:6px 8px;}
 #seModal .se-input{min-height:36px;padding:6px 10px;}
@@ -1048,6 +1093,26 @@ class ShapeEditorModal {
           </span>
         </label>
         <div class="se-3d-help" id="se3DHelp">תצוגת 3D לא הופכת את המוצר לתלת-ממדי. סמן כאן רק אם הברזל באמת יוצא מהמישור.</div>
+      </div>
+      <div class="se-panel-summary" aria-live="polite">
+        <div class="se-panel-summary-item se-panel-summary-main">
+          <span>סה״כ אורך</span>
+          <div>
+            <strong id="sePanelTotalMm">0</strong>
+            <small>מ״מ</small>
+          </div>
+        </div>
+        <div class="se-panel-summary-item">
+          <span>אורך בר</span>
+          <div>
+            <strong id="sePanelTotalM">0.00</strong>
+            <small>מטר</small>
+          </div>
+        </div>
+        <div class="se-panel-summary-item">
+          <span>כיפופים</span>
+          <strong id="sePanelBends">0</strong>
+        </div>
       </div>
       <div class="se-table-wrap">
         <table class="se-table">
@@ -1405,8 +1470,10 @@ class ShapeEditorModal {
     }
 
     // ── Build rows ─────────────────────────────────────────────
+    // One-row side editor: each side keeps length and bend angle in one readable row.
     let html = '';
     for (let i = 0; i < sides.length; i++) {
+      const letter = String.fromCharCode(65 + i);
       if (isReal3D) {
         const az = azAngles?.[i] ?? 0;
         const el = elAngles?.[i] ?? 0;
@@ -1428,13 +1495,13 @@ class ShapeEditorModal {
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">✕</button>` : ''}</td>
           </tr>`;
       } else {
-        // ── 2D mode (classic) ──────────────────────────────────
+        // 2D mode (classic)
         html += `
-          <tr>
-            <td><span class="se-seg-label">${i + 1}</span></td>
-            <td><input class="se-input" type="number" min="1" max="20000" value="${sides[i]}"
+          <tr class="se-side-row">
+            <td><span class="se-seg-label">${letter}</span></td>
+            <td class="se-length-cell"><input class="se-input" type="number" min="1" max="20000" value="${sides[i]}"
               data-side="${i}" oninput="window._seEditor._setSide(${i}, this.value)"></td>
-            <td>${i < angles.length ? `
+            <td class="se-angle-cell">${i < angles.length ? `
               <div style="display:flex;align-items:center;gap:6px">
                 <input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" style="width:70px"
                   data-angle="${i}" oninput="window._seEditor._setAngle(${i}, this.value)">
@@ -1450,13 +1517,6 @@ class ShapeEditorModal {
               </div>` : '<span style="color:var(--text-dim,#7a93ab);font-size:12px">—</span>'}</td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">✕</button>` : ''}</td>
           </tr>`;
-        if (i < angles.length) {
-          html += `<tr class="se-bend-row">
-            <td colspan="4" style="padding:2px 10px;font-size:11px;color:#7a93ab">
-              ↳ כיפוף ${i + 1}: ${angles[i]}°
-            </td>
-          </tr>`;
-        }
       }
     }
     document.getElementById('seTableBody').innerHTML = html;
@@ -1866,6 +1926,12 @@ class ShapeEditorModal {
     document.getElementById('sePerimeter').textContent  = perimeter.toLocaleString('he-IL');
     document.getElementById('seBarLength').textContent  = (perimeter / 1000).toFixed(2);
     document.getElementById('seBends').textContent      = angles.length;
+    const sePanelTotalMm = document.getElementById('sePanelTotalMm');
+    const sePanelTotalM = document.getElementById('sePanelTotalM');
+    const sePanelBends = document.getElementById('sePanelBends');
+    if (sePanelTotalMm) sePanelTotalMm.textContent = perimeter.toLocaleString('he-IL');
+    if (sePanelTotalM) sePanelTotalM.textContent = (perimeter / 1000).toFixed(2);
+    if (sePanelBends) sePanelBends.textContent = angles.length;
   }
 
   _confirm() {
