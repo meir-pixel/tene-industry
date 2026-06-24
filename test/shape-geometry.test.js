@@ -125,6 +125,23 @@ test('shape editor built-in preset names stay neutral', () => {
   assert.match(presetBlock[0], /name: 'כלונס'/);
   assert.doesNotMatch(presetBlock[0], /אנקר|הזזה|כפול|אוברל|אסדה|אצבה|כיפופים|חמש צלעות|סימטרית|בסיס/);
 });
+test('shape editor exposes the requested Easybar category filters', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /const SHAPE_CATEGORY_FILTERS = \['הכל', 'חישוק', 'פיגורה', 'ספירלים', 'ציפורים', 'משקפיים', 'קלמרה'\]/);
+  assert.match(editor, /id="seCategoryFilters"/);
+  assert.match(editor, /class="se-category-filter/);
+  assert.match(editor, /s\.category === category/);
+});
+test('shape editor exposes side-count filters for built-in and saved shapes', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /const SHAPE_SIDE_FILTERS = \['הכל', 1, 2, 3, 4, 5, 6, 7, 8\]/);
+  assert.match(editor, /id="seSideFilters"/);
+  assert.match(editor, /class="se-side-filter/);
+  assert.match(editor, /const sideCount = this\._selectedSideCount/);
+  assert.match(editor, /saved\.filter\(s => s\.sides\.length === sideCount\)/);
+});
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },

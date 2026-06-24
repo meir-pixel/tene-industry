@@ -504,6 +504,37 @@
   - פרסטים מובנים אינם מרנדרים span גלוי עם שם הצורה.
   - קיימת בדיקת מקור שמכסה את חוזה הגלריה החדשה.
 
+### V2-006H — Shape Editor Category Filter Labels
+
+- status: done
+- owner: codex-shape-editor
+- module: industry-steel-rebar/shape-editor
+- priority: high
+- scope:
+  - TASKS_V2.md
+  - public/shape-editor.js
+  - public/index.html
+  - public/intake.html
+  - public/customer.html
+  - test/shape-geometry.test.js
+- input:
+  - שמות הסינון המבוקשים לפי צילום Easybar: הכל, חישוק, פיגורה, ספירלים, ציפורים, משקפיים, קלמרה.
+  - דרישה לסנן גם לפי מספר צלעות.
+- output:
+  - מסך בחירת הצורות מציג כפתורי סינון בשמות המבוקשים.
+  - מסך בחירת הצורות מציג סינון לפי מספר צלעות: הכל, 1-8.
+  - פרסטים של מוטות משויכים לקטגוריות סינון.
+  - צורות שמורות שהמשתמש מגדיר מסוננות גם הן לפי מספר צלעות.
+  - טעינת `shape-editor.js` קודמה ל-`v49` כדי לעקוף cache ישן.
+- logic:
+  - הסינון מוצג עבור משפחת מוטות בלבד; רשת וכלונסאות נשארים בטאבים הייעודיים שלהם.
+  - `הכל` מציג את כל המוטות, ושאר כפתורי הסוג מסננים לפי category.
+  - סינון צלעות חל על פרסטים מובנים ועל צורות שמורות.
+- definition_of_done:
+  - קיימת רשימת `SHAPE_CATEGORY_FILTERS` בדיוק לפי השמות שסופקו.
+  - קיימת רשימת `SHAPE_SIDE_FILTERS` לסינון לפי צלעות.
+  - קיימת בדיקת מקור שמוודאת את כפתורי הסינון והחיבור לסינון הפרסטים והצורות השמורות.
+
 ### V2-007 — Orders Module Specification
 
 - status: todo

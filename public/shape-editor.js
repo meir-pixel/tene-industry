@@ -20,19 +20,19 @@ const SEG_COLORS = [
 // ── SHAPE PRESETS ──────────────────────────────────────────────────
 // sides: lengths in mm (defaults), angles: bend angles in degrees between sides
 const SHAPE_PRESETS = [
-  { id: 's1',  name: 'מוט ישר',           family: 'bars', icon: 'straight', bends: 0, sides: [1000],                         angles: [],                    emoji: '➖' },
-  { id: 's2',  name: 'צורה 2',     family: 'bars', icon: 'l', bends: 1, sides: [500, 200],                     angles: [90],                  emoji: '⌐' },
-  { id: 's3',  name: 'צורה 3',      family: 'bars', icon: 'u', bends: 2, sides: [300, 600, 300],                angles: [90, 90],              emoji: '∪' },
-  { id: 's4',  name: 'צורה 4',      family: 'bars', icon: 'z', bends: 2, sides: [300, 400, 300],                angles: [135, 135],            emoji: 'Z' },
-  { id: 's5',  name: 'צורה 5',      family: 'bars', icon: 's', bends: 3, sides: [200, 300, 300, 200],           angles: [135, 135, 135],       emoji: 'S' },
-  { id: 's6',  name: 'צורה 6',  family: 'bars', icon: 'hook', bends: 3, sides: [200, 400, 400, 200],           angles: [90, 180, 90],         emoji: '⌡' },
-  { id: 's7',  name: 'צורה 7',   family: 'bars', icon: 'open-u', bends: 3, sides: [200, 500, 500, 200],           angles: [90, 90, 90],          emoji: '┓' },
-  { id: 's8',  name: 'צורה 8',  family: 'bars', icon: 'stirrup', bends: 4, sides: [400, 200, 400, 200],           angles: [90, 90, 90, 90],      emoji: '▢' },
-  { id: 's9',  name: 'צורה 9', family: 'bars', icon: 'stirrup-square', bends: 4, sides: [300, 300, 300, 300],           angles: [90, 90, 90, 90],      emoji: '▣' },
-  { id: 's10', name: 'צורה 10', family: 'bars', icon: 'multi', bends: 5, sides: [150, 200, 400, 200, 400, 150], angles: [90, 90, 90, 90, 90], emoji: '⌂' },
-  { id: 's11', name: 'צורה 11',  family: 'bars', icon: 'polygon', bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
-  { id: 's13', name: 'צורה 12', family: 'bars', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
-  { id: 's14', name: 'צורה 13',    family: 'bars', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
+  { id: 's1',  name: 'מוט ישר',           family: 'bars', category: 'פיגורה', icon: 'straight', bends: 0, sides: [1000],                         angles: [],                    emoji: '➖' },
+  { id: 's2',  name: 'צורה 2',     family: 'bars', category: 'פיגורה', icon: 'l', bends: 1, sides: [500, 200],                     angles: [90],                  emoji: '⌐' },
+  { id: 's3',  name: 'צורה 3',      family: 'bars', category: 'פיגורה', icon: 'u', bends: 2, sides: [300, 600, 300],                angles: [90, 90],              emoji: '∪' },
+  { id: 's4',  name: 'צורה 4',      family: 'bars', category: 'פיגורה', icon: 'z', bends: 2, sides: [300, 400, 300],                angles: [135, 135],            emoji: 'Z' },
+  { id: 's5',  name: 'צורה 5',      family: 'bars', category: 'פיגורה', icon: 's', bends: 3, sides: [200, 300, 300, 200],           angles: [135, 135, 135],       emoji: 'S' },
+  { id: 's6',  name: 'צורה 6',  family: 'bars', category: 'קלמרה', icon: 'hook', bends: 3, sides: [200, 400, 400, 200],           angles: [90, 180, 90],         emoji: '⌡' },
+  { id: 's7',  name: 'צורה 7',   family: 'bars', category: 'ציפורים', icon: 'open-u', bends: 3, sides: [200, 500, 500, 200],           angles: [90, 90, 90],          emoji: '┓' },
+  { id: 's8',  name: 'צורה 8',  family: 'bars', category: 'חישוק', icon: 'stirrup', bends: 4, sides: [400, 200, 400, 200],           angles: [90, 90, 90, 90],      emoji: '▢' },
+  { id: 's9',  name: 'צורה 9', family: 'bars', category: 'חישוק', icon: 'stirrup-square', bends: 4, sides: [300, 300, 300, 300],           angles: [90, 90, 90, 90],      emoji: '▣' },
+  { id: 's10', name: 'צורה 10', family: 'bars', category: 'משקפיים', icon: 'multi', bends: 5, sides: [150, 200, 400, 200, 400, 150], angles: [90, 90, 90, 90, 90], emoji: '⌂' },
+  { id: 's11', name: 'צורה 11',  family: 'bars', category: 'משקפיים', icon: 'polygon', bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
+  { id: 's13', name: 'צורה 12', family: 'bars', category: 'פיגורה', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
+  { id: 's14', name: 'צורה 13',    family: 'bars', category: 'פיגורה', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
   { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, sides: [600, 250], angles: [], emoji: '#', specialty: 'mesh' },
   { id: 'pile1', name: 'כלונס', family: 'piles', icon: 'pile', bends: 0, sides: [1620], angles: [], emoji: '◎', specialty: 'pile' },
   { id: 's12', name: 'צורה מותאמת',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
@@ -43,6 +43,9 @@ const SHAPE_FAMILIES = [
   { id: 'mesh', label: 'רשת' },
   { id: 'piles', label: 'כלונסאות' },
 ];
+
+const SHAPE_CATEGORY_FILTERS = ['הכל', 'חישוק', 'פיגורה', 'ספירלים', 'ציפורים', 'משקפיים', 'קלמרה'];
+const SHAPE_SIDE_FILTERS = ['הכל', 1, 2, 3, 4, 5, 6, 7, 8];
 
 function shapePresetIconSVG(kind) {
   const stroke = 'stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"';
@@ -889,6 +892,48 @@ class ShapeEditorModal {
   color:#172235;
   border-color:#263449;
 }
+#seCategoryFilters{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:10px 12px;
+  padding:14px 24px 6px;
+  background:#eef0f3;
+}
+#seCategoryFilters .se-category-filter{
+  min-width:78px;
+  height:34px;
+  border:0;
+  border-radius:6px;
+  background:#5f6878;
+  color:#fff;
+  font-family:'Heebo',sans-serif;
+  font-size:14px;
+  font-weight:900;
+}
+#seCategoryFilters .se-category-filter.active{background:#ff4047;}
+#seCategoryFilters .se-category-filter:disabled{opacity:.45;cursor:default;}
+#seSideFilters{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:8px;
+  padding:4px 24px 12px;
+  background:#eef0f3;
+  border-bottom:1px solid #d5dae1;
+}
+#seSideFilters .se-side-filter{
+  min-width:42px;
+  height:30px;
+  border:1px solid #c2cad5;
+  border-radius:6px;
+  background:#fff;
+  color:#5f6878;
+  font-family:'Heebo',sans-serif;
+  font-size:13px;
+  font-weight:900;
+}
+#seSideFilters .se-side-filter.active{background:#2f394b;color:#fff;border-color:#2f394b;}
 #sePresets{
   grid-template-columns:repeat(auto-fill,minmax(64px,1fr))!important;
   justify-items:center;
@@ -1083,6 +1128,8 @@ class ShapeEditorModal {
   <!-- ── PAGE 1: Shape selection ── -->
   <div id="sePageSelect" style="display:none;flex:1;overflow-y:auto;background:#f4f6f9;">
     <div id="seFamilyTabs"></div>
+    <div id="seCategoryFilters"></div>
+    <div id="seSideFilters"></div>
     <div id="seSavedSection"></div>
     <div style="padding:10px 24px 12px;font-size:15px;font-weight:900;color:#243047;" id="sePresetsTitle">סינון צורות</div>
     <div id="sePresets" style="padding:0 24px 20px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;"></div>
@@ -1308,7 +1355,11 @@ class ShapeEditorModal {
     document.getElementById('seBackBtn').style.display    = '';
     document.getElementById('seHeadTitle').textContent    = this._selectedCount ? (this._selectedCount + ' צלעות – בחר צורה') : 'בחר סוג וצורה';
     if (!this._selectedFamily) this._selectedFamily = 'bars';
+    if (!this._selectedCategory) this._selectedCategory = 'הכל';
+    if (this._selectedSideCount === undefined) this._selectedSideCount = this._selectedCount || 'הכל';
     this._renderFamilyTabs();
+    this._renderCategoryFilters();
+    this._renderSideFilters();
     this._renderSavedShapes(this._selectedCount);
     this._renderPresets(this._selectedCount);
   }
@@ -1320,7 +1371,49 @@ class ShapeEditorModal {
     cont.querySelectorAll('[data-family]').forEach(btn => {
       btn.addEventListener('click', () => {
         this._selectedFamily = btn.dataset.family;
+        this._selectedCategory = 'הכל';
+        this._selectedSideCount = 'הכל';
         this._renderFamilyTabs();
+        this._renderCategoryFilters();
+        this._renderSideFilters();
+        this._renderSavedShapes(this._selectedCount);
+        this._renderPresets(this._selectedCount);
+      });
+    });
+  }
+
+  _renderCategoryFilters() {
+    const cont = document.getElementById('seCategoryFilters');
+    if (!cont) return;
+    const isBars = (this._selectedFamily || 'bars') === 'bars';
+    cont.style.display = isBars ? 'flex' : 'none';
+    if (!isBars) return;
+    cont.innerHTML = SHAPE_CATEGORY_FILTERS.map(label => `<button class="se-category-filter ${this._selectedCategory === label ? 'active' : ''}" data-category="${label}">${label}</button>`).join('');
+    cont.querySelectorAll('[data-category]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._selectedCategory = btn.dataset.category;
+        this._renderCategoryFilters();
+        this._renderPresets(this._selectedCount);
+      });
+    });
+  }
+
+  _renderSideFilters() {
+    const cont = document.getElementById('seSideFilters');
+    if (!cont) return;
+    const isBars = (this._selectedFamily || 'bars') === 'bars';
+    cont.style.display = isBars ? 'flex' : 'none';
+    if (!isBars) return;
+    const selected = this._selectedSideCount === undefined ? 'הכל' : this._selectedSideCount;
+    cont.innerHTML = SHAPE_SIDE_FILTERS.map(value => {
+      const label = value === 'הכל' ? 'הכל' : `${value}`;
+      return `<button class="se-side-filter ${String(selected) === String(value) ? 'active' : ''}" data-side-count="${value}">${label}</button>`;
+    }).join('');
+    cont.querySelectorAll('[data-side-count]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const raw = btn.dataset.sideCount;
+        this._selectedSideCount = raw === 'הכל' ? 'הכל' : Number(raw);
+        this._renderSideFilters();
         this._renderSavedShapes(this._selectedCount);
         this._renderPresets(this._selectedCount);
       });
@@ -1390,10 +1483,13 @@ class ShapeEditorModal {
 
   _renderPresets(countFilter) {
     const family = this._selectedFamily || 'bars';
+    const category = this._selectedCategory || 'הכל';
+    const sideCount = this._selectedSideCount === undefined || this._selectedSideCount === 'הכל' ? countFilter : Number(this._selectedSideCount);
     const shapes = SHAPE_PRESETS.filter(s => {
       const sameFamily = (s.family || 'bars') === family;
-      const countOk = !countFilter || family !== 'bars' || s.sides.length === countFilter;
-      return sameFamily && countOk;
+      const countOk = !sideCount || family !== 'bars' || s.sides.length === sideCount;
+      const categoryOk = family !== 'bars' || category === 'הכל' || s.category === category;
+      return sameFamily && countOk && categoryOk;
     });
     const cont = document.getElementById('sePresets');
     cont.innerHTML = shapes.map(s => {
@@ -1414,7 +1510,8 @@ class ShapeEditorModal {
     const saved  = loadSavedShapes();
     const cont   = document.getElementById('seSavedSection');
     if (!cont) return;
-    const list   = countFilter ? saved.filter(s => s.sides.length === countFilter) : saved;
+    const sideCount = this._selectedSideCount === undefined || this._selectedSideCount === 'הכל' ? countFilter : Number(this._selectedSideCount);
+    const list   = sideCount ? saved.filter(s => s.sides.length === sideCount) : saved;
     if (list.length === 0) { cont.innerHTML = ''; return; }
 
     const cardsHtml = list.map(s => {
@@ -2053,6 +2150,7 @@ class ShapeEditorModal {
     } else {
       // No existing shape: start from the family selector so mesh and piles are available immediately.
       this._selectedCount = null;
+      this._selectedSideCount = 'הכל';
       this._goToSelect();
     }
     this._el.classList.add('show');
