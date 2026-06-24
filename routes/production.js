@@ -17,6 +17,69 @@ module.exports = function createProductionRouter(deps) {
   const STATE_TRANSITIONS = required('STATE_TRANSITIONS', deps.STATE_TRANSITIONS);
   const checkOrderComplete = required('checkOrderComplete', deps.checkOrderComplete);
   const tryParseJSON = required('tryParseJSON', deps.tryParseJSON);
+  const { ORDER_STATUS, ITEM_STATUS } = statusContracts;
+
+  const productionOrderGateStatuses = new Set([
+    ORDER_STATUS.APPROVED_WAITING_PRODUCTION,
+    ORDER_STATUS.PRODUCTION_QUEUE,
+    ORDER_STATUS.IN_PRODUCTION,
+  ]);
+  const productionStartItemStatuses = new Set([
+    ITEM_STATUS.WAITING,
+    ITEM_STATUS.IN_PRODUCTION,
+  ]);
+  const productionWritableItemStatuses = new Set([
+    ITEM_STATUS.WAITING,
+    ITEM_STATUS.IN_PRODUCTION,
+    ITEM_STATUS.DONE,
+    ITEM_STATUS.ON_HOLD,
+    ITEM_STATUS.CANCELLED,
+  ]);
+  const forbiddenProductionItemPatchFields = new Set([
+    'quantity',
+    'production_qty',
+    'shapeSnapshot',
+    'shape_snapshot_json',
+    'shape_id',
+    'shape_name',
+    'segments',
+    'diameter',
+    'spiral_diameter_mm',
+    'spiral_turns',
+    'total_length_mm',
+    'weight_per_unit',
+    'total_weight',
+    'pricingSnapshot',
+    'pricing_snapshot',
+    'finance',
+    'billing_weight',
+    'price',
+    'unit_price',
+    'package_id',
+    'zone',
+    'warehouse',
+    'packingStatus',
+    'shippingStatus',
+    'deliveryNoteReference',
+  ]);
+
+  function isProductionGateOpen(item) {
+    return Boolean(item)
+      && productionOrderGateStatuses.has(statusContracts.normalizeOrderStatus(item.order_status))
+      && productionStartItemStatuses.has(item.status);
+  }
+
+  function sendProductionGateError(res, item) {
+    return res.status(409).json({
+      error: 'item_not_released_to_production',
+      item_status: item?.status || null,
+      order_status: item?.order_status || null,
+    });
+  }
+
+  function forbiddenProductionPatchFields(body) {
+    return Object.keys(body || {}).filter(key => forbiddenProductionItemPatchFields.has(key));
+  }
 
 
   router.get('/workers', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
@@ -61,9 +124,14 @@ module.exports = function createProductionRouter(deps) {
     if (!machine) return res.status(404).json({ error: 'מכונה לא נמצאה' });
 
     const item = db.prepare(`
-      SELECT i.*, p.order_id FROM items i JOIN pallets p ON i.pallet_id=p.id WHERE i.id=?
+      SELECT i.*, p.order_id, o.status AS order_status
+      FROM items i
+      JOIN pallets p ON i.pallet_id=p.id
+      JOIN orders o ON p.order_id=o.id
+      WHERE i.id=?
     `).get(itemIdNum);
-    if (!item) return res.status(404).json({ error: 'פריט לא נמצא' });
+    if (!item) return res.status(404).json({ error: 'item not found' });
+    if (!isProductionGateOpen(item)) return sendProductionGateError(res, item);
 
     const now = new Date().toISOString();
 
@@ -141,19 +209,31 @@ module.exports = function createProductionRouter(deps) {
     if (!statusContracts.isValidItemStatus(status)) return res.status(400).json({ error: 'invalid status', allowed: statusContracts.VALID_ITEM_STATUSES });
     const allowed = ['ממתין','בייצור','הושלם','סופק','בהמתנה','בוטל'];
     if (!allowed.includes(status)) return res.status(400).json({ error: 'invalid status' });
-    const item = db.prepare('SELECT * FROM items WHERE id=?').get(req.params.id);
+    const item = db.prepare(`
+      SELECT i.*, o.status AS order_status
+      FROM items i
+      JOIN pallets p ON i.pallet_id=p.id
+      JOIN orders o ON p.order_id=o.id
+      WHERE i.id=?
+    `).get(req.params.id);
     if (!item) return res.status(404).json({ error: 'not found' });
+    if (!productionWritableItemStatuses.has(status)) return res.status(400).json({ error: 'invalid production status' });
+    if (status === ITEM_STATUS.IN_PRODUCTION && !isProductionGateOpen(item)) return sendProductionGateError(res, item);
     const updates = { status };
-    if (status === 'בייצור' && !item.started_at) updates.started_at = new Date().toISOString();
-    if (status === 'הושלם') updates.completed_at = new Date().toISOString();
-    db.prepare(`UPDATE items SET status=?${status==='בייצור'&&!item.started_at?',started_at=?':''}${status==='הושלם'?',completed_at=?':''} WHERE id=?`)
+    if (status === ITEM_STATUS.IN_PRODUCTION && !item.started_at) updates.started_at = new Date().toISOString();
+    if (status === ITEM_STATUS.DONE) updates.completed_at = new Date().toISOString();
+    db.prepare(`UPDATE items SET status=?${status===ITEM_STATUS.IN_PRODUCTION&&!item.started_at?',started_at=?':''}${status===ITEM_STATUS.DONE?',completed_at=?':''} WHERE id=?`)
       .run(...Object.values(updates), req.params.id);
     wsBroadcast('item_status', { id: Number(req.params.id), status });
     res.json({ ok: true });
   });
 
   router.patch('/items/:id', requireAnyRole(['production', 'kiosk', 'warehouse', 'manager', 'admin']), (req, res) => {
-    const { produced_qty, actual_waste, actual_weight_kg, note, status, package_id, zone } = req.body;
+    const forbiddenFields = forbiddenProductionPatchFields(req.body);
+    if (forbiddenFields.length) {
+      return res.status(400).json({ error: 'non_production_fields_forbidden', fields: forbiddenFields });
+    }
+    const { produced_qty, actual_waste, actual_weight_kg, note, status } = req.body;
     const fields = [], vals = [];
     if (produced_qty !== undefined) { fields.push('produced_qty=?'); vals.push(produced_qty); }
     if (actual_waste !== undefined) { fields.push('actual_waste=?'); vals.push(actual_waste); }
@@ -168,9 +248,19 @@ module.exports = function createProductionRouter(deps) {
       fields.push('weight_deviation_pct=?'); vals.push(deviationPct);
     }
     if (note         !== undefined) { fields.push('note=?');         vals.push(note); }
-    if (status       !== undefined) { fields.push('status=?');       vals.push(status); }
-    if (package_id   !== undefined) { fields.push('package_id=?');   vals.push(package_id); }
-    if (zone         !== undefined) { fields.push('zone=?');         vals.push(zone); }
+    if (status       !== undefined) {
+      if (!statusContracts.isValidItemStatus(status) || !productionWritableItemStatuses.has(status)) return res.status(400).json({ error: 'invalid production status' });
+      const item = db.prepare(`
+        SELECT i.*, o.status AS order_status
+        FROM items i
+        JOIN pallets p ON i.pallet_id=p.id
+        JOIN orders o ON p.order_id=o.id
+        WHERE i.id=?
+      `).get(req.params.id);
+      if (!item) return res.status(404).json({ error: 'not found' });
+      if (status === ITEM_STATUS.IN_PRODUCTION && !isProductionGateOpen(item)) return sendProductionGateError(res, item);
+      fields.push('status=?');       vals.push(status);
+    }
     if (!fields.length) return res.json({ ok: true });
     vals.push(req.params.id);
     db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);

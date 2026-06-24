@@ -14,6 +14,17 @@ module.exports = function createProductionCardsRouter(deps) {
   const tryParseJSON = required('tryParseJSON', deps.tryParseJSON);
   const normalizeFactorySegments = required('normalizeFactorySegments', deps.normalizeFactorySegments);
   const normalizeFactoryShapeName = required('normalizeFactoryShapeName', deps.normalizeFactoryShapeName);
+  const statusContracts = required('statusContracts', deps.statusContracts);
+  const { ORDER_STATUS } = statusContracts;
+  const productionCardOrderGateStatuses = new Set([
+    ORDER_STATUS.APPROVED_WAITING_PRODUCTION,
+    ORDER_STATUS.PRODUCTION_QUEUE,
+    ORDER_STATUS.IN_PRODUCTION,
+  ]);
+
+  function canCreateProductionCards(order) {
+    return productionCardOrderGateStatuses.has(statusContracts.normalizeOrderStatus(order?.status));
+  }
 
 // ── PRINT CARDS ───────────────────────────────────────────────────
 router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
@@ -34,6 +45,9 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
   order.pallets = pallets;
 
   const allItems = pallets.flatMap(p => p.items);
+  if (allItems.length && !canCreateProductionCards(order)) {
+    return res.status(409).send('order is not approved or planned for production cards');
+  }
   const cardWeights = db.prepare('SELECT * FROM production_card_weights WHERE order_id=? ORDER BY item_id, card_total, card_index').all(order.id);
   const weightsByItem = new Map();
   for (const row of cardWeights) {
@@ -86,11 +100,16 @@ router.patch('/orders/:orderId/production-card-weight', requireAnyRole(['product
   if (!Number.isFinite(actualWeight) || actualWeight < 0) return res.status(400).json({ error: 'invalid actual_weight_kg' });
 
   const item = db.prepare(`
-    SELECT i.*, p.order_id
-    FROM items i JOIN pallets p ON p.id=i.pallet_id
+    SELECT i.*, p.order_id, o.status AS order_status
+    FROM items i
+    JOIN pallets p ON p.id=i.pallet_id
+    JOIN orders o ON o.id=p.order_id
     WHERE i.id=? AND p.order_id=?
   `).get(itemId, orderId);
   if (!item) return res.status(404).json({ error: 'item not found' });
+  if (!canCreateProductionCards({ status: item.order_status })) {
+    return res.status(409).json({ error: 'order_not_released_to_production_cards', order_status: item.order_status });
+  }
 
   const targetWeight = Number(item.total_weight) || 0;
   const targetCardWeight = targetWeight > 0 && Number(item.quantity) > 0 && cardQty > 0

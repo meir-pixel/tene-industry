@@ -434,6 +434,7 @@ app.use('/api', requireModule('production'), createProductionCardsRouter({
   tryParseJSON,
   normalizeFactorySegments,
   normalizeFactoryShapeName,
+  statusContracts,
 }));
 
 app.use('/api', requireModule('production'), createOrderDocumentsRouter({

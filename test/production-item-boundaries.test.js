@@ -1,0 +1,191 @@
+﻿const assert = require('node:assert/strict');
+const test = require('node:test');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tene-production-boundaries-'));
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = 'test-secret';
+process.env.BCRYPT_ROUNDS = '4';
+process.env.DB_PATH = path.join(tmpDir, 'production-boundaries.db');
+process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
+
+const { closeServer, db, server } = require('../server');
+const { hashPin } = require('../auth-core');
+const statusContracts = require('../status-contracts');
+
+let baseUrl;
+
+function seedUser(username, role, pin) {
+  db.prepare(`
+    INSERT INTO users (username,display_name,role,pin,pin_hash,active,password_changed_at)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(username, username, role, pin, hashPin(pin, 4), 1, new Date().toISOString());
+}
+
+async function request(pathname, options = {}) {
+  return fetch(`${baseUrl}${pathname}`, options);
+}
+
+async function token(username, pin) {
+  const response = await request('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, pin }),
+  });
+  assert.equal(response.status, 200);
+  return (await response.json()).access_token;
+}
+
+function authHeaders(accessToken) {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+function seedCustomer() {
+  return db.prepare(`
+    INSERT INTO customers (name,phone,email,price_tier,discount_pct)
+    VALUES (?,?,?,?,?)
+  `).run('Production Boundary Customer', '0500000000', 'production-boundary@example.com', 'retail', 0).lastInsertRowid;
+}
+
+function seedOrderWithItem(orderNum, orderStatus, itemStatus = statusContracts.ITEM_STATUS.WAITING) {
+  const customerId = seedCustomer();
+  const orderId = db.prepare(`
+    INSERT INTO orders (order_num,customer_id,channel,status,total_weight,billing_weight)
+    VALUES (?,?,?,?,?,?)
+  `).run(orderNum, customerId, 'manual', orderStatus, 12.5, 12.5).lastInsertRowid;
+  const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,?,?)')
+    .run(orderId, 1, 12.5).lastInsertRowid;
+  const itemId = db.prepare(`
+    INSERT INTO items
+      (pallet_id,order_id,item_uid,shape_snapshot_json,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,status,machine)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    palletId,
+    orderId,
+    `order-${orderId}:item-seed`,
+    JSON.stringify({ shapeName: 'straight', validation: { valid: true }, machineOutput: { generic: {} } }),
+    'straight',
+    'straight',
+    12,
+    JSON.stringify([{ length_mm: 1000, angle_deg: 0 }]),
+    1000,
+    5,
+    5,
+    2.5,
+    12.5,
+    itemStatus,
+    'M1'
+  ).lastInsertRowid;
+  return { orderId, itemId, orderNum, palletId };
+}
+
+test('production enforces order item ownership boundaries', async (t) => {
+  seedUser('production-boundary', 'production', '9101');
+  db.prepare('INSERT INTO machines (id,name,label,status,counter) VALUES (?,?,?,?,?)')
+    .run(501, 'Boundary Machine', 'Boundary Machine', 'ready', 0);
+
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  baseUrl = `http://127.0.0.1:${server.address().port}`;
+
+  t.after(async () => {
+    await new Promise(resolve => closeServer(resolve));
+    db.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const production = await token('production-boundary', '9101');
+  const headers = authHeaders(production);
+
+  await t.test('scan/start rejects items whose order is not approved or planned', async () => {
+    const draft = seedOrderWithItem('PB-DRAFT-SCAN', statusContracts.ORDER_STATUS.PENDING_APPROVAL);
+    const response = await request('/api/scan', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ qrData: `${draft.orderNum}|${draft.itemId}`, machineId: 501, workerId: 1 }),
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, 'item_not_released_to_production');
+    const item = db.prepare('SELECT status,started_at,worker_id FROM items WHERE id=?').get(draft.itemId);
+    assert.equal(item.status, statusContracts.ITEM_STATUS.WAITING);
+    assert.equal(item.started_at, null);
+    assert.equal(item.worker_id, null);
+    const machine = db.prepare('SELECT current_item_id FROM machines WHERE id=?').get(501);
+    assert.equal(machine.current_item_id, null);
+  });
+
+  await t.test('production card printing rejects orders that are not approved or planned when items exist', async () => {
+    const draft = seedOrderWithItem('PB-DRAFT-CARDS', statusContracts.ORDER_STATUS.PENDING_APPROVAL);
+    const response = await request(`/api/orders/${draft.orderId}/print-cards`, { headers });
+    assert.equal(response.status, 409);
+    assert.match(await response.text(), /not approved or planned/);
+  });
+
+  await t.test('production card weight capture rejects orders that are not approved or planned', async () => {
+    const draft = seedOrderWithItem('PB-DRAFT-CARD-WEIGHT', statusContracts.ORDER_STATUS.PENDING_APPROVAL);
+    const response = await request(`/api/orders/${draft.orderId}/production-card-weight`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ item_id: draft.itemId, card_index: 1, card_total: 1, card_qty: 5, actual_weight_kg: 12 }),
+    });
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.error, 'order_not_released_to_production_cards');
+    const saved = db.prepare('SELECT COUNT(*) AS n FROM production_card_weights WHERE item_id=?').get(draft.itemId);
+    assert.equal(saved.n, 0);
+    const item = db.prepare('SELECT actual_weight_kg,weight_deviation_pct FROM items WHERE id=?').get(draft.itemId);
+    assert.equal(item.actual_weight_kg, null);
+    assert.equal(item.weight_deviation_pct, null);
+  });
+
+  await t.test('production item patch rejects non-production fields and preserves owned data', async () => {
+    const approved = seedOrderWithItem('PB-APPROVED-PATCH', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    const before = db.prepare('SELECT quantity,segments,shape_snapshot_json,total_weight,package_id,zone FROM items WHERE id=?').get(approved.itemId);
+    const response = await request(`/api/items/${approved.itemId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        quantity: 99,
+        segments: [{ length_mm: 1 }],
+        shapeSnapshot: { changed: true },
+        total_weight: 999,
+        finance: { pricingSnapshot: { lineTotal: 1 } },
+        package_id: 123,
+        zone: 'Z9',
+      }),
+    });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, 'non_production_fields_forbidden');
+    assert.ok(body.fields.includes('quantity'));
+    assert.ok(body.fields.includes('segments'));
+    assert.ok(body.fields.includes('shapeSnapshot'));
+    assert.ok(body.fields.includes('total_weight'));
+    assert.ok(body.fields.includes('finance'));
+    assert.ok(body.fields.includes('package_id'));
+    assert.ok(body.fields.includes('zone'));
+    const after = db.prepare('SELECT quantity,segments,shape_snapshot_json,total_weight,package_id,zone FROM items WHERE id=?').get(approved.itemId);
+    assert.deepEqual(after, before);
+  });
+
+  await t.test('production item patch still allows production-owned execution fields', async () => {
+    const approved = seedOrderWithItem('PB-APPROVED-PRODUCTION', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    const response = await request(`/api/items/${approved.itemId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ produced_qty: 4, actual_waste: 1, actual_weight_kg: 10, note: 'production note' }),
+    });
+    assert.equal(response.status, 200);
+    const item = db.prepare('SELECT produced_qty,actual_waste,actual_weight_kg,note,quantity FROM items WHERE id=?').get(approved.itemId);
+    assert.equal(item.produced_qty, 4);
+    assert.equal(item.actual_waste, 1);
+    assert.equal(item.actual_weight_kg, 10);
+    assert.equal(item.note, 'production note');
+    assert.equal(item.quantity, 5);
+  });
+});
