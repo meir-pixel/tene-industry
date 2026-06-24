@@ -165,6 +165,58 @@ test('customer portal price visibility remains compatible with configured visibl
   assert.match(portalAccess, /priceExposureAllowed = customerCaps\.canExposePrices \|\| customer\.portal_price_list_visibility !== 'none'/);
 });
 
+test('customer portal confirmation cannot approve production', () => {
+  const portalRoute = read('routes/portal.js');
+  const customerPage = read('public/customer.html');
+  const linkApproveBlock = portalRoute.match(/router\.get\('\/c\/approve\/:token'[\s\S]*?router\.post\('\/c\/approve'/)?.[0] || '';
+  const postApproveBlock = portalRoute.match(/router\.post\('\/c\/approve'[\s\S]*?function approvalPage/)?.[0] || '';
+
+  assert.match(linkApproveBlock, /ORDER_STATUS\.PENDING_APPROVAL/);
+  assert.match(postApproveBlock, /ORDER_STATUS\.PENDING_APPROVAL/);
+  assert.match(postApproveBlock, /productionApproved:\s*false/);
+  assert.doesNotMatch(linkApproveBlock, /APPROVED_WAITING_PRODUCTION|אושרה – ממתין לייצור|ניתן להתחיל ייצור|נתחיל בייצור/);
+  assert.doesNotMatch(postApproveBlock, /APPROVED_WAITING_PRODUCTION|אושרה – ממתין לייצור|ניתן להתחיל ייצור/);
+  assert.doesNotMatch(customerPage, /תחילת ייצור|להתחיל בייצור|נתחיל בייצור/);
+  assert.match(customerPage, /שלח לבדיקה|נשלחו לבדיקה|בדיקה פנימית/);
+});
+
+test('customer portal order detail projection hides internal production fields', () => {
+  const portalRoute = read('routes/portal.js');
+  const customerPage = read('public/customer.html');
+  const detailBlock = portalRoute.match(/router\.get\('\/c\/orders\/:orderId'[\s\S]*?res\.json\(order\);/)?.[0] || '';
+  const internalFields = [
+    'machine',
+    'machine_id',
+    'production_qty',
+    'worker_id',
+    'actual_waste',
+    'actual_weight_kg',
+    'weight_deviation_pct',
+    'review_status',
+    'review_notes',
+    'reviewed_by',
+  ];
+
+  for (const field of internalFields) {
+    assert.doesNotMatch(detailBlock, new RegExp('\\b' + field + '\\b'), field);
+  }
+  assert.match(detailBlock, /SELECT id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight/);
+  assert.doesNotMatch(customerPage, /item\.production_qty|item\.produced_qty|item\.machine/);
+});
+
+test('existing customer portal order submission still creates customer confirmation flow', () => {
+  const portalRoute = read('routes/portal.js');
+  const customerPage = read('public/customer.html');
+  const orderCreateBlock = portalRoute.match(/router\.post\('\/c\/order'[\s\S]*?res\.json\(\{ success: true/)?.[0] || '';
+
+  assert.match(orderCreateBlock, /ממתינה לאישור לקוח/);
+  assert.match(orderCreateBlock, /awaitingApproval:\s*true/);
+  assert.match(orderCreateBlock, /confirmToken/);
+  assert.match(customerPage, /function submitOrder\(\)/);
+  assert.match(customerPage, /\/api\/c\/order/);
+  assert.match(customerPage, /function approveOrder\(orderId\)/);
+});
+
 test('high-risk screens load shared safe DOM helper', () => {
   const files = [
     'public/admin.html',

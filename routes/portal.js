@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { createPortalAccessService } = require('../services/portalAccess');
 const { buildOrderItemUid, shapeSnapshotJson } = require('../services/orderContracts');
+const { ORDER_STATUS } = require('../status-contracts');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/portal missing dependency: ${name}`);
@@ -779,7 +780,7 @@ module.exports = function createPortalRouter(deps) {
     const approveLink = `${baseUrl}/api/c/approve/${confirmToken}`;
     const delivInfo = deliveryDate ? `📅 אספקה: ${deliveryDate}${deliveryTime ? ' ' + deliveryTime : ''}` : '';
     const addrInfo  = deliveryAddress ? `📍 ${deliveryAddress}` : '';
-    const waMsg = `📋 *הזמנה ${orderNum} – ממתינה לאישורך*\n\nשלום ${c.name},\nקיבלנו את הזמנתך:\n\n${itemLines.join('\n')}\n\n⚖️ משקל לחיוב: ${billingWeight.toFixed(1)} ק"ג\n💰 סה"כ: ₪${portalPrice.toFixed(0)}\n${delivInfo}\n${addrInfo}\n\n*לאישור ותחילת ייצור – לחץ כאן:*\n${approveLink}\n\n_⚠️ ייצור יתחיל רק לאחר אישורך_`;
+    const waMsg = `📋 *הזמנה ${orderNum} – ממתינה לאישורך*\n\nשלום ${c.name},\nקיבלנו את הזמנתך:\n\n${itemLines.join('\n')}\n\n⚖️ משקל לחיוב: ${billingWeight.toFixed(1)} ק"ג\n💰 סה"כ: ₪${portalPrice.toFixed(0)}\n${delivInfo}\n${addrInfo}\n\n*לאישור פרטי ההזמנה ושליחה לבדיקה – לחץ כאן:*\n${approveLink}\n\n_⚠️ ייצור יתחיל רק לאחר בדיקה ואישור פנימי של טנא_`;
 
     if (c.phone) intake.sendWhatsApp(c.phone, waMsg).catch(e => console.warn('[Order confirm WA]', e));
 
@@ -802,15 +803,15 @@ module.exports = function createPortalRouter(deps) {
     if (order.status !== 'ממתינה לאישור לקוח') {
       return res.send(approvalPage('כבר אושרה', `הזמנה ${order.order_num} כבר אושרה ובטיפול!`, true));
     }
-    db.prepare("UPDATE orders SET status='אושרה – ממתין לייצור', confirm_token=NULL WHERE id=?").run(order.id);
-    wsBroadcast('order_status', { id: order.id, status: 'אושרה – ממתין לייצור', orderNum: order.order_num });
-    // Notify factory via WA to the notify phone
+    db.prepare('UPDATE orders SET status=?, confirm_token=NULL WHERE id=?').run(ORDER_STATUS.PENDING_APPROVAL, order.id);
+    wsBroadcast('order_status', { id: order.id, status: ORDER_STATUS.PENDING_APPROVAL, orderNum: order.order_num });
+    // Notify office/finance via WA to the notify phone; customer confirmation is not production approval.
     const notifyPhone = db.prepare("SELECT value FROM settings WHERE key='WHATSAPP_NOTIFY_PHONE'").get()?.value;
     if (notifyPhone) {
-      const msg = `✅ הזמנה ${order.order_num} אושרה ע"י הלקוח ${order.customer_name||''} – ניתן להתחיל ייצור!`;
+      const msg = `📋 הזמנה ${order.order_num} אושרה ע"י הלקוח ${order.customer_name||''} – ממתינה לבדיקה ואישור פנימי.`;
       intake.sendWhatsApp(notifyPhone, msg).catch(()=>{});
     }
-    return res.send(approvalPage('✅ הזמנה אושרה!', `הזמנה ${order.order_num} אושרה בהצלחה.\nנתחיל בייצור בהקדם האפשרי. 🏗️`, true));
+    return res.send(approvalPage('✅ פרטי ההזמנה אושרו', `הזמנה ${order.order_num} נשלחה לבדיקה פנימית.\nנעדכן לאחר אישור טנא להמשך עבודה.`, true));
   });
 
   // Also allow approval from portal (POST)
@@ -822,13 +823,13 @@ module.exports = function createPortalRouter(deps) {
     const c = s.customer;
     const order = db.prepare('SELECT * FROM orders WHERE id=? AND customer_id=? AND status=?').get(orderId, c.id, 'ממתינה לאישור לקוח');
     if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה או כבר אושרה' });
-    db.prepare("UPDATE orders SET status='אושרה – ממתין לייצור', confirm_token=NULL WHERE id=?").run(orderId);
-    wsBroadcast('order_status', { id: orderId, status: 'אושרה – ממתין לייצור', orderNum: order.order_num });
+    db.prepare('UPDATE orders SET status=?, confirm_token=NULL WHERE id=?').run(ORDER_STATUS.PENDING_APPROVAL, orderId);
+    wsBroadcast('order_status', { id: orderId, status: ORDER_STATUS.PENDING_APPROVAL, orderNum: order.order_num });
     const notifyPhone = db.prepare("SELECT value FROM settings WHERE key='WHATSAPP_NOTIFY_PHONE'").get()?.value;
     if (notifyPhone) {
-      intake.sendWhatsApp(notifyPhone, `✅ הזמנה ${order.order_num} אושרה ע"י הלקוח – ניתן להתחיל ייצור!`).catch(()=>{});
+      intake.sendWhatsApp(notifyPhone, `📋 הזמנה ${order.order_num} אושרה ע"י הלקוח – ממתינה לבדיקה ואישור פנימי.`).catch(()=>{});
     }
-    res.json({ success: true });
+    res.json({ success: true, status: ORDER_STATUS.PENDING_APPROVAL, productionApproved: false });
   });
 
   function approvalPage(title, msg, success) {
@@ -878,8 +879,8 @@ module.exports = function createPortalRouter(deps) {
     const pallets = db.prepare("SELECT id,pallet_num,'' AS notes FROM pallets WHERE order_id=?").all(order.id);
     pallets.forEach(p => {
       p.items = db.prepare(`
-        SELECT id,shape_name,diameter,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,
-               machine,segments,struct_element,struct_floor,sheet_num,status,note
+        SELECT id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,
+               segments,struct_element,struct_floor,sheet_num,status,note
         FROM items WHERE pallet_id=?
       `).all(p.id);
     });
