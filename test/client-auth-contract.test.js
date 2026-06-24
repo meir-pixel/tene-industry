@@ -792,6 +792,9 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /shape_description/);
   assert.match(intake, /review_status/);
   assert.match(intake, /ocrRowStatus_/);
+  assert.match(intake, /intakeQueueSummaryHtml/);
+  assert.match(intake, /data-intake-card-id/);
+  assert.doesNotMatch(intake, /const items = intakeQueueItemsTable/);
   assert.match(intake, /intakeQueueItemsTable/);
   assert.match(intake, /ocr-queue-table/);
   assert.match(intake, /ocr-queue-edit/);

@@ -41,9 +41,9 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .compose-grid textarea{min-height:150px;resize:vertical}
 .compose-result{font-size:12px;font-weight:800;color:var(--text-muted);min-height:18px}
 @media(max-width:860px){.compose-grid{grid-template-columns:1fr}.compose-grid .btn{width:100%}}
-.intake-card{border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05);overflow:hidden}
-.intake-card{display:grid;grid-template-columns:1fr;grid-template-rows:auto 1fr;min-height:0}
-.intake-card:target{outline:3px solid var(--accent);outline-offset:3px}
+.intake-card{border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05);overflow:hidden;cursor:pointer}
+.intake-card{display:grid;grid-template-columns:1fr;grid-template-rows:auto 1fr;min-height:0;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+.intake-card:target{outline:3px solid var(--accent);outline-offset:3px}.intake-card:hover{border-color:#cbd8e6;box-shadow:0 12px 28px rgba(2,26,72,.08);transform:translateY(-1px)}
 .card-top{grid-column:1;grid-row:1;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:13px 14px;border-bottom:1px solid var(--border);background:#fbfcfe}
 .card-title{font-size:16px;font-weight:900;color:var(--text)}
 .card-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -61,6 +61,15 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .source-phone{background:#ffe9f0;color:#9a2850}
 .task-type{font-size:11px;font-weight:900;color:var(--text-muted);background:#eef4f8;border-radius:999px;padding:4px 9px}
 .card-grid{display:contents}
+.intake-summary{padding:12px 14px;display:grid;gap:10px;background:#fff}
+.intake-summary-line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.intake-summary-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--text-muted);font-size:12px;font-weight:800;line-height:1.6}
+.intake-summary-stats{display:grid;grid-template-columns:repeat(4,minmax(92px,1fr));gap:8px}
+.intake-summary-stat{border:1px solid #e2eaf2;border-radius:8px;background:#fbfdff;padding:8px;text-align:center;min-width:0}
+.intake-summary-stat span{display:block;font-size:10px;font-weight:900;color:var(--text-muted);line-height:1.2}
+.intake-summary-stat strong{display:block;font-size:15px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.intake-open-hint{font-size:11px;font-weight:900;color:var(--accent);white-space:nowrap}
+@media(max-width:760px){.intake-summary-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.intake-summary-line{align-items:flex-start}}
 .data-box{grid-column:1;grid-row:2;border:0;border-radius:0;background:#fff}
 .box{border:1px solid var(--border);border-radius:8px;background:#fbfcfe;padding:12px;min-width:0}
 @media(max-width:920px){.intake-card{grid-template-columns:1fr}.card-top{grid-column:auto;grid-row:auto}.card-grid{display:grid;grid-template-columns:1fr}.data-box{grid-column:auto;grid-row:auto;border-left:0;border-radius:8px}}
@@ -1532,6 +1541,32 @@ function postOrderReviewHtml(row) {
   `;
 }
 
+function intakeQueueSummaryHtml(row, parsed, urgency) {
+  const address = parsed.delivery_address || parsed.deliveryAddress || '';
+  const delivery = urgency.deliveryDate ? formatDate(urgency.deliveryDate).split(',')[0] : 'לא זוהה';
+  const qtyText = urgency.weight ? `${urgency.weight} ק"ג` : `${urgency.qty || 0} יח'`;
+  const customerStatus = row.customer_match?.needs_customer_review ? 'דורש שיוך לקוח' : 'לקוח משויך';
+  const reviewText = row.post_order_review ? `${row.review_count || 0} הערות לבדיקה` : `${urgency.itemCount} פריטים מזוהים`;
+  return `
+    <div class="intake-summary" aria-label="תקציר קליטת OCR">
+      <div class="intake-summary-line">
+        <div class="intake-summary-main">
+          <span>${escapeHtml(customerStatus)}</span>
+          <span>•</span>
+          <span>${escapeHtml(address || 'כתובת לא זוהתה')}</span>
+          <span>•</span>
+          <span>${escapeHtml(reviewText)}</span>
+        </div>
+        <div class="intake-open-hint">פתח כדי לראות מקור מול זיהוי</div>
+      </div>
+      <div class="intake-summary-stats">
+        <div class="intake-summary-stat"><span>תאריך אספקה</span><strong>${escapeHtml(delivery)}</strong></div>
+        <div class="intake-summary-stat"><span>כמות / משקל</span><strong>${escapeHtml(qtyText)}</strong></div>
+        <div class="intake-summary-stat"><span>פריטים</span><strong>${escapeHtml(urgency.itemCount)}</strong></div>
+        <div class="intake-summary-stat"><span>דחיפות</span><strong>${escapeHtml(urgency.label)} ${escapeHtml(urgency.score)}</strong></div>
+      </div>
+    </div>`;
+}
 function renderIntakeQueue() {
   const list = document.getElementById('intakeList');
   const rows = sortIntakeRows(intakeRows.filter(row => currentSourceFilter === 'all' || sourceKey(row.source) === currentSourceFilter));
@@ -1540,59 +1575,52 @@ function renderIntakeQueue() {
     list.innerHTML = `
       <div class="queue-empty">
         <div class="queue-empty-title">אין פניות שמחכות לטיפול במסנן הזה</div>
-        <div class="queue-empty-copy">כאשר תיכנס פנייה מטלפון, וואטסאפ, מייל או OCR היא תופיע כאן כמשימת עבודה: מקור בצד אחד, פענוח בצד השני, וכפתורי השוואה, שיוך לקוח ואישור.</div>
+        <div class="queue-empty-copy">כאשר תיכנס פנייה מטלפון, וואטסאפ, מייל או OCR היא תופיע כאן ככרטיס קליטה סגור. פתח כרטיס כדי להשוות מקור מול זיהוי ולערוך לפני אישור.</div>
         <div><button class="btn btn-primary" onclick="loadIntakeQueue()">רענן תור</button></div>
       </div>`;
     return;
   }
   list.innerHTML = rows.map(row => {
     const parsed = parsedOf(row);
-    const items = intakeQueueItemsTable(parsed, row.id);
     const key = sourceKey(row.source);
     const urgency = urgencyInfo(row);
     const customerTitle = parsed.customer_name || parsed.customerName || row.customer_match?.customer?.name || 'לקוח לא מזוהה';
-    const address = parsed.delivery_address || parsed.deliveryAddress || '';
     return `
-      <article class="intake-card" id="intake_${row.id}">
+      <article class="intake-card" id="intake_${row.id}" data-intake-card-id="${row.id}" tabindex="0" role="button" aria-label="פתח השוואת מקור מול זיהוי">
         <div class="card-top">
           <div>
             <div class="card-title">${escapeHtml(customerTitle)}</div>
             <div class="meta"><span class="source-badge source-${key}">${escapeHtml(sourceLabel(row.source))}</span> ${formatDate(row.created_at)}</div>
           </div>
           <div class="card-actions">
-            <span class="task-type">${row.post_order_review ? 'אימות אחרי פתיחת הזמנה' : 'פנייה לפני יצירת הזמנה'}</span>
+            <span class="task-type">${row.post_order_review ? 'אימות אחרי פתיחת הזמנה' : 'קליטה לפני יצירת הזמנה'}</span>
             <span class="urgency-badge urgency-${urgency.level}" title="דירוג דחיפות ${urgency.score}">${urgency.label} · ${urgency.score}</span>
-            <button type="button" class="btn btn-success" data-intake-action="compare" data-intake-id="${row.id}">${row.post_order_review ? 'השוואה למקור' : 'השוואה ואישור'}</button>
-            ${row.post_order_review ? `<button class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה לאימות</button>` : `<button type="button" class="btn btn-danger" data-intake-action="reject" data-intake-id="${row.id}">דחה</button>`}
+            <button type="button" class="btn btn-success" data-intake-action="compare" data-intake-id="${row.id}">${row.post_order_review ? 'פתח השוואה למקור' : 'פתח השוואה'}</button>
+            ${row.post_order_review ? `<button type="button" class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה</button>` : `<button type="button" class="btn btn-danger" data-intake-action="reject" data-intake-id="${row.id}">דחה</button>`}
           </div>
         </div>
-        <div class="card-grid">
-          <div class="box data-box">
-            <div class="box-title">${row.post_order_review ? `משימת אימות פתוחה · ${row.review_count || 0} הערות` : 'פענוח להזמנה'}</div>
-            ${row.post_order_review ? postOrderReviewHtml(row) : `
-              ${urgencyMetricsHtml(row)}
-              <div class="meta">${address ? 'כתובת: ' + escapeHtml(address) : 'כתובת לא זוהתה'}</div>
-              ${items}
-              ${customerMatchHtml(row)}
-            `}
-          </div>
-        </div>
+        ${safeIntakeRender('queue summary', () => intakeQueueSummaryHtml(row, parsed, urgency), '<div class="intake-summary"><div class="meta">פתח להשוואה ועריכה.</div></div>')}
       </article>
     `;
   }).join('');
   scrollToHashIntake();
 }
-
 function handleIntakeListClick(event) {
   const button = event.target.closest('[data-intake-action]');
-  if (!button) return;
-  const id = Number(button.dataset.intakeId);
-  if (!Number.isFinite(id)) return;
-  event.preventDefault();
-  if (button.dataset.intakeAction === 'compare') return safeOpenIntakeCompare(id);
-  if (button.dataset.intakeAction === 'reject') return intakeReject(id);
+  if (button) {
+    const id = Number(button.dataset.intakeId);
+    if (!Number.isFinite(id)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (button.dataset.intakeAction === 'compare') return safeOpenIntakeCompare(id);
+    if (button.dataset.intakeAction === 'reject') return intakeReject(id);
+  }
+  if (event.target.closest('button,a,input,select,textarea')) return;
+  const card = event.target.closest('[data-intake-card-id]');
+  if (!card) return;
+  const id = Number(card.dataset.intakeCardId);
+  if (Number.isFinite(id)) safeOpenIntakeCompare(id);
 }
-
 function safeOpenIntakeCompare(id) {
   try {
     openIntakeCompare(id);
@@ -1603,6 +1631,14 @@ function safeOpenIntakeCompare(id) {
 }
 
 document.getElementById('intakeList')?.addEventListener('click', handleIntakeListClick);
+document.getElementById('intakeList')?.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const card = event.target.closest('[data-intake-card-id]');
+  if (!card) return;
+  event.preventDefault();
+  const id = Number(card.dataset.intakeCardId);
+  if (Number.isFinite(id)) safeOpenIntakeCompare(id);
+});
 function scrollToHashIntake() {
   const id = decodeURIComponent(location.hash || '').replace(/^#/, '');
   if (!id) return;
