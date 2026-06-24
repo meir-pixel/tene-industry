@@ -115,6 +115,16 @@ test('shape editor has mesh and pile families with icon-only preset buttons', ()
   assert.match(presetRender[0], /class="se-preset-name"/);
   assert.doesNotMatch(presetRender[0], /font-size:12px;font-weight:700;line-height:1\.3;word-break:break-word;color:inherit/);
 });
+test('shape editor built-in preset names stay neutral', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const presetBlock = editor.match(/const SHAPE_PRESETS = \[([\s\S]*?)\];/);
+
+  assert.ok(presetBlock, 'expected shape preset block');
+  assert.match(presetBlock[0], /name: 'צורה 2'/);
+  assert.match(presetBlock[0], /name: 'רשת'/);
+  assert.match(presetBlock[0], /name: 'כלונס'/);
+  assert.doesNotMatch(presetBlock[0], /אנקר|הזזה|כפול|אוברל|אסדה|אצבה|כיפופים|חמש צלעות|סימטרית|בסיס/);
+});
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },

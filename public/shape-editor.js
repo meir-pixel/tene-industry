@@ -20,22 +20,22 @@ const SEG_COLORS = [
 // ── SHAPE PRESETS ──────────────────────────────────────────────────
 // sides: lengths in mm (defaults), angles: bend angles in degrees between sides
 const SHAPE_PRESETS = [
-  { id: 's1',  name: 'ישר',           family: 'bars', icon: 'straight', bends: 0, sides: [1000],                         angles: [],                    emoji: '➖' },
-  { id: 's2',  name: 'L – זווית',     family: 'bars', icon: 'l', bends: 1, sides: [500, 200],                     angles: [90],                  emoji: '⌐' },
-  { id: 's3',  name: 'U – אנקר',      family: 'bars', icon: 'u', bends: 2, sides: [300, 600, 300],                angles: [90, 90],              emoji: '∪' },
-  { id: 's4',  name: 'Z – הזזה',      family: 'bars', icon: 'z', bends: 2, sides: [300, 400, 300],                angles: [135, 135],            emoji: 'Z' },
-  { id: 's5',  name: 'S – כפול',      family: 'bars', icon: 's', bends: 3, sides: [200, 300, 300, 200],           angles: [135, 135, 135],       emoji: 'S' },
-  { id: 's6',  name: 'אוברל – קרס',  family: 'bars', icon: 'hook', bends: 3, sides: [200, 400, 400, 200],           angles: [90, 180, 90],         emoji: '⌡' },
-  { id: 's7',  name: 'אסדה פתוחה',   family: 'bars', icon: 'open-u', bends: 3, sides: [200, 500, 500, 200],           angles: [90, 90, 90],          emoji: '┓' },
-  { id: 's8',  name: 'מלבן – אצבה',  family: 'bars', icon: 'stirrup', bends: 4, sides: [400, 200, 400, 200],           angles: [90, 90, 90, 90],      emoji: '▢' },
-  { id: 's9',  name: 'ריבוע – אצבה', family: 'bars', icon: 'stirrup-square', bends: 4, sides: [300, 300, 300, 300],           angles: [90, 90, 90, 90],      emoji: '▣' },
-  { id: 's10', name: 'חמישה כיפופים', family: 'bars', icon: 'multi', bends: 5, sides: [150, 200, 400, 200, 400, 150], angles: [90, 90, 90, 90, 90], emoji: '⌂' },
-  { id: 's11', name: 'ששה כיפופים',  family: 'bars', icon: 'polygon', bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
-  { id: 's13', name: 'W – ארבעה כיפופים', family: 'bars', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
-  { id: 's14', name: 'C – חמש צלעות',    family: 'bars', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
-  { id: 'mesh1', name: 'רשת סימטרית', family: 'mesh', icon: 'mesh', bends: 0, sides: [600, 250], angles: [], emoji: '#', specialty: 'mesh' },
-  { id: 'pile1', name: 'כלונס בסיס', family: 'piles', icon: 'pile', bends: 0, sides: [1620], angles: [], emoji: '◎', specialty: 'pile' },
-  { id: 's12', name: 'מותאם אישית',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
+  { id: 's1',  name: 'מוט ישר',           family: 'bars', icon: 'straight', bends: 0, sides: [1000],                         angles: [],                    emoji: '➖' },
+  { id: 's2',  name: 'צורה 2',     family: 'bars', icon: 'l', bends: 1, sides: [500, 200],                     angles: [90],                  emoji: '⌐' },
+  { id: 's3',  name: 'צורה 3',      family: 'bars', icon: 'u', bends: 2, sides: [300, 600, 300],                angles: [90, 90],              emoji: '∪' },
+  { id: 's4',  name: 'צורה 4',      family: 'bars', icon: 'z', bends: 2, sides: [300, 400, 300],                angles: [135, 135],            emoji: 'Z' },
+  { id: 's5',  name: 'צורה 5',      family: 'bars', icon: 's', bends: 3, sides: [200, 300, 300, 200],           angles: [135, 135, 135],       emoji: 'S' },
+  { id: 's6',  name: 'צורה 6',  family: 'bars', icon: 'hook', bends: 3, sides: [200, 400, 400, 200],           angles: [90, 180, 90],         emoji: '⌡' },
+  { id: 's7',  name: 'צורה 7',   family: 'bars', icon: 'open-u', bends: 3, sides: [200, 500, 500, 200],           angles: [90, 90, 90],          emoji: '┓' },
+  { id: 's8',  name: 'צורה 8',  family: 'bars', icon: 'stirrup', bends: 4, sides: [400, 200, 400, 200],           angles: [90, 90, 90, 90],      emoji: '▢' },
+  { id: 's9',  name: 'צורה 9', family: 'bars', icon: 'stirrup-square', bends: 4, sides: [300, 300, 300, 300],           angles: [90, 90, 90, 90],      emoji: '▣' },
+  { id: 's10', name: 'צורה 10', family: 'bars', icon: 'multi', bends: 5, sides: [150, 200, 400, 200, 400, 150], angles: [90, 90, 90, 90, 90], emoji: '⌂' },
+  { id: 's11', name: 'צורה 11',  family: 'bars', icon: 'polygon', bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
+  { id: 's13', name: 'צורה 12', family: 'bars', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
+  { id: 's14', name: 'צורה 13',    family: 'bars', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
+  { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, sides: [600, 250], angles: [], emoji: '#', specialty: 'mesh' },
+  { id: 'pile1', name: 'כלונס', family: 'piles', icon: 'pile', bends: 0, sides: [1620], angles: [], emoji: '◎', specialty: 'pile' },
+  { id: 's12', name: 'צורה מותאמת',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
 ];
 
 const SHAPE_FAMILIES = [
@@ -1066,7 +1066,7 @@ class ShapeEditorModal {
   <div class="se-head">
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="se-back-btn" id="seBackBtn" style="display:none;">‹ שנה צורה</button>
-      <h2 id="seHeadTitle">בחר צורת כיפוף</h2>
+      <h2 id="seHeadTitle">בחר צורה</h2>
     </div>
     <button class="se-close" id="seClose">✕</button>
   </div>
@@ -1250,7 +1250,7 @@ class ShapeEditorModal {
     document.getElementById('sePageEdit').style.display   = 'none';
     document.getElementById('seFoot').style.display       = 'none';
     document.getElementById('seBackBtn').style.display    = 'none';
-    document.getElementById('seHeadTitle').textContent    = 'בחר צורת כיפוף';
+    document.getElementById('seHeadTitle').textContent    = 'בחר צורה';
     this._renderCountPicker();
   }
 
