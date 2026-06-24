@@ -52,17 +52,15 @@ test('visual-only 3D preview does not use true-3D azimuth arrays', () => {
   assert.match(editor, /azAngles:\s+has3D \?/);
 });
 
-test('shape editor supports bend angles from -360 to 360 with quick 90, -90 and 45 controls', () => {
+test('shape editor supports bend angles from -360 to 360 without quick angle buttons in 2D rows', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
   assert.match(editor, /data-angle="\$\{i\}"/);
   assert.match(editor, /min="-360"/);
   assert.match(editor, /max="360"/);
   assert.match(editor, /Math\.min\(360,\s*Math\.max\(-360,\s*Number\(val\) \|\| 90\)\)/);
-  assert.match(editor, /value:\s*90,\s*label:\s*'⌞ 90°'/);
-  assert.match(editor, /value:\s*-90,\s*label:\s*'⌜ -90°'/);
-  assert.match(editor, /value:\s*45,\s*label:\s*'∠ 45°'/);
-  assert.match(editor, /data-angle-value="\$\{a\.value\}"/);
+  assert.doesNotMatch(editor, /<div class="se-angle-btns">/);
+  assert.doesNotMatch(editor, /data-angle-value/);
 });
 
 test('shape editor opens as a fullscreen clean workspace with direct drawing edits', () => {
@@ -93,6 +91,16 @@ test('shape editor one-screen edit layout keeps editing inside the viewport', ()
   assert.match(editor, /#seModal \.se-svg-wrap\{[\s\S]*height:calc\(100vh - 246px\)/);
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-y:auto/);
   assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:58px/);
+});
+test('shape editor renders one row per side in the 2D dimensions panel', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /One-row side editor/);
+  assert.match(editor, /const letter = String\.fromCharCode\(65 \+ i\)/);
+  assert.match(editor, /<tr class=\"se-side-row\">/);
+  assert.match(editor, /class=\"se-length-cell\"/);
+  assert.match(editor, /class=\"se-angle-cell\"/);
+  assert.doesNotMatch(editor, /html \+= `<tr class=\"se-bend-row\">/);
 });
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([

@@ -1495,27 +1495,17 @@ class ShapeEditorModal {
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">✕</button>` : ''}</td>
           </tr>`;
       } else {
-        // 2D mode (classic)
+        // 2D mode: One-row side editor, aligned with the compact 3D table.
         html += `
           <tr class="se-side-row">
             <td><span class="se-seg-label">${letter}</span></td>
             <td class="se-length-cell"><input class="se-input" type="number" min="1" max="20000" value="${sides[i]}"
               data-side="${i}" oninput="window._seEditor._setSide(${i}, this.value)"></td>
-            <td class="se-angle-cell">${i < angles.length ? `
-              <div style="display:flex;align-items:center;gap:6px">
-                <input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" style="width:70px"
-                  data-angle="${i}" oninput="window._seEditor._setAngle(${i}, this.value)">
-                <div class="se-angle-btns">
-                  ${[
-                    { value: 90, label: '⌞ 90°', title: 'זווית ישרה 90°' },
-                    { value: -90, label: '⌜ -90°', title: 'זווית הפוכה -90°' },
-                    { value: 45, label: '∠ 45°', title: 'זווית 45°' },
-                  ].map(a => `<button class="se-angle-btn ${angles[i]==a.value?'active':''}" title="${a.title}"
-                    data-angle-value="${a.value}"
-                    onclick="window._seEditor._setAngle(${i},${a.value});this.closest('tr').querySelector('[data-angle]').value=${a.value}">${a.label}</button>`).join('')}
-                </div>
-              </div>` : '<span style="color:var(--text-dim,#7a93ab);font-size:12px">—</span>'}</td>
-            <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">✕</button>` : ''}</td>
+            <td class="se-angle-cell">${i < angles.length
+              ? `<input class="se-input" type="number" min="-360" max="360" value="${angles[i]}"
+                  data-angle="${i}" oninput="window._seEditor._setAngle(${i}, this.value)">`
+              : '<span style="font-size:11px;color:#aab8c8;padding:0 4px;">&mdash;</span>'}</td>
+            <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
           </tr>`;
       }
     }
@@ -1552,9 +1542,6 @@ class ShapeEditorModal {
     if (this.current.azAngles && i + 1 < this.current.azAngles.length) {
       this.current.azAngles[i + 1] = -(180 - a);
     }
-    // update active btn
-    const row = document.querySelector(`[data-angle="${i}"]`)?.closest('tr');
-    row?.querySelectorAll('.se-angle-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.angleValue) === a));
     this._updatePreview();
   }
 
