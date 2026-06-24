@@ -702,6 +702,7 @@ class ShapeEditorModal {
   min-height:0;
   background:#d9d9d9;
   direction:ltr;
+  overflow:hidden;
 }
 #sePageEdit .se-preview-panel,
 #sePageEdit .se-data-panel{direction:rtl;}
@@ -716,9 +717,11 @@ class ShapeEditorModal {
 .se-data-panel{
   order:2;
   width:332px;
+  min-width:0;
   background:#eef0f3;
   border-right:1px solid #c9cdd4;
   border-left:0;
+  overflow:hidden;
 }
 .se-data-panel-head{
   min-height:56px;
@@ -748,10 +751,28 @@ class ShapeEditorModal {
 #seModal .se-table-wrap{
   background:#eef0f3;
   padding:12px 16px 16px;
+  overflow-x:hidden;
 }
 #seModal .se-table{
   border-collapse:separate;
   border-spacing:0 8px;
+  table-layout:fixed;
+}
+#seModal .se-table thead,
+#seModal .se-table tbody{display:block;width:100%;min-width:0;}
+#seModal .se-table tr{
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr) minmax(0,1fr) 30px;
+  align-items:center;
+  width:100%;
+  min-width:0;
+}
+#seModal .se-table.se-table-3d tr{
+  grid-template-columns:30px repeat(3,minmax(0,1fr)) 28px;
+}
+#seModal .se-table th,
+#seModal .se-table td{
+  min-width:0;
 }
 #seModal .se-table th{
   background:transparent;
@@ -764,7 +785,7 @@ class ShapeEditorModal {
   background:#ffffff;
   border-top:1px solid #d8dde5;
   border-bottom:1px solid #d8dde5;
-  padding:8px;
+  padding:8px 5px;
 }
 #seModal .se-table td:first-child{
   border-right:1px solid #d8dde5;
@@ -776,7 +797,7 @@ class ShapeEditorModal {
 }
 #seModal .se-table tr:hover td{background:#fbfcfe;}
 #seModal .se-seg-label{
-  width:34px;
+  width:30px;
   height:34px;
   background:#2f394b;
   border-radius:50%;
@@ -1062,8 +1083,18 @@ class ShapeEditorModal {
   font-weight:700;
 }
 #seModal .se-table{border-spacing:0 6px;}
-#seModal .se-table td{padding:6px 8px;}
+#seModal .se-table td{padding:6px 5px;}
 #seModal .se-input{min-height:36px;padding:6px 10px;}
+#seModal .se-table .se-input{
+  width:100%!important;
+  max-width:none!important;
+  min-width:0;
+  box-sizing:border-box;
+}
+#seModal .se-table.se-table-3d .se-input{
+  padding-inline:7px;
+  font-size:13px;
+}
 #seModal .se-angle-btn{padding:5px 8px;min-width:54px;}
 #seModal .se-add-row{padding:6px 0 0!important;}
 #seModal .se-add-btn{min-height:34px;}
@@ -1621,8 +1652,12 @@ class ShapeEditorModal {
 
   _renderTable() {
     if (!this.current) return;
-    const { sides, angles, azAngles, elAngles } = this.current;
+    let { sides, angles, azAngles, elAngles } = this.current;
     const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
+    if (isReal3D && angles?.length > 0 && (!azAngles || azAngles.every(a => Number(a || 0) === 0))) {
+      this._init3DAnglesFrom2D(false);
+      ({ sides, angles, azAngles, elAngles } = this.current);
+    }
     const toggle = document.getElementById('seReal3DToggle');
     if (toggle) toggle.checked = isReal3D;
     const help = document.getElementById('se3DHelp');
@@ -1632,6 +1667,11 @@ class ShapeEditorModal {
 
     // ── Update column headers ──────────────────────────────────
     const thead = document.getElementById('seTableHead');
+    const table = document.querySelector('#seModal .se-table');
+    if (table) {
+      table.classList.toggle('se-table-3d', isReal3D);
+      table.classList.toggle('se-table-2d', !isReal3D);
+    }
     if (thead) {
       if (isReal3D) {
         thead.innerHTML = `<tr>
@@ -1761,7 +1801,7 @@ class ShapeEditorModal {
   // In 2D: dir -= (180 - angles[i]) at each bend.
   // In 3D cumAz: azAngles[segment] = direction change ADDED before drawing that segment.
   // Result: azAngles[0]=0, azAngles[i] = -(180 - angles[i-1])  for i≥1
-  _init3DAnglesFrom2D() {
+  _init3DAnglesFrom2D(render = true) {
     const { sides, angles } = this.current;
     const n = sides.length;
     const az = [0];
@@ -1771,7 +1811,7 @@ class ShapeEditorModal {
     while (az.length < n) az.push(0);
     this.current.azAngles = az;
     if (!this.current.elAngles) this.current.elAngles = Array(n).fill(0);
-    this._renderTable(); // refresh angle buttons to show new azAngles
+    if (render) this._renderTable(); // refresh angle buttons to show new azAngles
   }
 
   _setElAngle(i, val) {
@@ -1912,6 +1952,9 @@ class ShapeEditorModal {
 
     if (is3D) {
       const diam = this._diameter || 12;
+      if (isReal3D && angles.length > 0 && (!this.current.azAngles || this.current.azAngles.every(a => Number(a || 0) === 0))) {
+        this._init3DAnglesFrom2D(false);
+      }
       const { azAngles, elAngles } = this.current;
       const has3D = isReal3D && (
         (azAngles && azAngles.some(a => a !== 0)) ||
@@ -2196,3 +2239,5 @@ window.seSetView = function(mode) {
     window._seEditor._updatePreview();
   }
 };
+
+

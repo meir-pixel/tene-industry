@@ -90,6 +90,9 @@ test('shape editor one-screen edit layout keeps editing inside the viewport', ()
   assert.match(editor, /#sePageEdit\{[\s\S]*height:calc\(100vh - 118px\)/);
   assert.match(editor, /#seModal \.se-svg-wrap\{[\s\S]*height:calc\(100vh - 246px\)/);
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-y:auto/);
+  assert.match(editor, /#sePageEdit\{[\s\S]*overflow:hidden/);
+  assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-x:hidden/);
+  assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:30px repeat\(3,minmax\(0,1fr\)\) 28px/);
   assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:58px/);
 });
 test('shape editor renders one row per side in the 2D dimensions panel', () => {
@@ -141,6 +144,14 @@ test('shape editor exposes side-count filters for built-in and saved shapes', ()
   assert.match(editor, /class="se-side-filter/);
   assert.match(editor, /const sideCount = this\._selectedSideCount/);
   assert.match(editor, /saved\.filter\(s => s\.sides\.length === sideCount\)/);
+});
+test('shape editor keeps true 3D angle fields in sync with visual bends', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /_init3DAnglesFrom2D\(render = true\)/);
+  assert.match(editor, /isReal3D && angles\?\.length > 0 && \(!azAngles \|\| azAngles\.every/);
+  assert.match(editor, /this\._init3DAnglesFrom2D\(false\);/);
+  assert.match(editor, /\(\{ sides, angles, azAngles, elAngles \} = this\.current\);/);
 });
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
@@ -261,3 +272,4 @@ test('reported length surplus is assigned to the two physical end legs', () => {
   assert.deepEqual(result.segments.map(segment => segment.length_mm), [900, 2400, 900]);
   assert.equal(result.totalLength, 4200);
 });
+
