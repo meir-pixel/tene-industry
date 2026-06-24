@@ -68,7 +68,8 @@
     .price-sheet.is-readonly textarea {
       pointer-events:none;
     }
-    .price-sheet.is-readonly .row-tools {
+    .price-sheet.is-readonly .row-tools,
+    .price-sheet.is-readonly .category-add-row {
       display:none;
     }
     .toolbar-select {
@@ -191,11 +192,12 @@
       font-weight:900;
       text-align:center;
     }
-    .price-table .desc-col { width:45%; text-align:right; }
+    .price-table .desc-col { width:39%; text-align:right; }
     .price-table .qty-col { width:11%; }
     .price-table .unit-col { width:8%; }
-    .price-table .price-col { width:25%; }
+    .price-table .price-col { width:24%; }
     .price-table .currency-col { width:11%; }
+    .price-table .action-col { width:7%; text-align:center; }
     .section-row td {
       background:var(--section);
       color:var(--blue);
@@ -227,14 +229,27 @@
       background:#fff;
     }
     .row-tools {
-      position:absolute;
-      left:-42px;
-      display:none;
+      display:flex;
+      justify-content:center;
       gap:4px;
-      top:5px;
     }
-    .data-row { position:relative; }
-    .data-row:hover .row-tools { display:flex; }
+    .category-add-row td {
+      background:#fafbfc;
+      border-top:0;
+      text-align:left;
+      padding:6px 10px;
+    }
+    .category-add-btn {
+      border:1px dashed #9fb1c5;
+      background:#fff;
+      color:var(--blue);
+      border-radius:5px;
+      min-height:30px;
+      padding:4px 12px;
+      font-size:13px;
+      font-weight:900;
+    }
+    .category-add-btn:hover { border-color:var(--blue); background:#f4f8fc; }
     .mini-btn {
       width:28px;
       height:28px;
@@ -446,7 +461,7 @@
     }
     @media print {
       body { background:#fff; }
-      .topbar, .toast, dialog, .row-tools { display:none !important; }
+      .topbar, .toast, dialog, .row-tools, .category-add-row, .action-col { display:none !important; }
       .screen { padding:0; max-width:none; }
       .sheet-shell { display:block; padding:0; overflow:visible; }
       .price-sheet {
@@ -475,7 +490,7 @@
         <button class="btn" id="newBookBtn" type="button">מחירון חדש</button>
         <button class="btn" id="importOcrBtn" type="button">ייבוא OCR</button>
         <button class="btn orange" id="addRowBtn" type="button">הוסף שורה</button>
-        <button class="btn" id="addSectionBtn" type="button">הוסף סעיף</button>
+        <button class="btn" id="addSectionBtn" type="button">הוסף קטגוריה</button>
         <button class="btn primary" id="saveDocBtn" type="button">שמור</button>
         <button class="btn" id="printDocBtn" type="button">הדפס</button>
       </div>
@@ -510,6 +525,7 @@
               <th class="unit-col">יח׳</th>
               <th class="price-col">מחיר לפני מע״מ</th>
               <th class="currency-col">מטבע</th>
+              <th class="action-col"></th>
             </tr>
           </thead>
           <tbody id="priceRows"></tbody>
@@ -812,7 +828,7 @@
       document.querySelectorAll('#priceSheet input, #priceSheet textarea').forEach(field => {
         field.readOnly = !state.editing;
       });
-      document.querySelectorAll('[data-delete-row]').forEach(button => {
+      document.querySelectorAll('[data-delete-row], [data-add-row-category]').forEach(button => {
         button.disabled = !state.editing;
       });
     }
@@ -871,22 +887,27 @@
       const groups = groupedItems();
       rowsEl.innerHTML = groups.map(group => `
         <tr class="section-row" data-category="${escapeHtml(group.category)}">
-          <td colspan="5"><input class="row-input" data-section="${escapeHtml(group.category)}" value="${escapeHtml(group.category)}" list="categories"></td>
+          <td colspan="6"><input class="row-input" data-section="${escapeHtml(group.category)}" value="${escapeHtml(group.category)}" list="categories"></td>
         </tr>
         ${group.items.map(item => `
           <tr class="data-row" data-row-key="${escapeHtml(item._key)}">
             <td class="desc-col">
               <input class="row-input desc" data-field="description" value="${escapeHtml(item.description || '')}">
-              <span class="row-tools">
-                <button class="mini-btn" type="button" title="מחיקה" data-delete-row="${escapeHtml(item._key)}" ${state.editing ? '' : 'disabled'}>×</button>
-              </span>
             </td>
             <td class="qty-col"><input class="row-input" data-field="quantity" value="${escapeHtml(formatQuantity(item.quantity))}"></td>
             <td class="unit-col"><input class="row-input" data-field="unit" value="${escapeHtml(unitLabel(item.unit))}"></td>
             <td class="price-col"><input class="row-input price" data-field="price_before_vat" type="number" step="0.01" value="${escapeHtml(item.price_before_vat ?? 0)}"></td>
             <td class="currency-col"><input class="row-input" data-field="currency" value="${escapeHtml(currencySymbol(item.currency || state.currentBook?.currency || 'ILS'))}"></td>
+            <td class="action-col">
+              <span class="row-tools">
+                <button class="mini-btn" type="button" title="מחיקה" data-delete-row="${escapeHtml(item._key)}" ${state.editing ? '' : 'disabled'}>×</button>
+              </span>
+            </td>
           </tr>
         `).join('')}
+        <tr class="category-add-row" data-add-row-for="${escapeHtml(group.category)}">
+          <td colspan="6"><button class="category-add-btn" type="button" data-add-row-category="${escapeHtml(group.category)}" ${state.editing ? '' : 'disabled'}>+ הוסף שורה לקטגוריה</button></td>
+        </tr>
       `).join('');
     }
 
@@ -1236,6 +1257,11 @@
     });
     $('#priceRows').addEventListener('click', event => {
       if (!state.editing) return;
+      const addToCategory = event.target.closest('[data-add-row-category]');
+      if (addToCategory) {
+        addRow(addToCategory.dataset.addRowCategory);
+        return;
+      }
       const del = event.target.closest('[data-delete-row]');
       if (del) deleteRow(del.dataset.deleteRow);
     });
