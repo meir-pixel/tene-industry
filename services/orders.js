@@ -152,6 +152,9 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
         const machine = assignResource(item.diameter);
 
         const totalWeight = weightPerUnit * (item.qty || 1);
+        const reviewNotes = Array.isArray(item.reviewNotes || item.review_notes) ? (item.reviewNotes || item.review_notes) : [];
+        const reviewNotesJson = reviewNotes.length ? JSON.stringify(reviewNotes) : null;
+        const reviewStatus = reviewNotes.length ? (item.reviewStatus || item.review_status || 'pending') : (item.reviewStatus || item.review_status || null);
         const shapeSnapshot = shapeSnapshotJson({
           ...item,
           shapeId: item.shapeId,
@@ -163,14 +166,14 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
           totalLengthMm,
           is3d: item.is_3d ? 1 : 0,
         });
-        const itemResult = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        const itemResult = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,review_status,review_notes,struct_element,struct_floor,sheet_num,machine,is_3d)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(pr.lastInsertRowid, orderId, shapeSnapshot, item.shapeId, persistedShapeName, item.diameter,
             spiral.isSpiral ? spiral.spiralDiameterMm : null,
             spiral.isSpiral ? spiral.turns : null,
             segments, totalLengthMm, item.qty || 1, productionQty,
             weightPerUnit, totalWeight,
-            item.note, item.structElement, item.structFloor, item.sheetNum, machine,
+            item.note, reviewStatus, reviewNotesJson, item.structElement, item.structFloor, item.sheetNum, machine,
             item.is_3d ? 1 : 0);
         db.prepare('UPDATE items SET item_uid=? WHERE id=?').run(buildOrderItemUid(orderId, itemResult.lastInsertRowid), itemResult.lastInsertRowid);
 

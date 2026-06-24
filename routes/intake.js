@@ -294,7 +294,7 @@ module.exports = function createIntakeRouter(deps) {
         };
       });
       if (!items.length) return res.status(422).json({ error: 'No steel rows were recognized' });
-      const payload = {
+      const payload = intakeWorkflow.withStructuredReviewNotes({
         success: true,
         document_type: parsedDocument.document_type || null,
         supplier_order_num: parsedDocument.supplier_order_num || null,
@@ -304,7 +304,7 @@ module.exports = function createIntakeRouter(deps) {
         delivery_address: parsedDocument.delivery_address || null,
         notes: parsedDocument.notes || null,
         items,
-      };
+      }, { sourceIdentity: sourceIdentityFromRequest(req, 'ocr') });
       if (shouldSaveToIntake(req)) {
         payload.intakeId = saveAnalysisToIntake(req, payload);
       }
@@ -324,7 +324,10 @@ module.exports = function createIntakeRouter(deps) {
       const duplicate = findSourceIdentityDuplicate(db, 'intake_log', identity);
       if (duplicate) return res.status(409).json(sourceIdentityConflictError('intake', duplicate).payload);
       const ocrResult = await intake.runOCR(req.file.buffer, { apiKey: getSetting('GOOGLE_VISION_API_KEY') });
-      const parsed    = intake.parseOCRText(ocrResult.fullText);
+      const parsed = intakeWorkflow.withStructuredReviewNotes(
+        intake.parseOCRText(ocrResult.fullText),
+        { sourceIdentity: identity }
+      );
       const originalMime = req.file.mimetype || 'image/jpeg';
       const originalDataUrl = `data:${originalMime};base64,${req.file.buffer.toString('base64')}`;
       const log = db.prepare(`

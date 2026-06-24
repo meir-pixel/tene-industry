@@ -35,6 +35,12 @@ module.exports = function createIntakeReviewRouter(deps) {
     return parsed;
   }
 
+  function sourceIdentityForRow(row) {
+    return row?.source_system || row?.external_id
+      ? { source_system: row.source_system || null, external_id: row.external_id || null }
+      : null;
+  }
+
   function correctionPair(original, corrected) {
     const before = JSON.stringify(original || {});
     const after = JSON.stringify(corrected || {});
@@ -108,7 +114,10 @@ module.exports = function createIntakeReviewRouter(deps) {
     }
     try {
       const originalParsed = parseStoredIntake(row);
-      const parsed = parsedOverride(originalParsed, req.body?.parsed_data);
+      const parsed = intakeWorkflow.withStructuredReviewNotes(
+        parsedOverride(originalParsed, req.body?.parsed_data),
+        { sourceIdentity: sourceIdentityForRow(row) }
+      );
       const body = req.body || {};
       const customerOverride = body.customer_id ? {
         id: Number(body.customer_id),
@@ -146,12 +155,12 @@ module.exports = function createIntakeReviewRouter(deps) {
     const duplicate = findSourceIdentityDuplicate(db, 'intake_log', identity);
     if (duplicate) return res.status(409).json(sourceIdentityConflictPayload('intake', duplicate));
     try {
-      const parsed = intakeWorkflow.parseManualIntakeText({
+      const parsed = intakeWorkflow.withStructuredReviewNotes(intakeWorkflow.parseManualIntakeText({
         text,
         source,
         parseWhatsAppMessage: intake.parseWhatsAppMessage,
         parseOCRText: intake.parseOCRText,
-      });
+      }), { sourceIdentity: identity });
       const result = db.prepare('INSERT INTO intake_log (source,source_system,external_id,raw_content,parsed_data,status) VALUES (?,?,?,?,?,?)')
         .run(source || 'manual', identity?.source_system || null, identity?.external_id || null, text.slice(0, 2000), JSON.stringify(parsed), 'pending_review');
       res.json({ success: true, id: result.lastInsertRowid, parsed, item_count: (parsed.items || []).length });

@@ -1,5 +1,108 @@
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 
+const SUPPORTED_DIAMETERS = new Set([6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40]);
+const UNCERTAIN_RE = /review|required|unclear|uncertain|verify|ambiguous|not clear|missing|unknown|guess|approx|sketch|dimension|reported total|segment sum|length surplus|דורש|בדיקה|לא ברור/i;
+
+function normalizeReviewNotes(notes) {
+  if (!Array.isArray(notes)) return [];
+  return notes
+    .filter(note => note && typeof note === 'object' && !Array.isArray(note))
+    .map(note => ({
+      scope: note.scope || 'order',
+      field: String(note.field || 'general'),
+      severity: note.severity || 'review',
+      code: note.code || 'needs_review',
+      message: String(note.message || 'Review required'),
+      value: note.value === undefined ? null : note.value,
+      source: note.source || 'intake',
+      item_index: Number.isFinite(Number(note.item_index)) ? Number(note.item_index) : null,
+    }));
+}
+
+function pushReviewNote(notes, note) {
+  const normalized = normalizeReviewNotes([note])[0];
+  if (!normalized) return;
+  const key = [normalized.scope, normalized.field, normalized.code, normalized.item_index].join('|');
+  if (!notes.some(existing => [existing.scope, existing.field, existing.code, existing.item_index].join('|') === key)) {
+    notes.push(normalized);
+  }
+}
+
+function hasUncertainty(value) {
+  return UNCERTAIN_RE.test(String(value || ''));
+}
+
+function parsedDeliveryDate(parsed = {}) {
+  return parsed.delivery_date || parsed.deliveryDate || parsed.required_delivery_date || parsed.requiredDeliveryDate || '';
+}
+
+function itemHasDimensions(item = {}) {
+  if (Array.isArray(item.sides) && item.sides.some(value => Number(value) > 0)) return true;
+  if (Array.isArray(item.segments) && item.segments.some(segment => Number(segment.length_mm ?? segment.length_cm ?? segment.length) > 0)) return true;
+  if (Number(item.length ?? item.total_length_mm ?? item.total_length_cm) > 0) return true;
+  if (normalizeSpiralParams(item).isSpiral) return true;
+  return false;
+}
+
+function buildStructuredReviewNotes(parsed = {}, options = {}) {
+  const notes = normalizeReviewNotes(parsed.review_notes || parsed.reviewNotes);
+  const sourceIdentity = options.sourceIdentity || parsed.source_identity || parsed.sourceIdentity || null;
+  const sourceSystem = sourceIdentity?.source_system || parsed.source_system || parsed.sourceSystem || '';
+  const externalId = sourceIdentity?.external_id || parsed.external_id || parsed.externalId || '';
+  const customerName = cleanRecognizedCustomerName(parsed.customer_name || parsed.customerName || parsed.name || '');
+  const deliveryDate = parsedDeliveryDate(parsed);
+  const siteOrProject = parsed.site_id || parsed.siteId || parsed.site_name || parsed.siteName || parsed.project_id || parsed.projectId || parsed.project_name || parsed.projectName || parsed.delivery_address || parsed.deliveryAddress || '';
+
+  if (!sourceSystem || !externalId) {
+    pushReviewNote(notes, { scope: 'order', field: 'source_identity', code: 'missing_source_identity', message: 'source_system and external_id were not both provided; duplicate protection cannot be applied.', value: { source_system: sourceSystem || null, external_id: externalId || null }, source: 'intake' });
+  }
+  if (!customerName || hasUncertainty(parsed.customer_note || parsed.customerNote || parsed.notes)) {
+    pushReviewNote(notes, { scope: 'order', field: 'customer', code: customerName ? 'uncertain_customer' : 'missing_customer', message: customerName ? 'Customer value requires review.' : 'Customer was not confidently identified.', value: customerName || null, source: 'intake' });
+  }
+  if (!siteOrProject || hasUncertainty(parsed.site_note || parsed.project_note || parsed.delivery_address_note || parsed.notes)) {
+    pushReviewNote(notes, { scope: 'order', field: 'site_project', code: siteOrProject ? 'uncertain_site_project' : 'missing_site_project', message: siteOrProject ? 'Site/project value requires review.' : 'Site/project was not confidently identified.', value: siteOrProject || null, source: 'intake' });
+  }
+  if (!deliveryDate || hasUncertainty(parsed.delivery_date_note || parsed.deliveryDateNote || parsed.notes)) {
+    pushReviewNote(notes, { scope: 'order', field: 'delivery_date', code: deliveryDate ? 'uncertain_delivery_date' : 'missing_delivery_date', message: deliveryDate ? 'Delivery date requires review.' : 'Delivery date was not confidently identified.', value: deliveryDate || null, source: 'intake' });
+  }
+
+  (parsed.items || []).forEach((item, index) => {
+    const itemNote = String(item.note || item.notes || '');
+    const quantity = Number(item.qty ?? item.quantity);
+    const diameter = Number(item.diameter);
+    const shape = item.shapeName || item.shape_name || item.shape || item.shapeId || '';
+    if (!(quantity > 0) || hasUncertainty(item.quantity_note || item.quantityNote || itemNote)) {
+      pushReviewNote(notes, { scope: 'item', item_index: index, field: 'quantity', code: quantity > 0 ? 'uncertain_quantity' : 'missing_quantity', message: quantity > 0 ? 'Quantity requires review.' : 'Quantity was not confidently identified.', value: Number.isFinite(quantity) ? quantity : null, source: 'intake' });
+    }
+    if (!SUPPORTED_DIAMETERS.has(diameter) || hasUncertainty(item.diameter_note || item.diameterNote || itemNote)) {
+      pushReviewNote(notes, { scope: 'item', item_index: index, field: 'diameter', code: SUPPORTED_DIAMETERS.has(diameter) ? 'uncertain_diameter' : 'invalid_diameter', message: SUPPORTED_DIAMETERS.has(diameter) ? 'Diameter requires review.' : 'Diameter is missing or not supported.', value: Number.isFinite(diameter) ? diameter : null, source: 'intake' });
+    }
+    if (!shape || hasUncertainty(item.shape_note || item.shapeNote || item.shape_description || item.shapeDescription || itemNote)) {
+      pushReviewNote(notes, { scope: 'item', item_index: index, field: 'shape', code: shape ? 'uncertain_shape' : 'missing_shape', message: shape ? 'Shape requires review.' : 'Shape was not confidently identified.', value: shape || null, source: 'intake' });
+    }
+    if (!itemHasDimensions(item) || hasUncertainty(item.dimensions_note || item.dimensionsNote || item.length_note || item.lengthNote || itemNote)) {
+      pushReviewNote(notes, { scope: 'item', item_index: index, field: 'dimensions', code: itemHasDimensions(item) ? 'uncertain_dimensions' : 'missing_dimensions', message: itemHasDimensions(item) ? 'Dimensions require review.' : 'Dimensions were not confidently identified.', value: item.length ?? item.total_length_mm ?? item.total_length_cm ?? null, source: 'intake' });
+    }
+  });
+
+  return notes;
+}
+
+function withStructuredReviewNotes(parsed = {}, options = {}) {
+  const sourceNotes = buildStructuredReviewNotes(parsed, options);
+  const items = (parsed.items || []).map((item, index) => ({
+    ...item,
+    review_notes: sourceNotes.filter(note => note.scope === 'item' && note.item_index === index),
+  }));
+  return {
+    ...parsed,
+    source_identity: options.sourceIdentity || parsed.source_identity || parsed.sourceIdentity || null,
+    review_notes: sourceNotes,
+    items,
+  };
+}
+
+
 function importCell(row, aliases) {
   const normalized = Object.fromEntries(
     Object.entries(row).map(([key, value]) => [String(key).trim().toLowerCase().replace(/[\s_-]+/g, ''), value])
@@ -47,7 +150,7 @@ function parseDelimitedRows(buffer) {
   return records.map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])));
 }
 
-function buildOrderImportPreview(buffer, { orderExists = () => false } = {}) {
+function buildOrderImportPreview(buffer, { orderExists = () => false, sourceIdentity = null } = {}) {
   const rows = parseDelimitedRows(buffer);
   const groups = new Map();
   const errors = [];
@@ -74,16 +177,21 @@ function buildOrderImportPreview(buffer, { orderExists = () => false } = {}) {
     }
     const groupKey = sourceOrderNum || `${customerName}|${deliveryDate}|${deliveryAddress}`;
     if (!groups.has(groupKey)) {
+      const orderReviewNotes = buildStructuredReviewNotes({ customer_name: customerName, delivery_date: deliveryDate, delivery_address: deliveryAddress, items: [] }, { sourceIdentity });
       groups.set(groupKey, {
         sourceOrderNum,
         duplicate: Boolean(sourceOrderNum && orderExists(sourceOrderNum)),
+        review_notes: orderReviewNotes,
         payload: {
           customer: { name: customerName, phone: customerPhone, address: deliveryAddress },
-          order: { orderNum: sourceOrderNum || undefined, channel: 'spreadsheet', deliveryDate, deliveryAddress, priority: 'regular' },
+          order: { orderNum: sourceOrderNum || undefined, channel: 'spreadsheet', deliveryDate, deliveryAddress, priority: 'regular', reviewNotes: orderReviewNotes },
           pallets: [{ maxWeight: 9999, items: [] }],
         },
       });
     }
+    const itemReviewNotes = buildStructuredReviewNotes({ items: [{ diameter, length, sides: [length], qty, shapeId: shape, shapeName: shape, note: notes }] }, { sourceIdentity })
+      .filter(note => note.scope === 'item')
+      .map(note => ({ ...note, item_index: groups.get(groupKey).payload.pallets[0].items.length }));
     groups.get(groupKey).payload.pallets[0].items.push({
       diameter,
       length,
@@ -92,7 +200,10 @@ function buildOrderImportPreview(buffer, { orderExists = () => false } = {}) {
       shapeId: shape,
       shapeName: shape,
       note: notes,
+      reviewNotes: itemReviewNotes,
+      review_notes: itemReviewNotes,
     });
+    groups.get(groupKey).review_notes.push(...itemReviewNotes);
   });
 
   return { orders: [...groups.values()], errors, rowCount: rows.length };
@@ -176,6 +287,7 @@ function resolveIntakeCustomer(parsed = {}, rawContent = '', lookups = {}) {
 }
 
 function normalizeIntakeItem(item = {}) {
+  const reviewNotes = normalizeReviewNotes(item.review_notes || item.reviewNotes);
   const spiral = normalizeSpiralParams(item);
   if (spiral.isSpiral) {
     const length = Number(item.length ?? item.total_length_mm) || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns);
@@ -193,6 +305,8 @@ function normalizeIntakeItem(item = {}) {
       spiral_diameter_mm: spiral.spiralDiameterMm,
       spiral_turns: spiral.turns,
       note: item.notes || item.note || '',
+      reviewNotes,
+      review_notes: reviewNotes,
     };
   }
   const sourceSides = Array.isArray(item.sides) ? item.sides : [];
@@ -214,6 +328,8 @@ function normalizeIntakeItem(item = {}) {
     shapeId: item.shapeId || item.shape || (sides.length === 3 ? 's3' : 's1'),
     shapeName: item.shapeName || item.shape || (sides.length === 3 ? 'U - anchor' : 'straight'),
     note: item.notes || item.note || '',
+    reviewNotes,
+    review_notes: reviewNotes,
   };
 }
 
@@ -264,7 +380,9 @@ function buildIntakeOrderPayload(parsed = {}, {
   resolveCustomer = () => null,
   calcWeightPerUnit = () => 0,
 } = {}) {
-  const items = (parsed.items || []).map(normalizeIntakeItem);
+  const enrichedParsed = withStructuredReviewNotes(parsed, { sourceIdentity: parsed.source_identity || parsed.sourceIdentity || null });
+  const reviewNotes = enrichedParsed.review_notes;
+  const items = (enrichedParsed.items || []).map(normalizeIntakeItem);
   const overrideCustomer = customerOverride?.id ? findCustomerById(customerOverride.id) : null;
   const match = customerOverride?.id ? null : resolveCustomer(parsed, rawContent);
   const selectedCustomer = overrideCustomer || customerOverride || match;
@@ -283,6 +401,7 @@ function buildIntakeOrderPayload(parsed = {}, {
       priority: parsed.priority || 'regular',
       generalNotes: operationalOrderNote(parsed.notes),
       totalWeight: items.reduce((sum, item) => sum + calcWeightPerUnit(item.diameter, item.length) * item.qty, 0),
+      reviewNotes,
     },
     pallets: [{ maxWeight: 9999, items }],
   };
@@ -291,6 +410,7 @@ function buildIntakeOrderPayload(parsed = {}, {
 module.exports = {
   buildIntakeOrderPayload,
   buildOrderImportPreview,
+  buildStructuredReviewNotes,
   cleanRecognizedCustomerName,
   distributeSurplusToEndSegments,
   extractFirstEmailFromText,
@@ -302,5 +422,6 @@ module.exports = {
   operationalOrderNote,
   parseDelimitedRows,
   parseManualIntakeText,
+  withStructuredReviewNotes,
   resolveIntakeCustomer,
 };

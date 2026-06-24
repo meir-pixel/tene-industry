@@ -3,12 +3,14 @@ const test = require('node:test');
 
 const {
   buildIntakeOrderPayload,
+  buildStructuredReviewNotes,
   cleanRecognizedCustomerName,
   isTechnicalRecognitionNote,
   normalizeIntakeItem,
   operationalOrderNote,
   parseManualIntakeText,
   resolveIntakeCustomer,
+  withStructuredReviewNotes,
 } = require('../services/intakeWorkflow');
 
 test('normalizeIntakeItem builds canonical sides angles quantity and shape', () => {
@@ -147,4 +149,68 @@ test('resolveIntakeCustomer extracts email and phone from raw content when parse
   assert.equal(match.input.phone, '0501234567');
   assert.equal(match.input.email, 'raw@example.com');
   assert.equal(match.customer.id, 3);
+});
+
+
+test('uncertain intake fields create structured review notes', () => {
+  const parsed = withStructuredReviewNotes({
+    customer_name: '',
+    delivery_date: '',
+    notes: 'customer unclear and delivery date unclear',
+    items: [{
+      diameter: 5,
+      quantity: 0,
+      shape_name: '',
+      note: 'diameter unclear, shape unclear, dimensions unclear',
+    }],
+  }, { sourceIdentity: null });
+
+  const orderFields = parsed.review_notes
+    .filter(note => note.scope === 'order')
+    .map(note => note.field);
+  const itemFields = parsed.items[0].review_notes.map(note => note.field);
+
+  assert.ok(orderFields.includes('customer'));
+  assert.ok(orderFields.includes('site_project'));
+  assert.ok(orderFields.includes('delivery_date'));
+  assert.ok(orderFields.includes('source_identity'));
+  assert.ok(itemFields.includes('quantity'));
+  assert.ok(itemFields.includes('diameter'));
+  assert.ok(itemFields.includes('shape'));
+  assert.ok(itemFields.includes('dimensions'));
+  assert.equal(parsed.review_notes.every(note => typeof note === 'object' && note.field && note.code), true);
+});
+
+test('buildStructuredReviewNotes keeps old confident intake data usable without source identity', () => {
+  const notes = buildStructuredReviewNotes({
+    customer_name: 'Customer A',
+    delivery_date: '2026-06-03',
+    delivery_address: 'Site A',
+    items: [{ diameter: 10, length: 1000, quantity: 2, shape_name: 'straight' }],
+  });
+
+  assert.deepEqual(notes.map(note => note.field), ['source_identity']);
+});
+
+test('buildIntakeOrderPayload carries item review notes into draft order payload', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    delivery_date: '2026-06-03',
+    delivery_address: 'Site A',
+    source_identity: { source_system: 'ocr', external_id: 'doc-1' },
+    items: [{
+      diameter: 10,
+      length: 1000,
+      quantity: 2,
+      shape_name: 'straight',
+      note: 'quantity unclear',
+    }],
+  }, {
+    calcWeightPerUnit: () => 1,
+  });
+
+  const itemNotes = payload.pallets[0].items[0].reviewNotes;
+  assert.equal(Array.isArray(itemNotes), true);
+  assert.ok(itemNotes.some(note => note.field === 'quantity' && note.scope === 'item'));
+  assert.equal(payload.order.reviewNotes.some(note => note.field === 'quantity' && note.scope === 'item'), true);
 });

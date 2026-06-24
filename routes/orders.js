@@ -178,7 +178,7 @@ module.exports = function createOrdersRouter(deps) {
       const identity = sourceIdentityFromRequest(req, 'order_import');
       const duplicate = findSourceIdentityDuplicate(db, 'order_imports', identity);
       if (duplicate) return res.status(409).json(sourceIdentityConflictPayload('order_import', duplicate));
-      const preview = buildOrderImportPreview(req.file.buffer);
+      const preview = buildOrderImportPreview(req.file.buffer, { sourceIdentity: identity });
       if (identity) preview.source_identity = identity;
       const result = db.prepare('INSERT INTO order_imports (filename,source_system,external_id,preview_data,status) VALUES (?,?,?,?,?)')
         .run(req.file.originalname || 'orders.xlsx', identity?.source_system || null, identity?.external_id || null, JSON.stringify(preview), 'preview');
