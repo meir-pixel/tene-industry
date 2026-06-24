@@ -22,12 +22,11 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .stat{background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;box-shadow:0 8px 22px rgba(2,26,72,.04);display:flex;align-items:center;justify-content:space-between;gap:10px;border-right:4px solid #dbe6ef}
 .stat-label{font-size:12px;font-weight:900;color:var(--text-muted)}
 .stat-value{font-size:24px;font-weight:900;line-height:1}
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start}
-@media(max-width:1120px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.head{align-items:flex-start;flex-direction:column}}
+.layout{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
+@media(max-width:1120px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.head{align-items:flex-start;flex-direction:column}}
 @media(max-width:680px){.stats{grid-template-columns:1fr}}
 .panel{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--app-shadow,0 8px 24px rgba(2,26,72,.07));overflow:hidden}
 .queue-panel{min-width:0}
-.capture-panel{position:sticky;top:14px}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:#fafbfd}
 .panel-title{font-size:16px;font-weight:900}
 .panel-body{padding:14px;display:grid;gap:12px}
@@ -36,17 +35,6 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .filter.active{border-color:var(--accent);background:#fff4ec;color:var(--accent)}
 .empty{color:var(--text-muted);padding:18px;border:1px dashed var(--border);border-radius:10px;text-align:center;background:#fbfcfe}
 .intake-list{display:grid;gap:12px}
-.intake-compose{border:0;background:transparent;padding:0;display:grid;gap:10px}
-.intake-compose-details{border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden}
-.intake-compose-details>summary{list-style:none;cursor:pointer;padding:11px 13px;font-weight:900;display:flex;justify-content:space-between;align-items:center;background:#fbfcfe}
-.intake-compose-details>summary::-webkit-details-marker{display:none}
-.intake-compose-details>summary:after{content:'+';font-size:18px;color:var(--accent);font-weight:900}
-.intake-compose-details[open]>summary:after{content:'-' }
-.intake-compose-details .intake-compose{padding:12px;border-top:1px solid var(--border)}
-.work-steps-details{border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden}
-.work-steps-details>summary{list-style:none;cursor:pointer;padding:10px 12px;font-size:12px;font-weight:900;color:var(--text-muted);background:#fbfcfe}
-.work-steps-details>summary::-webkit-details-marker{display:none}
-.work-steps-details .work-steps{padding:10px;margin:0}
 .compose-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .compose-title{font-size:16px;font-weight:900;color:var(--text)}
 .compose-grid{display:grid;grid-template-columns:1fr;gap:8px;align-items:end}
@@ -54,9 +42,9 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .compose-result{font-size:12px;font-weight:800;color:var(--text-muted);min-height:18px}
 @media(max-width:860px){.compose-grid{grid-template-columns:1fr}.compose-grid .btn{width:100%}}
 .intake-card{border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(2,26,72,.05);overflow:hidden}
-.intake-card{display:grid;grid-template-columns:minmax(260px,.72fr) minmax(0,1.28fr);grid-template-rows:auto 1fr;min-height:250px}
+.intake-card{display:grid;grid-template-columns:1fr;grid-template-rows:auto 1fr;min-height:0}
 .intake-card:target{outline:3px solid var(--accent);outline-offset:3px}
-.card-top{grid-column:2;grid-row:1;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:13px 14px;border-bottom:1px solid var(--border);background:#fbfcfe}
+.card-top{grid-column:1;grid-row:1;display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:13px 14px;border-bottom:1px solid var(--border);background:#fbfcfe}
 .card-title{font-size:16px;font-weight:900;color:var(--text)}
 .card-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .meta{font-size:12px;color:var(--text-dim);line-height:1.7}
@@ -73,10 +61,9 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .source-phone{background:#ffe9f0;color:#9a2850}
 .task-type{font-size:11px;font-weight:900;color:var(--text-muted);background:#eef4f8;border-radius:999px;padding:4px 9px}
 .card-grid{display:contents}
-.source-box{grid-column:1;grid-row:1 / span 2;border-left:1px solid var(--border);border-radius:0;background:#f7fafc}
-.data-box{grid-column:2;grid-row:2;border:0;border-radius:0;background:#fff}
+.data-box{grid-column:1;grid-row:2;border:0;border-radius:0;background:#fff}
 .box{border:1px solid var(--border);border-radius:8px;background:#fbfcfe;padding:12px;min-width:0}
-@media(max-width:920px){.intake-card{grid-template-columns:1fr}.card-top{grid-column:auto;grid-row:auto}.card-grid{display:grid;grid-template-columns:1fr}.source-box,.data-box{grid-column:auto;grid-row:auto;border-left:0;border-radius:8px}.source-box{border-bottom:1px solid var(--border)}}
+@media(max-width:920px){.intake-card{grid-template-columns:1fr}.card-top{grid-column:auto;grid-row:auto}.card-grid{display:grid;grid-template-columns:1fr}.data-box{grid-column:auto;grid-row:auto;border-left:0;border-radius:8px}}
 .box-title{font-size:12px;font-weight:900;color:var(--text-muted);margin-bottom:8px}
 .raw-content{white-space:pre-wrap;max-height:190px;overflow:auto;font-size:12px;line-height:1.7}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -91,7 +78,7 @@ body{font-family:'Heebo',sans-serif;background:linear-gradient(180deg,#f6f9fc 0,
 .ocr-queue-shape{display:grid;grid-template-columns:28px minmax(96px,1fr);gap:6px;align-items:center;justify-items:center;direction:ltr}
 .ocr-queue-shape svg{width:98px;height:52px;display:block}
 .ocr-queue-shape-main{display:grid;gap:2px;justify-items:center;min-width:0}
-.ocr-queue-dims{font-size:10px;color:#153863;font-weight:900;line-height:1.05;max-width:116px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ocr-queue-dims{display:none}
 .ocr-queue-edit{width:26px;height:26px;border:1px solid #cfd8e3;border-radius:7px;background:#fff;color:#153863;font-family:inherit;font-size:15px;font-weight:900;display:grid;place-items:center;cursor:pointer;padding:0}
 .ocr-queue-edit:hover{border-color:var(--accent);color:var(--accent);background:#fff8f1}
 @media(max-width:900px){.ocr-queue-table-wrap{max-height:480px}.ocr-queue-title{font-size:16px}.ocr-queue-table{min-width:820px;font-size:13px}}
@@ -218,11 +205,6 @@ body[data-page="intake"] #seOverlay{z-index:980}
 
 .ocr-spiral-banner{border:1px solid #f1d4a8;background:#fff6dd;color:#875200;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:900;line-height:1.6}
 .ocr-corrections{border:1px solid #bde8c8;background:#f3fbf5;border-radius:8px;padding:10px;font-size:12px;font-weight:800;color:#1f6f3c}
-.work-steps{display:grid;gap:8px;margin-top:4px}
-.work-step{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px;align-items:center;border:1px solid var(--border);border-radius:8px;background:#fbfcfe;padding:8px}
-.work-step-num{width:30px;height:30px;border-radius:999px;background:#10233f;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:900}
-.work-step-title{font-size:12px;font-weight:900}
-.work-step-copy{font-size:11px;color:var(--text-muted);line-height:1.5}
 .queue-empty{padding:28px;border:1px dashed var(--border);border-radius:10px;background:linear-gradient(180deg,#fff,#f8fbfe);text-align:center;display:grid;gap:8px}
 .queue-empty-title{font-size:20px;font-weight:900;color:var(--text)}
 .queue-empty-copy{font-size:13px;color:var(--text-muted);max-width:680px;margin:0 auto;line-height:1.7}
@@ -338,57 +320,6 @@ body[data-page="intake"] #seOverlay{z-index:980}
         <div class="intake-list" id="intakeList"><div class="empty">טוען...</div></div>
       </div>
     </section>
-
-    <aside class="panel capture-panel">
-      <div class="panel-head">
-        <div>
-          <div class="panel-title">הכנסה לתור</div>
-          <div class="meta">המסך נשאר נקי: התור וההשוואה במרכז, והכנסה ידנית נפתחת רק כשצריך.</div>
-        </div>
-      </div>
-      <div class="panel-body">
-        <details class="intake-compose-details">
-          <summary>הכנסה ידנית לתור</summary>
-          <div class="intake-compose">
-            <div class="compose-grid">
-              <div class="field">
-                <label>מקור</label>
-                <select id="manualIntakeSource">
-                  <option value="phone">טלפון</option>
-                  <option value="whatsapp">וואטסאפ</option>
-                  <option value="email">מייל</option>
-                  <option value="manual">ידני</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>תוכן ההזמנה</label>
-                <textarea id="manualIntakeText" placeholder="לדוגמה: מאיר, טלפון 050..., אספקה 03/06/2026, קוטר 12, אורך 1000, כמות 1"></textarea>
-              </div>
-              <button class="btn btn-primary" id="manualIntakeBtn" onclick="saveManualIntake()">הכנס לתור</button>
-            </div>
-            <div id="manualIntakeResult" class="compose-result"></div>
-          </div>
-        </details>
-        <details class="work-steps-details">
-          <summary>מסלול קליטה</summary>
-          <div class="work-steps" aria-label="מסלול קליטת הזמנה">
-            <div class="work-step">
-              <div class="work-step-num">1</div>
-              <div><div class="work-step-title">קבלת מקור</div><div class="work-step-copy">טלפון, וואטסאפ, מייל, תמונה או מסמך.</div></div>
-            </div>
-            <div class="work-step">
-              <div class="work-step-num">2</div>
-              <div><div class="work-step-title">השוואה ואימות</div><div class="work-step-copy">פותחים מקור מול פענוח רק כשצריך לבדוק.</div></div>
-            </div>
-            <div class="work-step">
-              <div class="work-step-num">3</div>
-              <div><div class="work-step-title">יצירת הזמנה</div><div class="work-step-copy">רק נתונים מאומתים עוברים להזמנות ולייצור.</div></div>
-            </div>
-          </div>
-        </details>
-      </div>
-    </aside>
-
   </section>
 </main>
 
@@ -1086,30 +1017,28 @@ function ocrItemFieldsHtml(parsed, item, index) {
   return ocrItemTableRowHtml(parsed, item, index);
 }
 
-function intakeEditableForm(parsed) {
+function intakeEditableForm(parsed, options = {}) {
   const items = Array.isArray(parsed.items) ? parsed.items : [];
-  return `
-    <div class="ocr-edit-form">
-      <div class="ocr-field-grid">
-        ${ocrFieldHtml({ label:'\u05dc\u05e7\u05d5\u05d7', path:'customer_name', value: parsed.customer_name || parsed.customerName || '', low: isLowConfidence(parsed, 'customer_name', parsed.customer_name || parsed.customerName) })}
-        ${ocrFieldHtml({ label:'\u05ea\u05d0\u05e8\u05d9\u05da \u05d0\u05e1\u05e4\u05e7\u05d4', path:'delivery_date', value: deliveryDateOf(parsed), low: isLowConfidence(parsed, 'delivery_date', deliveryDateOf(parsed)) })}
-        ${ocrFieldHtml({ label:'\u05db\u05ea\u05d5\u05d1\u05ea', path:'delivery_address', value: parsed.delivery_address || parsed.deliveryAddress || '', low: isLowConfidence(parsed, 'delivery_address', parsed.delivery_address || parsed.deliveryAddress) })}
-        ${ocrFieldHtml({ label:'\u05d4\u05e2\u05e8\u05d5\u05ea \u05dc\u05e0\u05d4\u05d2/\u05d9\u05d9\u05e6\u05d5\u05e8', path:'notes', value: isTechnicalRecognitionNote(parsed.notes) ? '' : (parsed.notes || ''), type:'textarea', low: false })}
-      </div>
-      <div class="box-title">\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4 - \u05d1\u05d3\u05d9\u05e7\u05d4 \u05de\u05d5\u05dc \u05d4\u05de\u05e7\u05d5\u05e8 \u05dc\u05e4\u05e0\u05d9 \u05d0\u05d9\u05e9\u05d5\u05e8</div>
-      ${items.length ? `
-        <div class="ocr-order-form" aria-label="\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4">
-          <div class="ocr-order-form-head">
-            <div>\u05de\u05e1' \u05e4\u05e8\u05d9\u05d8</div><div>\u05e9\u05dd \u05d4\u05d0\u05dc\u05de\u05e0\u05d8</div><div>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</div><div>\u05e7\u05d5\u05d8\u05e8 (\u00d8)</div><div>\u05db\u05de\u05d5\u05ea</div><div>\u05d0\u05d5\u05e8\u05da (m)</div><div>\u05e1\u05d4"\u05db \u05d0\u05d5\u05e8\u05da (m)</div><div>\u05de\u05e9\u05e7\u05dc (kg)</div><div>\u05d1\u05d3\u05d9\u05e7\u05d4</div>
-          </div>
-          ${items.map((item, index) => safeIntakeRender(`item ${index + 1}`, () => ocrItemTableRowHtml(parsed, item || {}, index), `<div class="ocr-order-row"><div class="ocr-order-cell">${escapeHtml(ocrItemNumber(item || {}, index))}</div><div class="ocr-order-cell" style="grid-column:span 8">שורת OCR לא ניתנת להצגה. פתח את עורך הצורה או בדוק את נתוני ה-OCR.</div></div>`)).join('')}
+  const fieldsHtml = `
+    <div class="ocr-field-grid">
+      ${ocrFieldHtml({ label:'\u05dc\u05e7\u05d5\u05d7', path:'customer_name', value: parsed.customer_name || parsed.customerName || '', low: isLowConfidence(parsed, 'customer_name', parsed.customer_name || parsed.customerName) })}
+      ${ocrFieldHtml({ label:'\u05ea\u05d0\u05e8\u05d9\u05da \u05d0\u05e1\u05e4\u05e7\u05d4', path:'delivery_date', value: deliveryDateOf(parsed), low: isLowConfidence(parsed, 'delivery_date', deliveryDateOf(parsed)) })}
+      ${ocrFieldHtml({ label:'\u05db\u05ea\u05d5\u05d1\u05ea', path:'delivery_address', value: parsed.delivery_address || parsed.deliveryAddress || '', low: isLowConfidence(parsed, 'delivery_address', parsed.delivery_address || parsed.deliveryAddress) })}
+      ${ocrFieldHtml({ label:'\u05d4\u05e2\u05e8\u05d5\u05ea \u05dc\u05e0\u05d4\u05d2/\u05d9\u05d9\u05e6\u05d5\u05e8', path:'notes', value: isTechnicalRecognitionNote(parsed.notes) ? '' : (parsed.notes || ''), type:'textarea', low: false })}
+    </div>`;
+  const tableHtml = `
+    <div class="box-title">\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4 - \u05d1\u05d3\u05d9\u05e7\u05d4 \u05de\u05d5\u05dc \u05d4\u05de\u05e7\u05d5\u05e8 \u05dc\u05e4\u05e0\u05d9 \u05d0\u05d9\u05e9\u05d5\u05e8</div>
+    ${items.length ? `
+      <div class="ocr-order-form" aria-label="\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4">
+        <div class="ocr-order-form-head">
+          <div>\u05de\u05e1' \u05e4\u05e8\u05d9\u05d8</div><div>\u05e9\u05dd \u05d4\u05d0\u05dc\u05de\u05e0\u05d8</div><div>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</div><div>\u05e7\u05d5\u05d8\u05e8 (\u00d8)</div><div>\u05db\u05de\u05d5\u05ea</div><div>\u05d0\u05d5\u05e8\u05da (m)</div><div>\u05e1\u05d4"\u05db \u05d0\u05d5\u05e8\u05da (m)</div><div>\u05de\u05e9\u05e7\u05dc (kg)</div><div>\u05d1\u05d3\u05d9\u05e7\u05d4</div>
         </div>
-      ` : '<div class="empty">\u05dc\u05d0 \u05d6\u05d5\u05d4\u05d5 \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd. \u05d0\u05e4\u05e9\u05e8 \u05dc\u05d4\u05d5\u05e1\u05d9\u05e3/\u05dc\u05ea\u05e7\u05df \u05dc\u05e4\u05e0\u05d9 \u05d0\u05d9\u05e9\u05d5\u05e8.</div>'}
-      <div class="ocr-corrections" id="ocrCorrectionSummary">\u05db\u05dc \u05e9\u05d9\u05e0\u05d5\u05d9 \u05d9\u05d3\u05e0\u05d9 \u05d9\u05d9\u05e9\u05de\u05e8 \u05d1\u05d0\u05d9\u05e9\u05d5\u05e8 \u05d5\u05d9\u05d9\u05db\u05e0\u05e1 \u05dc\u05de\u05e1\u05dc\u05d5\u05dc \u05d0\u05d9\u05de\u05d5\u05df OCR.</div>
-    </div>
-  `;
+        ${items.map((item, index) => safeIntakeRender(`item ${index + 1}`, () => ocrItemTableRowHtml(parsed, item || {}, index), `<div class="ocr-order-row"><div class="ocr-order-cell">${escapeHtml(ocrItemNumber(item || {}, index))}</div><div class="ocr-order-cell" style="grid-column:span 8">שורת OCR לא ניתנת להצגה. פתח את עורך הצורה או בדוק את נתוני ה-OCR.</div></div>`)).join('')}
+      </div>
+    ` : '<div class="empty">\u05dc\u05d0 \u05d6\u05d5\u05d4\u05d5 \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd. \u05d0\u05e4\u05e9\u05e8 \u05dc\u05d4\u05d5\u05e1\u05d9\u05e3/\u05dc\u05ea\u05e7\u05df \u05dc\u05e4\u05e0\u05d9 \u05d0\u05d9\u05e9\u05d5\u05e8.</div>'}
+    <div class="ocr-corrections" id="ocrCorrectionSummary">\u05db\u05dc \u05e9\u05d9\u05e0\u05d5\u05d9 \u05d9\u05d3\u05e0\u05d9 \u05d9\u05d9\u05e9\u05de\u05e8 \u05d1\u05d0\u05d9\u05e9\u05d5\u05e8 \u05d5\u05d9\u05d9\u05db\u05e0\u05e1 \u05dc\u05de\u05e1\u05dc\u05d5\u05dc \u05d0\u05d9\u05de\u05d5\u05df OCR.</div>`;
+  return `<div class="ocr-edit-form">${options.tableFirst ? tableHtml + fieldsHtml : fieldsHtml + tableHtml}</div>`;
 }
-
 function markOcrEdited(el) {
   el.closest('.ocr-field, .ocr-order-row')?.classList.add('edited');
   const index = Number(el?.dataset?.itemIndex);
@@ -1410,7 +1339,7 @@ function intakeQueueItemsTable(parsed, rowId) {
         return `<tr>
           <td>${escapeHtml(itemNumber)}</td>
           <td>${escapeHtml(elementName)}</td>
-          <td><div class="ocr-queue-shape"><button type="button" class="ocr-queue-edit" onclick="openQueueItemShapeEditor(${rowId}, ${index})" title="ערוך צורה" aria-label="ערוך צורה">✎</button><div class="ocr-queue-shape-main">${ocrCardShapeSvg(item, 130, 70) || ocrShapeSvgHtml(item, 130, 70)}<div class="ocr-queue-dims">${escapeHtml(dimensions)}</div></div></div></td>
+          <td><div class="ocr-queue-shape"><button type="button" class="ocr-queue-edit" onclick="openQueueItemShapeEditor(${rowId}, ${index})" title="ערוך צורה" aria-label="ערוך צורה">✎</button><div class="ocr-queue-shape-main">${ocrCardShapeSvg(item, 130, 70) || ocrShapeSvgHtml(item, 130, 70)}</div></div></td>
           <td>${escapeHtml(diameter)}</td>
           <td>${escapeHtml(quantity)}</td>
           <td>${escapeHtml(lengthMeters)}</td>
@@ -1628,15 +1557,10 @@ function renderIntakeQueue() {
             <span class="task-type">${row.post_order_review ? 'אימות אחרי פתיחת הזמנה' : 'פנייה לפני יצירת הזמנה'}</span>
             <span class="urgency-badge urgency-${urgency.level}" title="דירוג דחיפות ${urgency.score}">${urgency.label} · ${urgency.score}</span>
             <button type="button" class="btn btn-success" data-intake-action="compare" data-intake-id="${row.id}">${row.post_order_review ? 'השוואה למקור' : 'השוואה ואישור'}</button>
-            ${row.post_order_review ? `<button class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה לאימות</button>` : `<button type="button" class="btn" data-intake-action="compare" data-intake-id="${row.id}">פתח להשוואה ועריכה</button><button type="button" class="btn btn-danger" data-intake-action="reject" data-intake-id="${row.id}">דחה</button>`}
+            ${row.post_order_review ? `<button class="btn" onclick="openLinkedOrder(${row.order_id})">פתח הזמנה לאימות</button>` : `<button type="button" class="btn btn-danger" data-intake-action="reject" data-intake-id="${row.id}">דחה</button>`}
           </div>
         </div>
         <div class="card-grid">
-          <div class="box source-box">
-            <div class="box-title">מקור הפנייה</div>
-            <div class="intake-source-preview">${intakeSourceHtml(row)}</div>
-            <button type="button" class="btn" style="margin-top:8px;width:100%" data-intake-action="compare" data-intake-id="${row.id}">השוואה במסך מלא</button>
-          </div>
           <div class="box data-box">
             <div class="box-title">${row.post_order_review ? `משימת אימות פתוחה · ${row.review_count || 0} הערות` : 'פענוח להזמנה'}</div>
             ${row.post_order_review ? postOrderReviewHtml(row) : `
@@ -1692,42 +1616,6 @@ async function loadIntakeQueue() {
   renderIntakeQueue();
 }
 
-async function saveManualIntake() {
-  const btn = document.getElementById('manualIntakeBtn');
-  const resultEl = document.getElementById('manualIntakeResult');
-  const textEl = document.getElementById('manualIntakeText');
-  const sourceEl = document.getElementById('manualIntakeSource');
-  const text = textEl.value.trim();
-  if (!text) {
-    resultEl.style.color = 'var(--danger)';
-    resultEl.textContent = 'צריך להדביק תוכן הזמנה לפני הכנסה לתור.';
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = 'מכניס...';
-  resultEl.style.color = 'var(--text-muted)';
-  resultEl.textContent = 'מפענח ומכניס לתור...';
-  try {
-    const response = await fetch('/api/intake/parse-text', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, source: sourceEl.value }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.success) throw new Error(data.error || 'הכנסה לתור נכשלה');
-    textEl.value = '';
-    resultEl.style.color = 'var(--success)';
-    resultEl.textContent = `נכנס לתור לבדיקה${data.item_count != null ? ` · ${data.item_count} פריטים זוהו` : ''}.`;
-    await loadIntakeQueue();
-  } catch (error) {
-    resultEl.style.color = 'var(--danger)';
-    resultEl.textContent = error.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'הכנס לתור';
-  }
-}
-
 async function searchCustomerForIntake(id) {
   const input = document.getElementById('customerSearch_' + id);
   const results = document.getElementById('customerResults_' + id);
@@ -1775,15 +1663,13 @@ function openIntakeCompare(id) {
     : `מקור: ${sourceLabel(row.source)} · דחיפות: ${urgency.label} ${urgency.score} · פריטים: ${urgency.itemCount}`;
   elements.source.innerHTML = safeIntakeRender('source', () => intakeCompareSourceHtml(row), `<pre class="raw-content">${escapeHtml(row?.raw_content || 'אין תוכן מקור שמור')}</pre>`);
   const metricsHtml = safeIntakeRender('metrics', () => urgencyMetricsHtml(row), '');
-  const formHtml = safeIntakeRender('compare form', () => isPostOrderReview ? postOrderReviewHtml(row) : intakeEditableForm(parsed), '<div class="empty">הפענוח נטען חלקית. בדוק את נתוני ה-OCR או נסה לרענן.</div>');
+  const formHtml = safeIntakeRender('compare form', () => isPostOrderReview ? postOrderReviewHtml(row) : intakeEditableForm(parsed, { tableFirst: true }), '<div class="empty">הפענוח נטען חלקית. בדוק את נתוני ה-OCR או נסה לרענן.</div>');
   const customerHtml = isPostOrderReview ? '' : safeIntakeRender('customer match', () => customerMatchHtml(row), '');
   elements.data.innerHTML = `
     <div class="box">
       <div class="box-title">פענוח להזמנה</div>
-      ${metricsHtml}
-      <div class="meta">כתובת: ${escapeHtml(parsed.delivery_address || parsed.deliveryAddress || 'לא זוהתה')}</div>
-      <div class="meta">הערות: ${escapeHtml(parsed.notes || 'אין הערות')}</div>
       ${formHtml}
+      <div class="intake-compare-extra">${metricsHtml}</div>
       ${customerHtml}
     </div>
   `;
