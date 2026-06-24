@@ -143,6 +143,32 @@ module.exports = function createIntakeReviewRouter(deps) {
     }
   });
 
+  router.post('/intake/:id/draft', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
+    if (!row) return res.status(404).json({ success: false, error: 'Intake row not found' });
+    if (row.order_id || row.status === 'approved') {
+      return res.status(409).json({
+        success: false,
+        error: 'Intake row is already linked to an approved order; draft save cannot mutate it.',
+      });
+    }
+    try {
+      const originalParsed = parseStoredIntake(row);
+      const parsed = intakeWorkflow.withStructuredReviewNotes(
+        parsedOverride(originalParsed, req.body?.parsed_data),
+        { sourceIdentity: sourceIdentityForRow(row) }
+      );
+      const saveDraft = db.transaction(() => {
+        saveCorrectionExample(row, originalParsed, parsed);
+        db.prepare('UPDATE intake_log SET status=?,parsed_data=? WHERE id=?')
+          .run('pending_review', JSON.stringify(parsed), row.id);
+      });
+      saveDraft();
+      res.json({ success: true, id: row.id, parsed });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+  });
   router.post('/intake/:id/reject', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const r = db.prepare('UPDATE intake_log SET status=? WHERE id=?').run('rejected', req.params.id);
     if (!r.changes) return res.status(404).json({ error: 'לא נמצא' });

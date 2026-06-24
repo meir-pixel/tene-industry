@@ -876,15 +876,13 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /data-shape-kind="ocr-uncertain"/);
   assert.doesNotMatch(intake, /intake-compose-details/);
   assert.doesNotMatch(intake, /work-steps-details/);
-  assert.match(intake, /\\u05e9\\u05dd \\u05d4\\u05d0\\u05dc\\u05de\\u05e0\\u05d8/);
-  assert.match(intake, /צורה ומידות/);
   assert.match(intake, /spiral_diameter_mm/);
   assert.match(intake, /spiral_turns/);
   assert.match(intake, /ShapeEditorModal/);
   assert.match(intake, /parsed_data: parsed/);
   assert.match(intake, /tableFirst/);
   assert.doesNotMatch(intake, /השוואה במסך מלא/);
-  assert.match(intake, /אשר אחרי בדיקה/);
+  assert.match(intake, /Approve and create order/);
   assert.match(route, /original_data_url/);
   assert.match(route, /original_mime/);
   assert.match(route, /saveAnalysisToIntake/);
@@ -1320,4 +1318,3 @@ test('server hardens production auth and websocket upgrades', () => {
     assert.match(read(file), /IronBendAuth\?\.webSocketUrl/, file);
   }
 });
-

@@ -456,6 +456,8 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: emptyBody })).status, 401);
     assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
     assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 400);
+    assert.equal((await request('/api/intake/1/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: emptyBody })).status, 401);
+    assert.equal((await request('/api/intake/1/draft', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
     const textBody = JSON.stringify({ source: 'phone', text: '12 6000 4' });
     assert.equal((await request('/api/intake/parse-text', { method: 'POST', headers: authHeaders(office), body: textBody })).status, 200);
 

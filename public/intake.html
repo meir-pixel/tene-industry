@@ -279,6 +279,21 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-order-note{display:none}
 @media(max-width:1180px){.ocr-order-form-head,.ocr-order-row{min-width:760px;grid-template-columns:58px minmax(88px,1fr) minmax(118px,1.2fr) 66px 72px 72px 90px 78px 80px}.ocr-order-input,.ocr-order-static{font-size:13px}}
 
+/* OCR Review Workspace MVP */
+.intake-fullscreen-body{grid-template-columns:minmax(620px,1.15fr) minmax(430px,.75fr)}
+.intake-fullscreen-data{order:1;background:#fff}.intake-fullscreen-source{order:2}
+.ocr-review-workspace{display:grid;gap:12px}.ocr-review-top{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ocr-entity-card{border:1px solid #d8e4ef;border-radius:8px;background:#fff;padding:10px;display:grid;gap:8px;min-width:0}
+.ocr-entity-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.ocr-entity-title{font-size:12px;font-weight:900;color:#475569}.ocr-entity-confidence{font-size:11px;font-weight:900;color:#1f3a5c;background:#edf5ff;border:1px solid #d8e8fb;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.ocr-detected-input,.ocr-choose-select{width:100%;border:1px solid #d6e0ea;border-radius:7px;background:#fff;font-family:inherit;font-size:13px;color:var(--text);padding:7px 8px;font-weight:800;outline:0}.ocr-detected-input:focus,.ocr-choose-select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,98,26,.12)}
+.ocr-entity-actions{display:grid;grid-template-columns:1fr auto;gap:6px}.ocr-create-btn{border:1px solid #d6e0ea;border-radius:7px;background:#fbfdff;color:#1f3a5c;font-family:inherit;font-size:12px;font-weight:900;padding:6px 9px;cursor:pointer;white-space:nowrap}.ocr-create-btn:hover{border-color:var(--accent);color:var(--accent)}
+.ocr-review-table-wrap{border:1px solid #cfd8e3;border-top:3px solid #b9c3cc;border-radius:0;background:#fff;overflow:auto;max-height:calc(100vh - 330px)}
+.ocr-review-table{width:100%;border-collapse:collapse;min-width:760px;table-layout:fixed;text-align:center;background:#fff}.ocr-review-table th{background:#f4f6f8;color:#18365c;font-size:12px;font-weight:900;padding:9px 6px;border:1px solid #e1e6eb;white-space:nowrap}.ocr-review-table td{border:1px solid #e6ebef;padding:5px 6px;height:72px;vertical-align:middle;background:#fff}.ocr-review-table tbody tr:nth-child(even) td{background:#fbfcfe}.ocr-review-table tbody tr.verified td{background:#f2fbf5}.ocr-review-table tbody tr.edited td{background:#fffdf3}.ocr-review-table .ocr-order-row{display:table-row;min-height:0;border-bottom:0}.ocr-review-table .ocr-order-row:nth-child(odd){background:transparent}
+.ocr-review-table .ocr-order-input{border:0;background:transparent;border-radius:4px;font-size:15px;min-height:34px}.ocr-review-table .ocr-order-input:hover{box-shadow:inset 0 0 0 1px #cfd8e3;background:#fff}.ocr-review-table .ocr-order-input:focus{border:1px solid var(--accent);background:#fff;box-shadow:0 0 0 2px rgba(201,98,26,.12)}
+.ocr-review-shape{width:100%;border:0;background:transparent;display:grid;place-items:center;gap:1px;cursor:pointer;padding:0;color:#153863}.ocr-review-shape svg{width:92px;height:50px;display:block}.ocr-review-shape:hover svg{filter:drop-shadow(0 0 2px rgba(201,98,26,.45))}.ocr-review-dims{font-size:10px;font-weight:900;color:#153863;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px}
+.ocr-confidence-cell{display:grid;gap:4px;align-items:center;justify-items:center;font-size:11px;font-weight:900;color:#475569}.ocr-confidence-bar{width:72px;height:6px;border-radius:999px;background:#e5edf5;overflow:hidden}.ocr-confidence-bar span{display:block;height:100%;background:#2f80ed}.ocr-confidence-low .ocr-confidence-bar span{background:#c9621a}.ocr-status-cell{display:grid;gap:4px;justify-items:center}.ocr-status-pill{border:1px solid #cfd8e3;border-radius:999px;background:#fff;color:#475569;font-family:inherit;font-size:11px;font-weight:900;padding:5px 9px;cursor:pointer}.ocr-status-pill.verified{border-color:#bde8c8;background:#f3fbf5;color:#1f6f3c}
+.ocr-hidden-fields{display:none}.ocr-source-stage{position:relative}.ocr-source-highlight{position:absolute;z-index:3;left:18%;top:22%;width:58%;height:56px;border:3px solid #f59e0b;background:rgba(255,230,0,.2);box-shadow:0 0 0 9999px rgba(15,23,42,.03);border-radius:4px;opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease}.ocr-source-highlight.show{opacity:1;transform:scale(1.01)}
+@media(max-width:980px){.ocr-review-top{grid-template-columns:1fr}.ocr-review-table-wrap{max-height:58vh}.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-data{order:1}.intake-fullscreen-source{order:2}}
 </style>
 </head>
 <body data-page="intake">
@@ -341,8 +356,10 @@ body[data-page="intake"] #seOverlay{z-index:980}
         <div class="meta" id="intakeCompareMeta"></div>
       </div>
       <div class="intake-fullscreen-actions">
-        <button class="btn btn-success" id="intakeCompareApprove">אשר אחרי בדיקה</button>
-        <button class="btn" onclick="closeIntakeCompare()">סגור</button>
+        <button class="btn" id="intakeSaveDraft">Save draft</button>
+        <button class="btn" id="intakeCreateProductionCards">Create production cards</button>
+        <button class="btn btn-success" id="intakeCompareApprove">Approve and create order</button>
+        <button class="btn" onclick="closeIntakeCompare()">Close</button>
       </div>
     </div>
     <div class="intake-fullscreen-body">
@@ -411,7 +428,8 @@ function intakeCompareSourceHtml(row) {
       <button class="btn" onclick="resetIntakeCompareZoom()">1:1</button>
       <span class="meta" id="intakeCompareZoomLabel">100%</span>
     </div>
-    <div class="ocr-source-stage">
+        <div class="ocr-source-stage" id="ocrSourceStage">
+      <div class="ocr-source-highlight" id="ocrSourceHighlight"></div>
       <div class="ocr-source-zoom" id="intakeCompareZoomTarget">${intakeSourceHtml(row)}</div>
     </div>
   `;
@@ -451,18 +469,64 @@ function isLowConfidence(parsed, path, value) {
   return /unclear|unknown|review|required|verify|not visible|uncertain|בדיקה/.test(text);
 }
 
-function ocrFieldHtml({ label, path, value = '', type = 'text', low = false, itemIndex = null, itemField = null }) {
-  const attrs = itemIndex === null
-    ? `data-ocr-field="${escapeHtml(path)}"`
-    : `data-item-index="${itemIndex}" data-item-field="${escapeHtml(itemField)}"`;
-  const cls = low ? 'ocr-field low-confidence' : 'ocr-field';
-  const confidence = low ? '<div class="ocr-confidence">דורש בדיקה</div>' : '';
-  const body = type === 'textarea'
-    ? `<textarea ${attrs} oninput="markOcrEdited(this)">${escapeHtml(value)}</textarea>`
-    : `<input type="${type}" value="${escapeHtml(value)}" ${attrs} oninput="markOcrEdited(this)">`;
-  return `<label class="${cls}"><span>${escapeHtml(label)}</span>${body}${confidence}</label>`;
+function confidenceRatio(parsed, path, value) {
+  const confidence = confidenceFor(parsed || {}, path);
+  if (typeof confidence === 'number') return Math.max(0, Math.min(1, confidence > 1 ? confidence / 100 : confidence));
+  if (value === undefined || value === null || value === '') return 0.35;
+  return isLowConfidence(parsed || {}, path, value) ? 0.55 : 0.92;
 }
 
+function confidenceDisplay(parsed, path, value) {
+  return Math.round(confidenceRatio(parsed, path, value) * 100) + '%';
+}
+
+function sourcePathLabel(path) {
+  const value = String(path || 'field');
+  if (value.includes('customer')) return 'customer';
+  if (value.includes('project')) return 'project';
+  if (value.includes('site') || value.includes('address')) return 'site';
+  if (value.includes('diameter')) return 'diameter';
+  if (value.includes('quantity')) return 'quantity';
+  if (value.includes('length')) return 'length';
+  if (value.includes('shape')) return 'shape';
+  return value.split('.').pop() || 'field';
+}
+
+function highlightOcrSource(path) {
+  const stage = document.getElementById('ocrSourceStage');
+  const marker = document.getElementById('ocrSourceHighlight');
+  if (!stage || !marker) return;
+  let top = 18;
+  const match = String(path || '').match(/items\.(\d+)/);
+  if (match) top = 20 + (Number(match[1] || 0) % 8) * 7;
+  if (String(path).includes('customer')) top = 12;
+  if (String(path).includes('project') || String(path).includes('site')) top = 17;
+  marker.style.top = Math.min(78, top) + '%';
+  marker.title = sourcePathLabel(path);
+  marker.classList.add('show');
+  clearTimeout(marker._t);
+  marker._t = setTimeout(() => marker.classList.remove('show'), 2600);
+}
+
+function markOcrEntityCreate(path, button) {
+  const input = document.querySelector(`[data-ocr-field="${path}"]`);
+  if (input) markOcrEdited(input);
+  if (button) button.textContent = 'Marked new';
+  highlightOcrSource(path);
+}
+
+function ocrFieldHtml({ label, path, value = '', type = 'text', low = false, itemIndex = null, itemField = null }) {
+  const sourcePath = itemIndex === null ? path : `items.${itemIndex}.${itemField || path}`;
+  const attrs = itemIndex === null
+    ? `data-ocr-field="${escapeHtml(path)}" data-source-field="${escapeHtml(sourcePath)}"`
+    : `data-item-index="${itemIndex}" data-item-field="${escapeHtml(itemField)}" data-source-field="${escapeHtml(sourcePath)}"`;
+  const cls = low ? 'ocr-field low-confidence' : 'ocr-field';
+  const confidence = `<div class="ocr-confidence">${escapeHtml(confidenceDisplay(activeCompareOriginal || {}, sourcePath, value))}</div>`;
+  const body = type === 'textarea'
+    ? `<textarea ${attrs} onfocus="highlightOcrSource(this.dataset.sourceField)" onclick="highlightOcrSource(this.dataset.sourceField)" oninput="markOcrEdited(this)">${escapeHtml(value)}</textarea>`
+    : `<input type="${type}" value="${escapeHtml(value)}" ${attrs} onfocus="highlightOcrSource(this.dataset.sourceField); this.select && this.select()" onclick="highlightOcrSource(this.dataset.sourceField)" oninput="markOcrEdited(this)">`;
+  return `<label class="${cls}"><span>${escapeHtml(label)}</span>${body}${confidence}</label>`;
+}
 function segmentLengthOf(seg) {
   return typeof seg === 'object' ? (seg.length_mm ?? seg.length ?? seg.length_cm ?? '') : seg;
 }
@@ -943,9 +1007,9 @@ function ocrShapePreviewHtml(item, index) {
 
 function ocrOrderCellInput(index, field, value, type = 'text', low = false) {
   const numberAttrs = type === 'number' ? ' inputmode="decimal" step="any"' : '';
-  return `<input class="ocr-order-input ${low ? 'low-confidence' : ''}" type="${type}"${numberAttrs} value="${escapeHtml(value ?? '')}" data-editable-cell="true" data-item-index="${index}" data-item-field="${escapeHtml(field)}" title="לחץ לעריכה" onfocus="this.select()" oninput="markOcrEdited(this)">`;
+  const sourcePath = `items.${index}.${field}`;
+  return `<input class="ocr-order-input ${low ? 'low-confidence' : ''}" type="${type}"${numberAttrs} value="${escapeHtml(value ?? '')}" data-editable-cell="true" data-source-field="${escapeHtml(sourcePath)}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" title="Click to edit" onfocus="highlightOcrSource(this.dataset.sourceField); this.select()" onclick="highlightOcrSource(this.dataset.sourceField)" oninput="markOcrEdited(this)">`;
 }
-
 function ocrOrderCellTextarea(index, field, value, low = false) {
   return `<textarea class="ocr-order-textarea ${low ? 'low-confidence' : ''}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" oninput="markOcrEdited(this)">${escapeHtml(value ?? '')}</textarea>`;
 }
@@ -981,6 +1045,19 @@ function verifyOcrItem(index) {
   if (summary) summary.textContent = '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05e0\u05e9\u05de\u05e8\u05d4 \u05db\u05e0\u05d1\u05d3\u05e7\u05ea. \u05d4\u05d0\u05d9\u05e9\u05d5\u05e8 \u05d4\u05e1\u05d5\u05e4\u05d9 \u05de\u05ea\u05d1\u05e6\u05e2 \u05d1\u05db\u05e4\u05ea\u05d5\u05e8 \u05d4\u05e8\u05d0\u05e9\u05d9.';
 }
 
+function ocrItemConfidenceCell(parsed, item, index) {
+  const paths = [
+    ['diameter', item.diameter ?? item.diameter_mm],
+    ['total_length_mm', item.total_length_mm ?? item.length_mm ?? item.length],
+    ['quantity', item.qty ?? item.quantity ?? item.pcs],
+    ['shape_name', item.shape_name || item.shapeName || item.shape || item.type],
+  ];
+  const scores = paths.map(([field, value]) => confidenceRatio(parsed, `items.${index}.${field}`, value));
+  const score = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : 0.75;
+  const pct = Math.round(score * 100);
+  return `<div class="ocr-confidence-cell ${pct < 75 ? 'ocr-confidence-low' : ''}" onclick="highlightOcrSource('items.${index}.confidence')"><div>${pct}%</div><div class="ocr-confidence-bar"><span style="width:${pct}%"></span></div></div>`;
+}
+
 function ocrItemTableRowHtml(parsed, item, index) {
   const isSpiral = isSpiralOcrItem(item);
   const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
@@ -997,62 +1074,91 @@ function ocrItemTableRowHtml(parsed, item, index) {
   const lengthMeters = ocrLengthMeters(item);
   const totalLengthMeters = ocrTotalLengthMeters(item);
   const segmentsValue = isSpiral ? '' : segmentsToText(item);
+  const shapeSvg = ocrCardShapeSvg(item, 92, 50) || ocrShapeSvgHtml(item, 120, 62);
   return `
-    <div class="ocr-order-row ${reviewStatus === 'accepted' ? 'verified' : ''}${straightClass}" id="ocrOrderRow_${index}">
-      <div class="ocr-order-cell">
-        ${ocrOrderCellInput(index, 'item_number', itemNumber, 'text', isLowConfidence(parsed, `items.${index}.item_number`, itemNumber))}
-        <input type="hidden" value="${escapeHtml(shape)}" data-item-index="${index}" data-item-field="shape_name">
-        <input type="hidden" value="${escapeHtml(reviewStatus)}" data-item-index="${index}" data-item-field="review_status">
-        <input type="hidden" value="${escapeHtml(note)}" data-item-index="${index}" data-item-field="note">
-        <input type="hidden" value="${escapeHtml(segmentsValue)}" data-item-index="${index}" data-item-field="segments">
-        <input type="hidden" value="${escapeHtml(item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '')}" data-item-index="${index}" data-item-field="spiral_diameter_mm">
-        <input type="hidden" value="${escapeHtml(item.spiral_turns ?? item.spiralTurns ?? '')}" data-item-index="${index}" data-item-field="spiral_turns">
-      </div>
-      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'element_name', elementName, 'text', isLowConfidence(parsed, `items.${index}.element_name`, elementName))}</div>
-      <div class="ocr-order-cell">${ocrShapeCellHtml(item, index)}</div>
-      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</div>
-      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</div>
-      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}<div class="ocr-shape-dimensions">${escapeHtml(lengthMeters || '-')} m</div></div>
-      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'total_length_m', totalLengthMeters || '', 'number', false)}</div>
-      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'target_weight_kg', targetWeight || '', 'number', false)}</div>
-      <div class="ocr-order-cell">
-        <div class="ocr-row-actions">
-          <button type="button" class="ocr-icon-btn" onclick="verifyOcrItem(${index})" title="שמור שורה" aria-label="שמור שורה">✓</button>
-          <button type="button" class="ocr-icon-btn" onclick="removeOcrItem(${index})" title="הסר שורה" aria-label="הסר שורה">×</button>
+    <tr class="ocr-order-row ${reviewStatus === 'accepted' ? 'verified' : ''}${straightClass}" id="ocrOrderRow_${index}">
+      <td>${ocrOrderCellInput(index, 'item_number', itemNumber, 'text', isLowConfidence(parsed, `items.${index}.item_number`, itemNumber))}</td>
+      <td>
+        <button type="button" class="ocr-review-shape" id="ocrShapeCell_${index}" onclick="highlightOcrSource('items.${index}.shape_name'); openOcrShapeEditor(${index})" title="Open Shape Editor">
+          ${shapeSvg}
+          <span class="ocr-review-dims">${escapeHtml(compactDimensionPairText(item) || segmentsValue || lengthMeters || shapeDescription || '-')}</span>
+        </button>
+        <div class="ocr-hidden-fields">
+          <input type="hidden" value="${escapeHtml(shape)}" data-item-index="${index}" data-item-field="shape_name">
+          <input type="hidden" value="${escapeHtml(reviewStatus)}" data-item-index="${index}" data-item-field="review_status">
+          <input type="hidden" value="${escapeHtml(note)}" data-item-index="${index}" data-item-field="note">
+          <input type="hidden" value="${escapeHtml(segmentsValue)}" data-item-index="${index}" data-item-field="segments">
+          <input type="hidden" value="${escapeHtml(item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '')}" data-item-index="${index}" data-item-field="spiral_diameter_mm">
+          <input type="hidden" value="${escapeHtml(item.spiral_turns ?? item.spiralTurns ?? '')}" data-item-index="${index}" data-item-field="spiral_turns">
+          <input type="hidden" value="${escapeHtml(elementName)}" data-item-index="${index}" data-item-field="element_name">
+          <input type="hidden" value="${escapeHtml(shapeDescription)}" data-item-index="${index}" data-item-field="shape_description">
+          <input type="hidden" value="${escapeHtml(totalLengthMeters || '')}" data-item-index="${index}" data-item-field="total_length_m">
+          <input type="hidden" value="${escapeHtml(targetWeight || '')}" data-item-index="${index}" data-item-field="target_weight_kg">
         </div>
-        <div class="ocr-row-status ${reviewStatus === 'accepted' ? 'verified' : ''}" id="ocrRowStatus_${index}">${ocrReviewStatusLabel(reviewStatus)}</div>
-      </div>
-      <input type="hidden" value="${escapeHtml(shapeDescription)}" data-item-index="${index}" data-item-field="shape_description">
-    </div>
+      </td>
+      <td>${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</td>
+      <td>${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}</td>
+      <td>${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</td>
+      <td>${ocrItemConfidenceCell(parsed, item, index)}</td>
+      <td><div class="ocr-status-cell"><button type="button" class="ocr-status-pill ${reviewStatus === 'accepted' ? 'verified' : ''}" onclick="verifyOcrItem(${index})">${ocrReviewStatusLabel(reviewStatus)}</button><span class="ocr-row-status ${reviewStatus === 'accepted' ? 'verified' : ''}" id="ocrRowStatus_${index}">${reviewStatus === 'accepted' ? 'OK' : 'Review'}</span></div></td>
+    </tr>
   `;
 }
-
-
 function ocrItemFieldsHtml(parsed, item, index) {
   return ocrItemTableRowHtml(parsed, item, index);
 }
 
-function intakeEditableForm(parsed, options = {}) {
-  const items = Array.isArray(parsed.items) ? parsed.items : [];
-  const fieldsHtml = `
-    <div class="ocr-field-grid">
-      ${ocrFieldHtml({ label:'\u05dc\u05e7\u05d5\u05d7', path:'customer_name', value: parsed.customer_name || parsed.customerName || '', low: isLowConfidence(parsed, 'customer_name', parsed.customer_name || parsed.customerName) })}
-      ${ocrFieldHtml({ label:'\u05ea\u05d0\u05e8\u05d9\u05da \u05d0\u05e1\u05e4\u05e7\u05d4', path:'delivery_date', value: deliveryDateOf(parsed), low: isLowConfidence(parsed, 'delivery_date', deliveryDateOf(parsed)) })}
-      ${ocrFieldHtml({ label:'\u05db\u05ea\u05d5\u05d1\u05ea', path:'delivery_address', value: parsed.delivery_address || parsed.deliveryAddress || '', low: isLowConfidence(parsed, 'delivery_address', parsed.delivery_address || parsed.deliveryAddress) })}
-      ${ocrFieldHtml({ label:'\u05d4\u05e2\u05e8\u05d5\u05ea \u05dc\u05e0\u05d4\u05d2/\u05d9\u05d9\u05e6\u05d5\u05e8', path:'notes', value: isTechnicalRecognitionNote(parsed.notes) ? '' : (parsed.notes || ''), type:'textarea', low: false })}
-    </div>`;
-  const tableHtml = `
-    <div class="box-title">\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4 - \u05d1\u05d3\u05d9\u05e7\u05d4 \u05de\u05d5\u05dc \u05d4\u05de\u05e7\u05d5\u05e8 \u05dc\u05e4\u05e0\u05d9 \u05d0\u05d9\u05e9\u05d5\u05e8</div>
-    ${items.length ? `
-      <div class="ocr-order-form" aria-label="\u05d8\u05d5\u05e4\u05e1 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d6\u05d5\u05d4\u05d4">
-        <div class="ocr-order-form-head">
-          <div>\u05de\u05e1' \u05e4\u05e8\u05d9\u05d8</div><div>\u05e9\u05dd \u05d4\u05d0\u05dc\u05de\u05e0\u05d8</div><div>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</div><div>\u05e7\u05d5\u05d8\u05e8 (\u00d8)</div><div>\u05db\u05de\u05d5\u05ea</div><div>\u05d0\u05d5\u05e8\u05da (m)</div><div>\u05e1\u05d4"\u05db \u05d0\u05d5\u05e8\u05da (m)</div><div>\u05de\u05e9\u05e7\u05dc (kg)</div><div>\u05d1\u05d3\u05d9\u05e7\u05d4</div>
-        </div>
-        ${items.map((item, index) => safeIntakeRender(`item ${index + 1}`, () => ocrItemTableRowHtml(parsed, item || {}, index), `<div class="ocr-order-row"><div class="ocr-order-cell">${escapeHtml(ocrItemNumber(item || {}, index))}</div><div class="ocr-order-cell" style="grid-column:span 8">שורת OCR לא ניתנת להצגה. פתח את עורך הצורה או בדוק את נתוני ה-OCR.</div></div>`)).join('')}
+function parsedProjectValue(parsed) {
+  return parsed.project_name || parsed.project || parsed.site_project || '';
+}
+
+function parsedSiteValue(parsed) {
+  return parsed.site_name || parsed.site || parsed.delivery_address || parsed.deliveryAddress || '';
+}
+
+function ocrEntityCardHtml({ label, path, value, parsed, options = [] }) {
+  const score = confidenceDisplay(parsed, path, value);
+  const low = isLowConfidence(parsed, path, value);
+  const selectOptions = [''].concat(options).map(option => `<option value="${escapeHtml(option)}">${option ? escapeHtml(option) : 'Choose existing'}</option>`).join('');
+  return `
+    <div class="ocr-entity-card ${low ? 'low-confidence' : ''}">
+      <div class="ocr-entity-head"><span class="ocr-entity-title">${escapeHtml(label)}</span><span class="ocr-entity-confidence">${escapeHtml(score)}</span></div>
+      <input class="ocr-detected-input" value="${escapeHtml(value || '')}" data-ocr-field="${escapeHtml(path)}" data-source-field="${escapeHtml(path)}" onfocus="highlightOcrSource(this.dataset.sourceField); this.select()" onclick="highlightOcrSource(this.dataset.sourceField)" oninput="markOcrEdited(this)">
+      <div class="ocr-entity-actions">
+        <select class="ocr-choose-select" onchange="if(this.value){const input=this.closest('.ocr-entity-card').querySelector('[data-ocr-field]'); input.value=this.value; markOcrEdited(input); highlightOcrSource('${escapeHtml(path)}');}">${selectOptions}</select>
+        <button type="button" class="ocr-create-btn" onclick="markOcrEntityCreate('${escapeHtml(path)}', this)">Create new</button>
       </div>
-    ` : '<div class="empty">\u05dc\u05d0 \u05d6\u05d5\u05d4\u05d5 \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd. \u05d0\u05e4\u05e9\u05e8 \u05dc\u05d4\u05d5\u05e1\u05d9\u05e3/\u05dc\u05ea\u05e7\u05df \u05dc\u05e4\u05e0\u05d9 \u05d0\u05d9\u05e9\u05d5\u05e8.</div>'}
-    <div class="ocr-corrections" id="ocrCorrectionSummary">\u05db\u05dc \u05e9\u05d9\u05e0\u05d5\u05d9 \u05d9\u05d3\u05e0\u05d9 \u05d9\u05d9\u05e9\u05de\u05e8 \u05d1\u05d0\u05d9\u05e9\u05d5\u05e8 \u05d5\u05d9\u05d9\u05db\u05e0\u05e1 \u05dc\u05de\u05e1\u05dc\u05d5\u05dc \u05d0\u05d9\u05de\u05d5\u05df OCR.</div>`;
-  return `<div class="ocr-edit-form">${options.tableFirst ? tableHtml + fieldsHtml : fieldsHtml + tableHtml}</div>`;
+    </div>
+  `;
+}
+
+function ocrReviewTopHtml(parsed, row) {
+  const matchedCustomer = row?.customer_match?.customer?.name || '';
+  return `<div class="ocr-review-top">
+    ${ocrEntityCardHtml({ label:'Customer', path:'customer_name', value: parsed.customer_name || parsed.customerName || matchedCustomer || '', parsed, options:[matchedCustomer].filter(Boolean) })}
+    ${ocrEntityCardHtml({ label:'Project', path:'project_name', value: parsedProjectValue(parsed), parsed })}
+    ${ocrEntityCardHtml({ label:'Site', path:'site_name', value: parsedSiteValue(parsed), parsed })}
+  </div>`;
+}
+
+function intakeEditableForm(parsed, options = {}) {
+  const row = intakeRows.find(item => item.id === activeCompareId) || {};
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  const tableFirst = options.tableFirst;
+  const tableHtml = items.length ? `
+    <div class="ocr-review-table-wrap ocr-order-form" aria-label="OCR Review Workspace table">
+      <table class="ocr-review-table">
+        <thead><tr><th>Item #</th><th>Shape preview</th><th>Diameter</th><th>Length</th><th>Quantity</th><th>Confidence</th><th>Status</th></tr></thead>
+        <tbody>${items.map((item, index) => safeIntakeRender(`item ${index + 1}`, () => ocrItemTableRowHtml(parsed, item || {}, index), `<tr><td>${escapeHtml(ocrItemNumber(item || {}, index))}</td><td colspan="6">OCR row could not render. Open Shape Editor or review source data.</td></tr>`)).join('')}</tbody>
+      </table>
+    </div>
+  ` : '<div class="empty">No extracted items yet. Save a draft or correct OCR before approval.</div>';
+  return `<div class="ocr-edit-form ocr-review-workspace" data-table-first="${tableFirst ? 'true' : 'false'}">
+    ${ocrReviewTopHtml(parsed, row)}
+    <div class="box-title">Extracted items</div>
+    ${tableHtml}
+    <div class="ocr-corrections" id="ocrCorrectionSummary">Click any value to edit it. Click a shape preview to open the Shape Editor. Final approval still creates the order through Orders.</div>
+  </div>`;
 }
 function markOcrEdited(el) {
   el.closest('.ocr-field, .ocr-order-row')?.classList.add('edited');
@@ -1165,16 +1271,21 @@ function shapeSelectedFromIntake(data) {
   activeOcrShapeIndex = null;
 }
 
+function assignParsedField(parsed, path, value) {
+  const clean = String(value ?? '').trim();
+  if (path === 'customer_name') parsed.customer_name = clean;
+  else if (path === 'project_name') parsed.project_name = clean;
+  else if (path === 'site_name') { parsed.site_name = clean; if (!parsed.delivery_address) parsed.delivery_address = clean; }
+  else if (path === 'delivery_date') parsed.delivery_date = clean;
+  else if (path === 'delivery_address') parsed.delivery_address = clean;
+  else if (path === 'notes') parsed.notes = clean;
+  else parsed[path] = clean;
+}
+
 function readCorrectedParsed() {
   const row = intakeRows.find(item => item.id === activeCompareId);
   const parsed = cloneParsedForCompare(activeCompareOriginal || parsedOf(row || {}));
-  document.querySelectorAll('[data-ocr-field]').forEach(input => {
-    const path = input.dataset.ocrField;
-    if (path === 'customer_name') parsed.customer_name = input.value.trim();
-    if (path === 'delivery_date') parsed.delivery_date = input.value.trim();
-    if (path === 'delivery_address') parsed.delivery_address = input.value.trim();
-    if (path === 'notes') parsed.notes = input.value.trim();
-  });
+  document.querySelectorAll('[data-ocr-field]').forEach(input => assignParsedField(parsed, input.dataset.ocrField, input.value));
   parsed.items = Array.isArray(parsed.items) ? parsed.items : [];
   document.querySelectorAll('[data-item-index]').forEach(input => {
     const index = Number(input.dataset.itemIndex);
@@ -1182,7 +1293,7 @@ function readCorrectedParsed() {
     parsed.items[index] = parsed.items[index] || {};
     if (field === 'segments') parsed.items[index].segments = parseSegmentsText(input.value);
     else if (['diameter', 'quantity', 'total_length_mm', 'total_length_m', 'target_weight_kg', 'spiral_diameter_mm', 'spiral_turns'].includes(field)) parsed.items[index][field] = toNumber(input.value);
-    else parsed.items[index][field] = input.value.trim();
+    else parsed.items[index][field] = String(input.value ?? '').trim();
   });
   parsed.items = parsed.items.map(item => {
     if (!isSpiralOcrItem(item)) return item;
@@ -1197,7 +1308,6 @@ function readCorrectedParsed() {
   });
   return parsed;
 }
-
 function intakeReviewTable(parsed) {
   const items = Array.isArray(parsed.items) ? parsed.items : [];
   if (!items.length) return '<div class="empty">לא זוהו פריטים. אין לאשר לפני תיקון ידני.</div>';
@@ -1243,7 +1353,9 @@ function requireIntakeCompareElements() {
   const source = document.getElementById('intakeCompareSource');
   const data = document.getElementById('intakeCompareData');
   const approve = document.getElementById('intakeCompareApprove');
-  return modal && title && meta && source && data && approve ? { modal, title, meta, source, data, approve } : null;
+  const save = document.getElementById('intakeSaveDraft');
+  const cards = document.getElementById('intakeCreateProductionCards');
+  return modal && title && meta && source && data && approve ? { modal, title, meta, source, data, approve, save, cards } : null;
 }
 
 function safeIntakeRender(label, render, fallback) {
@@ -1715,8 +1827,10 @@ function openIntakeCompare(id) {
       ${customerHtml}
     </div>
   `;
-  elements.approve.textContent = isPostOrderReview ? 'פתח הזמנה לאימות' : 'אשר אחרי בדיקה';
+  elements.approve.textContent = isPostOrderReview ? 'Open order review' : 'Approve and create order';
   elements.approve.onclick = isPostOrderReview ? () => openLinkedOrder(row.order_id) : () => intakeApprove(id);
+  if (elements.save) { elements.save.style.display = isPostOrderReview ? 'none' : ''; elements.save.onclick = () => saveIntakeDraft(id); }
+  if (elements.cards) { elements.cards.style.display = isPostOrderReview ? 'none' : ''; elements.cards.onclick = () => intakeCreateProductionCards(id); }
   elements.modal.classList.add('open');
   applyIntakeCompareZoom();
 }
@@ -1725,13 +1839,35 @@ function closeIntakeCompare() {
   document.getElementById('intakeCompareModal').classList.remove('open');
 }
 
-async function intakeApprove(id) {
+async function saveIntakeDraft(id) {
+  const parsed = activeCompareId === id ? readCorrectedParsed() : {};
+  const response = await fetch(`/api/intake/${id}/draft`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ parsed_data: parsed }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) return toast(result.error || 'Draft save failed', true);
+  const row = intakeRows.find(item => item.id === id);
+  if (row) {
+    row.parsed = result.parsed || parsed;
+    row.parsed_data = JSON.stringify(row.parsed);
+  }
+  activeCompareOriginal = cloneParsedForCompare(result.parsed || parsed);
+  toast('Draft saved for review');
+}
+
+function intakeCreateProductionCards(id) {
+  return intakeApprove(id, { printCards: true });
+}
+
+async function intakeApprove(id, options = {}) {
   const row = intakeRows.find(item => item.id === id);
   const selected = selectedCustomers[id] || row?.customer_match?.customer;
   const parsed = activeCompareId === id ? readCorrectedParsed() : (row ? parsedOf(row) : {});
-  if (!selected && !confirm('לא שויך לקוח קיים. ליצור לקוח חדש לפי הפענוח?')) return;
+  if (!selected && !confirm('׳׳ ׳©׳•׳™׳ ׳׳§׳•׳— ׳§׳™׳™׳. ׳׳™׳¦׳•׳¨ ׳׳§׳•׳— ׳—׳“׳© ׳׳₪׳™ ׳”׳₪׳¢׳ ׳•׳—?')) return;
   if (!(parsed.items || []).length) {
-    toast('אי אפשר לאשר בלי פריטים. פתח לעריכה או תקן את טקסט הקליטה.', true);
+    toast('Cannot approve without extracted items. Edit the table or correct the OCR text first.', true);
     return;
   }
   const response = await fetch(`/api/intake/${id}/approve`, {
@@ -1740,14 +1876,16 @@ async function intakeApprove(id) {
     body: JSON.stringify({ ...(selected ? { customer_id: selected.id } : {}), parsed_data: parsed }),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok || !result.success) return toast(result.error || 'אישור נכשל', true);
+  if (!response.ok || !result.success) return toast(result.error || 'Approval failed', true);
   selectedCustomers[id] = null;
   intakeRows = intakeRows.filter(row => row.id !== id);
   closeIntakeCompare();
   renderIntakeQueue();
-  toast(`הזמנה ${result.orderNum} נוצרה`);
+  toast(`Order ${result.orderNum || result.orderId || ''} created`);
+  if (options.printCards && result.orderId) {
+    window.open('/order-print.html?id=' + encodeURIComponent(result.orderId) + '&kind=print-cards', '_blank', 'noopener');
+  }
 }
-
 async function intakeReject(id) {
   if (!confirm('לדחות את הפנייה הזו?')) return;
   const response = await fetch(`/api/intake/${id}/reject`, { method:'POST' });
@@ -1770,7 +1908,3 @@ loadIntakeQueue();
 </script>
 </body>
 </html>
-
-
-
-
