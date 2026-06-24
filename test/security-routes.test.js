@@ -724,7 +724,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await response.json()).success, true);
 
     const updated = db.prepare('SELECT status, confirm_token FROM orders WHERE id=?').get(orderA);
-    assert.equal(updated.status, 'אושרה – ממתין לייצור');
+    assert.equal(updated.status, 'ממתינה לאישור');
     assert.equal(updated.confirm_token, null);
 
     assert.ok(customerB);
