@@ -102,6 +102,19 @@ test('shape editor renders one row per side in the 2D dimensions panel', () => {
   assert.match(editor, /class=\"se-angle-cell\"/);
   assert.doesNotMatch(editor, /html \+= `<tr class=\"se-bend-row\">/);
 });
+test('shape editor has mesh and pile families with icon-only preset buttons', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /const SHAPE_FAMILIES = \[/);
+  assert.match(editor, /id: 'mesh1'/);
+  assert.match(editor, /id: 'pile1'/);
+  assert.match(editor, /id="seFamilyTabs"/);
+  const presetRender = editor.match(/_renderPresets\(countFilter\) \{[\s\S]*?_renderSavedShapes\(countFilter\) \{/);
+  assert.ok(presetRender, 'expected preset renderer block');
+  assert.match(presetRender[0], /shapePresetIconSVG\(s\.icon \|\| 'straight'\)/);
+  assert.match(presetRender[0], /class="se-preset-name"/);
+  assert.doesNotMatch(presetRender[0], /font-size:12px;font-weight:700;line-height:1\.3;word-break:break-word;color:inherit/);
+});
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },

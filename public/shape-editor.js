@@ -20,21 +20,54 @@ const SEG_COLORS = [
 // ── SHAPE PRESETS ──────────────────────────────────────────────────
 // sides: lengths in mm (defaults), angles: bend angles in degrees between sides
 const SHAPE_PRESETS = [
-  { id: 's1',  name: 'ישר',           bends: 0, sides: [1000],                         angles: [],                    emoji: '➖' },
-  { id: 's2',  name: 'L – זווית',     bends: 1, sides: [500, 200],                     angles: [90],                  emoji: '⌐' },
-  { id: 's3',  name: 'U – אנקר',      bends: 2, sides: [300, 600, 300],                angles: [90, 90],              emoji: '∪' },
-  { id: 's4',  name: 'Z – הזזה',      bends: 2, sides: [300, 400, 300],                angles: [135, 135],            emoji: 'Z' },
-  { id: 's5',  name: 'S – כפול',      bends: 3, sides: [200, 300, 300, 200],           angles: [135, 135, 135],       emoji: 'S' },
-  { id: 's6',  name: 'אוברל – קרס',  bends: 3, sides: [200, 400, 400, 200],           angles: [90, 180, 90],         emoji: '⎡' },
-  { id: 's7',  name: 'אסדה פתוחה',   bends: 3, sides: [200, 500, 500, 200],           angles: [90, 90, 90],          emoji: '⬓' },
-  { id: 's8',  name: 'מלבן – אצבה',  bends: 4, sides: [400, 200, 400, 200],           angles: [90, 90, 90, 90],      emoji: '□' },
-  { id: 's9',  name: 'ריבוע – אצבה', bends: 4, sides: [300, 300, 300, 300],           angles: [90, 90, 90, 90],      emoji: '◻' },
-  { id: 's10', name: 'חמישה כיפופים', bends: 5, sides: [150, 200, 400, 200, 400, 150], angles: [90, 90, 90, 90, 90], emoji: '⌂' },
-  { id: 's11', name: 'ששה כיפופים',  bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
-  { id: 's13', name: 'W – ארבעה כיפופים', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
-  { id: 's14', name: 'C – חמש צלעות',    bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
-  { id: 's12', name: 'מותאם אישית',  bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
+  { id: 's1',  name: 'ישר',           family: 'bars', icon: 'straight', bends: 0, sides: [1000],                         angles: [],                    emoji: '➖' },
+  { id: 's2',  name: 'L – זווית',     family: 'bars', icon: 'l', bends: 1, sides: [500, 200],                     angles: [90],                  emoji: '⌐' },
+  { id: 's3',  name: 'U – אנקר',      family: 'bars', icon: 'u', bends: 2, sides: [300, 600, 300],                angles: [90, 90],              emoji: '∪' },
+  { id: 's4',  name: 'Z – הזזה',      family: 'bars', icon: 'z', bends: 2, sides: [300, 400, 300],                angles: [135, 135],            emoji: 'Z' },
+  { id: 's5',  name: 'S – כפול',      family: 'bars', icon: 's', bends: 3, sides: [200, 300, 300, 200],           angles: [135, 135, 135],       emoji: 'S' },
+  { id: 's6',  name: 'אוברל – קרס',  family: 'bars', icon: 'hook', bends: 3, sides: [200, 400, 400, 200],           angles: [90, 180, 90],         emoji: '⌡' },
+  { id: 's7',  name: 'אסדה פתוחה',   family: 'bars', icon: 'open-u', bends: 3, sides: [200, 500, 500, 200],           angles: [90, 90, 90],          emoji: '┓' },
+  { id: 's8',  name: 'מלבן – אצבה',  family: 'bars', icon: 'stirrup', bends: 4, sides: [400, 200, 400, 200],           angles: [90, 90, 90, 90],      emoji: '▢' },
+  { id: 's9',  name: 'ריבוע – אצבה', family: 'bars', icon: 'stirrup-square', bends: 4, sides: [300, 300, 300, 300],           angles: [90, 90, 90, 90],      emoji: '▣' },
+  { id: 's10', name: 'חמישה כיפופים', family: 'bars', icon: 'multi', bends: 5, sides: [150, 200, 400, 200, 400, 150], angles: [90, 90, 90, 90, 90], emoji: '⌂' },
+  { id: 's11', name: 'ששה כיפופים',  family: 'bars', icon: 'polygon', bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
+  { id: 's13', name: 'W – ארבעה כיפופים', family: 'bars', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
+  { id: 's14', name: 'C – חמש צלעות',    family: 'bars', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
+  { id: 'mesh1', name: 'רשת סימטרית', family: 'mesh', icon: 'mesh', bends: 0, sides: [600, 250], angles: [], emoji: '#', specialty: 'mesh' },
+  { id: 'pile1', name: 'כלונס בסיס', family: 'piles', icon: 'pile', bends: 0, sides: [1620], angles: [], emoji: '◎', specialty: 'pile' },
+  { id: 's12', name: 'מותאם אישית',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
 ];
+
+const SHAPE_FAMILIES = [
+  { id: 'bars', label: 'מוטות' },
+  { id: 'mesh', label: 'רשת' },
+  { id: 'piles', label: 'כלונסאות' },
+];
+
+function shapePresetIconSVG(kind) {
+  const stroke = 'stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+  const thin = 'stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".92"';
+  const dot = (x, y) => `<circle cx="${x}" cy="${y}" r="4.2" fill="currentColor"/>`;
+  const icons = {
+    straight: `<path ${stroke} d="M18 50 H82"/>`,
+    l: `<path ${stroke} d="M30 20 V68 H76"/>`,
+    u: `<path ${stroke} d="M24 20 V72 H76 V20"/>`,
+    z: `<path ${stroke} d="M22 24 H74 L28 72 H78"/>`,
+    s: `<path ${stroke} d="M74 22 H34 C18 22 18 45 35 45 H65 C82 45 82 72 62 72 H24"/>`,
+    hook: `<path ${stroke} d="M22 20 V70 H68 C82 70 82 48 68 48"/>`,
+    'open-u': `<path ${stroke} d="M24 22 V72 H78 V44"/>`,
+    stirrup: `<rect x="22" y="18" width="56" height="58" rx="3" ${stroke}/><path ${thin} d="M61 34 H78 V51"/>`,
+    'stirrup-square': `<rect x="24" y="24" width="52" height="52" rx="3" ${stroke}/><path ${thin} d="M58 38 H76 V55"/>`,
+    multi: `<path ${stroke} d="M17 66 H35 V35 H56 V66 H80"/>`,
+    polygon: `<path ${stroke} d="M50 16 L78 32 V66 L50 82 L22 66 V32 Z"/>`,
+    w: `<path ${stroke} d="M16 25 L31 74 L50 38 L69 74 L84 25"/>`,
+    c: `<path ${stroke} d="M77 24 H31 V74 H77"/>`,
+    mesh: `<path ${thin} d="M20 24 H82 M20 40 H82 M20 56 H82 M20 72 H82 M28 16 V80 M44 16 V80 M60 16 V80 M76 16 V80"/>`,
+    pile: `<circle cx="50" cy="50" r="30" ${thin}/><circle cx="50" cy="50" r="21" ${thin} opacity=".45"/>${dot(50, 20)}${dot(71, 29)}${dot(80, 50)}${dot(71, 71)}${dot(50, 80)}${dot(29, 71)}${dot(20, 50)}${dot(29, 29)}`,
+    custom: `<path ${stroke} d="M24 70 L34 50 L62 22 L78 38 L50 66 Z"/><path ${thin} d="M58 26 L74 42"/>`,
+  };
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">${icons[kind] || icons.straight}</svg>`;
+}
 
 // ── GEOMETRY ──────────────────────────────────────────────────────
 function calcShapePoints(sides, angles) {
@@ -832,21 +865,56 @@ class ShapeEditorModal {
 #sePageSelect{
   background:#d9d9d9!important;
 }
+#seFamilyTabs{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  padding:16px 24px 10px;
+  background:#eef0f3;
+  border-bottom:1px solid #d5dae1;
+}
+#seFamilyTabs .se-family-tab{
+  min-width:82px;
+  height:30px;
+  border:1px solid #b9c3d0;
+  border-radius:6px;
+  background:#f7f8fa;
+  color:#647083;
+  font-family:'Heebo',sans-serif;
+  font-size:14px;
+  font-weight:800;
+}
+#seFamilyTabs .se-family-tab.active{
+  background:#fff;
+  color:#172235;
+  border-color:#263449;
+}
 #sePresets{
-  grid-template-columns:repeat(auto-fill,minmax(132px,1fr))!important;
-  gap:12px!important;
+  grid-template-columns:repeat(auto-fill,minmax(64px,1fr))!important;
+  justify-items:center;
+  gap:16px 14px!important;
 }
 #seModal .se-preset-btn{
-  border-radius:8px;
-  border-color:#d5dae1;
-  min-height:118px;
+  width:58px;
+  height:58px;
+  min-height:58px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:#858d9a;
+  color:#fff;
+  display:grid;
+  place-items:center;
 }
+#seModal .se-preset-btn svg{width:38px;height:38px;margin:0!important;display:block;}
+#seModal .se-preset-btn:hover{background:#5b6474;color:#fff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.14);}
 #seModal .se-preset-btn.active{
-  background:#fff3f3;
-  border-color:#ff4047;
-  color:#ff4047;
-  box-shadow:0 0 0 2px rgba(255,64,71,.16);
+  background:#2f394b;
+  border-color:transparent;
+  color:#fff;
+  box-shadow:none;
 }
+#seModal .se-preset-name{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
 
 
 /* One-screen shape edit layout: keep a single shape editable without page scroll */
@@ -1014,9 +1082,10 @@ class ShapeEditorModal {
 
   <!-- ── PAGE 1: Shape selection ── -->
   <div id="sePageSelect" style="display:none;flex:1;overflow-y:auto;background:#f4f6f9;">
+    <div id="seFamilyTabs"></div>
     <div id="seSavedSection"></div>
-    <div style="padding:10px 16px 6px;font-size:11px;font-weight:700;color:#7a93ab;text-transform:uppercase;letter-spacing:0.5px;" id="sePresetsTitle">פרסטים מובנים</div>
-    <div id="sePresets" style="padding:0 16px 16px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;"></div>
+    <div style="padding:10px 24px 12px;font-size:15px;font-weight:900;color:#243047;" id="sePresetsTitle">סינון צורות</div>
+    <div id="sePresets" style="padding:0 24px 20px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;"></div>
   </div>
 
   <!-- ── PAGE 2: Dimension editing (hidden initially) ── -->
@@ -1237,9 +1306,25 @@ class ShapeEditorModal {
     document.getElementById('sePageEdit').style.display   = 'none';
     document.getElementById('seFoot').style.display       = 'none';
     document.getElementById('seBackBtn').style.display    = '';
-    document.getElementById('seHeadTitle').textContent    = (this._selectedCount || '') + ' צלעות – בחר צורה';
+    document.getElementById('seHeadTitle').textContent    = this._selectedCount ? (this._selectedCount + ' צלעות – בחר צורה') : 'בחר סוג וצורה';
+    if (!this._selectedFamily) this._selectedFamily = 'bars';
+    this._renderFamilyTabs();
     this._renderSavedShapes(this._selectedCount);
     this._renderPresets(this._selectedCount);
+  }
+
+  _renderFamilyTabs() {
+    const cont = document.getElementById('seFamilyTabs');
+    if (!cont) return;
+    cont.innerHTML = SHAPE_FAMILIES.map(f => `<button class="se-family-tab ${this._selectedFamily === f.id ? 'active' : ''}" data-family="${f.id}">${f.label}</button>`).join('');
+    cont.querySelectorAll('[data-family]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._selectedFamily = btn.dataset.family;
+        this._renderFamilyTabs();
+        this._renderSavedShapes(this._selectedCount);
+        this._renderPresets(this._selectedCount);
+      });
+    });
   }
 
   _goToEdit() {
@@ -1304,17 +1389,17 @@ class ShapeEditorModal {
   }
 
   _renderPresets(countFilter) {
-    const shapes = countFilter
-      ? SHAPE_PRESETS.filter(s => s.sides.length === countFilter)
-      : SHAPE_PRESETS;
+    const family = this._selectedFamily || 'bars';
+    const shapes = SHAPE_PRESETS.filter(s => {
+      const sameFamily = (s.family || 'bars') === family;
+      const countOk = !countFilter || family !== 'bars' || s.sides.length === countFilter;
+      return sameFamily && countOk;
+    });
     const cont = document.getElementById('sePresets');
     cont.innerHTML = shapes.map(s => {
-      const svgContent = s.sides && s.sides.length > 0
-        ? shape3DSVG(s.sides, s.angles || [], 100, 68, 12, { showAxes: false, showDims: false, dark: false })
-        : '<text x="50" y="38" text-anchor="middle" fill="#7a93ab" font-size="14">'+s.emoji+'</text>';
-      return '<button class="se-preset-btn" data-id="'+s.id+'" title="'+s.name+'">'
-        + '<svg viewBox="0 0 100 68" width="100" height="68" style="display:block;margin:0 auto 6px;flex-shrink:0">'+svgContent+'</svg>'
-        + '<span style="font-size:12px;font-weight:700;line-height:1.3;word-break:break-word;color:inherit">'+s.name+'</span>'
+      return '<button class="se-preset-btn" data-id="'+s.id+'" title="'+s.name+'" aria-label="'+s.name+'">'
+        + shapePresetIconSVG(s.icon || 'straight')
+        + '<span class="se-preset-name">'+s.name+'</span>'
         + '</button>';
     }).join('');
     cont.querySelectorAll('.se-preset-btn').forEach(btn => {
@@ -1966,8 +2051,9 @@ class ShapeEditorModal {
       document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
       this._goToEdit();
     } else {
-      // No existing shape — start from count picker
-      this._goToCount();
+      // No existing shape: start from the family selector so mesh and piles are available immediately.
+      this._selectedCount = null;
+      this._goToSelect();
     }
     this._el.classList.add('show');
   }

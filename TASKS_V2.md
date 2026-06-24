@@ -474,6 +474,36 @@
 - definition_of_done:
   - עריכת צורה רגילה אינה דורשת גלילת עמוד.
   - קיימת בדיקת מקור שמכסה את חוזה הפריסה החדשה.
+### V2-006G — Shape Editor Mesh And Pile Icon Gallery
+
+- status: done
+- owner: codex-shape-editor
+- module: industry-steel-rebar/shape-editor
+- priority: high
+- scope:
+  - TASKS_V2.md
+  - public/shape-editor.js
+  - public/index.html
+  - public/intake.html
+  - public/customer.html
+  - test/shape-geometry.test.js
+- input:
+  - דרישה להוסיף אופציה לרשתות וכלונסאות.
+  - דרישה שגלריית עורך הצורות תהיה בסגנון Easybar בלי שמות גלויים לכל צורה.
+- output:
+  - מסך בחירת צורה כולל טאבים למוטות, רשת וכלונסאות.
+  - נוספו presets בסיסיים לרשת סימטרית ולכלונס בסיס.
+  - כפתורי צורה מוצגים כאייקונים עגולים בלבד, עם שם רק ב-tooltip/aria-label.
+  - טעינת `shape-editor.js` קודמה ל-`v48` במסכים שמשתמשים בעורך.
+- logic:
+  - פתיחת עורך ללא צורה קיימת מגיעה ישירות למסך סוג/צורה כדי שרשת וכלונסאות יהיו זמינים מיד.
+  - בחירת מספר צלעות עדיין מסננת מוטות רגילים, אבל לא חוסמת משפחות רשת/כלונס.
+- definition_of_done:
+  - קיימים `mesh1` ו-`pile1` בקטלוג הפרסטים.
+  - קיימים `SHAPE_FAMILIES` ו-`seFamilyTabs`.
+  - פרסטים מובנים אינם מרנדרים span גלוי עם שם הצורה.
+  - קיימת בדיקת מקור שמכסה את חוזה הגלריה החדשה.
+
 ### V2-007 — Orders Module Specification
 
 - status: todo
