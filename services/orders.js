@@ -31,7 +31,7 @@ const {
   normalizeStockAllocationPolicy,
   selectedRawMaterialId,
 } = require('./inventory');
-const { createStableOrderId, buildOrderItemUid, shapeSnapshotJson } = require('./orderContracts');
+const { createStableOrderId, buildOrderItemUid, shapeSnapshotJson, isShapeDataContractV2, withShapeContractLegacyFields } = require('./orderContracts');
 
 function createOrderFactory(db, { generateOrderNum, industry, settingsService = null }) {
   if (!db) throw new Error('services/orders missing dependency: db');
@@ -118,7 +118,8 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
       const pr = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight,total_weight) VALUES (?,?,?,?)')
         .run(orderId, idx + 1, pallet.maxWeight || 500, pallet.totalWeight || 0);
 
-      (pallet.items || []).forEach(item => {
+      (pallet.items || []).forEach(rawItem => {
+        const item = withShapeContractLegacyFields(rawItem);
         const spiral = normalizeSpiralParams(item);
         const sides = spiral.isSpiral
           ? []
@@ -144,14 +145,17 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
           if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
         }
         const segments = JSON.stringify(segmentsArr);
+        const hasShapeV2Envelope = isShapeDataContractV2(item.shapeSnapshot ?? item.shape_snapshot ?? item.shapeData ?? item.shape_data ?? item.shapeContract ?? item.shape_contract ?? item.shape_snapshot_json);
+        const persistedShapeName = hasShapeV2Envelope ? item.shapeName : shapeName;
         const weightPerUnit = calcWeightPerUnit(item.diameter, totalLengthMm);
         const productionQty = Math.ceil((item.qty || 1) * (1 + wastePct / 100));
         const machine = assignResource(item.diameter);
 
         const totalWeight = weightPerUnit * (item.qty || 1);
         const shapeSnapshot = shapeSnapshotJson({
+          ...item,
           shapeId: item.shapeId,
-          shapeName,
+          shapeName: persistedShapeName,
           diameter: item.diameter,
           spiralDiameterMm: spiral.isSpiral ? spiral.spiralDiameterMm : null,
           spiralTurns: spiral.isSpiral ? spiral.turns : null,
@@ -161,7 +165,7 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
         });
         const itemResult = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-          .run(pr.lastInsertRowid, orderId, shapeSnapshot, item.shapeId, shapeName, item.diameter,
+          .run(pr.lastInsertRowid, orderId, shapeSnapshot, item.shapeId, persistedShapeName, item.diameter,
             spiral.isSpiral ? spiral.spiralDiameterMm : null,
             spiral.isSpiral ? spiral.turns : null,
             segments, totalLengthMm, item.qty || 1, productionQty,

@@ -22,6 +22,18 @@ const ORDER_ITEM_CONTRACT = Object.freeze({
   shapeSnapshotField: 'shape_snapshot_json',
 });
 
+const SHAPE_V2_REQUIRED_FIELDS = Object.freeze([
+  'contractVersion',
+  'shapeVersion',
+  'shapeId',
+  'shapeType',
+  'family',
+  'data',
+  'calculated',
+  'machineOutput',
+  'validation',
+]);
+
 function createStableOrderId(orderNum) {
   const value = String(orderNum || '').trim();
   if (!value) throw Object.assign(new Error('order_num is required for stable order identity'), { statusCode: 400 });
@@ -43,9 +55,104 @@ function parseJsonArray(value) {
   }
 }
 
+function parseJsonObject(value) {
+  if (!value) return null;
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function numberOrNull(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
+}
+
+function shapeV2SnapshotCandidate(item = {}) {
+  return item.shapeSnapshot
+    ?? item.shape_snapshot
+    ?? item.shapeData
+    ?? item.shape_data
+    ?? item.shapeContract
+    ?? item.shape_contract
+    ?? item.shape_snapshot_json
+    ?? null;
+}
+
+function isShapeDataContractV2(value) {
+  const snapshot = parseJsonObject(value);
+  if (!snapshot) return false;
+  return SHAPE_V2_REQUIRED_FIELDS.every(field => Object.prototype.hasOwnProperty.call(snapshot, field));
+}
+
+function shapeDataContractV2Json(value) {
+  if (typeof value === 'string' && isShapeDataContractV2(value)) return value;
+  const snapshot = parseJsonObject(value);
+  return isShapeDataContractV2(snapshot) ? JSON.stringify(snapshot) : null;
+}
+
+function shapeDataContractV2FromItem(item = {}) {
+  const candidate = shapeV2SnapshotCandidate(item);
+  if (!isShapeDataContractV2(candidate)) return null;
+  return parseJsonObject(candidate);
+}
+
+function shapeSegmentsFromContract(snapshot) {
+  const genericSegments = snapshot?.machineOutput?.generic?.segments;
+  if (Array.isArray(genericSegments) && genericSegments.length) {
+    return genericSegments.map(segment => ({
+      length_mm: numberOrNull(segment.lengthMm ?? segment.length_mm ?? segment.length),
+      angle_deg: numberOrNull(segment.bendAfterDeg ?? segment.angle_deg ?? segment.angle) ?? 0,
+    }));
+  }
+  const sides = Array.isArray(snapshot?.data?.sides) ? snapshot.data.sides : [];
+  const angles = Array.isArray(snapshot?.data?.angles) ? snapshot.data.angles : [];
+  return sides.map((length, index) => ({
+    length_mm: numberOrNull(length),
+    angle_deg: numberOrNull(angles[index]) ?? 0,
+  }));
+}
+
+function legacyShapeFieldsFromContract(snapshot) {
+  if (!isShapeDataContractV2(snapshot)) return {};
+  const segments = shapeSegmentsFromContract(snapshot).filter(segment => Number.isFinite(segment.length_mm) && segment.length_mm > 0);
+  const data = snapshot.data || {};
+  const generic = snapshot.machineOutput?.generic || {};
+  const diameter = data.diameter ?? data.diameterMm ?? generic.diameter ?? generic.diameterMm ?? data.longitudinalDiameter ?? data.longitudinalDiameterMm ?? null;
+  const totalLengthMm = numberOrNull(snapshot.calculated?.totalLengthMm ?? generic.totalLengthMm);
+  return {
+    shapeId: snapshot.shapeId,
+    shapeName: snapshot.displayName || snapshot.shapeType || snapshot.shapeId,
+    shape_name: snapshot.displayName || snapshot.shapeType || snapshot.shapeId,
+    diameter: numberOrNull(diameter),
+    segments,
+    sides: segments.map(segment => segment.length_mm),
+    angles: segments.map(segment => segment.angle_deg),
+    totalLengthMm,
+    total_length_mm: totalLengthMm,
+  };
+}
+
+function withShapeContractLegacyFields(item = {}) {
+  const snapshot = shapeDataContractV2FromItem(item);
+  if (!snapshot) return item;
+  const legacy = legacyShapeFieldsFromContract(snapshot);
+  return {
+    ...item,
+    shapeId: item.shapeId ?? item.shape_id ?? legacy.shapeId,
+    shapeName: item.shapeName ?? item.shape_name ?? legacy.shapeName,
+    shape_name: item.shape_name ?? item.shapeName ?? legacy.shape_name,
+    diameter: item.diameter ?? legacy.diameter,
+    segments: item.segments ?? legacy.segments,
+    sides: item.sides ?? legacy.sides,
+    angles: item.angles ?? legacy.angles,
+    totalLengthMm: item.totalLengthMm ?? item.total_length_mm ?? legacy.totalLengthMm,
+    total_length_mm: item.total_length_mm ?? item.totalLengthMm ?? legacy.total_length_mm,
+  };
 }
 
 function buildShapeSnapshot(item = {}) {
@@ -68,6 +175,9 @@ function buildShapeSnapshot(item = {}) {
 }
 
 function shapeSnapshotJson(item = {}) {
+  const candidate = shapeV2SnapshotCandidate(item);
+  const contractJson = shapeDataContractV2Json(candidate);
+  if (contractJson) return contractJson;
   return JSON.stringify(buildShapeSnapshot(item));
 }
 
@@ -107,9 +217,13 @@ function assertOrderStatusTransition({ from, to, role }) {
 module.exports = {
   ORDER_CONTRACT,
   ORDER_ITEM_CONTRACT,
+  SHAPE_V2_REQUIRED_FIELDS,
   createStableOrderId,
   buildOrderItemUid,
   buildShapeSnapshot,
+  isShapeDataContractV2,
+  legacyShapeFieldsFromContract,
+  withShapeContractLegacyFields,
   shapeSnapshotJson,
   canManagerApproveOrder,
   isOrderApprovalTransition,

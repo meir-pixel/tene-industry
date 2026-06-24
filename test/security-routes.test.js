@@ -84,6 +84,48 @@ function authHeaders(accessToken) {
   };
 }
 
+function shapeV2Envelope() {
+  return {
+    contractVersion: 2,
+    shapeVersion: 7,
+    shapeId: 'shape-v2-u-001',
+    shapeType: 'u_bar',
+    family: 'steel_rebar',
+    displayName: 'Shape V2 U bar',
+    data: {
+      diameter: 12,
+      sides: [350, 1200, 350],
+      angles: [90, 90],
+    },
+    calculated: {
+      totalLengthMm: 1900,
+      weightKg: 1.69,
+      bendCount: 2,
+    },
+    machineOutput: {
+      generic: {
+        diameter: 12,
+        totalLengthMm: 1900,
+        bendCount: 2,
+        segments: [
+          { index: 1, lengthMm: 350, bendAfterDeg: 90 },
+          { index: 2, lengthMm: 1200, bendAfterDeg: 90 },
+          { index: 3, lengthMm: 350, bendAfterDeg: null },
+        ],
+      },
+      machineProfiles: {
+        MEP: { program: [] },
+        PEDAX: { program: [] },
+        SCHNELL: { program: [] },
+      },
+    },
+    validation: {
+      valid: true,
+      errors: [],
+    },
+  };
+}
+
 test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   seedUser('admin', 'admin', '1001');
   seedUser('manager', 'manager', '1002');
@@ -269,6 +311,59 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(updated.quantity, 7);
     assert.equal(updated.shape_name, 'contract-updated');
     assert.equal(updated.shape_snapshot_json, item.shape_snapshot_json);
+  });
+
+  await t.test('orders persist full Shape V2 envelope and compatibility fields from order payload', async () => {
+    const envelope = shapeV2Envelope();
+    const createResponse = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(manager),
+      body: JSON.stringify({
+        customer: { name: 'Shape Contract Customer', phone: '0500000001' },
+        order: { orderNum: 'ORDER-SHAPE-V2', channel: 'office', totalWeight: 0, priority: 'regular' },
+        pallets: [{ items: [{ shapeSnapshot: envelope, qty: 4, note: 'shape v2 order payload' }] }],
+      }),
+    });
+    assert.equal(createResponse.status, 200);
+    const created = await createResponse.json();
+    const item = db.prepare('SELECT * FROM items WHERE order_id=?').get(created.orderId);
+    assert.equal(item.shape_id, envelope.shapeId);
+    assert.equal(item.shape_name, envelope.displayName);
+    assert.equal(item.diameter, 12);
+    assert.equal(item.total_length_mm, 1900);
+    assert.equal(item.quantity, 4);
+    const segments = JSON.parse(item.segments);
+    assert.equal(segments.length, 3);
+    const snapshot = JSON.parse(item.shape_snapshot_json);
+    for (const field of ['contractVersion', 'shapeVersion', 'shapeId', 'shapeType', 'family', 'data', 'calculated', 'machineOutput', 'validation']) {
+      assert.ok(Object.hasOwn(snapshot, field), `missing ${field}`);
+    }
+    assert.deepEqual(snapshot, envelope);
+  });
+
+  await t.test('order item add persists full Shape V2 envelope unchanged', async () => {
+    const customerId = seedCustomer();
+    const orderId = seedInternalOrder(customerId, 'ORDER-SHAPE-V2-ITEM');
+    const envelope = shapeV2Envelope();
+    const createResponse = await request(`/api/orders/${orderId}/items`, {
+      method: 'POST',
+      headers: authHeaders(manager),
+      body: JSON.stringify({ shapeSnapshot: envelope, quantity: 3, note: 'shape v2 add item' }),
+    });
+    assert.equal(createResponse.status, 200);
+    const created = await createResponse.json();
+    const item = db.prepare('SELECT * FROM items WHERE id=?').get(created.itemId);
+    assert.equal(item.shape_name, envelope.displayName);
+    assert.equal(item.diameter, 12);
+    assert.equal(item.quantity, 3);
+    assert.equal(item.total_length_mm, 1900);
+    const segments = JSON.parse(item.segments);
+    assert.equal(segments.length, 3);
+    const snapshot = JSON.parse(item.shape_snapshot_json);
+    for (const field of ['contractVersion', 'shapeVersion', 'shapeId', 'shapeType', 'family', 'data', 'calculated', 'machineOutput', 'validation']) {
+      assert.ok(Object.hasOwn(snapshot, field), `missing ${field}`);
+    }
+    assert.deepEqual(snapshot, envelope);
   });
 
   await t.test('order import preview allows office but rejects production', async () => {
