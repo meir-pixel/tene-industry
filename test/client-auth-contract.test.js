@@ -779,6 +779,9 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /scrollToHashIntake/);
   assert.match(intake, /intakeEditableForm/);
   assert.match(intake, /data-ocr-field/);
+  assert.match(intake, /data-editable-cell/);
+  assert.match(intake, /total_length_m/);
+  assert.match(intake, /target_weight_kg/);
   assert.match(intake, /low-confidence/);
   assert.match(intake, /shape-editor\.js/);
   assert.match(intake, /ocrShapePreviewHtml/);

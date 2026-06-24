@@ -248,8 +248,9 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-order-row:nth-child(odd){background:#fbfcfe}
 .ocr-order-row.verified{background:#f2fbf5}
 .ocr-order-row.edited{background:#fffdf3}
-.ocr-order-cell{padding:6px;text-align:center;gap:4px}
-.ocr-order-input{width:100%;border:1px solid transparent;border-radius:6px;background:transparent;font-family:inherit;font-size:15px;color:var(--text);padding:6px;outline:0;text-align:center;font-weight:700}
+.ocr-order-cell{padding:6px;text-align:center;gap:4px;position:relative}
+.ocr-order-input{width:100%;border:1px solid #d6e0ea;border-radius:6px;background:#fff;font-family:inherit;font-size:15px;color:var(--text);padding:6px;outline:0;text-align:center;font-weight:700;cursor:text}
+.ocr-order-input:hover,.ocr-order-textarea:hover{border-color:#b8c8d8;background:#fff}
 .ocr-order-input:focus,.ocr-order-textarea:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 2px rgba(201,98,26,.12)}
 .ocr-order-label{display:none}
 .ocr-order-textarea{display:none}
@@ -624,6 +625,8 @@ function currentOcrItemFromFields(index) {
   const totalLength = ocrItemInput(index, 'total_length_mm');
   const spiralDiameter = ocrItemInput(index, 'spiral_diameter_mm');
   const spiralTurns = ocrItemInput(index, 'spiral_turns');
+  const totalLengthM = ocrItemInput(index, 'total_length_m');
+  const targetWeightKg = ocrItemInput(index, 'target_weight_kg');
   const shapeName = ocrItemInput(index, 'shape_name');
   const shapeDescription = ocrItemInput(index, 'shape_description');
   const elementName = ocrItemInput(index, 'element_name');
@@ -636,6 +639,8 @@ function currentOcrItemFromFields(index) {
   if (totalLength) item.total_length_mm = toNumber(totalLength.value);
   if (spiralDiameter) item.spiral_diameter_mm = toNumber(spiralDiameter.value);
   if (spiralTurns) item.spiral_turns = toNumber(spiralTurns.value);
+  if (totalLengthM) item.total_length_m = toNumber(totalLengthM.value);
+  if (targetWeightKg) item.target_weight_kg = toNumber(targetWeightKg.value);
   if (shapeName) item.shape_name = shapeName.value.trim();
   if (shapeDescription) item.shape_description = shapeDescription.value.trim();
   if (elementName) item.element_name = elementName.value.trim();
@@ -928,7 +933,8 @@ function ocrShapePreviewHtml(item, index) {
 
 
 function ocrOrderCellInput(index, field, value, type = 'text', low = false) {
-  return `<input class="ocr-order-input ${low ? 'low-confidence' : ''}" type="${type}" value="${escapeHtml(value ?? '')}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" oninput="markOcrEdited(this)">`;
+  const numberAttrs = type === 'number' ? ' inputmode="decimal" step="any"' : '';
+  return `<input class="ocr-order-input ${low ? 'low-confidence' : ''}" type="${type}"${numberAttrs} value="${escapeHtml(value ?? '')}" data-editable-cell="true" data-item-index="${index}" data-item-field="${escapeHtml(field)}" title="לחץ לעריכה" onfocus="this.select()" oninput="markOcrEdited(this)">`;
 }
 
 function ocrOrderCellTextarea(index, field, value, low = false) {
@@ -998,8 +1004,8 @@ function ocrItemTableRowHtml(parsed, item, index) {
       <div class="ocr-order-cell">${ocrOrderCellInput(index, 'diameter', diameter, 'number', isLowConfidence(parsed, `items.${index}.diameter`, diameter))}</div>
       <div class="ocr-order-cell">${ocrOrderCellInput(index, 'quantity', quantity, 'number', isLowConfidence(parsed, `items.${index}.quantity`, quantity))}</div>
       <div class="ocr-order-cell">${ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', isLowConfidence(parsed, `items.${index}.total_length_mm`, totalLength))}<div class="ocr-shape-dimensions">${escapeHtml(lengthMeters || '-')} m</div></div>
-      <div class="ocr-order-cell"><div class="ocr-order-static" id="ocrTotalLength_${index}">${escapeHtml(totalLengthMeters || '-')} m</div></div>
-      <div class="ocr-order-cell"><div class="ocr-order-static" id="ocrWeight_${index}">${escapeHtml(targetWeight || '-')} ק"ג</div></div>
+      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'total_length_m', totalLengthMeters || '', 'number', false)}</div>
+      <div class="ocr-order-cell">${ocrOrderCellInput(index, 'target_weight_kg', targetWeight || '', 'number', false)}</div>
       <div class="ocr-order-cell">
         <div class="ocr-row-actions">
           <button type="button" class="ocr-icon-btn" onclick="verifyOcrItem(${index})" title="שמור שורה" aria-label="שמור שורה">✓</button>
@@ -1049,10 +1055,10 @@ function markOcrEdited(el) {
 
 function refreshOcrComputedCells(index) {
   const item = currentOcrItemFromFields(index);
-  const total = document.getElementById(`ocrTotalLength_${index}`);
-  if (total) total.textContent = `${ocrTotalLengthMeters(item) || '-'} m`;
-  const weight = document.getElementById(`ocrWeight_${index}`);
-  if (weight) weight.textContent = `${ocrTargetWeightKg(item) || '-'} \u05e7"\u05d2`;
+  const total = ocrItemInput(index, 'total_length_m');
+  if (total && document.activeElement !== total) total.value = ocrTotalLengthMeters(item) || '';
+  const weight = ocrItemInput(index, 'target_weight_kg');
+  if (weight && document.activeElement !== weight) weight.value = ocrTargetWeightKg(item) || '';
 }
 
 
@@ -1166,7 +1172,7 @@ function readCorrectedParsed() {
     const field = input.dataset.itemField;
     parsed.items[index] = parsed.items[index] || {};
     if (field === 'segments') parsed.items[index].segments = parseSegmentsText(input.value);
-    else if (['diameter', 'quantity', 'total_length_mm', 'spiral_diameter_mm', 'spiral_turns'].includes(field)) parsed.items[index][field] = toNumber(input.value);
+    else if (['diameter', 'quantity', 'total_length_mm', 'total_length_m', 'target_weight_kg', 'spiral_diameter_mm', 'spiral_turns'].includes(field)) parsed.items[index][field] = toNumber(input.value);
     else parsed.items[index][field] = input.value.trim();
   });
   parsed.items = parsed.items.map(item => {
