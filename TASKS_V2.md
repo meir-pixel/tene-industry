@@ -564,6 +564,30 @@
   - ??? ????? ???? 3D ????? ??????? ?? ?????? ?????????.
   - ?????? ?????? ???? ?????? ????? ???????? ?????? 3D.
 
+### V2-006J - Shape Editor Engine Router Refactor
+
+- status: done
+- owner: codex-shape-editor
+- module: industry-steel-rebar/shape-editor
+- priority: high
+- scope:
+  - TASKS_V2.md
+  - public/shape-editor.js
+  - test/shape-geometry.test.js
+- input:
+  - Do not redesign UI, add shapes, or modify unrelated modules.
+  - Split Shape Editor rendering into PolylineBarEngine, MeshEngine, and PileCageEngine.
+  - Route by family: bars / mesh / piles.
+- output:
+  - PolylineBarEngine uses sides[] and angles[] for simple bars.
+  - MeshEngine uses length, width, longitudinalDiameter, longitudinalSpacing, transverseDiameter, transverseSpacing, without sides[] or angles[].
+  - PileCageEngine uses pileDiameter, pileLength, longitudinalBars, longitudinalDiameter, and spiralZones, without sides[] or angles[].
+  - ShapeEngineRouter connects preview rendering to the engine selected by family.
+- definition_of_done:
+  - H bar 35/120/35 renders through PolylineBarEngine.
+  - Mesh 600x250 ?8@20 / ?8@20 renders as a grid.
+  - Pile ?70 L=2200 with 26?22 and spiral zones 70@10, 200@20, 1350@20 renders side and top views.
+
 ### V2-007 — Orders Module Specification
 
 - status: todo

@@ -153,6 +153,69 @@ test('shape editor keeps true 3D angle fields in sync with visual bends', () => 
   assert.match(editor, /this\._init3DAnglesFrom2D\(false\);/);
   assert.match(editor, /\(\{ sides, angles, azAngles, elAngles \} = this\.current\);/);
 });
+
+test('ShapeEngineRouter renders ח 35/120/35 with PolylineBarEngine', () => {
+  const { ShapeEngineRouter, PolylineBarEngine } = loadShapeEditorGeometry();
+  const shape = { family: 'bars', sides: [350, 1200, 350], angles: [90, 90] };
+  const svg = ShapeEngineRouter.render(shape, 300, 260, { view: '2d' });
+
+  assert.equal(ShapeEngineRouter(shape), PolylineBarEngine);
+  assert.match(svg, /data-engine="PolylineBarEngine"/);
+  assert.match(svg, /M /);
+  assert.match(svg, />350</);
+  assert.match(svg, />1200</);
+  assert.match(svg, />90°</);
+});
+
+test('ShapeEngineRouter renders Mesh 600x250 Ø8@20 as grid with MeshEngine', () => {
+  const { ShapeEngineRouter, MeshEngine } = loadShapeEditorGeometry();
+  const mesh = {
+    family: 'mesh',
+    length: 600,
+    width: 250,
+    longitudinalDiameter: 8,
+    longitudinalSpacing: 20,
+    transverseDiameter: 8,
+    transverseSpacing: 20,
+  };
+  const svg = ShapeEngineRouter.render(mesh, 300, 260);
+
+  assert.equal(ShapeEngineRouter(mesh), MeshEngine);
+  assert.match(svg, /data-engine="MeshEngine"/);
+  assert.match(svg, /data-family="mesh"/);
+  assert.match(svg, /data-length="600"/);
+  assert.match(svg, /data-width="250"/);
+  assert.match(svg, /data-longitudinal="Ø8@20"/);
+  assert.match(svg, /data-transverse="Ø8@20"/);
+  assert.ok((svg.match(/<line /g) || []).length >= 40, 'expected mesh grid lines');
+});
+
+test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine', () => {
+  const { ShapeEngineRouter, PileCageEngine } = loadShapeEditorGeometry();
+  const pile = {
+    family: 'piles',
+    pileDiameter: 70,
+    pileLength: 2200,
+    longitudinalBars: 26,
+    longitudinalDiameter: 22,
+    spiralZones: [
+      { length: 70, pitch: 10 },
+      { length: 200, pitch: 20 },
+      { length: 1350, pitch: 20 },
+    ],
+  };
+  const svg = ShapeEngineRouter.render(pile, 300, 260);
+
+  assert.equal(ShapeEngineRouter(pile), PileCageEngine);
+  assert.match(svg, /data-engine="PileCageEngine"/);
+  assert.match(svg, /data-view="side"/);
+  assert.match(svg, /data-view="top"/);
+  assert.match(svg, /data-pile-diameter="70"/);
+  assert.match(svg, /data-pile-length="2200"/);
+  assert.match(svg, /data-longitudinal-bars="26"/);
+  assert.match(svg, /data-spiral-zones="70@10,200@20,1350@20"/);
+  assert.equal((svg.match(/class="pile-longitudinal-bar"/g) || []).length, 26);
+});
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },

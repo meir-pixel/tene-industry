@@ -33,8 +33,8 @@ const SHAPE_PRESETS = [
   { id: 's11', name: 'צורה 11',  family: 'bars', category: 'משקפיים', icon: 'polygon', bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
   { id: 's13', name: 'צורה 12', family: 'bars', category: 'פיגורה', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
   { id: 's14', name: 'צורה 13',    family: 'bars', category: 'פיגורה', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
-  { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, sides: [600, 250], angles: [], emoji: '#', specialty: 'mesh' },
-  { id: 'pile1', name: 'כלונס', family: 'piles', icon: 'pile', bends: 0, sides: [1620], angles: [], emoji: '◎', specialty: 'pile' },
+  { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, emoji: '#', specialty: 'mesh' },
+  { id: 'pile1', name: 'כלונס', family: 'piles', icon: 'pile', bends: 0, pileDiameter: 70, pileLength: 2200, longitudinalBars: 26, longitudinalDiameter: 22, spiralZones: [{ length: 70, pitch: 10 }, { length: 200, pitch: 20 }, { length: 1350, pitch: 20 }], emoji: '◎', specialty: 'pile' },
   { id: 's12', name: 'צורה מותאמת',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
 ];
 
@@ -426,6 +426,107 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
 }
 
 // ── SAVED SHAPES (localStorage) ──────────────────────────────────
+// Shape engines keep each product family on its own data contract.
+function svgEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+
+function scaleBox(widthMm, heightMm, w, h, padding = 24) {
+  const safeW = Math.max(1, Number(widthMm) || 1);
+  const safeH = Math.max(1, Number(heightMm) || 1);
+  const scale = Math.min((w - padding * 2) / safeW, (h - padding * 2) / safeH);
+  const drawW = safeW * scale;
+  const drawH = safeH * scale;
+  return { scale, x: padding + ((w - padding * 2) - drawW) / 2, y: padding + ((h - padding * 2) - drawH) / 2, drawW, drawH };
+}
+
+function PolylineBarEngine() {}
+PolylineBarEngine.render = function(shape, w = 300, h = 260, opts = {}) {
+  const sides = Array.isArray(shape?.sides) ? shape.sides.map(Number) : [];
+  const angles = Array.isArray(shape?.angles) ? shape.angles.map(Number) : [];
+  if (!sides.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#7a93ab" font-size="12">אין צורה</text>';
+  if (opts.view === '3d') return shape3DSVG(sides, angles, w, h, opts.diameter || 12, opts);
+  const { path, pts } = shapeSVGPath(sides, angles, w, h, opts.padding || 24);
+  const labelHtml = pts.slice(0, -1).map((p, i) => {
+    const next = pts[i + 1];
+    const mx = (p[0] + next[0]) / 2;
+    const my = (p[1] + next[1]) / 2;
+    return `<text x="${mx.toFixed(1)}" y="${(my - 8).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">${svgEscape(sides[i])}</text>`;
+  }).join('');
+  const bends = pts.slice(1, -1).map((p, i) => {
+    const angle = angles[i];
+    if (angle == null || angle === 180) return '';
+    return `<text x="${p[0].toFixed(1)}" y="${(p[1] + 18).toFixed(1)}" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">${svgEscape(angle)}°</text>`;
+  }).join('');
+  return `<g data-engine="PolylineBarEngine" data-family="bars"><path d="${path}" fill="none" stroke="#3d5e78" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>${labelHtml}${bends}</g>`;
+};
+
+function MeshEngine() {}
+MeshEngine.render = function(mesh, w = 300, h = 260) {
+  const length = Math.max(1, Number(mesh?.length || 600));
+  const width = Math.max(1, Number(mesh?.width || 250));
+  const longDia = Math.max(1, Number(mesh?.longitudinalDiameter || 8));
+  const longSpacing = Math.max(1, Number(mesh?.longitudinalSpacing || 20));
+  const transDia = Math.max(1, Number(mesh?.transverseDiameter || 8));
+  const transSpacing = Math.max(1, Number(mesh?.transverseSpacing || 20));
+  const box = scaleBox(length, width, w, h, 28);
+  const x0 = box.x, y0 = box.y, x1 = box.x + box.drawW, y1 = box.y + box.drawH;
+  const verticalCount = Math.floor(length / longSpacing) + 1;
+  const horizontalCount = Math.floor(width / transSpacing) + 1;
+  const verticals = Array.from({ length: verticalCount }, (_, i) => {
+    const x = x0 + Math.min(length, i * longSpacing) * box.scale;
+    return `<line x1="${x.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, longDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
+  }).join('');
+  const horizontals = Array.from({ length: horizontalCount }, (_, i) => {
+    const y = y0 + Math.min(width, i * transSpacing) * box.scale;
+    return `<line x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, transDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
+  }).join('');
+  return `<g data-engine="MeshEngine" data-family="mesh" data-length="${length}" data-width="${width}" data-longitudinal="Ø${longDia}@${longSpacing}" data-transverse="Ø${transDia}@${transSpacing}"><rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${box.drawW.toFixed(1)}" height="${box.drawH.toFixed(1)}" fill="#fff" stroke="#d8dde5"/>${horizontals}${verticals}<text x="${((x0+x1)/2).toFixed(1)}" y="${(y0-10).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">${length}</text><text x="${(x0-10).toFixed(1)}" y="${((y0+y1)/2).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533" transform="rotate(-90 ${(x0-10).toFixed(1)} ${((y0+y1)/2).toFixed(1)})">${width}</text></g>`;
+};
+
+function PileCageEngine() {}
+PileCageEngine.render = function(pile, w = 300, h = 260) {
+  const pileDiameter = Math.max(1, Number(pile?.pileDiameter || 70));
+  const pileLength = Math.max(1, Number(pile?.pileLength || 2200));
+  const longitudinalBars = Math.max(0, Math.round(Number(pile?.longitudinalBars || 0)));
+  const longitudinalDiameter = Math.max(1, Number(pile?.longitudinalDiameter || 22));
+  const zones = Array.isArray(pile?.spiralZones) ? pile.spiralZones : [];
+  const sideBox = scaleBox(pileLength, pileDiameter, w * 0.74, h * 0.38, 18);
+  const sideX = 18, sideY = 30;
+  const sx0 = sideX + sideBox.x, sy0 = sideY + sideBox.y, sx1 = sx0 + sideBox.drawW, syMid = sy0 + sideBox.drawH / 2;
+  const cageH = sideBox.drawH;
+  const topCx = w * 0.78, topCy = h * 0.68;
+  const topR = Math.min(w * 0.17, h * 0.18);
+  const zoneLines = [];
+  let offsetMm = 0;
+  zones.forEach((zone, zoneIndex) => {
+    const len = Math.max(0, Number(zone.length || 0));
+    const pitch = Math.max(1, Number(zone.pitch || 20));
+    for (let xMm = offsetMm; xMm <= offsetMm + len + 0.001; xMm += pitch) {
+      const x = sx0 + Math.min(pileLength, xMm) * sideBox.scale;
+      zoneLines.push(`<line data-zone="${zoneIndex}" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="1.6" opacity=".75"/>`);
+    }
+    offsetMm += len;
+  });
+  const longBarsSide = [-0.32, 0.32].map(rel => `<line x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="4" stroke-linecap="round"/>`).join('');
+  const topBars = Array.from({ length: longitudinalBars }, (_, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, longitudinalBars);
+    const x = topCx + Math.cos(a) * topR * 0.78;
+    const y = topCy + Math.sin(a) * topR * 0.78;
+    return `<circle class="pile-longitudinal-bar" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.5, longitudinalDiameter * 0.13).toFixed(1)}" fill="#111827"/>`;
+  }).join('');
+  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-spiral-zones="${zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}`).join(',')}"><g data-view="side"><text x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${zoneLines.join('')}</g><g data-view="top"><circle cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="2"/>${topBars}<text x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g></g>`;
+};
+
+function ShapeEngineRouter(shape) {
+  const family = shape?.family || 'bars';
+  if (family === 'mesh') return MeshEngine;
+  if (family === 'piles') return PileCageEngine;
+  return PolylineBarEngine;
+}
+ShapeEngineRouter.render = function(shape, w = 300, h = 260, opts = {}) {
+  return ShapeEngineRouter(shape).render(shape, w, h, opts);
+};
 const SAVED_SHAPES_KEY = 'ironbend_saved_shapes';
 
 function loadSavedShapes() {
@@ -1518,7 +1619,8 @@ class ShapeEditorModal {
     const sideCount = this._selectedSideCount === undefined || this._selectedSideCount === 'הכל' ? countFilter : Number(this._selectedSideCount);
     const shapes = SHAPE_PRESETS.filter(s => {
       const sameFamily = (s.family || 'bars') === family;
-      const countOk = !sideCount || family !== 'bars' || s.sides.length === sideCount;
+      const n = Array.isArray(s.sides) ? s.sides.length : 0;
+      const countOk = !sideCount || family !== 'bars' || n === sideCount;
       const categoryOk = family !== 'bars' || category === 'הכל' || s.category === category;
       return sameFamily && countOk && categoryOk;
     });
@@ -1634,14 +1736,17 @@ class ShapeEditorModal {
   }
 
   _loadPreset(preset) {
-    const n = preset.sides.length;
+    const sides = Array.isArray(preset.sides) ? [...preset.sides] : [];
+    const angles = Array.isArray(preset.angles) ? [...preset.angles] : [];
+    const n = sides.length;
     this.current = {
+      ...preset,
       presetId:    preset.id,
       presetName:  preset.name,
       presetEmoji: preset.emoji,
-      sides:       [...preset.sides],
-      angles:      [...preset.angles],
-      azAngles:    [0, ...preset.angles.map(a => -(180 - (a ?? 180)))].slice(0, n),
+      sides,
+      angles,
+      azAngles:    [0, ...angles.map(a => -(180 - (a ?? 180)))].slice(0, n),
       elAngles:    Array(n).fill(0),
     };
     // pad azAngles if needed
@@ -1949,6 +2054,11 @@ class ShapeEditorModal {
     const svg = document.getElementById('seShapeSvg');
     const is3D = window._seViewMode !== '2d';
     const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
+    const engine = ShapeEngineRouter(this.current);
+    if (engine !== PolylineBarEngine) {
+      svg.innerHTML = ShapeEngineRouter.render(this.current, 300, 260, { diameter: this._diameter || this.current.diameter || 12, view: is3D ? '3d' : '2d' });
+      return;
+    }
 
     if (is3D) {
       const diam = this._diameter || 12;
