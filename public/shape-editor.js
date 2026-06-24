@@ -33,8 +33,8 @@ const SHAPE_PRESETS = [
   { id: 's11', name: 'צורה 11',  family: 'bars', category: 'משקפיים', icon: 'polygon', bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
   { id: 's13', name: 'צורה 12', family: 'bars', category: 'פיגורה', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
   { id: 's14', name: 'צורה 13',    family: 'bars', category: 'פיגורה', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
-  { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, emoji: '#', specialty: 'mesh' },
-  { id: 'pile1', name: 'כלונס', family: 'piles', icon: 'pile', bends: 0, pileDiameter: 70, pileLength: 2200, longitudinalBars: 26, longitudinalDiameter: 22, spiralZones: [{ length: 70, pitch: 10 }, { length: 200, pitch: 20 }, { length: 1350, pitch: 20 }], emoji: '◎', specialty: 'pile' },
+  { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, edgeLeft: 0, edgeRight: 0, edgeTop: 0, edgeBottom: 0, emoji: '#', specialty: 'mesh' },
+  { id: 'pile1', name: 'כלונס', family: 'piles', icon: 'pile', bends: 0, pileDiameter: 70, pileLength: 2200, longitudinalBars: 26, longitudinalDiameter: 22, spiralDiameter: 8, spiralZones: [{ length: 70, pitch: 10 }, { length: 200, pitch: 20 }, { length: 1350, pitch: 20 }], emoji: '◎', specialty: 'pile' },
   { id: 's12', name: 'צורה מותאמת',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
 ];
 
@@ -469,19 +469,31 @@ MeshEngine.render = function(mesh, w = 300, h = 260) {
   const longSpacing = Math.max(1, Number(mesh?.longitudinalSpacing || 20));
   const transDia = Math.max(1, Number(mesh?.transverseDiameter || 8));
   const transSpacing = Math.max(1, Number(mesh?.transverseSpacing || 20));
+  const edgeLeft = Math.max(0, Number(mesh?.edgeLeft || 0));
+  const edgeRight = Math.max(0, Number(mesh?.edgeRight || 0));
+  const edgeTop = Math.max(0, Number(mesh?.edgeTop || 0));
+  const edgeBottom = Math.max(0, Number(mesh?.edgeBottom || 0));
   const box = scaleBox(length, width, w, h, 28);
   const x0 = box.x, y0 = box.y, x1 = box.x + box.drawW, y1 = box.y + box.drawH;
-  const verticalCount = Math.floor(length / longSpacing) + 1;
-  const horizontalCount = Math.floor(width / transSpacing) + 1;
-  const verticals = Array.from({ length: verticalCount }, (_, i) => {
-    const x = x0 + Math.min(length, i * longSpacing) * box.scale;
-    return `<line x1="${x.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, longDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
+  const innerLeft = Math.min(length, edgeLeft);
+  const innerRight = Math.max(innerLeft, length - Math.min(length, edgeRight));
+  const innerTop = Math.min(width, edgeTop);
+  const innerBottom = Math.max(innerTop, width - Math.min(width, edgeBottom));
+  const verticalPositions = [];
+  for (let x = innerLeft; x <= innerRight + 0.001; x += longSpacing) verticalPositions.push(Math.min(innerRight, x));
+  if (!verticalPositions.length || verticalPositions[verticalPositions.length - 1] !== innerRight) verticalPositions.push(innerRight);
+  const horizontalPositions = [];
+  for (let y = innerTop; y <= innerBottom + 0.001; y += transSpacing) horizontalPositions.push(Math.min(innerBottom, y));
+  if (!horizontalPositions.length || horizontalPositions[horizontalPositions.length - 1] !== innerBottom) horizontalPositions.push(innerBottom);
+  const verticals = verticalPositions.map(mm => {
+    const x = x0 + mm * box.scale;
+    return `<line class="mesh-longitudinal-bar" x1="${x.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, longDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
   }).join('');
-  const horizontals = Array.from({ length: horizontalCount }, (_, i) => {
-    const y = y0 + Math.min(width, i * transSpacing) * box.scale;
-    return `<line x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, transDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
+  const horizontals = horizontalPositions.map(mm => {
+    const y = y0 + mm * box.scale;
+    return `<line class="mesh-transverse-bar" x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, transDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
   }).join('');
-  return `<g data-engine="MeshEngine" data-family="mesh" data-length="${length}" data-width="${width}" data-longitudinal="Ø${longDia}@${longSpacing}" data-transverse="Ø${transDia}@${transSpacing}"><rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${box.drawW.toFixed(1)}" height="${box.drawH.toFixed(1)}" fill="#fff" stroke="#d8dde5"/>${horizontals}${verticals}<text x="${((x0+x1)/2).toFixed(1)}" y="${(y0-10).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">${length}</text><text x="${(x0-10).toFixed(1)}" y="${((y0+y1)/2).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533" transform="rotate(-90 ${(x0-10).toFixed(1)} ${((y0+y1)/2).toFixed(1)})">${width}</text></g>`;
+  return `<g data-engine="MeshEngine" data-family="mesh" data-length="${length}" data-width="${width}" data-longitudinal="&#216;${longDia}@${longSpacing}" data-transverse="&#216;${transDia}@${transSpacing}" data-longitudinal-count="${verticalPositions.length}" data-transverse-count="${horizontalPositions.length}" data-edge-left="${edgeLeft}" data-edge-right="${edgeRight}" data-edge-top="${edgeTop}" data-edge-bottom="${edgeBottom}"><rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${box.drawW.toFixed(1)}" height="${box.drawH.toFixed(1)}" fill="#fff" stroke="#d8dde5"/>${horizontals}${verticals}<text x="${((x0+x1)/2).toFixed(1)}" y="${(y0-10).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${length}</text><text x="${(x0-10).toFixed(1)}" y="${((y0+y1)/2).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533" transform="rotate(-90 ${(x0-10).toFixed(1)} ${((y0+y1)/2).toFixed(1)})">W ${width}</text><text x="${(x1+8).toFixed(1)}" y="${(y1+16).toFixed(1)}" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">&#216;${longDia}@${longSpacing} / &#216;${transDia}@${transSpacing}</text></g>`;
 };
 
 function PileCageEngine() {}
@@ -490,6 +502,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const pileLength = Math.max(1, Number(pile?.pileLength || 2200));
   const longitudinalBars = Math.max(0, Math.round(Number(pile?.longitudinalBars || 0)));
   const longitudinalDiameter = Math.max(1, Number(pile?.longitudinalDiameter || 22));
+  const spiralDiameter = Math.max(1, Number(pile?.spiralDiameter || 8));
   const zones = Array.isArray(pile?.spiralZones) ? pile.spiralZones : [];
   const sideBox = scaleBox(pileLength, pileDiameter, w * 0.74, h * 0.38, 18);
   const sideX = 18, sideY = 30;
@@ -498,24 +511,29 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const topCx = w * 0.78, topCy = h * 0.68;
   const topR = Math.min(w * 0.17, h * 0.18);
   const zoneLines = [];
+  const zoneLabels = [];
   let offsetMm = 0;
   zones.forEach((zone, zoneIndex) => {
     const len = Math.max(0, Number(zone.length || 0));
     const pitch = Math.max(1, Number(zone.pitch || 20));
-    for (let xMm = offsetMm; xMm <= offsetMm + len + 0.001; xMm += pitch) {
+    const zoneStart = offsetMm;
+    const zoneEnd = offsetMm + len;
+    for (let xMm = zoneStart; xMm <= zoneEnd + 0.001; xMm += pitch) {
       const x = sx0 + Math.min(pileLength, xMm) * sideBox.scale;
-      zoneLines.push(`<line data-zone="${zoneIndex}" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="1.6" opacity=".75"/>`);
+      zoneLines.push(`<line data-zone="${zoneIndex}" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="${Math.max(1.2, spiralDiameter * 0.20).toFixed(1)}" opacity=".75"/>`);
     }
+    const labelX = sx0 + Math.min(pileLength, zoneStart + len / 2) * sideBox.scale;
+    zoneLabels.push(`<text x="${labelX.toFixed(1)}" y="${(syMid + cageH/2 + 16).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#526070">${svgEscape(len)} @${svgEscape(pitch)}</text>`);
     offsetMm += len;
   });
-  const longBarsSide = [-0.32, 0.32].map(rel => `<line x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="4" stroke-linecap="round"/>`).join('');
+  const longBarsSide = [-0.32, 0.32].map(rel => `<line x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="${Math.max(3, longitudinalDiameter * 0.18).toFixed(1)}" stroke-linecap="round"/>`).join('');
   const topBars = Array.from({ length: longitudinalBars }, (_, i) => {
     const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, longitudinalBars);
     const x = topCx + Math.cos(a) * topR * 0.78;
     const y = topCy + Math.sin(a) * topR * 0.78;
     return `<circle class="pile-longitudinal-bar" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.5, longitudinalDiameter * 0.13).toFixed(1)}" fill="#111827"/>`;
   }).join('');
-  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-spiral-zones="${zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}`).join(',')}"><g data-view="side"><text x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${zoneLines.join('')}</g><g data-view="top"><circle cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="2"/>${topBars}<text x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g></g>`;
+  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}`).join(',')}"><g data-view="side"><text x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${zoneLines.join('')}${zoneLabels.join('')}</g><g data-view="top"><circle cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="${Math.max(1.4, spiralDiameter * 0.18).toFixed(1)}"/>${topBars}<text x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g></g>`;
 };
 
 function ShapeEngineRouter(shape) {
@@ -1198,6 +1216,14 @@ class ShapeEditorModal {
 }
 #seModal .se-angle-btn{padding:5px 8px;min-width:54px;}
 #seModal .se-add-row{padding:6px 0 0!important;}
+
+#seModal .se-family-row td{background:#fff;border-top:1px solid #d8dde5;border-bottom:1px solid #d8dde5;}
+#seModal .se-family-row td:first-child{border-right:1px solid #d8dde5;border-radius:0 8px 8px 0;}
+#seModal .se-family-row td:last-child{border-left:1px solid #d8dde5;border-radius:8px 0 0 8px;}
+#seModal .se-family-label{font-size:11px;font-weight:900;color:#526070;line-height:1.25;align-self:stretch;display:flex;align-items:center;}
+#seModal .se-family-editor-table tr{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,1fr)!important;}
+#seModal .se-family-editor-table .se-zone-row{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) 30px!important;}
+#seModal .se-family-editor-table .se-zone-head td{background:transparent;border:0;color:#667286;font-size:10px;font-weight:900;text-transform:uppercase;}
 #seModal .se-add-btn{min-height:34px;}
 #seModal .se-foot{
   min-height:58px;
@@ -1757,6 +1783,67 @@ class ShapeEditorModal {
 
   _renderTable() {
     if (!this.current) return;
+    if (this.current.family === 'mesh') return this._renderMeshEditor();
+    if (this.current.family === 'piles') return this._renderPileCageEditor();
+    return this._renderBarEditor();
+  }
+
+  _setFamilyEditorChrome(kind) {
+    const table = document.querySelector('#seModal .se-table');
+    const thead = document.getElementById('seTableHead');
+    const addRow = document.querySelector('#seModal .se-add-row');
+    const modeNote = document.querySelector('#seModal .se-mode-note');
+    const summary = document.querySelector('#seModal .se-panel-summary');
+    const title = document.querySelector('#seModal .se-data-panel-head');
+    const isBars = kind === 'bars';
+    if (table) table.classList.toggle('se-family-editor-table', !isBars);
+    if (thead) thead.style.display = isBars ? '' : 'none';
+    if (addRow) addRow.style.display = isBars ? '' : 'none';
+    if (modeNote) modeNote.style.display = isBars ? '' : 'none';
+    if (summary) summary.style.display = isBars ? '' : 'none';
+    if (title) title.textContent = kind === 'mesh' ? 'Mesh Editor' : kind === 'piles' ? 'Pile Cage Editor' : 'Side Lengths / Bend Angles';
+  }
+
+  _renderMeshEditor() {
+    this._setFamilyEditorChrome('mesh');
+    const mesh = this.current;
+    const body = document.getElementById('seTableBody');
+    if (!body) return;
+    const field = (label, key, min = 0) => `<td class="se-family-label">${label}</td><td><input class="se-input" type="number" min="${min}" value="${mesh[key] ?? 0}" data-mesh-field="${key}" oninput="window._seEditor._setMeshField('${key}', this.value)"></td>`;
+    body.innerHTML = `
+      <tr class="se-family-row">${field('Length', 'length', 1)}${field('Width', 'width', 1)}</tr>
+      <tr class="se-family-row">${field('Longitudinal Diameter', 'longitudinalDiameter', 1)}${field('Longitudinal Spacing', 'longitudinalSpacing', 1)}</tr>
+      <tr class="se-family-row">${field('Transverse Diameter', 'transverseDiameter', 1)}${field('Transverse Spacing', 'transverseSpacing', 1)}</tr>
+      <tr class="se-family-row">${field('Edge Left', 'edgeLeft', 0)}${field('Edge Right', 'edgeRight', 0)}</tr>
+      <tr class="se-family-row">${field('Edge Top', 'edgeTop', 0)}${field('Edge Bottom', 'edgeBottom', 0)}</tr>`;
+  }
+
+  _renderPileCageEditor() {
+    this._setFamilyEditorChrome('piles');
+    const pile = this.current;
+    const body = document.getElementById('seTableBody');
+    if (!body) return;
+    if (!Array.isArray(pile.spiralZones)) pile.spiralZones = [];
+    const field = (label, key, min = 1) => `<td class="se-family-label">${label}</td><td><input class="se-input" type="number" min="${min}" value="${pile[key] ?? 0}" data-pile-field="${key}" oninput="window._seEditor._setPileField('${key}', this.value)"></td>`;
+    const zoneRows = pile.spiralZones.map((zone, i) => `
+      <tr class="se-family-row se-zone-row">
+        <td><input class="se-input" type="text" value="${svgEscape(zone.name || 'Zone ' + String.fromCharCode(65 + i))}" data-zone-field="name" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)"></td>
+        <td><input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" oninput="window._seEditor._setSpiralZoneField(${i}, 'length', this.value)"></td>
+        <td><input class="se-input" type="number" min="1" value="${zone.pitch ?? 20}" data-zone-field="pitch" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)"></td>
+        <td><button class="se-del-btn" onclick="window._seEditor._deleteSpiralZone(${i})">&times;</button></td>
+      </tr>`).join('');
+    body.innerHTML = `
+      <tr class="se-family-row">${field('Pile Diameter', 'pileDiameter', 1)}${field('Pile Length', 'pileLength', 1)}</tr>
+      <tr class="se-family-row">${field('Longitudinal Bar Count', 'longitudinalBars', 0)}${field('Longitudinal Bar Diameter', 'longitudinalDiameter', 1)}</tr>
+      <tr class="se-family-row">${field('Spiral Diameter', 'spiralDiameter', 1)}<td></td><td></td></tr>
+      <tr class="se-zone-head se-zone-row"><td>Zone Name</td><td>Zone Length</td><td>Zone Pitch</td><td></td></tr>
+      ${zoneRows}
+      <tr class="se-family-row"><td colspan="4"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">Add Zone</button></td></tr>`;
+  }
+
+  _renderBarEditor() {
+    if (!this.current) return;
+    this._setFamilyEditorChrome('bars');
     let { sides, angles, azAngles, elAngles } = this.current;
     const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
     if (isReal3D && angles?.length > 0 && (!azAngles || azAngles.every(a => Number(a || 0) === 0))) {
@@ -1767,10 +1854,9 @@ class ShapeEditorModal {
     if (toggle) toggle.checked = isReal3D;
     const help = document.getElementById('se3DHelp');
     if (help) help.textContent = isReal3D
-      ? 'מצב מוצר תלת-ממדי פעיל: ערוך פנייה במרחב והטיית Z לכל צלע.'
-      : 'תצוגת 3D לא הופכת את המוצר לתלת-ממדי. סמן כאן רק אם הברזל באמת יוצא מהמישור.';
+      ? 'Real 3D product mode: edit turn and Z tilt per side.'
+      : '3D view is visual only. Enable only when the bar truly leaves the plane.';
 
-    // ── Update column headers ──────────────────────────────────
     const thead = document.getElementById('seTableHead');
     const table = document.querySelector('#seModal .se-table');
     if (table) {
@@ -1778,25 +1864,25 @@ class ShapeEditorModal {
       table.classList.toggle('se-table-2d', !isReal3D);
     }
     if (thead) {
+      thead.style.display = '';
       if (isReal3D) {
         thead.innerHTML = `<tr>
           <th style="width:28px">#</th>
-          <th style="min-width:90px">אורך (מ"מ)</th>
-          <th>פנייה (°) <span style="font-weight:400;color:#526070">ביחס לצלע הקודמת</span></th>
-          <th>הטיית Z (°) <span style="font-weight:400;color:#526070">זווית אנכית</span></th>
+          <th style="min-width:90px">Length</th>
+          <th>Turn (deg)</th>
+          <th>Z Tilt (deg)</th>
           <th style="width:28px"></th>
         </tr>`;
       } else {
         thead.innerHTML = `<tr>
           <th style="width:32px">#</th>
-          <th>אורך צלע (מ"מ)</th>
-          <th>זווית כיפוף</th>
+          <th>Side Length</th>
+          <th>Bend Angle</th>
           <th style="width:32px"></th>
         </tr>`;
       }
     }
 
-    // ── Build rows ─────────────────────────────────────────────
     // One-row side editor: each side keeps length and bend angle in one readable row.
     let html = '';
     for (let i = 0; i < sides.length; i++) {
@@ -1811,7 +1897,7 @@ class ShapeEditorModal {
               data-side="${i}" oninput="window._seEditor._setSide(${i}, this.value)"></td>
             <td>
               ${i === 0
-                ? `<span style="font-size:11px;color:#aab8c8;padding:0 4px;">—</span>`
+                ? `<span style="font-size:11px;color:#aab8c8;padding:0 4px;">&mdash;</span>`
                 : `<input class="se-input" type="number" min="-360" max="360" value="${az}" style="width:68px"
                     data-az="${i}" oninput="window._seEditor._setAzAngle(${i}, this.value)">`}
             </td>
@@ -1819,10 +1905,9 @@ class ShapeEditorModal {
               <input class="se-input" type="number" min="-90" max="90" value="${el}" style="width:68px"
                 data-el="${i}" oninput="window._seEditor._setElAngle(${i}, this.value)">
             </td>
-            <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">✕</button>` : ''}</td>
+            <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
           </tr>`;
       } else {
-        // 2D mode: One-row side editor, aligned with the compact 3D table.
         html += `
           <tr class="se-side-row">
             <td><span class="se-seg-label">${letter}</span></td>
@@ -1837,6 +1922,44 @@ class ShapeEditorModal {
       }
     }
     document.getElementById('seTableBody').innerHTML = html;
+  }
+
+  _setMeshField(key, val) {
+    if (!this.current || this.current.family !== 'mesh') return;
+    const min = key === 'edgeLeft' || key === 'edgeRight' || key === 'edgeTop' || key === 'edgeBottom' ? 0 : 1;
+    this.current[key] = Math.max(min, Number(val) || min);
+    this._updatePreview();
+  }
+
+  _setPileField(key, val) {
+    if (!this.current || this.current.family !== 'piles') return;
+    const parsed = key === 'longitudinalBars' ? Math.round(Number(val) || 0) : Number(val) || 1;
+    this.current[key] = Math.max(key === 'longitudinalBars' ? 0 : 1, parsed);
+    this._updatePreview();
+  }
+
+  _setSpiralZoneField(index, key, val) {
+    if (!this.current || this.current.family !== 'piles' || !Array.isArray(this.current.spiralZones)) return;
+    const zone = this.current.spiralZones[index];
+    if (!zone) return;
+    zone[key] = key === 'name' ? String(val) : Math.max(key === 'length' ? 0 : 1, Number(val) || (key === 'length' ? 0 : 1));
+    this._updatePreview();
+  }
+
+  _addSpiralZone() {
+    if (!this.current || this.current.family !== 'piles') return;
+    if (!Array.isArray(this.current.spiralZones)) this.current.spiralZones = [];
+    const name = 'Zone ' + String.fromCharCode(65 + this.current.spiralZones.length);
+    this.current.spiralZones.push({ name, length: 100, pitch: 20 });
+    this._renderPileCageEditor();
+    this._updatePreview();
+  }
+
+  _deleteSpiralZone(index) {
+    if (!this.current || this.current.family !== 'piles' || !Array.isArray(this.current.spiralZones)) return;
+    this.current.spiralZones.splice(index, 1);
+    this._renderPileCageEditor();
+    this._updatePreview();
   }
 
   _setReal3D(enabled) {
@@ -2276,7 +2399,11 @@ class ShapeEditorModal {
     const is3D = window._seViewMode !== '2d';
     if (orbitCtrl) orbitCtrl.style.display = is3D ? 'flex' : 'none';
     if (svgWrap)   svgWrap.classList.toggle('grab-mode', is3D);
-    if (existingData?.sides?.length) {
+    if (existingData?.family === 'mesh' || existingData?.family === 'piles') {
+      this.current = { ...existingData };
+      document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
+      this._goToEdit();
+    } else if (existingData?.sides?.length) {
       const n = existingData.sides.length;
       // Derive azAngles from 2D bend angles when not saved with the shape.
       // Formula: azAngles[i] = -(180 - angles[i-1])  (same as _init3DAnglesFrom2D)
@@ -2322,6 +2449,10 @@ window.IronBendShapeGeometry = {
   calcShapePoints3D,
   shapeSVGPath,
   shape3DSVG,
+  PolylineBarEngine,
+  MeshEngine,
+  PileCageEngine,
+  ShapeEngineRouter,
 };
 window.seSetView = function(mode) {
   window._seViewMode = mode;

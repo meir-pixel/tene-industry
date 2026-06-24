@@ -185,9 +185,56 @@ test('ShapeEngineRouter renders Mesh 600x250 Ø8@20 as grid with MeshEngine', ()
   assert.match(svg, /data-family="mesh"/);
   assert.match(svg, /data-length="600"/);
   assert.match(svg, /data-width="250"/);
-  assert.match(svg, /data-longitudinal="Ø8@20"/);
-  assert.match(svg, /data-transverse="Ø8@20"/);
+  assert.match(svg, /data-longitudinal="&#216;8@20"/);
+  assert.match(svg, /data-transverse="&#216;8@20"/);
   assert.ok((svg.match(/<line /g) || []).length >= 40, 'expected mesh grid lines');
+});
+
+
+test('shape editor switches to a mesh editor without side or angle fields', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const block = editor.match(/_renderMeshEditor\(\) \{[\s\S]*?[\r\n]+  \}[\r\n]+[\r\n]+  _renderPileCageEditor/);
+
+  assert.ok(block, 'expected mesh editor renderer');
+  for (const field of ['length', 'width', 'longitudinalDiameter', 'longitudinalSpacing', 'transverseDiameter', 'transverseSpacing', 'edgeLeft', 'edgeRight', 'edgeTop', 'edgeBottom']) {
+    assert.ok(block[0].includes(`'${field}'`));
+  }
+  assert.doesNotMatch(block[0], /data-side=/);
+  assert.doesNotMatch(block[0], /data-angle=/);
+  assert.match(editor, /this\.current\.family === 'mesh'\) return this\._renderMeshEditor\(\)/);
+});
+
+test('shape editor switches to a pile cage editor with editable spiral zones', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const block = editor.match(/_renderPileCageEditor\(\) \{[\s\S]*?[\r\n]+  \}[\r\n]+[\r\n]+  _renderBarEditor/);
+
+  assert.ok(block, 'expected pile cage editor renderer');
+  for (const field of ['pileDiameter', 'pileLength', 'longitudinalBars', 'longitudinalDiameter', 'spiralDiameter']) {
+    assert.ok(block[0].includes(`'${field}'`));
+  }
+  for (const field of ['name', 'length', 'pitch']) {
+    assert.match(block[0], new RegExp(`data-zone-field="${field}"`));
+  }
+  assert.match(editor, /_addSpiralZone\(\)/);
+  assert.match(editor, /_deleteSpiralZone\(index\)/);
+  assert.doesNotMatch(block[0], /data-side=/);
+  assert.doesNotMatch(block[0], /data-angle=/);
+  assert.match(editor, /this\.current\.family === 'piles'\) return this\._renderPileCageEditor\(\)/);
+});
+
+test('MeshEngine spacing changes grid count while diameter changes bar thickness', () => {
+  const { ShapeEngineRouter } = loadShapeEditorGeometry();
+  const base = { family: 'mesh', length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20 };
+  const widerSpacing = { ...base, longitudinalSpacing: 30 };
+  const thicker = { ...base, longitudinalDiameter: 16 };
+  const baseSvg = ShapeEngineRouter.render(base, 300, 260);
+  const spacingSvg = ShapeEngineRouter.render(widerSpacing, 300, 260);
+  const thickSvg = ShapeEngineRouter.render(thicker, 300, 260);
+
+  assert.match(baseSvg, /data-longitudinal-count="31"/);
+  assert.match(spacingSvg, /data-longitudinal-count="21"/);
+  assert.match(thickSvg, /stroke-width="3\.5"/);
+  assert.match(thickSvg, /data-longitudinal-count="31"/);
 });
 
 test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine', () => {
@@ -216,6 +263,41 @@ test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine
   assert.match(svg, /data-spiral-zones="70@10,200@20,1350@20"/);
   assert.equal((svg.match(/class="pile-longitudinal-bar"/g) || []).length, 26);
 });
+
+
+test('PileCageEngine pitch changes only the edited spiral zone', () => {
+  const { ShapeEngineRouter } = loadShapeEditorGeometry();
+  const pile = {
+    family: 'piles',
+    pileDiameter: 70,
+    pileLength: 2200,
+    longitudinalBars: 26,
+    longitudinalDiameter: 22,
+    spiralDiameter: 8,
+    spiralZones: [
+      { length: 70, pitch: 10 },
+      { length: 200, pitch: 20 },
+      { length: 1350, pitch: 20 },
+    ],
+  };
+  const changed = {
+    ...pile,
+    spiralZones: [
+      { length: 70, pitch: 10 },
+      { length: 200, pitch: 10 },
+      { length: 1350, pitch: 20 },
+    ],
+  };
+  const countZone = (svg, zone) => (svg.match(new RegExp(`data-zone="${zone}"`, 'g')) || []).length;
+  const baseSvg = ShapeEngineRouter.render(pile, 300, 260);
+  const changedSvg = ShapeEngineRouter.render(changed, 300, 260);
+
+  assert.equal(countZone(baseSvg, 0), countZone(changedSvg, 0));
+  assert.notEqual(countZone(baseSvg, 1), countZone(changedSvg, 1));
+  assert.equal(countZone(baseSvg, 2), countZone(changedSvg, 2));
+  assert.match(changedSvg, /data-spiral-diameter="8"/);
+});
+
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },
