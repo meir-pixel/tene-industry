@@ -62,6 +62,8 @@ const VALID_ORDER_TRANSITIONS = Object.freeze({
   [ORDER_STATUS.CANCELLED]: []
 });
 
+const VALID_ORDER_STATUSES = Object.freeze(Object.values(ORDER_STATUS));
+
 const ITEM_STATUS = Object.freeze({
   WAITING: 'ממתין',
   IN_PRODUCTION: 'בייצור',
@@ -75,6 +77,10 @@ const VALID_ITEM_STATUSES = Object.freeze(Object.values(ITEM_STATUS));
 
 function normalizeOrderStatus(status) {
   return ORDER_STATUS_ALIASES[status] || status;
+}
+
+function isValidOrderStatus(status) {
+  return VALID_ORDER_STATUSES.includes(normalizeOrderStatus(status));
 }
 
 function isValidOrderTransition(from, to) {
@@ -96,10 +102,12 @@ module.exports = {
   ORDER_STATUS,
   ORDER_STATUS_ALIASES,
   VALID_ORDER_TRANSITIONS,
+  VALID_ORDER_STATUSES,
   ITEM_STATUS,
   VALID_ITEM_STATUSES,
   normalizeOrderStatus,
   isValidOrderTransition,
   allowedOrderTransitions,
+  isValidOrderStatus,
   isValidItemStatus
 };

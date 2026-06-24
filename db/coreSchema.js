@@ -132,6 +132,7 @@ function ensureCoreSchema(db) {
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_num TEXT UNIQUE NOT NULL,
+      stable_order_id TEXT,
       customer_id INTEGER,
       channel TEXT DEFAULT 'טלפון',
       delivery_date TEXT,
@@ -146,6 +147,8 @@ function ensureCoreSchema(db) {
       general_notes TEXT,
       priority_order_id TEXT,
       created_by INTEGER,
+      approved_by INTEGER,
+      approved_at TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
@@ -169,6 +172,9 @@ function ensureCoreSchema(db) {
     CREATE TABLE IF NOT EXISTS items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       pallet_id INTEGER,
+      order_id INTEGER,
+      item_uid TEXT,
+      shape_snapshot_json TEXT,
       shape_id TEXT,
       shape_name TEXT,
       diameter REAL,

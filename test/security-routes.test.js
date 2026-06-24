@@ -47,6 +47,15 @@ function seedPortalOrder(customerId, orderNum, status = 'ממתינה לאישו
   `).run(orderNum, customerId, 'פורטל לקוח', status, 1, 100).lastInsertRowid;
 }
 
+
+function seedPortalUser(customerId, phone, role = 'orderer', tokenValue = `portal-user-${Date.now()}`) {
+  db.prepare(`
+    INSERT INTO portal_users (customer_id,phone,name,role,active,token,token_expires_at)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(customerId, phone, phone, role, 1, tokenValue, new Date(Date.now() + 86400000).toISOString());
+  return tokenValue;
+}
+
 function seedInternalOrder(customerId, orderNum = `ORDER-${Date.now()}`) {
   return db.prepare(`
     INSERT INTO orders (order_num,customer_id,channel,status,total_weight,billing_weight)
@@ -192,6 +201,74 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request('/api/orders', { method: 'POST', headers: authHeaders(production), body })).status, 403);
     assert.notEqual((await request('/api/orders', { method: 'POST', headers: authHeaders(office), body })).status, 401);
     assert.notEqual((await request('/api/orders', { method: 'POST', headers: authHeaders(office), body })).status, 403);
+  });
+
+  await t.test('order contract requires manager approval and rejects draft-to-production', async () => {
+    const customerId = seedCustomer();
+    const directProductionOrder = seedInternalOrder(customerId, 'ORDER-CONTRACT-SKIP');
+    let response = await request(`/api/orders/${directProductionOrder}/status`, {
+      method: 'PATCH',
+      headers: authHeaders(manager),
+      body: JSON.stringify({ status: statusContracts.ORDER_STATUS.IN_PRODUCTION }),
+    });
+    assert.equal(response.status, 409);
+
+    const approvalOrder = seedInternalOrder(customerId, 'ORDER-CONTRACT-APPROVE');
+    response = await request(`/api/orders/${approvalOrder}/status`, {
+      method: 'PATCH',
+      headers: authHeaders(production),
+      body: JSON.stringify({ status: statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION }),
+    });
+    assert.equal(response.status, 403);
+
+    response = await request(`/api/orders/${approvalOrder}/status`, {
+      method: 'PATCH',
+      headers: authHeaders(manager),
+      body: JSON.stringify({ status: statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION }),
+    });
+    assert.equal(response.status, 200);
+    const updated = db.prepare('SELECT status,approved_by,approved_at,stable_order_id FROM orders WHERE id=?').get(approvalOrder);
+    assert.equal(updated.status, statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    assert.ok(updated.approved_by);
+    assert.ok(updated.approved_at);
+    assert.equal(updated.stable_order_id, 'ORDER-CONTRACT-APPROVE');
+  });
+
+  await t.test('order item contract stores quantity on item and preserves shape snapshot', async () => {
+    const customerId = seedCustomer();
+    const orderId = seedInternalOrder(customerId, 'ORDER-CONTRACT-ITEM');
+    const createBody = JSON.stringify({
+      shape_name: 'contract-bend',
+      diameter: 12,
+      quantity: 5,
+      total_length_mm: 1200,
+      segments: [{ length_mm: 1200, angle_deg: 0 }],
+      shape: { quantity: 999 },
+    });
+    const createResponse = await request(`/api/orders/${orderId}/items`, { method: 'POST', headers: authHeaders(manager), body: createBody });
+    assert.equal(createResponse.status, 200);
+    const created = await createResponse.json();
+    const item = db.prepare('SELECT * FROM items WHERE id=?').get(created.itemId);
+    assert.equal(item.order_id, orderId);
+    assert.equal(item.quantity, 5);
+    assert.equal(item.item_uid, `order-${orderId}:item-${created.itemId}`);
+    const snapshot = JSON.parse(item.shape_snapshot_json);
+    assert.equal(snapshot.shapeName, 'contract-bend');
+    assert.equal(Object.hasOwn(snapshot, 'quantity'), false);
+
+    const updateBody = JSON.stringify({
+      shape_name: 'contract-updated',
+      diameter: 12,
+      quantity: 7,
+      total_length_mm: 1500,
+      segments: [{ length_mm: 1500, angle_deg: 0 }],
+    });
+    const updateResponse = await request(`/api/orders/${orderId}/items/${created.itemId}`, { method: 'PATCH', headers: authHeaders(manager), body: updateBody });
+    assert.equal(updateResponse.status, 200);
+    const updated = db.prepare('SELECT quantity,shape_name,shape_snapshot_json FROM items WHERE id=?').get(created.itemId);
+    assert.equal(updated.quantity, 7);
+    assert.equal(updated.shape_name, 'contract-updated');
+    assert.equal(updated.shape_snapshot_json, item.shape_snapshot_json);
   });
 
   await t.test('order import preview allows office but rejects production', async () => {
@@ -524,6 +601,18 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
 
     const rowsForA = db.prepare('SELECT original_name FROM customer_guarantee_documents WHERE customer_id=? ORDER BY id').all(customerA);
     assert.deepEqual(rowsForA.map(row => row.original_name), ['a.pdf', 'guarantee.png']);
+  });
+
+  await t.test('portal orderer cannot approve an order', async () => {
+    const customerId = seedPortalCustomer('Portal Contract Orderer', '0500000090', 'portal-contract-legacy');
+    const portalToken = seedPortalUser(customerId, '0500000191', 'orderer', 'portal-contract-orderer');
+    const orderId = seedPortalOrder(customerId, 'PORTAL-CONTRACT-NO-APPROVE');
+    const response = await request('/api/c/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: portalToken, orderId }),
+    });
+    assert.equal(response.status, 403);
   });
 
   await t.test('customer portal approval is scoped to portal token owner', async () => {

@@ -31,6 +31,7 @@ const {
   normalizeStockAllocationPolicy,
   selectedRawMaterialId,
 } = require('./inventory');
+const { createStableOrderId, buildOrderItemUid, shapeSnapshotJson } = require('./orderContracts');
 
 function createOrderFactory(db, { generateOrderNum, industry, settingsService = null }) {
   if (!db) throw new Error('services/orders missing dependency: db');
@@ -104,9 +105,9 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
     const billingWeight = totalWeight * (1 + wastePct / 100);
 
     const orderResult = db.prepare(`
-      INSERT INTO orders (order_num,customer_id,channel,delivery_date,delivery_time,delivery_address,priority,driver_notes,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(orderNum, customerId, order.channel, order.deliveryDate, order.deliveryTime,
+      INSERT INTO orders (order_num,stable_order_id,customer_id,channel,delivery_date,delivery_time,delivery_address,priority,driver_notes,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(orderNum, createStableOrderId(orderNum), customerId, order.channel, order.deliveryDate, order.deliveryTime,
       order.deliveryAddress, order.priority, order.driverNotes, order.generalNotes,
       totalWeight, wastePct, billingWeight, order.createdBy || null);
 
@@ -148,15 +149,26 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
         const machine = assignResource(item.diameter);
 
         const totalWeight = weightPerUnit * (item.qty || 1);
-        const itemResult = db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-          .run(pr.lastInsertRowid, item.shapeId, shapeName, item.diameter,
+        const shapeSnapshot = shapeSnapshotJson({
+          shapeId: item.shapeId,
+          shapeName,
+          diameter: item.diameter,
+          spiralDiameterMm: spiral.isSpiral ? spiral.spiralDiameterMm : null,
+          spiralTurns: spiral.isSpiral ? spiral.turns : null,
+          segments,
+          totalLengthMm,
+          is3d: item.is_3d ? 1 : 0,
+        });
+        const itemResult = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,struct_element,struct_floor,sheet_num,machine,is_3d)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .run(pr.lastInsertRowid, orderId, shapeSnapshot, item.shapeId, shapeName, item.diameter,
             spiral.isSpiral ? spiral.spiralDiameterMm : null,
             spiral.isSpiral ? spiral.turns : null,
             segments, totalLengthMm, item.qty || 1, productionQty,
             weightPerUnit, totalWeight,
             item.note, item.structElement, item.structFloor, item.sheetNum, machine,
             item.is_3d ? 1 : 0);
+        db.prepare('UPDATE items SET item_uid=? WHERE id=?').run(buildOrderItemUid(orderId, itemResult.lastInsertRowid), itemResult.lastInsertRowid);
 
         const allocation = allocateOrderItemStock(db, {
           orderId,

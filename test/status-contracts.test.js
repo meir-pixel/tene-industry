@@ -6,6 +6,7 @@ const {
   normalizeOrderStatus,
   isValidOrderTransition,
   allowedOrderTransitions,
+  isValidOrderStatus,
   isValidItemStatus
 } = require('../status-contracts');
 
@@ -36,4 +37,10 @@ test('production item statuses are centralized', () => {
   assert.equal(isValidItemStatus(ITEM_STATUS.IN_PRODUCTION), true);
   assert.equal(isValidItemStatus(ITEM_STATUS.DONE), true);
   assert.equal(isValidItemStatus('bad-status'), false);
+});
+
+
+test('unknown order statuses are rejected by the order contract', () => {
+  assert.equal(isValidOrderStatus(ORDER_STATUS.PENDING_APPROVAL), true);
+  assert.equal(isValidOrderStatus('bad-order-status'), false);
 });

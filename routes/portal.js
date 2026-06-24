@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { createPortalAccessService } = require('../services/portalAccess');
+const { buildOrderItemUid, shapeSnapshotJson } = require('../services/orderContracts');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/portal missing dependency: ${name}`);
@@ -756,10 +757,12 @@ module.exports = function createPortalRouter(deps) {
       totalPrice += weight * ppu;
       const segments = JSON.stringify((item.sides || []).map((l,i) => ({ length_mm:l, angle_deg:(item.angles||[])[i]??0 })));
       const machine = industry.assignResource(item.diameter);
-      db.prepare(`INSERT INTO items (pallet_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,machine)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(palletId, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,
+      const shapeSnapshot = shapeSnapshotJson({ shapeId: item.shapeId || 's1', shapeName: item.shapeName || 'ישר', diameter: item.diameter, segments, totalLengthMm });
+      const itemRow = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,machine)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(palletId, orderId, shapeSnapshot, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,
              item.qty||1, Math.ceil((item.qty||1)*(1+wastePct/100)), weight/(item.qty||1), weight, item.note||'', machine);
+      db.prepare('UPDATE items SET item_uid=? WHERE id=?').run(buildOrderItemUid(orderId, itemRow.lastInsertRowid), itemRow.lastInsertRowid);
       itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} – ${Math.round(totalLengthMm/10)}ס"מ`);
     });
 

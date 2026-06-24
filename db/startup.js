@@ -54,7 +54,13 @@ function runCoreMigrations(db) {
   addCol('orders',     'billing_weight',     'REAL DEFAULT 0');
   addCol('orders',     'priority_order_id',  'TEXT');
   addCol('orders',     'created_by',         'INTEGER');
+  addCol('orders',     'stable_order_id',    'TEXT');
+  addCol('orders',     'approved_by',        'INTEGER');
+  addCol('orders',     'approved_at',        'TEXT');
   addCol('pallets',    'status',             "TEXT DEFAULT 'ממתין'");
+  addCol('items',      'order_id',           'INTEGER');
+  addCol('items',      'item_uid',           'TEXT');
+  addCol('items',      'shape_snapshot_json','TEXT');
   addCol('items',      'segments',           'JSON');
   addCol('items',      'spiral_diameter_mm', 'REAL');
   addCol('items',      'spiral_turns',       'REAL');
@@ -122,6 +128,10 @@ function runCoreMigrations(db) {
   addCol('raw_material','bending_shape_source','TEXT');
   addCol('raw_material','bending_shape_confidence','REAL');
   addCol('raw_material_usage','allocation_policy','TEXT');
+
+  try { db.prepare("UPDATE orders SET stable_order_id=order_num WHERE stable_order_id IS NULL OR stable_order_id=''").run(); } catch {}
+  try { db.prepare("UPDATE items SET order_id=(SELECT pallets.order_id FROM pallets WHERE pallets.id=items.pallet_id) WHERE order_id IS NULL").run(); } catch {}
+  try { db.prepare("UPDATE items SET item_uid='order-' || COALESCE(order_id, '') || ':item-' || id WHERE item_uid IS NULL OR item_uid=''").run(); } catch {}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS production_card_weights (

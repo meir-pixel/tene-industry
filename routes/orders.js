@@ -1,4 +1,9 @@
 const router = require('express').Router();
+const {
+  assertOrderStatusTransition,
+  buildOrderItemUid,
+  shapeSnapshotJson,
+} = require('../services/orderContracts');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -212,17 +217,26 @@ module.exports = function createOrdersRouter(deps) {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
     if (!order) return res.status(404).json({ error: 'לא נמצא' });
     if (order.locked) return res.status(403).json({ error: 'הזמנה נעולה' });
-    if (!isValidOrderTransition(order.status, requestedStatus)) {
-      return res.status(409).json({
-        error: 'מעבר סטטוס לא חוקי',
-        from: order.status,
-        to: requestedStatus,
-        allowed: allowedOrderTransitions(order.status),
+    let transition;
+    try {
+      transition = assertOrderStatusTransition({ from: order.status, to: requestedStatus, role: req.userRole });
+    } catch (error) {
+      return res.status(error.statusCode || 400).json({
+        error: error.message,
+        from: error.from || order.status,
+        to: error.to || requestedStatus,
+        allowed: error.allowed || allowedOrderTransitions(order.status),
       });
     }
     const old = order.status;
-    db.prepare('UPDATE orders SET status=? WHERE id=?').run(requestedStatus, order.id);
-    auditLog('order', order.id, order.order_num, 'status_change', 'status', old, requestedStatus, null, userId, userName);
+    const approvedAt = transition.isApproval ? new Date().toISOString() : null;
+    db.prepare(
+      'UPDATE orders SET status=?, stable_order_id=COALESCE(stable_order_id, order_num), approved_by=CASE WHEN ? THEN ? ELSE approved_by END, approved_at=CASE WHEN ? THEN ? ELSE approved_at END WHERE id=?'
+    ).run(requestedStatus, transition.isApproval ? 1 : 0, req.userId || userId || null, transition.isApproval ? 1 : 0, approvedAt, order.id);
+    auditLog('order', order.id, order.order_num, 'status_change', 'status', old, requestedStatus, null, req.userId || userId || null, req.auth?.display_name || userName || null);
+    if (transition.isApproval) {
+      auditLog('order', order.id, order.order_num, 'manager_approval', 'approved_by', null, req.userId || userId || null, null, req.userId || userId || null, req.auth?.display_name || userName || null);
+    }
     wsBroadcast('order_status', { id: order.id, status: requestedStatus, orderNum: order.order_num });
     if (order.customer_id) {
       const c = db.prepare('SELECT phone FROM customers WHERE id=?').get(order.customer_id);
@@ -240,14 +254,16 @@ module.exports = function createOrdersRouter(deps) {
       const item = cleanItemPayload(req.body, { shape_name: '', diameter: 12, quantity: 1, total_length_mm: 0, segments: '[]' });
       const pallet = firstOrCreatePallet(order.id);
       const hasOrderIdColumn = db.prepare("PRAGMA table_info(items)").all().some(column => column.name === 'order_id');
-      const columns = ['pallet_id', 'shape_id', 'shape_name', 'diameter', 'quantity', 'production_qty', 'segments', 'total_length_mm', 'weight_per_unit', 'total_weight', 'note', 'status', 'spiral_diameter_mm', 'spiral_turns', 'review_status'];
-      const values = [pallet.id, item.shapeName, item.shapeName, item.diameter, item.quantity, item.quantity, item.segments, item.totalLengthMm, item.weightPerUnit, item.totalWeight, item.note, 'ממתין', item.spiralDiameter || null, item.spiralTurns || null, 'pending'];
+      const shapeSnapshot = shapeSnapshotJson({ shapeId: item.shapeName, shapeName: item.shapeName, diameter: item.diameter, segments: item.segments, totalLengthMm: item.totalLengthMm, spiralDiameterMm: item.spiralDiameter || null, spiralTurns: item.spiralTurns || null });
+      const columns = ['pallet_id', 'shape_snapshot_json', 'shape_id', 'shape_name', 'diameter', 'quantity', 'production_qty', 'segments', 'total_length_mm', 'weight_per_unit', 'total_weight', 'note', 'status', 'spiral_diameter_mm', 'spiral_turns', 'review_status'];
+      const values = [pallet.id, shapeSnapshot, item.shapeName, item.shapeName, item.diameter, item.quantity, item.quantity, item.segments, item.totalLengthMm, item.weightPerUnit, item.totalWeight, item.note, 'ממתין', item.spiralDiameter || null, item.spiralTurns || null, 'pending'];
       if (hasOrderIdColumn) {
         columns.splice(1, 0, 'order_id');
         values.splice(1, 0, order.id);
       }
       const placeholders = columns.map(() => '?').join(',');
       const result = db.prepare(`INSERT INTO items (${columns.join(',')}) VALUES (${placeholders})`).run(...values);
+      db.prepare('UPDATE items SET item_uid=COALESCE(item_uid, ?) WHERE id=?').run(buildOrderItemUid(order.id, result.lastInsertRowid), result.lastInsertRowid);
       const orderTotal = recalcOrderWeights(order.id);
 
       auditLog('item', result.lastInsertRowid, order.order_num, 'item_add', 'shape_payload', null, JSON.stringify(req.body), item.note || null, req.auth?.sub || null, req.auth?.display_name || null);
@@ -285,9 +301,10 @@ module.exports = function createOrdersRouter(deps) {
       UPDATE items
       SET shape_name=?, diameter=?, quantity=?, production_qty=?, total_length_mm=?,
           segments=?, spiral_diameter_mm=?, spiral_turns=?, weight_per_unit=?, total_weight=?,
+          item_uid=COALESCE(item_uid, ?), shape_snapshot_json=COALESCE(shape_snapshot_json, ?),
           note=?, review_status='pending', reviewed_by=NULL, reviewed_at=NULL
       WHERE id=?
-    `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, note, item.id);
+    `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, buildOrderItemUid(req.params.orderId, item.id), shapeSnapshotJson({ shapeId: item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null }), note, item.id);
 
     const orderTotal = recalcOrderWeights(req.params.orderId);
 
