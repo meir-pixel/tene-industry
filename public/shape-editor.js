@@ -583,6 +583,229 @@ function weightPerMeter(diameter) {
   return sharedKgPerMeter(diameter);
 }
 
+
+function shapeContractGuid() {
+  const cryptoObj = window.crypto || window.msCrypto;
+  if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+  const rand = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).slice(1);
+  return `${rand()}${rand()}-${rand()}-${rand()}-${rand()}-${rand()}${rand()}${rand()}`;
+}
+
+function shapeMachineProfiles() {
+  const empty = () => ({ status: 'not_implemented', profileVersion: null, payload: null });
+  return { MEP: empty(), PEDAX: empty(), SCHNELL: empty() };
+}
+
+function normalizeShapeFamily(shape) {
+  return shape?.family === 'mesh' || shape?.family === 'piles' ? shape.family : 'bars';
+}
+
+function resolveShapeType(shape) {
+  const family = normalizeShapeFamily(shape);
+  if (shape?.shapeType) return String(shape.shapeType);
+  if (family === 'mesh') return 'mesh_rectangular';
+  if (family === 'piles') return 'round_pile_cage';
+  if (shape?.presetId) return String(shape.presetId);
+  if (shape?.id) return String(shape.id);
+  return 'custom_bar';
+}
+
+function resolveShapeId(shape) {
+  return String(shape?.shapeId || shape?.approvedShapeId || shapeContractGuid());
+}
+
+function countMeshBars(total, spacing, edgeStart = 0, edgeEnd = 0) {
+  const length = Math.max(1, Number(total) || 1);
+  const pitch = Math.max(1, Number(spacing) || 1);
+  const start = Math.min(length, Math.max(0, Number(edgeStart) || 0));
+  const end = Math.max(start, length - Math.min(length, Math.max(0, Number(edgeEnd) || 0)));
+  const positions = [];
+  for (let mm = start; mm <= end + 0.001; mm += pitch) positions.push(Math.min(end, mm));
+  if (!positions.length || positions[positions.length - 1] !== end) positions.push(end);
+  return positions.length;
+}
+
+function pileSpiralLengthMm(pileDiameter, zoneLength, pitch) {
+  const diameter = Math.max(1, Number(pileDiameter) || 1);
+  const length = Math.max(0, Number(zoneLength) || 0);
+  const step = Math.max(1, Number(pitch) || 1);
+  const turns = length / step;
+  const circumference = Math.PI * diameter;
+  return Math.round(Math.sqrt((circumference * turns) ** 2 + length ** 2));
+}
+
+function validateShapeContractData(family, data) {
+  const errors = [];
+  const positive = (field, label = field) => {
+    if (!(Number(data[field]) > 0)) errors.push(`${label} must be greater than 0`);
+  };
+  if (!['bars', 'mesh', 'piles'].includes(family)) errors.push('family must be bars, mesh, or piles');
+  if (Object.prototype.hasOwnProperty.call(data, 'quantity')) errors.push('quantity belongs to Order Item, not Shape');
+  if (family === 'bars') {
+    if (!Array.isArray(data.sides) || data.sides.length === 0) errors.push('sides must be a non-empty array');
+    if (!Array.isArray(data.angles)) errors.push('angles must be an array');
+    if (Array.isArray(data.sides) && Array.isArray(data.angles) && ![data.sides.length - 1, data.sides.length].includes(data.angles.length)) errors.push('angles.length must equal sides.length - 1 for open bars or sides.length for closed bars');
+    (data.sides || []).forEach((value, index) => { if (!(Number(value) > 0)) errors.push(`sides[${index}] must be greater than 0`); });
+    (data.angles || []).forEach((value, index) => { const n = Number(value); if (!Number.isFinite(n) || n < -360 || n > 360) errors.push(`angles[${index}] must be between -360 and 360`); });
+    positive('diameter');
+  } else if (family === 'mesh') {
+    ['length', 'width', 'longitudinalDiameter', 'longitudinalSpacing', 'transverseDiameter', 'transverseSpacing'].forEach(field => positive(field));
+    ['edgeLeft', 'edgeRight', 'edgeTop', 'edgeBottom'].forEach(field => { if (!(Number(data[field]) >= 0)) errors.push(`${field} must be 0 or greater`); });
+    if (Number(data.edgeLeft) + Number(data.edgeRight) >= Number(data.length)) errors.push('edgeLeft + edgeRight must be smaller than length');
+    if (Number(data.edgeTop) + Number(data.edgeBottom) >= Number(data.width)) errors.push('edgeTop + edgeBottom must be smaller than width');
+    if ('sides' in data || 'angles' in data) errors.push('mesh must not use sides or angles');
+  } else if (family === 'piles') {
+    ['pileDiameter', 'pileLength', 'longitudinalDiameter', 'spiralDiameter'].forEach(field => positive(field));
+    if (!(Number(data.longitudinalBars) >= 3)) errors.push('longitudinalBars must be at least 3');
+    if (!Array.isArray(data.spiralZones) || data.spiralZones.length === 0) errors.push('spiralZones must be a non-empty array');
+    let zoneTotal = 0;
+    (data.spiralZones || []).forEach((zone, index) => {
+      if (!String(zone.name || '').trim()) errors.push(`spiralZones[${index}].name is required`);
+      if (!(Number(zone.length) > 0)) errors.push(`spiralZones[${index}].length must be greater than 0`);
+      if (!(Number(zone.pitch) > 0)) errors.push(`spiralZones[${index}].pitch must be greater than 0`);
+      zoneTotal += Number(zone.length) || 0;
+    });
+    if (zoneTotal > Number(data.pileLength)) errors.push('sum(spiralZones.length) must not exceed pileLength');
+    if ('sides' in data || 'angles' in data) errors.push('pile cages must not use sides or angles');
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function buildBarsShapeContract(shape) {
+  const sides = Array.isArray(shape?.sides) ? shape.sides.map(v => Number(v) || 0) : [];
+  const angles = Array.isArray(shape?.angles) ? shape.angles.map(v => Number(v) || 0) : [];
+  const diameter = Number(shape?.diameter || 12) || 12;
+  const totalLengthMm = sides.reduce((sum, value) => sum + Number(value || 0), 0);
+  const weightKg = Number(((totalLengthMm / 1000) * sharedKgPerMeter(diameter)).toFixed(3));
+  const data = { sides, angles, diameter };
+  return {
+    data,
+    calculated: { totalLengthMm, weightKg, bendCount: angles.length },
+    generic: {
+      family: 'bars',
+      shapeType: resolveShapeType({ ...shape, family: 'bars' }),
+      diameter,
+      segments: sides.map((lengthMm, index) => ({ index: index + 1, lengthMm, bendAfterDeg: index < angles.length ? angles[index] : null })),
+      totalLengthMm,
+      bendCount: angles.length,
+    },
+    validation: validateShapeContractData('bars', data),
+  };
+}
+
+function buildMeshShapeContract(shape) {
+  const data = {
+    length: Math.max(1, Number(shape?.length || 600)),
+    width: Math.max(1, Number(shape?.width || 250)),
+    longitudinalDiameter: Math.max(1, Number(shape?.longitudinalDiameter || 8)),
+    longitudinalSpacing: Math.max(1, Number(shape?.longitudinalSpacing || 20)),
+    transverseDiameter: Math.max(1, Number(shape?.transverseDiameter || 8)),
+    transverseSpacing: Math.max(1, Number(shape?.transverseSpacing || 20)),
+    edgeLeft: Math.max(0, Number(shape?.edgeLeft || 0)),
+    edgeRight: Math.max(0, Number(shape?.edgeRight || 0)),
+    edgeTop: Math.max(0, Number(shape?.edgeTop || 0)),
+    edgeBottom: Math.max(0, Number(shape?.edgeBottom || 0)),
+  };
+  const longitudinalBarCount = countMeshBars(data.width, data.longitudinalSpacing, data.edgeTop, data.edgeBottom);
+  const transverseBarCount = countMeshBars(data.length, data.transverseSpacing, data.edgeLeft, data.edgeRight);
+  const longitudinalTotalLengthMm = longitudinalBarCount * data.length;
+  const transverseTotalLengthMm = transverseBarCount * data.width;
+  const totalLengthMm = longitudinalTotalLengthMm + transverseTotalLengthMm;
+  const weightKg = Number((((longitudinalTotalLengthMm / 1000) * sharedKgPerMeter(data.longitudinalDiameter)) + ((transverseTotalLengthMm / 1000) * sharedKgPerMeter(data.transverseDiameter))).toFixed(3));
+  const calculated = { longitudinalBarCount, transverseBarCount, longitudinalTotalLengthMm, transverseTotalLengthMm, totalLengthMm, weightKg };
+  return {
+    data,
+    calculated,
+    generic: { family: 'mesh', shapeType: 'mesh_rectangular', ...data, longitudinalBarCount, transverseBarCount, totalLengthMm },
+    validation: validateShapeContractData('mesh', data),
+  };
+}
+
+function buildPileShapeContract(shape) {
+  const zones = Array.isArray(shape?.spiralZones) ? shape.spiralZones.map((zone, index) => ({
+    name: String(zone.name || `Zone ${String.fromCharCode(65 + index)}`),
+    length: Math.max(0, Number(zone.length || 0)),
+    pitch: Math.max(1, Number(zone.pitch || 20)),
+  })) : [];
+  const data = {
+    pileDiameter: Math.max(1, Number(shape?.pileDiameter || 70)),
+    pileLength: Math.max(1, Number(shape?.pileLength || 2200)),
+    longitudinalBars: Math.max(0, Math.round(Number(shape?.longitudinalBars || 0))),
+    longitudinalDiameter: Math.max(1, Number(shape?.longitudinalDiameter || 22)),
+    spiralDiameter: Math.max(1, Number(shape?.spiralDiameter || 8)),
+    spiralZones: zones,
+  };
+  const totalLongitudinalLengthMm = data.pileLength * data.longitudinalBars;
+  const totalSpiralLengthMm = zones.reduce((sum, zone) => sum + pileSpiralLengthMm(data.pileDiameter, zone.length, zone.pitch), 0);
+  const totalLengthMm = totalLongitudinalLengthMm + totalSpiralLengthMm;
+  const longWeight = (totalLongitudinalLengthMm / 1000) * sharedKgPerMeter(data.longitudinalDiameter);
+  const spiralWeight = (totalSpiralLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter);
+  const calculated = { totalLongitudinalLengthMm, totalSpiralLengthMm, totalLengthMm, weightKg: Number((longWeight + spiralWeight).toFixed(3)) };
+  let startMm = 0;
+  const machineZones = zones.map((zone, index) => {
+    const item = { index: index + 1, name: zone.name, startMm, lengthMm: zone.length, pitchMm: zone.pitch };
+    startMm += zone.length;
+    return item;
+  });
+  return {
+    data,
+    calculated,
+    generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, totalLongitudinalLengthMm, totalSpiralLengthMm, totalLengthMm },
+    validation: validateShapeContractData('piles', data),
+  };
+}
+
+function buildShapeDataContractV2(shape) {
+  const family = normalizeShapeFamily(shape);
+  const shapeType = resolveShapeType({ ...shape, family });
+  const familyPayload = family === 'mesh'
+    ? buildMeshShapeContract(shape)
+    : family === 'piles'
+      ? buildPileShapeContract(shape)
+      : buildBarsShapeContract(shape);
+  const displayName = shape?.displayName || shape?.presetName || shape?.shapeName || shape?.name || '';
+  return {
+    contractVersion: 1,
+    shapeVersion: Number(shape?.shapeVersion || 1),
+    shapeId: resolveShapeId(shape),
+    shapeType,
+    family,
+    source: 'shape-editor',
+    approvedAt: new Date().toISOString(),
+    displayName,
+    data: familyPayload.data,
+    calculated: familyPayload.calculated,
+    machineOutput: {
+      generic: { ...familyPayload.generic, shapeType },
+      machineProfiles: shapeMachineProfiles(),
+    },
+    validation: familyPayload.validation,
+  };
+}
+
+function legacyApprovedShapeFields(shape, contract) {
+  const family = contract.family;
+  const base = {
+    presetId: shape?.presetId || shape?.id || contract.shapeType,
+    presetName: shape?.presetName || shape?.name || contract.displayName,
+    presetEmoji: shape?.presetEmoji || shape?.emoji || '',
+    shapeName: shape?.shapeName || shape?.presetName || shape?.name || contract.displayName,
+    shapeId: contract.shapeId,
+    shapeType: contract.shapeType,
+    family,
+  };
+  if (family === 'mesh' || family === 'piles') return { ...base, ...contract.data };
+  return {
+    ...base,
+    sides: [...contract.data.sides],
+    angles: [...contract.data.angles],
+    diameter: contract.data.diameter,
+    is3d: shape?.is3d ? 1 : 0,
+    azAngles: shape?.is3d ? (shape.azAngles || []) : null,
+    elAngles: shape?.is3d ? (shape.elAngles || []) : null,
+  };
+}
+
 // ── SHAPE EDITOR CLASS ────────────────────────────────────────────
 class ShapeEditorModal {
   constructor(onSelect) {
@@ -2382,11 +2605,18 @@ class ShapeEditorModal {
   _confirm() {
     if (!this.current || !this.onSelect) return;
     const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
-    this.onSelect({
+    const normalized = {
       ...this.current,
       is3d: isReal3D ? 1 : 0,
       azAngles: isReal3D ? (this.current.azAngles || []) : null,
       elAngles: isReal3D ? (this.current.elAngles || []) : null,
+    };
+    delete normalized.quantity;
+    delete normalized.qty;
+    const contract = buildShapeDataContractV2(normalized);
+    this.onSelect({
+      ...legacyApprovedShapeFields(normalized, contract),
+      ...contract,
     });
     this.close();
   }
@@ -2453,6 +2683,8 @@ window.IronBendShapeGeometry = {
   MeshEngine,
   PileCageEngine,
   ShapeEngineRouter,
+  buildShapeDataContractV2,
+  validateShapeContractData,
 };
 window.seSetView = function(mode) {
   window._seViewMode = mode;

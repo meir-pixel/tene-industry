@@ -298,6 +298,125 @@ test('PileCageEngine pitch changes only the edited spiral zone', () => {
   assert.match(changedSvg, /data-spiral-diameter="8"/);
 });
 
+
+test('buildShapeDataContractV2 returns bars envelope without shape-owned quantity', () => {
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'bars',
+    presetId: 'u_bar',
+    presetName: 'U bar',
+    sides: [350, 1200, 350],
+    angles: [90, 90],
+    diameter: 12,
+    quantity: 99,
+  });
+
+  assert.equal(contract.contractVersion, 1);
+  assert.equal(contract.shapeVersion, 1);
+  assert.ok(contract.shapeId);
+  assert.equal(contract.shapeType, 'u_bar');
+  assert.equal(contract.family, 'bars');
+  assert.equal(contract.source, 'shape-editor');
+  assert.deepEqual(contract.data, { sides: [350, 1200, 350], angles: [90, 90], diameter: 12 });
+  assert.equal(contract.calculated.totalLengthMm, 1900);
+  assert.equal(contract.calculated.bendCount, 2);
+  assert.equal(contract.validation.valid, true);
+  assert.equal(contract.machineOutput.generic.family, 'bars');
+  assert.equal(contract.machineOutput.generic.segments.length, 3);
+  assert.deepEqual(Object.keys(contract.machineOutput.machineProfiles).sort(), ['MEP', 'PEDAX', 'SCHNELL']);
+  assert.equal('quantity' in contract, false);
+  assert.equal('quantity' in contract.data, false);
+  assert.equal('quantity' in contract.machineOutput.generic, false);
+});
+
+
+test('buildShapeDataContractV2 accepts closed bar shapes with a final bend angle', () => {
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'bars',
+    presetId: 'closed_stirrup',
+    sides: [400, 200, 400, 200],
+    angles: [90, 90, 90, 90],
+    diameter: 8,
+  });
+
+  assert.equal(contract.validation.valid, true);
+  assert.equal(contract.calculated.bendCount, 4);
+  assert.equal(contract.machineOutput.generic.segments[3].bendAfterDeg, 90);
+});
+
+test('buildShapeDataContractV2 returns mesh envelope with counts and machine profile placeholders', () => {
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'mesh',
+    length: 600,
+    width: 250,
+    longitudinalDiameter: 8,
+    longitudinalSpacing: 20,
+    transverseDiameter: 8,
+    transverseSpacing: 20,
+    edgeLeft: 0,
+    edgeRight: 0,
+    edgeTop: 0,
+    edgeBottom: 0,
+    quantity: 4,
+  });
+
+  assert.equal(contract.shapeType, 'mesh_rectangular');
+  assert.equal(contract.family, 'mesh');
+  assert.equal(contract.data.length, 600);
+  assert.equal(contract.data.width, 250);
+  assert.equal(contract.calculated.longitudinalBarCount, 14);
+  assert.equal(contract.calculated.transverseBarCount, 31);
+  assert.equal(contract.calculated.totalLengthMm, 16150);
+  assert.equal(contract.machineOutput.generic.longitudinalBarCount, 14);
+  assert.equal(contract.machineOutput.generic.transverseBarCount, 31);
+  assert.equal(contract.validation.valid, true);
+  assert.equal('quantity' in contract.data, false);
+  assert.deepEqual(Object.keys(contract.machineOutput.machineProfiles).sort(), ['MEP', 'PEDAX', 'SCHNELL']);
+});
+
+test('buildShapeDataContractV2 returns pile cage envelope with spiral zone machine output', () => {
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'piles',
+    pileDiameter: 70,
+    pileLength: 2200,
+    longitudinalBars: 26,
+    longitudinalDiameter: 22,
+    spiralDiameter: 8,
+    spiralZones: [
+      { length: 70, pitch: 10 },
+      { length: 200, pitch: 20 },
+      { length: 1350, pitch: 20 },
+    ],
+    quantity: 2,
+  });
+
+  assert.equal(contract.shapeType, 'round_pile_cage');
+  assert.equal(contract.family, 'piles');
+  assert.equal(contract.data.longitudinalBars, 26);
+  assert.equal(contract.data.spiralZones[0].name, 'Zone A');
+  assert.equal(contract.calculated.totalLongitudinalLengthMm, 57200);
+  assert.ok(contract.calculated.totalSpiralLengthMm > 0);
+  assert.equal(contract.machineOutput.generic.spiralZones[1].startMm, 70);
+  assert.equal(contract.machineOutput.generic.spiralZones[2].pitchMm, 20);
+  assert.equal(contract.validation.valid, true);
+  assert.equal('quantity' in contract.data, false);
+  assert.deepEqual(Object.keys(contract.machineOutput.machineProfiles).sort(), ['MEP', 'PEDAX', 'SCHNELL']);
+});
+
+test('shape editor approve path returns the SHAPE_DATA_CONTRACT_V2 envelope', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const confirmBlock = editor.match(/_confirm\(\) \{[\s\S]*?this\.close\(\);[\s\S]*?\n  \}/);
+
+  assert.ok(confirmBlock, 'expected _confirm block');
+  assert.match(confirmBlock[0], /delete normalized\.quantity/);
+  assert.match(confirmBlock[0], /delete normalized\.qty/);
+  assert.match(confirmBlock[0], /const contract = buildShapeDataContractV2\(normalized\)/);
+  assert.match(confirmBlock[0], /\.\.\.contract/);
+});
+
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },
