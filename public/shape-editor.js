@@ -1486,15 +1486,87 @@ class ShapeEditorModal {
   #seModal .se-preview-row{flex-direction:column;}
   #seModal .se-info-col{width:100%;flex-direction:row;}
 }
+
+
+/* Approved TENA reference layout - UI only */
+#seModal .se-head{min-height:64px;padding:0 18px;display:grid;grid-template-columns:260px minmax(0,1fr) 280px;gap:16px;align-items:center;background:#171d2b;border-bottom:0;direction:ltr;}
+#seModal .se-brand{display:flex;align-items:center;justify-content:flex-end;gap:12px;direction:rtl;}
+#seModal .se-brand img{width:174px;height:58px;object-fit:contain;background:#fff;padding:4px 10px;display:block;}
+#seModal .se-head-center{display:flex;align-items:center;justify-content:center;gap:12px;direction:rtl;min-width:0;}
+#seModal .se-head h2{font-size:18px;font-weight:900;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-step-indicator{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid rgba(255,255,255,.16);border-radius:999px;color:#d7dfec;background:rgba(255,255,255,.06);font-size:12px;font-weight:800;white-space:nowrap;}
+#seModal .se-head-actions{display:flex;align-items:center;gap:10px;direction:rtl;}
+#seModal .se-close{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);border-radius:50%;}
+#seModal .se-back-btn{min-height:38px;padding:8px 14px;border-radius:8px;color:#eef4fb;background:rgba(255,255,255,.09);font-weight:900;}
+#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:440px minmax(420px,1fr) 170px;direction:rtl;background:#d7d7d7;}
+#sePageEdit[style*="display:none"]{display:none!important;}
+#sePageEdit .se-family-panel{order:3;background:#eceeef;border-left:1px solid #c5cbd4;padding:18px 14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
+#sePageEdit .se-family-panel-title{font-size:15px;font-weight:900;color:#243047;margin-bottom:2px;}
+#sePageEdit .se-family-card{width:100%;min-height:92px;border:1px solid #d1d7df;border-radius:8px;background:#fff;color:#243047;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-family:'Heebo',sans-serif;font-weight:900;cursor:pointer;transition:all .15s;}
+#sePageEdit .se-family-card svg{width:46px;height:38px;color:#5f6878;}
+#sePageEdit .se-family-card span{font-size:14px;}
+#sePageEdit .se-family-card.active{border-color:#ff4047;box-shadow:0 0 0 3px rgba(255,64,71,.14);color:#ff4047;}
+#sePageEdit .se-family-card:hover{transform:translateY(-1px);border-color:#5f6878;}
+#sePageEdit .se-preview-panel{order:2;background:#d7d7d7;padding:16px 18px 14px;gap:10px;min-width:0;}
+#sePageEdit .se-data-panel{order:1;width:auto;background:#eef0f3;border-right:1px solid #c5cbd4;border-left:0;}
+#seModal .se-canvas-topbar{min-height:48px;justify-content:space-between;background:#d7d7d7;}
+#seModal .se-view-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+#seModal .se-view-label{font-size:12px;font-weight:900;color:#4b5565;}
+#seModal .se-svg-wrap{background:#fff;border:0;min-height:0;height:calc(100vh - 254px);max-height:calc(100vh - 254px);border-radius:0;box-shadow:none;}
+#seModal .se-svg-wrap svg{height:100%;min-height:0;}
+#se3DOrbitCtrl{order:-1;align-self:auto;justify-content:flex-start;background:#eef0f3!important;border:1px solid #c5cbd4!important;border-radius:8px!important;padding:6px 8px!important;}
+#seModal .se-data-panel-head{display:flex;align-items:center;gap:8px;min-height:54px;padding:14px 18px;background:#eef0f3;border-bottom:1px solid #c5cbd4;color:#243047;font-size:19px;font-weight:900;text-transform:none;letter-spacing:0;}
+#seModal .se-data-panel-head:before{content:'⚙';font-size:18px;}
+#seModal .se-mode-note{padding:12px 16px;background:#eef0f3;border-bottom:1px solid #c5cbd4;}
+#seModal .se-3d-toggle strong{font-size:14px;color:#243047;}
+#seModal .se-3d-toggle small,#seModal .se-3d-help{color:#647083;font-size:11px;}
+#seModal .se-panel-summary{display:none!important;}
+#seModal .se-table-wrap{padding:12px 14px 14px;background:#eef0f3;overflow-x:hidden;}
+#seModal .se-table th{font-size:11px;color:#5f6878;text-transform:none;letter-spacing:0;font-weight:900;}
+#seModal .se-table tr{grid-template-columns:38px minmax(118px,1fr) minmax(118px,1fr) 28px;gap:8px;}
+#seModal .se-table.se-table-3d tr{grid-template-columns:30px repeat(3,minmax(0,1fr)) 28px;}
+#seModal .se-table td{background:#fff;border:1px solid #d8dde5;border-radius:8px!important;padding:8px;min-width:0;}
+#seModal .se-field-shell{display:grid;grid-template-columns:24px minmax(0,1fr);grid-template-areas:'icon label' 'icon input' 'unit example';gap:3px 7px;align-items:center;min-width:0;}
+#seModal .se-param-icon{grid-area:icon;width:24px;height:24px;border-radius:50%;background:#eef3f8;color:#2f394b;display:grid;place-items:center;font-size:13px;font-weight:900;}
+#seModal .se-param-label{grid-area:label;color:#243047;font-size:11px;font-weight:900;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-field-shell .se-input{grid-area:input;width:100%!important;max-width:none!important;min-height:44px;font-size:20px;font-weight:900;text-align:center;background:#f8fafc;border:1px solid #cbd4df;border-radius:8px;direction:ltr;}
+#seModal .se-field-shell .se-input:focus{border-color:#ff4047;box-shadow:0 0 0 3px rgba(255,64,71,.14);background:#fff;}
+#seModal .se-param-unit{grid-area:unit;color:#657386;font-size:10px;font-weight:900;text-align:center;}
+#seModal .se-param-example{grid-area:example;color:#8a96a8;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-family-label{font-size:12px;color:#243047;}
+#seModal .se-table.se-table-2d tr{grid-template-columns:38px minmax(126px,1fr) minmax(126px,1fr) 28px;}
+#seModal .se-family-editor-table tr{grid-template-columns:minmax(0,1fr)!important;gap:8px;}
+#seModal .se-family-editor-table .se-zone-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 30px!important;}
+#seModal .se-family-editor-table .se-family-row td{display:block;}
+#seModal .se-family-editor-table .se-zone-head td{background:transparent;border:0;color:#5f6878;font-size:11px;font-weight:900;}
+#seModal .se-bottom-summary{display:flex;align-items:center;gap:10px;margin-inline-end:auto;min-width:0;}
+#seModal .se-summary-item{min-width:108px;background:#fff;border:1px solid #cfd6df;border-radius:8px;padding:7px 10px;}
+#seModal .se-summary-item span{display:block;font-size:10px;color:#647083;font-weight:900;line-height:1.1;}
+#seModal .se-summary-item strong{font-size:18px;color:#243047;font-weight:900;line-height:1.1;}
+#seModal .se-summary-item small{font-size:10px;color:#647083;font-weight:800;margin-inline-start:3px;}
+#seModal .se-summary-item.primary{border-color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.11);}
+#seModal .se-summary-item.primary strong{color:#df5000;}
+#seModal .se-foot{height:68px;min-height:68px;padding:10px 16px;background:#eef0f3;border-top:1px solid #c5cbd4;}
+#seModal .se-foot-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-shrink:0;}
+#seModal .se-ok-btn{background:#ff4047;border:0;border-radius:8px;box-shadow:none;min-width:126px;}
+#seModal .se-save-shape-btn{background:#fff;color:#2f394b;border:1px solid #5f6878;border-radius:8px;min-width:116px;}
+#seModal .se-cancel-btn{background:#fff;color:#2f394b;border:1px solid #c5cbd4;border-radius:8px;min-width:92px;}
+#seModal .se-highlight-family{filter:drop-shadow(0 0 5px rgba(41,121,255,.55));stroke:#2979ff!important;fill:#2979ff!important;}
+@media(max-width:980px){#seModal .se-head{grid-template-columns:1fr;gap:8px;min-height:112px;padding:10px 14px;}#seModal .se-brand{justify-content:center;}#seModal .se-head-actions{justify-content:center;}#sePageEdit{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,38vh);}#sePageEdit .se-family-panel{order:1;flex-direction:row;overflow-x:auto;padding:10px;}#sePageEdit .se-family-card{min-width:132px;min-height:74px;}#sePageEdit .se-preview-panel{order:2;padding:10px;}#sePageEdit .se-data-panel{order:3;width:100%;border-top:1px solid #c5cbd4;}#seModal .se-svg-wrap{height:42vh;max-height:42vh;}#seModal .se-foot{height:auto;min-height:82px;}#seFootNormal{flex-wrap:wrap;}#seModal .se-bottom-summary{width:100%;overflow-x:auto;padding-bottom:2px;}#seModal .se-foot-actions{width:100%;}}
+
 </style>
 <div id="seModal">
   <!-- ── Header ── -->
   <div class="se-head">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <button class="se-back-btn" id="seBackBtn" style="display:none;">‹ שנה צורה</button>
-      <h2 id="seHeadTitle">בחר צורה</h2>
+    <div class="se-head-actions">
+      <button class="se-close" id="seClose" title="סגור">&times;</button>
+      <button class="se-back-btn" id="seBackBtn" style="display:none;">חזרה</button>
     </div>
-    <button class="se-close" id="seClose">✕</button>
+    <div class="se-head-center">
+      <h2 id="seHeadTitle">בחר צורה</h2>
+      <span class="se-step-indicator" id="seStepIndicator">שלב 1 מתוך 3</span>
+    </div>
+    <div class="se-brand"><img src="/brand/tene-pdf-logo.jpg" alt="טנא תעשיות ברזל"></div>
   </div>
 
   <!-- PAGE 0: Segment count picker -->
@@ -1518,61 +1590,40 @@ class ShapeEditorModal {
 
   <!-- ── PAGE 2: Dimension editing (hidden initially) ── -->
   <div id="sePageEdit" style="display:none;">
-    <!-- Left: preview -->
+    <aside class="se-family-panel" aria-label="בחירת משפחת צורה">
+      <div class="se-family-panel-title">סוג צורה</div>
+      <button class="se-family-card" data-edit-family="bars" onclick="window._seEditor._jumpToFamily('bars')">${shapePresetIconSVG('straight')}<span>מוטות ברזל</span></button>
+      <button class="se-family-card" data-edit-family="mesh" onclick="window._seEditor._jumpToFamily('mesh')">${shapePresetIconSVG('mesh')}<span>רשתות</span></button>
+      <button class="se-family-card" data-edit-family="piles" onclick="window._seEditor._jumpToFamily('piles')">${shapePresetIconSVG('pile')}<span>כלונסאות</span></button>
+    </aside>
+    <!-- Center: preview -->
     <div class="se-preview-panel">
       <!-- View toggle -->
       <div class="se-canvas-topbar" style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-        <div class="se-stats-bar" id="seStatsBar">
-          <div class="se-stat">
-            <div class="se-stat-label">פרימטר כולל</div>
-            <div class="se-stat-value" id="sePerimeter">0</div>
-            <div class="se-stat-unit">מ"מ</div>
-          </div>
-          <div class="se-stat">
-            <div class="se-stat-label">אורך בר</div>
-            <div class="se-stat-value" id="seBarLength">0.00</div>
-            <div class="se-stat-unit">מטר</div>
-          </div>
-          <div class="se-stat">
-            <div class="se-stat-label">כיפופים</div>
-            <div class="se-stat-value" id="seBends">0</div>
-          </div>
+        <div id="se3DOrbitCtrl" style="flex-shrink:0;display:flex;align-items:center;gap:3px;padding:4px 6px;background:#f0f4f8;border-radius:8px;border:1px solid #e2e8ef;">
+          <span style="font-size:10px;color:#7a93ab;font-weight:700;margin-left:2px;">תצוגה:</span>
+          <button class="se-rot-btn" title="שמאלה" style="width:26px;height:26px;font-size:12px;" onclick="if(window._seEditor){window._seEditor._camTheta-=Math.PI/8;window._seEditor._updatePreview();}">◁</button>
+          <button class="se-rot-btn" title="למעלה" style="width:26px;height:26px;font-size:12px;" onclick="if(window._seEditor){window._seEditor._camPhi=Math.min(Math.PI/2-0.05,window._seEditor._camPhi+Math.PI/8);window._seEditor._updatePreview();}">△</button>
+          <button class="se-rot-btn" title="איפוס" style="width:26px;height:26px;font-size:12px;" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}">⊙</button>
+          <button class="se-rot-btn" title="למטה" style="width:26px;height:26px;font-size:12px;" onclick="if(window._seEditor){window._seEditor._camPhi=Math.max(-Math.PI/2+0.05,window._seEditor._camPhi-Math.PI/8);window._seEditor._updatePreview();}">▽</button>
+          <button class="se-rot-btn" title="ימינה" style="width:26px;height:26px;font-size:12px;" onclick="if(window._seEditor){window._seEditor._camTheta+=Math.PI/8;window._seEditor._updatePreview();}">▷</button>
+          <div style="width:1px;height:20px;background:#d0d8e4;margin:0 3px;"></div>
+          <span style="font-size:10px;color:#7a93ab;font-weight:700;">זום:</span>
+          <button class="se-rot-btn" title="הקטן" style="width:26px;height:26px;font-size:15px;font-weight:700;" onclick="if(window._seEditor)window._seEditor._setZoom(-0.15)">−</button>
+          <span id="seZoomVal" style="font-size:10px;color:#7a93ab;min-width:32px;text-align:center;font-weight:700;">100%</span>
+          <button class="se-rot-btn" title="הגדל" style="width:26px;height:26px;font-size:15px;font-weight:700;" onclick="if(window._seEditor)window._seEditor._setZoom(+0.15)">+</button>
+          <button class="se-rot-btn" title="איפוס זום" style="width:26px;height:26px;font-size:10px;" onclick="if(window._seEditor)window._seEditor._setZoom(0,true)">1:1</button>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-          <span class="se-direct-edit-note">דאבל-קליק על מספר בשרטוט לעריכה</span>
+        <div class="se-view-controls">
+          <span class="se-view-label">מצב שרטוט</span>
           <button id="seView2D" onclick="seSetView('2d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #e07b39;background:rgba(224,123,57,0.1);color:#e07b39;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">2D</button>
           <button id="seView3D" onclick="seSetView('3d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">3D</button>
-          <button id="seResetCam" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}"
-            style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#7a93ab;cursor:pointer;font-size:13px;transition:all .15s" title="איפוס זווית">⟳</button>
+          <button id="seResetCam" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}" style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#7a93ab;cursor:pointer;font-size:13px;transition:all .15s" title="איפוס זווית">↻</button>
         </div>
       </div>
       <!-- SVG preview -->
       <div class="se-svg-wrap" id="seSvgWrap">
         <svg id="seShapeSvg" viewBox="0 0 300 290" preserveAspectRatio="xMidYMid meet"></svg>
-      </div>
-      <!-- Orbit controls – compact single row -->
-      <div id="se3DOrbitCtrl" style="flex-shrink:0;display:flex;align-items:center;gap:3px;
-        padding:4px 6px;background:#f0f4f8;border-radius:8px;border:1px solid #e2e8ef;">
-        <span style="font-size:10px;color:#7a93ab;font-weight:700;margin-left:2px;">תצוגה:</span>
-        <button class="se-rot-btn" title="שמאלה" style="width:26px;height:26px;font-size:12px;"
-          onclick="if(window._seEditor){window._seEditor._camTheta-=Math.PI/8;window._seEditor._updatePreview();}">◁</button>
-        <button class="se-rot-btn" title="למעלה" style="width:26px;height:26px;font-size:12px;"
-          onclick="if(window._seEditor){window._seEditor._camPhi=Math.min(Math.PI/2-0.05,window._seEditor._camPhi+Math.PI/8);window._seEditor._updatePreview();}">△</button>
-        <button class="se-rot-btn" title="איפוס" style="width:26px;height:26px;font-size:12px;"
-          onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}">⊙</button>
-        <button class="se-rot-btn" title="למטה" style="width:26px;height:26px;font-size:12px;"
-          onclick="if(window._seEditor){window._seEditor._camPhi=Math.max(-Math.PI/2+0.05,window._seEditor._camPhi-Math.PI/8);window._seEditor._updatePreview();}">▽</button>
-        <button class="se-rot-btn" title="ימינה" style="width:26px;height:26px;font-size:12px;"
-          onclick="if(window._seEditor){window._seEditor._camTheta+=Math.PI/8;window._seEditor._updatePreview();}">▷</button>
-        <div style="width:1px;height:20px;background:#d0d8e4;margin:0 3px;"></div>
-        <span style="font-size:10px;color:#7a93ab;font-weight:700;">זום:</span>
-        <button class="se-rot-btn" title="הקטן" style="width:26px;height:26px;font-size:15px;font-weight:700;"
-          onclick="if(window._seEditor)window._seEditor._setZoom(-0.15)">−</button>
-        <span id="seZoomVal" style="font-size:10px;color:#7a93ab;min-width:32px;text-align:center;font-weight:700;">100%</span>
-        <button class="se-rot-btn" title="הגדל" style="width:26px;height:26px;font-size:15px;font-weight:700;"
-          onclick="if(window._seEditor)window._seEditor._setZoom(+0.15)">+</button>
-        <button class="se-rot-btn" title="איפוס זום" style="width:26px;height:26px;font-size:10px;"
-          onclick="if(window._seEditor)window._seEditor._setZoom(0,true)">1:1</button>
       </div>
     </div>
     <!-- Right: dimension table -->
@@ -1633,10 +1684,19 @@ class ShapeEditorModal {
   <!-- ── Footer (only visible on page 2) ── -->
   <div class="se-foot" id="seFoot" style="display:none;">
     <!-- Normal footer -->
-    <div id="seFootNormal" style="display:flex;width:100%;justify-content:flex-end;gap:10px;align-items:center;">
-      <button class="se-cancel-btn" id="seCancel">ביטול</button>
-      <button class="se-save-shape-btn" id="seSaveShapeBtn">שמור צורה</button>
-      <button class="se-ok-btn" id="seOk">אשר צורה ←</button>
+    <div id="seFootNormal" style="display:flex;width:100%;justify-content:space-between;gap:12px;align-items:center;">
+      <div class="se-bottom-summary" aria-live="polite">
+        <div class="se-summary-item primary"><span>סה״כ אורך</span><div><strong id="sePerimeter">0</strong><small>מ״מ</small></div></div>
+        <div class="se-summary-item"><span>אורך במטר</span><div><strong id="seBarLength">0.00</strong><small>מטר</small></div></div>
+        <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
+        <div class="se-summary-item"><span>כמות</span><div><strong id="seQuantity">1</strong><small>יח׳</small></div></div>
+        <div class="se-summary-item"><span>כיפופים</span><strong id="seBends">0</strong></div>
+      </div>
+      <div class="se-foot-actions">
+        <button class="se-cancel-btn" id="seCancel">ביטול</button>
+        <button class="se-save-shape-btn" id="seSaveShapeBtn">שמור צורה</button>
+        <button class="se-ok-btn" id="seOk">אשר צורה</button>
+      </div>
     </div>
     <!-- Save bar (hidden by default) -->
     <div id="seFootSave" style="display:none;width:100%;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -1679,6 +1739,7 @@ class ShapeEditorModal {
     document.getElementById('seFoot').style.display       = 'none';
     document.getElementById('seBackBtn').style.display    = 'none';
     document.getElementById('seHeadTitle').textContent    = 'בחר צורה';
+    const step = document.getElementById('seStepIndicator'); if (step) step.textContent = 'שלב 1 מתוך 3';
     this._renderCountPicker();
   }
 
@@ -1734,7 +1795,8 @@ class ShapeEditorModal {
     document.getElementById('sePageEdit').style.display   = 'none';
     document.getElementById('seFoot').style.display       = 'none';
     document.getElementById('seBackBtn').style.display    = '';
-    document.getElementById('seHeadTitle').textContent    = this._selectedCount ? (this._selectedCount + ' צלעות – בחר צורה') : 'בחר סוג וצורה';
+    document.getElementById('seHeadTitle').textContent    = this._selectedCount ? (this._selectedCount + ' צלעות - בחר צורה') : 'בחר סוג וצורה';
+    const step = document.getElementById('seStepIndicator'); if (step) step.textContent = 'שלב 2 מתוך 3';
     if (!this._selectedFamily) this._selectedFamily = 'bars';
     if (!this._selectedCategory) this._selectedCategory = 'הכל';
     if (this._selectedSideCount === undefined) this._selectedSideCount = this._selectedCount || 'הכל';
@@ -1810,6 +1872,8 @@ class ShapeEditorModal {
     document.getElementById('seBackBtn').style.display    = '';
     const name = this.current?.presetName || 'עריכת צורה';
     document.getElementById('seHeadTitle').textContent    = name;
+    const step = document.getElementById('seStepIndicator'); if (step) step.textContent = 'שלב 3 מתוך 3';
+    this._syncEditFamilyCards();
     this._renderTable();
     this._updatePreview();
   }
@@ -2011,6 +2075,58 @@ class ShapeEditorModal {
     return this._renderBarEditor();
   }
 
+
+  _fieldShell({ icon, label, unit, example, input }) {
+    return `<div class="se-field-shell"><span class="se-param-icon">${icon}</span><span class="se-param-label">${label}</span>${input}<span class="se-param-unit">${unit}</span><span class="se-param-example">${example}</span></div>`;
+  }
+
+  _jumpToFamily(family) {
+    this._selectedFamily = family;
+    this._selectedCategory = 'הכל';
+    this._selectedSideCount = 'הכל';
+    this._goToSelect();
+  }
+
+  _syncEditFamilyCards() {
+    const family = normalizeShapeFamily(this.current || {});
+    document.querySelectorAll('[data-edit-family]').forEach(btn => btn.classList.toggle('active', btn.dataset.editFamily === family));
+  }
+
+  _focusFamilyField(key) {
+    this._activeFamilyField = key;
+    this._updatePreview();
+  }
+
+  _applyFamilyFocus(svg) {
+    const key = this._activeFamilyField;
+    if (!key || !svg) return;
+    let selector = '';
+    if (/longitudinal/i.test(key)) selector = '.mesh-longitudinal-bar,.pile-longitudinal-bar';
+    else if (/transverse/i.test(key)) selector = '.mesh-transverse-bar';
+    else if (/spiral|pitch|zone/i.test(key)) selector = '[data-zone]';
+    else if (/diameter|width|length|edge|pile/i.test(key)) selector = 'rect,circle,line';
+    if (!selector) return;
+    svg.querySelectorAll(selector).forEach(el => el.classList.add('se-highlight-family'));
+  }
+
+  _updateSummaryValues() {
+    if (!this.current) return;
+    const contract = buildShapeDataContractV2(this.current);
+    const totalMm = Number(contract.calculated?.totalLengthMm || 0);
+    const weightKg = Number(contract.calculated?.weightKg || 0);
+    const qty = Math.max(1, Number(this.current.quantity || this.current.qty || 1) || 1);
+    const bends = Array.isArray(this.current.angles) ? this.current.angles.length : (Array.isArray(this.current.spiralZones) ? this.current.spiralZones.length : 0);
+    const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    set('sePerimeter', totalMm.toLocaleString('he-IL'));
+    set('seBarLength', (totalMm / 1000).toFixed(2));
+    set('seTotalWeight', (weightKg * qty).toFixed(2));
+    set('seQuantity', qty.toLocaleString('he-IL'));
+    set('seBends', bends);
+    set('sePanelTotalMm', totalMm.toLocaleString('he-IL'));
+    set('sePanelTotalM', (totalMm / 1000).toFixed(2));
+    set('sePanelBends', bends);
+  }
+
   _setFamilyEditorChrome(kind) {
     const table = document.querySelector('#seModal .se-table');
     const thead = document.getElementById('seTableHead');
@@ -2024,7 +2140,7 @@ class ShapeEditorModal {
     if (addRow) addRow.style.display = isBars ? '' : 'none';
     if (modeNote) modeNote.style.display = isBars ? '' : 'none';
     if (summary) summary.style.display = isBars ? '' : 'none';
-    if (title) title.textContent = kind === 'mesh' ? 'Mesh Editor' : kind === 'piles' ? 'Pile Cage Editor' : 'Side Lengths / Bend Angles';
+    if (title) title.textContent = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : 'מידות צלעות וזוויות';
   }
 
   _renderMeshEditor() {
@@ -2032,13 +2148,23 @@ class ShapeEditorModal {
     const mesh = this.current;
     const body = document.getElementById('seTableBody');
     if (!body) return;
-    const field = (label, key, min = 0) => `<td class="se-family-label">${label}</td><td><input class="se-input" type="number" min="${min}" value="${mesh[key] ?? 0}" data-mesh-field="${key}" oninput="window._seEditor._setMeshField('${key}', this.value)"></td>`;
+    const meta = {
+      length: ['📏','אורך רשת','מ״מ','לדוגמה 600'], width: ['↕','רוחב רשת','מ״מ','לדוגמה 250'],
+      longitudinalDiameter: ['Ø','קוטר לאורך','מ״מ','לדוגמה 8'], longitudinalSpacing: ['⇅','מרווח לאורך','ס״מ','לדוגמה 20'],
+      transverseDiameter: ['Ø','קוטר לרוחב','מ״מ','לדוגמה 8'], transverseSpacing: ['⇄','מרווח לרוחב','ס״מ','לדוגמה 20'],
+      edgeLeft: ['↤','שול שמאל','ס״מ','לדוגמה 0'], edgeRight: ['↦','שול ימין','ס״מ','לדוגמה 0'],
+      edgeTop: ['↥','שול עליון','ס״מ','לדוגמה 0'], edgeBottom: ['↧','שול תחתון','ס״מ','לדוגמה 0'],
+    };
+    const field = (key, min = 0) => {
+      const m = meta[key] || ['•', key, 'מ״מ', 'לדוגמה 100'];
+      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="number" min="${min}" value="${mesh[key] ?? 0}" data-mesh-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setMeshField('${key}', this.value)">` }) + '</td>';
+    };
     body.innerHTML = `
-      <tr class="se-family-row">${field('Length', 'length', 1)}${field('Width', 'width', 1)}</tr>
-      <tr class="se-family-row">${field('Longitudinal Diameter', 'longitudinalDiameter', 1)}${field('Longitudinal Spacing', 'longitudinalSpacing', 1)}</tr>
-      <tr class="se-family-row">${field('Transverse Diameter', 'transverseDiameter', 1)}${field('Transverse Spacing', 'transverseSpacing', 1)}</tr>
-      <tr class="se-family-row">${field('Edge Left', 'edgeLeft', 0)}${field('Edge Right', 'edgeRight', 0)}</tr>
-      <tr class="se-family-row">${field('Edge Top', 'edgeTop', 0)}${field('Edge Bottom', 'edgeBottom', 0)}</tr>`;
+      <tr class="se-family-row">${field('length', 1)}${field('width', 1)}</tr>
+      <tr class="se-family-row">${field('longitudinalDiameter', 1)}${field('longitudinalSpacing', 1)}</tr>
+      <tr class="se-family-row">${field('transverseDiameter', 1)}${field('transverseSpacing', 1)}</tr>
+      <tr class="se-family-row">${field('edgeLeft', 0)}${field('edgeRight', 0)}</tr>
+      <tr class="se-family-row">${field('edgeTop', 0)}${field('edgeBottom', 0)}</tr>`;
   }
 
   _renderPileCageEditor() {
@@ -2047,21 +2173,29 @@ class ShapeEditorModal {
     const body = document.getElementById('seTableBody');
     if (!body) return;
     if (!Array.isArray(pile.spiralZones)) pile.spiralZones = [];
-    const field = (label, key, min = 1) => `<td class="se-family-label">${label}</td><td><input class="se-input" type="number" min="${min}" value="${pile[key] ?? 0}" data-pile-field="${key}" oninput="window._seEditor._setPileField('${key}', this.value)"></td>`;
+    const meta = {
+      pileDiameter: ['◎','קוטר כלונס','ס״מ','לדוגמה 70'], pileLength: ['📏','אורך כלונס','ס״מ','לדוגמה 2200'],
+      longitudinalBars: ['●','מספר מוטות','יח׳','לדוגמה 26'], longitudinalDiameter: ['Ø','קוטר מוטות','מ״מ','לדוגמה 22'],
+      spiralDiameter: ['⟳','קוטר ספירלה','מ״מ','לדוגמה 8'],
+    };
+    const field = (key, min = 1) => {
+      const m = meta[key] || ['•', key, 'מ״מ', 'לדוגמה 100'];
+      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="number" min="${min}" value="${pile[key] ?? 0}" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setPileField('${key}', this.value)">` }) + '</td>';
+    };
     const zoneRows = pile.spiralZones.map((zone, i) => `
       <tr class="se-family-row se-zone-row">
-        <td><input class="se-input" type="text" value="${svgEscape(zone.name || 'Zone ' + String.fromCharCode(65 + i))}" data-zone-field="name" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)"></td>
-        <td><input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" oninput="window._seEditor._setSpiralZoneField(${i}, 'length', this.value)"></td>
-        <td><input class="se-input" type="number" min="1" value="${zone.pitch ?? 20}" data-zone-field="pitch" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)"></td>
+        <td>${this._fieldShell({ icon:'א', label:'שם אזור', unit:'טקסט', example:'לדוגמה A', input:`<input class="se-input" type="text" value="${svgEscape(zone.name || 'אזור ' + String.fromCharCode(65 + i))}" data-zone-field="name" onfocus="window._seEditor._focusFamilyField('zone')" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)">` })}</td>
+        <td>${this._fieldShell({ icon:'↔', label:'אורך', unit:'ס״מ', example:'לדוגמה 70', input:`<input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" onfocus="window._seEditor._focusFamilyField('zoneLength')" oninput="window._seEditor._setSpiralZoneField(${i}, 'length', this.value)">` })}</td>
+        <td>${this._fieldShell({ icon:'⟳', label:'פסיעה', unit:'ס״מ', example:'לדוגמה 20', input:`<input class="se-input" type="number" min="1" value="${zone.pitch ?? 20}" data-zone-field="pitch" onfocus="window._seEditor._focusFamilyField('zonePitch')" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)">` })}</td>
         <td><button class="se-del-btn" onclick="window._seEditor._deleteSpiralZone(${i})">&times;</button></td>
       </tr>`).join('');
     body.innerHTML = `
-      <tr class="se-family-row">${field('Pile Diameter', 'pileDiameter', 1)}${field('Pile Length', 'pileLength', 1)}</tr>
-      <tr class="se-family-row">${field('Longitudinal Bar Count', 'longitudinalBars', 0)}${field('Longitudinal Bar Diameter', 'longitudinalDiameter', 1)}</tr>
-      <tr class="se-family-row">${field('Spiral Diameter', 'spiralDiameter', 1)}<td></td><td></td></tr>
-      <tr class="se-zone-head se-zone-row"><td>Zone Name</td><td>Zone Length</td><td>Zone Pitch</td><td></td></tr>
+      <tr class="se-family-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>
+      <tr class="se-family-row">${field('longitudinalBars', 0)}${field('longitudinalDiameter', 1)}</tr>
+      <tr class="se-family-row">${field('spiralDiameter', 1)}</tr>
+      <tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td></td></tr>
       ${zoneRows}
-      <tr class="se-family-row"><td colspan="4"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">Add Zone</button></td></tr>`;
+      <tr class="se-family-row"><td colspan="4"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>`;
   }
 
   _renderBarEditor() {
@@ -2077,8 +2211,8 @@ class ShapeEditorModal {
     if (toggle) toggle.checked = isReal3D;
     const help = document.getElementById('se3DHelp');
     if (help) help.textContent = isReal3D
-      ? 'Real 3D product mode: edit turn and Z tilt per side.'
-      : '3D view is visual only. Enable only when the bar truly leaves the plane.';
+      ? 'מוצר תלת-ממדי אמיתי: ערוך פנייה והטיית Z לכל צלע.'
+      : '3D הוא תצוגה בלבד. סמן רק אם הברזל באמת יוצא מהמישור.';
 
     const thead = document.getElementById('seTableHead');
     const table = document.querySelector('#seModal .se-table');
@@ -2091,16 +2225,16 @@ class ShapeEditorModal {
       if (isReal3D) {
         thead.innerHTML = `<tr>
           <th style="width:28px">#</th>
-          <th style="min-width:90px">Length</th>
-          <th>Turn (deg)</th>
-          <th>Z Tilt (deg)</th>
+          <th style="min-width:90px">אורך</th>
+          <th>פנייה</th>
+          <th>הטיית Z</th>
           <th style="width:28px"></th>
         </tr>`;
       } else {
         thead.innerHTML = `<tr>
           <th style="width:32px">#</th>
-          <th>Side Length</th>
-          <th>Bend Angle</th>
+          <th>אורך צלע</th>
+          <th>זווית כיפוף</th>
           <th style="width:32px"></th>
         </tr>`;
       }
@@ -2116,17 +2250,14 @@ class ShapeEditorModal {
         html += `
           <tr>
             <td><span class="se-seg-label">${i + 1}</span></td>
-            <td><input class="se-input" type="number" min="1" max="20000" value="${sides[i]}"
-              data-side="${i}" oninput="window._seEditor._setSide(${i}, this.value)"></td>
+            <td>${this._fieldShell({ icon:'📏', label:'אורך', unit:'מ״מ', example:'לדוגמה 300', input:`<input class="se-input" type="number" min="1" max="20000" value="${sides[i]}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
             <td>
               ${i === 0
                 ? `<span style="font-size:11px;color:#aab8c8;padding:0 4px;">&mdash;</span>`
-                : `<input class="se-input" type="number" min="-360" max="360" value="${az}" style="width:68px"
-                    data-az="${i}" oninput="window._seEditor._setAzAngle(${i}, this.value)">`}
+                : this._fieldShell({ icon:'↪', label:'פנייה', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${az}" data-az="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAzAngle(${i}, this.value)">` })}
             </td>
             <td>
-              <input class="se-input" type="number" min="-90" max="90" value="${el}" style="width:68px"
-                data-el="${i}" oninput="window._seEditor._setElAngle(${i}, this.value)">
+              ${this._fieldShell({ icon:'Z', label:'הטיית Z', unit:'°', example:'לדוגמה 0', input:`<input class="se-input" type="number" min="-90" max="90" value="${el}" data-el="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setElAngle(${i}, this.value)">` })}
             </td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
           </tr>`;
@@ -2134,11 +2265,9 @@ class ShapeEditorModal {
         html += `
           <tr class="se-side-row">
             <td><span class="se-seg-label">${letter}</span></td>
-            <td class="se-length-cell"><input class="se-input" type="number" min="1" max="20000" value="${sides[i]}"
-              data-side="${i}" oninput="window._seEditor._setSide(${i}, this.value)"></td>
+            <td class="se-length-cell">${this._fieldShell({ icon:'📏', label:'אורך', unit:'מ״מ', example:'לדוגמה 300', input:`<input class="se-input" type="number" min="1" max="20000" value="${sides[i]}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
             <td class="se-angle-cell">${i < angles.length
-              ? `<input class="se-input" type="number" min="-360" max="360" value="${angles[i]}"
-                  data-angle="${i}" oninput="window._seEditor._setAngle(${i}, this.value)">`
+              ? this._fieldShell({ icon:'∠', label:'זווית', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" data-angle="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAngle(${i}, this.value)">` })
               : '<span style="font-size:11px;color:#aab8c8;padding:0 4px;">&mdash;</span>'}</td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
           </tr>`;
@@ -2403,6 +2532,8 @@ class ShapeEditorModal {
     const engine = ShapeEngineRouter(this.current);
     if (engine !== PolylineBarEngine) {
       svg.innerHTML = ShapeEngineRouter.render(this.current, 300, 260, { diameter: this._diameter || this.current.diameter || 12, view: is3D ? '3d' : '2d' });
+      this._applyFamilyFocus(svg);
+      this._updateSummaryValues();
       return;
     }
 
@@ -2590,16 +2721,7 @@ class ShapeEditorModal {
       this._bindSvgClicks(svg);
     }
 
-    const perimeter = sides.reduce((s, l) => s + Number(l), 0);
-    document.getElementById('sePerimeter').textContent  = perimeter.toLocaleString('he-IL');
-    document.getElementById('seBarLength').textContent  = (perimeter / 1000).toFixed(2);
-    document.getElementById('seBends').textContent      = angles.length;
-    const sePanelTotalMm = document.getElementById('sePanelTotalMm');
-    const sePanelTotalM = document.getElementById('sePanelTotalM');
-    const sePanelBends = document.getElementById('sePanelBends');
-    if (sePanelTotalMm) sePanelTotalMm.textContent = perimeter.toLocaleString('he-IL');
-    if (sePanelTotalM) sePanelTotalM.textContent = (perimeter / 1000).toFixed(2);
-    if (sePanelBends) sePanelBends.textContent = angles.length;
+    this._updateSummaryValues();
   }
 
   _confirm() {
@@ -2694,8 +2816,8 @@ window.seSetView = function(mode) {
   const btn3d = document.getElementById('seView3D');
   if (btn2d && btn3d) {
     const base  = 'padding:5px 14px;border-radius:6px;font-family:Heebo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;';
-    const active = base + 'border:1.5px solid #e07b39;background:rgba(224,123,57,0.1);color:#e07b39;box-shadow:0 0 0 2px rgba(224,123,57,0.2);';
-    const idle   = base + 'border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;box-shadow:none;';
+    const active = base + 'border:1.5px solid #ff4047;background:#ff4047;color:#fff;box-shadow:none;';
+    const idle   = base + 'border:1.5px solid #c5cbd4;background:#fff;color:#526070;box-shadow:none;';
     btn2d.style.cssText = (mode === '2d' ? active : idle);
     btn3d.style.cssText = (mode === '3d' ? active : idle);
     btn2d.textContent = '2D';

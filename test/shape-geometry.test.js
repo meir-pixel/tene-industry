@@ -87,13 +87,33 @@ test('shape editor one-screen edit layout keeps editing inside the viewport', ()
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
   assert.match(editor, /One-screen shape edit layout/);
-  assert.match(editor, /#sePageEdit\{[\s\S]*height:calc\(100vh - 118px\)/);
-  assert.match(editor, /#seModal \.se-svg-wrap\{[\s\S]*height:calc\(100vh - 246px\)/);
+  assert.match(editor, /#sePageEdit\{[\s\S]*height:calc\(100vh - 132px\)/);
+  assert.match(editor, /#seModal \.se-svg-wrap\{[\s\S]*height:calc\(100vh - 254px\)/);
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-y:auto/);
   assert.match(editor, /#sePageEdit\{[\s\S]*overflow:hidden/);
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-x:hidden/);
   assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:30px repeat\(3,minmax\(0,1fr\)\) 28px/);
-  assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:58px/);
+  assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:68px/);
+});
+test('shape editor approved reference UI keeps Hebrew workspace chrome', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /Approved TENA reference layout - UI only/);
+  assert.match(editor, /src="\/brand\/tene-pdf-logo\.jpg"/);
+  assert.match(editor, /id="seStepIndicator"/);
+  assert.match(editor, /class="se-family-panel"/);
+  assert.match(editor, /data-edit-family="bars"/);
+  assert.match(editor, /data-edit-family="mesh"/);
+  assert.match(editor, /data-edit-family="piles"/);
+  assert.match(editor, /class="se-field-shell"/);
+  assert.match(editor, /class="se-param-icon"/);
+  assert.match(editor, /id="seTotalWeight"/);
+  assert.match(editor, /id="seQuantity"/);
+  assert.match(editor, /_focusFamilyField/);
+  assert.match(editor, /_applyFamilyFocus/);
+  assert.doesNotMatch(editor, /Mesh Editor/);
+  assert.doesNotMatch(editor, /Pile Cage Editor/);
+  assert.doesNotMatch(editor, /Side Lengths \/ Bend Angles/);
 });
 test('shape editor renders one row per side in the 2D dimensions panel', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
