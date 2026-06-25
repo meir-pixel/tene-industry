@@ -115,6 +115,32 @@ test('shape editor approved reference UI keeps Hebrew workspace chrome', () => {
   assert.doesNotMatch(editor, /Pile Cage Editor/);
   assert.doesNotMatch(editor, /Side Lengths \/ Bend Angles/);
 });
+
+test('shape editor connects parameter fields to drawing focus targets', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /_inferFieldShellMeta/);
+  assert.match(editor, /data-se-param="\$\{focusKey\}"/);
+  assert.match(editor, /onfocusin="window\._seEditor\?\._setFieldFocus/);
+  assert.match(editor, /se-focus-mode/);
+  assert.match(editor, /se-focus-hit/);
+  assert.match(editor, /data-se-focus="mesh-longitudinal-bars mesh-longitudinal-diameter mesh-longitudinal-spacing"/);
+  assert.match(editor, /data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone"/);
+  assert.match(editor, /data-se-focus="bar-side-\$\{i\}"/);
+  assert.match(editor, /data-se-focus="bar-angle-\$\{i\}"/);
+});
+
+test('shape editor includes synchronized engineering helper views', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /class="se-engineer-helper"/);
+  assert.match(editor, /data-view="side"/);
+  assert.match(editor, /data-view="top"/);
+  assert.match(editor, /data-view="3d"/);
+  assert.match(editor, /data-se-focus="mesh-longitudinal-spacing mesh-transverse-spacing"/);
+  assert.match(editor, /data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch"/);
+});
+
 test('shape editor renders one row per side in the 2D dimensions panel', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 

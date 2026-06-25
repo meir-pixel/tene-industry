@@ -488,13 +488,13 @@ MeshEngine.render = function(mesh, w = 300, h = 260) {
   if (!horizontalPositions.length || horizontalPositions[horizontalPositions.length - 1] !== innerBottom) horizontalPositions.push(innerBottom);
   const verticals = verticalPositions.map(mm => {
     const x = x0 + mm * box.scale;
-    return `<line class="mesh-longitudinal-bar" x1="${x.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, longDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
+    return `<line class="mesh-longitudinal-bar" data-se-focus="mesh-longitudinal-bars mesh-longitudinal-diameter mesh-longitudinal-spacing" x1="${x.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, longDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
   }).join('');
   const horizontals = horizontalPositions.map(mm => {
     const y = y0 + mm * box.scale;
-    return `<line class="mesh-transverse-bar" x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, transDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
+    return `<line class="mesh-transverse-bar" data-se-focus="mesh-transverse-bars mesh-transverse-diameter mesh-transverse-spacing" x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, transDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
   }).join('');
-  return `<g data-engine="MeshEngine" data-family="mesh" data-length="${length}" data-width="${width}" data-longitudinal="&#216;${longDia}@${longSpacing}" data-transverse="&#216;${transDia}@${transSpacing}" data-longitudinal-count="${verticalPositions.length}" data-transverse-count="${horizontalPositions.length}" data-edge-left="${edgeLeft}" data-edge-right="${edgeRight}" data-edge-top="${edgeTop}" data-edge-bottom="${edgeBottom}"><rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${box.drawW.toFixed(1)}" height="${box.drawH.toFixed(1)}" fill="#fff" stroke="#d8dde5"/>${horizontals}${verticals}<text x="${((x0+x1)/2).toFixed(1)}" y="${(y0-10).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${length}</text><text x="${(x0-10).toFixed(1)}" y="${((y0+y1)/2).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533" transform="rotate(-90 ${(x0-10).toFixed(1)} ${((y0+y1)/2).toFixed(1)})">W ${width}</text><text x="${(x1+8).toFixed(1)}" y="${(y1+16).toFixed(1)}" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">&#216;${longDia}@${longSpacing} / &#216;${transDia}@${transSpacing}</text></g>`;
+  return `<g data-engine="MeshEngine" data-family="mesh" data-length="${length}" data-width="${width}" data-longitudinal="&#216;${longDia}@${longSpacing}" data-transverse="&#216;${transDia}@${transSpacing}" data-longitudinal-count="${verticalPositions.length}" data-transverse-count="${horizontalPositions.length}" data-edge-left="${edgeLeft}" data-edge-right="${edgeRight}" data-edge-top="${edgeTop}" data-edge-bottom="${edgeBottom}"><rect data-se-focus="mesh-length mesh-width mesh-edge" x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${box.drawW.toFixed(1)}" height="${box.drawH.toFixed(1)}" fill="#fff" stroke="#d8dde5"/>${horizontals}${verticals}<text data-se-focus="mesh-length" x="${((x0+x1)/2).toFixed(1)}" y="${(y0-10).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${length}</text><text data-se-focus="mesh-width" x="${(x0-10).toFixed(1)}" y="${((y0+y1)/2).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533" transform="rotate(-90 ${(x0-10).toFixed(1)} ${((y0+y1)/2).toFixed(1)})">W ${width}</text><g class="se-engineer-helper" data-se-focus="mesh-longitudinal-spacing mesh-transverse-spacing"><rect class="se-helper-panel" x="${(x1-72).toFixed(1)}" y="${(y1+8).toFixed(1)}" width="64" height="34" rx="4"/><path d="M ${(x1-61).toFixed(1)} ${(y1+18).toFixed(1)} H ${(x1-20).toFixed(1)} M ${(x1-61).toFixed(1)} ${(y1+28).toFixed(1)} H ${(x1-20).toFixed(1)} M ${(x1-50).toFixed(1)} ${(y1+13).toFixed(1)} V ${(y1+34).toFixed(1)} M ${(x1-34).toFixed(1)} ${(y1+13).toFixed(1)} V ${(y1+34).toFixed(1)}" stroke="#475569" stroke-width="1.5" fill="none"/><text x="${(x1-40).toFixed(1)}" y="${(y1+53).toFixed(1)}" text-anchor="middle" font-size="8">פרט מרווח</text></g><text data-se-focus="mesh-longitudinal-diameter mesh-longitudinal-spacing mesh-transverse-diameter mesh-transverse-spacing" x="${(x1+8).toFixed(1)}" y="${(y1+16).toFixed(1)}" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">&#216;${longDia}@${longSpacing} / &#216;${transDia}@${transSpacing}</text></g>`;
 };
 
 function PileCageEngine() {}
@@ -521,20 +521,20 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     const zoneEnd = offsetMm + len;
     for (let xMm = zoneStart; xMm <= zoneEnd + 0.001; xMm += pitch) {
       const x = sx0 + Math.min(pileLength, xMm) * sideBox.scale;
-      zoneLines.push(`<line data-zone="${zoneIndex}" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="${Math.max(1.2, spiralDiameter * 0.20).toFixed(1)}" opacity=".75"/>`);
+      zoneLines.push(`<line data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="${Math.max(1.2, spiralDiameter * 0.20).toFixed(1)}" opacity=".75"/>`);
     }
     const labelX = sx0 + Math.min(pileLength, zoneStart + len / 2) * sideBox.scale;
     zoneLabels.push(`<text x="${labelX.toFixed(1)}" y="${(syMid + cageH/2 + 16).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#526070">${svgEscape(len)} @${svgEscape(pitch)}</text>`);
     offsetMm += len;
   });
-  const longBarsSide = [-0.32, 0.32].map(rel => `<line x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="${Math.max(3, longitudinalDiameter * 0.18).toFixed(1)}" stroke-linecap="round"/>`).join('');
+  const longBarsSide = [-0.32, 0.32].map(rel => `<line data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="${Math.max(3, longitudinalDiameter * 0.18).toFixed(1)}" stroke-linecap="round"/>`).join('');
   const topBars = Array.from({ length: longitudinalBars }, (_, i) => {
     const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, longitudinalBars);
     const x = topCx + Math.cos(a) * topR * 0.78;
     const y = topCy + Math.sin(a) * topR * 0.78;
-    return `<circle class="pile-longitudinal-bar" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.5, longitudinalDiameter * 0.13).toFixed(1)}" fill="#111827"/>`;
+    return `<circle class="pile-longitudinal-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.5, longitudinalDiameter * 0.13).toFixed(1)}" fill="#111827"/>`;
   }).join('');
-  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}`).join(',')}"><g data-view="side"><text x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${zoneLines.join('')}${zoneLabels.join('')}</g><g data-view="top"><circle cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="${Math.max(1.4, spiralDiameter * 0.18).toFixed(1)}"/>${topBars}<text x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g></g>`;
+  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}`).join(',')}"><g data-view="side"><text data-se-focus="pile-length" x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${zoneLines.join('')}${zoneLabels.join('')}</g><g data-view="top"><circle data-se-focus="pile-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="${Math.max(1.4, spiralDiameter * 0.18).toFixed(1)}"/>${topBars}<text data-se-focus="pile-diameter" x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g><g class="se-engineer-helper" data-view="3d" data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch"><rect class="se-helper-panel" x="12" y="198" width="86" height="48" rx="5"/><path d="M 26 228 L 70 210 L 88 219 L 44 237 Z M 26 228 V 215 L 70 197 V 210" stroke="#475569" stroke-width="1.5" fill="none"/><text x="55" y="243" text-anchor="middle" font-size="8">תצוגת 3D</text></g></g>`;
 };
 
 function ShapeEngineRouter(shape) {
@@ -1553,6 +1553,17 @@ class ShapeEditorModal {
 #seModal .se-save-shape-btn{background:#fff;color:#2f394b;border:1px solid #5f6878;border-radius:8px;min-width:116px;}
 #seModal .se-cancel-btn{background:#fff;color:#2f394b;border:1px solid #c5cbd4;border-radius:8px;min-width:92px;}
 #seModal .se-highlight-family{filter:drop-shadow(0 0 5px rgba(41,121,255,.55));stroke:#2979ff!important;fill:#2979ff!important;}
+#seModal .se-field-shell{position:relative;transition:background .14s,border-color .14s,box-shadow .14s;}
+#seModal .se-field-shell[data-se-param]{cursor:crosshair;}
+#seModal .se-field-shell.se-param-active{background:#fff;border-radius:8px;box-shadow:0 0 0 2px rgba(41,121,255,.16);}
+#seModal .se-param-number{position:absolute;inset-inline-start:-6px;top:-8px;width:20px;height:20px;border-radius:50%;background:#243047;color:#fff;display:grid;place-items:center;font-size:11px;font-weight:900;border:2px solid #eef0f3;}
+#seModal .se-param-code{grid-area:label;color:#2979ff;font-size:10px;font-weight:900;justify-self:end;}
+#seModal .se-param-example{grid-column:1 / -1;grid-area:auto;text-align:start;white-space:normal;line-height:1.25;}
+#seModal svg.se-focus-mode [data-se-focus]{opacity:.16;transition:opacity .14s,stroke .14s,fill .14s,filter .14s;}
+#seModal svg.se-focus-mode [data-se-focus].se-focus-hit{opacity:1!important;stroke:#2979ff!important;fill:#2979ff!important;filter:drop-shadow(0 0 6px rgba(41,121,255,.5));}
+#seModal svg.se-focus-mode [data-se-focus].se-focus-hit text,#seModal svg.se-focus-mode text.se-focus-hit{fill:#111827!important;stroke:none!important;}
+#seModal .se-engineer-helper text{font-family:Heebo,Arial;font-weight:900;fill:#475569;}
+#seModal .se-helper-panel{fill:#f8fafc;stroke:#d8dde5;stroke-width:1;}
 @media(max-width:980px){#seModal .se-head{grid-template-columns:1fr;gap:8px;min-height:112px;padding:10px 14px;}#seModal .se-brand{justify-content:center;}#seModal .se-head-actions{justify-content:center;}#sePageEdit{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,38vh);}#sePageEdit .se-family-panel{order:1;flex-direction:row;overflow-x:auto;padding:10px;}#sePageEdit .se-family-card{min-width:132px;min-height:74px;}#sePageEdit .se-preview-panel{order:2;padding:10px;}#sePageEdit .se-data-panel{order:3;width:100%;border-top:1px solid #c5cbd4;}#seModal .se-svg-wrap{height:42vh;max-height:42vh;}#seModal .se-foot{height:auto;min-height:82px;}#seFootNormal{flex-wrap:wrap;}#seModal .se-bottom-summary{width:100%;overflow-x:auto;padding-bottom:2px;}#seModal .se-foot-actions{width:100%;}}
 
 </style>
@@ -2077,8 +2088,75 @@ class ShapeEditorModal {
   }
 
 
-  _fieldShell({ icon, label, unit, example, input }) {
-    return `<div class="se-field-shell"><span class="se-param-icon">${icon}</span><span class="se-param-label">${label}</span>${input}<span class="se-param-unit">${unit}</span><span class="se-param-example">${example}</span></div>`;
+  _inferFieldShellMeta({ focusKey = '', number = '', code = '', example = '', input = '' }) {
+    const inputText = String(input || '');
+    const attr = (name) => {
+      const match = inputText.match(new RegExp(name + '="([^"]+)"'));
+      return match ? match[1] : '';
+    };
+    const rowNumber = (raw) => {
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return '';
+      return String.fromCharCode(9312 + Math.min(19, Math.max(0, n)));
+    };
+    const byField = {
+      length: { focusKey: 'mesh-length', number: String.fromCharCode(9312), code: 'L' },
+      width: { focusKey: 'mesh-width', number: String.fromCharCode(9313), code: 'W' },
+      longitudinalDiameter: { focusKey: 'mesh-longitudinal-diameter', number: String.fromCharCode(9314), code: 'D' },
+      longitudinalSpacing: { focusKey: 'mesh-longitudinal-spacing', number: String.fromCharCode(9315), code: '@' },
+      transverseDiameter: { focusKey: 'mesh-transverse-diameter', number: String.fromCharCode(9316), code: 'D' },
+      transverseSpacing: { focusKey: 'mesh-transverse-spacing', number: String.fromCharCode(9317), code: '@' },
+      edgeLeft: { focusKey: 'mesh-edge', number: String.fromCharCode(9318), code: 'E' },
+      edgeRight: { focusKey: 'mesh-edge', number: String.fromCharCode(9319), code: 'E' },
+      edgeTop: { focusKey: 'mesh-edge', number: String.fromCharCode(9320), code: 'E' },
+      edgeBottom: { focusKey: 'mesh-edge', number: String.fromCharCode(9321), code: 'E' },
+      pileDiameter: { focusKey: 'pile-diameter', number: String.fromCharCode(9312), code: 'D' },
+      pileLength: { focusKey: 'pile-length', number: String.fromCharCode(9313), code: 'L' },
+      longitudinalBars: { focusKey: 'pile-longitudinal-bars', number: String.fromCharCode(9314), code: 'N' },
+      longitudinalDiameter: { focusKey: 'pile-longitudinal-diameter', number: String.fromCharCode(9315), code: 'D' },
+      spiralDiameter: { focusKey: 'pile-spiral-diameter', number: String.fromCharCode(9316), code: 'D' },
+    };
+    let meta = { focusKey, number, code, example };
+    const meshField = attr('data-mesh-field');
+    const pileField = attr('data-pile-field');
+    const zoneField = attr('data-zone-field');
+    const side = attr('data-side');
+    const angle = attr('data-angle');
+    const az = attr('data-az');
+    const el = attr('data-el');
+    if (meshField && byField[meshField]) meta = { ...meta, ...byField[meshField] };
+    if (pileField && byField[pileField]) meta = { ...meta, ...byField[pileField] };
+    if (zoneField === 'name') meta = { ...meta, focusKey: 'pile-zone', number: String.fromCharCode(9317), code: 'Z' };
+    if (zoneField === 'length') meta = { ...meta, focusKey: 'pile-zone', number: String.fromCharCode(9318), code: 'Lz' };
+    if (zoneField === 'pitch') meta = { ...meta, focusKey: 'pile-spiral-pitch', number: String.fromCharCode(9319), code: 'P' };
+    if (side) meta = { ...meta, focusKey: `bar-side-${side}`, number: rowNumber(side), code: 'L' };
+    if (angle) meta = { ...meta, focusKey: `bar-angle-${angle}`, number: rowNumber(angle), code: 'A' };
+    if (az) meta = { ...meta, focusKey: `bar-angle-${az}`, number: rowNumber(az), code: 'A' };
+    if (el) meta = { ...meta, focusKey: `bar-side-${el}`, number: rowNumber(el), code: 'Z' };
+    return meta;
+  }
+
+  _fieldShell({ icon, label, unit, example, input, focusKey = '', number = '', code = '' }) {
+    ({ focusKey, number, code, example } = this._inferFieldShellMeta({ focusKey, number, code, example, input }));
+    const focusAttrs = focusKey
+      ? ` data-se-param="${focusKey}" onmouseenter="window._seEditor?._setFieldFocus('${focusKey}')" onmouseleave="window._seEditor?._clearFieldFocus('${focusKey}')" onfocusin="window._seEditor?._setFieldFocus('${focusKey}')" onfocusout="window._seEditor?._clearFieldFocus('${focusKey}')"`
+      : '';
+    const num = number ? `<span class="se-param-number">${number}</span>` : '';
+    const codeText = code ? `<span class="se-param-code">${code}</span>` : '';
+    return `<div class="se-field-shell"${focusAttrs}>${num}<span class="se-param-icon">${icon}</span><span class="se-param-label">${label}</span>${codeText}${input}<span class="se-param-unit">${unit}</span><span class="se-param-example">${example}</span></div>`;
+  }
+
+  _setFieldFocus(key) {
+    this._activeFieldFocus = key;
+    document.querySelectorAll('#seModal .se-field-shell').forEach(el => el.classList.toggle('se-param-active', el.dataset.seParam === key));
+    this._updatePreview();
+  }
+
+  _clearFieldFocus(key) {
+    if (this._activeFieldFocus !== key) return;
+    this._activeFieldFocus = '';
+    document.querySelectorAll('#seModal .se-field-shell').forEach(el => el.classList.remove('se-param-active'));
+    this._updatePreview();
   }
 
   _jumpToFamily(family) {
@@ -2094,20 +2172,24 @@ class ShapeEditorModal {
   }
 
   _focusFamilyField(key) {
-    this._activeFamilyField = key;
-    this._updatePreview();
+    this._setFieldFocus(key);
+  }
+
+  _focusKeyMatches(tokens, key) {
+    if (!key) return false;
+    const parts = String(tokens || '').split(/\s+/).filter(Boolean);
+    return parts.includes(key) || parts.some(part => key.startsWith(part + '-') || part.startsWith(key + '-'));
   }
 
   _applyFamilyFocus(svg) {
-    const key = this._activeFamilyField;
-    if (!key || !svg) return;
-    let selector = '';
-    if (/longitudinal/i.test(key)) selector = '.mesh-longitudinal-bar,.pile-longitudinal-bar';
-    else if (/transverse/i.test(key)) selector = '.mesh-transverse-bar';
-    else if (/spiral|pitch|zone/i.test(key)) selector = '[data-zone]';
-    else if (/diameter|width|length|edge|pile/i.test(key)) selector = 'rect,circle,line';
-    if (!selector) return;
-    svg.querySelectorAll(selector).forEach(el => el.classList.add('se-highlight-family'));
+    const key = this._activeFieldFocus || this._activeFamilyField;
+    if (!svg) return;
+    svg.classList.toggle('se-focus-mode', !!key);
+    svg.querySelectorAll('.se-focus-hit,.se-highlight-family').forEach(el => el.classList.remove('se-focus-hit', 'se-highlight-family'));
+    if (!key) return;
+    svg.querySelectorAll('[data-se-focus]').forEach(el => {
+      if (this._focusKeyMatches(el.getAttribute('data-se-focus'), key)) el.classList.add('se-focus-hit');
+    });
   }
 
   _updateSummaryValues() {
@@ -2158,7 +2240,7 @@ class ShapeEditorModal {
     };
     const field = (key, min = 0) => {
       const m = meta[key] || ['•', key, 'מ״מ', 'לדוגמה 100'];
-      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="number" min="${min}" value="${mesh[key] ?? 0}" data-mesh-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setMeshField('${key}', this.value)">` }) + '</td>';
+      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], focusKey:m[4], number:m[5], code:m[6], input:`<input class="se-input" type="number" min="${min}" value="${mesh[key] ?? 0}" data-mesh-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setMeshField('${key}', this.value)">` }) + '</td>';
     };
     body.innerHTML = `
       <tr class="se-family-row">${field('length', 1)}${field('width', 1)}</tr>
@@ -2181,7 +2263,7 @@ class ShapeEditorModal {
     };
     const field = (key, min = 1) => {
       const m = meta[key] || ['•', key, 'מ״מ', 'לדוגמה 100'];
-      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="number" min="${min}" value="${pile[key] ?? 0}" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setPileField('${key}', this.value)">` }) + '</td>';
+      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], focusKey:m[4], number:m[5], code:m[6], input:`<input class="se-input" type="number" min="${min}" value="${pile[key] ?? 0}" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setPileField('${key}', this.value)">` }) + '</td>';
     };
     const zoneRows = pile.spiralZones.map((zone, i) => `
       <tr class="se-family-row se-zone-row">
@@ -2621,7 +2703,7 @@ class ShapeEditorModal {
           `${segs[0].x1.toFixed(1)},${segs[0].y1.toFixed(1)}`,
           ...segs.map(s => `${s.x2.toFixed(1)},${s.y2.toFixed(1)}`)
         ].join(' ');
-        html += `<polyline points="${ptStr2}" stroke="${SEG_GRAY}" stroke-width="4"
+        html += `<polyline points="${ptStr2}" stroke="${SEG_GRAY}" stroke-width="4" data-se-focus="bar-all"
           stroke-linejoin="round" stroke-linecap="round" fill="none"/>`;
         // Active segment overlay
         if (_activeSeg2d >= 0 && _activeSeg2d < segs.length) {
@@ -2643,7 +2725,7 @@ class ShapeEditorModal {
       for (let i = 0; i < segs.length; i++) {
         const s = segs[i];
         html += `<path d="M ${s.x1.toFixed(1)},${s.y1.toFixed(1)} L ${s.x2.toFixed(1)},${s.y2.toFixed(1)}"
-          stroke="transparent" stroke-width="14" fill="none"
+          stroke="transparent" stroke-width="14" fill="none" data-se-focus="bar-side-${i}"
           data-seg-click="${i}" style="cursor:pointer"/>`;
       }
 
@@ -2662,7 +2744,7 @@ class ShapeEditorModal {
         const value = String(sides[i]);
         const tagW = Math.max(36, Math.min(62, value.length * 9 + 18));
         const letter = String.fromCharCode(65 + i);
-        html += `<g transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${labelAngle.toFixed(1)})"
+        html += `<g data-se-focus="bar-side-${i}" transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${labelAngle.toFixed(1)})"
             data-seg-click="${i}" style="cursor:pointer">
           <text x="0" y="-15" text-anchor="middle" font-size="12"
             font-family="Heebo,Arial" font-weight="700" fill="#111827"
@@ -2693,7 +2775,7 @@ class ShapeEditorModal {
             const p2x = p1x + u2x * m, p2y = p1y + u2y * m;
             const p3x = bx + u2x * m, p3y = by + u2y * m;
             html += `<path d="M ${p1x.toFixed(1)} ${p1y.toFixed(1)} L ${p2x.toFixed(1)} ${p2y.toFixed(1)} L ${p3x.toFixed(1)} ${p3y.toFixed(1)}"
-              fill="none" stroke="#c4c8cf" stroke-width="2"
+              fill="none" stroke="#c4c8cf" stroke-width="2" data-se-focus="bar-angle-${i}"
               data-ang-click="${i}" style="cursor:pointer"/>`;
           } else {
             let bxOut = u1x + u2x;
@@ -2707,7 +2789,7 @@ class ShapeEditorModal {
             const ty = by + byOut * dist;
             const value = String(angle) + '°';
             const tagW = Math.max(36, Math.min(54, value.length * 8 + 16));
-            html += `<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})"
+            html += `<g data-se-focus="bar-angle-${i}" transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})"
                 data-ang-click="${i}" style="cursor:pointer">
               <rect x="${(-tagW/2).toFixed(1)}" y="-10" width="${tagW}" height="20" rx="4"
                 fill="#ffffff" stroke="#c9621a" stroke-width="1.2"/>
@@ -2719,6 +2801,7 @@ class ShapeEditorModal {
       }
 
       svg.innerHTML = html;
+      this._applyFamilyFocus(svg);
       this._bindSvgClicks(svg);
     }
 
