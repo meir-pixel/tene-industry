@@ -5,6 +5,70 @@ function required(name, value) {
   return value;
 }
 
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatPrintNumber(value, digits = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return digits === 0 ? '0' : '0.00';
+  return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function productionBucketForA4Item(item, segments, snapshot) {
+  const text = [item.shape_name, item.struct_element, snapshot && snapshot.kind, snapshot && snapshot.type, snapshot && snapshot.family]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (/mesh|wire|רשת/.test(text)) return 'mesh';
+  if (/cage|pile|כלוב|כלונס/.test(text)) return 'cage';
+  return Array.isArray(segments) && segments.length > 1 ? 'bending' : 'cutting';
+}
+
+function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
+  const totals = { quantity: 0, weight: 0, lengthMm: 0, cuttingWeight: 0, bendingWeight: 0, meshWeight: 0, cageWeight: 0 };
+  const byDiameter = new Map();
+
+  allItems.forEach((item) => {
+    const qty = Number(item.quantity || 0);
+    const weight = Number(item.total_weight || 0);
+    const lengthMm = Number(item.total_length_mm || 0) * qty;
+    const diameter = item.diameter || '?';
+    const segments = tryParseJSON(item.segments, []);
+    const snapshot = tryParseJSON(item.shape_snapshot_json || item.shapeSnapshot, {}) || {};
+    const bucket = productionBucketForA4Item(item, segments, snapshot);
+
+    totals.quantity += qty;
+    totals.weight += weight;
+    totals.lengthMm += lengthMm;
+    totals[bucket + 'Weight'] += weight;
+    byDiameter.set(diameter, (byDiameter.get(diameter) || 0) + weight);
+  });
+
+  const diameterRows = [...byDiameter.entries()]
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([diameter, weight]) => '<tr><td>Ø' + escapeHtml(diameter) + '</td><td>' + formatPrintNumber(weight, 2) + ' קג</td></tr>')
+    .join('') || '<tr><td colspan="2">אין נתוני קוטר</td></tr>';
+
+  const notes = [order.notes, order.general_notes, order.production_notes, order.driver_notes]
+    .filter(Boolean)
+    .join(' / ');
+
+  return {
+    totals,
+    diameterRows,
+    notes: escapeHtml(notes || '-'),
+    project: escapeHtml(order.project_name || order.project || '-'),
+    site: escapeHtml(order.site_name || order.building || order.delivery_address || '-'),
+  };
+}
+
+
 module.exports = function createOrderPrintA4Router(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
@@ -12,8 +76,14 @@ module.exports = function createOrderPrintA4Router(deps) {
 
 // ── PRINT A4 ──────────────────────────────────────────────────────
 router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
-  const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone
-    FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
+  const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone,
+      p.name as project_name, COALESCE(cs.name, legacy_site.name) as site_name
+    FROM orders o
+    LEFT JOIN customers c ON o.customer_id=c.id
+    LEFT JOIN projects p ON o.project_id=p.id
+    LEFT JOIN customer_sites cs ON o.site_id=cs.id
+    LEFT JOIN sites legacy_site ON o.site_id=legacy_site.id
+    WHERE o.id=?`).get(req.params.id);
   if (!order) return res.status(404).send('הזמנה לא נמצאה');
 
   const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
@@ -47,6 +117,8 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
 
   const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const totalWeight  = (order.total_weight || 0).toFixed(1);
+  const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON });
+  const fullOrderUrl = '/orders.html?order=' + encodeURIComponent(order.id);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
@@ -54,6 +126,7 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
 <head>
 <meta charset="UTF-8">
 <title>הדפסת A4 – ${order.order_num}</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -70,11 +143,15 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
   box-shadow:0 2px 12px rgba(0,0,0,0.12);}
 
 /* Header */
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;
+.hdr{display:grid;grid-template-columns:34mm 1fr 30mm;gap:8mm;align-items:center;
   border-bottom:3px solid #1a2332;padding-bottom:10px;margin-bottom:12px;}
+.hdr-logo{width:32mm;height:auto;display:block;}
+.hdr-main{min-width:0;}
 .hdr-title{font-size:22px;font-weight:900;color:#1a2332;}
 .hdr-sub{font-size:13px;color:#555;margin-top:3px;}
 .hdr-right{text-align:left;}
+.order-qr{width:27mm;height:27mm;border:1px solid #cfd8e3;display:flex;align-items:center;justify-content:center;background:#fff;justify-self:end;}
+.order-qr canvas,.order-qr img{width:25mm!important;height:25mm!important;display:block;}
 .order-num{font-size:28px;font-weight:900;color:#c9621a;line-height:1;}
 .hdr-meta{font-size:11px;color:#666;margin-top:4px;line-height:1.6;}
 
@@ -84,6 +161,18 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 .sum-cell:last-child{border-left:none;}
 .sum-label{font-size:10px;color:#888;margin-bottom:2px;}
 .sum-val{font-size:16px;font-weight:900;color:#1a2332;}
+.production-summary{display:grid;grid-template-columns:1.1fr .9fr;gap:10px;margin-bottom:12px;}
+.prod-summary-box{border:1px solid #d0d7e0;border-radius:6px;overflow:hidden;background:#fff;}
+.prod-summary-box h2{font-size:12px;background:#eef3fb;color:#1a2332;padding:6px 9px;border-bottom:1px solid #d0d7e0;}
+.prod-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #d0d7e0;}
+.prod-summary-grid div{padding:6px 8px;border-left:1px solid #d0d7e0;text-align:center;min-width:0;}
+.prod-summary-grid div:last-child{border-left:none;}
+.prod-summary-grid span{display:block;font-size:9px;color:#667;font-weight:700;}
+.prod-summary-grid b{display:block;font-size:13px;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.prod-breakdown{width:100%;border-collapse:collapse;font-size:10.5px;}
+.prod-breakdown td{border-bottom:1px solid #e1e6ed;padding:5px 8px;}
+.prod-breakdown td:last-child{text-align:left;direction:ltr;font-weight:900;}
+.prod-notes{font-size:10px;line-height:1.45;padding:7px 9px;color:#333;min-height:24px;}
 
 /* Table */
 .items-table{width:100%;border-collapse:collapse;font-size:11px;}
@@ -120,6 +209,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
   body{background:#fff;padding:0;}
   .no-print{display:none!important;}
   .page{box-shadow:none;padding:8mm 8mm 8mm;max-width:100%;}
+  .production-summary{grid-template-columns:1.1fr .9fr;gap:8px;}
   @page{size:A4 portrait;margin:0;}
 }
 </style>
@@ -134,9 +224,11 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 <div class="page">
   <!-- Header -->
   <div class="hdr">
-    <div>
+    <img class="hdr-logo" src="/brand/tene-pdf-logo.jpg" alt="TENA">
+    <div class="hdr-main">
       <div class="hdr-title">טופס ייצור – כיפוף ברזל</div>
       <div class="hdr-sub">IronBend Production Sheet</div>
+      <div class="hdr-meta">פרויקט: <b>${productionSummary.project}</b> · אתר / בניין: <b>${productionSummary.site}</b></div>
     </div>
     <div class="hdr-right">
       <div class="order-num">${order.order_num}</div>
@@ -146,6 +238,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
         תאריך מסירה: <b>${delivDate}</b>
       </div>
     </div>
+      <div class="order-qr" data-order-url="${fullOrderUrl}"></div>
   </div>
 
   <!-- Summary -->
@@ -155,7 +248,27 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
     <div class="sum-cell"><div class="sum-label">משטחים</div><div class="sum-val">${pallets.length}</div></div>
     <div class="sum-cell"><div class="sum-label">הזמנה</div><div class="sum-val">${order.order_num}</div></div>
   </div>
-
+  <!-- Production summary -->
+  <div class="production-summary">
+    <div class="prod-summary-box">
+      <h2>סיכום משקלים לייצור</h2>
+      <div class="prod-summary-grid">
+        <div><span>כמות / מוטות</span><b>${formatPrintNumber(productionSummary.totals.quantity, 0)}</b></div>
+        <div><span>אורך כולל</span><b>${formatPrintNumber(productionSummary.totals.lengthMm / 1000, 2)} מ</b></div>
+        <div><span>משקל חיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} קג</b></div>
+        <div><span>משקל כיפוף</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} קג</b></div>
+      </div>
+      <table class="prod-breakdown"><tbody>
+        <tr><td>משקל רשתות</td><td>${formatPrintNumber(productionSummary.totals.meshWeight, 2)} קג</td></tr>
+        <tr><td>משקל כלובים</td><td>${formatPrintNumber(productionSummary.totals.cageWeight, 2)} קג</td></tr>
+      </tbody></table>
+      <div class="prod-notes"><b>הערות:</b> ${productionSummary.notes}</div>
+    </div>
+    <div class="prod-summary-box">
+      <h2>משקל לפי קוטר</h2>
+      <table class="prod-breakdown"><tbody>${productionSummary.diameterRows}</tbody></table>
+    </div>
+  </div>
   <!-- Items table -->
   <table class="items-table" id="itemsTable">
     <thead>
@@ -183,6 +296,21 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 
 <script>
 var allItems = ${allItemsJson};
+
+function renderOrderQrCodes() {
+  document.querySelectorAll('[data-order-url]').forEach(function(node) {
+    var target = new URL(node.getAttribute('data-order-url'), window.location.origin).href;
+    node.innerHTML = '';
+    if (window.QRCode && window.QRCode.toCanvas) {
+      var canvas = document.createElement('canvas');
+      node.appendChild(canvas);
+      window.QRCode.toCanvas(canvas, target, { width: 112, margin: 0 }, function(){});
+    } else {
+      node.textContent = 'QR';
+      node.title = target;
+    }
+  });
+}
 
 function drawShape2D(svgEl, segments, W, H) {
   if (!segments || !segments.length) {
@@ -284,6 +412,7 @@ function buildTable() {
 }
 
 buildTable();
+renderOrderQrCodes();
 </script>
 </body>
 </html>`);

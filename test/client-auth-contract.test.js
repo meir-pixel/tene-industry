@@ -58,6 +58,7 @@ test('public portal does not query internal order search', () => {
 
 test('production card split keeps item cards and master card in sync', () => {
   const productionCardsRoute = read('services/productionCardPrintPage.js');
+  const orderPrintA4Route = read('routes/orderPrintA4.js');
 
   assert.match(productionCardsRoute, /function cardPlan\(\)/);
   assert.match(productionCardsRoute, /function buildSplitMaster\(\)/);
@@ -70,10 +71,13 @@ test('production card split keeps item cards and master card in sync', () => {
   assert.match(productionCardsRoute, /'-C' \+ \(cardIdx\+1\) \+ 'OF' \+ totalCards/);
   assert.match(productionCardsRoute, /להדפיס גם מאסטר מעודכן/);
   assert.match(productionCardsRoute, /@page\{size:A4 portrait;margin:0!important;\}/);
-  assert.match(productionCardsRoute, /order-summary-sheet/);
-  assert.match(productionCardsRoute, /tene-pdf-logo\.jpg/);
-  assert.match(productionCardsRoute, /data-order-url/);
-  assert.match(productionCardsRoute, /renderOrderSummaryQrCodes/);
+  assert.doesNotMatch(productionCardsRoute, /order-summary-sheet/);
+  assert.doesNotMatch(productionCardsRoute, /data-order-url/);
+  assert.match(orderPrintA4Route, /tene-pdf-logo\.jpg/);
+  assert.match(orderPrintA4Route, /data-order-url/);
+  assert.match(orderPrintA4Route, /buildA4ProductionSummary/);
+  assert.match(orderPrintA4Route, /משקל חיתוך/);
+  assert.match(orderPrintA4Route, /משקל כיפוף/);
   assert.match(productionCardsRoute, /data-worker-card-url/);
   assert.match(productionCardsRoute, /worker-visual\.html\?card=/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);

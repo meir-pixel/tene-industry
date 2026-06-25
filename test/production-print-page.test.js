@@ -10,7 +10,7 @@ function tryParseJSON(value, fallback) {
   try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
 }
 
-test('production print page renders summary, fixed A4 cards, and valid inline script', () => {
+test('production print page renders fixed A4 cards without order summary and with valid inline script', () => {
   const order = {
     id: 99,
     order_num: 'HZ-PRINT-001',
@@ -68,8 +68,9 @@ test('production print page renders summary, fixed A4 cards, and valid inline sc
     tryParseJSON,
   });
 
-  assert.ok(html.indexOf('order-summary-sheet') < html.indexOf('cards-grid'));
-  assert.match(html, /tene-pdf-logo\.jpg/);
+  assert.doesNotMatch(html, /order-summary-sheet/);
+  assert.doesNotMatch(html, /tene-pdf-logo\.jpg/);
+  assert.ok(html.indexOf('cards-grid') > -1);
   assert.match(html, /@page\{size:A4 portrait;margin:0!important;\}/);
   assert.match(html, /grid-template-columns:repeat\(2, 105mm\)/);
   assert.match(html, /grid-auto-rows:74\.25mm/);
