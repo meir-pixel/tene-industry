@@ -309,6 +309,21 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-source-toolbar{height:40px;background:#111d32;color:#fff;border-radius:8px 8px 0 0;margin:0;display:flex;align-items:center;gap:8px;padding:5px 10px}.ocr-source-toolbar .btn{height:28px;min-width:34px;border:1px solid #344968;border-radius:5px;background:#182840;color:#fff}.ocr-source-toolbar .meta{color:#fff;font-weight:900}.ocr-source-stage{height:calc(100% - 40px);min-height:0;border:1px solid #d8e3ef;border-top:0;border-radius:0 0 8px 8px;background:#2b3442;overflow:auto;position:relative;padding:12px;display:flex;align-items:flex-start;justify-content:center}.ocr-source-zoom{transform-origin:top center;transition:transform .12s ease;background:#fff}.ocr-source-zoom iframe,.ocr-source-zoom img{width:min(100%,780px);height:760px;border:0;object-fit:contain;background:#fff}.ocr-source-target{position:absolute;z-index:4;left:16%;width:68%;height:30px;border:0;border-radius:3px;background:rgba(255,221,35,.16);cursor:pointer;opacity:.2}.ocr-source-target:hover,.ocr-source-target.active{opacity:1;background:rgba(255,221,35,.45);outline:2px solid #f0c400}.ocr-source-highlight{position:absolute;z-index:3;left:16%;top:40%;width:68%;height:30px;border:2px solid #f0c400;background:rgba(255,221,35,.32);border-radius:3px;opacity:0;pointer-events:none;transition:opacity .15s ease}.ocr-source-highlight.show{opacity:1}
 .ocr-official-footer{height:54px;background:#fff;border:1px solid #d8e3ef;border-radius:7px;display:flex;align-items:center;gap:10px;padding:8px}.ocr-official-footer .legend{display:flex;gap:14px;font-size:12px;font-weight:900;color:#53667d}.ocr-official-footer .actions{margin-inline-start:auto;display:flex;gap:10px}.ocr-official-footer button{height:36px;border:1px solid #d5dfeb;border-radius:7px;background:#fff;font-family:inherit;font-weight:900;padding:0 14px}.ocr-official-footer .finish{background:#0b4f8f;color:#fff;border-color:#0b4f8f}
 .ocr-official-shell[data-post-order-review="true"] .ocr-official-footer .actions{display:none}
+.ocr-source-stage{padding:8px;justify-content:center;scroll-behavior:smooth}
+.ocr-source-zoom{width:1120px;max-width:none}
+.ocr-source-zoom iframe,.ocr-source-zoom img{width:100%;height:calc(100vh - 250px);min-height:760px;max-width:none;image-rendering:auto}
+.ocr-context-grid{grid-template-columns:repeat(5,minmax(112px,1fr));gap:6px}
+.ocr-context-card{padding:7px 9px;min-height:72px;grid-template-columns:1fr;gap:4px;align-content:center;cursor:pointer;position:relative}
+.ocr-context-card:focus{outline:2px solid #79a8e8;outline-offset:2px}
+.ocr-context-icon,.ocr-context-meta{display:none}
+.ocr-context-body{gap:3px}
+.ocr-context-title{font-size:13px;line-height:1.12;align-items:flex-start;flex-direction:column;gap:3px}
+.ocr-context-state{font-size:10px;padding:2px 7px;line-height:1.1;white-space:nowrap}
+.ocr-context-value{font-size:14px;line-height:1.15;max-width:100%}
+.ocr-context-actions{display:none;grid-template-columns:1fr;gap:6px;margin-top:4px}
+.ocr-context-card.expanded{z-index:6;box-shadow:0 10px 24px rgba(15,42,75,.15)}
+.ocr-context-card.expanded .ocr-context-actions{display:grid}
+.ocr-context-card.expanded .ocr-context-actions button{width:100%}
 @media(max-width:1100px){.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-source{min-height:50vh}.ocr-context-grid{grid-template-columns:1fr}.ocr-official-summary{grid-template-columns:1fr repeat(3,72px)}}
 
 </style>
@@ -460,7 +475,7 @@ function applyIntakeCompareZoom() {
 }
 
 function setIntakeCompareZoom(delta) {
-  intakeCompareZoom = Math.max(0.5, Math.min(2.5, intakeCompareZoom + delta));
+  intakeCompareZoom = Math.max(0.75, Math.min(1.6, intakeCompareZoom + delta));
   applyIntakeCompareZoom();
 }
 
@@ -1859,13 +1874,24 @@ function handleOcrContextCreate(button) {
   if (!input) return;
   markOcrEntityCreate(input.dataset.ocrField, button);
 }
+function toggleOcrContextCard(event, card) {
+  if (event.target.closest('select,button,input')) return;
+  const wasOpen = card.classList.contains('expanded');
+  document.querySelectorAll('.ocr-context-card.expanded').forEach(item => item.classList.remove('expanded'));
+  if (!wasOpen) card.classList.add('expanded');
+}
+function handleOcrContextCardKey(event, card) {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  toggleOcrContextCard(event, card);
+}
 function ocrOfficialContextCard({ icon, label, path, value, parsed, options = [], createLabel }) {
   const clean = uniqueOptions(options);
   const linked = value || (clean.length === 1 ? clean[0] : '');
   const needsChoice = clean.length > 1 || !linked;
   const state = needsChoice ? 'נדרשת בחירה' : 'זוהה';
   const choices = [''].concat(clean).map(option => '<option value="' + escapeHtml(option) + '" ' + (option && option === linked ? 'selected' : '') + '>' + (option ? escapeHtml(option) : 'בחר קיים') + '</option>').join('');
-  return '<div class="ocr-context-card" data-review-entity="' + escapeHtml(path) + '"><div class="ocr-context-icon">' + icon + '</div><div class="ocr-context-body"><div class="ocr-context-title"><span>' + escapeHtml(label) + '</span><span class="ocr-context-state ' + (needsChoice ? 'review' : '') + '">' + state + '</span></div><div class="ocr-context-value">' + escapeHtml(linked || 'לא זוהה') + '</div><div class="ocr-context-meta">OCR זיהה · ' + confidenceDisplay(parsed, path, linked) + '</div></div><div class="ocr-context-actions"><select onchange="handleOcrContextChoice(this)">' + choices + '</select>' + (createLabel ? '<button type="button" onclick="handleOcrContextCreate(this)">' + escapeHtml(createLabel) + '</button>' : '<span></span>') + '<input type="hidden" data-ocr-field="' + escapeHtml(path) + '" data-source-field="' + escapeHtml(path) + '" value="' + escapeHtml(linked || '') + '"></div></div>';
+  return '<div class="ocr-context-card" tabindex="0" role="button" onclick="toggleOcrContextCard(event,this)" onkeydown="handleOcrContextCardKey(event,this)" data-review-entity="' + escapeHtml(path) + '"><div class="ocr-context-icon">' + icon + '</div><div class="ocr-context-body"><div class="ocr-context-title"><span>' + escapeHtml(label) + '</span><span class="ocr-context-state ' + (needsChoice ? 'review' : '') + '">' + state + '</span></div><div class="ocr-context-value">' + escapeHtml(linked || 'לא זוהה') + '</div><div class="ocr-context-meta">OCR זיהה · ' + confidenceDisplay(parsed, path, linked) + '</div></div><div class="ocr-context-actions"><select onchange="handleOcrContextChoice(this)">' + choices + '</select>' + (createLabel ? '<button type="button" onclick="handleOcrContextCreate(this)">' + escapeHtml(createLabel) + '</button>' : '<span></span>') + '<input type="hidden" data-ocr-field="' + escapeHtml(path) + '" data-source-field="' + escapeHtml(path) + '" value="' + escapeHtml(linked || '') + '"></div></div>';
 }
 function ocrReviewTopHtml(parsed, row) {
   const matchedCustomer = row && row.customer_match && row.customer_match.customer ? row.customer_match.customer.name : '';
