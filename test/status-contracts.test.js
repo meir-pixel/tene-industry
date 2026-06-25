@@ -16,6 +16,13 @@ test('order status aliases normalize to canonical values', () => {
   assert.equal(normalizeOrderStatus('סופק'), ORDER_STATUS.DELIVERED_CONFIRMED);
   assert.equal(normalizeOrderStatus('בוטל'), ORDER_STATUS.CANCELLED);
 });
+test('english order status aliases normalize for legacy integrations', () => {
+  assert.equal(normalizeOrderStatus('approved'), ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+  assert.equal(normalizeOrderStatus('approved_waiting_production'), ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+  assert.equal(normalizeOrderStatus('planned'), ORDER_STATUS.PRODUCTION_QUEUE);
+  assert.equal(normalizeOrderStatus('production_queue'), ORDER_STATUS.PRODUCTION_QUEUE);
+  assert.equal(normalizeOrderStatus('in_production'), ORDER_STATUS.IN_PRODUCTION);
+});
 
 test('order status transitions accept valid moves and reject invalid skips', () => {
   assert.equal(

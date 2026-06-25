@@ -126,6 +126,13 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.match(await response.text(), /not approved or planned/);
   });
 
+  await t.test('production card printing accepts legacy approved order status', async () => {
+    const approved = seedOrderWithItem('PB-LEGACY-APPROVED-CARDS', 'approved');
+    const response = await request(`/api/orders/${approved.orderId}/print-cards`, { headers });
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /cards-grid/);
+  });
+
   await t.test('production card weight capture rejects orders that are not approved or planned', async () => {
     const draft = seedOrderWithItem('PB-DRAFT-CARD-WEIGHT', statusContracts.ORDER_STATUS.PENDING_APPROVAL);
     const response = await request(`/api/orders/${draft.orderId}/production-card-weight`, {
