@@ -1,0 +1,86 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const vm = require('node:vm');
+
+const printPage = require('../services/productionCardPrintPage');
+const cards = require('../services/productionCards');
+const industry = require('../constants');
+
+function tryParseJSON(value, fallback) {
+  try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
+}
+
+test('production print page renders summary, fixed A4 cards, and valid inline script', () => {
+  const order = {
+    id: 99,
+    order_num: 'HZ-PRINT-001',
+    customer_name: 'Print Customer',
+    project_name: 'Tower A',
+    site_name: 'Site 12',
+    status: 'approved',
+  };
+  const pallets = [{ id: 1, pallet_num: 1 }];
+  const allItems = [
+    {
+      id: 101,
+      shape_name: 'straight bar',
+      diameter: 12,
+      quantity: 8,
+      total_length_mm: 600,
+      total_weight: 4.26,
+      weight_per_unit: 0.533,
+      segments: [{ length_mm: 600, angle_deg: 0 }],
+      note: '',
+      struct_element: '',
+      pallet_num: 1,
+      material_grade: 'B500B',
+      actual_weight_kg: 0,
+      card_weights: [],
+      shape_snapshot_json: JSON.stringify({ kind: 'straight' }),
+    },
+    {
+      id: 102,
+      shape_name: 'L',
+      diameter: 10,
+      quantity: 4,
+      total_length_mm: 500,
+      total_weight: 1.54,
+      weight_per_unit: 0.385,
+      segments: [{ length_mm: 250, angle_deg: 90 }, { length_mm: 250, angle_deg: 0 }],
+      note: '',
+      struct_element: '',
+      pallet_num: 1,
+      material_grade: 'B500B',
+      actual_weight_kg: 0,
+      card_weights: [],
+      shape_snapshot_json: JSON.stringify({ kind: 'bent' }),
+    },
+  ];
+
+  const html = printPage.renderPrintCardsPage({
+    order,
+    pallets,
+    allItems,
+    printDate: '25-06-2026',
+    delivDate: '30-06-2026',
+    cards,
+    industry,
+    tryParseJSON,
+  });
+
+  assert.ok(html.indexOf('order-summary-sheet') < html.indexOf('cards-grid'));
+  assert.match(html, /tene-pdf-logo\.jpg/);
+  assert.match(html, /@page\{size:A4 portrait;margin:0!important;\}/);
+  assert.match(html, /grid-template-columns:repeat\(2, 105mm\)/);
+  assert.match(html, /grid-auto-rows:74\.25mm/);
+  assert.match(html, /grid-template-columns:78mm 27mm/);
+  assert.match(html, /pc-print-qr-code/);
+  assert.match(html, /worker-visual\.html\?card=/);
+  assert.match(html, /&quot;'\+uid\+'&quot;/);
+
+  const inline = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match => match[1])
+    .find(script => script.includes('Server data'));
+  assert.ok(inline);
+  assert.doesNotThrow(() => new vm.Script(inline));
+});

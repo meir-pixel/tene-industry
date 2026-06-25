@@ -28,8 +28,14 @@ module.exports = function createProductionCardsRouter(deps) {
 
 // ── PRINT CARDS ───────────────────────────────────────────────────
 router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
-  const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
-    FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
+  const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address,
+      p.name as project_name, COALESCE(cs.name, legacy_site.name) as site_name
+    FROM orders o
+    LEFT JOIN customers c ON o.customer_id=c.id
+    LEFT JOIN projects p ON o.project_id=p.id
+    LEFT JOIN customer_sites cs ON o.site_id=cs.id
+    LEFT JOIN sites legacy_site ON o.site_id=legacy_site.id
+    WHERE o.id=?`).get(req.params.id);
   if (!order) return res.status(404).send('הזמנה לא נמצאה');
 
   const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);

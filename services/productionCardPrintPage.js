@@ -7,6 +7,125 @@ function printableItemNote(note) {
   return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
 }
 
+function formatPrintNumber(value, digits = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return digits === 0 ? '0' : '0.00';
+  return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function formatPrintDate(value) {
+  const d = value ? new Date(value) : new Date();
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+}
+
+function parsePrintJSON(tryParseJSON, value, fallback) {
+  try {
+    if (typeof tryParseJSON === 'function') return tryParseJSON(value, fallback);
+    return value ? JSON.parse(value) : fallback;
+  } catch (err) {
+    return fallback;
+  }
+}
+
+function productionBucketForItem(item, segments, snapshot) {
+  const text = [item.shape_name, item.struct_element, snapshot && snapshot.kind, snapshot && snapshot.type, snapshot && snapshot.family]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (/mesh|wire|רשת/.test(text)) return 'mesh';
+  if (/cage|pile|כלוב|כלונס/.test(text)) return 'cage';
+  return Array.isArray(segments) && segments.length > 1 ? 'bending' : 'cutting';
+}
+
+function buildOrderSummarySheet({ order, allItems, printDate, delivDate, cards, tryParseJSON }) {
+  const esc = cards.escapeHtml;
+  const totals = {
+    quantity: 0,
+    weight: 0,
+    lengthMm: 0,
+    cuttingWeight: 0,
+    bendingWeight: 0,
+    meshWeight: 0,
+    cageWeight: 0,
+  };
+  const byDiameter = new Map();
+
+  allItems.forEach((item) => {
+    const qty = Number(item.quantity || 0);
+    const weight = Number(item.total_weight || 0);
+    const lengthMm = Number(item.total_length_mm || 0) * qty;
+    const diameter = item.diameter || '?';
+    const segments = parsePrintJSON(tryParseJSON, item.segments, []);
+    const snapshot = parsePrintJSON(tryParseJSON, item.shape_snapshot_json || item.shapeSnapshot, null) || {};
+    const bucket = productionBucketForItem(item, segments, snapshot);
+
+    totals.quantity += qty;
+    totals.weight += weight;
+    totals.lengthMm += lengthMm;
+    totals[`${bucket}Weight`] += weight;
+    byDiameter.set(diameter, (byDiameter.get(diameter) || 0) + weight);
+  });
+
+  const project = order.project_name || order.project || '';
+  const site = order.site_name || order.building || order.delivery_address || '';
+  const notes = [order.notes, order.general_notes, order.production_notes, order.driver_notes]
+    .filter(Boolean)
+    .join(' / ');
+  const fullOrderUrl = `/orders.html?order=${encodeURIComponent(order.id)}`;
+  const diameterRows = [...byDiameter.entries()]
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([diameter, weight]) => `<tr><td>Ø${esc(String(diameter))}</td><td>${formatPrintNumber(weight, 2)} קג</td></tr>`)
+    .join('') || '<tr><td colspan="2">אין נתוני קוטר</td></tr>';
+
+  return `<section class="order-summary-sheet" aria-label="Order summary sheet">
+    <header class="summary-head">
+      <img class="summary-logo" src="/brand/tene-pdf-logo.jpg" alt="TENA">
+      <div>
+        <h1>סיכום הזמנה לייצור</h1>
+        <div class="summary-order-num">${esc(order.order_num || '')}</div>
+      </div>
+      <div class="order-summary-qr" data-order-url="${fullOrderUrl}"></div>
+    </header>
+
+    <div class="summary-meta-grid">
+      <div><span>לקוח</span><b>${esc(order.customer_name || '')}</b></div>
+      <div><span>פרויקט</span><b>${esc(project || '-')}</b></div>
+      <div><span>אתר / בניין</span><b>${esc(site || '-')}</b></div>
+      <div><span>תאריך אספקה</span><b>${esc(delivDate || '-')}</b></div>
+      <div><span>תאריך ייצור</span><b>${esc(formatPrintDate())}</b></div>
+      <div><span>תאריך הזמנה</span><b>${esc(printDate || '-')}</b></div>
+    </div>
+
+    <div class="summary-totals-grid">
+      <div><span>סהכ פריטים</span><b>${allItems.length}</b></div>
+      <div><span>סהכ כמות / מוטות</span><b>${formatPrintNumber(totals.quantity, 0)}</b></div>
+      <div><span>סהכ משקל</span><b>${formatPrintNumber(totals.weight, 2)} קג</b></div>
+      <div><span>סהכ אורך</span><b>${formatPrintNumber(totals.lengthMm / 1000, 2)} מ</b></div>
+    </div>
+
+    <div class="summary-columns">
+      <section>
+        <h2>משקל לפי קוטר</h2>
+        <table class="summary-table"><tbody>${diameterRows}</tbody></table>
+      </section>
+      <section>
+        <h2>חלוקת ייצור</h2>
+        <table class="summary-table"><tbody>
+          <tr><td>משקל חיתוך</td><td>${formatPrintNumber(totals.cuttingWeight, 2)} קג</td></tr>
+          <tr><td>משקל כיפוף</td><td>${formatPrintNumber(totals.bendingWeight, 2)} קג</td></tr>
+          ${totals.meshWeight ? `<tr><td>משקל רשתות</td><td>${formatPrintNumber(totals.meshWeight, 2)} קג</td></tr>` : ''}
+          ${totals.cageWeight ? `<tr><td>משקל כלובים</td><td>${formatPrintNumber(totals.cageWeight, 2)} קג</td></tr>` : ''}
+        </tbody></table>
+      </section>
+    </div>
+
+    <section class="summary-notes">
+      <h2>הערות</h2>
+      <p>${esc(notes || '-')}</p>
+    </section>
+  </section>`;
+}
 function renderPrintCardsPage({
   order,
   pallets,
@@ -24,6 +143,8 @@ const setupRowsHtml = allItems.map((it,i) =>
   '<td><input class="split-inp" type="number" min="1" max="'+(it.quantity||1)+'" value="1" id="sp-'+it.id+'" oninput="onSplitChange('+it.id+','+(it.quantity||1)+')"></td>' +
   '<td><div class="split-detail" id="sd-'+it.id+'">כרטיסייה אחת – כל הכמות</div></td></tr>'
 ).join('');
+
+const orderSummaryHtml = buildOrderSummarySheet({ order, allItems, printDate, delivDate, cards, tryParseJSON });
 
 const serverCardsHtml = (allItems.length
   ? cards.masterCard(allItems, order, printDate, delivDate, pallets.length) +
@@ -79,6 +200,31 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .pc-weight-chip.bad{color:#991b1b;background:#fef2f2;border-color:#fecaca;}
 
 /* ── Cards ── */
+/* Order summary sheet */
+.order-summary-sheet{width:210mm;min-height:297mm;background:#fff;margin:0 auto 16px;padding:12mm 11mm;color:#1a2332;box-shadow:0 2px 8px rgba(0,0,0,0.12);overflow:hidden;}
+.summary-head{display:grid;grid-template-columns:34mm 1fr 28mm;gap:8mm;align-items:center;border-bottom:2px solid #1a2332;padding-bottom:7mm;margin-bottom:7mm;}
+.summary-logo{width:32mm;height:auto;display:block;}
+.summary-head h1{font-size:22px;font-weight:900;line-height:1.1;margin-bottom:2mm;}
+.summary-order-num{font-family:monospace;font-size:14px;font-weight:900;direction:ltr;text-align:right;}
+.order-summary-qr{width:26mm;height:26mm;border:1px solid #cfd8e3;display:flex;align-items:center;justify-content:center;background:#fff;justify-self:end;}
+.order-summary-qr canvas,.order-summary-qr img{width:24mm!important;height:24mm!important;display:block;}
+.summary-meta-grid,.summary-totals-grid{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #d8dee8;margin-bottom:7mm;}
+.summary-meta-grid div,.summary-totals-grid div{min-height:18mm;border-left:1px solid #d8dee8;border-bottom:1px solid #d8dee8;padding:3mm;overflow:hidden;}
+.summary-meta-grid div:nth-child(3n),.summary-totals-grid div:nth-child(3n){border-left:0;}
+.summary-meta-grid div:nth-last-child(-n+3),.summary-totals-grid div:nth-last-child(-n+3){border-bottom:0;}
+.summary-meta-grid span,.summary-totals-grid span{display:block;font-size:9px;color:#5f6f82;font-weight:900;margin-bottom:1mm;}
+.summary-meta-grid b,.summary-totals-grid b{display:block;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.summary-totals-grid{grid-template-columns:repeat(4,1fr);}
+.summary-totals-grid div:nth-child(3n){border-left:1px solid #d8dee8;}
+.summary-totals-grid div:nth-child(4n){border-left:0;}
+.summary-columns{display:grid;grid-template-columns:1fr 1fr;gap:7mm;margin-bottom:7mm;}
+.summary-columns h2,.summary-notes h2{font-size:13px;font-weight:900;margin-bottom:2mm;color:#1a2332;}
+.summary-table{width:100%;border-collapse:collapse;font-size:11px;}
+.summary-table td{border:1px solid #d8dee8;padding:2.5mm 3mm;}
+.summary-table td:last-child{text-align:left;direction:ltr;font-weight:900;}
+.summary-notes{border:1px solid #d8dee8;padding:4mm;min-height:26mm;}
+.summary-notes p{font-size:11px;line-height:1.45;}
+.pc-print-face{display:none;}
 .cards-grid{display:flex;flex-wrap:wrap;gap:8px;}
 .prod-card{width:148mm;background:#fff;border:1.5px solid #bbb;border-radius:4px;
   overflow:hidden;page-break-inside:avoid;display:flex;flex-direction:column;
@@ -173,6 +319,27 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
     align-items:stretch;
     justify-content:start;
   }
+  .order-summary-sheet{width:210mm!important;height:297mm!important;min-height:297mm!important;margin:0!important;padding:12mm 11mm!important;box-shadow:none!important;break-after:page;page-break-after:always;page-break-inside:avoid;overflow:hidden;}
+  .summary-head{grid-template-columns:34mm 1fr 28mm;gap:8mm;padding-bottom:7mm;margin-bottom:7mm;}
+  .summary-head h1{font-size:22px;}
+  .summary-meta-grid b,.summary-totals-grid b{font-size:13px;}
+  .cards-grid{break-before:auto;page-break-before:auto;}
+  .master-card{display:none!important;}
+  .prod-card{border:0.25mm solid #1a2332!important;border-radius:0!important;overflow:hidden!important;}
+  .prod-card:not(.master-card)>:not(.pc-print-face){display:none!important;}
+  .pc-print-face{display:grid!important;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
+  .pc-print-main{display:grid;grid-template-rows:11mm 7mm 38mm 18.25mm;width:78mm;height:74.25mm;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
+  .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;}
+  .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:8px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
+  .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
+  .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
+  .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
+  .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
+  .pc-print-bottom span:first-child{border-left:0;}
+  .pc-print-qr-panel{display:grid;grid-template-rows:52mm 22.25mm;align-items:center;justify-items:center;width:27mm;height:74.25mm;overflow:hidden;}
+  .pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;}
+  .pc-print-qr-code canvas,.pc-print-qr-code img{width:22mm!important;height:22mm!important;display:block;}
+  .pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:9px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;}
   .prod-card{
     width:105mm!important;
     height:74.25mm!important;
@@ -184,6 +351,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
     border-radius:2px;
     font-size:8px;
   }
+  .prod-card{border:0.25mm solid #1a2332!important;border-radius:0!important;overflow:hidden!important;}
   .pc-head{padding:3px 5px 2px;border-bottom-width:1px;}
   .pc-title{font-size:9px;line-height:1.1;}
   .pc-date{font-size:7px;margin-top:0;}
@@ -251,6 +419,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 </div>
 
 <!-- ── Card grid – server-rendered, barcodes added by JS ── -->
+${orderSummaryHtml}
 <div class="cards-grid" id="cardsGrid">${serverCardsHtml}</div>
 
 <script>
@@ -258,6 +427,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 var ORDER_ID      = ${Number(order.id) || 0};
 var ORDER_NUM     = ${JSON.stringify(order.order_num || '')};
 var CUSTOMER      = ${JSON.stringify(order.customer_name || '')};
+var SHORT_REF     = ${JSON.stringify([order.customer_name, order.project_name || order.site_name].filter(Boolean).join(' / '))};
 var PRINT_DATE    = ${JSON.stringify(printDate)};
 var DELIV_DATE    = ${JSON.stringify(delivDate)};
 var ORDER_STATUS  = ${JSON.stringify(order.status || '')};
@@ -610,7 +780,18 @@ function buildCard(item, subQty, totalCards, cardIdx) {
       dimHtml += '<span class="dim-ang">'+segs[i].angle_deg+'&deg;</span>';
   }
 
+  var printRef = SHORT_REF || CUSTOMER || ORDER_NUM;
+  var printLengthCm = Math.round((Number(item.total_length_mm || 0)) / 10);
   var h = '<div class="prod-card">';
+  h += '<div class="pc-print-face">';
+  h += '<div class="pc-print-main">';
+  h += '<div class="pc-print-head"><b>ITEM '+item.id+badge+'</b><b>Ø '+item.diameter+'</b></div>';
+  h += '<div class="pc-print-ref">'+printRef+'</div>';
+  h += '<div class="pc-print-shape">'+buildShapeSVG(segs)+'</div>';
+  h += '<div class="pc-print-bottom"><span>L = '+printLengthCm+' cm</span><span>PCS '+subQty+'</span><span>'+wProp+' kg</span></div>';
+  h += '</div>';
+  h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div><div class="pc-print-status">SCAN STATUS</div></div>';
+  h += '</div>';
   h += '<div class="pc-head">';
   h += '<div><div class="pc-title">'+badge+title+'</div><div class="pc-date">'+PRINT_DATE+'</div></div>';
   h += '<div class="pc-top-barcode"><div class="bc-font-top">'+barData+'</div><div class="bc-label">'+barData+'</div></div>';
@@ -635,7 +816,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div><label>משקל רצוי לכרטיסייה</label><div class="pc-weight-chip">'+wProp+' ק"ג</div></div>';
   h += '<div><label>משקל מצוי</label><input id="card-weight-'+uid+'" type="number" min="0" step="0.01" value="'+(savedActual || '')+'" placeholder="ק״ג"></div>';
   h += '<div><label>סטייה</label><div id="card-weight-dev-'+uid+'" class="pc-weight-chip'+deviationClass(savedDeviation)+'">'+fmtPct(savedDeviation)+'</div></div>';
-  h += '<button onclick="saveCardWeight('+item.id+','+(cardIdx+1)+','+totalCards+','+subQty+',\''+uid+'\',event)">שמור משקל</button>';
+  h += '<button onclick="saveCardWeight('+item.id+','+(cardIdx+1)+','+totalCards+','+subQty+',&quot;'+uid+'&quot;,event)">שמור משקל</button>';
   h += '</div>';
   h += '<div class="pc-shape-area">'+buildShapeSVG(segs)+'</div>';
   if (dimHtml) h += '<div class="pc-dims">'+dimHtml+'</div>';
@@ -775,7 +956,24 @@ function renderWorkerCardQrCodes() {
     if (window.QRCode && window.QRCode.toCanvas) {
       var canvas = document.createElement('canvas');
       node.appendChild(canvas);
-      window.QRCode.toCanvas(canvas, target, { width: 42, margin: 0 }, function(){});
+      var size = node.classList.contains('pc-print-qr-code') ? 96 : 42;
+      window.QRCode.toCanvas(canvas, target, { width: size, margin: 0 }, function(){});
+    } else {
+      node.textContent = 'QR';
+      node.title = target;
+    }
+  });
+}
+
+function renderOrderSummaryQrCodes() {
+  var nodes = document.querySelectorAll('[data-order-url]');
+  nodes.forEach(function(node) {
+    var target = new URL(node.getAttribute('data-order-url'), window.location.origin).href;
+    node.innerHTML = '';
+    if (window.QRCode && window.QRCode.toCanvas) {
+      var canvas = document.createElement('canvas');
+      node.appendChild(canvas);
+      window.QRCode.toCanvas(canvas, target, { width: 110, margin: 0 }, function(){});
     } else {
       node.textContent = 'QR';
       node.title = target;
@@ -805,4 +1003,5 @@ function printCards() {
 module.exports = {
   renderPrintCardsPage,
 };
+
 

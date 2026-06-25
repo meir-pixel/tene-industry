@@ -70,12 +70,20 @@ test('production card split keeps item cards and master card in sync', () => {
   assert.match(productionCardsRoute, /'-C' \+ \(cardIdx\+1\) \+ 'OF' \+ totalCards/);
   assert.match(productionCardsRoute, /להדפיס גם מאסטר מעודכן/);
   assert.match(productionCardsRoute, /@page\{size:A4 portrait;margin:0!important;\}/);
+  assert.match(productionCardsRoute, /order-summary-sheet/);
+  assert.match(productionCardsRoute, /tene-pdf-logo\.jpg/);
+  assert.match(productionCardsRoute, /data-order-url/);
+  assert.match(productionCardsRoute, /renderOrderSummaryQrCodes/);
   assert.match(productionCardsRoute, /data-worker-card-url/);
   assert.match(productionCardsRoute, /worker-visual\.html\?card=/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);
   assert.match(productionCardsRoute, /grid-template-columns:repeat\(2, 105mm\)/);
   assert.match(productionCardsRoute, /grid-auto-rows:74\.25mm/);
   assert.match(productionCardsRoute, /height:74\.25mm!important/);
+  assert.match(productionCardsRoute, /pc-print-face/);
+  assert.match(productionCardsRoute, /grid-template-columns:78mm 27mm/);
+  assert.match(productionCardsRoute, /\.master-card\{display:none!important;\}/);
+  assert.match(productionCardsRoute, /pc-print-qr-code/);
 });
 
 test('customer portal UI uses OTP verification before storing token', () => {
