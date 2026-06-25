@@ -504,6 +504,13 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const longitudinalBars = Math.max(0, Math.round(Number(pile?.longitudinalBars || 0)));
   const longitudinalDiameter = Math.max(1, Number(pile?.longitudinalDiameter || 22));
   const spiralDiameter = Math.max(1, Number(pile?.spiralDiameter || 8));
+  const hoopsEnabled = pile?.hoopsEnabled !== false && pile?.hoopsEnabled !== 0 && pile?.hoopsEnabled !== 'false';
+  const hoopDiameter = Math.max(1, Number(pile?.hoopDiameter || 8));
+  const hoopSpacing = Math.max(1, Number(pile?.hoopSpacing || 200));
+  const hoopStart = Math.max(0, Number(pile?.hoopStart || 0));
+  const hoopEnd = Math.max(hoopStart, Number(pile?.hoopEnd || pileLength));
+  const barPattern = String(pile?.barPattern || 'straight');
+  const lHookLength = Math.max(0, Number(pile?.lHookLength || 250));
   const zones = Array.isArray(pile?.spiralZones) ? pile.spiralZones : [];
   const sideBox = scaleBox(pileLength, pileDiameter, w * 0.74, h * 0.38, 18);
   const sideX = 18, sideY = 30;
@@ -513,28 +520,57 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const topR = Math.min(w * 0.17, h * 0.18);
   const zoneLines = [];
   const zoneLabels = [];
+  const noWrapRects = [];
   let offsetMm = 0;
   zones.forEach((zone, zoneIndex) => {
     const len = Math.max(0, Number(zone.length || 0));
     const pitch = Math.max(1, Number(zone.pitch || 20));
     const zoneStart = offsetMm;
     const zoneEnd = offsetMm + len;
-    for (let xMm = zoneStart; xMm <= zoneEnd + 0.001; xMm += pitch) {
-      const x = sx0 + Math.min(pileLength, xMm) * sideBox.scale;
-      zoneLines.push(`<line data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="${Math.max(1.2, spiralDiameter * 0.20).toFixed(1)}" opacity=".75"/>`);
+    const noWrap = zone.noWrap === true || zone.noWrap === 1 || zone.noWrap === 'true';
+    if (noWrap) {
+      const xA = sx0 + Math.min(pileLength, zoneStart) * sideBox.scale;
+      const xB = sx0 + Math.min(pileLength, zoneEnd) * sideBox.scale;
+      noWrapRects.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-se-focus="pile-no-wrap pile-zone" x="${Math.min(xA, xB).toFixed(1)}" y="${(syMid - cageH / 2).toFixed(1)}" width="${Math.max(2, Math.abs(xB - xA)).toFixed(1)}" height="${cageH.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".88"/><text data-se-focus="pile-no-wrap pile-zone" x="${((xA + xB) / 2).toFixed(1)}" y="${(syMid - cageH / 2 - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#64748b">No wrap</text>`);
+    } else {
+      for (let xMm = zoneStart; xMm <= zoneEnd + 0.001; xMm += pitch) {
+        const x = sx0 + Math.min(pileLength, xMm) * sideBox.scale;
+        zoneLines.push(`<line data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="${Math.max(1.2, spiralDiameter * 0.20).toFixed(1)}" opacity=".75"/>`);
+      }
     }
     const labelX = sx0 + Math.min(pileLength, zoneStart + len / 2) * sideBox.scale;
     zoneLabels.push(`<text x="${labelX.toFixed(1)}" y="${(syMid + cageH/2 + 16).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#526070">${svgEscape(len)} @${svgEscape(pitch)}</text>`);
     offsetMm += len;
   });
-  const longBarsSide = [-0.32, 0.32].map(rel => `<line data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="${Math.max(3, longitudinalDiameter * 0.18).toFixed(1)}" stroke-linecap="round"/>`).join('');
+  const longBarsSide = [-0.32, 0.32].map(rel => `<line class="pile-straight-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="${Math.max(3, longitudinalDiameter * 0.18).toFixed(1)}" stroke-linecap="round"/>`).join('');
+  const hoopLines = [];
+  if (hoopsEnabled) {
+    const start = Math.min(pileLength, hoopStart);
+    const end = Math.min(pileLength, hoopEnd);
+    for (let xMm = start; xMm <= end + 0.001; xMm += hoopSpacing) {
+      const x = sx0 + xMm * sideBox.scale;
+      hoopLines.push(`<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2 - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2 + 3).toFixed(1)}" stroke="#16a34a" stroke-width="${Math.max(1.4, hoopDiameter * 0.18).toFixed(1)}" opacity=".9"/>`);
+    }
+  }
+  const lBarsSide = (barPattern === 'l' || barPattern === 'alternate')
+    ? [0.18, 0.50, 0.82].map(pos => {
+        const x = sx0 + (sx1 - sx0) * pos;
+        const y = syMid + cageH / 2;
+        const hook = Math.min(34, Math.max(10, lHookLength * sideBox.scale));
+        return `<path class="pile-l-bar" data-se-focus="pile-l-bars pile-l-hook" d="M ${x.toFixed(1)} ${(syMid - cageH / 2).toFixed(1)} V ${y.toFixed(1)} h ${hook.toFixed(1)}" fill="none" stroke="#2563eb" stroke-width="${Math.max(2.5, longitudinalDiameter * 0.15).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      }).join('')
+    : '';
   const topBars = Array.from({ length: longitudinalBars }, (_, i) => {
     const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, longitudinalBars);
     const x = topCx + Math.cos(a) * topR * 0.78;
     const y = topCy + Math.sin(a) * topR * 0.78;
     return `<circle class="pile-longitudinal-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.5, longitudinalDiameter * 0.13).toFixed(1)}" fill="#111827"/>`;
   }).join('');
-  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}`).join(',')}"><g data-view="side"><text data-se-focus="pile-length" x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${zoneLines.join('')}${zoneLabels.join('')}</g><g data-view="top"><circle data-se-focus="pile-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="${Math.max(1.4, spiralDiameter * 0.18).toFixed(1)}"/>${topBars}<text data-se-focus="pile-diameter" x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g><g class="se-engineer-helper" data-view="3d" data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch"><rect class="se-helper-panel" x="12" y="198" width="86" height="48" rx="5"/><path d="M 26 228 L 70 210 L 88 219 L 44 237 Z M 26 228 V 215 L 70 197 V 210" stroke="#475569" stroke-width="1.5" fill="none"/><text x="55" y="243" text-anchor="middle" font-size="8">תצוגת 3D</text></g></g>`;
+  const zoneSummary = zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}${(z.noWrap === true || z.noWrap === 1 || z.noWrap === 'true') ? ':no-wrap' : ''}`).join(',');
+  const topHoop = hoopsEnabled
+    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.90).toFixed(1)}" fill="none" stroke="#16a34a" stroke-width="${Math.max(1.4, hoopDiameter * 0.18).toFixed(1)}"/>`
+    : '';
+  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-bar-pattern="${svgEscape(barPattern)}"><g data-view="side"><text data-se-focus="pile-length" x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${lBarsSide}${noWrapRects.join('')}${zoneLines.join('')}${hoopLines.join('')}${zoneLabels.join('')}</g><g data-view="top">${topHoop}<circle data-se-focus="pile-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="${Math.max(1.4, spiralDiameter * 0.18).toFixed(1)}"/>${topBars}<text data-se-focus="pile-diameter" x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g><g class="se-engineer-helper" data-view="3d" data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch pile-hoops"><rect class="se-helper-panel" x="12" y="198" width="86" height="48" rx="5"/><path d="M 26 228 L 70 210 L 88 219 L 44 237 Z M 26 228 V 215 L 70 197 V 210" stroke="#475569" stroke-width="1.5" fill="none"/><text x="55" y="243" text-anchor="middle" font-size="8">׳×׳¦׳•׳’׳× 3D</text></g></g>`;
 };
 
 function ShapeEngineRouter(shape) {
@@ -1537,7 +1573,7 @@ class ShapeEditorModal {
 #seModal .se-family-label{font-size:12px;color:#243047;}
 #seModal .se-table.se-table-2d tr{grid-template-columns:38px minmax(126px,1fr) minmax(126px,1fr) 28px;}
 #seModal .se-family-editor-table tr{grid-template-columns:minmax(0,1fr)!important;gap:8px;}
-#seModal .se-family-editor-table .se-zone-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 30px!important;}
+#seModal .se-family-editor-table .se-zone-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(72px,.75fr) 30px!important;}
 #seModal .se-family-editor-table .se-family-row td{display:block;}
 #seModal .se-family-editor-table .se-zone-head td{background:transparent;border:0;color:#5f6878;font-size:11px;font-weight:900;}
 #seModal .se-bottom-summary{display:flex;align-items:center;gap:10px;margin-inline-end:auto;min-width:0;}
@@ -2115,6 +2151,14 @@ class ShapeEditorModal {
       longitudinalBars: { focusKey: 'pile-longitudinal-bars', number: String.fromCharCode(9314), code: 'N' },
       longitudinalDiameter: { focusKey: 'pile-longitudinal-diameter', number: String.fromCharCode(9315), code: 'D' },
       spiralDiameter: { focusKey: 'pile-spiral-diameter', number: String.fromCharCode(9316), code: 'D' },
+      spiralType: { focusKey: 'pile-spiral-pitch', number: String.fromCharCode(9317), code: 'S' },
+      hoopsEnabled: { focusKey: 'pile-hoops', number: String.fromCharCode(9318), code: 'H' },
+      hoopDiameter: { focusKey: 'pile-hoop-diameter', number: String.fromCharCode(9319), code: 'Dh' },
+      hoopSpacing: { focusKey: 'pile-hoop-spacing', number: String.fromCharCode(9320), code: '@' },
+      hoopStart: { focusKey: 'pile-hoops', number: String.fromCharCode(9321), code: 'Hs' },
+      hoopEnd: { focusKey: 'pile-hoops', number: String.fromCharCode(9322), code: 'He' },
+      barPattern: { focusKey: 'pile-l-bars', number: String.fromCharCode(9323), code: 'B' },
+      lHookLength: { focusKey: 'pile-l-hook', number: String.fromCharCode(9324), code: 'L' },
     };
     let meta = { focusKey, number, code, example };
     const meshField = attr('data-mesh-field');
@@ -2129,6 +2173,7 @@ class ShapeEditorModal {
     if (zoneField === 'name') meta = { ...meta, focusKey: 'pile-zone', number: String.fromCharCode(9317), code: 'Z' };
     if (zoneField === 'length') meta = { ...meta, focusKey: 'pile-zone', number: String.fromCharCode(9318), code: 'Lz' };
     if (zoneField === 'pitch') meta = { ...meta, focusKey: 'pile-spiral-pitch', number: String.fromCharCode(9319), code: 'P' };
+    if (zoneField === 'noWrap') meta = { ...meta, focusKey: 'pile-no-wrap', number: String.fromCharCode(9320), code: 'NW' };
     if (side) meta = { ...meta, focusKey: `bar-side-${side}`, number: rowNumber(side), code: 'L' };
     if (angle) meta = { ...meta, focusKey: `bar-angle-${angle}`, number: rowNumber(angle), code: 'A' };
     if (az) meta = { ...meta, focusKey: `bar-angle-${az}`, number: rowNumber(az), code: 'A' };
@@ -2256,29 +2301,55 @@ class ShapeEditorModal {
     const body = document.getElementById('seTableBody');
     if (!body) return;
     if (!Array.isArray(pile.spiralZones)) pile.spiralZones = [];
+    if (!pile.spiralZones.length) pile.spiralZones = [{ name: 'Zone A', length: 70, pitch: 10 }, { name: 'Zone B', length: 200, pitch: 20 }, { name: 'Zone C', length: 1350, pitch: 20 }];
+    if (pile.spiralType == null) pile.spiralType = 'zoned';
+    if (pile.hoopsEnabled == null) pile.hoopsEnabled = true;
+    if (pile.hoopDiameter == null) pile.hoopDiameter = 8;
+    if (pile.hoopSpacing == null) pile.hoopSpacing = 200;
+    if (pile.hoopStart == null) pile.hoopStart = 0;
+    if (pile.hoopEnd == null) pile.hoopEnd = pile.pileLength || 2200;
+    if (!pile.barPattern) pile.barPattern = 'straight';
+    if (pile.lHookLength == null) pile.lHookLength = 250;
     const meta = {
-      pileDiameter: ['◎','קוטר כלונס','ס״מ','לדוגמה 70'], pileLength: ['📏','אורך כלונס','ס״מ','לדוגמה 2200'],
-      longitudinalBars: ['●','מספר מוטות','יח׳','לדוגמה 26'], longitudinalDiameter: ['Ø','קוטר מוטות','מ״מ','לדוגמה 22'],
-      spiralDiameter: ['⟳','קוטר ספירלה','מ״מ','לדוגמה 8'],
+      pileDiameter: ['Ø','קוטר כלונס','ס״מ','70'], pileLength: ['L','אורך כלונס','ס״מ','2200'],
+      longitudinalBars: ['N','מספר מוטות','יח׳','26'], longitudinalDiameter: ['Ø','קוטר מוטות','מ״מ','22'],
+      spiralDiameter: ['Ø','קוטר ספירלה','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
+      hoopsEnabled: ['H','חישוקים','','פעיל'], hoopDiameter: ['Ø','קוטר חישוק','מ״מ','8'],
+      hoopSpacing: ['@','מרווח חישוקים','ס״מ','200'], hoopStart: ['↦','תחילת חישוקים','ס״מ','0'], hoopEnd: ['↤','סוף חישוקים','ס״מ','2200'],
+      barPattern: ['L','סוג מוט אורך','','straight'], lHookLength: ['L','אורך רגל L','מ״מ','250'],
     };
     const field = (key, min = 1) => {
-      const m = meta[key] || ['•', key, 'מ״מ', 'לדוגמה 100'];
+      const m = meta[key] || ['•', key, 'מ״מ', '100'];
       return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], focusKey:m[4], number:m[5], code:m[6], input:`<input class="se-input" type="number" min="${min}" value="${pile[key] ?? 0}" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setPileField('${key}', this.value)">` }) + '</td>';
+    };
+    const selectField = (key, options) => {
+      const m = meta[key] || ['•', key, '', ''];
+      const html = options.map(([value, label]) => `<option value="${value}" ${String(pile[key]) === String(value) ? 'selected' : ''}>${label}</option>`).join('');
+      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<select class="se-input" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" onchange="window._seEditor._setPileField('${key}', this.value)">${html}</select>` }) + '</td>';
+    };
+    const checkboxField = (key) => {
+      const m = meta[key] || ['•', key, '', ''];
+      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="checkbox" ${pile[key] ? 'checked' : ''} data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" onchange="window._seEditor._setPileField('${key}', this.checked)">` }) + '</td>';
     };
     const zoneRows = pile.spiralZones.map((zone, i) => `
       <tr class="se-family-row se-zone-row">
-        <td>${this._fieldShell({ icon:'א', label:'שם אזור', unit:'טקסט', example:'לדוגמה A', input:`<input class="se-input" type="text" value="${svgEscape(zone.name || 'אזור ' + String.fromCharCode(65 + i))}" data-zone-field="name" onfocus="window._seEditor._focusFamilyField('zone')" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)">` })}</td>
-        <td>${this._fieldShell({ icon:'↔', label:'אורך', unit:'ס״מ', example:'לדוגמה 70', input:`<input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" onfocus="window._seEditor._focusFamilyField('zoneLength')" oninput="window._seEditor._setSpiralZoneField(${i}, 'length', this.value)">` })}</td>
-        <td>${this._fieldShell({ icon:'⟳', label:'פסיעה', unit:'ס״מ', example:'לדוגמה 20', input:`<input class="se-input" type="number" min="1" value="${zone.pitch ?? 20}" data-zone-field="pitch" onfocus="window._seEditor._focusFamilyField('zonePitch')" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)">` })}</td>
+        <td>${this._fieldShell({ icon:'Z', label:'שם אזור', unit:'טקסט', example:'A', input:`<input class="se-input" type="text" value="${svgEscape(zone.name || 'Zone ' + String.fromCharCode(65 + i))}" data-zone-field="name" onfocus="window._seEditor._focusFamilyField('zone')" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)">` })}</td>
+        <td>${this._fieldShell({ icon:'↔', label:'אורך', unit:'ס״מ', example:'70', input:`<input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" onfocus="window._seEditor._focusFamilyField('zoneLength')" oninput="window._seEditor._setSpiralZoneField(${i}, 'length', this.value)">` })}</td>
+        <td>${this._fieldShell({ icon:'@', label:'פסיעה', unit:'ס״מ', example:'20', input:`<input class="se-input" type="number" min="1" value="${zone.pitch ?? 20}" data-zone-field="pitch" onfocus="window._seEditor._focusFamilyField('zonePitch')" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)">` })}</td>
+        <td>${this._fieldShell({ icon:'—', label:'ללא כריכות', unit:'', example:'כן/לא', input:`<input class="se-input" type="checkbox" ${zone.noWrap ? 'checked' : ''} data-zone-field="noWrap" onfocus="window._seEditor._focusFamilyField('noWrap')" onchange="window._seEditor._setSpiralZoneField(${i}, 'noWrap', this.checked)">` })}</td>
         <td><button class="se-del-btn" onclick="window._seEditor._deleteSpiralZone(${i})">&times;</button></td>
       </tr>`).join('');
     body.innerHTML = `
       <tr class="se-family-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>
       <tr class="se-family-row">${field('longitudinalBars', 0)}${field('longitudinalDiameter', 1)}</tr>
-      <tr class="se-family-row">${field('spiralDiameter', 1)}</tr>
-      <tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td></td></tr>
+      <tr class="se-family-row">${field('spiralDiameter', 1)}${selectField('spiralType', [['continuous','רציפה'], ['zoned','אזורים'], ['segmented','מקטעים']])}</tr>
+      <tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>
       ${zoneRows}
-      <tr class="se-family-row"><td colspan="4"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>`;
+      <tr class="se-family-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>
+      <tr class="se-family-row">${checkboxField('hoopsEnabled')}${field('hoopDiameter', 1)}</tr>
+      <tr class="se-family-row">${field('hoopSpacing', 1)}${field('hoopStart', 0)}</tr>
+      <tr class="se-family-row">${field('hoopEnd', 0)}${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>
+      <tr class="se-family-row">${field('lHookLength', 0)}</tr>`;
   }
 
   _renderBarEditor() {
@@ -2368,8 +2439,15 @@ class ShapeEditorModal {
 
   _setPileField(key, val) {
     if (!this.current || this.current.family !== 'piles') return;
-    const parsed = key === 'longitudinalBars' ? Math.round(Number(val) || 0) : Number(val) || 1;
-    this.current[key] = Math.max(key === 'longitudinalBars' ? 0 : 1, parsed);
+    if (key === 'hoopsEnabled') {
+      this.current[key] = val === true || val === 1 || val === 'true' || val === 'on';
+    } else if (key === 'barPattern' || key === 'spiralType') {
+      this.current[key] = String(val || '');
+    } else {
+      const parsed = key === 'longitudinalBars' ? Math.round(Number(val) || 0) : Number(val) || 1;
+      const min = key === 'longitudinalBars' || key === 'hoopStart' || key === 'hoopEnd' || key === 'lHookLength' ? 0 : 1;
+      this.current[key] = Math.max(min, parsed);
+    }
     this._updatePreview();
   }
 
@@ -2377,7 +2455,9 @@ class ShapeEditorModal {
     if (!this.current || this.current.family !== 'piles' || !Array.isArray(this.current.spiralZones)) return;
     const zone = this.current.spiralZones[index];
     if (!zone) return;
-    zone[key] = key === 'name' ? String(val) : Math.max(key === 'length' ? 0 : 1, Number(val) || (key === 'length' ? 0 : 1));
+    if (key === 'name') zone[key] = String(val);
+    else if (key === 'noWrap') zone[key] = val === true || val === 1 || val === 'true' || val === 'on';
+    else zone[key] = Math.max(key === 'length' ? 0 : 1, Number(val) || (key === 'length' ? 0 : 1));
     this._updatePreview();
   }
 
@@ -2918,5 +2998,3 @@ window.seSetView = function(mode) {
     window._seEditor._updatePreview();
   }
 };
-
-

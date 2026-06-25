@@ -138,7 +138,7 @@ test('shape editor includes synchronized engineering helper views', () => {
   assert.match(editor, /data-view="top"/);
   assert.match(editor, /data-view="3d"/);
   assert.match(editor, /data-se-focus="mesh-longitudinal-spacing mesh-transverse-spacing"/);
-  assert.match(editor, /data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch"/);
+  assert.match(editor, /data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch pile-hoops"/);
 });
 
 test('shape editor renders one row per side in the 2D dimensions panel', () => {
@@ -255,10 +255,10 @@ test('shape editor switches to a pile cage editor with editable spiral zones', (
   const block = editor.match(/_renderPileCageEditor\(\) \{[\s\S]*?[\r\n]+  \}[\r\n]+[\r\n]+  _renderBarEditor/);
 
   assert.ok(block, 'expected pile cage editor renderer');
-  for (const field of ['pileDiameter', 'pileLength', 'longitudinalBars', 'longitudinalDiameter', 'spiralDiameter']) {
+  for (const field of ['pileDiameter', 'pileLength', 'longitudinalBars', 'longitudinalDiameter', 'spiralDiameter', 'spiralType', 'hoopsEnabled', 'hoopDiameter', 'hoopSpacing', 'hoopStart', 'hoopEnd', 'barPattern', 'lHookLength']) {
     assert.ok(block[0].includes(`'${field}'`));
   }
-  for (const field of ['name', 'length', 'pitch']) {
+  for (const field of ['name', 'length', 'pitch', 'noWrap']) {
     assert.match(block[0], new RegExp(`data-zone-field="${field}"`));
   }
   assert.match(editor, /_addSpiralZone\(\)/);
@@ -342,6 +342,39 @@ test('PileCageEngine pitch changes only the edited spiral zone', () => {
   assert.notEqual(countZone(baseSvg, 1), countZone(changedSvg, 1));
   assert.equal(countZone(baseSvg, 2), countZone(changedSvg, 2));
   assert.match(changedSvg, /data-spiral-diameter="8"/);
+});
+
+
+test('PileCageEngine renders no-wrap zones, hoops, and L longitudinal bars', () => {
+  const { ShapeEngineRouter } = loadShapeEditorGeometry();
+  const pile = {
+    family: 'piles',
+    pileDiameter: 70,
+    pileLength: 2200,
+    longitudinalBars: 26,
+    longitudinalDiameter: 22,
+    spiralDiameter: 8,
+    spiralZones: [
+      { length: 70, pitch: 10 },
+      { length: 200, pitch: 20, noWrap: true },
+      { length: 1350, pitch: 20 },
+    ],
+    hoopsEnabled: true,
+    hoopDiameter: 8,
+    hoopSpacing: 200,
+    hoopStart: 50,
+    hoopEnd: 1800,
+    barPattern: 'alternate',
+    lHookLength: 250,
+  };
+  const svg = ShapeEngineRouter.render(pile, 300, 260);
+
+  assert.match(svg, /class="pile-no-wrap-zone"/);
+  assert.match(svg, /class="pile-hoop"/);
+  assert.match(svg, /class="pile-l-bar"/);
+  assert.match(svg, /data-hoop-count="9"/);
+  assert.match(svg, /data-bar-pattern="alternate"/);
+  assert.match(svg, /data-spiral-zones="70@10,200@20:no-wrap,1350@20"/);
 });
 
 
