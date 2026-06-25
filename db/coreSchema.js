@@ -2,6 +2,64 @@
 
 const { ensureFinanceSchema } = require('./financeSchema');
 
+function tableColumns(db, table) {
+  return db.pragma(`table_info(${table})`).map(column => column.name);
+}
+
+function ensureColumn(db, table, column, definition) {
+  if (tableColumns(db, table).includes(column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  console.log(`[DB] Migration: ${table}.${column} added`);
+}
+
+function intakeSourceIdentityDuplicates(db) {
+  return db.prepare(`
+    SELECT source_system, external_id, COUNT(*) AS count
+    FROM intake_log
+    WHERE source_system IS NOT NULL AND source_system <> ''
+      AND external_id IS NOT NULL AND external_id <> ''
+    GROUP BY source_system, external_id
+    HAVING COUNT(*) > 1
+    ORDER BY count DESC
+    LIMIT 5
+  `).all();
+}
+
+function warnSkippedIntakeSourceIdentityIndex(reason, duplicates = []) {
+  const sample = duplicates
+    .map(row => `${row.source_system}/${row.external_id} (${row.count})`)
+    .join(', ');
+  console.warn(
+    '[DB] Migration warning: intake_log source identity unique index was not created: ' +
+    reason +
+    (sample ? `. Duplicate sample: ${sample}` : '')
+  );
+}
+
+function ensureIntakeSourceIdentityIndex(db) {
+  ensureColumn(db, 'intake_log', 'source_system', 'TEXT');
+  ensureColumn(db, 'intake_log', 'external_id', 'TEXT');
+  const duplicates = intakeSourceIdentityDuplicates(db);
+  if (duplicates.length) {
+    warnSkippedIntakeSourceIdentityIndex('existing duplicate source_system/external_id values must be reviewed first', duplicates);
+    return;
+  }
+  const sql = `
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_intake_log_source_identity
+      ON intake_log(source_system, external_id)
+      WHERE source_system IS NOT NULL AND external_id IS NOT NULL;
+  `;
+  try {
+    db.exec(sql);
+  } catch (error) {
+    const currentDuplicates = intakeSourceIdentityDuplicates(db);
+    if (/UNIQUE constraint failed|constraint failed/i.test(String(error.message || '')) && currentDuplicates.length) {
+      warnSkippedIntakeSourceIdentityIndex(error.message, currentDuplicates);
+      return;
+    }
+    throw error;
+  }
+}
 function ensureCoreSchema(db) {
   // ── SCHEMA ────────────────────────────────────────────────────────
   db.exec(`
@@ -854,11 +912,8 @@ function ensureCoreSchema(db) {
     );
   `);
 
-  db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_intake_log_source_identity
-      ON intake_log(source_system, external_id)
-      WHERE source_system IS NOT NULL AND external_id IS NOT NULL;
-  `);
+  ensureIntakeSourceIdentityIndex(db);
+
 
   ensureFinanceSchema(db);
 }

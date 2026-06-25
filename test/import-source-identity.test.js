@@ -8,6 +8,7 @@ const createIntakeReviewRouter = require('../routes/intakeReview');
 const createOrdersRouter = require('../routes/orders');
 const intakeWorkflow = require('../services/intakeWorkflow');
 const { findSourceIdentityDuplicate, sourceIdentityConflictPayload } = require('../services/importSourceIdentity');
+const { ensureCoreSchema } = require('../db/coreSchema');
 
 function allow() {
   return (req, res, next) => next();
@@ -191,4 +192,60 @@ test('legacy intake parsing without source identity still produces review data',
   assert.equal(parsed.source, 'phone');
   assert.equal(parsed.items.length, 1);
   assert.ok(parsed.review_notes.some(note => note.field === 'source_identity'));
+});
+
+test('core schema adds missing intake source identity columns before creating the index', () => {
+  const db = new Database(':memory:');
+  try {
+    db.exec(`
+      CREATE TABLE intake_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT,
+        raw_content TEXT,
+        parsed_data TEXT,
+        status TEXT DEFAULT 'pending_review',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    ensureCoreSchema(db);
+    const columns = db.pragma('table_info(intake_log)').map(column => column.name);
+    assert.ok(columns.includes('source_system'));
+    assert.ok(columns.includes('external_id'));
+    const indexes = db.pragma('index_list(intake_log)').map(index => index.name);
+    assert.ok(indexes.includes('idx_intake_log_source_identity'));
+  } finally {
+    db.close();
+  }
+});
+
+test('core schema skips intake source identity unique index when old duplicate data exists', () => {
+  const db = new Database(':memory:');
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = message => warnings.push(String(message));
+  try {
+    db.exec(`
+      CREATE TABLE intake_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT,
+        source_system TEXT,
+        external_id TEXT,
+        raw_content TEXT,
+        parsed_data TEXT,
+        status TEXT DEFAULT 'pending_review',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO intake_log (source, source_system, external_id, raw_content) VALUES
+        ('ocr', 'whatsapp', 'msg-duplicate', 'first'),
+        ('ocr', 'whatsapp', 'msg-duplicate', 'second');
+    `);
+    assert.doesNotThrow(() => ensureCoreSchema(db));
+    const indexes = db.pragma('index_list(intake_log)').map(index => index.name);
+    assert.ok(!indexes.includes('idx_intake_log_source_identity'));
+    assert.ok(warnings.some(message => message.includes('source identity unique index was not created')));
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM intake_log').get().count, 2);
+  } finally {
+    console.warn = originalWarn;
+    db.close();
+  }
 });
