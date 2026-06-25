@@ -882,6 +882,18 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /parsed_data: parsed/);
   assert.match(intake, /tableFirst/);
   assert.doesNotMatch(intake, /השוואה במסך מלא/);
+  assert.match(intake, /data-official-ocr-review/);
+  assert.match(intake, /ocr-official-summary/);
+  assert.match(intake, /ocr-context-grid/);
+  assert.match(intake, /ocr-review-toolbar/);
+  assert.match(intake, /ocr-official-footer/);
+  assert.match(intake, /ensureOfficialOcrHeader/);
+  assert.match(intake, /\/brand\/tene-pdf-logo\.jpg/);
+  assert.match(intake, /ocrSourceTargetsHtml/);
+  assert.match(intake, /highlightOcrTableTarget/);
+  assert.match(intake, /filterOcrReviewRows/);
+  assert.match(intake, /target_weight_kg/);
+  assert.match(intake, /ocr-review-note/);
   assert.match(intake, /Approve and create order/);
   assert.match(route, /original_data_url/);
   assert.match(route, /original_mime/);

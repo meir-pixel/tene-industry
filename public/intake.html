@@ -294,6 +294,22 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-confidence-cell{display:grid;gap:4px;align-items:center;justify-items:center;font-size:11px;font-weight:900;color:#475569}.ocr-confidence-bar{width:72px;height:6px;border-radius:999px;background:#e5edf5;overflow:hidden}.ocr-confidence-bar span{display:block;height:100%;background:#2f80ed}.ocr-confidence-low .ocr-confidence-bar span{background:#c9621a}.ocr-status-cell{display:grid;gap:4px;justify-items:center}.ocr-status-pill{border:1px solid #cfd8e3;border-radius:999px;background:#fff;color:#475569;font-family:inherit;font-size:11px;font-weight:900;padding:5px 9px;cursor:pointer}.ocr-status-pill.verified{border-color:#bde8c8;background:#f3fbf5;color:#1f6f3c}
 .ocr-hidden-fields{display:none}.ocr-source-stage{position:relative}.ocr-source-highlight{position:absolute;z-index:3;left:18%;top:22%;width:58%;height:56px;border:3px solid #f59e0b;background:rgba(255,230,0,.2);box-shadow:0 0 0 9999px rgba(15,23,42,.03);border-radius:4px;opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease}.ocr-source-highlight.show{opacity:1;transform:scale(1.01)}
 @media(max-width:980px){.ocr-review-top{grid-template-columns:1fr}.ocr-review-table-wrap{max-height:58vh}.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-data{order:1}.intake-fullscreen-source{order:2}}
+
+/* Official OCR Review Workspace */
+.intake-fullscreen{padding:0;background:#eef3f8;backdrop-filter:none}
+.intake-fullscreen-inner{border:0;border-radius:0;box-shadow:none;background:#f4f7fb}
+.intake-fullscreen-head{height:62px;background:#06152b;color:#fff;border-bottom:1px solid #163055;padding:0 16px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;direction:rtl}
+.intake-fullscreen-title{font-size:20px;color:#fff}.intake-fullscreen-head .meta{color:#d7e5f5;font-weight:800}.intake-fullscreen-actions{align-items:center}.intake-fullscreen-actions .btn{height:34px;border-radius:9px;background:#132542;border-color:#37506e;color:#fff}.intake-fullscreen-actions .btn-success{background:#0aa35b;border-color:#0aa35b}.intake-fullscreen-actions #intakeCreateProductionCards{background:#1f63b5;border-color:#1f63b5}.intake-fullscreen-actions #intakeSaveDraft{background:#fff;color:#153052;border-color:#d7e1ef}
+.intake-fullscreen-body{display:grid;grid-template-columns:minmax(560px,.98fr) minmax(520px,1.02fr);gap:10px;padding:10px;min-height:0;flex:1;direction:ltr}.intake-fullscreen-data{order:1;padding:0;overflow:hidden;background:transparent;direction:rtl}.intake-fullscreen-source{order:2;background:transparent;border:0;padding:0;min-height:0;direction:rtl}.intake-fullscreen-data>.box{height:100%;border:0;border-radius:10px;background:transparent;padding:0;display:flex;flex-direction:column;gap:10px}.intake-fullscreen-data>.box>.box-title{display:none}
+.ocr-official-header-logo{height:48px;width:176px;object-fit:contain;background:#fff;padding:5px 12px;border-radius:0}.ocr-official-status{display:flex;align-items:center;gap:10px}.ocr-official-status .pill{background:#10233f;border:1px solid #395271;color:#dfeafa;border-radius:999px;padding:6px 13px;font-weight:900;font-size:13px}.ocr-official-status .pill.blue{background:#2d6eb8;border-color:#2d6eb8;color:#fff}
+.ocr-official-shell{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:10px}.ocr-official-summary{display:grid;grid-template-columns:210px repeat(3,82px);gap:10px;align-items:stretch}.ocr-summary-card,.ocr-alert-card{background:#fff;border:1px solid #d8e3ef;border-radius:7px;box-shadow:0 4px 14px rgba(15,42,75,.06);padding:10px;text-align:center}.ocr-summary-ok{width:62px;height:62px;margin:0 auto 7px;border-radius:50%;background:#0aa35b;color:#fff;display:grid;place-items:center;font-size:34px;font-weight:900}.ocr-summary-count{font-size:27px;font-weight:900;color:#0b1f3a;line-height:1}.ocr-summary-label{font-size:12px;font-weight:900;color:#506176}.ocr-alert-card strong{display:block;font-size:24px;color:#0b1f3a}.ocr-alert-card.danger{background:#fff1f1;border-color:#f4b5b5;color:#c62828}.ocr-alert-card.warn{background:#fff9e8;border-color:#efcf80;color:#9a6700}.ocr-alert-card.ok{background:#f5fbff;color:#0a9655}
+.ocr-context-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.ocr-context-card{background:#fff;border:1px solid #d8e3ef;border-radius:8px;box-shadow:0 4px 14px rgba(15,42,75,.05);padding:10px;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}.ocr-context-icon{width:36px;height:36px;border-radius:10px;background:#eff5fb;color:#0b2a4d;display:grid;place-items:center;font-size:22px;font-weight:900}.ocr-context-body{display:grid;gap:4px;min-width:0}.ocr-context-title{font-size:16px;font-weight:900;color:#0b1f3a;display:flex;justify-content:space-between;gap:8px}.ocr-context-state{font-size:11px;border-radius:999px;padding:3px 9px;background:#e7f8ef;color:#078a4c;border:1px solid #b9ebcd}.ocr-context-state.review{background:#fff3dd;color:#a85b00;border-color:#ffd298}.ocr-context-value{font-size:15px;font-weight:900;color:#0b1f3a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ocr-context-meta{font-size:11px;color:#65758a;font-weight:800}.ocr-context-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;gap:8px}.ocr-context-actions select,.ocr-context-actions input{height:30px;border:1px solid #d5dfeb;border-radius:6px;background:#fff;font-family:inherit;font-weight:800;padding:0 8px}.ocr-context-actions button{height:30px;border:1px solid #d5dfeb;border-radius:6px;background:#f8fbff;color:#12365f;font-family:inherit;font-weight:900;padding:0 12px;cursor:pointer}
+.ocr-review-toolbar{height:42px;background:#fff;border:1px solid #d8e3ef;border-radius:7px;display:flex;align-items:center;gap:10px;padding:6px}.ocr-review-toolbar input{height:30px;border:1px solid #d5dfeb;border-radius:6px;min-width:180px;padding:0 10px;font-family:inherit}.ocr-review-toolbar button{height:30px;border:1px solid #d5dfeb;border-radius:6px;background:#fff;font-family:inherit;font-weight:900;padding:0 12px;cursor:pointer}.ocr-review-toolbar button.primary{background:#0b4f8f;color:#fff;border-color:#0b4f8f}.ocr-review-toolbar .counter{margin-inline-start:auto;background:#eaf2ff;color:#0b4f8f;border-radius:999px;padding:4px 9px;font-weight:900;font-size:12px}
+.ocr-review-table-wrap{border:1px solid #d8e3ef;border-radius:7px;background:#fff;overflow:auto;max-height:none}.ocr-review-table{width:100%;border-collapse:collapse;min-width:980px;table-layout:fixed;text-align:center;background:#fff}.ocr-review-table th{position:sticky;top:0;z-index:2;background:#f7f9fc;color:#1c3150;font-size:12px;font-weight:900;padding:8px 6px;border-bottom:1px solid #d8e3ef}.ocr-review-table td{border-bottom:1px solid #e6edf5;border-left:1px solid #eef3f8;padding:4px 6px;height:42px;background:#fff;vertical-align:middle}.ocr-review-table tbody tr:nth-child(even) td{background:#fbfdff}.ocr-review-table tbody tr.source-active td,.ocr-review-table tbody tr.active td{background:#eaf3ff!important;box-shadow:inset 0 0 0 1px #8ab7ff}.ocr-review-table tbody tr.needs-review td{background:#fffdf5}.ocr-review-table tbody tr.missing td{background:#fff6f6}.ocr-review-table-wrap.attention-only tbody tr.verified{display:none}.ocr-review-table .ocr-order-input{height:30px;border:1px solid #d8e2ee;border-radius:5px;background:#fff;font-size:14px;font-weight:900;text-align:center;padding:3px 6px}.ocr-review-table .ocr-order-input:focus{border-color:#1768b7;box-shadow:0 0 0 2px rgba(23,104,183,.18)}.ocr-review-note{font-size:12px;font-weight:800;text-align:right!important}.ocr-review-shape{border:0;background:transparent;display:grid;place-items:center;gap:0;cursor:pointer;width:100%;height:38px;color:#0d2f57}.ocr-review-shape svg{width:92px;height:33px;display:block}.ocr-review-dims{font-size:9px;font-weight:900;color:#0d2f57;line-height:1;white-space:nowrap}.ocr-status-pill{min-width:74px;border-radius:999px;border:1px solid #d5dfeb;background:#fff;font-size:11px;font-weight:900;padding:5px 8px;cursor:pointer}.ocr-status-pill.verified{background:#e9f8ef;color:#078a4c;border-color:#b9ebcd}.ocr-status-pill.review{background:#fff5dd;color:#a85b00;border-color:#ffd298}.ocr-status-pill.missing{background:#fff0f0;color:#c62828;border-color:#f2b1b1}.ocr-row-status{display:none}.ocr-confidence-cell{font-size:11px;font-weight:900}.ocr-confidence-cell .ocr-confidence-bar{display:none}.ocr-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-inline-start:5px;background:#12a05c}.ocr-status-dot.review{background:#f7b52c}.ocr-status-dot.missing{background:#df2e2e}
+.ocr-source-toolbar{height:40px;background:#111d32;color:#fff;border-radius:8px 8px 0 0;margin:0;display:flex;align-items:center;gap:8px;padding:5px 10px}.ocr-source-toolbar .btn{height:28px;min-width:34px;border:1px solid #344968;border-radius:5px;background:#182840;color:#fff}.ocr-source-toolbar .meta{color:#fff;font-weight:900}.ocr-source-stage{height:calc(100% - 40px);min-height:0;border:1px solid #d8e3ef;border-top:0;border-radius:0 0 8px 8px;background:#2b3442;overflow:auto;position:relative;padding:12px;display:flex;align-items:flex-start;justify-content:center}.ocr-source-zoom{transform-origin:top center;transition:transform .12s ease;background:#fff}.ocr-source-zoom iframe,.ocr-source-zoom img{width:min(100%,780px);height:760px;border:0;object-fit:contain;background:#fff}.ocr-source-target{position:absolute;z-index:4;left:16%;width:68%;height:30px;border:0;border-radius:3px;background:rgba(255,221,35,.16);cursor:pointer;opacity:.2}.ocr-source-target:hover,.ocr-source-target.active{opacity:1;background:rgba(255,221,35,.45);outline:2px solid #f0c400}.ocr-source-highlight{position:absolute;z-index:3;left:16%;top:40%;width:68%;height:30px;border:2px solid #f0c400;background:rgba(255,221,35,.32);border-radius:3px;opacity:0;pointer-events:none;transition:opacity .15s ease}.ocr-source-highlight.show{opacity:1}
+.ocr-official-footer{height:54px;background:#fff;border:1px solid #d8e3ef;border-radius:7px;display:flex;align-items:center;gap:10px;padding:8px}.ocr-official-footer .legend{display:flex;gap:14px;font-size:12px;font-weight:900;color:#53667d}.ocr-official-footer .actions{margin-inline-start:auto;display:flex;gap:10px}.ocr-official-footer button{height:36px;border:1px solid #d5dfeb;border-radius:7px;background:#fff;font-family:inherit;font-weight:900;padding:0 14px}.ocr-official-footer .finish{background:#0b4f8f;color:#fff;border-color:#0b4f8f}
+@media(max-width:1100px){.intake-fullscreen-body{grid-template-columns:1fr}.intake-fullscreen-source{min-height:50vh}.ocr-context-grid{grid-template-columns:1fr}.ocr-official-summary{grid-template-columns:1fr repeat(3,72px)}}
+
 </style>
 </head>
 <body data-page="intake">
@@ -1799,6 +1815,135 @@ function selectCustomerForIntake(id, customerId) {
   renderIntakeQueue();
 }
 
+
+function ensureOfficialOcrHeader() {
+  const head = document.querySelector('#intakeCompareModal .intake-fullscreen-head');
+  if (!head || head.querySelector('.ocr-official-header-logo')) return;
+  const img = document.createElement('img');
+  img.className = 'ocr-official-header-logo';
+  img.src = '/brand/tene-pdf-logo.jpg';
+  img.alt = 'TENA';
+  head.insertBefore(img, head.firstChild);
+}
+function uniqueOptions(values) {
+  return [...new Set((values || []).map(value => String(value || '').trim()).filter(Boolean))];
+}
+function ocrActionState(parsed, item, index) {
+  const values = [item.diameter ?? item.diameter_mm, item.total_length_mm ?? item.length_mm ?? item.length, item.qty ?? item.quantity ?? item.pcs, item.shape_name || item.shapeName || item.shape || item.type];
+  const score = Math.round(values.map((value, offset) => confidenceRatio(parsed, 'items.' + index + '.' + ['diameter','total_length_mm','quantity','shape_name'][offset], value)).reduce((a,b)=>a+b,0) / 4 * 100);
+  const missing = !values[0] || !values[1] || !values[2];
+  if (missing) return { key:'missing', label:'חסר', pct:score };
+  if (score < 75 || isLowConfidence(parsed, 'items.' + index + '.shape_name', values[3])) return { key:'review', label:'בדיקה', pct:score };
+  return { key:'verified', label:'מאושר', pct:score };
+}
+function ocrStatusSummary(parsed) {
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  return items.reduce((acc, item, index) => { acc[ocrActionState(parsed, item || {}, index).key]++; return acc; }, { verified:0, review:0, missing:0, total:items.length });
+}
+function handleOcrContextChoice(select) {
+  const card = select.closest('.ocr-context-card');
+  const input = card?.querySelector('[data-ocr-field]');
+  if (!input) return;
+  input.value = select.value;
+  markOcrEdited(input);
+  highlightOcrSource(input.dataset.sourceField || input.dataset.ocrField);
+}
+function handleOcrContextCreate(button) {
+  const card = button.closest('.ocr-context-card');
+  const input = card?.querySelector('[data-ocr-field]');
+  if (!input) return;
+  markOcrEntityCreate(input.dataset.ocrField, button);
+}
+function ocrOfficialContextCard({ icon, label, path, value, parsed, options = [], createLabel }) {
+  const clean = uniqueOptions(options);
+  const linked = value || (clean.length === 1 ? clean[0] : '');
+  const needsChoice = clean.length > 1 || !linked;
+  const state = needsChoice ? 'נדרשת בחירה' : 'זוהה';
+  const choices = [''].concat(clean).map(option => '<option value="' + escapeHtml(option) + '" ' + (option && option === linked ? 'selected' : '') + '>' + (option ? escapeHtml(option) : 'בחר קיים') + '</option>').join('');
+  return '<div class="ocr-context-card" data-review-entity="' + escapeHtml(path) + '"><div class="ocr-context-icon">' + icon + '</div><div class="ocr-context-body"><div class="ocr-context-title"><span>' + escapeHtml(label) + '</span><span class="ocr-context-state ' + (needsChoice ? 'review' : '') + '">' + state + '</span></div><div class="ocr-context-value">' + escapeHtml(linked || 'לא זוהה') + '</div><div class="ocr-context-meta">OCR זיהה · ' + confidenceDisplay(parsed, path, linked) + '</div></div><div class="ocr-context-actions"><select onchange="handleOcrContextChoice(this)">' + choices + '</select>' + (createLabel ? '<button type="button" onclick="handleOcrContextCreate(this)">' + escapeHtml(createLabel) + '</button>' : '<span></span>') + '<input type="hidden" data-ocr-field="' + escapeHtml(path) + '" data-source-field="' + escapeHtml(path) + '" value="' + escapeHtml(linked || '') + '"></div></div>';
+}
+function ocrReviewTopHtml(parsed, row) {
+  const matchedCustomer = row && row.customer_match && row.customer_match.customer ? row.customer_match.customer.name : '';
+  const deliveryDate = deliveryDateOf(parsed) || row?.delivery_date || row?.supply_date || '';
+  const orderNumber = parsed.order_number || parsed.order_no || parsed.orderNumber || row?.external_id || row?.id || '';
+  return '<div class="ocr-context-grid" aria-label="detected order context">' +
+    ocrOfficialContextCard({ icon:'👤', label:'לקוח', path:'customer_name', value: parsed.customer_name || parsed.customerName || matchedCustomer || '', parsed, options:[matchedCustomer].filter(Boolean), createLabel:'לקוח חדש' }) +
+    ocrOfficialContextCard({ icon:'▦', label:'פרויקט', path:'project_name', value: parsed.project_name || parsed.project || '', parsed, options:[], createLabel:'פרויקט חדש' }) +
+    ocrOfficialContextCard({ icon:'⌖', label:'אתר', path:'site_name', value: parsed.site_name || parsed.site || parsed.delivery_address || '', parsed, options:[], createLabel:'אתר חדש' }) +
+    ocrOfficialContextCard({ icon:'▣', label:'תאריך אספקה', path:'delivery_date', value: deliveryDate, parsed, options:[], createLabel:'' }) +
+    ocrOfficialContextCard({ icon:'#', label:'מספר הזמנה', path:'order_number', value: orderNumber, parsed, options:[], createLabel:'' }) + '</div>';
+}
+function handleOcrSourceTarget(button) { highlightOcrTableTarget(button.dataset.sourceTarget || ''); }
+function ocrSourceTargetsHtml(row) {
+  const parsed = parsedOf(row) || {};
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  const topTargets = [['customer_name',10],['project_name',14],['site_name',18],['delivery_date',22],['order_number',26]];
+  const headerTargets = topTargets.map(([path, top]) => '<button type="button" class="ocr-source-target" data-source-target="' + path + '" style="top:' + top + '%" onclick="handleOcrSourceTarget(this)"></button>');
+  const itemTargets = items.slice(0, 40).map((item, index) => '<button type="button" class="ocr-source-target" data-source-target="items.' + index + '" style="top:' + Math.min(90, 32 + index * 2.7) + '%" onclick="handleOcrSourceTarget(this)"></button>');
+  return '<div class="ocr-source-targets">' + headerTargets.concat(itemTargets).join('') + '</div>';
+}
+function intakeCompareSourceHtml(row) {
+  return '<div class="ocr-source-toolbar"><strong>' + escapeHtml(row?.file_name || row?.original_name || 'order105.pdf') + '</strong><button class="btn" onclick="setIntakeCompareZoom(-0.15)">−</button><span class="meta" id="intakeCompareZoomLabel">100%</span><button class="btn" onclick="setIntakeCompareZoom(0.15)">+</button><button class="btn" onclick="resetIntakeCompareZoom()">התאם רוחב</button></div><div class="ocr-source-stage" id="ocrSourceStage"><div class="ocr-source-highlight" id="ocrSourceHighlight"></div>' + ocrSourceTargetsHtml(row) + '<div class="ocr-source-zoom" id="intakeCompareZoomTarget">' + intakeSourceHtml(row) + '</div></div>';
+}
+function highlightOcrTableTarget(path) {
+  const raw = String(path || '');
+  document.querySelectorAll('.ocr-order-row.source-active,.ocr-source-target.active,.ocr-order-input.source-active').forEach(el => el.classList.remove('source-active','active'));
+  document.querySelectorAll('.ocr-source-target[data-source-target="' + raw + '"],.ocr-source-target[data-source-target="' + raw.split('.').slice(0,2).join('.') + '"]').forEach(el => el.classList.add('active'));
+  const match = raw.match(/items\.(\d+)/);
+  if (match) {
+    const row = document.getElementById('ocrOrderRow_' + match[1]);
+    if (row) { row.classList.add('source-active'); row.scrollIntoView({ block:'center', behavior:'smooth' }); }
+    const field = raw.split('.')[2];
+    const input = field ? ocrItemInput(Number(match[1]), field) : null;
+    if (input) input.classList.add('source-active');
+    return;
+  }
+  const input = document.querySelector('[data-ocr-field="' + raw + '"]');
+  if (input) input.closest('.ocr-context-card')?.scrollIntoView({ block:'center', behavior:'smooth' });
+}
+function handleOcrConfidenceClick(el) { highlightOcrSource(el.dataset.sourceField || ''); }
+function ocrItemConfidenceCell(parsed, item, index) {
+  const action = ocrActionState(parsed, item, index);
+  const cls = action.key === 'verified' ? '' : action.key;
+  return '<div class="ocr-confidence-cell" data-source-field="items.' + index + '.confidence" onclick="handleOcrConfidenceClick(this)"><span class="ocr-status-dot ' + cls + '"></span>' + action.pct + '%</div>';
+}
+function handleOfficialOcrShapeClick(button) {
+  const index = Number(button.dataset.itemIndex);
+  if (!Number.isFinite(index)) return;
+  highlightOcrSource('items.' + index + '.shape_name');
+  openOcrShapeEditor(index);
+}
+function ocrItemTableRowHtml(parsed, item, index) {
+  const action = ocrActionState(parsed, item, index);
+  const isSpiral = isSpiralOcrItem(item);
+  const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
+  const diameter = item.diameter ?? item.diameter_mm ?? '';
+  const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
+  const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '';
+  const note = item.note || item.notes || '';
+  const itemNumber = ocrItemNumber(item, index);
+  const targetWeight = ocrTargetWeightKg(item) || '';
+  const segmentsValue = isSpiral ? '' : segmentsToText(item);
+  const shapeSvg = ocrCardShapeSvg(item, 92, 42) || ocrShapeSvgHtml(item, 112, 50);
+  return '<tr class="ocr-order-row ' + (action.key === 'verified' ? 'verified' : action.key === 'review' ? 'needs-review' : 'missing') + '" id="ocrOrderRow_' + index + '"><td>' + ocrOrderCellInput(index, 'item_number', itemNumber, 'text', false) + '</td><td><button type="button" class="ocr-review-shape" id="ocrShapeCell_' + index + '" data-item-index="' + index + '" onclick="handleOfficialOcrShapeClick(this)" title="פתח עורך צורה">' + shapeSvg + '<span class="ocr-review-dims">' + escapeHtml(segmentsValue || ocrLengthMeters(item) || '-') + '</span></button><div class="ocr-hidden-fields"><input type="hidden" value="' + escapeHtml(shape) + '" data-item-index="' + index + '" data-item-field="shape_name"><input type="hidden" value="' + escapeHtml(segmentsValue) + '" data-item-index="' + index + '" data-item-field="segments"><input type="hidden" value="' + escapeHtml(item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '') + '" data-item-index="' + index + '" data-item-field="spiral_diameter_mm"><input type="hidden" value="' + escapeHtml(item.spiral_turns ?? item.spiralTurns ?? '') + '" data-item-index="' + index + '" data-item-field="spiral_turns"><input type="hidden" value="' + escapeHtml(action.key === 'verified' ? 'accepted' : '') + '" data-item-index="' + index + '" data-item-field="review_status"><input type="hidden" value="' + escapeHtml(targetWeight) + '" data-item-index="' + index + '" data-item-field="target_weight_kg"></div></td><td>' + ocrOrderCellInput(index, 'diameter', diameter, 'number', action.key !== 'verified') + '</td><td>' + ocrOrderCellInput(index, 'total_length_mm', totalLength, 'number', action.key !== 'verified') + '</td><td>' + ocrOrderCellInput(index, 'quantity', quantity, 'number', action.key !== 'verified') + '</td><td>' + ocrOrderCellInput(index, 'target_weight_kg', targetWeight, 'number', false) + '</td><td>' + ocrOrderCellInput(index, 'note', note, 'text', false).replace('ocr-order-input', 'ocr-order-input ocr-review-note') + '</td><td>' + ocrItemConfidenceCell(parsed, item, index) + '</td><td><button type="button" class="ocr-status-pill ' + (action.key === 'verified' ? 'verified' : action.key === 'review' ? 'review' : 'missing') + '" onclick="verifyOcrItem(' + index + ')">' + action.label + '</button><span class="ocr-row-status" id="ocrRowStatus_' + index + '">' + action.label + '</span></td></tr>';
+}
+function verifyAllVisibleOcrItems() {
+  document.querySelectorAll('.ocr-review-table tbody tr:not([style*="display: none"]) [data-item-field="review_status"]').forEach(input => { input.value = 'accepted'; markOcrEdited(input); });
+  document.querySelectorAll('.ocr-review-table tbody tr:not([style*="display: none"]) .ocr-status-pill').forEach(button => { button.className = 'ocr-status-pill verified'; button.textContent = 'מאושר'; });
+}
+function toggleOcrAttentionOnly() { document.querySelector('.ocr-review-table-wrap')?.classList.toggle('attention-only'); }
+function intakeEditableForm(parsed, options = {}) {
+  const row = intakeRows.find(item => item.id === activeCompareId) || {};
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  const summary = ocrStatusSummary(parsed);
+  const tableHtml = items.length ? '<div class="ocr-review-table-wrap ocr-order-form" aria-label="OCR Review Workspace table"><table class="ocr-review-table"><thead><tr><th>#</th><th>מיני שרטוט</th><th>קוטר</th><th>אורך</th><th>כמות</th><th>משקל</th><th>הערות</th><th>ביטחון</th><th>סטטוס</th></tr></thead><tbody>' + items.map((item, index) => safeIntakeRender('item ' + (index + 1), () => ocrItemTableRowHtml(parsed, item || {}, index), '<tr><td>' + escapeHtml(ocrItemNumber(item || {}, index)) + '</td><td colspan="8">OCR row could not render.</td></tr>')).join('') + '</tbody></table></div>' : '<div class="empty">לא זוהו פריטים.</div>';
+  return '<div class="ocr-edit-form ocr-official-shell" data-table-first="true" data-official-ocr-review="true"><div class="ocr-official-summary"><div class="ocr-summary-card"><div class="ocr-summary-ok">✓</div><div class="ocr-summary-count">' + summary.verified + '/' + summary.total + '</div><div class="ocr-summary-label">פריטים מאושרים</div></div><div class="ocr-alert-card danger"><strong>' + summary.missing + '</strong><span>חסרים</span></div><div class="ocr-alert-card warn"><strong>' + summary.review + '</strong><span>דורשים בדיקה</span></div><div class="ocr-alert-card ok"><strong>' + summary.verified + '</strong><span>אושרו</span></div></div>' + ocrReviewTopHtml(parsed, row) + '<div class="ocr-review-toolbar"><button class="primary" type="button" onclick="verifyAllVisibleOcrItems()">סמן הכל אושר</button><button type="button" onclick="toggleOcrAttentionOnly()">בדוק רק בעייתיים</button><input type="search" placeholder="חיפוש פריט..." oninput="filterOcrReviewRows(this.value)"><span class="counter">' + summary.missing + ' דורשים טיפול</span></div>' + tableHtml + '<div class="ocr-official-footer"><div class="legend"><span><i class="ocr-status-dot"></i> מאושר</span><span><i class="ocr-status-dot review"></i> בדיקה</span><span><i class="ocr-status-dot missing"></i> חסר</span></div><div class="actions"><button type="button" onclick="saveIntakeDraft(activeCompareId)">שמור טיוטה</button><button type="button" onclick="intakeCreateProductionCards(activeCompareId)">צור כרטיסיות ייצור</button><button type="button" class="finish" onclick="intakeApprove(activeCompareId)">סיים ופתח הזמנה</button></div></div><div class="ocr-corrections" id="ocrCorrectionSummary">כל תא ניתן לעריכה ישירה. לחיצה על שרטוט פותחת את עורך הצורות.</div></div>';
+}
+function filterOcrReviewRows(value) {
+  const q = String(value || '').toLowerCase();
+  document.querySelectorAll('.ocr-review-table tbody tr').forEach(row => { row.style.display = !q || row.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+}
+
 function openIntakeCompare(id) {
   const row = intakeRows.find(item => item.id === id);
   if (!row) return toast('פנייה לא נמצאה', true);
@@ -1810,6 +1955,7 @@ function openIntakeCompare(id) {
   activeCompareOriginal = cloneParsedForCompare(parsed);
   intakeCompareZoom = 1;
   const urgency = urgencyInfo(row);
+  ensureOfficialOcrHeader();
   const title = parsed.customer_name || parsed.customerName || row.customer_match?.customer?.name || 'לקוח לא מזוהה';
   elements.title.textContent = title;
   elements.meta.textContent = isPostOrderReview
