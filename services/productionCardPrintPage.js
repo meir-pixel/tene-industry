@@ -79,6 +79,9 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   font-size:8px;box-shadow:none;position:relative;}
 .prod-card>:not(.pc-print-face):not(.pc-screen-tools){display:none!important;}
 .pc-screen-tools{position:absolute;top:1.5mm;left:1.5mm;z-index:3;display:flex;align-items:center;gap:4px;direction:rtl;font-family:'Heebo',Arial,sans-serif;}
+.prod-card:not([data-split-menu-open="1"]) .pc-split-menu{display:none!important;}
+.pc-split-hotspot{position:absolute;inset:0;z-index:2;border:0;background:transparent;color:transparent;cursor:pointer;}
+.pc-split-menu{position:relative;z-index:4;display:flex;align-items:center;gap:4px;}
 .pc-screen-tools button{border:0;border-radius:5px;background:#1a2332;color:#fff;padding:4px 7px;font-family:inherit;font-size:10px;font-weight:900;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.18);}
 .pc-screen-tools button:hover{background:#c9621a;}
 .pc-split-state{display:inline-flex;align-items:center;border-radius:5px;background:#fff3d7;border:1px solid #ffd6a0;color:#8a4b00;padding:3px 6px;font-size:10px;font-weight:900;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.12);}
@@ -373,6 +376,13 @@ function fmtPct(pct) {
 
 var cardSplits = {};
 
+function openCardSplitMenu(itemId, event) {
+  if (event) event.stopPropagation();
+  document.querySelectorAll('.prod-card[data-split-menu-open="1"]').forEach(function(card){ card.removeAttribute('data-split-menu-open'); });
+  var card = document.querySelector('.prod-card[data-item-id="' + itemId + '"]');
+  if (card) card.setAttribute('data-split-menu-open', '1');
+}
+
 function setCardSplit(itemId, count, event) {
   if (event) event.stopPropagation();
   var item = allItems.find(function(row){ return Number(row.id) === Number(itemId); });
@@ -578,9 +588,9 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var printRef = SHORT_REF || CUSTOMER || ORDER_NUM;
   var printLengthCm = Math.round((Number(item.total_length_mm || 0)) / 10);
   var splitTools = totalCards > 1
-    ? '<div class="pc-screen-tools"><span class="pc-split-state">\u05db\u05e8\u05d8\u05d9\u05e1 '+(cardIdx+1)+'/'+totalCards+'</span><button type="button" onclick="setCardSplit('+item.id+',1,event)">\u05d1\u05d8\u05dc \u05e4\u05d9\u05e6\u05d5\u05dc</button></div>'
-    : '<div class="pc-screen-tools"><button type="button" onclick="setCardSplit('+item.id+',2,event)">\u05e4\u05e6\u05dc \u05dc-2</button></div>';
-  var h = '<div class="prod-card">';
+    ? '<div class="pc-screen-tools"><div class="pc-split-menu"><span class="pc-split-state">\u05db\u05e8\u05d8\u05d9\u05e1 '+(cardIdx+1)+'/'+totalCards+'</span><button type="button" onclick="setCardSplit('+item.id+',1,event)">\u05d1\u05d8\u05dc \u05e4\u05d9\u05e6\u05d5\u05dc</button></div></div>'
+    : '<button class="pc-split-hotspot" type="button" aria-label="\u05d0\u05e4\u05e9\u05e8\u05d5\u05d9\u05d5\u05ea \u05e4\u05d9\u05e6\u05d5\u05dc \u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d9\u05d4" onclick="openCardSplitMenu('+item.id+',event)"></button><div class="pc-screen-tools"><div class="pc-split-menu"><button type="button" onclick="setCardSplit('+item.id+',2,event)">\u05e4\u05e6\u05dc \u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d9\u05d4</button></div></div>';
+  var h = '<div class="prod-card" data-item-id="'+item.id+'">';
   h += splitTools;
   h += '<div class="pc-print-face">';
   h += '<div class="pc-print-main">';
