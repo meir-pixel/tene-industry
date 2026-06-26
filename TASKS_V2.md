@@ -824,6 +824,29 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+
+### V2-006Y - Shape Editor Closed Stirrup Overlap Preview
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- Output:
+  - Closed stirrup geometry with overlapping end legs is detected in the editor preview.
+  - The 2D preview renders a clean rectangular/square hoop instead of letting the overlap leg distort the polygon.
+  - Overlap legs are shown as dedicated corner markers/tails with their own side labels.
+- Guardrails:
+  - No UI redesign.
+  - No new shape families or presets.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
+
 ### V2-007 — Orders Module Specification
 
 - status: todo
@@ -870,6 +893,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - added a row-by-row OCR source table above the PDF so operators can compare parsed source rows against review rows without relying only on PDF overlay alignment.
   - changed OCR row-number approval to a reversible toggle and anchored source highlights inside the PDF zoom layer for closer row alignment.
   - separated manual OCR row approval from legacy accepted status and requested clean embedded PDF source view without viewer side panels.
   - corrected OCR review colors: green is operator-approved only, yellow is OCR confidence, red is missing.
