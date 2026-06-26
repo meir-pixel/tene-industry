@@ -860,6 +860,19 @@ function ocrLabelText(x, y, text) {
   return `<text x="${x}" y="${y}" text-anchor="middle" font-size="14" font-weight="900" fill="#102033">${escapeHtml(text)}</text>`;
 }
 
+function shouldDisplayOcrAngleLabel(angle) {
+  const num = toNumber(angle);
+  if (!Number.isFinite(num)) return false;
+  const abs = Math.abs(num);
+  return abs > 0.1 && Math.abs(abs - 90) > 3 && Math.abs(abs - 180) > 3;
+}
+
+function ocrAngleLabelText(x, y, angle) {
+  if (!shouldDisplayOcrAngleLabel(angle)) return '';
+  const label = `${Math.round(toNumber(angle))}&#176;`;
+  return `<text x="${x}" y="${y}" text-anchor="middle" font-size="11" font-weight="900" fill="#9a4d00" stroke="#fff" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${label}</text>`;
+}
+
 function ocrClosedStirrupSvg(sides, item, width = 300, height = 210) {
   const nums = sides.map(toNumber).filter(Boolean);
   const top = nums[0] || nums[2] || toNumber(item?.width_mm) || 300;
@@ -991,6 +1004,11 @@ function ocrOpenShapeSvg(item, sides, angles, width = 300, height = 210) {
       const midX = Math.round((pts[i].x + pts[i + 1].x) / 2);
       const midY = Math.round((pts[i].y + pts[i + 1].y) / 2);
       labels.push(ocrLabelText(midX, midY - 8, ocrSegmentLabel(cleanSides[i])));
+      if (i < angles.length && shouldDisplayOcrAngleLabel(angles[i]) && pts[i + 1]) {
+        const angleX = Math.max(18, Math.min(width - 18, Math.round(pts[i + 1].x + 16)));
+        const angleY = Math.max(16, Math.min(height - 8, Math.round(pts[i + 1].y - 12)));
+        labels.push(ocrAngleLabelText(angleX, angleY, angles[i]));
+      }
     }
     return `<svg viewBox="0 0 ${width} ${height}" aria-label="bent shape">
       <path d="${pathData.path}" fill="none" stroke="#0f5f78" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
