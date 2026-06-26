@@ -20,20 +20,50 @@ function formatPrintNumber(value, digits = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-function productionBucketForA4Item(item, segments, snapshot) {
+function isA4MeshItem(item, snapshot) {
   const text = [item.shape_name, item.struct_element, snapshot && snapshot.kind, snapshot && snapshot.type, snapshot && snapshot.family]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
-  if (/mesh|wire|רשת/.test(text)) return 'mesh';
-  if (/cage|pile|כלוב|כלונס/.test(text)) return 'cage';
-  return Array.isArray(segments) && segments.length > 1 ? 'bending' : 'cutting';
+  return /mesh|wire|רשת/.test(text);
+}
+
+function isA4CageItem(item, snapshot) {
+  const text = [item.shape_name, item.struct_element, snapshot && snapshot.kind, snapshot && snapshot.type, snapshot && snapshot.family]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return /cage|pile|כלוב|כלונס/.test(text);
+}
+
+function isA4BentBarItem(segments) {
+  return Array.isArray(segments) && segments.length > 1 && segments.some((segment, index) => {
+    if (index >= segments.length - 1) return false;
+    const angle = Number(segment.angle_deg);
+    return Number.isFinite(angle) && angle < 175;
+  });
+}
+
+function isA4StockStraightBar(item, segments) {
+  if (isA4BentBarItem(segments)) return false;
+  const lengthMm = Math.round(Number(item.total_length_mm || 0));
+  return lengthMm === 6000 || lengthMm === 12000;
+}
+
+function productionBucketsForA4Item(item, segments, snapshot) {
+  if (isA4MeshItem(item, snapshot)) return ['mesh'];
+  if (isA4CageItem(item, snapshot)) return ['cage'];
+  const buckets = ['steel'];
+  if (!isA4StockStraightBar(item, segments)) buckets.push('cutting');
+  if (isA4BentBarItem(segments)) buckets.push('bending');
+  return buckets;
 }
 
 function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
-  const totals = { quantity: 0, weight: 0, lengthMm: 0, cuttingWeight: 0, bendingWeight: 0, meshWeight: 0, cageWeight: 0 };
+  const totals = { quantity: 0, weight: 0, lengthMm: 0, steelWeight: 0, cuttingWeight: 0, bendingWeight: 0, meshWeight: 0, cageWeight: 0 };
   const bucketLabels = {
-    cutting: '\u05d7\u05d9\u05ea\u05d5\u05da / \u05de\u05d5\u05d8\u05d5\u05ea \u05d9\u05e9\u05e8\u05d9\u05dd',
+    steel: '\u05de\u05e9\u05e7\u05dc \u05d1\u05e8\u05d6\u05dc',
+    cutting: '\u05d7\u05d9\u05ea\u05d5\u05da',
     bending: '\u05db\u05d9\u05e4\u05d5\u05e3',
     mesh: '\u05e8\u05e9\u05ea\u05d5\u05ea',
     cage: '\u05db\u05dc\u05d5\u05d1\u05d9\u05dd / \u05db\u05dc\u05d5\u05e0\u05e1\u05d0\u05d5\u05ea',
@@ -46,19 +76,21 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
     const lengthMm = Number(item.total_length_mm || 0) * qty;
     const segments = tryParseJSON(item.segments, []);
     const snapshot = tryParseJSON(item.shape_snapshot_json || item.shapeSnapshot, {}) || {};
-    const bucket = productionBucketForA4Item(item, segments, snapshot);
+    const buckets = productionBucketsForA4Item(item, segments, snapshot);
 
     totals.quantity += qty;
     totals.weight += weight;
     totals.lengthMm += lengthMm;
-    totals[bucket + 'Weight'] += weight;
 
-    const row = byBucket.get(bucket) || { quantity: 0, weight: 0, lengthMm: 0, items: 0 };
-    row.quantity += qty;
-    row.weight += weight;
-    row.lengthMm += lengthMm;
-    row.items += 1;
-    byBucket.set(bucket, row);
+    buckets.forEach((bucket) => {
+      totals[bucket + 'Weight'] += weight;
+      const row = byBucket.get(bucket) || { quantity: 0, weight: 0, lengthMm: 0, items: 0 };
+      row.quantity += qty;
+      row.weight += weight;
+      row.lengthMm += lengthMm;
+      row.items += 1;
+      byBucket.set(bucket, row);
+    });
   });
 
   const optionalWeightRows = [
@@ -71,7 +103,7 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
     .filter(Boolean)
     .join('');
 
-  const bucketRows = ['cutting', 'bending', 'mesh', 'cage']
+  const bucketRows = ['steel', 'cutting', 'bending', 'mesh', 'cage']
     .map((bucket) => {
       const row = byBucket.get(bucket);
       if (!row || row.weight <= 0) return '';

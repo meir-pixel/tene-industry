@@ -35,12 +35,20 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
   const today = fmtDate();
   const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '—';
 
-  // Classify each item: מכופף or ישר
+  // Classify each item by price-list service buckets: steel, cutting, bending.
   const parseSegs = raw => { try { return JSON.parse(raw) || []; } catch { return []; } };
   const isBent = item => {
     const segs = parseSegs(item.segments);
-    const angles = segs.map(s => s.angle_deg).filter(a => a !== undefined);
-    return angles.some(a => a < 175);
+    return segs.length > 1 && segs.some((segment, index) => {
+      if (index >= segs.length - 1) return false;
+      const angle = Number(segment.angle_deg);
+      return Number.isFinite(angle) && angle < 175;
+    });
+  };
+  const isStockStraightBar = item => {
+    if (isBent(item)) return false;
+    const lengthMm = Math.round(Number(item.total_length_mm || 0));
+    return lengthMm === 6000 || lengthMm === 12000;
   };
 
   const calcItemWeight = it => {
@@ -50,21 +58,32 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
     return Math.round((it.total_length_mm / 1000) * kgm * (it.quantity || 1) * 10) / 10;
   };
 
-  // Weight totals
-  let wBent = 0, wStraight = 0;
+  // Price-list service totals. Steel is physical weight; cutting/bending are service weights.
+  let wSteel = 0, wCutting = 0, wBending = 0;
   allItems.forEach(item => {
     const w = calcItemWeight(item);
-    if (isBent(item)) wBent += w; else wStraight += w;
+    wSteel += w;
+    if (!isStockStraightBar(item)) wCutting += w;
+    if (isBent(item)) wBending += w;
   });
-  const wTotal = wBent + wStraight;
+  const wTotal = wSteel;
   const fmt1 = v => v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const fmtTon = v => (v / 1000).toFixed(2);
+  const priceSummaryRows = [
+    ['\u05e1\u05d4\u05db \u05de\u05e9\u05e7\u05dc \u05d1\u05e8\u05d6\u05dc', wSteel, true],
+    ['\u05de\u05e9\u05e7\u05dc \u05d7\u05d9\u05ea\u05d5\u05da', wCutting, false],
+    ['\u05de\u05e9\u05e7\u05dc \u05db\u05d9\u05e4\u05d5\u05e3', wBending, false],
+  ]
+    .filter(([, value, always]) => always || Number(value) > 0)
+    .map(([label, value, primary]) =>
+      '<div class="sum-row' + (primary ? ' sum-total' : '') + '"><span class="sum-lbl">' + label + ':</span><span class="sum-val">' + fmt1(value) + ' \u05e7\u05d2 (' + fmtTon(value) + ' \u05d8\u05d5\u05df)</span></div>'
+    )
+    .join('');
 
   // Position range label
-  const bentCount = allItems.filter(isBent).length;
   const posLabel = allItems.length > 0
-    ? `ריכוז קומפלט: ברזל מכופף (פוז' 1-${bentCount}) ותוספות מוטות ישרים`
-    : 'ריכוז קומפלט';
+    ? '\u05e8\u05d9\u05db\u05d5\u05d6 \u05e7\u05d5\u05de\u05e4\u05dc\u05d8: \u05dc\u05e4\u05d9 \u05e1\u05e2\u05d9\u05e4\u05d9 \u05de\u05d7\u05d9\u05e8\u05d5\u05df (\u05d1\u05e8\u05d6\u05dc / \u05d7\u05d9\u05ea\u05d5\u05da / \u05db\u05d9\u05e4\u05d5\u05e3)'
+    : '\u05e8\u05d9\u05db\u05d5\u05d6 \u05e7\u05d5\u05de\u05e4\u05dc\u05d8';
 
   // Build table rows
   let rows = '';
@@ -244,18 +263,7 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
   <div class="clearfix">
     <div class="summary-box">
       <div class="summary-title">סיכום משקלי משלוח קומפלט</div>
-      <div class="sum-row">
-        <span class="sum-lbl">סה"כ משקל ברזל מכופף:</span>
-        <span class="sum-val">${fmt1(wBent)} ק"ג (${fmtTon(wBent)} טון)</span>
-      </div>
-      <div class="sum-row">
-        <span class="sum-lbl">סה"כ משקל ברזל ישר:</span>
-        <span class="sum-val">${fmt1(wStraight)} ק"ג (${fmtTon(wStraight)} טון)</span>
-      </div>
-      <div class="sum-row sum-total">
-        <span class="sum-lbl"><b>סך הכל משקל כללי:</b></span>
-        <span class="sum-val"><b>${fmt1(wTotal)} ק"ג (כ-${fmtTon(wTotal)} טון)</b></span>
-      </div>
+      ${priceSummaryRows}
     </div>
   </div>
 

@@ -589,6 +589,28 @@ test('technical OCR metadata does not print on customer-facing documents', () =>
   assert.doesNotMatch(printPage, /note:\s+it\.note\s+\|\|/);
 });
 
+test('delivery certificate and A4 summaries follow price-list service buckets', () => {
+  const deliveryCertificate = read('routes/orderDeliveryCertificate.js');
+  const orderPrintA4Route = read('routes/orderPrintA4.js');
+
+  assert.match(deliveryCertificate, /Price-list service totals/);
+  assert.match(deliveryCertificate, /let wSteel = 0, wCutting = 0, wBending = 0/);
+  assert.match(deliveryCertificate, /function|const isStockStraightBar/);
+  assert.match(deliveryCertificate, /lengthMm === 6000 \|\| lengthMm === 12000/);
+  assert.match(deliveryCertificate, /if \(!isStockStraightBar\(item\)\) wCutting \+= w/);
+  assert.match(deliveryCertificate, /if \(isBent\(item\)\) wBending \+= w/);
+  assert.match(deliveryCertificate, /priceSummaryRows/);
+  assert.doesNotMatch(deliveryCertificate, /wBent/);
+  assert.doesNotMatch(deliveryCertificate, /wStraight/);
+
+  assert.match(orderPrintA4Route, /function productionBucketsForA4Item/);
+  assert.match(orderPrintA4Route, /const buckets = \['steel'\]/);
+  assert.match(orderPrintA4Route, /if \(!isA4StockStraightBar\(item, segments\)\) buckets\.push\('cutting'\)/);
+  assert.match(orderPrintA4Route, /if \(isA4BentBarItem\(segments\)\) buckets\.push\('bending'\)/);
+  assert.match(orderPrintA4Route, /lengthMm === 6000 \|\| lengthMm === 12000/);
+  assert.match(orderPrintA4Route, /\['steel', 'cutting', 'bending', 'mesh', 'cage'\]/);
+});
+
 test('order creation success copy does not promise production before approval', () => {
   const index = read('public/index.html');
 
