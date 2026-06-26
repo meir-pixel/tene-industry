@@ -165,6 +165,10 @@ test('shape editor offers safe no-code UI tuning by selected scope', () => {
 
   assert.match(editor, /seUiTunePanel/);
   assert.match(editor, /seUiTuneBtn/);
+  assert.match(editor, /&#9998;/);
+  assert.match(editor, /se-ui-lock/);
+  assert.match(editor, /_unlockUiTune/);
+  assert.match(editor, /if \(!this\._uiTuneUnlocked\) return/);
   assert.match(editor, /value="page" checked/);
   assert.match(editor, /value="values"/);
   assert.match(editor, /value="drawing"/);
