@@ -316,7 +316,7 @@ body[data-page="intake"] #seOverlay{z-index:980}
 .ocr-official-shell[data-post-order-review="true"] .ocr-review-table-wrap{min-height:0;height:100%}
 .ocr-official-shell[data-post-order-review="true"] .ocr-official-footer .actions{display:none}
 .ocr-source-stage{padding:8px;justify-content:center;scroll-behavior:smooth}
-.ocr-source-zoom{width:1120px;max-width:none}
+.ocr-source-zoom{width:1120px;max-width:none;position:relative}
 .ocr-source-zoom iframe,.ocr-source-zoom img{width:100%;height:calc(100vh - 250px);min-height:760px;max-width:none;image-rendering:auto}
 .ocr-context-grid{grid-template-columns:repeat(5,minmax(112px,1fr));gap:6px}
 .ocr-context-card{padding:7px 9px;min-height:72px;grid-template-columns:1fr;gap:4px;align-content:center;cursor:pointer;position:relative}
@@ -535,17 +535,34 @@ function sourcePathLabel(path) {
   return value.split('.').pop() || 'field';
 }
 
+function ocrSourceItemTop(index) {
+  return Math.min(92, 29 + Math.max(0, Number(index) || 0) * 5.35);
+}
+
+function sourceTargetKey(path) {
+  const raw = String(path || '');
+  const match = raw.match(/items\.(\d+)/);
+  return match ? 'items.' + match[1] : raw;
+}
+
 function highlightOcrSource(path) {
   const stage = document.getElementById('ocrSourceStage');
   const marker = document.getElementById('ocrSourceHighlight');
   if (!stage || !marker) return;
+  const key = sourceTargetKey(path);
   let top = 18;
-  const match = String(path || '').match(/items\.(\d+)/);
-  if (match) top = 20 + (Number(match[1] || 0) % 8) * 7;
+  const match = key.match(/items\.(\d+)/);
+  if (match) top = ocrSourceItemTop(Number(match[1]));
   if (String(path).includes('customer')) top = 12;
   if (String(path).includes('project') || String(path).includes('site')) top = 17;
-  marker.style.top = Math.min(78, top) + '%';
+  marker.style.top = Math.min(92, top) + '%';
   marker.title = sourcePathLabel(path);
+  document.querySelectorAll('.ocr-source-target.active').forEach(el => el.classList.remove('active'));
+  const target = document.querySelector('.ocr-source-target[data-source-target="' + key + '"]');
+  if (target) {
+    target.classList.add('active');
+    target.scrollIntoView({ block:'center', behavior:'smooth' });
+  }
   marker.classList.add('show');
   clearTimeout(marker._t);
   marker._t = setTimeout(() => marker.classList.remove('show'), 2600);
@@ -1161,23 +1178,53 @@ function removeOcrItem(index) {
   if (form) form.outerHTML = intakeEditableForm(activeCompareOriginal);
 }
 
-function verifyOcrItem(index) {
+function clearOcrItemOperatorApproval(index) {
+  setOcrHiddenItemField(index, 'review_status', '');
+  setOcrHiddenItemField(index, 'operator_review_status', '');
+  setOcrHiddenItemField(index, 'operator_approved', '');
+  setOcrHiddenItemField(index, 'operator_reviewed_at', '');
+}
+
+function applyOcrRowVisualState(index, action) {
   const row = document.getElementById(`ocrOrderRow_${index}`);
-  if (row) row.classList.remove('needs-review', 'missing');
-  if (row) row.classList.add('verified');
-  const statusInput = ocrItemInput(index, 'review_status');
-  if (statusInput) statusInput.value = 'accepted';
-  setOcrHiddenItemField(index, 'operator_review_status', 'accepted');
-  setOcrHiddenItemField(index, 'operator_approved', '1');
-  setOcrHiddenItemField(index, 'operator_reviewed_at', new Date().toISOString());
+  const key = action.key === 'verified' ? 'verified' : action.key === 'missing' ? 'missing' : 'review';
+  if (row) {
+    row.classList.remove('verified', 'needs-review', 'missing');
+    row.classList.add(key === 'verified' ? 'verified' : key === 'missing' ? 'missing' : 'needs-review');
+  }
   const approve = document.getElementById(`ocrRowApprove_${index}`);
-  if (approve) { approve.className = 'ocr-row-approve verified'; approve.title = 'אושר'; }
+  if (approve) {
+    approve.className = 'ocr-row-approve ' + key;
+    approve.title = key === 'verified' ? 'toggle approval off' : 'approve row';
+  }
   const pill = row?.querySelector('.ocr-status-pill');
-  if (pill) { pill.className = 'ocr-status-pill verified'; pill.textContent = 'מאושר'; }
+  if (pill) {
+    pill.className = 'ocr-status-pill ' + key;
+    pill.textContent = action.label;
+  }
   const status = document.getElementById(`ocrRowStatus_${index}`);
-  if (status) { status.textContent = ocrReviewStatusLabel('accepted'); status.classList.add('verified'); }
+  if (status) {
+    status.textContent = action.label;
+    status.classList.toggle('verified', key === 'verified');
+  }
+}
+
+function verifyOcrItem(index) {
+  const current = currentOcrItemFromFields(index);
+  const alreadyApproved = ocrOperatorApproved(current);
+  if (alreadyApproved) {
+    clearOcrItemOperatorApproval(index);
+  } else {
+    setOcrHiddenItemField(index, 'review_status', 'accepted');
+    setOcrHiddenItemField(index, 'operator_review_status', 'accepted');
+    setOcrHiddenItemField(index, 'operator_approved', '1');
+    setOcrHiddenItemField(index, 'operator_reviewed_at', new Date().toISOString());
+  }
+  const updated = currentOcrItemFromFields(index);
+  const action = ocrActionState(activeCompareOriginal || {}, updated, index);
+  applyOcrRowVisualState(index, action);
   const summary = document.getElementById('ocrCorrectionSummary');
-  if (summary) summary.textContent = 'השורה אושרה ונשמרת כטיוטה כדי שאפשר להמשיך מאוחר יותר.';
+  if (summary) summary.textContent = alreadyApproved ? '\u05d4\u05d0\u05d9\u05e9\u05d5\u05e8 \u05d1\u05d5\u05d8\u05dc. \u05d4\u05e9\u05d5\u05e8\u05d4 \u05d7\u05d6\u05e8\u05d4 \u05dc\u05d1\u05d3\u05d9\u05e7\u05d4 \u05d5\u05ea\u05d9\u05e9\u05de\u05e8 \u05db\u05da \u05d1\u05d8\u05d9\u05d5\u05d8\u05d4.' : '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05d0\u05d5\u05e9\u05e8\u05d4 \u05d5\u05e0\u05e9\u05de\u05e8\u05ea \u05d1\u05d8\u05d9\u05d5\u05d8\u05d4 \u05db\u05d3\u05d9 \u05e9\u05d0\u05e4\u05e9\u05e8 \u05d9\u05d4\u05d9\u05d4 \u05dc\u05d4\u05de\u05e9\u05d9\u05da \u05de\u05d0\u05d5\u05d7\u05e8 \u05d9\u05d5\u05ea\u05e8.';
   scheduleIntakeDraftSave();
 }
 
@@ -2018,11 +2065,11 @@ function ocrSourceTargetsHtml(row) {
   const items = Array.isArray(parsed.items) ? parsed.items : [];
   const topTargets = [['customer_name',10],['project_name',14],['site_name',18],['delivery_date',22],['order_number',26]];
   const headerTargets = topTargets.map(([path, top]) => '<button type="button" class="ocr-source-target" data-source-target="' + path + '" style="top:' + top + '%" onclick="handleOcrSourceTarget(this)"></button>');
-  const itemTargets = items.slice(0, 40).map((item, index) => '<button type="button" class="ocr-source-target" data-source-target="items.' + index + '" style="top:' + Math.min(90, 32 + index * 2.7) + '%" onclick="handleOcrSourceTarget(this)"></button>');
+  const itemTargets = items.slice(0, 40).map((item, index) => '<button type="button" class="ocr-source-target" data-source-target="items.' + index + '" style="top:' + ocrSourceItemTop(index) + '%" onclick="handleOcrSourceTarget(this)"></button>');
   return '<div class="ocr-source-targets">' + headerTargets.concat(itemTargets).join('') + '</div>';
 }
 function intakeCompareSourceHtml(row) {
-  return '<div class="ocr-source-toolbar"><strong>' + escapeHtml(row?.file_name || row?.original_name || 'order105.pdf') + '</strong><button class="btn" onclick="setIntakeCompareZoom(-0.15)">−</button><span class="meta" id="intakeCompareZoomLabel">100%</span><button class="btn" onclick="setIntakeCompareZoom(0.15)">+</button><button class="btn" onclick="resetIntakeCompareZoom()">התאם רוחב</button></div><div class="ocr-source-stage" id="ocrSourceStage"><div class="ocr-source-highlight" id="ocrSourceHighlight"></div>' + ocrSourceTargetsHtml(row) + '<div class="ocr-source-zoom" id="intakeCompareZoomTarget">' + intakeSourceHtml(row) + '</div></div>';
+  return '<div class="ocr-source-toolbar"><strong>' + escapeHtml(row?.file_name || row?.original_name || 'order105.pdf') + '</strong><button class="btn" onclick="setIntakeCompareZoom(-0.15)">-</button><span class="meta" id="intakeCompareZoomLabel">100%</span><button class="btn" onclick="setIntakeCompareZoom(0.15)">+</button><button class="btn" onclick="resetIntakeCompareZoom()">\u05d4\u05ea\u05d0\u05dd \u05e8\u05d5\u05d7\u05d1</button></div><div class="ocr-source-stage" id="ocrSourceStage"><div class="ocr-source-zoom" id="intakeCompareZoomTarget"><div class="ocr-source-highlight" id="ocrSourceHighlight"></div>' + ocrSourceTargetsHtml(row) + intakeSourceHtml(row) + '</div></div>';
 }
 function highlightOcrTableTarget(path) {
   const raw = String(path || '');
