@@ -26,14 +26,6 @@ const printButtonHtml = isPreviewOnly
   ? '<span class="preview-pill">תצוגה בלבד - הדפסה חסומה</span>'
   : '<button class="print-btn" onclick="printCards()">🖨️ הדפס כרטיסיות</button>';
 
-// Server-side rendered setup rows and cards
-const setupRowsHtml = allItems.map((it,i) =>
-  '<tr><td>'+(i+1)+'</td><td>'+cards.escapeHtml(it.shape_name||'–')+'</td>' +
-  '<td><b>\xd8'+(+it.diameter||'?')+'</b></td><td><b>'+(it.quantity||1)+'</b></td>' +
-  '<td><input class="split-inp" type="number" min="1" max="'+(it.quantity||1)+'" value="1" id="sp-'+it.id+'" oninput="onSplitChange('+it.id+','+(it.quantity||1)+')"></td>' +
-  '<td><div class="split-detail" id="sd-'+it.id+'">כרטיסייה אחת – כל הכמות</div></td></tr>'
-).join('');
-
 const serverCardsHtml = (allItems.length
   ? allItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))).join('')
   : '<div style="padding:40px;text-align:center;color:#888;">אין פריטים בהזמנה זו</div>'
@@ -62,24 +54,6 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .print-btn{padding:9px 22px;background:#1a2332;color:#fff;border:none;border-radius:6px;
   cursor:pointer;font-size:14px;font-family:inherit;}
 .print-btn:hover{background:#c9621a;}
-.gen-btn{padding:9px 22px;background:#1a7a3c;color:#fff;border:none;border-radius:6px;
-  cursor:pointer;font-size:14px;font-family:inherit;}
-.gen-btn:hover{background:#0f5a2a;}
-
-/* Setup panel */
-.setup-panel{background:#fff;border-radius:10px;padding:14px 18px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.12);margin-bottom:16px;}
-.setup-title{font-size:15px;font-weight:900;color:#1a2332;margin-bottom:12px;}
-.setup-tbl{width:100%;border-collapse:collapse;font-size:12px;}
-.setup-tbl th{background:#f0f4f8;padding:7px 10px;border:1px solid #dce3ea;
-  font-weight:700;color:#1a2332;text-align:right;}
-.setup-tbl td{padding:6px 10px;border:1px solid #dce3ea;color:#333;vertical-align:middle;}
-.setup-tbl tr:hover td{background:#f8fbff;}
-.split-inp{width:52px;text-align:center;border:1px solid #bbc;border-radius:5px;
-  padding:4px 6px;font-size:13px;font-family:inherit;}
-.split-detail{font-size:11px;color:#666;margin-top:3px;}
-.split-summary{margin-top:8px;font-size:12px;font-weight:700;color:#1a2332;}
-.split-summary.warn{color:#9f4f00;background:#fff3d7;border:1px solid #ffd6a0;border-radius:6px;padding:7px 9px;}
 .pc-weight-entry{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;align-items:end;padding:7px 10px;background:#eef8f2;border-bottom:1px solid #d8eadf;}
 .pc-weight-entry label{display:block;font-size:9px;font-weight:900;color:#45645a;margin-bottom:2px;}
 .pc-weight-entry input{width:100%;border:1px solid #aac7b4;border-radius:5px;padding:5px 6px;font-family:inherit;font-size:12px;background:#fff;}
@@ -89,11 +63,24 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .pc-weight-chip.bad{color:#991b1b;background:#fef2f2;border-color:#fecaca;}
 
 /* ── Cards ── */
-.pc-print-face{display:none;}
-.cards-grid{display:flex;flex-wrap:wrap;gap:8px;}
-.prod-card{width:148mm;background:#fff;border:1.5px solid #bbb;border-radius:4px;
-  overflow:hidden;page-break-inside:avoid;display:flex;flex-direction:column;
-  font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,0.12);}
+.cards-grid{display:grid;grid-template-columns:repeat(2,105mm);grid-auto-rows:74.25mm;gap:0;align-items:stretch;justify-content:start;width:210mm;margin:0 auto;background:#fff;}
+.prod-card{width:105mm;height:74.25mm;margin:0;background:#fff;border:0.25mm solid #1a2332;border-radius:0;
+  overflow:hidden;page-break-inside:avoid;break-inside:avoid;display:flex;flex-direction:column;
+  font-size:8px;box-shadow:none;}
+.prod-card>:not(.pc-print-face){display:none!important;}
+.pc-print-face{display:grid;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
+.pc-print-main{display:grid;grid-template-rows:11mm 7mm 38mm 18.25mm;width:78mm;height:74.25mm;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
+.pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;}
+.pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:8px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
+.pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
+.pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
+.pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
+.pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
+.pc-print-bottom span:first-child{border-left:0;}
+.pc-print-qr-panel{display:grid;grid-template-rows:52mm 22.25mm;align-items:center;justify-items:center;width:27mm;height:74.25mm;overflow:hidden;}
+.pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;}
+.pc-print-qr-code canvas,.pc-print-qr-code img{width:22mm!important;height:22mm!important;display:block;}
+.pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:9px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;}
 .pc-head{display:flex;justify-content:space-between;align-items:flex-start;
   padding:7px 10px 5px;border-bottom:2px solid #1a2332;background:#fff;}
 .pc-title{font-size:13px;font-weight:900;color:#1a2332;line-height:1.2;}
@@ -144,12 +131,6 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 @media screen and (max-width: 760px){
   body{padding:8px;overflow-x:hidden;}
   .toolbar{gap:8px;}
-  .print-btn,.gen-btn{width:100%;padding:11px 14px;}
-  .setup-panel{padding:10px;border-radius:8px;overflow-x:auto;}
-  .setup-title{font-size:14px;}
-  .setup-tbl{min-width:620px;}
-  .cards-grid{display:grid;grid-template-columns:1fr;gap:10px;}
-  .prod-card{width:100%;max-width:100%;font-size:10px;}
   .pc-head{gap:8px;padding:8px;align-items:center;}
   .pc-title{font-size:12px;}
   .bc-font-top{font-size:34px;max-height:36px;}
@@ -249,24 +230,9 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
     <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${order.customer_name || ''} · ${allItems.length} פריטים</span>
   </div>
 
-  <!-- Setup / split panel -->
-  <div class="setup-panel">
-    <div class="setup-title">✂️ הגדר חלוקת כרטיסיות לפני הדפסה</div>
-    <table class="setup-tbl">
-      <thead><tr>
-        <th>#</th><th>צורה</th><th>⌀</th><th>כמות</th><th>מס' כרטיסיות</th><th>חלוקה</th>
-      </tr></thead>
-      <tbody id="setupBody">${setupRowsHtml}</tbody>
-    </table>
-    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
-      <button class="gen-btn" onclick="generateCards()">✅ עדכן כרטיסיות</button>
-      <span style="font-size:12px;color:#888;">שנה כמות כרטיסיות ולחץ לעדכון</span>
-    </div>
-    <div class="split-summary" id="splitSummary"></div>
-  </div>
+<!-- ── Card grid – server-rendered, barcodes added by JS ── -->
 </div>
 
-<!-- ── Card grid – server-rendered, barcodes added by JS ── -->
 <div class="cards-grid" id="cardsGrid">${serverCardsHtml}</div>
 
 <script>
@@ -305,43 +271,6 @@ var allItems      = ${JSON.stringify(allItems.map(it => ({
   }; }) : [],
   is_3d:          it.is_3d       || 0
 })))};
-
-// ── Split config: item id -> number of sub-cards ──────────────────
-var splitCfg = {};
-
-// ── Setup panel ───────────────────────────────────────────────────
-function initSetup() {
-  var tbody = document.getElementById('setupBody');
-  for (var i = 0; i < allItems.length; i++) {
-    var item = allItems[i];
-    splitCfg[item.id] = 1;
-    var tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td>' + (i+1) + '</td>' +
-      '<td>' + (item.shape_name || '–') + '</td>' +
-      '<td><b>Ø' + item.diameter + '</b></td>' +
-      '<td><b>' + item.quantity + '</b></td>' +
-      '<td><input class="split-inp" type="number" min="1" max="' + item.quantity + '" value="1"' +
-        ' id="sp-' + item.id + '" oninput="onSplitChange(' + item.id + ',' + item.quantity + ')"></td>' +
-      '<td><div class="split-detail" id="sd-' + item.id + '">כרטיסייה אחת – כל הכמות</div></td>';
-    tbody.appendChild(tr);
-  }
-}
-
-function onSplitChange(itemId, qty) {
-  var inp = document.getElementById('sp-' + itemId);
-  var n = Math.max(1, Math.min(qty || 1, parseInt(inp.value, 10) || 1));
-  inp.value = n;
-  splitCfg[itemId] = n;
-  var el = document.getElementById('sd-' + itemId);
-  if (n === 1) {
-    el.textContent = 'כרטיסייה אחת - כל הכמות';
-  } else {
-    var subs = splitQty(qty, n);
-    el.textContent = subs.join(' + ') + ' יח';
-  }
-  updateSplitSummary();
-}
 
 // ── Shape drawing ─────────────────────────────────────────────────
 function drawShape(svgEl, segments) {
@@ -427,7 +356,7 @@ function cardPlan() {
   var rows = [];
   for (var i=0; i<allItems.length; i++) {
     var item = allItems[i];
-    var n = Math.max(1, Math.min(item.quantity || 1, splitCfg[item.id] || 1));
+    var n = 1;
     var subs = splitQty(item.quantity || 1, n);
     for (var ci=0; ci<n; ci++) {
       rows.push({
@@ -442,20 +371,6 @@ function cardPlan() {
   return rows;
 }
 
-function updateSplitSummary(rows) {
-  var el = document.getElementById('splitSummary');
-  if (!el) return;
-  rows = rows || cardPlan();
-  var splitItems = 0;
-  for (var i=0; i<allItems.length; i++) {
-    if ((splitCfg[allItems[i].id] || 1) > 1) splitItems++;
-  }
-  var production = /ייצור|production|queue|בייצור|תור/i.test(ORDER_STATUS || '');
-  el.textContent = rows.length + ' כרטיסיות ייצור מוכנות להדפסה מתוך ' + allItems.length + ' פריטי הזמנה'
-    + (splitItems ? ' · ' + splitItems + ' פריטים חולקו' : '')
-    + (production ? ' · ההזמנה כבר בייצור' : '');
-  el.className = production ? 'split-summary warn' : 'split-summary';
-}
 // ── Build shape SVG string (client-side mirror of pcShapeSVG) ─────
 function isRightAngleValue(value) {
   return Math.abs(Number(value) - 90) < 0.001;
@@ -690,7 +605,6 @@ function generateCards() {
   var grid = document.getElementById('cardsGrid');
   grid.innerHTML = '';
   var plan = cardPlan();
-  updateSplitSummary(plan);
   // Items
   for (var i=0; i<plan.length; i++) {
     var row = plan[i];
@@ -748,11 +662,8 @@ function printCards() {
   setTimeout(function(){ window.print(); }, 120);
 }
 
-// ── Init: read split config from server-rendered rows ────────────
+// Init: render fixed production cards and QR codes.
 (function() {
-  document.querySelectorAll('[id^="sp-"]').forEach(function(inp) {
-    splitCfg[inp.id.replace('sp-','')] = 1;
-  });
   generateCards();
   renderWorkerCardQrCodes();
 })();

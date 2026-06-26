@@ -77,6 +77,10 @@ test('production card split renders only production cards without a master card'
   assert.doesNotMatch(productionCardsRoute, /d\.innerHTML = buildSplitMaster\(\)/);
   assert.doesNotMatch(productionCardsRoute, /cards\.masterCard/);
   assert.doesNotMatch(productionCardsRoute, /master-card/);
+  assert.doesNotMatch(productionCardsRoute, /setup-panel/);
+  assert.doesNotMatch(productionCardsRoute, /setupBody/);
+  assert.doesNotMatch(productionCardsRoute, /onSplitChange/);
+  assert.doesNotMatch(productionCardsRoute, /splitCfg/);
   assert.match(productionCardsRoute, /buildCard\(row\.item, row\.subQty, row\.totalCards, row\.cardIdx\)/);
   assert.match(productionCardsRoute, /function isOpenUShapeClient\(segments\)/);
   assert.match(productionCardsRoute, /function buildOpenUShapeSVG\(segments\)/);
@@ -94,6 +98,8 @@ test('production card split renders only production cards without a master card'
   assert.match(productionCardsRoute, /data-worker-card-url/);
   assert.match(productionCardsRoute, /worker-visual\.html\?card=/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);
+  assert.match(productionCardsRoute, /grid-template-columns:repeat\(2,105mm\)/);
+  assert.match(productionCardsRoute, /width:210mm/);
   assert.match(productionCardsRoute, /grid-template-columns:repeat\(2, 105mm\)/);
   assert.match(productionCardsRoute, /grid-auto-rows:74\.25mm/);
   assert.match(productionCardsRoute, /height:74\.25mm!important/);
