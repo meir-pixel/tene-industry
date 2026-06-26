@@ -824,6 +824,28 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+
+### V2-006Z - Shape Editor Active Segment Highlight Stroke Size
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- Output:
+  - Active side highlight in the shape editor uses the same stroke width as the bar.
+  - Removed oversized blue highlight halos from 2D, 3D, and closed-stirrup preview paths.
+- Guardrails:
+  - No UI redesign.
+  - No new shape families or presets.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
+
 ### V2-007 — Orders Module Specification
 
 - status: todo
