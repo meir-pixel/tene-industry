@@ -1249,7 +1249,7 @@ function toggleOcrRowReviewMenu(event, index) {
   button.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
 }
 
-function setOcrItemReviewStatus(index, key) {
+async function setOcrItemReviewStatus(index, key) {
   closeOcrRowReviewMenus();
   const reviewedAt = new Date().toISOString();
   if (key === 'verified') {
@@ -1272,8 +1272,9 @@ function setOcrItemReviewStatus(index, key) {
   const action = key === 'verified' ? { key:'verified', label:'\u05de\u05d0\u05d5\u05e9\u05e8', pct:100 } : key === 'missing' ? { key:'missing', label:'\u05d7\u05e1\u05e8 / \u05dc\u05d0 \u05ea\u05e7\u05d9\u05df', pct:0 } : { key:'review', label:'\u05d3\u05d5\u05e8\u05e9 \u05d1\u05d3\u05d9\u05e7\u05d4', pct: ocrActionState(activeCompareOriginal || {}, updated, index).pct };
   applyOcrRowVisualState(index, action);
   const summary = document.getElementById('ocrCorrectionSummary');
-  if (summary) summary.textContent = key === 'verified' ? '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05d0\u05d5\u05e9\u05e8\u05d4 \u05d5\u05e0\u05e9\u05de\u05e8\u05ea \u05d1\u05d8\u05d9\u05d5\u05d8\u05d4.' : key === 'missing' ? '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05e1\u05d5\u05de\u05e0\u05d4 \u05db\u05d7\u05e1\u05e8\u05d4 \u05d0\u05d5 \u05dc\u05d0 \u05ea\u05e7\u05d9\u05e0\u05d4.' : '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05e1\u05d5\u05de\u05e0\u05d4 \u05dc\u05d3\u05d5\u05e8\u05e9 \u05d1\u05d3\u05d9\u05e7\u05d4.';
-  scheduleIntakeDraftSave();
+  if (summary) summary.textContent = key === 'verified' ? '\u05e9\u05d5\u05e8\u05d4 \u05d0\u05d5\u05e9\u05e8\u05d4. \u05e9\u05d5\u05de\u05e8 \u05d5\u05de\u05db\u05e0\u05d9\u05e1 \u05dc\u05d6\u05d9\u05db\u05e8\u05d5\u05df OCR...' : key === 'missing' ? '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05e1\u05d5\u05de\u05e0\u05d4 \u05db\u05d7\u05e1\u05e8\u05d4 \u05d0\u05d5 \u05dc\u05d0 \u05ea\u05e7\u05d9\u05e0\u05d4. \u05e9\u05d5\u05de\u05e8...' : '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05e1\u05d5\u05de\u05e0\u05d4 \u05dc\u05d3\u05d5\u05e8\u05e9 \u05d1\u05d3\u05d9\u05e7\u05d4. \u05e9\u05d5\u05de\u05e8...';
+  const saved = await saveIntakeDraft(activeCompareId, { silent: true });
+  if (summary && saved) summary.textContent = key === 'verified' ? '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05ea\u05d5\u05e7\u05e0\u05d4, \u05d0\u05d5\u05e9\u05e8\u05d4 \u05d5\u05e0\u05e9\u05de\u05e8\u05d4. \u05d4\u05ea\u05d9\u05e7\u05d5\u05df \u05e0\u05db\u05e0\u05e1 \u05dc\u05d6\u05d9\u05db\u05e8\u05d5\u05df OCR \u05dc\u05e2\u05d9\u05d1\u05d5\u05d3 \u05d4\u05d1\u05d0.' : '\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d4\u05e9\u05d5\u05e8\u05d4 \u05e0\u05e9\u05de\u05e8.';
 }
 
 if (!window.ocrRowReviewMenuListenersAttached) {
@@ -2218,7 +2219,7 @@ function intakeEditableForm(parsed, options = {}) {
   const items = Array.isArray(parsed.items) ? parsed.items.map(item => normalizeLegacyOcrLShapeItem(item || {})) : [];
   const summary = ocrStatusSummary({ ...parsed, items });
   const tableHtml = items.length ? '<div class="ocr-review-table-wrap ocr-order-form" aria-label="OCR Review Workspace table"><table class="ocr-review-table"><thead><tr><th>#</th><th>מיני שרטוט</th><th>קוטר</th><th>אורך</th><th>כמות</th><th>משקל</th><th>הערות</th><th>ביטחון</th><th>סטטוס</th></tr></thead><tbody>' + items.map((item, index) => safeIntakeRender('item ' + (index + 1), () => ocrItemTableRowHtml(parsed, item || {}, index), '<tr><td>' + escapeHtml(ocrItemNumber(item || {}, index)) + '</td><td colspan="8">OCR row could not render.</td></tr>')).join('') + '</tbody></table></div>' : '<div class="empty">לא זוהו פריטים.</div>';
-  return '<div class="ocr-edit-form ocr-official-shell" data-table-first="true" data-official-ocr-review="true"><div class="ocr-official-summary"><div class="ocr-summary-card"><div class="ocr-summary-ok">✓</div><div class="ocr-summary-count">' + summary.verified + '/' + summary.total + '</div><div class="ocr-summary-label">פריטים מאושרים</div></div><div class="ocr-alert-card danger"><strong>' + summary.missing + '</strong><span>חסרים</span></div><div class="ocr-alert-card warn"><strong>' + summary.review + '</strong><span>דורשים בדיקה</span></div><div class="ocr-alert-card ok"><strong>' + summary.verified + '</strong><span>אושרו</span></div></div>' + ocrReviewTopHtml(parsed, row) + '<div class="ocr-review-toolbar"><button type="button" onclick="reprocessIntakeOcr(activeCompareId, { openAfter:true, trigger:this })">רענון זיהוי</button><button class="primary" type="button" onclick="verifyAllVisibleOcrItems()">סמן הכל אושר</button><button type="button" onclick="toggleOcrAttentionOnly()">בדוק רק בעייתיים</button><input type="search" placeholder="חיפוש פריט..." oninput="filterOcrReviewRows(this.value)"><span class="counter">' + summary.missing + ' דורשים טיפול</span></div>' + tableHtml + '<div class="ocr-official-footer"><div class="legend"><span><i class="ocr-status-dot"></i> מאושר</span><span><i class="ocr-status-dot review"></i> בדיקה</span><span><i class="ocr-status-dot missing"></i> חסר</span></div><div class="actions"><button type="button" onclick="saveIntakeDraft(activeCompareId)">שמור טיוטה</button><button type="button" onclick="intakeCreateProductionCards(activeCompareId)">צור כרטיסיות ייצור</button><button type="button" class="finish" onclick="intakeApprove(activeCompareId)">סיים ופתח הזמנה</button></div></div><div class="ocr-corrections" id="ocrCorrectionSummary">כל תא ניתן לעריכה ישירה. לחיצה על שרטוט פותחת את עורך הצורות.</div></div>';
+  return '<div class="ocr-edit-form ocr-official-shell" data-table-first="true" data-official-ocr-review="true"><div class="ocr-official-summary"><div class="ocr-summary-card"><div class="ocr-summary-ok">✓</div><div class="ocr-summary-count">' + summary.verified + '/' + summary.total + '</div><div class="ocr-summary-label">פריטים מאושרים</div></div><div class="ocr-alert-card danger"><strong>' + summary.missing + '</strong><span>חסרים</span></div><div class="ocr-alert-card warn"><strong>' + summary.review + '</strong><span>דורשים בדיקה</span></div><div class="ocr-alert-card ok"><strong>' + summary.verified + '</strong><span>אושרו</span></div></div>' + ocrReviewTopHtml(parsed, row) + '<div class="ocr-review-toolbar"><button type="button" onclick="reprocessIntakeOcr(activeCompareId, { openAfter:true, trigger:this })">רענון זיהוי</button><button class="primary" type="button" onclick="verifyAllVisibleOcrItems()">סמן הכל אושר</button><button type="button" onclick="toggleOcrAttentionOnly()">בדוק רק בעייתיים</button><input type="search" placeholder="חיפוש פריט..." oninput="filterOcrReviewRows(this.value)"><span class="counter">' + summary.missing + ' דורשים טיפול</span></div>' + tableHtml + '<div class="ocr-official-footer"><div class="legend"><span><i class="ocr-status-dot"></i> מאושר</span><span><i class="ocr-status-dot review"></i> בדיקה</span><span><i class="ocr-status-dot missing"></i> חסר</span></div><div class="actions"><button type="button" onclick="intakeCreateProductionCards(activeCompareId)">צור כרטיסיות ייצור</button><button type="button" class="finish" onclick="intakeApprove(activeCompareId)">סיים ופתח הזמנה</button></div></div><div class="ocr-corrections" id="ocrCorrectionSummary">כל תא ניתן לעריכה ישירה. לחיצה על שרטוט פותחת את עורך הצורות.</div></div>';
 }
 function filterOcrReviewRows(value) {
   const q = String(value || '').toLowerCase();
@@ -2256,7 +2257,7 @@ function openIntakeCompare(id) {
   `;
   elements.approve.textContent = isPostOrderReview ? 'Open order review' : 'Approve and create order';
   elements.approve.onclick = isPostOrderReview ? () => openLinkedOrder(row.order_id) : () => intakeApprove(id);
-  if (elements.save) { elements.save.style.display = isPostOrderReview ? 'none' : ''; elements.save.onclick = () => saveIntakeDraft(id); }
+  if (elements.save) { elements.save.style.display = 'none'; elements.save.onclick = null; }
   if (elements.cards) { elements.cards.style.display = isPostOrderReview ? 'none' : ''; elements.cards.onclick = () => intakeCreateProductionCards(id); }
   elements.modal.classList.add('open');
   applyIntakeCompareZoom();
@@ -2368,7 +2369,10 @@ async function saveIntakeDraft(id, options = {}) {
     body: JSON.stringify({ parsed_data: parsed }),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok || !result.success) return toast(result.error || 'Draft save failed', true);
+  if (!response.ok || !result.success) {
+    toast(result.error || 'Draft save failed', true);
+    return false;
+  }
   const row = intakeRows.find(item => item.id === id);
   if (row) {
     row.parsed = result.parsed || parsed;
@@ -2376,6 +2380,7 @@ async function saveIntakeDraft(id, options = {}) {
   }
   activeCompareOriginal = cloneParsedForCompare(result.parsed || parsed);
   if (!options.silent) toast('Draft saved for review');
+  return true;
 }
 
 function intakeCreateProductionCards(id) {
