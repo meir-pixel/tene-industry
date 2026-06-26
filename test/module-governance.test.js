@@ -231,7 +231,7 @@ test('production cards are rendered through a module service', () => {
   assert.match(service, /function itemCard/);
   assert.match(service, /module\.exports/);
   assert.match(page, /function renderPrintCardsPage/);
-  assert.match(page, /cards\.masterCard/);
+  assert.doesNotMatch(page, /cards\.masterCard/);
   assert.match(page, /cards\.itemCard/);
   assert.match(server, /require\('\.\/services\/productionCards'\)/);
   assert.match(route, /printPage\.renderPrintCardsPage/);

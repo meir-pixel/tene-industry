@@ -26,8 +26,7 @@ const setupRowsHtml = allItems.map((it,i) =>
 ).join('');
 
 const serverCardsHtml = (allItems.length
-  ? cards.masterCard(allItems, order, printDate, delivDate, pallets.length) +
-    allItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))).join('')
+  ? allItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))).join('')
   : '<div style="padding:40px;text-align:center;color:#888;">אין פריטים בהזמנה זו</div>'
 );
 
@@ -94,8 +93,6 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .bc-font-footer{font-family:'Libre Barcode 128',cursive;font-size:30px;line-height:1;max-height:32px;overflow:hidden;letter-spacing:0;color:#fff;flex:1;}
 .bc-label{font-size:7px;color:#555;margin-top:1px;text-align:center;font-family:monospace;}
 .bc-ord-text{font-size:9px;color:#333;font-family:monospace;text-align:center;}
-.master-shape-cell{width:90px;padding:2px 4px!important;}
-.master-shape-cell svg{width:88px;max-height:44px;}
 .split-badge{display:inline-block;background:#e07b39;color:#fff;border-radius:4px;
   font-size:11px;font-weight:900;padding:1px 6px;margin-left:5px;white-space:nowrap;}
 .pc-order-row{display:flex;align-items:center;gap:8px;padding:4px 10px;
@@ -127,14 +124,6 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   padding:5px 10px;background:#1a2332;}
 .pc-brand{color:#e07b39;font-weight:900;font-size:12px;line-height:1.1;text-align:center;}
 .pc-brand-num{font-size:18px;font-weight:900;color:#fff;}
-.master-card{min-height:auto;}
-.master-table{width:100%;border-collapse:collapse;font-size:10px;}
-.master-table th,.master-table td{border:1px solid #ddd;padding:3px 5px;text-align:center;}
-.master-table th{background:#f0f0f0;font-weight:700;}
-.check-cell{font-size:14px;color:#aaa;}
-.master-totals{padding:5px 10px;font-size:11px;color:#333;background:#f5f5f5;border-top:1px solid #ddd;}
-.qr-box-center{display:flex;justify-content:center;padding:8px;}
-.qr-box-center canvas,.qr-box-center img{width:72px!important;height:72px!important;}
 .pc-scan-row{display:flex;align-items:center;gap:6px;padding:3px 10px;background:#f7fbff;border-bottom:1px solid #e3edf5;}
 .pc-scan-qr{width:46px;height:46px;flex:0 0 46px;background:#fff;border:1px solid #cfd8e3;border-radius:4px;display:flex;align-items:center;justify-content:center;}
 .pc-scan-qr canvas,.pc-scan-qr img{width:42px!important;height:42px!important;display:block;}
@@ -159,8 +148,6 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .pc-wq-sep,.pc-spec-sep{display:none;}
   .pc-shape-area{min-height:130px;padding:10px;}
   .pc-shape-area svg{max-height:128px!important;}
-  .master-card{overflow-x:auto;}
-  .master-table{min-width:560px;}
 }
 
 @media print{
@@ -175,9 +162,8 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
     justify-content:start;
   }
   .cards-grid{break-before:auto;page-break-before:auto;}
-  .master-card{display:none!important;}
   .prod-card{border:0.25mm solid #1a2332!important;border-radius:0!important;overflow:hidden!important;}
-  .prod-card:not(.master-card)>:not(.pc-print-face){display:none!important;}
+  .prod-card>:not(.pc-print-face){display:none!important;}
   .pc-print-face{display:grid!important;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
   .pc-print-main{display:grid;grid-template-rows:11mm 7mm 38mm 18.25mm;width:78mm;height:74.25mm;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
   .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;}
@@ -234,11 +220,6 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .pc-footer{padding:2px 5px;}
   .pc-brand{font-size:7px;}
   .pc-brand-num{font-size:11px;}
-  .master-table{font-size:6.5px;}
-  .master-table th,.master-table td{padding:1px 2px;}
-  .master-shape-cell{width:42px;}
-  .master-shape-cell svg{width:40px;max-height:21px;}
-  .master-totals{padding:2px 5px;font-size:7px;}
   @page{size:A4 portrait;margin:0!important;}
 }
 </style>
@@ -332,18 +313,64 @@ function initSetup() {
 
 function onSplitChange(itemId, qty) {
   var inp = document.getElementById('sp-' + itemId);
-  var n = Math.max(1, Math.min(qty, parseInt(inp.value) || 1));
+  var n = Math.max(1, Math.min(qty || 1, parseInt(inp.value, 10) || 1));
   inp.value = n;
   splitCfg[itemId] = n;
   var el = document.getElementById('sd-' + itemId);
   if (n === 1) {
-    el.textContent = 'כרטיסייה אחת – כל הכמות';
+    el.textContent = 'כרטיסייה אחת - כל הכמות';
   } else {
     var subs = splitQty(qty, n);
     el.textContent = subs.join(' + ') + ' יח';
   }
   updateSplitSummary();
 }
+
+// ── Shape drawing ─────────────────────────────────────────────────
+function drawShape(svgEl, segments) {
+  if (!segments || !segments.length) return;
+  var sides  = segments.map(function(s){ return s.length_mm; });
+  var angles = segments.map(function(s){ return s.angle_deg; }).slice(0, -1);
+  var pts = [[0,0]];
+  var dir = 0;
+  for (var i = 0; i < sides.length; i++) {
+    var rad = dir * Math.PI / 180;
+    var p = pts[pts.length-1];
+    pts.push([p[0] + sides[i]*Math.cos(rad), p[1] + sides[i]*Math.sin(rad)]);
+    if (i < angles.length) dir -= (180 - angles[i]);
+  }
+  var PAD=28, W=220, H=130;
+  var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
+  var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs);
+  var minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
+  var rX=maxX-minX||1, rY=maxY-minY||1;
+  var sc=Math.min((W-PAD*2)/rX,(H-PAD*2)/rY);
+  var oX=PAD+((W-PAD*2)-rX*sc)/2, oY=PAD+((H-PAD*2)-rY*sc)/2;
+  var mp=function(p){return [oX+(p[0]-minX)*sc, oY+(p[1]-minY)*sc];};
+  var mapped=pts.map(mp);
+  var pd='M '+mapped.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' L ');
+  var svg='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
+  svg+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  for (var i=0; i<mapped.length-1; i++) {
+    var x1=mapped[i][0],y1=mapped[i][1],x2=mapped[i+1][0],y2=mapped[i+1][1];
+    var mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    var nx=-dy/len*10,ny=dx/len*10,lx=mx+nx,ly=my+ny;
+    svg+='<rect x="'+(lx-14).toFixed(1)+'" y="'+(ly-7).toFixed(1)+'" width="28" height="12" rx="2" fill="white" fill-opacity="0.85"/>';
+    svg+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
+  }
+  for (var i=1; i<mapped.length-1; i++) {
+    var x=mapped[i][0],y=mapped[i][1];
+    if (angles[i-1] !== undefined && angles[i-1] !== 180) {
+      svg+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
+      svg+='<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">'+angles[i-1]+'&deg;</text>';
+    }
+  }
+  var ep=mapped[mapped.length-1];
+  svg+='<circle cx="'+mapped[0][0].toFixed(1)+'" cy="'+mapped[0][1].toFixed(1)+'" r="3" fill="#1a2332"/>';
+  svg+='<circle cx="'+ep[0].toFixed(1)+'" cy="'+ep[1].toFixed(1)+'" r="3" fill="#1a2332"/>';
+  svgEl.innerHTML = svg;
+}
+
 
 function splitQty(total, n) {
   var base = Math.floor(total / n);
@@ -407,57 +434,11 @@ function updateSplitSummary(rows) {
     if ((splitCfg[allItems[i].id] || 1) > 1) splitItems++;
   }
   var production = /ייצור|production|queue|בייצור|תור/i.test(ORDER_STATUS || '');
-  el.textContent = 'המאסטר תואם ' + rows.length + ' כרטיסיות מודפסות מתוך ' + allItems.length + ' פריטי הזמנה'
+  el.textContent = rows.length + ' כרטיסיות ייצור מוכנות להדפסה מתוך ' + allItems.length + ' פריטי הזמנה'
     + (splitItems ? ' · ' + splitItems + ' פריטים חולקו' : '')
-    + (production ? ' · ההזמנה כבר בייצור: להדפיס גם מאסטר מעודכן' : '');
+    + (production ? ' · ההזמנה כבר בייצור' : '');
   el.className = production ? 'split-summary warn' : 'split-summary';
 }
-
-// ── Shape drawing ─────────────────────────────────────────────────
-function drawShape(svgEl, segments) {
-  if (!segments || !segments.length) return;
-  var sides  = segments.map(function(s){ return s.length_mm; });
-  var angles = segments.map(function(s){ return s.angle_deg; }).slice(0, -1);
-  var pts = [[0,0]];
-  var dir = 0;
-  for (var i = 0; i < sides.length; i++) {
-    var rad = dir * Math.PI / 180;
-    var p = pts[pts.length-1];
-    pts.push([p[0] + sides[i]*Math.cos(rad), p[1] + sides[i]*Math.sin(rad)]);
-    if (i < angles.length) dir -= (180 - angles[i]);
-  }
-  var PAD=28, W=220, H=130;
-  var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
-  var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs);
-  var minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
-  var rX=maxX-minX||1, rY=maxY-minY||1;
-  var sc=Math.min((W-PAD*2)/rX,(H-PAD*2)/rY);
-  var oX=PAD+((W-PAD*2)-rX*sc)/2, oY=PAD+((H-PAD*2)-rY*sc)/2;
-  var mp=function(p){return [oX+(p[0]-minX)*sc, oY+(p[1]-minY)*sc];};
-  var mapped=pts.map(mp);
-  var pd='M '+mapped.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' L ');
-  var svg='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
-  svg+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
-  for (var i=0; i<mapped.length-1; i++) {
-    var x1=mapped[i][0],y1=mapped[i][1],x2=mapped[i+1][0],y2=mapped[i+1][1];
-    var mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
-    var nx=-dy/len*10,ny=dx/len*10,lx=mx+nx,ly=my+ny;
-    svg+='<rect x="'+(lx-14).toFixed(1)+'" y="'+(ly-7).toFixed(1)+'" width="28" height="12" rx="2" fill="white" fill-opacity="0.85"/>';
-    svg+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
-  }
-  for (var i=1; i<mapped.length-1; i++) {
-    var x=mapped[i][0],y=mapped[i][1];
-    if (angles[i-1] !== undefined && angles[i-1] !== 180) {
-      svg+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
-      svg+='<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">'+angles[i-1]+'&deg;</text>';
-    }
-  }
-  var ep=mapped[mapped.length-1];
-  svg+='<circle cx="'+mapped[0][0].toFixed(1)+'" cy="'+mapped[0][1].toFixed(1)+'" r="3" fill="#1a2332"/>';
-  svg+='<circle cx="'+ep[0].toFixed(1)+'" cy="'+ep[1].toFixed(1)+'" r="3" fill="#1a2332"/>';
-  svgEl.innerHTML = svg;
-}
-
 // ── Build shape SVG string (client-side mirror of pcShapeSVG) ─────
 function isRightAngleValue(value) {
   return Math.abs(Number(value) - 90) < 0.001;
@@ -687,84 +668,12 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   return h;
 }
 
-// ── Build master card ─────────────────────────────────────────────
-function buildMaster() {
-  var rows = '';
-  for (var i=0; i<allItems.length; i++) {
-    var it = allItems[i];
-    rows += '<tr>'+
-      '<td>'+(i+1)+'</td>'+
-      '<td><b>\xd8'+it.diameter+'</b></td>'+
-      '<td>'+(it.shape_name||'–')+'</td>'+
-      '<td class="master-shape-cell">'+buildShapeSVG(it.segments)+'</td>'+
-      '<td>'+Math.round((it.total_length_mm||0)/10)+'</td>'+
-      '<td><b>'+it.quantity+'</b></td>'+
-      '<td>'+(+(it.total_weight)||0).toFixed(1)+'</td>'+
-      '<td class="check-cell">◯</td>'+
-    '</tr>';
-  }
-  var h = '<div class="prod-card master-card">';
-  h += '<div class="pc-head" style="background:#1a2332;color:#fff;padding:8px 12px;">';
-  h += '<div><div class="pc-title" style="color:#e07b39;font-size:14px;">★ כרטיסיית מאסטר</div>';
-  h += '<div class="pc-date" style="color:#8aa;">'+PRINT_DATE+'</div></div>';
-  h += '<div style="text-align:left"><div style="font-size:16px;font-weight:900;">'+ORDER_NUM+'</div>';
-  h += '<div style="font-size:10px;color:#8aa;">'+(DELIV_DATE?'מסירה: '+DELIV_DATE:'')+'</div></div></div>';
-  h += '<div style="padding:6px 10px;font-size:12px;font-weight:700;border-bottom:1px solid #eee;">'+CUSTOMER+'</div>';
-  h += '<table class="master-table"><thead><tr><th>#</th><th>\xd8</th><th>צורה</th><th>תרשים</th><th>אורך</th><th>כמות</th><th>ק"ג</th><th>✓</th></tr></thead>';
-  h += '<tbody>'+rows+'</tbody></table>';
-  h += '<div class="master-totals">סה"כ: <b>'+TOTAL_WEIGHT+' ק"ג</b> · '+TOTAL_PALLETS+' משטחים · '+allItems.length+' פריטים</div>';
-  h += '<div class="pc-footer" style="background:#1a2332;color:#8aa;font-size:9px;text-align:center;padding:4px;">★ כרטיסיית מאסטר – לא לאיבוד! · '+ORDER_NUM+'</div>';
-  h += '</div>';
-  return h;
-}
-
-function buildSplitMaster() {
-  var plan = cardPlan();
-  var rows = '';
-  for (var i=0; i<plan.length; i++) {
-    var row = plan[i];
-    var it = row.item;
-    var qty = row.subQty;
-    var weight = splitWeight(it, qty);
-    var cardMark = row.cardLabel ? ' <span class="split-badge">'+row.cardLabel+'</span>' : '';
-    rows += '<tr>'+
-      '<td>'+(i+1)+'</td>'+
-      '<td><b>\xd8'+it.diameter+'</b></td>'+
-      '<td>'+(it.shape_name || '-')+cardMark+'</td>'+
-      '<td class="master-shape-cell">'+buildShapeSVG(it.segments)+'</td>'+
-      '<td>'+Math.round((it.total_length_mm||0)/10)+'</td>'+
-      '<td><b>'+qty+'</b></td>'+
-      '<td>'+weight.toFixed(1)+'</td>'+
-      '<td class="check-cell">□</td>'+
-    '</tr>';
-  }
-  var h = '<div class="prod-card master-card">';
-  h += '<div class="pc-head" style="background:#1a2332;color:#fff;padding:8px 12px;">';
-  h += '<div><div class="pc-title" style="color:#e07b39;font-size:14px;">★ כרטיסיית מאסטר מעודכנת</div>';
-  h += '<div class="pc-date" style="color:#8aa;">'+PRINT_DATE+'</div></div>';
-  h += '<div style="text-align:left"><div style="font-size:16px;font-weight:900;">'+ORDER_NUM+'</div>';
-  h += '<div style="font-size:10px;color:#8aa;">'+(DELIV_DATE?'מסירה: '+DELIV_DATE:'')+'</div></div></div>';
-  h += '<div style="padding:6px 10px;font-size:12px;font-weight:700;border-bottom:1px solid #eee;">'+CUSTOMER+'</div>';
-  h += '<table class="master-table"><thead><tr><th>#</th><th>\xd8</th><th>צורה / כרטיס</th><th>תרשים</th><th>אורך</th><th>כמות</th><th>ק"ג</th><th>✓</th></tr></thead>';
-  h += '<tbody>'+rows+'</tbody></table>';
-  h += '<div class="master-totals">סה"כ: <b>'+TOTAL_WEIGHT+' ק"ג</b> · '+TOTAL_PALLETS+' משטחים · '+plan.length+' כרטיסיות / '+allItems.length+' פריטים</div>';
-  h += '<div class="pc-footer" style="background:#1a2332;color:#8aa;font-size:9px;text-align:center;padding:4px;">★ מאסטר לפי חלוקת הכרטיסיות הנוכחית · '+ORDER_NUM+'</div>';
-  h += '</div>';
-  return h;
-}
-
 // ── Generate & render all cards ───────────────────────────────────
 function generateCards() {
   var grid = document.getElementById('cardsGrid');
   grid.innerHTML = '';
   var plan = cardPlan();
   updateSplitSummary(plan);
-  // Master
-  try {
-    var d = document.createElement('div');
-    d.innerHTML = buildSplitMaster();
-    if (d.firstElementChild) grid.appendChild(d.firstElementChild);
-  } catch(e) { console.error('buildSplitMaster:', e); }
   // Items
   for (var i=0; i<plan.length; i++) {
     var row = plan[i];

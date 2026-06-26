@@ -71,6 +71,9 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.doesNotMatch(html, /order-summary-sheet/);
   assert.doesNotMatch(html, /tene-pdf-logo\.jpg/);
   assert.ok(html.indexOf('cards-grid') > -1);
+  assert.doesNotMatch(html, /master-card/);
+  assert.doesNotMatch(html, /כרטיסיית מאסטר/);
+  assert.doesNotMatch(html, /cards\.masterCard/);
   assert.match(html, /@page\{size:A4 portrait;margin:0!important;\}/);
   assert.match(html, /grid-template-columns:repeat\(2, 105mm\)/);
   assert.match(html, /grid-auto-rows:74\.25mm/);

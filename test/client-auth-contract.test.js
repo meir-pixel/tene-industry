@@ -56,20 +56,21 @@ test('public portal does not query internal order search', () => {
   assert.match(portal, /customer-scoped portal token/);
 });
 
-test('production card split keeps item cards and master card in sync', () => {
+test('production card split renders only production cards without a master card', () => {
   const productionCardsRoute = read('services/productionCardPrintPage.js');
   const orderPrintA4Route = read('routes/orderPrintA4.js');
 
   assert.match(productionCardsRoute, /function cardPlan\(\)/);
-  assert.match(productionCardsRoute, /function buildSplitMaster\(\)/);
-  assert.match(productionCardsRoute, /d\.innerHTML = buildSplitMaster\(\)/);
+  assert.doesNotMatch(productionCardsRoute, /function buildSplitMaster\(\)/);
+  assert.doesNotMatch(productionCardsRoute, /d\.innerHTML = buildSplitMaster\(\)/);
+  assert.doesNotMatch(productionCardsRoute, /cards\.masterCard/);
+  assert.doesNotMatch(productionCardsRoute, /master-card/);
   assert.match(productionCardsRoute, /buildCard\(row\.item, row\.subQty, row\.totalCards, row\.cardIdx\)/);
   assert.match(productionCardsRoute, /function isOpenUShapeClient\(segments\)/);
   assert.match(productionCardsRoute, /function buildOpenUShapeSVG\(segments\)/);
   assert.match(productionCardsRoute, /data-shape-kind="open-u"/);
   assert.match(productionCardsRoute, /function printCards\(\)[\s\S]*generateCards\(\);[\s\S]*window\.print\(\);/);
   assert.match(productionCardsRoute, /'-C' \+ \(cardIdx\+1\) \+ 'OF' \+ totalCards/);
-  assert.match(productionCardsRoute, /להדפיס גם מאסטר מעודכן/);
   assert.match(productionCardsRoute, /@page\{size:A4 portrait;margin:0!important;\}/);
   assert.doesNotMatch(productionCardsRoute, /order-summary-sheet/);
   assert.doesNotMatch(productionCardsRoute, /data-order-url/);
@@ -86,7 +87,6 @@ test('production card split keeps item cards and master card in sync', () => {
   assert.match(productionCardsRoute, /height:74\.25mm!important/);
   assert.match(productionCardsRoute, /pc-print-face/);
   assert.match(productionCardsRoute, /grid-template-columns:78mm 27mm/);
-  assert.match(productionCardsRoute, /\.master-card\{display:none!important;\}/);
   assert.match(productionCardsRoute, /pc-print-qr-code/);
 });
 
