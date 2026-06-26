@@ -1585,6 +1585,8 @@ class ShapeEditorModal {
 #seModal .se-summary-item span{display:block;font-size:10px;color:#647083;font-weight:900;line-height:1.1;}
 #seModal .se-summary-item strong{font-size:18px;color:#243047;font-weight:900;line-height:1.1;}
 #seModal .se-summary-item small{font-size:10px;color:#647083;font-weight:800;margin-inline-start:3px;}
+#seModal .se-quantity-input{width:54px;border:0;background:transparent;color:#243047;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;line-height:1.1;text-align:center;direction:ltr;padding:0;outline:none;}
+#seModal .se-quantity-input:focus{background:#fff;border:1px solid #cfd6df;border-radius:5px;box-shadow:0 0 0 2px rgba(255,64,71,.12);}
 #seModal .se-summary-item.primary{border-color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.11);}
 #seModal .se-summary-item.primary strong{color:#df5000;}
 #seModal .se-foot{height:68px;min-height:68px;padding:10px 16px;background:#eef0f3;border-top:1px solid #c5cbd4;}
@@ -1802,7 +1804,7 @@ class ShapeEditorModal {
         <div class="se-summary-item primary"><span>סה״כ אורך</span><div><strong id="sePerimeter">0</strong><small>מ״מ</small></div></div>
         <div class="se-summary-item"><span>אורך במטר</span><div><strong id="seBarLength">0.00</strong><small>מטר</small></div></div>
         <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
-        <div class="se-summary-item"><span>כמות</span><div><strong id="seQuantity">1</strong><small>יח׳</small></div></div>
+        <div class="se-summary-item se-quantity-item"><span>כמות</span><div><input id="seQuantityInput" class="se-quantity-input" type="number" min="1" step="1" value="1" onfocus="this.select()" oninput="window._seEditor?._setQuantity(this.value)"><small>יח׳</small></div></div>
         <div class="se-summary-item"><span>כיפופים</span><strong id="seBends">0</strong></div>
       </div>
       <div class="se-foot-actions">
@@ -2171,7 +2173,8 @@ class ShapeEditorModal {
       presetEmoji: preset.emoji,
       sides,
       angles,
-      azAngles:    [0, ...angles.map(a => -(180 - (a ?? 180)))].slice(0, n),
+      quantity:    Math.max(1, Number(this.current?.quantity || this._pendingQuantity || preset.quantity || preset.qty || 1) || 1),
+      azAngles:    [0, ...angles.map(a => 180 - (a ?? 180))].slice(0, n),
       elAngles:    Array(n).fill(0),
     };
     // pad azAngles if needed
@@ -2414,16 +2417,25 @@ class ShapeEditorModal {
     const totalMm = Number(contract.calculated?.totalLengthMm || 0);
     const weightKg = Number(contract.calculated?.weightKg || 0);
     const qty = Math.max(1, Number(this.current.quantity || this.current.qty || 1) || 1);
+    this.current.quantity = qty;
     const bends = Array.isArray(this.current.angles) ? this.current.angles.length : (Array.isArray(this.current.spiralZones) ? this.current.spiralZones.length : 0);
     const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
     set('sePerimeter', totalMm.toLocaleString('he-IL'));
     set('seBarLength', (totalMm / 1000).toFixed(2));
     set('seTotalWeight', (weightKg * qty).toFixed(2));
-    set('seQuantity', qty.toLocaleString('he-IL'));
+    const qtyInput = document.getElementById('seQuantityInput');
+    if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = String(qty);
     set('seBends', bends);
     set('sePanelTotalMm', totalMm.toLocaleString('he-IL'));
     set('sePanelTotalM', (totalMm / 1000).toFixed(2));
     set('sePanelBends', bends);
+  }
+
+  _setQuantity(value) {
+    if (!this.current) return;
+    const qty = Math.max(1, Math.round(Number(value) || 1));
+    this.current.quantity = qty;
+    this._updateSummaryValues();
   }
 
   _setFamilyEditorChrome(kind) {
@@ -2674,9 +2686,9 @@ class ShapeEditorModal {
     const a = Math.min(360, Math.max(-360, Number(val) || 90));
     this.current.angles[i] = a;
     // ── Sync to azAngles (so 3D view stays consistent) ─────────────────
-    // azAngles[i+1] = -(180 - angles[i])
+    // azAngles[i+1] = 180 - angles[i] so a default 90-degree bend displays as +90.
     if (this.current.azAngles && i + 1 < this.current.azAngles.length) {
-      this.current.azAngles[i + 1] = -(180 - a);
+      this.current.azAngles[i + 1] = 180 - a;
     }
     this._updatePreview();
   }
@@ -2688,11 +2700,11 @@ class ShapeEditorModal {
     if (!this.current.azAngles) this.current.azAngles = Array(this.current.sides.length).fill(0);
     this.current.azAngles[i] = az;
     // ── Sync back to 2D angles (machine data) ──────────────────────────
-    // Inverse of: azAngles[i] = -(180 - angles[i-1])
-    //             angles[i-1] = 180 + azAngles[i]
+    // Inverse of: azAngles[i] = 180 - angles[i-1]
+    //             angles[i-1] = 180 - azAngles[i]
     // Clamp to valid 2D range [-360, 360]; angles outside this range mean
     // a purely-3D direction change with no classic 2D equivalent.
-    const ang2d = 180 + az;
+    const ang2d = 180 - az;
     if (i - 1 >= 0 && i - 1 < this.current.angles.length) {
       if (ang2d >= -360 && ang2d <= 360) {
         this.current.angles[i - 1] = ang2d;
@@ -2714,13 +2726,13 @@ class ShapeEditorModal {
   // Convert flat 2D bend angles → azAngles for 3D renderer.
   // In 2D: dir -= (180 - angles[i]) at each bend.
   // In 3D cumAz: azAngles[segment] = direction change ADDED before drawing that segment.
-  // Result: azAngles[0]=0, azAngles[i] = -(180 - angles[i-1])  for i≥1
+  // Result: azAngles[0]=0, azAngles[i] = 180 - angles[i-1]  for i≥1
   _init3DAnglesFrom2D(render = true) {
     const { sides, angles } = this.current;
     const n = sides.length;
     const az = [0];
     for (let i = 0; i < angles.length && az.length < n; i++) {
-      az.push(-(180 - (angles[i] ?? 180)));
+      az.push(180 - (angles[i] ?? 180));
     }
     while (az.length < n) az.push(0);
     this.current.azAngles = az;
@@ -2886,7 +2898,7 @@ class ShapeEditorModal {
       // True 3D may use XYZ turn data only after the user explicitly marks it as real 3D.
       let effectiveAzAngles = azAngles;
       if (has3D && (!azAngles || azAngles.every(a => a === 0)) && angles.length > 0) {
-        effectiveAzAngles = [0, ...angles.map(a => -(180 - a))];
+        effectiveAzAngles = [0, ...angles.map(a => 180 - a)];
         while (effectiveAzAngles.length < sides.length) effectiveAzAngles.push(0);
       }
 
@@ -3066,6 +3078,7 @@ class ShapeEditorModal {
   _confirm() {
     if (!this.current || !this.onSelect) return;
     const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
+    const orderItemQuantity = Math.max(1, Number(this.current.quantity || this.current.qty || 1) || 1);
     const normalized = {
       ...this.current,
       is3d: isReal3D ? 1 : 0,
@@ -3078,6 +3091,7 @@ class ShapeEditorModal {
     this.onSelect({
       ...legacyApprovedShapeFields(normalized, contract),
       ...contract,
+      orderItemQuantity,
     });
     this.close();
   }
@@ -3090,26 +3104,28 @@ class ShapeEditorModal {
     const is3D = window._seViewMode !== '2d';
     if (orbitCtrl) orbitCtrl.style.display = is3D ? 'flex' : 'none';
     if (svgWrap)   svgWrap.classList.toggle('grab-mode', is3D);
+    this._pendingQuantity = Math.max(1, Number(existingData?.quantity || existingData?.qty || 1) || 1);
     if (existingData?.family === 'mesh' || existingData?.family === 'piles') {
-      this.current = { ...existingData };
+      this.current = { ...existingData, quantity: this._pendingQuantity };
       document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
       this._goToEdit();
     } else if (existingData?.sides?.length) {
       const n = existingData.sides.length;
       // Derive azAngles from 2D bend angles when not saved with the shape.
-      // Formula: azAngles[i] = -(180 - angles[i-1])  (same as _init3DAnglesFrom2D)
+      // Formula: azAngles[i] = 180 - angles[i-1]  (same as _init3DAnglesFrom2D)
       // This ensures the 3D table shows the correct turn for each segment,
       // matching the actual bend angles that go to the machine.
       let initAz;
       if (existingData.azAngles?.length === n) {
         initAz = [...existingData.azAngles];
       } else {
-        initAz = [0, ...(existingData.angles || []).map(a => -(180 - (a ?? 180)))];
+        initAz = [0, ...(existingData.angles || []).map(a => 180 - (a ?? 180))];
         while (initAz.length < n) initAz.push(0);
         initAz = initAz.slice(0, n);
       }
       this.current = {
         ...existingData,
+        quantity: this._pendingQuantity,
         is3d: existingData.is3d ? 1 : 0,
         azAngles: initAz,
         elAngles: existingData.elAngles?.length === n

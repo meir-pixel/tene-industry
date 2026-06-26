@@ -800,6 +800,30 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+
+### V2-006X - Shape Editor Positive Default Bend And Quantity Handoff
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `public/index.html`
+  - `test/shape-geometry.test.js`
+- Output:
+  - 90-degree bends map to positive `+90` 3D turn values instead of `-90`.
+  - Shape editor footer quantity is editable and returned as `orderItemQuantity` outside the shape contract.
+  - Manual add-item flow opens the shape editor first and creates the item only after approval.
+- Guardrails:
+  - No full UI redesign.
+  - No new shapes or shape families.
+  - Shape contract still removes shape-owned `quantity`.
+  - No Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
 ### V2-007 — Orders Module Specification
 
 - status: todo

@@ -151,7 +151,7 @@ test('shape editor approved reference UI keeps Hebrew workspace chrome', () => {
   assert.match(editor, /class="se-field-shell"/);
   assert.match(editor, /class="se-param-icon"/);
   assert.match(editor, /id="seTotalWeight"/);
-  assert.match(editor, /id="seQuantity"/);
+  assert.match(editor, /id="seQuantityInput"/);
   assert.match(editor, /_focusFamilyField/);
   assert.match(editor, /_applyFamilyFocus/);
   assert.doesNotMatch(editor, /Mesh Editor/);
@@ -278,6 +278,41 @@ test('shape editor defaults newly added 3D side bends to 90 degrees', () => {
   assert.match(addSideBlock[0], /this\.current\.angles\.push\(90\)/);
   assert.match(addSideBlock[0], /this\.current\.azAngles\.push\(90\)/);
   assert.doesNotMatch(addSideBlock[0], /this\.current\.azAngles\.push\(0\)/);
+});
+
+
+test('shape editor keeps default 90-degree 3D turns positive, not negative', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /angles\.map\(a => 180 - \(a \?\? 180\)\)/);
+  assert.match(editor, /this\.current\.azAngles\[i \+ 1\] = 180 - a/);
+  assert.match(editor, /const ang2d = 180 - az/);
+  assert.doesNotMatch(editor, /-\(180 - \(a \?\? 180\)\)/);
+  assert.doesNotMatch(editor, /azAngles\[i \+ 1\] = -\(180 - a\)/);
+});
+
+test('shape editor exposes editable order item quantity outside the shape contract', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /id="seQuantityInput"/);
+  assert.match(editor, /_setQuantity\(value\)/);
+  assert.match(editor, /orderItemQuantity/);
+  assert.match(editor, /delete normalized\.quantity/);
+  assert.match(editor, /delete normalized\.qty/);
+});
+
+test('manual add item opens the shape editor before creating an empty order row', () => {
+  const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const addItemBlock = index.match(new RegExp('function addItem\\(palletId\\) \\{[\\s\\S]*?\\n\\}'));
+  const shapeSelectedBlock = index.match(new RegExp('function shapeSelected\\(data\\) \\{[\\s\\S]*?\\n\\}'));
+
+  assert.ok(addItemBlock, 'expected addItem body');
+  assert.ok(shapeSelectedBlock, 'expected shapeSelected body');
+  assert.match(addItemBlock[0], /pendingItem/);
+  assert.match(addItemBlock[0], /shapeEditor\.open\(\{ quantity: pendingItem\.qty \}\)/);
+  assert.doesNotMatch(addItemBlock[0], /pallet\.items\.push/);
+  assert.match(shapeSelectedBlock[0], /pallet\.items\.push\(item\)/);
+  assert.match(shapeSelectedBlock[0], /data\.orderItemQuantity/);
 });
 
 test('shape editor keeps true 3D angle fields in sync with visual bends', () => {

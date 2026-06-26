@@ -2019,7 +2019,7 @@ function renderItemRow(palletId, item) {
 }
 
 function openShapeEditor(palletId, itemId) {
-  _shapeTarget = { palletId, itemId };
+  _shapeTarget = { palletId, itemId, isNew: false };
   const pallet = pallets.find(p => p.id === palletId);
   const item   = pallet?.items.find(i => i.id == itemId);
   shapeEditor.open(item?.shapeSides?.length ? {
@@ -2029,14 +2029,19 @@ function openShapeEditor(palletId, itemId) {
     azAngles: item.azAngles || null,
     elAngles: item.elAngles || null,
     is3d: item.is3d || 0,
-  } : null);
+    quantity: item.qty || 1,
+  } : { quantity: item?.qty || 1 });
 }
 
 function shapeSelected(data) {
   if (!_shapeTarget) return;
-  const { palletId, itemId } = _shapeTarget;
+  const { palletId, itemId, isNew, pendingItem } = _shapeTarget;
   const pallet = pallets.find(p => p.id === palletId);
-  const item   = pallet?.items.find(i => i.id == itemId);
+  let item = pallet?.items.find(i => i.id == itemId);
+  if (!item && isNew && pendingItem && pallet) {
+    item = pendingItem;
+    pallet.items.push(item);
+  }
   if (!item) return;
   item.shapeId     = data.presetId;
   item.shapeName   = data.presetName;
@@ -2047,6 +2052,7 @@ function shapeSelected(data) {
   item.azAngles   = item.is3d ? (data.azAngles || []) : null;
   item.elAngles   = item.is3d ? (data.elAngles || []) : null;
   item.length      = data.sides.reduce((s, l) => s + Number(l), 0);
+  item.qty         = Math.max(1, Number(data.orderItemQuantity || item.qty || 1) || 1);
   _shapeTarget = null;
   renderPallets();
 }
@@ -2091,8 +2097,9 @@ async function loadInventoryBatches() {
 function addItem(palletId) {
   const pallet = pallets.find(p => p.id === palletId);
   if (!pallet) return;
-  pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: '?', shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' });
-  renderPallets();
+  const pendingItem = { id: Date.now(), shapeId: null, shapeEmoji: '?', shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' };
+  _shapeTarget = { palletId, itemId: pendingItem.id, isNew: true, pendingItem };
+  shapeEditor.open({ quantity: pendingItem.qty });
 }
 
 function appendParsedItems(items = []) {
