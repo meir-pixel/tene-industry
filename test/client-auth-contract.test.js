@@ -56,13 +56,17 @@ test('public portal does not query internal order search', () => {
   assert.match(portal, /customer-scoped portal token/);
 });
 
-test('blocked production card print links to the specific order approval view', () => {
-  const orderPrint = read('public/order-print.html');
+test('production card preview mode shows cards but locks printing before approval', () => {
+  const productionCardsRoute = read('routes/productionCards.js');
+  const productionCardsPage = read('services/productionCardPrintPage.js');
 
-  assert.match(orderPrint, /response\.status === 409 && kind === 'print-cards'/);
-  assert.match(orderPrint, /orders\.html\?id=/);
-  assert.match(orderPrint, /encodeURIComponent\(options\.orderId\)/);
-  assert.match(orderPrint, /&#1508;&#1514;&#1495; &#1492;&#1494;&#1502;&#1504;&#1492; &#1500;&#1488;&#1497;&#1513;&#1493;&#1512;/);
+  assert.match(productionCardsRoute, /const previewOnly = allItems\.length && !canCreateProductionCards\(order\)/);
+  assert.match(productionCardsRoute, /X-Production-Cards-Preview-Only/);
+  assert.match(productionCardsPage, /previewOnly = false/);
+  assert.match(productionCardsPage, /preview-locked/);
+  assert.match(productionCardsPage, /print-blocked-page/);
+  assert.match(productionCardsPage, /if \(PREVIEW_ONLY\)/);
+  assert.match(productionCardsPage, /orders\.html\?id=/);
 });
 test('production card split renders only production cards without a master card', () => {
   const productionCardsRoute = read('services/productionCardPrintPage.js');

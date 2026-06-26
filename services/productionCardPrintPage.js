@@ -16,7 +16,16 @@ function renderPrintCardsPage({
   cards,
   industry,
   tryParseJSON,
+  previewOnly = false,
 }) {
+const isPreviewOnly = !!previewOnly;
+const previewNoticeHtml = isPreviewOnly
+  ? '<div class="preview-lock"><b>תצוגה בלבד</b><span>ההזמנה עדיין לא מאושרת/מתוכננת לייצור, לכן אפשר לראות את הכרטיסיות אבל אי אפשר להדפיס אותן.</span><a href="/orders.html?id=' + encodeURIComponent(order.id || '') + '">פתח הזמנה לאישור</a></div>'
+  : '';
+const printButtonHtml = isPreviewOnly
+  ? '<span class="preview-pill">תצוגה בלבד - הדפסה חסומה</span>'
+  : '<button class="print-btn" onclick="printCards()">🖨️ הדפס כרטיסיות</button>';
+
 // Server-side rendered setup rows and cards
 const setupRowsHtml = allItems.map((it,i) =>
   '<tr><td>'+(i+1)+'</td><td>'+cards.escapeHtml(it.shape_name||'–')+'</td>' +
@@ -44,6 +53,8 @@ const serverCardsHtml = (allItems.length
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direction:rtl;}
+.preview-lock{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff3d7;border:1px solid #ffd6a0;color:#8a4b00;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;font-weight:700;}
+.preview-lock b{font-size:14px;color:#1a2332}.preview-lock a{color:#1a2332;font-weight:900;text-decoration:underline}.preview-pill{display:inline-flex;align-items:center;padding:9px 14px;border-radius:6px;background:#fff3d7;border:1px solid #ffd6a0;color:#8a4b00;font-weight:900;font-size:13px}.print-blocked-page{display:none;}
 
 /* ── Screen-only UI ── */
 .screen-only{margin-bottom:14px;}
@@ -153,6 +164,8 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 @media print{
   html,body{width:210mm;margin:0!important;background:#fff;padding:0;}
   .screen-only{display:none!important;}
+  body.preview-locked .cards-grid{display:none!important;}
+  body.preview-locked .print-blocked-page{display:flex!important;width:210mm;height:297mm;align-items:center;justify-content:center;text-align:center;font-family:'Heebo',Arial,sans-serif;font-size:18px;font-weight:900;color:#1a2332;padding:20mm;}
   .cards-grid{
     display:grid!important;
     grid-template-columns:repeat(2, 105mm);
@@ -224,12 +237,15 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 }
 </style>
 </head>
-<body>
+<body${isPreviewOnly ? ' class="preview-locked"' : ''}>
+
+<div class="print-blocked-page">הכרטיסיות בתצוגה בלבד. יש לאשר/לתכנן את ההזמנה לפני הדפסה.</div>
 
 <!-- ── Screen toolbar ── -->
 <div class="screen-only">
+  ${previewNoticeHtml}
   <div class="toolbar">
-    <button class="print-btn" onclick="printCards()">🖨️ הדפס כרטיסיות</button>
+    ${printButtonHtml}
     <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${order.customer_name || ''} · ${allItems.length} פריטים</span>
   </div>
 
@@ -264,6 +280,7 @@ var DELIV_DATE    = ${JSON.stringify(delivDate)};
 var ORDER_STATUS  = ${JSON.stringify(order.status || '')};
 var TOTAL_WEIGHT  = ${(order.total_weight||0).toFixed(1)};
 var TOTAL_PALLETS = ${pallets.length};
+var PREVIEW_ONLY  = ${isPreviewOnly ? 'true' : 'false'};
 var allItems      = ${JSON.stringify(allItems.map(it => ({
   id:             it.id,
   shape_name:     it.shape_name  || '',
@@ -725,6 +742,7 @@ function renderWorkerCardQrCodes() {
 }
 
 function printCards() {
+  if (PREVIEW_ONLY) { alert('הכרטיסיות בתצוגה בלבד. יש לאשר/לתכנן את ההזמנה לפני הדפסה.'); return; }
   generateCards();
   renderWorkerCardQrCodes();
   setTimeout(function(){ window.print(); }, 120);

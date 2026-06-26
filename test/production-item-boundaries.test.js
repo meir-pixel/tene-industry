@@ -119,11 +119,17 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.equal(machine.current_item_id, null);
   });
 
-  await t.test('production card printing rejects orders that are not approved or planned when items exist', async () => {
+  await t.test('production card preview renders but locks printing until approved or planned', async () => {
     const draft = seedOrderWithItem('PB-DRAFT-CARDS', statusContracts.ORDER_STATUS.PENDING_APPROVAL);
     const response = await request(`/api/orders/${draft.orderId}/print-cards`, { headers });
-    assert.equal(response.status, 409);
-    assert.match(await response.text(), /not approved or planned/);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('x-production-cards-preview-only'), '1');
+    const html = await response.text();
+    assert.match(html, /cards-grid/);
+    assert.match(html, /preview-locked/);
+    assert.match(html, /PREVIEW_ONLY\s*=\s*true/);
+    assert.match(html, /print-blocked-page/);
+    assert.doesNotMatch(html, /class="print-btn" onclick="printCards\(\)"/);
   });
 
   await t.test('production card printing accepts legacy approved order status', async () => {

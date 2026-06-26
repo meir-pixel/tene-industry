@@ -51,9 +51,7 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
   order.pallets = pallets;
 
   const allItems = pallets.flatMap(p => p.items);
-  if (allItems.length && !canCreateProductionCards(order)) {
-    return res.status(409).send('order is not approved or planned for production cards');
-  }
+  const previewOnly = allItems.length && !canCreateProductionCards(order);
   const cardWeights = db.prepare('SELECT * FROM production_card_weights WHERE order_id=? ORDER BY item_id, card_total, card_index').all(order.id);
   const weightsByItem = new Map();
   for (const row of cardWeights) {
@@ -83,10 +81,12 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
     cards,
     industry,
     tryParseJSON,
+    previewOnly,
   });
 
   console.log('[print-cards] order', req.params.id, '→', allItems.length, 'items server-rendered');
 
+  if (previewOnly) res.setHeader('X-Production-Cards-Preview-Only', '1');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
 });
