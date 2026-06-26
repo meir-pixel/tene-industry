@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "ed09ad7";
+window.IRONBEND_ASSET_VERSION = "highlight-width-4";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -2943,7 +2943,7 @@ class ShapeEditorModal {
         if (_activeSeg2d >= 0 && _activeSeg2d < segs.length) {
           const s = segs[_activeSeg2d];
           html += `<path d="M ${s.x1.toFixed(1)},${s.y1.toFixed(1)} L ${s.x2.toFixed(1)},${s.y2.toFixed(1)}"
-            stroke="#2979ff" stroke-width="${BAR_PX.toFixed(1)}" fill="none" stroke-linecap="round"
+            stroke="#2979ff" stroke-width="4" fill="none" stroke-linecap="round"
             data-seg-click="${_activeSeg2d}" style="cursor:pointer"/>`;
         }
       }
