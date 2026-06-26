@@ -710,6 +710,28 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+
+### V2-006T - Shape Editor Reduce Empty Bend Windows
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- Output:
+  - Rows without a bend angle use a compact dash instead of a large empty angle window.
+  - Compact bend editor tests cover the reduced field proportions.
+- Guardrails:
+  - No full UI redesign.
+  - No new shapes or shape families.
+  - No rendering-engine contract changes.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
 ### V2-007 — Orders Module Specification
 
 - status: todo

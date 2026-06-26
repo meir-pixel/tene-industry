@@ -852,6 +852,7 @@ class ShapeEditorModal {
     this._camPhi    = Math.PI / 4; // camera elevation (default 45°, matches isometric)
     this._activeSeg = null;        // index of highlighted segment (null = none)
     this._uiTune = this._loadUiTune();
+    this._uiTuneUnlocked = false;
     this._build();
   }
 
@@ -1617,11 +1618,18 @@ class ShapeEditorModal {
 #seShapeSvg text{font-size:calc(1em * var(--se-drawing-label-scale));}
 #seShapeSvg.se-line-tune line,#seShapeSvg.se-line-tune path,#seShapeSvg.se-line-tune polyline,#seShapeSvg.se-line-tune circle,#seShapeSvg.se-line-tune rect{stroke-width:calc(3px * var(--se-drawing-line-scale))!important;}
 #seModal .se-ui-tune-wrap{position:relative;display:inline-flex;align-items:center;}
-#seModal .se-ui-tune-btn{min-height:30px;border:1px solid #c5cbd4;background:#fff;color:#243047;border-radius:7px;padding:5px 10px;font-family:'Heebo',sans-serif;font-size:12px;font-weight:900;cursor:pointer;}
+#seModal .se-ui-tune-btn{width:32px;height:32px;min-height:32px;border:1px solid #c5cbd4;background:#fff;color:#243047;border-radius:50%;padding:0;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;display:grid;place-items:center;line-height:1;}
 #seModal .se-ui-tune-btn.active{border-color:#ff4047;color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.12);}
 #seModal .se-ui-tune-panel{position:absolute;top:36px;left:0;z-index:20;width:min(360px,92vw);background:#fff;border:1px solid #c5cbd4;border-radius:8px;box-shadow:0 18px 48px rgba(15,23,42,.22);padding:12px;display:none;direction:rtl;text-align:right;}
 #seModal .se-ui-tune-panel.open{display:grid;gap:10px;}
 #seModal .se-ui-tune-title{font-size:14px;font-weight:900;color:#243047;}
+#seModal .se-ui-lock{display:grid;gap:9px;border:1px dashed #c5cbd4;border-radius:8px;background:#f8fafc;padding:10px;}
+#seModal .se-ui-lock strong{font-size:13px;color:#243047;}
+#seModal .se-ui-lock small{font-size:11px;color:#647083;line-height:1.45;}
+#seModal .se-ui-unlock{border:0;border-radius:7px;background:#243047;color:#fff;font-family:'Heebo',sans-serif;font-weight:900;padding:8px 10px;cursor:pointer;}
+#seModal .se-ui-editor-body{display:none;gap:10px;}
+#seModal .se-ui-tune-panel.unlocked .se-ui-editor-body{display:grid;}
+#seModal .se-ui-tune-panel.unlocked .se-ui-lock{display:none;}
 #seModal .se-ui-targets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
 #seModal .se-ui-target{display:flex;align-items:center;gap:6px;border:1px solid #d8dde5;border-radius:7px;background:#f8fafc;padding:7px 8px;font-size:12px;font-weight:900;color:#334155;cursor:pointer;}
 #seModal .se-ui-target input{accent-color:#ff4047;}
@@ -1699,22 +1707,29 @@ class ShapeEditorModal {
           <button id="seView3D" onclick="seSetView('3d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">3D</button>
           <button id="seResetCam" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}" style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#7a93ab;cursor:pointer;font-size:13px;transition:all .15s" title="איפוס זווית">↻</button>
           <span class="se-ui-tune-wrap">
-            <button class="se-ui-tune-btn" id="seUiTuneBtn" type="button" onclick="window._seEditor?._toggleUiTunePanel()">התאמת תצוגה</button>
-            <div class="se-ui-tune-panel" id="seUiTunePanel" aria-label="התאמת תצוגה">
-              <div class="se-ui-tune-title">התאמת תצוגה</div>
-              <div class="se-ui-targets" id="seUiTargets">
-                <label class="se-ui-target"><input type="checkbox" value="page" checked onchange="window._seEditor?._syncUiTuneControls()">כל הדף</label>
-                <label class="se-ui-target"><input type="checkbox" value="values" onchange="window._seEditor?._syncUiTuneControls()">חלון הכנסת ערכים</label>
-                <label class="se-ui-target"><input type="checkbox" value="drawing" onchange="window._seEditor?._syncUiTuneControls()">שרטוט</label>
-                <label class="se-ui-target"><input type="checkbox" value="summary" onchange="window._seEditor?._syncUiTuneControls()">סיכום תחתון</label>
-                <label class="se-ui-target"><input type="checkbox" value="families" onchange="window._seEditor?._syncUiTuneControls()">כרטיסי סוג</label>
+            <button class="se-ui-tune-btn" id="seUiTuneBtn" type="button" title="&#1492;&#1514;&#1488;&#1502;&#1514; &#1514;&#1510;&#1493;&#1490;&#1492; &#1494;&#1502;&#1504;&#1497;&#1514;" aria-label="&#1492;&#1514;&#1488;&#1502;&#1514; &#1514;&#1510;&#1493;&#1490;&#1492; &#1494;&#1502;&#1504;&#1497;&#1514;" onclick="window._seEditor?._toggleUiTunePanel()">&#9998;</button>
+            <div class="se-ui-tune-panel" id="seUiTunePanel" aria-label="&#1492;&#1514;&#1488;&#1502;&#1514; &#1514;&#1510;&#1493;&#1490;&#1492;">
+              <div class="se-ui-tune-title">&#1492;&#1514;&#1488;&#1502;&#1514; &#1514;&#1510;&#1493;&#1490;&#1492;</div>
+              <div class="se-ui-lock">
+                <strong>&#1502;&#1510;&#1489; &#1506;&#1512;&#1497;&#1499;&#1492; &#1494;&#1502;&#1504;&#1497;</strong>
+                <small>&#1502;&#1497;&#1493;&#1506;&#1491; &#1500;&#1508;&#1497;&#1514;&#1493;&#1495; &#1502;&#1492;&#1497;&#1512; &#1489;&#1500;&#1489;&#1491;. &#1508;&#1514;&#1495; &#1512;&#1511; &#1499;&#1513;&#1510;&#1512;&#1497;&#1498; &#1500;&#1499;&#1493;&#1493;&#1503; &#1490;&#1491;&#1500;&#1497;&#1501;, &#1499;&#1491;&#1497; &#1513;&#1500;&#1488; &#1497;&#1513;&#1504;&#1493; &#1489;&#1496;&#1506;&#1493;&#1514;.</small>
+                <button class="se-ui-unlock" type="button" onclick="window._seEditor?._unlockUiTune()">&#1508;&#1514;&#1495; &#1502;&#1510;&#1489; &#1506;&#1512;&#1497;&#1499;&#1492; &#1494;&#1502;&#1504;&#1497;</button>
               </div>
-              <label class="se-ui-control"><span>פונט</span><input type="range" min="85" max="125" value="100" data-se-ui-control="font" oninput="window._seEditor?._setUiTuneValue('font', this.value)"><span class="se-ui-value" data-se-ui-value="font">100%</span></label>
-              <label class="se-ui-control"><span>אייקונים</span><input type="range" min="85" max="135" value="100" data-se-ui-control="icon" oninput="window._seEditor?._setUiTuneValue('icon', this.value)"><span class="se-ui-value" data-se-ui-value="icon">100%</span></label>
-              <label class="se-ui-control"><span>תוויות שרטוט</span><input type="range" min="85" max="140" value="100" data-se-ui-control="drawingLabel" oninput="window._seEditor?._setUiTuneValue('drawingLabel', this.value)"><span class="se-ui-value" data-se-ui-value="drawingLabel">100%</span></label>
-              <label class="se-ui-control"><span>עובי קו</span><input type="range" min="80" max="150" value="100" data-se-ui-control="line" oninput="window._seEditor?._setUiTuneValue('line', this.value)"><span class="se-ui-value" data-se-ui-value="line">100%</span></label>
-              <label class="se-ui-control"><span>ריווח</span><input type="range" min="85" max="130" value="100" data-se-ui-control="gap" oninput="window._seEditor?._setUiTuneValue('gap', this.value)"><span class="se-ui-value" data-se-ui-value="gap">100%</span></label>
-              <div class="se-ui-actions"><button type="button" onclick="window._seEditor?._resetUiTune()">איפוס</button><button type="button" onclick="window._seEditor?._closeUiTunePanel()">סגור</button><button class="primary" type="button" onclick="window._seEditor?._saveUiTune()">שמור</button></div>
+              <div class="se-ui-editor-body" id="seUiEditorBody">
+                <div class="se-ui-targets" id="seUiTargets">
+                  <label class="se-ui-target"><input type="checkbox" value="page" checked onchange="window._seEditor?._syncUiTuneControls()">&#1499;&#1500; &#1492;&#1491;&#1507;</label>
+                  <label class="se-ui-target"><input type="checkbox" value="values" onchange="window._seEditor?._syncUiTuneControls()">&#1495;&#1500;&#1493;&#1503; &#1492;&#1499;&#1504;&#1505;&#1514; &#1506;&#1512;&#1499;&#1497;&#1501;</label>
+                  <label class="se-ui-target"><input type="checkbox" value="drawing" onchange="window._seEditor?._syncUiTuneControls()">&#1513;&#1512;&#1496;&#1493;&#1496;</label>
+                  <label class="se-ui-target"><input type="checkbox" value="summary" onchange="window._seEditor?._syncUiTuneControls()">&#1505;&#1497;&#1499;&#1493;&#1501; &#1514;&#1495;&#1514;&#1493;&#1503;</label>
+                  <label class="se-ui-target"><input type="checkbox" value="families" onchange="window._seEditor?._syncUiTuneControls()">&#1499;&#1512;&#1496;&#1497;&#1505;&#1497; &#1505;&#1493;&#1490;</label>
+                </div>
+                <label class="se-ui-control"><span>&#1508;&#1493;&#1504;&#1496;</span><input type="range" min="85" max="125" value="100" data-se-ui-control="font" oninput="window._seEditor?._setUiTuneValue('font', this.value)"><span class="se-ui-value" data-se-ui-value="font">100%</span></label>
+                <label class="se-ui-control"><span>&#1488;&#1497;&#1497;&#1511;&#1493;&#1504;&#1497;&#1501;</span><input type="range" min="85" max="135" value="100" data-se-ui-control="icon" oninput="window._seEditor?._setUiTuneValue('icon', this.value)"><span class="se-ui-value" data-se-ui-value="icon">100%</span></label>
+                <label class="se-ui-control"><span>&#1514;&#1493;&#1493;&#1497;&#1493;&#1514; &#1513;&#1512;&#1496;&#1493;&#1496;</span><input type="range" min="85" max="140" value="100" data-se-ui-control="drawingLabel" oninput="window._seEditor?._setUiTuneValue('drawingLabel', this.value)"><span class="se-ui-value" data-se-ui-value="drawingLabel">100%</span></label>
+                <label class="se-ui-control"><span>&#1506;&#1493;&#1489;&#1497; &#1511;&#1493;</span><input type="range" min="80" max="150" value="100" data-se-ui-control="line" oninput="window._seEditor?._setUiTuneValue('line', this.value)"><span class="se-ui-value" data-se-ui-value="line">100%</span></label>
+                <label class="se-ui-control"><span>&#1512;&#1497;&#1493;&#1493;&#1495;</span><input type="range" min="85" max="130" value="100" data-se-ui-control="gap" oninput="window._seEditor?._setUiTuneValue('gap', this.value)"><span class="se-ui-value" data-se-ui-value="gap">100%</span></label>
+                <div class="se-ui-actions"><button type="button" onclick="window._seEditor?._resetUiTune()">&#1488;&#1497;&#1508;&#1493;&#1505;</button><button type="button" onclick="window._seEditor?._closeUiTunePanel()">&#1505;&#1490;&#1493;&#1512;</button><button class="primary" type="button" onclick="window._seEditor?._saveUiTune()">&#1513;&#1502;&#1493;&#1512;</button></div>
+              </div>
             </div>
           </span>
         </div>
@@ -2209,11 +2224,22 @@ class ShapeEditorModal {
     const open = !panel.classList.contains('open');
     panel.classList.toggle('open', open);
     if (btn) btn.classList.toggle('active', open);
-    if (open) this._syncUiTuneControls();
+    if (open) {
+      this._uiTuneUnlocked = false;
+      panel.classList.remove('unlocked');
+      this._syncUiTuneControls();
+    }
+  }
+
+  _unlockUiTune() {
+    this._uiTuneUnlocked = true;
+    document.getElementById('seUiTunePanel')?.classList.add('unlocked');
+    this._syncUiTuneControls();
   }
 
   _closeUiTunePanel() {
-    document.getElementById('seUiTunePanel')?.classList.remove('open');
+    this._uiTuneUnlocked = false;
+    document.getElementById('seUiTunePanel')?.classList.remove('open', 'unlocked');
     document.getElementById('seUiTuneBtn')?.classList.remove('active');
   }
 
@@ -2230,6 +2256,7 @@ class ShapeEditorModal {
   }
 
   _setUiTuneValue(key, value) {
+    if (!this._uiTuneUnlocked) return;
     const next = Math.max(70, Math.min(160, Number(value) || 100));
     this._uiTuneTargets().forEach(target => {
       this._uiTune[target] = { ...(this._uiTune[target] || this._defaultUiTune().page), [key]: next };
@@ -2240,6 +2267,7 @@ class ShapeEditorModal {
   }
 
   _resetUiTune() {
+    if (!this._uiTuneUnlocked) return;
     this._uiTuneTargets().forEach(target => {
       this._uiTune[target] = { ...this._defaultUiTune()[target] };
     });
@@ -2565,7 +2593,7 @@ class ShapeEditorModal {
             <td class="se-length-cell">${this._fieldShell({ icon:'📏', label:'אורך', unit:'מ״מ', example:'לדוגמה 300', input:`<input class="se-input" type="number" min="1" max="20000" value="${sides[i]}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
             <td class="se-angle-cell ${i < angles.length ? '' : 'se-empty-cell'}">${i < angles.length
               ? this._fieldShell({ icon:'∠', label:'זווית', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" data-angle="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAngle(${i}, this.value)">` })
-              : '<span style="font-size:11px;color:#aab8c8;padding:0 4px;">&mdash;</span>'}</td>
+              : '<span class="se-no-bend">&mdash;</span>'}</td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
           </tr>`;
       }

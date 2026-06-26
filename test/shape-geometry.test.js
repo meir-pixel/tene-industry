@@ -112,7 +112,7 @@ test('shape editor one-screen edit layout keeps editing inside the viewport', ()
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-y:auto/);
   assert.match(editor, /#sePageEdit\{[\s\S]*overflow:hidden/);
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-x:hidden/);
-  assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:28px repeat\(3,minmax\(0,1fr\)\) 24px/);
+  assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:26px repeat\(3,minmax\(0,1fr\)\) 22px/);
   assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:68px/);
 });
 test('shape editor keeps bend parameter rows compact and technical', () => {
@@ -212,7 +212,8 @@ test('shape editor renders one row per side in the 2D dimensions panel', () => {
   assert.match(editor, /const letter = String\.fromCharCode\(65 \+ i\)/);
   assert.match(editor, /<tr class=\"se-side-row\">/);
   assert.match(editor, /class=\"se-length-cell\"/);
-  assert.match(editor, /class=\"se-angle-cell\"/);
+  assert.match(editor, /class=\"se-angle-cell/);
+  assert.match(editor, /se-empty-cell/);
   assert.doesNotMatch(editor, /html \+= `<tr class=\"se-bend-row\">/);
 });
 test('shape editor has mesh and pile families with icon-only preset buttons', () => {
