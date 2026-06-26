@@ -732,6 +732,29 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+
+### V2-006U - Shape Editor Prevent Bend Parameter Overlap
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- Output:
+  - Right-side bend parameter panel gets more width from the drawing area.
+  - 3D bend rows use stable non-equal columns so length, bend angle, and Z angle do not overlap.
+  - Parameter inputs, icons, and row badges are reduced slightly to keep compact rows readable.
+- Guardrails:
+  - No full UI redesign.
+  - No new shapes or shape families.
+  - No rendering-engine contract changes.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
 ### V2-007 — Orders Module Specification
 
 - status: todo

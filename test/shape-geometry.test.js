@@ -112,17 +112,17 @@ test('shape editor one-screen edit layout keeps editing inside the viewport', ()
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-y:auto/);
   assert.match(editor, /#sePageEdit\{[\s\S]*overflow:hidden/);
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-x:hidden/);
-  assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:26px repeat\(3,minmax\(0,1fr\)\) 22px/);
+  assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:28px minmax\(112px,1fr\) minmax\(82px,.72fr\) minmax\(74px,.66fr\) 22px/);
   assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:68px/);
 });
 test('shape editor keeps bend parameter rows compact and technical', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
-  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*min-height:26px/);
-  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*font-size:13px/);
-  assert.match(editor, /#seModal \.se-table\.se-table-2d tr\{[\s\S]*minmax\(58px,\.56fr\)/);
+  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*min-height:24px/);
+  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*font-size:12px/);
+  assert.match(editor, /#seModal \.se-table\.se-table-2d tr\{[\s\S]*minmax\(72px,\.58fr\)/);
   assert.match(editor, /#seModal \.se-param-example\{display:none;\}/);
-  assert.match(editor, /grid-template-columns:370px minmax\(420px,1fr\) 154px/);
+  assert.match(editor, /grid-template-columns:440px minmax\(360px,1fr\) 154px/);
   assert.match(editor, /td\.se-empty-cell\{background:transparent/);
   assert.match(editor, /class="se-angle-cell \$\{i < angles\.length \? '' : 'se-empty-cell'\}"/);
   assert.match(editor, /class="se-no-bend"/);
