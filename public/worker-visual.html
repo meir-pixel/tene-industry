@@ -28,6 +28,9 @@
     .weight-check{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:7px;padding:0 12px 10px;align-items:end}.weight-check label{font-size:10px;font-weight:700;color:#55737e}.weight-check input{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 7px;font-size:14px;font-weight:700;color:var(--ink)}.weight-check button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:8px;padding:9px 10px;font-weight:800;cursor:pointer}.weight-chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 7px;font-size:14px;font-weight:900;text-align:center}.weight-chip.warn{border-color:#f59e0b;background:#fff7ed;color:#9a3412}.weight-chip.bad{border-color:#dc2626;background:#fef2f2;color:#991b1b}
     .card-foot{padding:0 12px 12px;background:#f8fcfd}.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.actions button{padding:9px 4px;border:1px solid #b8cfd8;border-radius:9px;background:#fff;color:var(--ink);font-size:11px;font-weight:700;cursor:pointer}.actions button.active{background:var(--teal);color:#fff;border-color:var(--teal)}.actions button.done.active{background:var(--done)}.actions button.supplied.active{background:var(--supplied)}.meta{font-size:11px;color:#55737e;margin-top:8px;display:flex;gap:8px;justify-content:space-between}
     .empty{background:#fff;border:1px dashed var(--line);padding:38px;border-radius:14px;text-align:center;color:#567784}
+    body.scan-entry .queue-link,body.scan-entry .scan-panel,body.scan-entry .tabs,body.scan-entry .panel{display:none!important}
+    body.scan-entry .columns{display:block}
+    body.scan-entry main{max-width:760px;padding:12px}
     @media(max-width:760px){
       header{padding:10px 12px;gap:10px;align-items:flex-start}
       header h1{font-size:17px;line-height:1.15}
@@ -64,7 +67,7 @@
   <header>
     <div class="brand"><small>טנא תעשיות · תחנת עובד</small><h1>דשבורד איסוף כרטיסים</h1></div>
     <div class="live"><i class="dot"></i><span id="sync">מסנכרן</span></div>
-    <a href="/production-queue.html" style="color:#fff;text-decoration:none;border:1px solid #ffffff55;border-radius:8px;padding:8px 11px;font-weight:700">תור ייצור</a>
+    <a class="queue-link" href="/production-queue.html" style="color:#fff;text-decoration:none;border:1px solid #ffffff55;border-radius:8px;padding:8px 11px;font-weight:700">תור ייצור</a>
   </header>
   <div class="progress" id="progress"></div>
   <section class="scan-panel">
@@ -86,6 +89,9 @@
   <script src="/status-contracts-client.js"></script>
   <script>
     const state={items:[],selected:null,focusItemId:null,scanToken:null};
+    const ENTRY_PARAMS=new URLSearchParams(location.search);
+    const SCAN_ENTRY=ENTRY_PARAMS.get('scan')==='1'||ENTRY_PARAMS.has('card')||ENTRY_PARAMS.has('item');
+    document.body.classList.toggle('scan-entry',SCAN_ENTRY);
     const ITEM_STATUS=(window.IronBendStatus&&window.IronBendStatus.ITEM_STATUS)||{WAITING:'ממתין',IN_PRODUCTION:'בייצור',DONE:'הושלם',DELIVERED:'סופק'};
     const statusKey=s=>s===ITEM_STATUS.IN_PRODUCTION?'production':s===ITEM_STATUS.DONE?'done':s===ITEM_STATUS.DELIVERED?'supplied':'waiting';
     const statusText={waiting:'ממתין',production:'בייצור',done:'בוצע',supplied:'סופק'};
@@ -129,7 +135,7 @@
     }
     function grouped(){const map=new Map();state.items.forEach(item=>{if(!map.has(item.order_id))map.set(item.order_id,{...item,items:[]});map.get(item.order_id).items.push(item)});return [...map.values()]}
     function allProgress(){
-      const orders=grouped(),items=state.items,totalItems=items.length||1;
+      const orders=grouped(),selectedOrder=orders.find(o=>o.order_id===state.selected),items=selectedOrder?selectedOrder.items:state.items,totalItems=items.length||1;
       const counts={waiting:0,production:0,done:0,supplied:0};
       items.forEach(i=>counts[supplied(i)?'supplied':statusKey(i.status)]++);
       document.querySelector('#progress').innerHTML=Object.keys(counts).map(k=>{
@@ -145,7 +151,7 @@
       document.querySelector('#orders').innerHTML=orders.length?orders.map(o=>`<button class="order ${o.order_id===state.selected?'active':''}" onclick="selectOrder(${o.order_id})"><strong>${esc(o.order_num||`הזמנה ${o.order_id}`)}</strong><span>${esc(o.customer_name||'לקוח')} · ${o.items.length} כרטיסים</span><span>${o.items.filter(i=>statusKey(i.status)==='done').length}/${o.items.length} בוצעו</span></button>`).join(''):'<div class="empty">אין הזמנות ממתינות</div>';
       const order=orders.find(o=>o.order_id===state.selected);
       document.querySelector('#orderHead').innerHTML=order?`<div class="order-head"><div><h2>${esc(order.order_num||`הזמנה ${order.order_id}`)}</h2><span>${esc(order.customer_name||'לקוח')} · עדיפות ${esc(order.priority||'רגיל')}</span></div><div class="badge">${order.items.length} כרטיסים</div></div>`:'';
-      const visibleItems=order?(state.focusItemId?order.items.filter(item=>Number(item.id)===Number(state.focusItemId)):order.items):[];
+      const visibleItems=order?(SCAN_ENTRY?(state.focusItemId?order.items.filter(item=>Number(item.id)===Number(state.focusItemId)):[]):order.items):[];
       document.querySelector('#cards').innerHTML=order&&visibleItems.length?visibleItems.map((item,index)=>card(item,index)).join(''):order?'<div class="empty">הכרטיס שנסרק לא נמצא בהזמנה הפתוחה</div>':'<div class="empty">אין הזמנה פתוחה</div>';
     }
     function card(item,index){
