@@ -198,6 +198,15 @@ test('shape editor connects parameter fields to drawing focus targets', () => {
   assert.match(editor, /data-se-focus="bar-angle-\$\{i\}"/);
 });
 
+test('shape editor focuses Z angle fields without switching to side length editing', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /if \(el !== ''\) meta = \{ \.\.\.meta, focusKey: `bar-z-\$\{el\}`/);
+  assert.match(editor, /data-el="\$\{i\}" onfocus="window\._seEditor\._focusRow\(\$\{i\}, 'z'\)"/);
+  assert.ok(editor.includes("focusAngle === 'z' ? '[data-el]'"));
+  assert.doesNotMatch(editor, /if \(el\) meta = \{ \.\.\.meta, focusKey: `bar-side-\$\{el\}`/);
+});
+
 test('shape editor includes synchronized engineering helper views', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 

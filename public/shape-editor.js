@@ -2344,10 +2344,10 @@ class ShapeEditorModal {
     if (zoneField === 'length') meta = { ...meta, focusKey: 'pile-zone', number: String.fromCharCode(9318), code: 'Lz' };
     if (zoneField === 'pitch') meta = { ...meta, focusKey: 'pile-spiral-pitch', number: String.fromCharCode(9319), code: 'P' };
     if (zoneField === 'noWrap') meta = { ...meta, focusKey: 'pile-no-wrap', number: String.fromCharCode(9320), code: 'NW' };
-    if (side) meta = { ...meta, focusKey: `bar-side-${side}`, number: rowNumber(side), code: 'L' };
-    if (angle) meta = { ...meta, focusKey: `bar-angle-${angle}`, number: rowNumber(angle), code: 'A' };
-    if (az) meta = { ...meta, focusKey: `bar-angle-${az}`, number: rowNumber(az), code: 'A' };
-    if (el) meta = { ...meta, focusKey: `bar-side-${el}`, number: rowNumber(el), code: 'Z' };
+    if (side !== '') meta = { ...meta, focusKey: `bar-side-${side}`, number: rowNumber(side), code: 'L' };
+    if (angle !== '') meta = { ...meta, focusKey: `bar-angle-${angle}`, number: rowNumber(angle), code: 'A' };
+    if (az !== '') meta = { ...meta, focusKey: `bar-angle-${az}`, number: rowNumber(az), code: 'A' };
+    if (el !== '') meta = { ...meta, focusKey: `bar-z-${el}`, number: rowNumber(el), code: 'Z' };
     return meta;
   }
 
@@ -2582,7 +2582,7 @@ class ShapeEditorModal {
                 : this._fieldShell({ icon:'↪', label:'פנייה', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${az}" data-az="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAzAngle(${i}, this.value)">` })}
             </td>
             <td>
-              ${this._fieldShell({ icon:'Z', label:'הטיית Z', unit:'°', example:'לדוגמה 0', input:`<input class="se-input" type="number" min="-90" max="90" value="${el}" data-el="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setElAngle(${i}, this.value)">` })}
+              ${this._fieldShell({ icon:'Z', label:'הטיית Z', unit:'°', example:'לדוגמה 0', input:`<input class="se-input" type="number" min="-90" max="90" value="${el}" data-el="${i}" onfocus="window._seEditor._focusRow(${i}, 'z')" oninput="window._seEditor._setElAngle(${i}, this.value)">` })}
             </td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
           </tr>`;
@@ -2851,7 +2851,7 @@ class ShapeEditorModal {
     if (row) {
       row.classList.add('se-row-active');
       row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      const sel = focusAngle ? '[data-angle],[data-az]' : '[data-side]';
+      const sel = focusAngle === 'z' ? '[data-el]' : (focusAngle ? '[data-angle],[data-az]' : '[data-side]');
       const inp = row.querySelector(sel);
       if (inp) { setTimeout(() => { inp.focus(); inp.select(); }, 50); }
     }

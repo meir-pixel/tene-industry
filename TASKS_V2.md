@@ -755,6 +755,29 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+
+### V2-006V - Shape Editor Z Angle Field Focus Fix
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- Output:
+  - Z angle inputs focus their own field instead of switching to side-length editing.
+  - `data-el="0"` and other indexed bar fields keep their parameter metadata.
+  - Tests guard that Z uses `bar-z-*` focus keys and `[data-el]` selection.
+- Guardrails:
+  - No full UI redesign.
+  - No new shapes or shape families.
+  - No rendering-engine contract changes.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
 ### V2-007 — Orders Module Specification
 
 - status: todo
