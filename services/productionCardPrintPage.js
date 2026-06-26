@@ -561,7 +561,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var cardNum = totalCards > 1 ? (cardIdx+1) + '/' + totalCards : '';
   var uid     = 'g' + item.id + (totalCards > 1 ? 'c' + (cardIdx+1) : '');
   var barData = ORDER_NUM + '-' + String(item.id).padStart(6,'0') + (totalCards > 1 ? '-C' + (cardIdx+1) + 'OF' + totalCards : '');
-  var workerUrl = '/worker-visual.html?card=' + encodeURIComponent(barData);
+  var workerUrl = '/worker-visual.html?scan=1&card=' + encodeURIComponent(barData);
   var segs    = item.segments || [];
   var wProp   = item.quantity > 0 ? (item.total_weight * subQty / item.quantity).toFixed(2) : '0.00';
   var title   = item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף';

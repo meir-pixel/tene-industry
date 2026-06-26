@@ -107,7 +107,7 @@ test('production card split renders only production cards without a master card'
   assert.match(orderPrintA4Route, /משקל חיתוך/);
   assert.match(orderPrintA4Route, /משקל כיפוף/);
   assert.match(productionCardsRoute, /data-worker-card-url/);
-  assert.match(productionCardsRoute, /worker-visual\.html\?card=/);
+  assert.match(productionCardsRoute, /worker-visual\.html\?scan=1&card=/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);
   assert.match(productionCardsRoute, /qrFallbackUrl/);
   assert.match(productionCardsRoute, /api\.qrserver\.com\/v1\/create-qr-code/);
@@ -747,6 +747,11 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /ITEM_STATUS\.DELIVERED/);
   assert.match(workerVisual, /isOpenUShape/);
   assert.match(workerVisual, /worker-card-summary/);
+  assert.match(workerVisual, /SCAN_ENTRY/);
+  assert.match(workerVisual, /scan-entry/);
+  assert.match(workerVisual, /queue-link/);
+  assert.match(workerVisual, /selectedOrder=orders\.find/);
+  assert.match(workerVisual, /SCAN_ENTRY\?\(state\.focusItemId/);
   assert.match(workerVisual, /shape-scale-note/);
   assert.match(workerVisual, /readableOpenUDimensions/);
   assert.match(workerVisual, /data-shape-kind="worker-open-u"/);
