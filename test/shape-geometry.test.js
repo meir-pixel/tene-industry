@@ -286,21 +286,22 @@ test('shape editor renders closed stirrup overlap instead of drawing the overlap
   assert.match(editor, /renderClosedStirrupEditor2D\(stirrupParts, sides, 300, 260/);
 });
 
-test('shape editor active segment highlight keeps the same stroke size as the bar', () => {
+test('shape editor active segment selection replaces color instead of drawing an overlay', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
-  assert.match(editor, /stroke="#2979ff" stroke-width="4"/);
-  assert.match(editor, /segsHtml \+= `<path d="\$\{ad\}" stroke="#2979ff" stroke-width="\$\{barW\}"/);
+  assert.match(editor, /stroke="\$\{isActive \? '#2979ff' : SEG_GRAY\}" stroke-width="4"/);
+  assert.match(editor, /const color = seg\[0\] === activeSeg \? highlight : bodyStroke/);
+  assert.doesNotMatch(editor, /Active segment overlay/);
+  assert.doesNotMatch(editor, /stroke="#2979ff" stroke-width="4"/);
+  assert.doesNotMatch(editor, /stroke="rgba\(41,121,255,[^`]*stroke-width/);
   assert.doesNotMatch(editor, /barW\*4\.5/);
-  assert.doesNotMatch(editor, /stroke="rgba\(41,121,255,[^`]*stroke-width="16"/s);
-  assert.doesNotMatch(editor, /stroke="rgba\(41,121,255,[^`]*stroke-width="18"/s);
 });
 
 test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
-  assert.match(index, /shape-editor\.js\?v=51/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=50/);
+  assert.match(index, /shape-editor\.js\?v=52/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=51/);
 });
 
 test('shape editor exposes editable order item quantity outside the shape contract', () => {

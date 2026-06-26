@@ -836,8 +836,8 @@
   - `public/shape-editor.js`
   - `test/shape-geometry.test.js`
 - Output:
-  - Active side highlight in the shape editor uses the same visible stroke width as the 2D bar.
-  - Removed oversized blue highlight halos from 2D, 3D, and closed-stirrup preview paths.
+  - Active side highlight in the shape editor is now a color replacement, not an overlay.
+  - 2D bars and closed-stirrup bodies draw each visible side exactly once in either gray or blue.
   - Bumped the index page shape-editor asset query so the cloud UI loads the updated renderer.
 - Guardrails:
   - No UI redesign.
