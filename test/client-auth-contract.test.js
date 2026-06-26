@@ -81,6 +81,10 @@ test('production card split renders only production cards without a master card'
   assert.doesNotMatch(productionCardsRoute, /setupBody/);
   assert.doesNotMatch(productionCardsRoute, /onSplitChange/);
   assert.doesNotMatch(productionCardsRoute, /splitCfg/);
+  assert.match(productionCardsRoute, /var cardSplits = \{\}/);
+  assert.match(productionCardsRoute, /function setCardSplit\(itemId, count, event\)/);
+  assert.match(productionCardsRoute, /pc-screen-tools/);
+  assert.match(productionCardsRoute, /Math\.min\(2, Number\(cardSplits\[item\.id\]/);
   assert.match(productionCardsRoute, /buildCard\(row\.item, row\.subQty, row\.totalCards, row\.cardIdx\)/);
   assert.match(productionCardsRoute, /function isOpenUShapeClient\(segments\)/);
   assert.match(productionCardsRoute, /function buildOpenUShapeSVG\(segments\)/);

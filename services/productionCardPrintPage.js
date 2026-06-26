@@ -76,8 +76,12 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .cards-grid{display:grid;grid-template-columns:repeat(2,105mm);grid-template-rows:repeat(4,74.25mm);grid-auto-rows:74.25mm;gap:0;align-items:stretch;justify-content:start;width:210mm;height:297mm;margin:0;background:#fff;}
 .prod-card{width:105mm;height:74.25mm;margin:0;background:#fff;border:0.25mm solid #1a2332;border-radius:0;
   overflow:hidden;page-break-inside:avoid;break-inside:avoid;display:flex;flex-direction:column;
-  font-size:8px;box-shadow:none;}
-.prod-card>:not(.pc-print-face){display:none!important;}
+  font-size:8px;box-shadow:none;position:relative;}
+.prod-card>:not(.pc-print-face):not(.pc-screen-tools){display:none!important;}
+.pc-screen-tools{position:absolute;top:1.5mm;left:1.5mm;z-index:3;display:flex;align-items:center;gap:4px;direction:rtl;font-family:'Heebo',Arial,sans-serif;}
+.pc-screen-tools button{border:0;border-radius:5px;background:#1a2332;color:#fff;padding:4px 7px;font-family:inherit;font-size:10px;font-weight:900;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.18);}
+.pc-screen-tools button:hover{background:#c9621a;}
+.pc-split-state{display:inline-flex;align-items:center;border-radius:5px;background:#fff3d7;border:1px solid #ffd6a0;color:#8a4b00;padding:3px 6px;font-size:10px;font-weight:900;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.12);}
 .pc-print-face{display:grid;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
 .pc-print-main{display:grid;grid-template-rows:11mm 7mm 38mm 18.25mm;width:78mm;height:74.25mm;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
 .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;}
@@ -171,6 +175,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   }
   .cards-grid{break-before:auto;page-break-before:auto;height:297mm!important;width:210mm!important;}
   .prod-card{border:0.25mm solid #1a2332!important;border-radius:0!important;overflow:hidden!important;}
+  .pc-screen-tools{display:none!important;}
   .prod-card>:not(.pc-print-face){display:none!important;}
   .pc-print-face{display:grid!important;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
   .pc-print-main{display:grid;grid-template-rows:11mm 7mm 38mm 18.25mm;width:78mm;height:74.25mm;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
@@ -366,11 +371,24 @@ function fmtPct(pct) {
   return (Number(pct) > 0 ? '+' : '') + Number(pct).toFixed(1) + '%';
 }
 
+var cardSplits = {};
+
+function setCardSplit(itemId, count, event) {
+  if (event) event.stopPropagation();
+  var item = allItems.find(function(row){ return Number(row.id) === Number(itemId); });
+  if (!item) return;
+  var next = Math.max(1, Math.min(2, Number(count) || 1));
+  if (next === 1) delete cardSplits[itemId];
+  else cardSplits[itemId] = next;
+  generateCards();
+  renderWorkerCardQrCodes();
+}
+
 function cardPlan() {
   var rows = [];
   for (var i=0; i<allItems.length; i++) {
     var item = allItems[i];
-    var n = 1;
+    var n = Math.max(1, Math.min(2, Number(cardSplits[item.id] || 1)));
     var subs = splitQty(item.quantity || 1, n);
     for (var ci=0; ci<n; ci++) {
       rows.push({
@@ -559,7 +577,11 @@ function buildCard(item, subQty, totalCards, cardIdx) {
 
   var printRef = SHORT_REF || CUSTOMER || ORDER_NUM;
   var printLengthCm = Math.round((Number(item.total_length_mm || 0)) / 10);
+  var splitTools = totalCards > 1
+    ? '<div class="pc-screen-tools"><span class="pc-split-state">\u05db\u05e8\u05d8\u05d9\u05e1 '+(cardIdx+1)+'/'+totalCards+'</span><button type="button" onclick="setCardSplit('+item.id+',1,event)">\u05d1\u05d8\u05dc \u05e4\u05d9\u05e6\u05d5\u05dc</button></div>'
+    : '<div class="pc-screen-tools"><button type="button" onclick="setCardSplit('+item.id+',2,event)">\u05e4\u05e6\u05dc \u05dc-2</button></div>';
   var h = '<div class="prod-card">';
+  h += splitTools;
   h += '<div class="pc-print-face">';
   h += '<div class="pc-print-main">';
   h += '<div class="pc-print-head"><b>ITEM '+item.id+badge+'</b><b>Ø '+item.diameter+'</b></div>';

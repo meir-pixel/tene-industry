@@ -85,6 +85,10 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.doesNotMatch(html, /setupBody/);
   assert.doesNotMatch(html, /onSplitChange/);
   assert.doesNotMatch(html, /splitCfg/);
+  assert.match(html, /var cardSplits = \{\}/);
+  assert.match(html, /function setCardSplit\(itemId, count, event\)/);
+  assert.match(html, /pc-screen-tools/);
+  assert.match(html, /Math\.min\(2, Number\(cardSplits\[item\.id\]/);
   assert.match(html, /grid-template-columns:repeat\(2,105mm\)/);
   assert.match(html, /width:210mm/);
   assert.doesNotMatch(html, /master-card/);
