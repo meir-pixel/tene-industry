@@ -61,6 +61,16 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
     byBucket.set(bucket, row);
   });
 
+  const optionalWeightRows = [
+    ['meshWeight', '\u05de\u05e9\u05e7\u05dc \u05e8\u05e9\u05ea\u05d5\u05ea'],
+    ['cageWeight', '\u05de\u05e9\u05e7\u05dc \u05db\u05dc\u05d5\u05d1\u05d9\u05dd'],
+  ]
+    .map(([key, label]) => Number(totals[key] || 0) > 0
+      ? '<tr><td>' + label + '</td><td>' + formatPrintNumber(totals[key], 2) + ' \u05e7\u05d2</td></tr>'
+      : '')
+    .filter(Boolean)
+    .join('');
+
   const bucketRows = ['cutting', 'bending', 'mesh', 'cage']
     .map((bucket) => {
       const row = byBucket.get(bucket);
@@ -78,6 +88,7 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
   return {
     totals,
     bucketRows,
+    optionalWeightRows,
     notes: escapeHtml(notes || '-'),
     project: escapeHtml(order.project_name || order.project || '-'),
     site: escapeHtml(order.site_name || order.building || order.delivery_address || '-'),
@@ -273,10 +284,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
         <div><span>משקל חיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} קג</b></div>
         <div><span>משקל כיפוף</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} קג</b></div>
       </div>
-      <table class="prod-breakdown"><tbody>
-        <tr><td>משקל רשתות</td><td>${formatPrintNumber(productionSummary.totals.meshWeight, 2)} קג</td></tr>
-        <tr><td>משקל כלובים</td><td>${formatPrintNumber(productionSummary.totals.cageWeight, 2)} קג</td></tr>
-      </tbody></table>
+      ${productionSummary.optionalWeightRows ? '<table class="prod-breakdown"><tbody>' + productionSummary.optionalWeightRows + '</tbody></table>' : ''}
       <div class="prod-notes"><b>הערות:</b> ${productionSummary.notes}</div>
     </div>
     <div class="prod-summary-box">

@@ -98,6 +98,9 @@ test('production card split renders only production cards without a master card'
   assert.match(orderPrintA4Route, /data-order-url/);
   assert.match(orderPrintA4Route, /buildA4ProductionSummary/);
   assert.match(orderPrintA4Route, /bucketRows/);
+  assert.match(orderPrintA4Route, /optionalWeightRows/);
+  assert.doesNotMatch(orderPrintA4Route, /productionSummary\.totals\.meshWeight, 2/);
+  assert.doesNotMatch(orderPrintA4Route, /productionSummary\.totals\.cageWeight, 2/);
   assert.match(orderPrintA4Route, /byBucket/);
   assert.doesNotMatch(orderPrintA4Route, /byDiameter/);
   assert.doesNotMatch(orderPrintA4Route, /diameterRows/);
