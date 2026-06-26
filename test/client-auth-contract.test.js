@@ -291,6 +291,21 @@ test('high-risk admin and reporting surfaces load auth client before shared navi
   }
 });
 
+
+test('shared temporary UI tuner is loaded globally and guarded', () => {
+  const nav = read('public/nav.js');
+  const tuner = read('public/ui-tuner.js');
+
+  assert.match(nav, /\/ui-tuner\.js/);
+  assert.match(tuner, /id = 'uiTunerRoot'|id = "uiTunerRoot"|root\.id = 'uiTunerRoot'/);
+  assert.match(tuner, /top:64px;left:12px/);
+  assert.match(tuner, /&#9998;/);
+  assert.match(tuner, /data-ut-unlock/);
+  assert.match(tuner, /if \(!unlocked\) return/);
+  assert.match(tuner, /localStorage\.setItem\(STORE_KEY/);
+  assert.doesNotMatch(tuner, /fetch\(/);
+});
+
 test('shared navigation preserves Tene logo aspect ratio', () => {
   const nav = read('public/nav.js');
   const theme = read('public/theme.css');

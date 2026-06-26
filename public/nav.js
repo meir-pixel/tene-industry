@@ -15,6 +15,13 @@
     document.head.appendChild(brandScript);
   }
 
+  if (!document.querySelector('script[src="/ui-tuner.js"]')) {
+    const uiTunerScript = document.createElement('script');
+    uiTunerScript.src = '/ui-tuner.js';
+    uiTunerScript.async = false;
+    document.head.appendChild(uiTunerScript);
+  }
+
   const LINKS = [
     { group:'ראשי', href:'/dashboard.html', icon:'📊', label:'דשבורד', id:'dashboard' },
     { group:'ראשי', href:'/orders.html', icon:'📋', label:'הזמנות', id:'orders' },

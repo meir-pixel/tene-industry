@@ -91,7 +91,7 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     assert.match(await response.text(), /<html/i);
   }
 
-  for (const asset of ['/auth-client.js', '/nav.js', '/safe-dom.js', '/status-contracts-client.js', '/theme.css']) {
+  for (const asset of ['/auth-client.js', '/nav.js', '/ui-tuner.js', '/safe-dom.js', '/status-contracts-client.js', '/theme.css']) {
     const response = await request(asset);
     assert.equal(response.status, 200, `${asset} should load`);
   }
