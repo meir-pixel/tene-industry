@@ -32,13 +32,18 @@ function productionBucketForA4Item(item, segments, snapshot) {
 
 function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
   const totals = { quantity: 0, weight: 0, lengthMm: 0, cuttingWeight: 0, bendingWeight: 0, meshWeight: 0, cageWeight: 0 };
-  const byDiameter = new Map();
+  const bucketLabels = {
+    cutting: '\u05d7\u05d9\u05ea\u05d5\u05da / \u05de\u05d5\u05d8\u05d5\u05ea \u05d9\u05e9\u05e8\u05d9\u05dd',
+    bending: '\u05db\u05d9\u05e4\u05d5\u05e3',
+    mesh: '\u05e8\u05e9\u05ea\u05d5\u05ea',
+    cage: '\u05db\u05dc\u05d5\u05d1\u05d9\u05dd / \u05db\u05dc\u05d5\u05e0\u05e1\u05d0\u05d5\u05ea',
+  };
+  const byBucket = new Map();
 
   allItems.forEach((item) => {
     const qty = Number(item.quantity || 0);
     const weight = Number(item.total_weight || 0);
     const lengthMm = Number(item.total_length_mm || 0) * qty;
-    const diameter = item.diameter || '?';
     const segments = tryParseJSON(item.segments, []);
     const snapshot = tryParseJSON(item.shape_snapshot_json || item.shapeSnapshot, {}) || {};
     const bucket = productionBucketForA4Item(item, segments, snapshot);
@@ -47,13 +52,24 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
     totals.weight += weight;
     totals.lengthMm += lengthMm;
     totals[bucket + 'Weight'] += weight;
-    byDiameter.set(diameter, (byDiameter.get(diameter) || 0) + weight);
+
+    const row = byBucket.get(bucket) || { quantity: 0, weight: 0, lengthMm: 0, items: 0 };
+    row.quantity += qty;
+    row.weight += weight;
+    row.lengthMm += lengthMm;
+    row.items += 1;
+    byBucket.set(bucket, row);
   });
 
-  const diameterRows = [...byDiameter.entries()]
-    .sort((a, b) => Number(a[0]) - Number(b[0]))
-    .map(([diameter, weight]) => '<tr><td>Ø' + escapeHtml(diameter) + '</td><td>' + formatPrintNumber(weight, 2) + ' קג</td></tr>')
-    .join('') || '<tr><td colspan="2">אין נתוני קוטר</td></tr>';
+  const bucketRows = ['cutting', 'bending', 'mesh', 'cage']
+    .map((bucket) => {
+      const row = byBucket.get(bucket);
+      if (!row || row.weight <= 0) return '';
+      const details = formatPrintNumber(row.weight, 2) + ' \u05e7\u05d2 | ' + formatPrintNumber(row.quantity, 0) + ' \u05d9\u05d7 | ' + formatPrintNumber(row.lengthMm / 1000, 2) + ' \u05de';
+      return '<tr><td>' + bucketLabels[bucket] + '</td><td>' + details + '</td></tr>';
+    })
+    .filter(Boolean)
+    .join('') || '<tr><td colspan="2">\u05d0\u05d9\u05df \u05e0\u05ea\u05d5\u05e0\u05d9 \u05e1\u05d9\u05db\u05d5\u05dd \u05dc\u05e4\u05d9 \u05e1\u05d5\u05d2 \u05e2\u05d1\u05d5\u05d3\u05d4</td></tr>';
 
   const notes = [order.notes, order.general_notes, order.production_notes, order.driver_notes]
     .filter(Boolean)
@@ -61,13 +77,12 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
 
   return {
     totals,
-    diameterRows,
+    bucketRows,
     notes: escapeHtml(notes || '-'),
     project: escapeHtml(order.project_name || order.project || '-'),
     site: escapeHtml(order.site_name || order.building || order.delivery_address || '-'),
   };
 }
-
 
 module.exports = function createOrderPrintA4Router(deps) {
   const db = required('db', deps.db);
@@ -265,8 +280,8 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
       <div class="prod-notes"><b>הערות:</b> ${productionSummary.notes}</div>
     </div>
     <div class="prod-summary-box">
-      <h2>משקל לפי קוטר</h2>
-      <table class="prod-breakdown"><tbody>${productionSummary.diameterRows}</tbody></table>
+      <h2>פירוט לפי סוג עבודה</h2>
+      <table class="prod-breakdown"><tbody>${productionSummary.bucketRows}</tbody></table>
     </div>
   </div>
   <!-- Items table -->

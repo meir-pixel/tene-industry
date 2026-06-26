@@ -97,6 +97,10 @@ test('production card split renders only production cards without a master card'
   assert.match(orderPrintA4Route, /tene-pdf-logo\.jpg/);
   assert.match(orderPrintA4Route, /data-order-url/);
   assert.match(orderPrintA4Route, /buildA4ProductionSummary/);
+  assert.match(orderPrintA4Route, /bucketRows/);
+  assert.match(orderPrintA4Route, /byBucket/);
+  assert.doesNotMatch(orderPrintA4Route, /byDiameter/);
+  assert.doesNotMatch(orderPrintA4Route, /diameterRows/);
   assert.match(orderPrintA4Route, /משקל חיתוך/);
   assert.match(orderPrintA4Route, /משקל כיפוף/);
   assert.match(productionCardsRoute, /data-worker-card-url/);
