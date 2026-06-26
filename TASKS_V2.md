@@ -838,6 +838,7 @@
 - Output:
   - Active side highlight in the shape editor is now a color replacement, not an overlay.
   - 2D bars and closed-stirrup bodies draw each visible side exactly once in either gray or blue.
+  - Removed the focus-mode blue drop-shadow so selection is only a color change.
   - Bumped the index page shape-editor asset query so the cloud UI loads the updated renderer.
 - Guardrails:
   - No UI redesign.
