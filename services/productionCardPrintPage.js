@@ -26,10 +26,18 @@ const printButtonHtml = isPreviewOnly
   ? '<span class="preview-pill">תצוגה בלבד - הדפסה חסומה</span>'
   : '<button class="print-btn" onclick="printCards()">🖨️ הדפס כרטיסיות</button>';
 
-const serverCardsHtml = (allItems.length
-  ? allItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))).join('')
-  : '<div style="padding:40px;text-align:center;color:#888;">אין פריטים בהזמנה זו</div>'
-);
+function renderA4CardPages(cardHtmlList) {
+  if (!cardHtmlList.length) {
+    return '<div class="cards-page"><div class="cards-grid"><div style="padding:40px;text-align:center;color:#888;">No order items</div></div></div>';
+  }
+  var pages = [];
+  for (var i = 0; i < cardHtmlList.length; i += 8) {
+    pages.push('<div class="cards-page"><div class="cards-grid">' + cardHtmlList.slice(i, i + 8).join('') + '</div></div>');
+  }
+  return pages.join('');
+}
+
+const serverCardsHtml = renderA4CardPages(allItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))));
 
 
 
@@ -63,7 +71,9 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .pc-weight-chip.bad{color:#991b1b;background:#fef2f2;border-color:#fecaca;}
 
 /* ── Cards ── */
-.cards-grid{display:grid;grid-template-columns:repeat(2,105mm);grid-auto-rows:74.25mm;gap:0;align-items:stretch;justify-content:start;width:210mm;margin:0 auto;background:#fff;}
+.cards-pages{display:flex;flex-direction:column;gap:12mm;align-items:center;}
+.cards-page{width:210mm;height:297mm;background:#fff;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.14);}
+.cards-grid{display:grid;grid-template-columns:repeat(2,105mm);grid-template-rows:repeat(4,74.25mm);grid-auto-rows:74.25mm;gap:0;align-items:stretch;justify-content:start;width:210mm;height:297mm;margin:0;background:#fff;}
 .prod-card{width:105mm;height:74.25mm;margin:0;background:#fff;border:0.25mm solid #1a2332;border-radius:0;
   overflow:hidden;page-break-inside:avoid;break-inside:avoid;display:flex;flex-direction:column;
   font-size:8px;box-shadow:none;}
@@ -145,17 +155,21 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 @media print{
   html,body{width:210mm;margin:0!important;background:#fff;padding:0;}
   .screen-only{display:none!important;}
-  body.preview-locked .cards-grid{display:none!important;}
+  body.preview-locked .cards-pages{display:none!important;}
   body.preview-locked .print-blocked-page{display:flex!important;width:210mm;height:297mm;align-items:center;justify-content:center;text-align:center;font-family:'Heebo',Arial,sans-serif;font-size:18px;font-weight:900;color:#1a2332;padding:20mm;}
+  .cards-pages{display:block!important;margin:0!important;padding:0!important;}
+  .cards-page{width:210mm!important;height:297mm!important;margin:0!important;overflow:hidden!important;box-shadow:none!important;break-after:page;page-break-after:always;}
+  .cards-page:last-child{break-after:auto;page-break-after:auto;}
   .cards-grid{
     display:grid!important;
     grid-template-columns:repeat(2, 105mm);
+    grid-template-rows:repeat(4, 74.25mm);
     grid-auto-rows:74.25mm;
     gap:0;
     align-items:stretch;
     justify-content:start;
   }
-  .cards-grid{break-before:auto;page-break-before:auto;}
+  .cards-grid{break-before:auto;page-break-before:auto;height:297mm!important;width:210mm!important;}
   .prod-card{border:0.25mm solid #1a2332!important;border-radius:0!important;overflow:hidden!important;}
   .prod-card>:not(.pc-print-face){display:none!important;}
   .pc-print-face{display:grid!important;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
@@ -233,7 +247,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 <!-- ── Card grid – server-rendered, barcodes added by JS ── -->
 </div>
 
-<div class="cards-grid" id="cardsGrid">${serverCardsHtml}</div>
+<div class="cards-pages" id="cardsGrid">${serverCardsHtml}</div>
 
 <script>
 // ── Server data ───────────────────────────────────────────────────
@@ -601,9 +615,22 @@ function buildCard(item, subQty, totalCards, cardIdx) {
 }
 
 // ── Generate & render all cards ───────────────────────────────────
+function appendCardToA4Pages(container, cardEl, index) {
+  if (index % 8 === 0) {
+    var page = document.createElement('div');
+    page.className = 'cards-page';
+    var grid = document.createElement('div');
+    grid.className = 'cards-grid';
+    page.appendChild(grid);
+    container.appendChild(page);
+  }
+  var grids = container.querySelectorAll('.cards-grid');
+  grids[grids.length - 1].appendChild(cardEl);
+}
+
 function generateCards() {
-  var grid = document.getElementById('cardsGrid');
-  grid.innerHTML = '';
+  var pages = document.getElementById('cardsGrid');
+  pages.innerHTML = '';
   var plan = cardPlan();
   // Items
   for (var i=0; i<plan.length; i++) {
@@ -611,7 +638,7 @@ function generateCards() {
     try {
       var d2 = document.createElement('div');
       d2.innerHTML = buildCard(row.item, row.subQty, row.totalCards, row.cardIdx);
-      if (d2.firstElementChild) grid.appendChild(d2.firstElementChild);
+      if (d2.firstElementChild) appendCardToA4Pages(pages, d2.firstElementChild, i);
     } catch(e2) { console.error('buildCard item', row.item.id, e2); }
   }
 }

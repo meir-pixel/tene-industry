@@ -99,6 +99,12 @@ test('production card split renders only production cards without a master card'
   assert.match(productionCardsRoute, /worker-visual\.html\?card=/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);
   assert.match(productionCardsRoute, /grid-template-columns:repeat\(2,105mm\)/);
+  assert.match(productionCardsRoute, /cards-pages/);
+  assert.match(productionCardsRoute, /cards-page/);
+  assert.match(productionCardsRoute, /renderA4CardPages/);
+  assert.match(productionCardsRoute, /appendCardToA4Pages/);
+  assert.match(productionCardsRoute, /index % 8 === 0/);
+  assert.match(productionCardsRoute, /page-break-after:always/);
   assert.match(productionCardsRoute, /width:210mm/);
   assert.match(productionCardsRoute, /grid-template-columns:repeat\(2, 105mm\)/);
   assert.match(productionCardsRoute, /grid-auto-rows:74\.25mm/);

@@ -57,6 +57,10 @@ test('production print page renders fixed A4 cards without order summary and wit
     },
   ];
 
+  for (let i = 0; i < 7; i += 1) {
+    allItems.push({ ...allItems[0], id: 200 + i, diameter: i % 2 ? 10 : 12 });
+  }
+
   const html = printPage.renderPrintCardsPage({
     order,
     pallets,
@@ -71,6 +75,12 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.doesNotMatch(html, /order-summary-sheet/);
   assert.doesNotMatch(html, /tene-pdf-logo\.jpg/);
   assert.ok(html.indexOf('cards-grid') > -1);
+  assert.ok(html.indexOf('cards-pages') > -1);
+  assert.equal((html.match(/class="cards-page"/g) || []).length, 2);
+  assert.match(html, /page-break-after:always/);
+  assert.match(html, /break-after:page/);
+  assert.match(html, /appendCardToA4Pages/);
+  assert.match(html, /index % 8 === 0/);
   assert.doesNotMatch(html, /setup-panel/);
   assert.doesNotMatch(html, /setupBody/);
   assert.doesNotMatch(html, /onSplitChange/);
