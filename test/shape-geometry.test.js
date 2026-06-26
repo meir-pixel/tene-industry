@@ -275,6 +275,17 @@ test('shape editor keeps default 90-degree 3D turns positive, not negative', () 
   assert.doesNotMatch(editor, /azAngles\[i \+ 1\] = -\(180 - a\)/);
 });
 
+test('shape editor renders closed stirrup overlap instead of drawing the overlap as another polygon side', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /function detectClosedStirrupParts/);
+  assert.match(editor, /function renderClosedStirrupEditor2D/);
+  assert.match(editor, /data-shape-kind="closed-stirrup"/);
+  assert.match(editor, /data-stirrup-marker="overlap"/);
+  assert.match(editor, /const stirrupParts = detectClosedStirrupParts\(sides, angles\)/);
+  assert.match(editor, /renderClosedStirrupEditor2D\(stirrupParts, sides, 300, 260/);
+});
+
 test('shape editor exposes editable order item quantity outside the shape contract', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 

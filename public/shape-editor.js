@@ -164,6 +164,139 @@ function shapeSVGPath(sides, angles, w, h, padding = 14) {
   return { path, pts: mapped };
 }
 
+
+function isSimilarShapeDimension(a, b, tolerance = 0.12) {
+  const av = Math.abs(Number(a) || 0);
+  const bv = Math.abs(Number(b) || 0);
+  const max = Math.max(av, bv);
+  if (max <= 0) return false;
+  return Math.abs(av - bv) <= Math.max(10, max * tolerance);
+}
+
+function isRightBendAngle(angle) {
+  const a = Math.abs(Number(angle));
+  return Math.abs(a - 90) < 0.001;
+}
+
+function detectClosedStirrupParts(sides, angles) {
+  const values = Array.isArray(sides) ? sides.map(Number) : [];
+  if (values.length < 4 || values.some(v => !Number.isFinite(v) || v <= 0)) return null;
+  const checkedAngles = Array.isArray(angles) ? angles.slice(0, Math.min(4, values.length - 1)) : [];
+  if (checkedAngles.length && !checkedAngles.every(isRightBendAngle)) return null;
+
+  if (values.length >= 5) {
+    const tailStart = values[0];
+    const right = values[1];
+    const top = values[2];
+    const left = values[3];
+    const bottom = values[4];
+    const tailEnd = values[5] || 0;
+    const maxBody = Math.max(right, top, left, bottom);
+    if (
+      tailStart <= maxBody * 0.45 &&
+      (!tailEnd || tailEnd <= maxBody * 0.45) &&
+      isSimilarShapeDimension(right, left) &&
+      isSimilarShapeDimension(top, bottom)
+    ) {
+      return {
+        top, right, bottom, left, tailStart, tailEnd,
+        sideMap: [2, 1, 4, 3],
+        tailMap: [0, values.length >= 6 ? 5 : null],
+      };
+    }
+  }
+
+  if (isSimilarShapeDimension(values[0], values[2]) && isSimilarShapeDimension(values[1], values[3])) {
+    return {
+      top: values[0], right: values[1], bottom: values[2], left: values[3],
+      tailStart: values[4] || 0, tailEnd: 0,
+      sideMap: [0, 1, 2, 3],
+      tailMap: [values.length >= 5 ? 4 : null, null],
+    };
+  }
+
+  return null;
+}
+
+function renderClosedStirrupEditor2D(parts, sides, w, h, opts = {}) {
+  const padding = opts.padding || 38;
+  const horizontal = Math.max(parts.top || 0, parts.bottom || 0, 1);
+  const vertical = Math.max(parts.left || 0, parts.right || 0, 1);
+  const scale = Math.min((w - padding * 2 - 54) / horizontal, (h - padding * 2 - 24) / vertical);
+  const boxW = Math.max(56, horizontal * scale);
+  const boxH = Math.max(48, vertical * scale);
+  const x = padding + ((w - padding * 2) - boxW) / 2 - 8;
+  const y = padding + ((h - padding * 2) - boxH) / 2 + 4;
+  const right = x + boxW;
+  const bottom = y + boxH;
+  const midX = x + boxW / 2;
+  const midY = y + boxH / 2;
+  const activeSeg = opts.activeSeg ?? -1;
+  const bodyStroke = '#1f3345';
+  const highlight = '#2979ff';
+  const label = (sideIndex, lx, ly, rot, value, letter) => {
+    const isAct = sideIndex === activeSeg;
+    const stroke = isAct ? '#ff4047' : '#9aa3b2';
+    const fill = isAct ? '#fff4f4' : '#ffffff';
+    const tagW = Math.max(28, Math.min(48, String(value).length * 7 + 12));
+    return `<g data-se-focus="bar-side-${sideIndex}" transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${rot})" data-seg-click="${sideIndex}" style="cursor:pointer">
+      <text x="0" y="-11" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#475569">${letter}</text>
+      <rect x="${(-tagW/2).toFixed(1)}" y="-7" width="${tagW}" height="14" rx="2" fill="${fill}" stroke="${stroke}" stroke-width=".8"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#111827">${svgEscape(value)}</text>
+    </g>`;
+  };
+  const angleMark = (cx, cy, sx, sy) => {
+    const m = 9;
+    return `<path d="M ${(cx + sx*m).toFixed(1)} ${(cy).toFixed(1)} L ${(cx + sx*m).toFixed(1)} ${(cy + sy*m).toFixed(1)} L ${(cx).toFixed(1)} ${(cy + sy*m).toFixed(1)}" fill="none" stroke="#c4c8cf" stroke-width="2"/>`;
+  };
+  const clickLine = (i, x1, y1, x2, y2) => `<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="transparent" stroke-width="16" fill="none" data-se-focus="bar-side-${i}" data-seg-click="${i}" style="cursor:pointer"/>`;
+  const pd = `M ${x.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${bottom.toFixed(1)} L ${x.toFixed(1)},${bottom.toFixed(1)} Z`;
+  let html = `<g data-shape-kind="closed-stirrup" data-stirrup-marker="overlap">`;
+  html += `<path d="${pd}" fill="none" stroke="${bodyStroke}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" data-se-focus="bar-all"/>`;
+  html += `<path d="${pd}" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const bodySegments = [
+    [parts.sideMap[0], x, y, right, y],
+    [parts.sideMap[1], right, y, right, bottom],
+    [parts.sideMap[2], right, bottom, x, bottom],
+    [parts.sideMap[3], x, bottom, x, y],
+  ];
+  bodySegments.forEach(seg => { if (seg[0] != null) html += clickLine(...seg); });
+  if (activeSeg >= 0) {
+    const seg = bodySegments.find(s => s[0] === activeSeg);
+    if (seg) {
+      html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" stroke="rgba(41,121,255,0.2)" stroke-width="18" fill="none" stroke-linecap="round"/>`;
+      html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" stroke="${highlight}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
+    }
+  }
+  html += angleMark(x, y, 1, 1) + angleMark(right, y, -1, 1) + angleMark(right, bottom, -1, -1) + angleMark(x, bottom, 1, -1);
+  html += label(parts.sideMap[0], midX, y - 22, 0, parts.top, String.fromCharCode(65 + parts.sideMap[0]));
+  html += label(parts.sideMap[1], right + 22, midY, 90, parts.right, String.fromCharCode(65 + parts.sideMap[1]));
+  html += label(parts.sideMap[2], midX, bottom + 22, 0, parts.bottom, String.fromCharCode(65 + parts.sideMap[2]));
+  html += label(parts.sideMap[3], x - 22, midY, -90, parts.left, String.fromCharCode(65 + parts.sideMap[3]));
+
+  const drawTail = (sideIndex, lenValue, offset, flip = 1) => {
+    if (sideIndex == null || !lenValue) return '';
+    const tailPx = Math.max(24, Math.min(48, Number(lenValue) * scale));
+    const sx = right - 2 - offset;
+    const sy = y + 7 + offset;
+    const ex = sx - tailPx * 0.72;
+    const ey = sy + tailPx * 0.38 * flip;
+    const isAct = sideIndex === activeSeg;
+    const stroke = isAct ? highlight : '#111827';
+    const mx = (sx + ex) / 2, my = (sy + ey) / 2;
+    const letter = String.fromCharCode(65 + sideIndex);
+    return `<g data-se-focus="bar-side-${sideIndex}" data-seg-click="${sideIndex}" style="cursor:pointer">
+      <path d="M ${sx.toFixed(1)} ${sy.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)}" stroke="rgba(0,0,0,.12)" stroke-width="9" stroke-linecap="round" fill="none"/>
+      <path d="M ${sx.toFixed(1)} ${sy.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)}" stroke="${stroke}" stroke-width="4" stroke-linecap="round" fill="none"/>
+      ${label(sideIndex, mx + 14, my - 10, -25, lenValue, letter)}
+    </g>`;
+  };
+  html += drawTail(parts.tailMap[0], parts.tailStart, 0, -1);
+  html += drawTail(parts.tailMap[1], parts.tailEnd, 16, 1);
+  html += `</g>`;
+  return html;
+}
+
 // ── OVERLAP OFFSET ────────────────────────────────────────────────
 // Returns array of depth-offsets (signed px) for each segment.
 // Overlapping parallel segments get ±gap — rendered with a DIAGONAL
@@ -2742,8 +2875,19 @@ class ShapeEditorModal {
       this._bindSvgClicks(svg);
     } else {
       svg.innerHTML = '';
-      const { path, pts } = shapeSVGPath(sides, angles, 300, 260, 38);
       const _activeSeg2d = this._activeSeg ?? -1;
+      const stirrupParts = detectClosedStirrupParts(sides, angles);
+      if (stirrupParts) {
+        svg.innerHTML = renderClosedStirrupEditor2D(stirrupParts, sides, 300, 260, {
+          padding: 38,
+          activeSeg: _activeSeg2d,
+        });
+        this._applyFamilyFocus(svg);
+        this._bindSvgClicks(svg);
+        this._updateSummaryValues();
+        return;
+      }
+      const { path, pts } = shapeSVGPath(sides, angles, 300, 260, 38);
       const BAR_PX = Math.max(4, Math.min((this._diameter||12)*0.55, 14));
       const SEG_GRAY = '#3d5e78'; // dark steel-blue — visible on the light editor background
 
