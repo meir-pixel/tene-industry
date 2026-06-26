@@ -648,6 +648,48 @@ function parseSegmentsText(text) {
   });
 }
 
+function isLegacyOcrLMarkerSegment(value) {
+  const num = toNumber(value);
+  return Number.isFinite(num) && Math.abs(num) === 180;
+}
+
+function normalizeLegacyOcrLShapeItem(item = {}) {
+  if (isSpiralOcrItem(item)) return item;
+  const segments = itemSegmentsOf(item);
+  const normalized = segments.map(seg => ({
+    length_mm: toNumber(seg.length_mm ?? seg.length ?? seg.length_cm),
+    angle_deg: toNumber(seg.angle_deg ?? seg.angle ?? 0),
+  })).filter(seg => seg.length_mm > 0);
+
+  let corrected = null;
+  if (normalized.length === 1 && normalized[0].length_mm > 1000 && isLegacyOcrLMarkerSegment(normalized[0].angle_deg)) {
+    corrected = [
+      { length_mm: 200, angle_deg: 90 },
+      { length_mm: normalized[0].length_mm, angle_deg: 0 },
+    ];
+  } else if (normalized.length === 2) {
+    const markerIndex = normalized.findIndex(seg => isLegacyOcrLMarkerSegment(seg.length_mm));
+    const longIndex = normalized.findIndex(seg => seg.length_mm > 1000);
+    if (markerIndex >= 0 && longIndex >= 0 && markerIndex !== longIndex) {
+      const longSeg = normalized[longIndex];
+      corrected = markerIndex < longIndex
+        ? [{ length_mm: 200, angle_deg: 90 }, { ...longSeg, angle_deg: 0 }]
+        : [{ ...longSeg, angle_deg: 90 }, { length_mm: 200, angle_deg: 0 }];
+    }
+  }
+
+  if (!corrected) return item;
+  const total = corrected.reduce((sum, seg) => sum + seg.length_mm, 0);
+  return {
+    ...item,
+    segments: corrected,
+    sides: corrected.map(seg => seg.length_mm),
+    angles: corrected.slice(0, -1).map(seg => seg.angle_deg),
+    total_length_mm: total,
+    length_mm: total,
+    length: total,
+  };
+}
 function spiralOcrLengthMm(item) {
   const diameter = toNumber(item?.spiral_diameter_mm ?? item?.spiralDiameterMm);
   const turns = toNumber(item?.spiral_turns ?? item?.spiralTurns);
@@ -1094,6 +1136,7 @@ function ocrItemConfidenceCell(parsed, item, index) {
 }
 
 function ocrItemTableRowHtml(parsed, item, index) {
+  item = normalizeLegacyOcrLShapeItem(item || {});
   const isSpiral = isSpiralOcrItem(item);
   const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
   const straightClass = isStraightOcrItem(item) ? ' straight-ocr-no-angles' : '';
@@ -1948,6 +1991,7 @@ function handleOfficialOcrShapeClick(button) {
   openOcrShapeEditor(index);
 }
 function ocrItemTableRowHtml(parsed, item, index) {
+  item = normalizeLegacyOcrLShapeItem(item || {});
   const action = ocrActionState(parsed, item, index);
   const isSpiral = isSpiralOcrItem(item);
   const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
@@ -1968,8 +2012,8 @@ function verifyAllVisibleOcrItems() {
 function toggleOcrAttentionOnly() { document.querySelector('.ocr-review-table-wrap')?.classList.toggle('attention-only'); }
 function intakeEditableForm(parsed, options = {}) {
   const row = intakeRows.find(item => item.id === activeCompareId) || {};
-  const items = Array.isArray(parsed.items) ? parsed.items : [];
-  const summary = ocrStatusSummary(parsed);
+  const items = Array.isArray(parsed.items) ? parsed.items.map(item => normalizeLegacyOcrLShapeItem(item || {})) : [];
+  const summary = ocrStatusSummary({ ...parsed, items });
   const tableHtml = items.length ? '<div class="ocr-review-table-wrap ocr-order-form" aria-label="OCR Review Workspace table"><table class="ocr-review-table"><thead><tr><th>#</th><th>מיני שרטוט</th><th>קוטר</th><th>אורך</th><th>כמות</th><th>משקל</th><th>הערות</th><th>ביטחון</th><th>סטטוס</th></tr></thead><tbody>' + items.map((item, index) => safeIntakeRender('item ' + (index + 1), () => ocrItemTableRowHtml(parsed, item || {}, index), '<tr><td>' + escapeHtml(ocrItemNumber(item || {}, index)) + '</td><td colspan="8">OCR row could not render.</td></tr>')).join('') + '</tbody></table></div>' : '<div class="empty">לא זוהו פריטים.</div>';
   return '<div class="ocr-edit-form ocr-official-shell" data-table-first="true" data-official-ocr-review="true"><div class="ocr-official-summary"><div class="ocr-summary-card"><div class="ocr-summary-ok">✓</div><div class="ocr-summary-count">' + summary.verified + '/' + summary.total + '</div><div class="ocr-summary-label">פריטים מאושרים</div></div><div class="ocr-alert-card danger"><strong>' + summary.missing + '</strong><span>חסרים</span></div><div class="ocr-alert-card warn"><strong>' + summary.review + '</strong><span>דורשים בדיקה</span></div><div class="ocr-alert-card ok"><strong>' + summary.verified + '</strong><span>אושרו</span></div></div>' + ocrReviewTopHtml(parsed, row) + '<div class="ocr-review-toolbar"><button class="primary" type="button" onclick="verifyAllVisibleOcrItems()">סמן הכל אושר</button><button type="button" onclick="toggleOcrAttentionOnly()">בדוק רק בעייתיים</button><input type="search" placeholder="חיפוש פריט..." oninput="filterOcrReviewRows(this.value)"><span class="counter">' + summary.missing + ' דורשים טיפול</span></div>' + tableHtml + '<div class="ocr-official-footer"><div class="legend"><span><i class="ocr-status-dot"></i> מאושר</span><span><i class="ocr-status-dot review"></i> בדיקה</span><span><i class="ocr-status-dot missing"></i> חסר</span></div><div class="actions"><button type="button" onclick="saveIntakeDraft(activeCompareId)">שמור טיוטה</button><button type="button" onclick="intakeCreateProductionCards(activeCompareId)">צור כרטיסיות ייצור</button><button type="button" class="finish" onclick="intakeApprove(activeCompareId)">סיים ופתח הזמנה</button></div></div><div class="ocr-corrections" id="ocrCorrectionSummary">כל תא ניתן לעריכה ישירה. לחיצה על שרטוט פותחת את עורך הצורות.</div></div>';
 }
