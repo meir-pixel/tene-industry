@@ -851,6 +851,7 @@ class ShapeEditorModal {
     this._camTheta  = Math.PI / 4; // camera azimuth  (default 45°, matches isometric)
     this._camPhi    = Math.PI / 4; // camera elevation (default 45°, matches isometric)
     this._activeSeg = null;        // index of highlighted segment (null = none)
+    this._uiTune = this._loadUiTune();
     this._build();
   }
 
@@ -1535,7 +1536,7 @@ class ShapeEditorModal {
 #seModal .se-head-actions{display:flex;align-items:center;gap:10px;direction:rtl;}
 #seModal .se-close{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);border-radius:50%;}
 #seModal .se-back-btn{min-height:38px;padding:8px 14px;border-radius:8px;color:#eef4fb;background:rgba(255,255,255,.09);font-weight:900;}
-#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:440px minmax(420px,1fr) 170px;direction:rtl;background:#d7d7d7;}
+#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:370px minmax(420px,1fr) 154px;direction:rtl;background:#d7d7d7;}
 #sePageEdit[style*="display:none"]{display:none!important;}
 #sePageEdit .se-family-panel{order:3;background:#eceeef;border-left:1px solid #c5cbd4;padding:18px 14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
 #sePageEdit .se-family-panel-title{font-size:15px;font-weight:900;color:#243047;margin-bottom:2px;}
@@ -1558,20 +1559,22 @@ class ShapeEditorModal {
 #seModal .se-3d-toggle strong{font-size:14px;color:#243047;}
 #seModal .se-3d-toggle small,#seModal .se-3d-help{color:#647083;font-size:11px;}
 #seModal .se-panel-summary{display:none!important;}
-#seModal .se-table-wrap{padding:8px 10px 10px;background:#eef0f3;overflow-x:hidden;}
+#seModal .se-table-wrap{padding:6px 8px 8px;background:#eef0f3;overflow-x:hidden;}
 #seModal .se-table th{font-size:10px;color:#5f6878;text-transform:none;letter-spacing:0;font-weight:900;padding:4px 5px;}
-#seModal .se-table tr{grid-template-columns:30px minmax(98px,1fr) minmax(84px,.82fr) 24px;gap:5px;}
-#seModal .se-table.se-table-3d tr{grid-template-columns:28px repeat(3,minmax(0,1fr)) 24px;}
-#seModal .se-table td{background:#fff;border:1px solid #d8dde5;border-radius:6px!important;padding:5px;min-width:0;}
-#seModal .se-field-shell{display:grid;grid-template-columns:18px minmax(0,1fr);grid-template-areas:'icon label' 'icon input' 'unit input';gap:2px 5px;align-items:center;min-width:0;}
-#seModal .se-param-icon{grid-area:icon;width:18px;height:18px;border-radius:50%;background:#eef3f8;color:#2f394b;display:grid;place-items:center;font-size:10px;font-weight:900;}
+#seModal .se-table tr{grid-template-columns:28px minmax(88px,1fr) minmax(58px,.58fr) 22px;gap:4px;}
+#seModal .se-table.se-table-3d tr{grid-template-columns:26px repeat(3,minmax(0,1fr)) 22px;}
+#seModal .se-table td{background:#fff;border:1px solid #d8dde5;border-radius:6px!important;padding:4px;min-width:0;}
+#seModal .se-table td.se-empty-cell{background:transparent;border:0!important;padding:0;box-shadow:none;display:flex;align-items:center;justify-content:center;}
+#seModal .se-no-bend{font-size:13px;color:#aab8c8;font-weight:900;line-height:1;}
+#seModal .se-field-shell{display:grid;grid-template-columns:16px minmax(0,1fr);grid-template-areas:'icon label' 'icon input' 'unit input';gap:1px 4px;align-items:center;min-width:0;}
+#seModal .se-param-icon{grid-area:icon;width:16px;height:16px;border-radius:50%;background:#eef3f8;color:#2f394b;display:grid;place-items:center;font-size:9px;font-weight:900;}
 #seModal .se-param-label{grid-area:label;color:#243047;font-size:10px;font-weight:900;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-#seModal .se-field-shell .se-input{grid-area:input;width:100%!important;max-width:none!important;min-height:30px;font-size:15px;font-weight:900;text-align:center;background:#f8fafc;border:1px solid #cbd4df;border-radius:6px;direction:ltr;padding:2px 5px;}
+#seModal .se-field-shell .se-input{grid-area:input;width:100%!important;max-width:none!important;min-height:26px;font-size:13px;font-weight:900;text-align:center;background:#f8fafc;border:1px solid #cbd4df;border-radius:6px;direction:ltr;padding:1px 4px;}
 #seModal .se-field-shell .se-input:focus{border-color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.12);background:#fff;}
 #seModal .se-param-unit{grid-area:unit;color:#657386;font-size:8px;font-weight:900;text-align:center;}
 #seModal .se-param-example{display:none;}
 #seModal .se-family-label{font-size:12px;color:#243047;}
-#seModal .se-table.se-table-2d tr{grid-template-columns:30px minmax(106px,1fr) minmax(90px,.82fr) 24px;}
+#seModal .se-table.se-table-2d tr{grid-template-columns:28px minmax(92px,1fr) minmax(58px,.56fr) 22px;}
 #seModal .se-family-editor-table tr{grid-template-columns:minmax(0,1fr)!important;gap:8px;}
 #seModal .se-family-editor-table .se-zone-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(72px,.75fr) 30px!important;}
 #seModal .se-family-editor-table .se-family-row td{display:block;}
@@ -1599,6 +1602,35 @@ class ShapeEditorModal {
 #seModal svg.se-focus-mode [data-se-focus].se-focus-hit text,#seModal svg.se-focus-mode text.se-focus-hit{fill:#111827!important;stroke:none!important;}
 #seModal .se-engineer-helper text{font-family:Heebo,Arial;font-weight:900;fill:#475569;}
 #seModal .se-helper-panel{fill:#f8fafc;stroke:#d8dde5;stroke-width:1;}
+
+#seModal{--se-page-font-scale:1;--se-page-icon-scale:1;--se-page-gap-scale:1;--se-values-font-scale:1;--se-values-icon-scale:1;--se-values-gap-scale:1;--se-drawing-label-scale:1;--se-drawing-line-scale:1;--se-summary-font-scale:1;--se-family-icon-scale:1;}
+#seModal .se-head h2,#seModal .se-step-indicator,#seModal .se-family-card span,#seModal .se-view-label,#seModal .se-data-panel-head,#seModal .se-foot-actions button{font-size:calc(1em * var(--se-page-font-scale));}
+#seModal .se-field-shell{gap:calc(2px * var(--se-values-gap-scale)) calc(5px * var(--se-values-gap-scale));}
+#seModal .se-field-shell .se-input{font-size:calc(13px * var(--se-values-font-scale));min-height:calc(26px * var(--se-values-font-scale));}
+#seModal .se-param-label{font-size:calc(10px * var(--se-values-font-scale));}
+#seModal .se-param-unit{font-size:calc(8px * var(--se-values-font-scale));}
+#seModal .se-param-icon{width:calc(16px * var(--se-values-icon-scale));height:calc(16px * var(--se-values-icon-scale));font-size:calc(9px * var(--se-values-icon-scale));}
+#seModal .se-family-card svg{width:calc(46px * var(--se-family-icon-scale));height:calc(38px * var(--se-family-icon-scale));}
+#seModal .se-bottom-summary{gap:calc(10px * var(--se-page-gap-scale));}
+#seModal .se-summary-item span{font-size:calc(10px * var(--se-summary-font-scale));}
+#seModal .se-summary-item strong{font-size:calc(18px * var(--se-summary-font-scale));}
+#seShapeSvg text{font-size:calc(1em * var(--se-drawing-label-scale));}
+#seShapeSvg.se-line-tune line,#seShapeSvg.se-line-tune path,#seShapeSvg.se-line-tune polyline,#seShapeSvg.se-line-tune circle,#seShapeSvg.se-line-tune rect{stroke-width:calc(3px * var(--se-drawing-line-scale))!important;}
+#seModal .se-ui-tune-wrap{position:relative;display:inline-flex;align-items:center;}
+#seModal .se-ui-tune-btn{min-height:30px;border:1px solid #c5cbd4;background:#fff;color:#243047;border-radius:7px;padding:5px 10px;font-family:'Heebo',sans-serif;font-size:12px;font-weight:900;cursor:pointer;}
+#seModal .se-ui-tune-btn.active{border-color:#ff4047;color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.12);}
+#seModal .se-ui-tune-panel{position:absolute;top:36px;left:0;z-index:20;width:min(360px,92vw);background:#fff;border:1px solid #c5cbd4;border-radius:8px;box-shadow:0 18px 48px rgba(15,23,42,.22);padding:12px;display:none;direction:rtl;text-align:right;}
+#seModal .se-ui-tune-panel.open{display:grid;gap:10px;}
+#seModal .se-ui-tune-title{font-size:14px;font-weight:900;color:#243047;}
+#seModal .se-ui-targets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
+#seModal .se-ui-target{display:flex;align-items:center;gap:6px;border:1px solid #d8dde5;border-radius:7px;background:#f8fafc;padding:7px 8px;font-size:12px;font-weight:900;color:#334155;cursor:pointer;}
+#seModal .se-ui-target input{accent-color:#ff4047;}
+#seModal .se-ui-control{display:grid;grid-template-columns:94px minmax(0,1fr) 42px;align-items:center;gap:8px;font-size:12px;font-weight:900;color:#334155;}
+#seModal .se-ui-control input[type=range]{width:100%;accent-color:#ff4047;}
+#seModal .se-ui-value{direction:ltr;text-align:left;color:#647083;font-size:11px;}
+#seModal .se-ui-actions{display:flex;justify-content:space-between;gap:8px;border-top:1px solid #eef0f3;padding-top:8px;}
+#seModal .se-ui-actions button{border:1px solid #c5cbd4;border-radius:7px;background:#fff;color:#243047;font-family:'Heebo',sans-serif;font-weight:900;padding:7px 10px;cursor:pointer;}
+#seModal .se-ui-actions .primary{background:#ff4047;border-color:#ff4047;color:#fff;}
 @media(max-width:980px){#seModal .se-head{grid-template-columns:1fr;gap:8px;min-height:112px;padding:10px 14px;}#seModal .se-brand{justify-content:center;}#seModal .se-head-actions{justify-content:center;}#sePageEdit{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,38vh);}#sePageEdit .se-family-panel{order:1;flex-direction:row;overflow-x:auto;padding:10px;}#sePageEdit .se-family-card{min-width:132px;min-height:74px;}#sePageEdit .se-preview-panel{order:2;padding:10px;}#sePageEdit .se-data-panel{order:3;width:100%;border-top:1px solid #c5cbd4;}#seModal .se-svg-wrap{height:42vh;max-height:42vh;}#seModal .se-foot{height:auto;min-height:82px;}#seFootNormal{flex-wrap:wrap;}#seModal .se-bottom-summary{width:100%;overflow-x:auto;padding-bottom:2px;}#seModal .se-foot-actions{width:100%;}}
 
 </style>
@@ -1666,6 +1698,25 @@ class ShapeEditorModal {
           <button id="seView2D" onclick="seSetView('2d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #e07b39;background:rgba(224,123,57,0.1);color:#e07b39;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">2D</button>
           <button id="seView3D" onclick="seSetView('3d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">3D</button>
           <button id="seResetCam" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}" style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#7a93ab;cursor:pointer;font-size:13px;transition:all .15s" title="איפוס זווית">↻</button>
+          <span class="se-ui-tune-wrap">
+            <button class="se-ui-tune-btn" id="seUiTuneBtn" type="button" onclick="window._seEditor?._toggleUiTunePanel()">התאמת תצוגה</button>
+            <div class="se-ui-tune-panel" id="seUiTunePanel" aria-label="התאמת תצוגה">
+              <div class="se-ui-tune-title">התאמת תצוגה</div>
+              <div class="se-ui-targets" id="seUiTargets">
+                <label class="se-ui-target"><input type="checkbox" value="page" checked onchange="window._seEditor?._syncUiTuneControls()">כל הדף</label>
+                <label class="se-ui-target"><input type="checkbox" value="values" onchange="window._seEditor?._syncUiTuneControls()">חלון הכנסת ערכים</label>
+                <label class="se-ui-target"><input type="checkbox" value="drawing" onchange="window._seEditor?._syncUiTuneControls()">שרטוט</label>
+                <label class="se-ui-target"><input type="checkbox" value="summary" onchange="window._seEditor?._syncUiTuneControls()">סיכום תחתון</label>
+                <label class="se-ui-target"><input type="checkbox" value="families" onchange="window._seEditor?._syncUiTuneControls()">כרטיסי סוג</label>
+              </div>
+              <label class="se-ui-control"><span>פונט</span><input type="range" min="85" max="125" value="100" data-se-ui-control="font" oninput="window._seEditor?._setUiTuneValue('font', this.value)"><span class="se-ui-value" data-se-ui-value="font">100%</span></label>
+              <label class="se-ui-control"><span>אייקונים</span><input type="range" min="85" max="135" value="100" data-se-ui-control="icon" oninput="window._seEditor?._setUiTuneValue('icon', this.value)"><span class="se-ui-value" data-se-ui-value="icon">100%</span></label>
+              <label class="se-ui-control"><span>תוויות שרטוט</span><input type="range" min="85" max="140" value="100" data-se-ui-control="drawingLabel" oninput="window._seEditor?._setUiTuneValue('drawingLabel', this.value)"><span class="se-ui-value" data-se-ui-value="drawingLabel">100%</span></label>
+              <label class="se-ui-control"><span>עובי קו</span><input type="range" min="80" max="150" value="100" data-se-ui-control="line" oninput="window._seEditor?._setUiTuneValue('line', this.value)"><span class="se-ui-value" data-se-ui-value="line">100%</span></label>
+              <label class="se-ui-control"><span>ריווח</span><input type="range" min="85" max="130" value="100" data-se-ui-control="gap" oninput="window._seEditor?._setUiTuneValue('gap', this.value)"><span class="se-ui-value" data-se-ui-value="gap">100%</span></label>
+              <div class="se-ui-actions"><button type="button" onclick="window._seEditor?._resetUiTune()">איפוס</button><button type="button" onclick="window._seEditor?._closeUiTunePanel()">סגור</button><button class="primary" type="button" onclick="window._seEditor?._saveUiTune()">שמור</button></div>
+            </div>
+          </span>
         </div>
       </div>
       <!-- SVG preview -->
@@ -1758,6 +1809,7 @@ class ShapeEditorModal {
 </div>`;
     document.body.appendChild(overlay);
     this._el = overlay;
+    this._applyUiTune();
     this._bindEvents();
   }
 
@@ -2120,6 +2172,99 @@ class ShapeEditorModal {
     return this._renderBarEditor();
   }
 
+  _defaultUiTune() {
+    return {
+      page: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
+      values: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
+      drawing: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
+      summary: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
+      families: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
+    };
+  }
+
+  _loadUiTune() {
+    const fallback = this._defaultUiTune();
+    try {
+      const saved = JSON.parse(localStorage.getItem('ironbend.shapeEditor.uiTune') || 'null');
+      return saved ? { ...fallback, ...saved } : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  _saveUiTune() {
+    try { localStorage.setItem('ironbend.shapeEditor.uiTune', JSON.stringify(this._uiTune)); } catch (_) {}
+    this._closeUiTunePanel();
+  }
+
+  _uiTuneTargets() {
+    const checked = Array.from(document.querySelectorAll('#seUiTargets input:checked')).map(input => input.value);
+    return checked.length ? checked : ['page'];
+  }
+
+  _toggleUiTunePanel() {
+    const panel = document.getElementById('seUiTunePanel');
+    const btn = document.getElementById('seUiTuneBtn');
+    if (!panel) return;
+    const open = !panel.classList.contains('open');
+    panel.classList.toggle('open', open);
+    if (btn) btn.classList.toggle('active', open);
+    if (open) this._syncUiTuneControls();
+  }
+
+  _closeUiTunePanel() {
+    document.getElementById('seUiTunePanel')?.classList.remove('open');
+    document.getElementById('seUiTuneBtn')?.classList.remove('active');
+  }
+
+  _syncUiTuneControls() {
+    const targets = this._uiTuneTargets();
+    const primary = this._uiTune[targets[0]] || this._defaultUiTune().page;
+    ['font', 'icon', 'drawingLabel', 'line', 'gap'].forEach(key => {
+      const input = document.querySelector(`#seUiTunePanel [data-se-ui-control="${key}"]`);
+      const output = document.querySelector(`#seUiTunePanel [data-se-ui-value="${key}"]`);
+      const value = Number(primary[key] || 100);
+      if (input) input.value = value;
+      if (output) output.textContent = `${value}%`;
+    });
+  }
+
+  _setUiTuneValue(key, value) {
+    const next = Math.max(70, Math.min(160, Number(value) || 100));
+    this._uiTuneTargets().forEach(target => {
+      this._uiTune[target] = { ...(this._uiTune[target] || this._defaultUiTune().page), [key]: next };
+    });
+    const output = document.querySelector(`#seUiTunePanel [data-se-ui-value="${key}"]`);
+    if (output) output.textContent = `${next}%`;
+    this._applyUiTune();
+  }
+
+  _resetUiTune() {
+    this._uiTuneTargets().forEach(target => {
+      this._uiTune[target] = { ...this._defaultUiTune()[target] };
+    });
+    this._applyUiTune();
+    this._syncUiTuneControls();
+    try { localStorage.setItem('ironbend.shapeEditor.uiTune', JSON.stringify(this._uiTune)); } catch (_) {}
+  }
+
+  _applyUiTune() {
+    const modal = document.getElementById('seModal');
+    if (!modal) return;
+    const pct = (target, key) => ((this._uiTune?.[target]?.[key] || 100) / 100).toFixed(2);
+    modal.style.setProperty('--se-page-font-scale', pct('page', 'font'));
+    modal.style.setProperty('--se-page-icon-scale', pct('page', 'icon'));
+    modal.style.setProperty('--se-page-gap-scale', pct('page', 'gap'));
+    modal.style.setProperty('--se-values-font-scale', pct('values', 'font'));
+    modal.style.setProperty('--se-values-icon-scale', pct('values', 'icon'));
+    modal.style.setProperty('--se-values-gap-scale', pct('values', 'gap'));
+    modal.style.setProperty('--se-drawing-label-scale', pct('drawing', 'drawingLabel'));
+    modal.style.setProperty('--se-drawing-line-scale', pct('drawing', 'line'));
+    document.getElementById('seShapeSvg')?.classList.toggle('se-line-tune', Number(this._uiTune?.drawing?.line || 100) !== 100);
+    modal.style.setProperty('--se-summary-font-scale', pct('summary', 'font'));
+    modal.style.setProperty('--se-family-icon-scale', pct('families', 'icon'));
+  }
+
 
   _inferFieldShellMeta({ focusKey = '', number = '', code = '', example = '', input = '' }) {
     const inputText = String(input || '');
@@ -2405,7 +2550,7 @@ class ShapeEditorModal {
             <td>${this._fieldShell({ icon:'📏', label:'אורך', unit:'מ״מ', example:'לדוגמה 300', input:`<input class="se-input" type="number" min="1" max="20000" value="${sides[i]}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
             <td>
               ${i === 0
-                ? `<span style="font-size:11px;color:#aab8c8;padding:0 4px;">&mdash;</span>`
+                ? `<span class="se-no-bend">&mdash;</span>`
                 : this._fieldShell({ icon:'↪', label:'פנייה', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${az}" data-az="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAzAngle(${i}, this.value)">` })}
             </td>
             <td>
@@ -2418,7 +2563,7 @@ class ShapeEditorModal {
           <tr class="se-side-row">
             <td><span class="se-seg-label">${letter}</span></td>
             <td class="se-length-cell">${this._fieldShell({ icon:'📏', label:'אורך', unit:'מ״מ', example:'לדוגמה 300', input:`<input class="se-input" type="number" min="1" max="20000" value="${sides[i]}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
-            <td class="se-angle-cell">${i < angles.length
+            <td class="se-angle-cell ${i < angles.length ? '' : 'se-empty-cell'}">${i < angles.length
               ? this._fieldShell({ icon:'∠', label:'זווית', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" data-angle="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAngle(${i}, this.value)">` })
               : '<span style="font-size:11px;color:#aab8c8;padding:0 4px;">&mdash;</span>'}</td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
@@ -2951,6 +3096,8 @@ class ShapeEditorModal {
       this._selectedSideCount = null;
       this._startDefaultEdit('bars');
     }
+    this._applyUiTune();
+    this._syncUiTuneControls();
     this._el.classList.add('show');
   }
 

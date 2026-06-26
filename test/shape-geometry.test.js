@@ -118,10 +118,14 @@ test('shape editor one-screen edit layout keeps editing inside the viewport', ()
 test('shape editor keeps bend parameter rows compact and technical', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
-  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*min-height:30px/);
-  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*font-size:15px/);
-  assert.match(editor, /#seModal \.se-table\.se-table-2d tr\{[\s\S]*minmax\(90px,\.82fr\)/);
+  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*min-height:26px/);
+  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*font-size:13px/);
+  assert.match(editor, /#seModal \.se-table\.se-table-2d tr\{[\s\S]*minmax\(58px,\.56fr\)/);
   assert.match(editor, /#seModal \.se-param-example\{display:none;\}/);
+  assert.match(editor, /grid-template-columns:370px minmax\(420px,1fr\) 154px/);
+  assert.match(editor, /td\.se-empty-cell\{background:transparent/);
+  assert.match(editor, /class="se-angle-cell \$\{i < angles\.length \? '' : 'se-empty-cell'\}"/);
+  assert.match(editor, /class="se-no-bend"/);
 });
 
 test('shape editor draws non-right bend angles as small arc labels without a tag box', () => {
@@ -153,6 +157,27 @@ test('shape editor approved reference UI keeps Hebrew workspace chrome', () => {
   assert.doesNotMatch(editor, /Mesh Editor/);
   assert.doesNotMatch(editor, /Pile Cage Editor/);
   assert.doesNotMatch(editor, /Side Lengths \/ Bend Angles/);
+});
+
+
+test('shape editor offers safe no-code UI tuning by selected scope', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /seUiTunePanel/);
+  assert.match(editor, /seUiTuneBtn/);
+  assert.match(editor, /value="page" checked/);
+  assert.match(editor, /value="values"/);
+  assert.match(editor, /value="drawing"/);
+  assert.match(editor, /value="summary"/);
+  assert.match(editor, /value="families"/);
+  assert.match(editor, /data-se-ui-control="font"/);
+  assert.match(editor, /data-se-ui-control="icon"/);
+  assert.match(editor, /data-se-ui-control="drawingLabel"/);
+  assert.match(editor, /data-se-ui-control="line"/);
+  assert.match(editor, /ironbend\.shapeEditor\.uiTune/);
+  assert.match(editor, /--se-values-font-scale/);
+  assert.match(editor, /--se-drawing-label-scale/);
+  assert.match(editor, /--se-family-icon-scale/);
 });
 
 test('shape editor connects parameter fields to drawing focus targets', () => {
