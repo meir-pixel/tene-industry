@@ -2753,11 +2753,11 @@ class ShapeEditorModal {
     if (!this.current) return;
     this.current.sides.push(300);
     if (this.current.sides.length > 1) this.current.angles.push(90);
-    // 3D arrays — new segment starts going straight (azAngle=0 = continue forward)
+    // 3D arrays — new segment defaults to a 90-degree bend, matching the 2D side editor.
     const n = this.current.sides.length - 1;
     if (!this.current.azAngles) this.current.azAngles = Array(n).fill(0);
     if (!this.current.elAngles) this.current.elAngles = Array(n).fill(0);
-    this.current.azAngles.push(0);  // straight ahead relative to previous
+    this.current.azAngles.push(90);  // default bend angle for newly added side
     this.current.elAngles.push(0);
     this._renderTable();
     this._updatePreview();

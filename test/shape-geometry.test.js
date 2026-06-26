@@ -269,6 +269,17 @@ test('shape editor exposes side-count filters for built-in and saved shapes', ()
   assert.match(editor, /const sideCount = this\._selectedSideCount/);
   assert.match(editor, /saved\.filter\(s => s\.sides\.length === sideCount\)/);
 });
+
+test('shape editor defaults newly added 3D side bends to 90 degrees', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const addSideBlock = editor.match(new RegExp('_addSide\\(\\) \\{[\\s\\S]*?\\n  \\}'));
+
+  assert.ok(addSideBlock, 'expected _addSide body');
+  assert.match(addSideBlock[0], /this\.current\.angles\.push\(90\)/);
+  assert.match(addSideBlock[0], /this\.current\.azAngles\.push\(90\)/);
+  assert.doesNotMatch(addSideBlock[0], /this\.current\.azAngles\.push\(0\)/);
+});
+
 test('shape editor keeps true 3D angle fields in sync with visual bends', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 

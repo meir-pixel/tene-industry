@@ -778,6 +778,28 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+
+### V2-006W - Shape Editor Default Added Side Bend To 90
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- Output:
+  - Newly added bar sides default to a 90-degree bend in both 2D and true-3D bend fields.
+  - Tests guard that `_addSide()` no longer initializes 3D azimuth bends as `0`.
+- Guardrails:
+  - No full UI redesign.
+  - No new shapes or shape families.
+  - No rendering-engine contract changes.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
 ### V2-007 — Orders Module Specification
 
 - status: todo
@@ -824,6 +846,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - separated manual OCR row approval from legacy accepted status and requested clean embedded PDF source view without viewer side panels.
   - corrected OCR review colors: green is operator-approved only, yellow is OCR confidence, red is missing.
   - added OCR recognition refresh and persistent row-number approval states for partial review sessions.
     - show non-default OCR bend angles visually while hiding standard 90/180 labels.
