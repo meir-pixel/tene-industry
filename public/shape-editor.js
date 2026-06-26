@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "segment-color-replace";
+window.IRONBEND_ASSET_VERSION = "segment-color-replace-no-glow";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -1721,14 +1721,14 @@ class ShapeEditorModal {
 #seModal .se-ok-btn{background:#ff4047;border:0;border-radius:8px;box-shadow:none;min-width:126px;}
 #seModal .se-save-shape-btn{background:#fff;color:#2f394b;border:1px solid #5f6878;border-radius:8px;min-width:116px;}
 #seModal .se-cancel-btn{background:#fff;color:#2f394b;border:1px solid #c5cbd4;border-radius:8px;min-width:92px;}
-#seModal .se-highlight-family{filter:drop-shadow(0 0 5px rgba(41,121,255,.55));stroke:#2979ff!important;fill:#2979ff!important;}
+#seModal .se-highlight-family{filter:none!important;stroke:#2979ff!important;fill:#2979ff!important;}
 #seModal .se-field-shell{position:relative;transition:background .14s,border-color .14s,box-shadow .14s;}
 #seModal .se-field-shell[data-se-param]{cursor:crosshair;}
 #seModal .se-field-shell.se-param-active{background:#fff;border-radius:8px;box-shadow:0 0 0 2px rgba(41,121,255,.16);}
 #seModal .se-param-number{position:absolute;inset-inline-start:-3px;top:-6px;width:15px;height:15px;border-radius:50%;background:#243047;color:#fff;display:grid;place-items:center;font-size:8px;font-weight:900;border:2px solid #eef0f3;}
 #seModal .se-param-code{grid-area:label;color:#2979ff;font-size:9px;font-weight:900;justify-self:end;}
 #seModal svg.se-focus-mode [data-se-focus]{opacity:.16;transition:opacity .14s,stroke .14s,fill .14s,filter .14s;}
-#seModal svg.se-focus-mode [data-se-focus].se-focus-hit{opacity:1!important;stroke:#2979ff!important;fill:#2979ff!important;filter:drop-shadow(0 0 6px rgba(41,121,255,.5));}
+#seModal svg.se-focus-mode [data-se-focus].se-focus-hit{opacity:1!important;stroke:#2979ff!important;fill:#2979ff!important;filter:none!important;}
 #seModal svg.se-focus-mode [data-se-focus].se-focus-hit text,#seModal svg.se-focus-mode text.se-focus-hit{fill:#111827!important;stroke:none!important;}
 #seModal .se-engineer-helper text{font-family:Heebo,Arial;font-weight:900;fill:#475569;}
 #seModal .se-helper-panel{fill:#f8fafc;stroke:#d8dde5;stroke-width:1;}

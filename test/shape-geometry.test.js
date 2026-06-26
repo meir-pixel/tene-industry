@@ -294,14 +294,15 @@ test('shape editor active segment selection replaces color instead of drawing an
   assert.doesNotMatch(editor, /Active segment overlay/);
   assert.doesNotMatch(editor, /stroke="#2979ff" stroke-width="4"/);
   assert.doesNotMatch(editor, /stroke="rgba\(41,121,255,[^`]*stroke-width/);
+  assert.doesNotMatch(editor, /drop-shadow\(0 0 [^)]*rgba\(41,121,255/);
   assert.doesNotMatch(editor, /barW\*4\.5/);
 });
 
 test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
-  assert.match(index, /shape-editor\.js\?v=52/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=51/);
+  assert.match(index, /shape-editor\.js\?v=53/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=52/);
 });
 
 test('shape editor exposes editable order item quantity outside the shape contract', () => {
