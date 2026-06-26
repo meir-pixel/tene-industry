@@ -160,30 +160,14 @@ test('shape editor approved reference UI keeps Hebrew workspace chrome', () => {
 });
 
 
-test('shape editor offers safe no-code UI tuning by selected scope', () => {
+test('shape editor does not embed a page-local UI tuning panel', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
-  assert.match(editor, /seUiTunePanel/);
-  assert.match(editor, /seUiTuneBtn/);
-  assert.match(editor, /&#9998;/);
-  assert.match(editor, /se-ui-lock/);
-  assert.match(editor, /_unlockUiTune/);
-  assert.match(editor, /if \(!this\._uiTuneUnlocked\) return/);
-  assert.match(editor, /value="page" checked/);
-  assert.match(editor, /value="values"/);
-  assert.match(editor, /value="drawing"/);
-  assert.match(editor, /value="summary"/);
-  assert.match(editor, /value="families"/);
-  assert.match(editor, /data-se-ui-control="font"/);
-  assert.match(editor, /data-se-ui-control="icon"/);
-  assert.match(editor, /data-se-ui-control="drawingLabel"/);
-  assert.match(editor, /data-se-ui-control="line"/);
-  assert.match(editor, /ironbend\.shapeEditor\.uiTune/);
-  assert.match(editor, /--se-values-font-scale/);
-  assert.match(editor, /--se-drawing-label-scale/);
-  assert.match(editor, /--se-family-icon-scale/);
+  assert.doesNotMatch(editor, /seUiTunePanel/);
+  assert.doesNotMatch(editor, /seUiTuneBtn/);
+  assert.doesNotMatch(editor, /se-ui-tune/);
+  assert.doesNotMatch(editor, /ironbend\.shapeEditor\.uiTune/);
 });
-
 test('shape editor connects parameter fields to drawing focus targets', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 

@@ -851,8 +851,6 @@ class ShapeEditorModal {
     this._camTheta  = Math.PI / 4; // camera azimuth  (default 45°, matches isometric)
     this._camPhi    = Math.PI / 4; // camera elevation (default 45°, matches isometric)
     this._activeSeg = null;        // index of highlighted segment (null = none)
-    this._uiTune = this._loadUiTune();
-    this._uiTuneUnlocked = false;
     this._build();
   }
 
@@ -1606,41 +1604,6 @@ class ShapeEditorModal {
 #seModal .se-engineer-helper text{font-family:Heebo,Arial;font-weight:900;fill:#475569;}
 #seModal .se-helper-panel{fill:#f8fafc;stroke:#d8dde5;stroke-width:1;}
 
-#seModal{--se-page-font-scale:1;--se-page-icon-scale:1;--se-page-gap-scale:1;--se-values-font-scale:1;--se-values-icon-scale:1;--se-values-gap-scale:1;--se-drawing-label-scale:1;--se-drawing-line-scale:1;--se-summary-font-scale:1;--se-family-icon-scale:1;}
-#seModal .se-head h2,#seModal .se-step-indicator,#seModal .se-family-card span,#seModal .se-view-label,#seModal .se-data-panel-head,#seModal .se-foot-actions button{font-size:calc(1em * var(--se-page-font-scale));}
-#seModal .se-field-shell{gap:calc(2px * var(--se-values-gap-scale)) calc(5px * var(--se-values-gap-scale));}
-#seModal .se-field-shell .se-input{font-size:calc(12px * var(--se-values-font-scale));min-height:calc(24px * var(--se-values-font-scale));}
-#seModal .se-param-label{font-size:calc(10px * var(--se-values-font-scale));}
-#seModal .se-param-unit{font-size:calc(8px * var(--se-values-font-scale));}
-#seModal .se-param-icon{width:calc(14px * var(--se-values-icon-scale));height:calc(14px * var(--se-values-icon-scale));font-size:calc(8px * var(--se-values-icon-scale));}
-#seModal .se-family-card svg{width:calc(46px * var(--se-family-icon-scale));height:calc(38px * var(--se-family-icon-scale));}
-#seModal .se-bottom-summary{gap:calc(10px * var(--se-page-gap-scale));}
-#seModal .se-summary-item span{font-size:calc(10px * var(--se-summary-font-scale));}
-#seModal .se-summary-item strong{font-size:calc(18px * var(--se-summary-font-scale));}
-#seShapeSvg text{font-size:calc(1em * var(--se-drawing-label-scale));}
-#seShapeSvg.se-line-tune line,#seShapeSvg.se-line-tune path,#seShapeSvg.se-line-tune polyline,#seShapeSvg.se-line-tune circle,#seShapeSvg.se-line-tune rect{stroke-width:calc(3px * var(--se-drawing-line-scale))!important;}
-#seModal .se-ui-tune-wrap{position:relative;display:inline-flex;align-items:center;}
-#seModal .se-ui-tune-btn{width:32px;height:32px;min-height:32px;border:1px solid #c5cbd4;background:#fff;color:#243047;border-radius:50%;padding:0;font-family:'Heebo',sans-serif;font-size:16px;font-weight:900;cursor:pointer;display:grid;place-items:center;line-height:1;}
-#seModal .se-ui-tune-btn.active{border-color:#ff4047;color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.12);}
-#seModal .se-ui-tune-panel{position:absolute;top:36px;left:0;z-index:20;width:min(360px,92vw);background:#fff;border:1px solid #c5cbd4;border-radius:8px;box-shadow:0 18px 48px rgba(15,23,42,.22);padding:12px;display:none;direction:rtl;text-align:right;}
-#seModal .se-ui-tune-panel.open{display:grid;gap:10px;}
-#seModal .se-ui-tune-title{font-size:14px;font-weight:900;color:#243047;}
-#seModal .se-ui-lock{display:grid;gap:9px;border:1px dashed #c5cbd4;border-radius:8px;background:#f8fafc;padding:10px;}
-#seModal .se-ui-lock strong{font-size:13px;color:#243047;}
-#seModal .se-ui-lock small{font-size:11px;color:#647083;line-height:1.45;}
-#seModal .se-ui-unlock{border:0;border-radius:7px;background:#243047;color:#fff;font-family:'Heebo',sans-serif;font-weight:900;padding:8px 10px;cursor:pointer;}
-#seModal .se-ui-editor-body{display:none;gap:10px;}
-#seModal .se-ui-tune-panel.unlocked .se-ui-editor-body{display:grid;}
-#seModal .se-ui-tune-panel.unlocked .se-ui-lock{display:none;}
-#seModal .se-ui-targets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
-#seModal .se-ui-target{display:flex;align-items:center;gap:6px;border:1px solid #d8dde5;border-radius:7px;background:#f8fafc;padding:7px 8px;font-size:12px;font-weight:900;color:#334155;cursor:pointer;}
-#seModal .se-ui-target input{accent-color:#ff4047;}
-#seModal .se-ui-control{display:grid;grid-template-columns:94px minmax(0,1fr) 42px;align-items:center;gap:8px;font-size:12px;font-weight:900;color:#334155;}
-#seModal .se-ui-control input[type=range]{width:100%;accent-color:#ff4047;}
-#seModal .se-ui-value{direction:ltr;text-align:left;color:#647083;font-size:11px;}
-#seModal .se-ui-actions{display:flex;justify-content:space-between;gap:8px;border-top:1px solid #eef0f3;padding-top:8px;}
-#seModal .se-ui-actions button{border:1px solid #c5cbd4;border-radius:7px;background:#fff;color:#243047;font-family:'Heebo',sans-serif;font-weight:900;padding:7px 10px;cursor:pointer;}
-#seModal .se-ui-actions .primary{background:#ff4047;border-color:#ff4047;color:#fff;}
 @media(max-width:980px){#seModal .se-head{grid-template-columns:1fr;gap:8px;min-height:112px;padding:10px 14px;}#seModal .se-brand{justify-content:center;}#seModal .se-head-actions{justify-content:center;}#sePageEdit{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,38vh);}#sePageEdit .se-family-panel{order:1;flex-direction:row;overflow-x:auto;padding:10px;}#sePageEdit .se-family-card{min-width:132px;min-height:74px;}#sePageEdit .se-preview-panel{order:2;padding:10px;}#sePageEdit .se-data-panel{order:3;width:100%;border-top:1px solid #c5cbd4;}#seModal .se-svg-wrap{height:42vh;max-height:42vh;}#seModal .se-foot{height:auto;min-height:82px;}#seFootNormal{flex-wrap:wrap;}#seModal .se-bottom-summary{width:100%;overflow-x:auto;padding-bottom:2px;}#seModal .se-foot-actions{width:100%;}}
 
 </style>
@@ -1708,32 +1671,6 @@ class ShapeEditorModal {
           <button id="seView2D" onclick="seSetView('2d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #e07b39;background:rgba(224,123,57,0.1);color:#e07b39;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">2D</button>
           <button id="seView3D" onclick="seSetView('3d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">3D</button>
           <button id="seResetCam" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}" style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#7a93ab;cursor:pointer;font-size:13px;transition:all .15s" title="איפוס זווית">↻</button>
-          <span class="se-ui-tune-wrap">
-            <button class="se-ui-tune-btn" id="seUiTuneBtn" type="button" title="&#1492;&#1514;&#1488;&#1502;&#1514; &#1514;&#1510;&#1493;&#1490;&#1492; &#1494;&#1502;&#1504;&#1497;&#1514;" aria-label="&#1492;&#1514;&#1488;&#1502;&#1514; &#1514;&#1510;&#1493;&#1490;&#1492; &#1494;&#1502;&#1504;&#1497;&#1514;" onclick="window._seEditor?._toggleUiTunePanel()">&#9998;</button>
-            <div class="se-ui-tune-panel" id="seUiTunePanel" aria-label="&#1492;&#1514;&#1488;&#1502;&#1514; &#1514;&#1510;&#1493;&#1490;&#1492;">
-              <div class="se-ui-tune-title">&#1492;&#1514;&#1488;&#1502;&#1514; &#1514;&#1510;&#1493;&#1490;&#1492;</div>
-              <div class="se-ui-lock">
-                <strong>&#1502;&#1510;&#1489; &#1506;&#1512;&#1497;&#1499;&#1492; &#1494;&#1502;&#1504;&#1497;</strong>
-                <small>&#1502;&#1497;&#1493;&#1506;&#1491; &#1500;&#1508;&#1497;&#1514;&#1493;&#1495; &#1502;&#1492;&#1497;&#1512; &#1489;&#1500;&#1489;&#1491;. &#1508;&#1514;&#1495; &#1512;&#1511; &#1499;&#1513;&#1510;&#1512;&#1497;&#1498; &#1500;&#1499;&#1493;&#1493;&#1503; &#1490;&#1491;&#1500;&#1497;&#1501;, &#1499;&#1491;&#1497; &#1513;&#1500;&#1488; &#1497;&#1513;&#1504;&#1493; &#1489;&#1496;&#1506;&#1493;&#1514;.</small>
-                <button class="se-ui-unlock" type="button" onclick="window._seEditor?._unlockUiTune()">&#1508;&#1514;&#1495; &#1502;&#1510;&#1489; &#1506;&#1512;&#1497;&#1499;&#1492; &#1494;&#1502;&#1504;&#1497;</button>
-              </div>
-              <div class="se-ui-editor-body" id="seUiEditorBody">
-                <div class="se-ui-targets" id="seUiTargets">
-                  <label class="se-ui-target"><input type="checkbox" value="page" checked onchange="window._seEditor?._syncUiTuneControls()">&#1499;&#1500; &#1492;&#1491;&#1507;</label>
-                  <label class="se-ui-target"><input type="checkbox" value="values" onchange="window._seEditor?._syncUiTuneControls()">&#1495;&#1500;&#1493;&#1503; &#1492;&#1499;&#1504;&#1505;&#1514; &#1506;&#1512;&#1499;&#1497;&#1501;</label>
-                  <label class="se-ui-target"><input type="checkbox" value="drawing" onchange="window._seEditor?._syncUiTuneControls()">&#1513;&#1512;&#1496;&#1493;&#1496;</label>
-                  <label class="se-ui-target"><input type="checkbox" value="summary" onchange="window._seEditor?._syncUiTuneControls()">&#1505;&#1497;&#1499;&#1493;&#1501; &#1514;&#1495;&#1514;&#1493;&#1503;</label>
-                  <label class="se-ui-target"><input type="checkbox" value="families" onchange="window._seEditor?._syncUiTuneControls()">&#1499;&#1512;&#1496;&#1497;&#1505;&#1497; &#1505;&#1493;&#1490;</label>
-                </div>
-                <label class="se-ui-control"><span>&#1508;&#1493;&#1504;&#1496;</span><input type="range" min="85" max="125" value="100" data-se-ui-control="font" oninput="window._seEditor?._setUiTuneValue('font', this.value)"><span class="se-ui-value" data-se-ui-value="font">100%</span></label>
-                <label class="se-ui-control"><span>&#1488;&#1497;&#1497;&#1511;&#1493;&#1504;&#1497;&#1501;</span><input type="range" min="85" max="135" value="100" data-se-ui-control="icon" oninput="window._seEditor?._setUiTuneValue('icon', this.value)"><span class="se-ui-value" data-se-ui-value="icon">100%</span></label>
-                <label class="se-ui-control"><span>&#1514;&#1493;&#1493;&#1497;&#1493;&#1514; &#1513;&#1512;&#1496;&#1493;&#1496;</span><input type="range" min="85" max="140" value="100" data-se-ui-control="drawingLabel" oninput="window._seEditor?._setUiTuneValue('drawingLabel', this.value)"><span class="se-ui-value" data-se-ui-value="drawingLabel">100%</span></label>
-                <label class="se-ui-control"><span>&#1506;&#1493;&#1489;&#1497; &#1511;&#1493;</span><input type="range" min="80" max="150" value="100" data-se-ui-control="line" oninput="window._seEditor?._setUiTuneValue('line', this.value)"><span class="se-ui-value" data-se-ui-value="line">100%</span></label>
-                <label class="se-ui-control"><span>&#1512;&#1497;&#1493;&#1493;&#1495;</span><input type="range" min="85" max="130" value="100" data-se-ui-control="gap" oninput="window._seEditor?._setUiTuneValue('gap', this.value)"><span class="se-ui-value" data-se-ui-value="gap">100%</span></label>
-                <div class="se-ui-actions"><button type="button" onclick="window._seEditor?._resetUiTune()">&#1488;&#1497;&#1508;&#1493;&#1505;</button><button type="button" onclick="window._seEditor?._closeUiTunePanel()">&#1505;&#1490;&#1493;&#1512;</button><button class="primary" type="button" onclick="window._seEditor?._saveUiTune()">&#1513;&#1502;&#1493;&#1512;</button></div>
-              </div>
-            </div>
-          </span>
         </div>
       </div>
       <!-- SVG preview -->
@@ -1826,7 +1763,6 @@ class ShapeEditorModal {
 </div>`;
     document.body.appendChild(overlay);
     this._el = overlay;
-    this._applyUiTune();
     this._bindEvents();
   }
 
@@ -2189,113 +2125,6 @@ class ShapeEditorModal {
     if (this.current.family === 'piles') return this._renderPileCageEditor();
     return this._renderBarEditor();
   }
-
-  _defaultUiTune() {
-    return {
-      page: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
-      values: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
-      drawing: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
-      summary: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
-      families: { font: 100, icon: 100, drawingLabel: 100, line: 100, gap: 100 },
-    };
-  }
-
-  _loadUiTune() {
-    const fallback = this._defaultUiTune();
-    try {
-      const saved = JSON.parse(localStorage.getItem('ironbend.shapeEditor.uiTune') || 'null');
-      return saved ? { ...fallback, ...saved } : fallback;
-    } catch (_) {
-      return fallback;
-    }
-  }
-
-  _saveUiTune() {
-    try { localStorage.setItem('ironbend.shapeEditor.uiTune', JSON.stringify(this._uiTune)); } catch (_) {}
-    this._closeUiTunePanel();
-  }
-
-  _uiTuneTargets() {
-    const checked = Array.from(document.querySelectorAll('#seUiTargets input:checked')).map(input => input.value);
-    return checked.length ? checked : ['page'];
-  }
-
-  _toggleUiTunePanel() {
-    const panel = document.getElementById('seUiTunePanel');
-    const btn = document.getElementById('seUiTuneBtn');
-    if (!panel) return;
-    const open = !panel.classList.contains('open');
-    panel.classList.toggle('open', open);
-    if (btn) btn.classList.toggle('active', open);
-    if (open) {
-      this._uiTuneUnlocked = false;
-      panel.classList.remove('unlocked');
-      this._syncUiTuneControls();
-    }
-  }
-
-  _unlockUiTune() {
-    this._uiTuneUnlocked = true;
-    document.getElementById('seUiTunePanel')?.classList.add('unlocked');
-    this._syncUiTuneControls();
-  }
-
-  _closeUiTunePanel() {
-    this._uiTuneUnlocked = false;
-    document.getElementById('seUiTunePanel')?.classList.remove('open', 'unlocked');
-    document.getElementById('seUiTuneBtn')?.classList.remove('active');
-  }
-
-  _syncUiTuneControls() {
-    const targets = this._uiTuneTargets();
-    const primary = this._uiTune[targets[0]] || this._defaultUiTune().page;
-    ['font', 'icon', 'drawingLabel', 'line', 'gap'].forEach(key => {
-      const input = document.querySelector(`#seUiTunePanel [data-se-ui-control="${key}"]`);
-      const output = document.querySelector(`#seUiTunePanel [data-se-ui-value="${key}"]`);
-      const value = Number(primary[key] || 100);
-      if (input) input.value = value;
-      if (output) output.textContent = `${value}%`;
-    });
-  }
-
-  _setUiTuneValue(key, value) {
-    if (!this._uiTuneUnlocked) return;
-    const next = Math.max(70, Math.min(160, Number(value) || 100));
-    this._uiTuneTargets().forEach(target => {
-      this._uiTune[target] = { ...(this._uiTune[target] || this._defaultUiTune().page), [key]: next };
-    });
-    const output = document.querySelector(`#seUiTunePanel [data-se-ui-value="${key}"]`);
-    if (output) output.textContent = `${next}%`;
-    this._applyUiTune();
-  }
-
-  _resetUiTune() {
-    if (!this._uiTuneUnlocked) return;
-    this._uiTuneTargets().forEach(target => {
-      this._uiTune[target] = { ...this._defaultUiTune()[target] };
-    });
-    this._applyUiTune();
-    this._syncUiTuneControls();
-    try { localStorage.setItem('ironbend.shapeEditor.uiTune', JSON.stringify(this._uiTune)); } catch (_) {}
-  }
-
-  _applyUiTune() {
-    const modal = document.getElementById('seModal');
-    if (!modal) return;
-    const pct = (target, key) => ((this._uiTune?.[target]?.[key] || 100) / 100).toFixed(2);
-    modal.style.setProperty('--se-page-font-scale', pct('page', 'font'));
-    modal.style.setProperty('--se-page-icon-scale', pct('page', 'icon'));
-    modal.style.setProperty('--se-page-gap-scale', pct('page', 'gap'));
-    modal.style.setProperty('--se-values-font-scale', pct('values', 'font'));
-    modal.style.setProperty('--se-values-icon-scale', pct('values', 'icon'));
-    modal.style.setProperty('--se-values-gap-scale', pct('values', 'gap'));
-    modal.style.setProperty('--se-drawing-label-scale', pct('drawing', 'drawingLabel'));
-    modal.style.setProperty('--se-drawing-line-scale', pct('drawing', 'line'));
-    document.getElementById('seShapeSvg')?.classList.toggle('se-line-tune', Number(this._uiTune?.drawing?.line || 100) !== 100);
-    modal.style.setProperty('--se-summary-font-scale', pct('summary', 'font'));
-    modal.style.setProperty('--se-family-icon-scale', pct('families', 'icon'));
-  }
-
 
   _inferFieldShellMeta({ focusKey = '', number = '', code = '', example = '', input = '' }) {
     const inputText = String(input || '');
@@ -3140,8 +2969,6 @@ class ShapeEditorModal {
       this._selectedSideCount = null;
       this._startDefaultEdit('bars');
     }
-    this._applyUiTune();
-    this._syncUiTuneControls();
     this._el.classList.add('show');
   }
 
