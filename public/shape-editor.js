@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "segment-color-replace-no-glow";
+window.IRONBEND_ASSET_VERSION = "no-active-shape-color";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -260,7 +260,7 @@ function renderClosedStirrupEditor2D(parts, sides, w, h, opts = {}) {
   ];
   bodySegments.forEach(seg => {
     if (seg[0] == null) return;
-    const color = seg[0] === activeSeg ? highlight : bodyStroke;
+    const color = bodyStroke;
     html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" data-se-focus="bar-all bar-side-${seg[0]}" data-seg-click="${seg[0]}" style="cursor:pointer"/>`;
     if (seg[0] !== activeSeg) html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
   });
@@ -1721,14 +1721,14 @@ class ShapeEditorModal {
 #seModal .se-ok-btn{background:#ff4047;border:0;border-radius:8px;box-shadow:none;min-width:126px;}
 #seModal .se-save-shape-btn{background:#fff;color:#2f394b;border:1px solid #5f6878;border-radius:8px;min-width:116px;}
 #seModal .se-cancel-btn{background:#fff;color:#2f394b;border:1px solid #c5cbd4;border-radius:8px;min-width:92px;}
-#seModal .se-highlight-family{filter:none!important;stroke:#2979ff!important;fill:#2979ff!important;}
+#seModal .se-highlight-family{filter:none!important;}
 #seModal .se-field-shell{position:relative;transition:background .14s,border-color .14s,box-shadow .14s;}
 #seModal .se-field-shell[data-se-param]{cursor:crosshair;}
 #seModal .se-field-shell.se-param-active{background:#fff;border-radius:8px;box-shadow:0 0 0 2px rgba(41,121,255,.16);}
 #seModal .se-param-number{position:absolute;inset-inline-start:-3px;top:-6px;width:15px;height:15px;border-radius:50%;background:#243047;color:#fff;display:grid;place-items:center;font-size:8px;font-weight:900;border:2px solid #eef0f3;}
 #seModal .se-param-code{grid-area:label;color:#2979ff;font-size:9px;font-weight:900;justify-self:end;}
 #seModal svg.se-focus-mode [data-se-focus]{opacity:.16;transition:opacity .14s,stroke .14s,fill .14s,filter .14s;}
-#seModal svg.se-focus-mode [data-se-focus].se-focus-hit{opacity:1!important;stroke:#2979ff!important;fill:#2979ff!important;filter:none!important;}
+#seModal svg.se-focus-mode [data-se-focus].se-focus-hit{opacity:1!important;filter:none!important;}
 #seModal svg.se-focus-mode [data-se-focus].se-focus-hit text,#seModal svg.se-focus-mode text.se-focus-hit{fill:#111827!important;stroke:none!important;}
 #seModal .se-engineer-helper text{font-family:Heebo,Arial;font-weight:900;fill:#475569;}
 #seModal .se-helper-panel{fill:#f8fafc;stroke:#d8dde5;stroke-width:1;}
@@ -2936,7 +2936,7 @@ class ShapeEditorModal {
           const s = segs[i];
           const isActive = i === _activeSeg2d;
           html += `<path d="M ${s.x1.toFixed(1)},${s.y1.toFixed(1)} L ${s.x2.toFixed(1)},${s.y2.toFixed(1)}"
-            stroke="${isActive ? '#2979ff' : SEG_GRAY}" stroke-width="4" fill="none" stroke-linecap="round"
+            stroke="${SEG_GRAY}" stroke-width="4" fill="none" stroke-linecap="round"
             stroke-linejoin="round" data-se-focus="bar-all bar-side-${i}"
             data-seg-click="${i}" style="cursor:pointer"/>`;
         }

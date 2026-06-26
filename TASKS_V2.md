@@ -836,9 +836,9 @@
   - `public/shape-editor.js`
   - `test/shape-geometry.test.js`
 - Output:
-  - Active side highlight in the shape editor is now a color replacement, not an overlay.
-  - 2D bars and closed-stirrup bodies draw each visible side exactly once in either gray or blue.
-  - Removed the focus-mode blue drop-shadow so selection is only a color change.
+  - Active side coloring in the shape preview is disabled; editing focus no longer recolors the drawn bar.
+  - 2D bars and closed-stirrup bodies draw with their normal bar color while fields are focused.
+  - Removed focus-mode stroke/fill overrides from SVG focus hits so selection does not color the shape.
   - Bumped the index page shape-editor asset query so the cloud UI loads the updated renderer.
 - Guardrails:
   - No UI redesign.
