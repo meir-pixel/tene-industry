@@ -1924,13 +1924,12 @@ function uniqueOptions(values) {
   return [...new Set((values || []).map(value => String(value || '').trim()).filter(Boolean))];
 }
 function ocrActionState(parsed, item, index) {
-  if (ocrReviewStatus(item) === 'accepted') return { key:'verified', label:'מאושר', pct:100 };
   const values = [item.diameter ?? item.diameter_mm, item.total_length_mm ?? item.length_mm ?? item.length, item.qty ?? item.quantity ?? item.pcs, item.shape_name || item.shapeName || item.shape || item.type];
   const score = Math.round(values.map((value, offset) => confidenceRatio(parsed, 'items.' + index + '.' + ['diameter','total_length_mm','quantity','shape_name'][offset], value)).reduce((a,b)=>a+b,0) / 4 * 100);
+  if (ocrReviewStatus(item) === 'accepted') return { key:'verified', label:'מאושר', pct:100 };
   const missing = !values[0] || !values[1] || !values[2];
   if (missing) return { key:'missing', label:'חסר', pct:score };
-  if (score < 75 || isLowConfidence(parsed, 'items.' + index + '.shape_name', values[3])) return { key:'review', label:'בדיקה', pct:score };
-  return { key:'verified', label:'מאושר', pct:score };
+  return { key:'review', label:'זוהה ' + score + '%', pct:score };
 }
 function ocrStatusSummary(parsed) {
   const items = Array.isArray(parsed.items) ? parsed.items : [];

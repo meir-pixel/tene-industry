@@ -756,6 +756,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - corrected OCR review colors: green is operator-approved only, yellow is OCR confidence, red is missing.
   - added OCR recognition refresh and persistent row-number approval states for partial review sessions.
     - show non-default OCR bend angles visually while hiding standard 90/180 labels.
     - suppressed raw segment text for straight OCR bars so source bend-angle columns do not look like shaped geometry.
