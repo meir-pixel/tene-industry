@@ -1552,26 +1552,26 @@ class ShapeEditorModal {
 #seModal .se-svg-wrap{background:#fff;border:0;min-height:0;height:calc(100vh - 254px);max-height:calc(100vh - 254px);border-radius:0;box-shadow:none;}
 #seModal .se-svg-wrap svg{height:100%;min-height:0;}
 #se3DOrbitCtrl{order:-1;align-self:auto;justify-content:flex-start;background:#eef0f3!important;border:1px solid #c5cbd4!important;border-radius:8px!important;padding:6px 8px!important;}
-#seModal .se-data-panel-head{display:flex;align-items:center;gap:8px;min-height:54px;padding:14px 18px;background:#eef0f3;border-bottom:1px solid #c5cbd4;color:#243047;font-size:19px;font-weight:900;text-transform:none;letter-spacing:0;}
+#seModal .se-data-panel-head{display:flex;align-items:center;gap:8px;min-height:42px;padding:8px 14px;background:#eef0f3;border-bottom:1px solid #c5cbd4;color:#243047;font-size:17px;font-weight:900;text-transform:none;letter-spacing:0;}
 #seModal .se-data-panel-head:before{content:'⚙';font-size:18px;}
-#seModal .se-mode-note{padding:12px 16px;background:#eef0f3;border-bottom:1px solid #c5cbd4;}
+#seModal .se-mode-note{padding:8px 14px;background:#eef0f3;border-bottom:1px solid #c5cbd4;}
 #seModal .se-3d-toggle strong{font-size:14px;color:#243047;}
 #seModal .se-3d-toggle small,#seModal .se-3d-help{color:#647083;font-size:11px;}
 #seModal .se-panel-summary{display:none!important;}
-#seModal .se-table-wrap{padding:12px 14px 14px;background:#eef0f3;overflow-x:hidden;}
-#seModal .se-table th{font-size:11px;color:#5f6878;text-transform:none;letter-spacing:0;font-weight:900;}
-#seModal .se-table tr{grid-template-columns:38px minmax(118px,1fr) minmax(118px,1fr) 28px;gap:8px;}
-#seModal .se-table.se-table-3d tr{grid-template-columns:30px repeat(3,minmax(0,1fr)) 28px;}
-#seModal .se-table td{background:#fff;border:1px solid #d8dde5;border-radius:8px!important;padding:8px;min-width:0;}
-#seModal .se-field-shell{display:grid;grid-template-columns:24px minmax(0,1fr);grid-template-areas:'icon label' 'icon input' 'unit example';gap:3px 7px;align-items:center;min-width:0;}
-#seModal .se-param-icon{grid-area:icon;width:24px;height:24px;border-radius:50%;background:#eef3f8;color:#2f394b;display:grid;place-items:center;font-size:13px;font-weight:900;}
-#seModal .se-param-label{grid-area:label;color:#243047;font-size:11px;font-weight:900;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-#seModal .se-field-shell .se-input{grid-area:input;width:100%!important;max-width:none!important;min-height:44px;font-size:20px;font-weight:900;text-align:center;background:#f8fafc;border:1px solid #cbd4df;border-radius:8px;direction:ltr;}
-#seModal .se-field-shell .se-input:focus{border-color:#ff4047;box-shadow:0 0 0 3px rgba(255,64,71,.14);background:#fff;}
-#seModal .se-param-unit{grid-area:unit;color:#657386;font-size:10px;font-weight:900;text-align:center;}
-#seModal .se-param-example{grid-area:example;color:#8a96a8;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-table-wrap{padding:8px 10px 10px;background:#eef0f3;overflow-x:hidden;}
+#seModal .se-table th{font-size:10px;color:#5f6878;text-transform:none;letter-spacing:0;font-weight:900;padding:4px 5px;}
+#seModal .se-table tr{grid-template-columns:30px minmax(98px,1fr) minmax(84px,.82fr) 24px;gap:5px;}
+#seModal .se-table.se-table-3d tr{grid-template-columns:28px repeat(3,minmax(0,1fr)) 24px;}
+#seModal .se-table td{background:#fff;border:1px solid #d8dde5;border-radius:6px!important;padding:5px;min-width:0;}
+#seModal .se-field-shell{display:grid;grid-template-columns:18px minmax(0,1fr);grid-template-areas:'icon label' 'icon input' 'unit input';gap:2px 5px;align-items:center;min-width:0;}
+#seModal .se-param-icon{grid-area:icon;width:18px;height:18px;border-radius:50%;background:#eef3f8;color:#2f394b;display:grid;place-items:center;font-size:10px;font-weight:900;}
+#seModal .se-param-label{grid-area:label;color:#243047;font-size:10px;font-weight:900;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-field-shell .se-input{grid-area:input;width:100%!important;max-width:none!important;min-height:30px;font-size:15px;font-weight:900;text-align:center;background:#f8fafc;border:1px solid #cbd4df;border-radius:6px;direction:ltr;padding:2px 5px;}
+#seModal .se-field-shell .se-input:focus{border-color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.12);background:#fff;}
+#seModal .se-param-unit{grid-area:unit;color:#657386;font-size:8px;font-weight:900;text-align:center;}
+#seModal .se-param-example{display:none;}
 #seModal .se-family-label{font-size:12px;color:#243047;}
-#seModal .se-table.se-table-2d tr{grid-template-columns:38px minmax(126px,1fr) minmax(126px,1fr) 28px;}
+#seModal .se-table.se-table-2d tr{grid-template-columns:30px minmax(106px,1fr) minmax(90px,.82fr) 24px;}
 #seModal .se-family-editor-table tr{grid-template-columns:minmax(0,1fr)!important;gap:8px;}
 #seModal .se-family-editor-table .se-zone-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(72px,.75fr) 30px!important;}
 #seModal .se-family-editor-table .se-family-row td{display:block;}
@@ -1592,9 +1592,8 @@ class ShapeEditorModal {
 #seModal .se-field-shell{position:relative;transition:background .14s,border-color .14s,box-shadow .14s;}
 #seModal .se-field-shell[data-se-param]{cursor:crosshair;}
 #seModal .se-field-shell.se-param-active{background:#fff;border-radius:8px;box-shadow:0 0 0 2px rgba(41,121,255,.16);}
-#seModal .se-param-number{position:absolute;inset-inline-start:-6px;top:-8px;width:20px;height:20px;border-radius:50%;background:#243047;color:#fff;display:grid;place-items:center;font-size:11px;font-weight:900;border:2px solid #eef0f3;}
-#seModal .se-param-code{grid-area:label;color:#2979ff;font-size:10px;font-weight:900;justify-self:end;}
-#seModal .se-param-example{grid-column:1 / -1;grid-area:auto;text-align:start;white-space:normal;line-height:1.25;}
+#seModal .se-param-number{position:absolute;inset-inline-start:-5px;top:-7px;width:17px;height:17px;border-radius:50%;background:#243047;color:#fff;display:grid;place-items:center;font-size:9px;font-weight:900;border:2px solid #eef0f3;}
+#seModal .se-param-code{grid-area:label;color:#2979ff;font-size:9px;font-weight:900;justify-self:end;}
 #seModal svg.se-focus-mode [data-se-focus]{opacity:.16;transition:opacity .14s,stroke .14s,fill .14s,filter .14s;}
 #seModal svg.se-focus-mode [data-se-focus].se-focus-hit{opacity:1!important;stroke:#2979ff!important;fill:#2979ff!important;filter:drop-shadow(0 0 6px rgba(41,121,255,.5));}
 #seModal svg.se-focus-mode [data-se-focus].se-focus-hit text,#seModal svg.se-focus-mode text.se-focus-hit{fill:#111827!important;stroke:none!important;}
@@ -2821,18 +2820,18 @@ class ShapeEditorModal {
         if (labelAngle > 90) labelAngle -= 180;
         if (labelAngle < -90) labelAngle += 180;
         const value = String(sides[i]);
-        const tagW = Math.max(36, Math.min(62, value.length * 9 + 18));
+        const tagW = Math.max(28, Math.min(48, value.length * 7 + 12));
         const letter = String.fromCharCode(65 + i);
         html += `<g data-se-focus="bar-side-${i}" transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${labelAngle.toFixed(1)})"
             data-seg-click="${i}" style="cursor:pointer">
-          <text x="0" y="-15" text-anchor="middle" font-size="12"
-            font-family="Heebo,Arial" font-weight="700" fill="#111827"
+          <text x="0" y="-11" text-anchor="middle" font-size="9"
+            font-family="Heebo,Arial" font-weight="800" fill="#475569"
             data-seg-click="${i}">${letter}</text>
-          <rect x="${(-tagW/2).toFixed(1)}" y="-9" width="${tagW}" height="18" rx="3"
-            fill="${fill}" stroke="${stroke}" stroke-width="1"
+          <rect x="${(-tagW/2).toFixed(1)}" y="-7" width="${tagW}" height="14" rx="2"
+            fill="${fill}" stroke="${stroke}" stroke-width=".8"
             data-seg-click="${i}"/>
-          <text x="0" y="5" text-anchor="middle" font-size="13"
-            font-family="Heebo,Arial" font-weight="700" fill="#111827"
+          <text x="0" y="4" text-anchor="middle" font-size="10"
+            font-family="Heebo,Arial" font-weight="800" fill="#111827"
             data-seg-click="${i}">${value}</text>
         </g>`;
       }
@@ -2862,18 +2861,22 @@ class ShapeEditorModal {
             const bLen = Math.hypot(bxOut, byOut) || 1;
             bxOut /= bLen;
             byOut /= bLen;
-            // Keep non-90 angle labels outside the bend so they do not cover the vertex or short side tag.
-            const dist = Math.max(34, Math.min(50, Math.min(len1, len2) * 0.42 + 24));
-            const tx = bx + bxOut * dist;
-            const ty = by + byOut * dist;
-            const value = String(angle) + '°';
-            const tagW = Math.max(36, Math.min(54, value.length * 8 + 16));
-            html += `<g data-se-focus="bar-angle-${i}" transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})"
-                data-ang-click="${i}" style="cursor:pointer">
-              <rect x="${(-tagW/2).toFixed(1)}" y="-10" width="${tagW}" height="20" rx="4"
-                fill="#ffffff" stroke="#c9621a" stroke-width="1.2"/>
-              <text x="0" y="5" text-anchor="middle" font-size="12"
-                font-family="Heebo,Arial" font-weight="800" fill="#111827">${value}</text>
+            const r = Math.max(14, Math.min(24, Math.min(len1, len2) * 0.24));
+            const ax1 = bx + u1x * r;
+            const ay1 = by + u1y * r;
+            const ax2 = bx + u2x * r;
+            const ay2 = by + u2y * r;
+            const labelDist = r + 13;
+            const tx = bx + bxOut * labelDist;
+            const ty = by + byOut * labelDist;
+            const value = String(angle) + '\u00B0';
+            const largeArc = Math.abs(angle) > 180 ? 1 : 0;
+            const sweep = angle >= 0 ? 1 : 0;
+            html += `<g data-se-focus="bar-angle-${i}" data-ang-click="${i}" style="cursor:pointer">
+              <path d="M ${ax1.toFixed(1)} ${ay1.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 ${largeArc} ${sweep} ${ax2.toFixed(1)} ${ay2.toFixed(1)}"
+                fill="none" stroke="#c9621a" stroke-width="1.6" stroke-linecap="round"/>
+              <text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="9"
+                font-family="Heebo,Arial" font-weight="900" fill="#c9621a">${value}</text>
             </g>`;
           }
         }

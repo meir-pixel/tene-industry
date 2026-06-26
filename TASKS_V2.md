@@ -687,6 +687,29 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+### V2-006S - Shape Editor Compact Bend Parameters And Angle Markers
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- Output:
+  - Bend parameter rows are more compact and technical, matching the pile-cage visual direction.
+  - Length tags on the drawing are smaller and less dominant.
+  - Non-90 bend angles render as a small arc with a small value label, without a boxed tag.
+  - 90-degree bends keep the right-angle marker.
+- Guardrails:
+  - No full UI redesign.
+  - No new shapes or shape families.
+  - No rendering-engine contract changes.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
 ### V2-007 — Orders Module Specification
 
 - status: todo

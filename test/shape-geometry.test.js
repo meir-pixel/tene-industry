@@ -112,9 +112,28 @@ test('shape editor one-screen edit layout keeps editing inside the viewport', ()
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-y:auto/);
   assert.match(editor, /#sePageEdit\{[\s\S]*overflow:hidden/);
   assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*overflow-x:hidden/);
-  assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:30px repeat\(3,minmax\(0,1fr\)\) 28px/);
+  assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:28px repeat\(3,minmax\(0,1fr\)\) 24px/);
   assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:68px/);
 });
+test('shape editor keeps bend parameter rows compact and technical', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*min-height:30px/);
+  assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*font-size:15px/);
+  assert.match(editor, /#seModal \.se-table\.se-table-2d tr\{[\s\S]*minmax\(90px,\.82fr\)/);
+  assert.match(editor, /#seModal \.se-param-example\{display:none;\}/);
+});
+
+test('shape editor draws non-right bend angles as small arc labels without a tag box', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const bendBlock = editor.match(/Bend marks:[\s\S]*?svg\.innerHTML = html/);
+
+  assert.ok(bendBlock, 'expected bend marker rendering block');
+  assert.match(bendBlock[0], /A \$\{r\.toFixed\(1\)\}/);
+  assert.match(bendBlock[0], /font-size="9"/);
+  assert.doesNotMatch(bendBlock[0], /<rect x="\$\{\(-tagW\/2\)/);
+});
+
 test('shape editor approved reference UI keeps Hebrew workspace chrome', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
