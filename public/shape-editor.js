@@ -1768,13 +1768,7 @@ class ShapeEditorModal {
     document.getElementById('seOk').onclick            = () => this._confirm();
     document.getElementById('seAddSide').onclick       = () => this._addSide();
     document.getElementById('seSaveShapeBtn').onclick  = () => this._showSaveBar();
-    document.getElementById('seBackBtn').onclick = () => {
-      if (document.getElementById('sePageEdit').style.display !== 'none') {
-        this._goToSelect();
-      } else {
-        this._goToCount();
-      }
-    };
+    document.getElementById('seBackBtn').onclick = () => this.close();
     this._el.addEventListener('click', e => { if (e.target === this._el) this.close(); });
     this._bindDragRotation();
     this._bindWheelZoom();
@@ -1836,23 +1830,27 @@ class ShapeEditorModal {
     if (lbl) lbl.textContent = Math.round(this._zoom * 100) + '%';
   }
 
+  _defaultPresetForFamily(family = 'bars') {
+    const normalizedFamily = (family === 'mesh' || family === 'piles') ? family : 'bars';
+    const requestedSideCount = Number(this._selectedCount || this._selectedSideCount);
+    const candidates = SHAPE_PRESETS.filter(shape => (shape.family || 'bars') === normalizedFamily && !shape.custom);
+    if (normalizedFamily === 'bars' && Number.isFinite(requestedSideCount) && requestedSideCount > 0) {
+      const bySideCount = candidates.find(shape => Array.isArray(shape.sides) && shape.sides.length === requestedSideCount);
+      if (bySideCount) return bySideCount;
+    }
+    return candidates[0] || SHAPE_PRESETS.find(shape => (shape.family || 'bars') === normalizedFamily) || SHAPE_PRESETS[0];
+  }
+
+  _startDefaultEdit(family = 'bars') {
+    this._selectedFamily = (family === 'mesh' || family === 'piles') ? family : 'bars';
+    this._selectedCategory = '';
+    if (this._selectedSideCount === undefined) this._selectedSideCount = this._selectedCount || null;
+    const preset = this._defaultPresetForFamily(this._selectedFamily);
+    if (preset) this._loadPreset(preset);
+  }
+
   _goToSelect() {
-    document.getElementById('sePageCount').style.display  = 'none';
-    document.getElementById('sePageSelect').style.display = 'flex';
-    document.getElementById('sePageSelect').style.flexDirection = 'column';
-    document.getElementById('sePageEdit').style.display   = 'none';
-    document.getElementById('seFoot').style.display       = 'none';
-    document.getElementById('seBackBtn').style.display    = '';
-    document.getElementById('seHeadTitle').textContent    = this._selectedCount ? (this._selectedCount + ' צלעות - בחר צורה') : 'בחר סוג וצורה';
-    const step = document.getElementById('seStepIndicator'); if (step) step.textContent = 'שלב 2 מתוך 3';
-    if (!this._selectedFamily) this._selectedFamily = 'bars';
-    if (!this._selectedCategory) this._selectedCategory = 'הכל';
-    if (this._selectedSideCount === undefined) this._selectedSideCount = this._selectedCount || 'הכל';
-    this._renderFamilyTabs();
-    this._renderCategoryFilters();
-    this._renderSideFilters();
-    this._renderSavedShapes(this._selectedCount);
-    this._renderPresets(this._selectedCount);
+    this._startDefaultEdit(this._selectedFamily || 'bars');
   }
 
   _renderFamilyTabs() {
@@ -2205,10 +2203,11 @@ class ShapeEditorModal {
   }
 
   _jumpToFamily(family) {
-    this._selectedFamily = family;
-    this._selectedCategory = 'הכל';
-    this._selectedSideCount = 'הכל';
-    this._goToSelect();
+    this._selectedFamily = (family === 'mesh' || family === 'piles') ? family : 'bars';
+    this._selectedCategory = '';
+    this._selectedSideCount = null;
+    this._selectedCount = null;
+    this._startDefaultEdit(this._selectedFamily);
   }
 
   _syncEditFamilyCards() {
@@ -2944,10 +2943,10 @@ class ShapeEditorModal {
       document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
       this._goToEdit();
     } else {
-      // No existing shape: start from the family selector so mesh and piles are available immediately.
+      // No existing shape: open the editor directly; family tabs switch presets from inside the workspace.
       this._selectedCount = null;
-      this._selectedSideCount = 'הכל';
-      this._goToSelect();
+      this._selectedSideCount = null;
+      this._startDefaultEdit('bars');
     }
     this._el.classList.add('show');
   }

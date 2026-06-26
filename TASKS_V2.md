@@ -666,6 +666,27 @@
 - Verification:
   - Local URL returns HTTP 200: `docs/mockups/shape-editor-engineering-workspace.html`.
 
+### V2-006R - Shape Editor Bypass Legacy Selection Screen
+
+- Status: done
+- Owner: codex-shape-editor
+- Module: industry-steel-rebar/shape-editor
+- Scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- Output:
+  - New Shape Editor opens directly in the edit workspace with a default bars preset.
+  - The legacy shape selection gallery is no longer shown as an intermediate screen.
+  - Family tabs switch directly to the matching editor preset for bars, mesh, or piles.
+- Guardrails:
+  - No UI redesign.
+  - No new shapes or shape families.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- Verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+
 ### V2-007 — Orders Module Specification
 
 - status: todo
@@ -712,6 +733,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+    - show non-default OCR bend angles visually while hiding standard 90/180 labels.
     - suppressed raw segment text for straight OCR bars so source bend-angle columns do not look like shaped geometry.
     - stopped treating straight-bar 180 display angles as L-shape hook legs in OCR review rows.
     - tightened OCR post-order review alignment and moved mini-shape side labels away from the drawing stroke.

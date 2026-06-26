@@ -83,6 +83,26 @@ test('shape editor direct-open hides the count picker before edit page', () => {
   assert.match(match[0], /document\.getElementById\('sePageSelect'\)\.style\.display\s*=\s*'none'/);
   assert.match(match[0], /document\.getElementById\('sePageEdit'\)\.style\.display\s*=\s*''/);
 });
+test('shape editor bypasses the legacy shape selection screen', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const goToSelect = editor.match(new RegExp("_goToSelect\\(\\) \\{[\\s\\S]*?\\n  \\}"));
+  const openFallback = editor.match(/No existing shape: open the editor directly[\s\S]*?this\._startDefaultEdit\('bars'\)/);
+
+  assert.ok(goToSelect, 'expected _goToSelect body');
+  assert.match(goToSelect[0], /this\._startDefaultEdit\(this\._selectedFamily \|\| 'bars'\)/);
+  assert.doesNotMatch(goToSelect[0], /sePageSelect'\)\.style\.display\s*=\s*'flex'/);
+  assert.ok(openFallback, 'expected new shapes to open directly in edit mode');
+});
+
+test('shape editor family tabs switch directly to family editors', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const jumpToFamily = editor.match(new RegExp("_jumpToFamily\\(family\\) \\{[\\s\\S]*?\\n  \\}"));
+
+  assert.ok(jumpToFamily, 'expected _jumpToFamily body');
+  assert.match(jumpToFamily[0], /this\._startDefaultEdit\(this\._selectedFamily\)/);
+  assert.doesNotMatch(jumpToFamily[0], /this\._goToSelect\(\)/);
+});
+
 test('shape editor one-screen edit layout keeps editing inside the viewport', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
