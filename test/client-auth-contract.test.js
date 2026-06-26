@@ -56,6 +56,14 @@ test('public portal does not query internal order search', () => {
   assert.match(portal, /customer-scoped portal token/);
 });
 
+test('blocked production card print links to the specific order approval view', () => {
+  const orderPrint = read('public/order-print.html');
+
+  assert.match(orderPrint, /response\.status === 409 && kind === 'print-cards'/);
+  assert.match(orderPrint, /orders\.html\?id=/);
+  assert.match(orderPrint, /encodeURIComponent\(options\.orderId\)/);
+  assert.match(orderPrint, /&#1508;&#1514;&#1495; &#1492;&#1494;&#1502;&#1504;&#1492; &#1500;&#1488;&#1497;&#1513;&#1493;&#1512;/);
+});
 test('production card split renders only production cards without a master card', () => {
   const productionCardsRoute = read('services/productionCardPrintPage.js');
   const orderPrintA4Route = read('routes/orderPrintA4.js');
