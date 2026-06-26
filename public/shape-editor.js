@@ -264,7 +264,6 @@ function renderClosedStirrupEditor2D(parts, sides, w, h, opts = {}) {
   if (activeSeg >= 0) {
     const seg = bodySegments.find(s => s[0] === activeSeg);
     if (seg) {
-      html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" stroke="rgba(41,121,255,0.2)" stroke-width="18" fill="none" stroke-linecap="round"/>`;
       html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" stroke="${highlight}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
     }
   }
@@ -445,8 +444,7 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
     if (activeSeg >= 0 && activeSeg < mapped.length - 1) {
       const [ax1,ay1] = mapped[activeSeg], [ax2,ay2] = mapped[activeSeg+1];
       const ad = `M ${ax1.toFixed(1)},${ay1.toFixed(1)} L ${ax2.toFixed(1)},${ay2.toFixed(1)}`;
-      activeGlowHtml = `<path d="${ad}" stroke="rgba(41,121,255,0.22)"
-        stroke-width="${(barW*4.5).toFixed(1)}" stroke-linecap="round" fill="none"/>`;
+      activeGlowHtml = '';
       segsHtml += `<path d="${ad}" stroke="#2979ff" stroke-width="${barW}" stroke-linecap="round" fill="none"/>`;
       segsHtml += `<path d="${ad}" stroke="rgba(255,255,255,0.55)"
         stroke-width="${(barW*0.28).toFixed(1)}" stroke-linecap="round" fill="none"/>`;
@@ -2945,9 +2943,7 @@ class ShapeEditorModal {
         if (_activeSeg2d >= 0 && _activeSeg2d < segs.length) {
           const s = segs[_activeSeg2d];
           html += `<path d="M ${s.x1.toFixed(1)},${s.y1.toFixed(1)} L ${s.x2.toFixed(1)},${s.y2.toFixed(1)}"
-            stroke="rgba(41,121,255,0.18)" stroke-width="16" fill="none" stroke-linecap="round"/>`;
-          html += `<path d="M ${s.x1.toFixed(1)},${s.y1.toFixed(1)} L ${s.x2.toFixed(1)},${s.y2.toFixed(1)}"
-            stroke="#2979ff" stroke-width="4" fill="none" stroke-linecap="round"
+            stroke="#2979ff" stroke-width="${BAR_PX.toFixed(1)}" fill="none" stroke-linecap="round"
             data-seg-click="${_activeSeg2d}" style="cursor:pointer"/>`;
         }
       }
