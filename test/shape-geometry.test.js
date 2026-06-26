@@ -289,11 +289,18 @@ test('shape editor renders closed stirrup overlap instead of drawing the overlap
 test('shape editor active segment highlight keeps the same stroke size as the bar', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
-  assert.match(editor, /stroke="#2979ff" stroke-width="\$\{BAR_PX\.toFixed\(1\)\}"/);
+  assert.match(editor, /stroke="#2979ff" stroke-width="4"/);
   assert.match(editor, /segsHtml \+= `<path d="\$\{ad\}" stroke="#2979ff" stroke-width="\$\{barW\}"/);
   assert.doesNotMatch(editor, /barW\*4\.5/);
   assert.doesNotMatch(editor, /stroke="rgba\(41,121,255,[^`]*stroke-width="16"/s);
   assert.doesNotMatch(editor, /stroke="rgba\(41,121,255,[^`]*stroke-width="18"/s);
+});
+
+test('shape editor index loads a fresh shape editor asset version', () => {
+  const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+
+  assert.match(index, /shape-editor\.js\?v=51/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=50/);
 });
 
 test('shape editor exposes editable order item quantity outside the shape contract', () => {

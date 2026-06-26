@@ -609,6 +609,7 @@
 - Scope:
   - `TASKS_V2.md`
   - `public/shape-editor.js`
+  - `public/index.html`
   - `test/shape-geometry.test.js`
 - Output:
   - Shape approval now returns the full `SHAPE_DATA_CONTRACT_V2` envelope.
@@ -835,8 +836,9 @@
   - `public/shape-editor.js`
   - `test/shape-geometry.test.js`
 - Output:
-  - Active side highlight in the shape editor uses the same stroke width as the bar.
+  - Active side highlight in the shape editor uses the same visible stroke width as the 2D bar.
   - Removed oversized blue highlight halos from 2D, 3D, and closed-stirrup preview paths.
+  - Bumped the index page shape-editor asset query so the cloud UI loads the updated renderer.
 - Guardrails:
   - No UI redesign.
   - No new shape families or presets.
