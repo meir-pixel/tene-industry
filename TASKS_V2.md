@@ -712,6 +712,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+    - suppressed raw segment text for straight OCR bars so source bend-angle columns do not look like shaped geometry.
     - stopped treating straight-bar 180 display angles as L-shape hook legs in OCR review rows.
     - tightened OCR post-order review alignment and moved mini-shape side labels away from the drawing stroke.
     - normalized legacy OCR review rows on screen load so saved 180 L markers render as a 20 cm hook leg and corrected total length/weight.

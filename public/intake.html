@@ -632,6 +632,7 @@ function compactDimensionPairText(segments) {
 }
 
 function segmentsToText(item) {
+  if (isStraightOcrItem(item)) return '';
   const segments = Array.isArray(item.segments) ? item.segments : Array.isArray(item.sides) ? item.sides : [];
   const directPair = segments.length === 1 && typeof segments[0] === 'object' && isCardDimensionPair(segmentLengthOf(segments[0]), segmentAngleOf(segments[0]));
   if (directPair) return `${segmentLengthOf(segments[0])}@${segmentAngleOf(segments[0])}`;
