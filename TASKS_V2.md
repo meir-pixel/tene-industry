@@ -733,6 +733,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - added OCR recognition refresh and persistent row-number approval states for partial review sessions.
     - show non-default OCR bend angles visually while hiding standard 90/180 labels.
     - suppressed raw segment text for straight OCR bars so source bend-angle columns do not look like shaped geometry.
     - stopped treating straight-bar 180 display angles as L-shape hook legs in OCR review rows.
