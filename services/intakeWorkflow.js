@@ -333,6 +333,50 @@ function normalizeIntakeItem(item = {}) {
   };
 }
 
+function intakeShapeText(value) {
+  return String(value || '').toLowerCase();
+}
+
+function isLikelyOcrLShape(item = {}) {
+  const text = [
+    item.shape_name,
+    item.shapeName,
+    item.shape,
+    item.type,
+    item.shape_description,
+    item.shapeDescription,
+    item.note,
+    item.notes,
+  ].map(intakeShapeText).join(' ');
+  return /(^|\W)(l|hook|angle|bent|bend)(\W|$)|90/.test(text);
+}
+
+function normalizeOcrLShapeSegments(item = {}, sourceSegments = []) {
+  const segments = (sourceSegments || []).map(segment => ({
+    ...segment,
+    length_mm: Number(segment.length_mm || 0),
+    angle_deg: Number(segment.angle_deg ?? segment.angle ?? 0),
+  })).filter(segment => segment.length_mm > 0);
+
+  if (segments.length !== 1 || !isLikelyOcrLShape(item)) {
+    return { segments, adjusted: false, addedLegMm: 0 };
+  }
+
+  const [only] = segments;
+  if (Math.abs(Number(only.angle_deg || 0)) !== 180 || only.length_mm < 1000) {
+    return { segments, adjusted: false, addedLegMm: 0 };
+  }
+
+  const addedLegMm = 200;
+  return {
+    segments: [
+      { length_mm: addedLegMm, angle_deg: 90 },
+      { ...only, angle_deg: 0 },
+    ],
+    adjusted: true,
+    addedLegMm,
+  };
+}
 function distributeSurplusToEndSegments(sourceSegments, reportedLengthMm) {
   const segments = (sourceSegments || []).map(segment => ({
     ...segment,
@@ -419,6 +463,7 @@ module.exports = {
   isTechnicalRecognitionNote,
   normalizeIntakePhone,
   normalizeIntakeItem,
+  normalizeOcrLShapeSegments,
   operationalOrderNote,
   parseDelimitedRows,
   parseManualIntakeText,

@@ -581,8 +581,7 @@ function isCardDimensionPair(lengthValue, markerValue) {
   const length = toNumber(lengthValue);
   const marker = toNumber(markerValue);
   if (!length || !marker) return false;
-  if (Math.abs(marker) > 360) return true;
-  return Math.abs(marker) === 180 && Math.abs(length) > 360;
+  return Math.abs(marker) > 360;
 }
 
 function cardDimensionPairSides(lengthValue, markerValue) {
@@ -590,7 +589,6 @@ function cardDimensionPairSides(lengthValue, markerValue) {
   const marker = toNumber(markerValue);
   if (!length || !marker) return [];
   if (Math.abs(marker) > 360) return [length, marker];
-  if (Math.abs(marker) === 180 && Math.abs(length) > 360) return [marker, length];
   return [];
 }
 
@@ -637,7 +635,7 @@ function segmentsToText(item) {
     if (typeof seg === 'object') {
       const len = segmentLengthOf(seg);
       const angle = segmentAngleOf(seg);
-      return angle !== '' ? `${len}@${angle}` : String(len);
+      return angle !== '' && Math.abs(toNumber(angle)) !== 180 ? `${len}@${angle}` : String(len);
     }
     return String(seg);
   }).filter(Boolean).join(' / ');

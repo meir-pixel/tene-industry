@@ -7,6 +7,7 @@ const {
   cleanRecognizedCustomerName,
   isTechnicalRecognitionNote,
   normalizeIntakeItem,
+  normalizeOcrLShapeSegments,
   operationalOrderNote,
   parseManualIntakeText,
   resolveIntakeCustomer,
@@ -28,6 +29,17 @@ test('normalizeIntakeItem builds canonical sides angles quantity and shape', () 
   assert.equal(item.shapeId, 'U - anchor');
 });
 
+test('normalizeOcrLShapeSegments treats 180 as angle and restores 20 cm L leg', () => {
+  const result = normalizeOcrLShapeSegments({ shape_name: 'L angle' }, [
+    { length_mm: 6700, angle_deg: 180 },
+  ]);
+
+  assert.equal(result.adjusted, true);
+  assert.deepEqual(result.segments, [
+    { length_mm: 200, angle_deg: 90 },
+    { length_mm: 6700, angle_deg: 0 },
+  ]);
+});
 test('normalizeIntakeItem keeps real spiral parameters as first-class item fields', () => {
   const item = normalizeIntakeItem({
     diameter: '8',

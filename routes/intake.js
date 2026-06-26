@@ -200,7 +200,8 @@ module.exports = function createIntakeRouter(deps) {
   - Do not treat the cover-page free text or phone line as a steel item.
   - Use the quantity from the "כמות" / units column only. Do not confuse weight/משקל, page totals, row numbers, or drawing labels with quantity.
   - Use the bar diameter from the diameter column or Ø mark. Use the row sketch dimensions for segments.
-  - If the table gives a straight bar row, use the printed row length as one 180-degree segment.
+  - If the table gives a true straight bar row with no visible bend/hook leg, use the printed row length as one 180-degree segment.
+  - In TASSA/Easybar-style L sketches, the small vertical value 20 is a physical 20 cm leg, not an angle and not a row marker. Return it as its own segment: [20, printed_length] cm with angle_deg 90 after the 20 cm leg. Never encode the small leg as 180.
   For document_type return a short label such as "tassa_pdf", "handwritten_cards", "bar_schedule", or "unknown".
   For supplier_order_num, customer_name, customer_phone, delivery_date, delivery_address, and notes return null when not visible. delivery_date must be YYYY-MM-DD when visible.
   For generic "רשימת ברזל" / bar schedule documents, header email addresses and phone numbers are supplier/contact details, not customer names. Never put an email address, URL, or phone number in customer_name. If the customer name is not clearly visible, return null.
@@ -261,16 +262,21 @@ module.exports = function createIntakeRouter(deps) {
             note: notes.join(' '),
           };
         }
-        const normalizedSegments = normalizeFactorySegments(item.shape_name, (item.segments || []).map(segment => ({
+        const factorySegments = normalizeFactorySegments(item.shape_name, (item.segments || []).map(segment => ({
           length_mm: (Number(segment.length_cm) || 0) * 10,
           angle_deg: Number(segment.angle_deg) || 0,
         })));
+        const lShapeCorrection = intakeWorkflow.normalizeOcrLShapeSegments(item, factorySegments);
+        const normalizedSegments = lShapeCorrection.segments;
         const reportedLength = (Number(item.total_length_cm) || 0) * 10;
         const lengthAdjustment = intakeWorkflow.distributeSurplusToEndSegments(normalizedSegments, reportedLength);
         const segments = lengthAdjustment.segments;
         const computedLength = lengthAdjustment.totalLength;
         const notes = [];
         if (item.note) notes.push(item.note);
+        if (lShapeCorrection.adjusted) {
+          notes.push('OCR L-shape correction: added visible 20 cm hook leg instead of treating 180 as a side length.');
+        }
         if (lengthAdjustment.adjusted) {
           notes.push(`Length surplus ${lengthAdjustment.surplus} mm was assigned to the two end legs (${lengthAdjustment.perEnd} mm per end).`);
         } else if (reportedLength && Math.abs(reportedLength - computedLength) > 0.001) {
