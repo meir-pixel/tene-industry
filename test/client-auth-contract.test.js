@@ -113,6 +113,10 @@ test('production card split renders only production cards without a master card'
   assert.match(productionCardsRoute, /api\.qrserver\.com\/v1\/create-qr-code/);
   assert.match(productionCardsRoute, /data-qr-target/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes\(\)\.then/);
+  assert.match(productionCardsRoute, /function openCardSplitMenu\(itemId, event\)/);
+  assert.match(productionCardsRoute, /pc-split-hotspot/);
+  assert.match(productionCardsRoute, /data-split-menu-open/);
+  assert.doesNotMatch(productionCardsRoute, /\\u05e4\\u05e6\\u05dc \\u05dc-2/);
   assert.match(productionCardsRoute, /grid-template-columns:repeat\(2,105mm\)/);
   assert.match(productionCardsRoute, /cards-pages/);
   assert.match(productionCardsRoute, /cards-page/);
