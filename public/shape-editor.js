@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "highlight-width-4";
+window.IRONBEND_ASSET_VERSION = "segment-color-replace";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -252,21 +252,19 @@ function renderClosedStirrupEditor2D(parts, sides, w, h, opts = {}) {
   const clickLine = (i, x1, y1, x2, y2) => `<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="transparent" stroke-width="16" fill="none" data-se-focus="bar-side-${i}" data-seg-click="${i}" style="cursor:pointer"/>`;
   const pd = `M ${x.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${bottom.toFixed(1)} L ${x.toFixed(1)},${bottom.toFixed(1)} Z`;
   let html = `<g data-shape-kind="closed-stirrup" data-stirrup-marker="overlap">`;
-  html += `<path d="${pd}" fill="none" stroke="${bodyStroke}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" data-se-focus="bar-all"/>`;
-  html += `<path d="${pd}" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
   const bodySegments = [
     [parts.sideMap[0], x, y, right, y],
     [parts.sideMap[1], right, y, right, bottom],
     [parts.sideMap[2], right, bottom, x, bottom],
     [parts.sideMap[3], x, bottom, x, y],
   ];
+  bodySegments.forEach(seg => {
+    if (seg[0] == null) return;
+    const color = seg[0] === activeSeg ? highlight : bodyStroke;
+    html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" data-se-focus="bar-all bar-side-${seg[0]}" data-seg-click="${seg[0]}" style="cursor:pointer"/>`;
+    if (seg[0] !== activeSeg) html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  });
   bodySegments.forEach(seg => { if (seg[0] != null) html += clickLine(...seg); });
-  if (activeSeg >= 0) {
-    const seg = bodySegments.find(s => s[0] === activeSeg);
-    if (seg) {
-      html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" stroke="${highlight}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
-    }
-  }
   html += angleMark(x, y, 1, 1) + angleMark(right, y, -1, 1) + angleMark(right, bottom, -1, -1) + angleMark(x, bottom, 1, -1);
   html += label(parts.sideMap[0], midX, y - 22, 0, parts.top, String.fromCharCode(65 + parts.sideMap[0]));
   html += label(parts.sideMap[1], right + 22, midY, 90, parts.right, String.fromCharCode(65 + parts.sideMap[1]));
@@ -2932,19 +2930,15 @@ class ShapeEditorModal {
 
       // ── Bar body — always drawn from segs (which incorporate any overlap offset) ──
       {
-        // Build connected polyline from offset vertices
-        const ptStr2 = [
-          `${segs[0].x1.toFixed(1)},${segs[0].y1.toFixed(1)}`,
-          ...segs.map(s => `${s.x2.toFixed(1)},${s.y2.toFixed(1)}`)
-        ].join(' ');
-        html += `<polyline points="${ptStr2}" stroke="${SEG_GRAY}" stroke-width="4" data-se-focus="bar-all"
-          stroke-linejoin="round" stroke-linecap="round" fill="none"/>`;
-        // Active segment overlay
-        if (_activeSeg2d >= 0 && _activeSeg2d < segs.length) {
-          const s = segs[_activeSeg2d];
+        // Draw each visible side exactly once. Active side is a color replacement,
+        // not an overlay, so it cannot look thicker than the bar.
+        for (let i = 0; i < segs.length; i++) {
+          const s = segs[i];
+          const isActive = i === _activeSeg2d;
           html += `<path d="M ${s.x1.toFixed(1)},${s.y1.toFixed(1)} L ${s.x2.toFixed(1)},${s.y2.toFixed(1)}"
-            stroke="#2979ff" stroke-width="4" fill="none" stroke-linecap="round"
-            data-seg-click="${_activeSeg2d}" style="cursor:pointer"/>`;
+            stroke="${isActive ? '#2979ff' : SEG_GRAY}" stroke-width="4" fill="none" stroke-linecap="round"
+            stroke-linejoin="round" data-se-focus="bar-all bar-side-${i}"
+            data-seg-click="${i}" style="cursor:pointer"/>`;
         }
       }
 
