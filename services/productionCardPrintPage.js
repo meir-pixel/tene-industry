@@ -665,30 +665,59 @@ async function saveCardWeight(itemId, cardIndex, cardTotal, cardQty, uid, event)
   if (dev) { dev.textContent = fmtPct(body.card_deviation_pct); dev.className = 'pc-weight-chip' + deviationClass(body.card_deviation_pct); }
 }
 
+function qrFallbackUrl(target, size) {
+  return 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&margin=0&data=' + encodeURIComponent(target);
+}
+
 function renderWorkerCardQrCodes() {
   var nodes = document.querySelectorAll('[data-worker-card-url]');
+  var jobs = [];
   nodes.forEach(function(node) {
     var target = new URL(node.getAttribute('data-worker-card-url'), window.location.origin).href;
+    var size = node.classList.contains('pc-print-qr-code') ? 128 : 56;
     node.innerHTML = '';
+    node.title = target;
+
+    var fallback = document.createElement('img');
+    fallback.alt = 'QR - update production status';
+    fallback.src = qrFallbackUrl(target, size);
+    fallback.setAttribute('data-qr-target', target);
+    node.appendChild(fallback);
+
+    if (!(window.QRCode && window.QRCode.toCanvas)) {
+      jobs.push(new Promise(function(resolve) {
+        var done = false;
+        function finish() { if (!done) { done = true; resolve(); } }
+        fallback.onload = finish;
+        fallback.onerror = finish;
+        setTimeout(finish, 900);
+      }));
+    }
+
     if (window.QRCode && window.QRCode.toCanvas) {
-      var canvas = document.createElement('canvas');
-      node.appendChild(canvas);
-      var size = node.classList.contains('pc-print-qr-code') ? 96 : 42;
-      window.QRCode.toCanvas(canvas, target, { width: size, margin: 0 }, function(){});
-    } else {
-      node.textContent = 'QR';
-      node.title = target;
+      jobs.push(new Promise(function(resolve) {
+        var canvas = document.createElement('canvas');
+        window.QRCode.toCanvas(canvas, target, { width: size, margin: 0 }, function(err) {
+          if (!err) {
+            node.innerHTML = '';
+            canvas.setAttribute('data-qr-target', target);
+            node.appendChild(canvas);
+          }
+          resolve();
+        });
+      }));
     }
   });
+  return Promise.all(jobs);
 }
 
 function printCards() {
-  if (PREVIEW_ONLY) { alert('הכרטיסיות בתצוגה בלבד. יש לאשר/לתכנן את ההזמנה לפני הדפסה.'); return; }
+  if (PREVIEW_ONLY) { alert('\u05d4\u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d5\u05ea \u05d1\u05ea\u05e6\u05d5\u05d2\u05d4 \u05d1\u05dc\u05d1\u05d3. \u05d9\u05e9 \u05dc\u05d0\u05e9\u05e8/\u05dc\u05ea\u05db\u05e0\u05df \u05d0\u05ea \u05d4\u05d4\u05d6\u05de\u05e0\u05d4 \u05dc\u05e4\u05e0\u05d9 \u05d4\u05d3\u05e4\u05e1\u05d4.'); return; }
   generateCards();
-  renderWorkerCardQrCodes();
-  setTimeout(function(){ window.print(); }, 120);
+  renderWorkerCardQrCodes().then(function(){
+    setTimeout(function(){ window.print(); }, 250);
+  });
 }
-
 // Init: render fixed production cards and QR codes.
 (function() {
   generateCards();

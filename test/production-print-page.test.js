@@ -96,6 +96,10 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.match(html, /grid-template-columns:78mm 27mm/);
   assert.match(html, /pc-print-qr-code/);
   assert.match(html, /worker-visual\.html\?card=/);
+  assert.match(html, /qrFallbackUrl/);
+  assert.match(html, /api\.qrserver\.com\/v1\/create-qr-code/);
+  assert.match(html, /data-qr-target/);
+  assert.match(html, /renderWorkerCardQrCodes\(\)\.then/);
   assert.match(html, /&quot;'\+uid\+'&quot;/);
 
   const inline = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]

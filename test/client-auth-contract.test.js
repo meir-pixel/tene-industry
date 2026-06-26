@@ -98,6 +98,10 @@ test('production card split renders only production cards without a master card'
   assert.match(productionCardsRoute, /data-worker-card-url/);
   assert.match(productionCardsRoute, /worker-visual\.html\?card=/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);
+  assert.match(productionCardsRoute, /qrFallbackUrl/);
+  assert.match(productionCardsRoute, /api\.qrserver\.com\/v1\/create-qr-code/);
+  assert.match(productionCardsRoute, /data-qr-target/);
+  assert.match(productionCardsRoute, /renderWorkerCardQrCodes\(\)\.then/);
   assert.match(productionCardsRoute, /grid-template-columns:repeat\(2,105mm\)/);
   assert.match(productionCardsRoute, /cards-pages/);
   assert.match(productionCardsRoute, /cards-page/);
