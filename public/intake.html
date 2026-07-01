@@ -547,6 +547,54 @@ function sourceTargetKey(path) {
   return match ? 'items.' + match[1] : raw;
 }
 
+function ocrFieldSourceName(field) {
+  const key = String(field || '');
+  if (key === 'total_length_mm' || key === 'length_mm' || key === 'length') return 'total_length_cm';
+  if (key === 'shape_name' || key === 'shape' || key === 'segments') return 'shape';
+  if (key === 'target_weight_kg' || key === 'weight_kg') return 'weight_kg';
+  return key;
+}
+
+function ocrSourceRefForPath(path) {
+  const raw = String(path || '');
+  const parsed = activeCompareOriginal || {};
+  const itemMatch = raw.match(/items\.(\d+)(?:\.([^\.]+))?/);
+  if (!itemMatch) return null;
+  const item = parsed.items?.[Number(itemMatch[1])];
+  if (!item) return null;
+  const field = ocrFieldSourceName(itemMatch[2] || '');
+  const fieldSource = field && item.fields?.[field] ? item.fields[field] : null;
+  if (fieldSource?.source_bbox) {
+    return { page: fieldSource.source_page || item.source_ref?.page || 1, bbox: fieldSource.source_bbox };
+  }
+  return item.source_ref || null;
+}
+
+function ocrSourceRectPercent(ref, fallbackTop) {
+  const bbox = ref?.bbox || ref?.source_bbox;
+  if (!bbox) return { left: 16, top: fallbackTop, width: 68, height: 24 };
+  const pageW = Number(ref.page_width || ref.width || 595.32);
+  const pageH = Number(ref.page_height || ref.height || 841.92);
+  const x0 = Number(bbox.x0 ?? bbox.left ?? bbox.x ?? 0);
+  const x1 = Number(bbox.x1 ?? (x0 + Number(bbox.width || 0)));
+  const y0 = Number(bbox.y0 ?? bbox.top ?? bbox.y ?? 0);
+  const y1 = Number(bbox.y1 ?? bbox.bottom ?? (y0 + Number(bbox.height || 0)));
+  if (!pageW || !pageH || !Number.isFinite(x0) || !Number.isFinite(y0)) return { left: 16, top: fallbackTop, width: 68, height: 24 };
+  return {
+    left: Math.max(0, Math.min(96, (x0 / pageW) * 100)),
+    top: Math.max(0, Math.min(96, (y0 / pageH) * 100)),
+    width: Math.max(2.5, Math.min(96, ((x1 - x0) / pageW) * 100)),
+    height: Math.max(2.2, Math.min(18, ((y1 - y0) / pageH) * 100)),
+  };
+}
+
+function applyOcrSourceMarker(marker, rect) {
+  marker.style.left = rect.left + '%';
+  marker.style.top = rect.top + '%';
+  marker.style.width = rect.width + '%';
+  marker.style.height = rect.height + '%';
+}
+
 function highlightOcrSource(path) {
   const stage = document.getElementById('ocrSourceStage');
   const marker = document.getElementById('ocrSourceHighlight');
@@ -557,10 +605,10 @@ function highlightOcrSource(path) {
   if (match) top = ocrSourceItemTop(Number(match[1]));
   if (String(path).includes('customer')) top = 12;
   if (String(path).includes('project') || String(path).includes('site')) top = 17;
-  marker.style.top = Math.min(92, top) + '%';
+  applyOcrSourceMarker(marker, ocrSourceRectPercent(ocrSourceRefForPath(path), Math.min(92, top)));
   marker.title = sourcePathLabel(path);
   document.querySelectorAll('.ocr-source-target.active').forEach(el => el.classList.remove('active'));
-  const target = document.querySelector('.ocr-source-target[data-source-target="' + key + '"]');
+  const target = document.querySelector('.ocr-source-target[data-source-target="' + path + '"],.ocr-source-target[data-source-target="' + key + '"]');
   if (target) {
     target.classList.add('active');
     target.scrollIntoView({ block:'center', behavior:'smooth' });
@@ -803,7 +851,7 @@ function spiralOcrSvg(item) {
 
 function currentOcrItemFromFields(index) {
   const source = activeCompareOriginal?.items?.[index] || {};
-  const item = { ...source };
+  const item = { ...source, original_item: source.original_item || { ...source } };
   const diameter = ocrItemInput(index, 'diameter');
   const quantity = ocrItemInput(index, 'quantity');
   const totalLength = ocrItemInput(index, 'total_length_mm');
@@ -1172,7 +1220,7 @@ function ocrShapePreviewHtml(item, index) {
 function ocrOrderCellInput(index, field, value, type = 'text', low = false) {
   const numberAttrs = type === 'number' ? ' inputmode="decimal" step="any"' : '';
   const sourcePath = `items.${index}.${field}`;
-  return `<input class="ocr-order-input ${low ? 'low-confidence' : ''}" type="${type}"${numberAttrs} value="${escapeHtml(value ?? '')}" data-editable-cell="true" data-source-field="${escapeHtml(sourcePath)}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" title="Click to edit" onfocus="highlightOcrSource(this.dataset.sourceField); this.select()" onclick="highlightOcrSource(this.dataset.sourceField)" oninput="markOcrEdited(this)">`;
+  return `<input class="ocr-order-input ${low ? 'low-confidence' : ''}" type="${type}"${numberAttrs} value="${escapeHtml(value ?? '')}" data-editable-cell="true" data-source-field="${escapeHtml(sourcePath)}" data-original-value="${escapeHtml(activeCompareOriginal?.items?.[index]?.[field] ?? '')}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" title="Click to edit" onfocus="highlightOcrSource(this.dataset.sourceField); this.select()" onclick="highlightOcrSource(this.dataset.sourceField)" oninput="markOcrEdited(this)">`;
 }
 function ocrOrderCellTextarea(index, field, value, low = false) {
   return `<textarea class="ocr-order-textarea ${low ? 'low-confidence' : ''}" data-item-index="${index}" data-item-field="${escapeHtml(field)}" oninput="markOcrEdited(this)">${escapeHtml(value ?? '')}</textarea>`;
@@ -2203,12 +2251,23 @@ function ocrReviewTopHtml(parsed, row) {
     ocrOfficialContextCard({ icon:'#', label:'מספר הזמנה', path:'order_number', value: orderNumber, parsed, options:[], createLabel:'' }) + '</div>';
 }
 function handleOcrSourceTarget(button) { highlightOcrTableTarget(button.dataset.sourceTarget || ''); }
+function ocrSourceTargetButton(path, rect) {
+  const style = 'left:' + rect.left + '%;top:' + rect.top + '%;width:' + rect.width + '%;height:' + rect.height + '%';
+  return '<button type="button" class="ocr-source-target" data-source-target="' + escapeHtml(path) + '" style="' + style + '" onclick="handleOcrSourceTarget(this)"></button>';
+}
 function ocrSourceTargetsHtml(row) {
   const parsed = parsedOf(row) || {};
   const items = Array.isArray(parsed.items) ? parsed.items : [];
   const topTargets = [['customer_name',10],['project_name',14],['site_name',18],['delivery_date',22],['order_number',26]];
-  const headerTargets = topTargets.map(([path, top]) => '<button type="button" class="ocr-source-target" data-source-target="' + path + '" style="top:' + top + '%" onclick="handleOcrSourceTarget(this)"></button>');
-  const itemTargets = items.slice(0, 40).map((item, index) => '<button type="button" class="ocr-source-target" data-source-target="items.' + index + '" style="top:' + ocrSourceItemTop(index) + '%" onclick="handleOcrSourceTarget(this)"></button>');
+  const headerTargets = topTargets.map(([path, top]) => ocrSourceTargetButton(path, { left:16, top, width:68, height:4 }));
+  const itemTargets = [];
+  items.slice(0, 80).forEach((item, index) => {
+    itemTargets.push(ocrSourceTargetButton('items.' + index, ocrSourceRectPercent(item.source_ref, ocrSourceItemTop(index))));
+    ['item_number','diameter','quantity','total_length_mm','target_weight_kg','shape_name'].forEach(field => {
+      const ref = ocrSourceRefForPath('items.' + index + '.' + field);
+      if (ref?.bbox) itemTargets.push(ocrSourceTargetButton('items.' + index + '.' + field, ocrSourceRectPercent(ref, ocrSourceItemTop(index))));
+    });
+  });
   return '<div class="ocr-source-targets">' + headerTargets.concat(itemTargets).join('') + '</div>';
 }
 function intakeCompareSourceHtml(row) {

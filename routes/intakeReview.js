@@ -105,6 +105,42 @@ module.exports = function createIntakeReviewRouter(deps) {
     );
   }
 
+  function saveReviewedItemCorrectionExample(row, item, index, orderItem) {
+    if (!item || normalizeReviewStatus(item.operator_review_status || item.review_status || item.manual_review_status) !== 'approved') return;
+    const source = {
+      intake_id: row.id,
+      order_id: row.order_id,
+      item_id: orderItem?.id || item.item_id || null,
+      item_index: index,
+      original_item: item.original_item || null,
+      source_ref: item.source_ref || null,
+      fields: item.fields || null,
+    };
+    const correction = {
+      scope: 'row_approval',
+      item_index: index,
+      item_number: item.item_number || item.row_number || index + 1,
+      diameter: item.diameter ?? item.diameter_mm ?? null,
+      quantity: item.quantity ?? item.qty ?? item.pcs ?? null,
+      total_length_mm: item.total_length_mm ?? item.length_mm ?? item.length ?? null,
+      shape_name: item.shape_name || item.shapeName || item.shape || null,
+      segments: item.segments || null,
+      target_weight_kg: item.target_weight_kg ?? item.weight_kg ?? null,
+      operator_reviewed_at: item.operator_reviewed_at || null,
+    };
+    const pair = correctionPair(source, correction);
+    if (!pair) return;
+    db.prepare(`
+      INSERT INTO intake_training_examples (title, document_type, problem_text, correction_text)
+      VALUES (?, ?, ?, ?)
+    `).run(
+      `Intake row approval #${row.id}/${index + 1}`,
+      row.source || 'intake_review',
+      pair.problem,
+      pair.correction
+    );
+  }
+
   router.get('/intake/log', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const status = req.query.status; // optional filter: pending_review / approved / rejected
     const sql = status
@@ -246,6 +282,7 @@ module.exports = function createIntakeReviewRouter(deps) {
           const note = status === 'missing' ? 'OCR review marked this item missing or invalid.' : null;
           db.prepare('UPDATE items SET review_status=?,review_notes=?,reviewed_by=?,reviewed_at=? WHERE id=? AND order_id=?')
             .run(status, note, 'intake_ocr_review', reviewedAt, orderItem.id, row.order_id);
+          if (status === 'approved') saveReviewedItemCorrectionExample(row, item, index, orderItem);
         });
       });
       saveReview();
