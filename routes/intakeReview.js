@@ -74,8 +74,36 @@ module.exports = function createIntakeReviewRouter(deps) {
   });
 
   function itemNeedsPostOrderReview(item) {
-    if (item.review_status === 'approved') return false;
+    const status = String(item.review_status || '').trim().toLowerCase();
+    if (status === 'approved') return false;
+    if (['pending', 'missing'].includes(status)) return true;
     return /review|required|unclear|uncertain|verify|ambiguous|not clear|דורש|בדיקה|לא ברור/i.test(item.note || '');
+  }
+
+  function normalizeReviewStatus(status) {
+    const value = String(status || '').trim().toLowerCase();
+    if (['accepted', 'approved', 'verified', '1', 'true'].includes(value)) return 'approved';
+    if (['missing', 'invalid', 'rejected', 'not_ok', 'not-valid'].includes(value)) return 'missing';
+    return 'pending';
+  }
+
+  function applyOrderItemReviewState(parsed, orderItems) {
+    const next = parsedOverride({}, parsed);
+    next.items = (next.items || []).map((item, index) => {
+      const orderItem = orderItems[index];
+      if (!orderItem) return item;
+      const reviewStatus = normalizeReviewStatus(orderItem.review_status);
+      const operatorStatus = reviewStatus === 'approved' ? 'accepted' : reviewStatus === 'missing' ? 'missing' : 'review';
+      return {
+        ...item,
+        item_id: orderItem.id,
+        review_status: operatorStatus,
+        operator_review_status: operatorStatus,
+        operator_approved: reviewStatus === 'approved' ? '1' : '',
+        operator_reviewed_at: orderItem.reviewed_at || item.operator_reviewed_at || '',
+      };
+    });
+    return next;
   }
 
   router.get('/intake/order-review-tasks', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
@@ -89,11 +117,15 @@ module.exports = function createIntakeReviewRouter(deps) {
       LIMIT 100
     `).all();
     const tasks = rows.map(row => {
-      const items = db.prepare('SELECT id,note,review_status FROM items WHERE order_id=? ORDER BY id').all(row.order_id);
+      const items = db.prepare('SELECT id,COALESCE(review_notes,note) AS note,review_status,reviewed_at FROM items WHERE order_id=? ORDER BY id').all(row.order_id);
       const reviewItems = items.filter(itemNeedsPostOrderReview);
+      const enriched = enrichIntakeRow(row);
+      const parsed = applyOrderItemReviewState(parseStoredIntake(row), items);
       if (!reviewItems.length) return null;
       return {
-        ...enrichIntakeRow(row),
+        ...enriched,
+        parsed,
+        parsed_data: JSON.stringify(parsed),
         post_order_review: true,
         review_count: reviewItems.length,
         review_items: reviewItems,
@@ -138,6 +170,37 @@ module.exports = function createIntakeReviewRouter(deps) {
       const result = approve();
       wsBroadcast('new_order', { orderNum: result.orderNum, orderId: result.orderId });
       res.json(result);
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/intake/:id/order-review', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const row = db.prepare('SELECT * FROM intake_log WHERE id=?').get(req.params.id);
+    if (!row) return res.status(404).json({ success: false, error: 'Intake row not found' });
+    if (!row.order_id || row.status !== 'approved') {
+      return res.status(409).json({ success: false, error: 'Order review status is available only after intake approval.' });
+    }
+    const originalParsed = parseStoredIntake(row);
+    const parsed = parsedOverride(originalParsed, req.body?.parsed_data);
+    const orderItems = db.prepare('SELECT id,review_status,reviewed_at FROM items WHERE order_id=? ORDER BY id').all(row.order_id);
+    try {
+      const saveReview = db.transaction(() => {
+        (parsed.items || []).forEach((item, index) => {
+          const orderItem = item?.item_id
+            ? orderItems.find(candidate => Number(candidate.id) === Number(item.item_id))
+            : orderItems[index];
+          if (!orderItem) return;
+          const status = normalizeReviewStatus(item.operator_review_status || item.review_status || item.manual_review_status);
+          const reviewedAt = item.operator_reviewed_at || new Date().toISOString();
+          const note = status === 'missing' ? 'OCR review marked this item missing or invalid.' : null;
+          db.prepare('UPDATE items SET review_status=?,review_notes=?,reviewed_by=?,reviewed_at=? WHERE id=? AND order_id=?')
+            .run(status, note, 'intake_ocr_review', reviewedAt, orderItem.id, row.order_id);
+        });
+      });
+      saveReview();
+      const refreshedItems = db.prepare('SELECT id,review_status,reviewed_at FROM items WHERE order_id=? ORDER BY id').all(row.order_id);
+      res.json({ success: true, id: row.id, parsed: applyOrderItemReviewState(parsed, refreshedItems) });
     } catch (error) {
       res.status(error.statusCode || 400).json({ success: false, error: error.message });
     }

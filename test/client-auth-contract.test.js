@@ -1476,3 +1476,17 @@ test('analyze-image PDF route uses steel document parser before saving an empty 
   assert.match(intakeRoute, /steelPdfParsed\.metrics\?\.\s*usable_rows > 0/);
   assert.match(intakeRoute, /return res\.json\(payload\)/);
 });
+
+
+test('post-order OCR review saves row statuses without mutating approved intake drafts', () => {
+  const intake = read('public/intake.html');
+  const intakeReviewRoute = read('routes/intakeReview.js');
+
+  assert.match(intakeReviewRoute, /\/intake\/:id\/order-review/);
+  assert.match(intakeReviewRoute, /UPDATE items SET review_status=\?,review_notes=\?,reviewed_by=\?,reviewed_at=\?/);
+  assert.match(intakeReviewRoute, /draft save cannot mutate/);
+  assert.match(intakeReviewRoute, /applyOrderItemReviewState/);
+  assert.match(intake, /row\?\.post_order_review \? .*order-review/);
+  assert.match(intake, /function refreshOcrStatusSummary/);
+  assert.match(intake, /refreshOcrStatusSummary\(\);/);
+});

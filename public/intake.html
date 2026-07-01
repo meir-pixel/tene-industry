@@ -1296,6 +1296,7 @@ async function setOcrItemReviewStatus(index, key) {
   const updated = currentOcrItemFromFields(index);
   const action = key === 'verified' ? { key:'verified', label:'\u05de\u05d0\u05d5\u05e9\u05e8', pct:100 } : key === 'missing' ? { key:'missing', label:'\u05d7\u05e1\u05e8 / \u05dc\u05d0 \u05ea\u05e7\u05d9\u05df', pct:0 } : { key:'review', label:'\u05d3\u05d5\u05e8\u05e9 \u05d1\u05d3\u05d9\u05e7\u05d4', pct: ocrActionState(activeCompareOriginal || {}, updated, index).pct };
   applyOcrRowVisualState(index, action);
+  refreshOcrStatusSummary();
   const summary = document.getElementById('ocrCorrectionSummary');
   if (summary) summary.textContent = key === 'verified' ? '\u05e9\u05d5\u05e8\u05d4 \u05d0\u05d5\u05e9\u05e8\u05d4. \u05e9\u05d5\u05de\u05e8 \u05d5\u05de\u05db\u05e0\u05d9\u05e1 \u05dc\u05d6\u05d9\u05db\u05e8\u05d5\u05df OCR...' : key === 'missing' ? '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05e1\u05d5\u05de\u05e0\u05d4 \u05db\u05d7\u05e1\u05e8\u05d4 \u05d0\u05d5 \u05dc\u05d0 \u05ea\u05e7\u05d9\u05e0\u05d4. \u05e9\u05d5\u05de\u05e8...' : '\u05d4\u05e9\u05d5\u05e8\u05d4 \u05e1\u05d5\u05de\u05e0\u05d4 \u05dc\u05d3\u05d5\u05e8\u05e9 \u05d1\u05d3\u05d9\u05e7\u05d4. \u05e9\u05d5\u05de\u05e8...';
   const saved = await saveIntakeDraft(activeCompareId, { silent: true });
@@ -2142,6 +2143,21 @@ function ocrStatusSummary(parsed) {
   const items = Array.isArray(parsed.items) ? parsed.items : [];
   return items.reduce((acc, item, index) => { acc[ocrActionState(parsed, item || {}, index).key]++; return acc; }, { verified:0, review:0, missing:0, total:items.length });
 }
+function refreshOcrStatusSummary() {
+  const shell = document.querySelector('.ocr-official-shell');
+  if (!shell) return;
+  const summary = ocrStatusSummary(readCorrectedParsed());
+  const count = shell.querySelector('.ocr-summary-count');
+  if (count) count.textContent = summary.verified + '/' + summary.total;
+  const danger = shell.querySelector('.ocr-alert-card.danger strong');
+  if (danger) danger.textContent = summary.missing;
+  const warn = shell.querySelector('.ocr-alert-card.warn strong');
+  if (warn) warn.textContent = summary.review;
+  const ok = shell.querySelector('.ocr-alert-card.ok strong');
+  if (ok) ok.textContent = summary.verified;
+  const counter = shell.querySelector('.ocr-review-toolbar .counter');
+  if (counter) counter.textContent = (summary.missing + summary.review) + ' דורשים טיפול';
+}
 function handleOcrContextChoice(select) {
   const card = select.closest('.ocr-context-card');
   const input = card?.querySelector('[data-ocr-field]');
@@ -2259,6 +2275,7 @@ function verifyAllVisibleOcrItems() {
   document.querySelectorAll('.ocr-review-table tbody tr:not([style*="display: none"])').forEach(row => { row.classList.remove('needs-review', 'missing'); row.classList.add('verified'); });
   document.querySelectorAll('.ocr-review-table tbody tr:not([style*="display: none"]) .ocr-status-pill').forEach(button => { button.className = 'ocr-status-pill verified'; button.textContent = 'מאושר'; });
   document.querySelectorAll('.ocr-review-table tbody tr:not([style*="display: none"]) .ocr-row-approve').forEach(button => { button.className = 'ocr-row-approve verified'; button.title = 'אושר'; });
+  refreshOcrStatusSummary();
   scheduleIntakeDraftSave();
 }
 function toggleOcrAttentionOnly() { document.querySelector('.ocr-review-table-wrap')?.classList.toggle('attention-only'); }
@@ -2411,23 +2428,28 @@ function refreshIntakeOcr(id) {
 
 async function saveIntakeDraft(id, options = {}) {
   const parsed = activeCompareId === id ? readCorrectedParsed() : {};
-  const response = await fetch(`/api/intake/${id}/draft`, {
+  const row = intakeRows.find(item => item.id === id);
+  const endpoint = row?.post_order_review ? `/api/intake/${id}/order-review` : `/api/intake/${id}/draft`;
+  const response = await fetch(endpoint, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ parsed_data: parsed }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.success) {
-    toast(result.error || 'Draft save failed', true);
+    toast(result.error || (row?.post_order_review ? 'Review status save failed' : 'Draft save failed'), true);
     return false;
   }
-  const row = intakeRows.find(item => item.id === id);
   if (row) {
     row.parsed = result.parsed || parsed;
     row.parsed_data = JSON.stringify(row.parsed);
+    if (row.post_order_review && Array.isArray(row.parsed.items)) {
+      row.review_count = row.parsed.items.filter(item => !ocrOperatorApproved(item)).length;
+    }
   }
   activeCompareOriginal = cloneParsedForCompare(result.parsed || parsed);
-  if (!options.silent) toast('Draft saved for review');
+  refreshOcrStatusSummary();
+  if (!options.silent) toast(row?.post_order_review ? 'Review status saved' : 'Draft saved for review');
   return true;
 }
 
