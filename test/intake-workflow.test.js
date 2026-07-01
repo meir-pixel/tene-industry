@@ -71,6 +71,7 @@ test('OCR route contract treats total length as cut length and sketch as geometr
   const route = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'routes', 'intake.js'), 'utf8');
   assert.match(route, /total_length_cm is the total cut length/);
   assert.match(route, /Every visible number has a role based on its visual context/);
+  assert.match(route, /two different length sources that must not be merged/);
   assert.match(route, /straight label must never erase visible shape parameters/);
   assert.match(route, /shape side dimensions belong only to the sketch/);
   assert.match(route, /do not silently change the visible shape/);

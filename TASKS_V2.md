@@ -895,6 +895,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - TASSA/Easybar OCR now separates table total length from sketch side dimensions so 6.90m + 670cm can recover the missing 20cm leg.
   - straight OCR labels no longer erase visible shape parameters; straight is now a fallback only when no geometry/bend evidence exists.
   - visible OCR numbers are now classified by context instead of treating values like 20/180 as special risky markers; L-leg recovery is derived from total-length checksum.
   - corrected the OCR length contract: total length is cut length for weight, while sketch dimensions own shape geometry and mismatches require review.

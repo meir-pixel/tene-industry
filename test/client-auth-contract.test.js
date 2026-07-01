@@ -1453,6 +1453,10 @@ test('OCR prompt separates TASSA bar mark from quantity', () => {
   assert.match(intakeRoute, /quantity-column value is the item quantity/);
   assert.match(intakeRoute, /quantity=51/);
   assert.match(intakeRoute, /segments \[20,670\] cm/);
+  assert.match(intakeRoute, /table total length 6\.90 m/);
+  assert.match(intakeRoute, /two different length sources that must not be merged/);
+  assert.match(intakeRoute, /total_length_cm must come from the table total-length column/);
+  assert.match(intakeRoute, /When the difference is a plausible missing leg\/tail/);
   assert.match(intakeRoute, /shape_type as one of: straight, bent, stirrup, spiral, unknown/);
   assert.match(intakeRoute, /segments=\[\]/);
   assert.match(intakeRoute, /straight label must never erase visible shape parameters/);
