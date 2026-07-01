@@ -969,7 +969,7 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /filterOcrReviewRows/);
   assert.match(intake, /target_weight_kg/);
   assert.match(intake, /ocr-review-note/);
-  assert.match(intake, /Approve and create order/);
+  assert.match(intake, /\u05d0\u05e9\u05e8 \u05d5\u05e4\u05ea\u05d7 \u05d4\u05d6\u05de\u05e0\u05d4/);
   assert.match(route, /original_data_url/);
   assert.match(route, /original_mime/);
   assert.match(route, /saveAnalysisToIntake/);
