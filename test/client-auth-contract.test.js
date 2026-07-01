@@ -1486,6 +1486,11 @@ test('post-order OCR review saves row statuses without mutating approved intake 
   assert.match(intakeReviewRoute, /UPDATE items SET review_status=\?,review_notes=\?,reviewed_by=\?,reviewed_at=\?/);
   assert.match(intakeReviewRoute, /draft save cannot mutate/);
   assert.match(intakeReviewRoute, /applyOrderItemReviewState/);
+  assert.match(intakeReviewRoute, /function orderItemToParsedItem/);
+  assert.match(intakeReviewRoute, /const parsedItems = next\.items\.length \? next\.items : orderItems\.map\(orderItemToParsedItem\)/);
+  assert.match(intakeReviewRoute, /shape_snapshot_json,shape_id,shape_name,diameter/);
+  assert.match(intakeReviewRoute, /COALESCE\(review_notes,note\) AS review_note_text/);
+  assert.match(intakeReviewRoute, /item\.review_note_text \|\| item\.review_notes \|\| item\.note/);
   assert.match(intake, /row\?\.post_order_review \? .*order-review/);
   assert.match(intake, /function refreshOcrStatusSummary/);
   assert.match(intake, /refreshOcrStatusSummary\(\);/);

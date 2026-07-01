@@ -895,6 +895,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - reconstructed post-order OCR review tables from existing order items when legacy OCR parsed items are empty.
   - persisted post-order OCR row approvals through a review-only Intake endpoint so row counters and approved Orders stay consistent.
   - connected the main analyze-image PDF route to the steel parser so extractable PDFs create populated review drafts instead of empty OCR items.
   - added a steel-document parser layer for order OCR: TASSA/Easybar rows are reconstructed from positioned PDF/OCR tokens by page, row, column and source bbox, with per-field confidence and structured review notes.

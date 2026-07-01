@@ -35,6 +35,46 @@ module.exports = function createIntakeReviewRouter(deps) {
     return parsed;
   }
 
+  function parseJsonValue(value, fallback) {
+    if (!value) return fallback;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return fallback;
+    }
+  }
+
+  function orderItemToParsedItem(item, index) {
+    const snapshot = parseJsonValue(item.shape_snapshot_json, {});
+    const segments = parseJsonValue(item.segments, []);
+    const shapeName = item.shape_name || item.shape_id || snapshot.shape_name || snapshot.shapeName || 'unknown';
+    return {
+      item_id: item.id,
+      item_number: index + 1,
+      row_number: index + 1,
+      shape_id: item.shape_id || snapshot.shape_id || snapshot.shapeId || null,
+      shape_name: shapeName,
+      diameter: item.diameter,
+      total_length_mm: item.total_length_mm,
+      length_mm: item.total_length_mm,
+      quantity: item.quantity,
+      qty: item.quantity,
+      target_weight_kg: item.total_weight,
+      weight_kg: item.total_weight,
+      weight_per_unit: item.weight_per_unit,
+      note: item.note || item.review_note_text || item.review_notes || '',
+      review_note_text: item.review_note_text || item.review_notes || item.note || '',
+      segments: Array.isArray(segments) ? segments : [],
+      spiral_diameter_mm: item.spiral_diameter_mm,
+      spiral_turns: item.spiral_turns,
+      element_name: item.struct_element || '',
+      struct_element: item.struct_element || '',
+      struct_floor: item.struct_floor || '',
+      sheet_num: item.sheet_num || '',
+      source_ref: { source: 'order_items', item_id: item.id },
+    };
+  }
+
   function sourceIdentityForRow(row) {
     return row?.source_system || row?.external_id
       ? { source_system: row.source_system || null, external_id: row.external_id || null }
@@ -77,7 +117,8 @@ module.exports = function createIntakeReviewRouter(deps) {
     const status = String(item.review_status || '').trim().toLowerCase();
     if (status === 'approved') return false;
     if (['pending', 'missing'].includes(status)) return true;
-    return /review|required|unclear|uncertain|verify|ambiguous|not clear|דורש|בדיקה|לא ברור/i.test(item.note || '');
+    const note = item.review_note_text || item.review_notes || item.note || '';
+    return /review|required|unclear|uncertain|verify|ambiguous|not clear/i.test(note);
   }
 
   function normalizeReviewStatus(status) {
@@ -89,7 +130,8 @@ module.exports = function createIntakeReviewRouter(deps) {
 
   function applyOrderItemReviewState(parsed, orderItems) {
     const next = parsedOverride({}, parsed);
-    next.items = (next.items || []).map((item, index) => {
+    const parsedItems = next.items.length ? next.items : orderItems.map(orderItemToParsedItem);
+    next.items = parsedItems.map((item, index) => {
       const orderItem = orderItems[index];
       if (!orderItem) return item;
       const reviewStatus = normalizeReviewStatus(orderItem.review_status);
@@ -117,7 +159,15 @@ module.exports = function createIntakeReviewRouter(deps) {
       LIMIT 100
     `).all();
     const tasks = rows.map(row => {
-      const items = db.prepare('SELECT id,COALESCE(review_notes,note) AS note,review_status,reviewed_at FROM items WHERE order_id=? ORDER BY id').all(row.order_id);
+      const items = db.prepare(`
+        SELECT id,shape_snapshot_json,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,
+               segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,
+               struct_element,struct_floor,sheet_num,note,review_notes,
+               COALESCE(review_notes,note) AS review_note_text,review_status,reviewed_at
+        FROM items
+        WHERE order_id=?
+        ORDER BY id
+      `).all(row.order_id);
       const reviewItems = items.filter(itemNeedsPostOrderReview);
       const enriched = enrichIntakeRow(row);
       const parsed = applyOrderItemReviewState(parseStoredIntake(row), items);
