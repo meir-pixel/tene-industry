@@ -486,6 +486,28 @@ flowchart RTL
 דפוס אסור: `Source document + one large card per extracted row`.
 
 
+
+## Steel Document Parser Layer
+
+Intake/OCR does not rely only on raw OCR text for steel orders. The required flow is:
+
+`PDF/Image -> OCR/text extraction -> Steel Document Parser -> structured order draft -> review screen`.
+
+Parser responsibilities:
+
+- Detect document type and parsing profile, for example `tassa_easybar_bending_schedule`.
+- Reconstruct item rows by page number, row position, column position, detected headers and source bounding boxes when available.
+- Classify each visible number by context: item number, diameter, quantity, table length, weight, shape side, bend angle, bar mark or note.
+- Keep quantity only from the quantity column. Drawing values such as `20` beside an L leg belong to shape geometry, not to quantity.
+- Infer shape from drawing-column dimensions plus table checksum. Example: total length 6.90m and visible side 670cm means a missing 20cm leg can be reconstructed as an L shape, not converted to a straight bar.
+- Return field-level `confidence`, `source_page`, `source_bbox`, and `reason` for every important value when available.
+- Create structured `review_notes` for uncertain values such as `length_not_clear`, `diameter_conflict`, `quantity_conflict`, `shape_not_detected`, `possible_unit_conversion_issue`, and `row_boundary_uncertain`.
+- Never auto-approve production. Low-confidence or conflicting rows stay as draft/review data.
+
+Benchmark rule:
+
+- The uploaded order105 TASSA/Easybar PDF is the first parser benchmark. It must reconstruct the dense item table and extract item number, diameter, quantity and length for most rows before the review screen opens.
+
 ## OCR Shape Classification Contract
 
 - OCR must classify each item before building geometry: `shape_type` is `straight`, `bent`, `stirrup`, `spiral`, or `unknown`.

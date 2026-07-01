@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const axios = require('axios');
+const steelDocumentParser = require('../services/steelDocumentParser');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 const {
   findSourceIdentityDuplicate,
@@ -352,10 +353,15 @@ module.exports = function createIntakeRouter(deps) {
       const duplicate = findSourceIdentityDuplicate(db, 'intake_log', identity);
       if (duplicate) return res.status(409).json(sourceIdentityConflictError('intake', duplicate).payload);
       const ocrResult = await intake.runOCR(req.file.buffer, { apiKey: getSetting('GOOGLE_VISION_API_KEY') });
-      const parsed = intakeWorkflow.withStructuredReviewNotes(
-        intake.parseOCRText(ocrResult.fullText),
-        { sourceIdentity: identity }
-      );
+      const steelParsed = steelDocumentParser.parseSteelDocument({
+        text: ocrResult.fullText,
+        pages: ocrResult.pages,
+        fileName: req.file.originalname || 'intake-upload',
+      });
+      const parsedSource = steelParsed.metrics?.rows_detected > 0
+        ? steelParsed
+        : intake.parseOCRText(ocrResult.fullText);
+      const parsed = intakeWorkflow.withStructuredReviewNotes(parsedSource, { sourceIdentity: identity });
       const originalMime = req.file.mimetype || 'image/jpeg';
       const originalDataUrl = `data:${originalMime};base64,${req.file.buffer.toString('base64')}`;
       const log = db.prepare(`
