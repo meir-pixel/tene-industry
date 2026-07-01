@@ -300,16 +300,33 @@
   select option { background: var(--steel-mid); }
   textarea { resize: vertical; min-height: 58px; }
 
-  /* CUSTOMER SEARCH */
+  .customer-assignment-card {
+    display: grid;
+    gap: 12px;
+  }
+  .customer-lookup-head {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:#fff;
+  }
+  .customer-lookup-title { font-size:15px; font-weight:900; color:var(--text); }
+  .customer-lookup-help { font-size:12px; color:var(--text-dim); line-height:1.45; }
   .customer-search-wrap { position: relative; }
+  .customer-search-wrap input { font-size:16px; min-height:48px; padding-right:42px; }
+  .customer-search-mark { position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--accent); font-weight:900; pointer-events:none; }
   .customer-results {
     position: absolute;
     top: 100%;
     right: 0; left: 0;
-    background: var(--steel-light);
+    background: #fff;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-top: 4px;
+    border-radius: 10px;
+    margin-top: 6px;
     z-index: 50;
     overflow: hidden;
     box-shadow: var(--shadow);
@@ -317,35 +334,35 @@
   }
   .customer-results.show { display: block; }
   .customer-result-item {
-    padding: 12px 16px;
+    padding: 11px 12px;
     cursor: pointer;
     transition: background 0.15s;
     border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 10px;
     align-items: center;
   }
   .customer-result-item:last-child { border-bottom: none; }
   .customer-result-item:hover { background: var(--card-hover); }
-  .customer-result-name { font-weight: 600; font-size: 14px; }
-  .customer-result-phone { font-size: 12px; color: var(--text-dim); }
-  .customer-result-id { font-size: 11px; color: var(--accent); background: rgba(224,123,57,0.1); padding: 2px 8px; border-radius: 20px; }
-  .customer-assignment-card {
-    display: grid;
-    gap: 12px;
-  }
+  .customer-result-name { font-weight: 900; font-size: 14px; color:var(--text); }
+  .customer-result-phone { font-size: 12px; color: var(--text-dim); margin-top:2px; }
+  .customer-result-action { border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:12px; font-weight:900; color:var(--accent); background:#fff; white-space:nowrap; }
+  .customer-results-state { padding:13px 14px; color:var(--text-dim); font-size:13px; line-height:1.45; }
+  .customer-results-actions { display:flex; flex-wrap:wrap; gap:8px; padding:0 14px 14px; }
+  .customer-results-actions button,.customer-results-actions a { border:1px solid var(--border); background:#fff; color:var(--text); border-radius:8px; padding:8px 10px; font-family:inherit; font-weight:900; font-size:12px; cursor:pointer; text-decoration:none; }
+  .customer-results-actions .primary { background:var(--accent); border-color:var(--accent); color:#fff; }
   .customer-quick-row {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(150px, .8fr);
+    grid-template-columns: minmax(0, 1.4fr) minmax(170px, .7fr);
     gap: 10px;
     align-items: end;
   }
   .customer-status-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0,1fr);
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
-    flex-wrap: wrap;
     padding: 10px 12px;
     border: 1px solid rgba(201,98,26,.16);
     border-radius: 10px;
@@ -378,25 +395,20 @@
     color: var(--text-dim);
     font-size: 12px;
   }
-  .customer-handoff a {
+  .customer-handoff-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .customer-handoff a,
+  .customer-handoff button {
+    border:0;
+    background:transparent;
     color: var(--accent);
+    font-family:inherit;
     font-weight: 900;
     text-decoration: none;
     white-space: nowrap;
+    cursor:pointer;
+    padding:0;
   }
-  .customer-handoff a:hover { text-decoration: underline; }
-  .new-customer-btn {
-    padding: 12px 16px;
-    cursor: pointer;
-    color: var(--accent);
-    font-weight: 600;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(224,123,57,0.05);
-  }
-  .new-customer-btn:hover { background: rgba(224,123,57,0.1); }
+  .customer-handoff a:hover,.customer-handoff button:hover { text-decoration: underline; }
 
   /* CHANNEL SELECTOR */
   .channel-selector {
@@ -1334,31 +1346,41 @@
       </summary>
       <div class="section-body">
         <div class="customer-assignment-card">
+          <div class="customer-lookup-head">
+            <div>
+              <div class="customer-lookup-title">שיוך לקוח להזמנה</div>
+              <div class="customer-lookup-help">חפש לקוח קיים. אם אין התאמה, אפשר להמשיך כחדש או ללא שיוך.</div>
+            </div>
+            <div class="customer-status-pill" id="customerStatePill">לקוח לא משויך</div>
+          </div>
           <div class="customer-quick-row">
             <div class="field">
-              <label><span class="required">*</span>&#1495;&#1497;&#1508;&#1493;&#1513; / &#1513;&#1501; &#1500;&#1511;&#1493;&#1495;</label>
+              <label><span class="required">*</span>חיפוש / שם לקוח</label>
               <div class="customer-search-wrap">
-                <input type="text" id="customerSearch" placeholder="&#1513;&#1501; &#1500;&#1511;&#1493;&#1495;, &#1496;&#1500;&#1508;&#1493;&#1503; &#1488;&#1493; &#1502;&#1505;&#1508;&#1512; &#1500;&#1511;&#1493;&#1495;..." autocomplete="off" oninput="searchCustomer(this.value);updateCustomerSummary()">
+                <span class="customer-search-mark">&#8981;</span>
+                <input type="text" id="customerSearch" placeholder="שם לקוח, טלפון או מספר לקוח..." autocomplete="off" oninput="searchCustomer(this.value);updateCustomerSummary()">
                 <div class="customer-results" id="customerResults"></div>
               </div>
             </div>
             <div class="field">
-              <label>&#1496;&#1500;&#1508;&#1493;&#1503; &#1500;&#1492;&#1494;&#1502;&#1504;&#1492;</label>
+              <label>טלפון להזמנה</label>
               <input type="tel" id="customerPhone" placeholder="050-0000000" oninput="updateCustomerSummary()">
             </div>
           </div>
           <div class="customer-status-row">
             <div>
-              <div class="customer-status-pill" id="customerStatePill">&#1500;&#1511;&#1493;&#1495; &#1500;&#1488; &#1513;&#1493;&#1497;&#1498;</div>
               <input type="hidden" id="customerPriorityId">
               <input type="hidden" id="contactName">
               <input type="hidden" id="contactPhone">
             </div>
-            <div class="customer-status-copy">&#1499;&#1488;&#1503; &#1504;&#1513;&#1502;&#1512; &#1512;&#1511; &#1492;&#1513;&#1497;&#1493;&#1498; &#1500;&#1492;&#1494;&#1502;&#1504;&#1492;. &#1488;&#1513;&#1512;&#1488;&#1497;, &#1502;&#1495;&#1497;&#1512;&#1493;&#1503;, &#1488;&#1504;&#1513;&#1497; &#1511;&#1513;&#1512; &#1493;&#1499;&#1514;&#1493;&#1489;&#1493;&#1514; &#1511;&#1489;&#1493;&#1506;&#1493;&#1514; &#1502;&#1504;&#1493;&#1492;&#1500;&#1497;&#1501; &#1489;&#1499;&#1512;&#1496;&#1497;&#1505; &#1492;&#1500;&#1511;&#1493;&#1495;.</div>
+            <div class="customer-status-copy" id="customerStatusCopy">כאן נשמר רק השיוך להזמנה. אשראי, מחירון, אנשי קשר וכתובות קבועות מנוהלים בכרטיס הלקוח.</div>
           </div>
           <div class="customer-handoff">
-            <span>&#1510;&#1512;&#1497;&#1498; &#1500;&#1506;&#1512;&#1493;&#1498; &#1508;&#1512;&#1496;&#1497; &#1500;&#1511;&#1493;&#1495; &#1488;&#1493; &#1500;&#1508;&#1514;&#1493;&#1495; &#1514;&#1497;&#1511; &#1502;&#1500;&#1488;?</span>
-            <a href="/customers.html">&#1508;&#1514;&#1495; &#1502;&#1493;&#1491;&#1493;&#1500; &#1500;&#1511;&#1493;&#1495;&#1493;&#1514;</a>
+            <span>צריך לפתוח או לערוך כרטיס לקוח מלא?</span>
+            <div class="customer-handoff-actions">
+              <button type="button" onclick="continueUnassignedCustomer()">המשך ללא שיוך</button>
+              <a href="/customers.html">פתח לקוח חדש</a>
+            </div>
           </div>
         </div>
       </div>
@@ -1796,32 +1818,60 @@ function escapeHtml(value) {
   }[ch]));
 }
 
-function setCustomerState(text) {
+function setCustomerState(text, copy) {
   const pill = document.getElementById('customerStatePill');
+  const copyEl = document.getElementById('customerStatusCopy');
   if (pill) pill.textContent = text;
+  if (copyEl && copy) copyEl.textContent = copy;
   updateCustomerSummary();
+}
+
+function renderCustomerSearchState(html) {
+  const results = document.getElementById('customerResults');
+  if (!results) return;
+  results.innerHTML = html;
+  results.classList.add('show');
 }
 
 function searchCustomer(query) {
   const results = document.getElementById('customerResults');
-  if (!query || query.length < 2) { results.classList.remove('show'); return; }
+  const clean = (query || '').trim();
+  if (!clean || clean.length < 2) {
+    results.innerHTML = '<div class="customer-results-state">הקלד לפחות 2 תווים כדי לזהות לקוח.</div>';
+    results.classList.toggle('show', Boolean(clean));
+    return;
+  }
   clearTimeout(_searchTimer);
+  renderCustomerSearchState('<div class="customer-results-state">מחפש לקוחות מתאימים...</div>');
   _searchTimer = setTimeout(async () => {
-    const r = await fetch(`/api/customers?q=${encodeURIComponent(query)}`);
-    const customers = await r.json();
-    let html = customers.map(c => `
-      <div class="customer-result-item" onclick="selectCustomer(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(c))}')))">
-        <div>
-          <div class="customer-result-name">${escapeHtml(c.name)}</div>
-          <div class="customer-result-phone">${escapeHtml(c.phone ?? '')}</div>
+    try {
+      const r = await fetch(`/api/customers?q=${encodeURIComponent(clean)}`);
+      const customers = await r.json();
+      if (!Array.isArray(customers) || !customers.length) {
+        renderCustomerSearchState(`
+          <div class="customer-results-state"><strong>לא נמצא לקוח מתאים.</strong><br>אפשר לפתוח כרטיס לקוח חדש או להמשיך את ההזמנה ללא שיוך.</div>
+          <div class="customer-results-actions">
+            <button class="primary" type="button" onclick="newCustomer(decodeURIComponent('${encodeURIComponent(clean)}'))">המשך עם השם שהוקלד</button>
+            <a href="/customers.html">פתח לקוח חדש</a>
+            <button type="button" onclick="continueUnassignedCustomer()">לקוח לא משויך</button>
+          </div>`);
+        return;
+      }
+      let html = customers.map(c => `
+        <div class="customer-result-item" onclick="selectCustomer(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(c))}')))" >
+          <div>
+            <div class="customer-result-name">${escapeHtml(c.name)}</div>
+            <div class="customer-result-phone">${escapeHtml([c.phone, c.contact_name, c.priority_id].filter(Boolean).join(' · '))}</div>
+          </div>
+          <div class="customer-result-action">בחר</div>
         </div>
-        ${c.priority_id ? `<div class="customer-result-id">${escapeHtml(c.priority_id)}</div>` : ''}
-      </div>
-    `).join('');
-    html += `<div class="new-customer-btn" onclick="newCustomer(decodeURIComponent('${encodeURIComponent(query)}'))">הוסף לקוח מינימלי: "${escapeHtml(query)}"</div>`;
-    results.innerHTML = html;
-    results.classList.add('show');
-  }, 250);
+      `).join('');
+      html += `<div class="customer-results-actions"><button type="button" onclick="newCustomer(decodeURIComponent('${encodeURIComponent(clean)}'))">המשך עם השם שהוקלד</button><a href="/customers.html">פתח לקוח חדש</a></div>`;
+      renderCustomerSearchState(html);
+    } catch (err) {
+      renderCustomerSearchState('<div class="customer-results-state">שגיאה בחיפוש לקוח. נסה שוב בעוד רגע.</div>');
+    }
+  }, 120);
 }
 
 function selectCustomer(c) {
@@ -1831,16 +1881,25 @@ function selectCustomer(c) {
   document.getElementById('contactName').value = c.contact_name ?? '';
   document.getElementById('contactPhone').value = c.contact_phone ?? '';
   document.getElementById('customerResults').classList.remove('show');
-  setCustomerState(c.priority_id ? `לקוח קיים: ${c.priority_id}` : 'לקוח קיים שויך');
+  setCustomerState(c.priority_id ? `לקוח קיים: ${c.priority_id}` : 'לקוח קיים שויך', `${c.name || 'לקוח'} נבחר להזמנה. טלפון ואיש קשר מולאו אם קיימים בכרטיס.`);
 }
 
 function newCustomer(name) {
   document.getElementById('customerSearch').value = name;
   document.getElementById('customerPriorityId').value = 'יוצר אוטומטית';
   document.getElementById('customerResults').classList.remove('show');
-  setCustomerState('לקוח חדש מינימלי');
+  setCustomerState('לקוח חדש מינימלי', 'ההזמנה תישמר עם שם הלקוח שהוקלד. כרטיס מלא אפשר לפתוח ממסך לקוחות.');
   updateCustomerSummary();
   document.getElementById('customerPhone').focus();
+}
+
+function continueUnassignedCustomer() {
+  document.getElementById('customerPriorityId').value = '';
+  document.getElementById('contactName').value = '';
+  document.getElementById('contactPhone').value = '';
+  document.getElementById('customerResults').classList.remove('show');
+  setCustomerState('לקוח לא משויך', 'ההזמנה תישמר ללא שיוך לכרטיס לקוח. אפשר להשלים שיוך מאוחר יותר.');
+  updateCustomerSummary();
 }
 
 document.addEventListener('click', (e) => {
@@ -2201,7 +2260,7 @@ function newOrder() {
   document.getElementById('customerPriorityId').value = '';
   document.getElementById('contactName').value = '';
   document.getElementById('contactPhone').value = '';
-  setCustomerState('לקוח לא שויך');
+  setCustomerState('לקוח לא משויך', 'ההזמנה תישמר ללא שיוך לכרטיס לקוח. אפשר להשלים שיוך מאוחר יותר.');
   document.getElementById('deliveryAddress').value = '';
   document.getElementById('deliverySiteName').value = '';
   document.getElementById('generalNotes').value = '';
