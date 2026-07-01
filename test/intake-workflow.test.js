@@ -30,15 +30,25 @@ test('normalizeIntakeItem builds canonical sides angles quantity and shape', () 
   assert.equal(item.shapeId, 'U - anchor');
 });
 
-test('normalizeOcrLShapeSegments treats 180 as angle and restores 20 cm L leg', () => {
+test('normalizeOcrLShapeSegments infers any missing L leg from total cut length', () => {
   const result = normalizeOcrLShapeSegments({ shape_name: 'L angle' }, [
     { length_mm: 6700, angle_deg: 180 },
-  ]);
+  ], 6900);
 
   assert.equal(result.adjusted, true);
+  assert.equal(result.addedLegMm, 200);
   assert.deepEqual(result.segments, [
     { length_mm: 200, angle_deg: 90 },
     { length_mm: 6700, angle_deg: 0 },
+  ]);
+
+  const otherLeg = normalizeOcrLShapeSegments({ shape_name: 'L angle' }, [
+    { length_mm: 4500, angle_deg: 180 },
+  ], 4850);
+  assert.equal(otherLeg.addedLegMm, 350);
+  assert.deepEqual(otherLeg.segments, [
+    { length_mm: 350, angle_deg: 90 },
+    { length_mm: 4500, angle_deg: 0 },
   ]);
 });
 
@@ -48,7 +58,7 @@ test('OCR shape contract keeps straight rows out of bent L correction', () => {
 
   const result = normalizeOcrLShapeSegments({ shape_type: 'straight', shape_name: 'straight bar' }, [
     { length_mm: 6700, angle_deg: 180 },
-  ]);
+  ], 6900);
 
   assert.equal(result.adjusted, false);
   assert.deepEqual(result.segments, [{ length_mm: 6700, angle_deg: 180 }]);
@@ -57,6 +67,7 @@ test('OCR shape contract keeps straight rows out of bent L correction', () => {
 test('OCR route contract treats total length as cut length and sketch as geometry', () => {
   const route = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'routes', 'intake.js'), 'utf8');
   assert.match(route, /total_length_cm is the total cut length/);
+  assert.match(route, /Every visible number has a role based on its visual context/);
   assert.match(route, /shape side dimensions belong only to the sketch/);
   assert.match(route, /do not silently change the visible shape/);
   assert.doesNotMatch(route, /assigned to the two end legs/);

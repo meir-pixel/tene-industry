@@ -895,6 +895,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - visible OCR numbers are now classified by context instead of treating values like 20/180 as special risky markers; L-leg recovery is derived from total-length checksum.
   - corrected the OCR length contract: total length is cut length for weight, while sketch dimensions own shape geometry and mismatches require review.
   - added strict OCR shape classification protection: straight bars remain angle-free, shape markers stay review candidates, and straight lengths drive recalculated weights.
   - changed OCR row-number approval to a reversible toggle and anchored source highlights inside the PDF zoom layer for closer row alignment.

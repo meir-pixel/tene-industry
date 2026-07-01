@@ -207,11 +207,11 @@ module.exports = function createIntakeRouter(deps) {
   - In TASSA/Easybar tables, the bar-mark column is never quantity. The quantity-column value is the item quantity. Example: row 1 with bar mark 20, diameter 8, quantity 51, and L sketch 20+670 must return item_number=1, diameter=8, quantity=51, segments [20,670] cm, total_length_cm=690.
   - Use the bar diameter from the diameter column or Ø mark. Use the row sketch dimensions for segments.
   - Shape classification is separate from text extraction. Return shape_type as one of: straight, bent, stirrup, spiral, unknown.
-  - total_length_cm is the total cut length / overall row length used for cutting and weight. It is not automatically a side of the shape unless the row is a true straight bar.
+  - total_length_cm is the total cut length / overall row length: it is the result/checksum of the visible shape and the value used for cutting and weight. It is not automatically a side of the shape unless the row is a true straight bar.
   - For a true straight bar row with no clear bend/hook/stirrup evidence, set shape_type="straight", shape_name="straight bar", segments=[], and total_length_cm to the printed total cut length. Do not encode straight rows as 180-degree segments.
-  - Numbers near a sketch such as 20, 180, row numbers, bar marks, and drawing labels are shape_marker_candidate values unless they clearly belong to a visible bent side. Put uncertain markers in uncertain_fields and note; do not convert them into sides or angles automatically.
-  - Classify a row as bent/stirrup only when there is clear evidence: multiple visible sides, a non-straight drawing, or wording such as U, hook, stirrup, bench, lift, bent, closed, or Hebrew equivalents.
-  - In TASSA/Easybar-style L sketches, a small vertical value such as 20 is a physical 20 cm leg only when the drawing clearly shows a vertical leg. Return it as its own segment: [20, printed_length] cm with angle_deg 90 after the 20 cm leg. Never encode the small leg as 180.
+  - Every visible number has a role based on its visual context. Do not blacklist values such as 20 or 180. A number inside a table column belongs to that column; a number adjacent to a drawn side belongs to that side; a number near a bend/arc may be an angle; row numbers and bar marks remain identifiers. When uncertain, list the possible roles in uncertain_fields and note.
+  - Classify a row as bent/stirrup when there is clear evidence: multiple visible sides, a non-straight drawing, or wording such as U, hook, stirrup, bench, lift, bent, closed, or Hebrew equivalents.
+  - In TASSA/Easybar-style L sketches, any visible vertical-side value is a physical leg when it is drawn next to that leg and the total cut length confirms it. Return it as its own segment with angle_deg 90 before the long side. Never encode a leg value as 180.
   For document_type return a short label such as "tassa_pdf", "handwritten_cards", "bar_schedule", or "unknown".
   For supplier_order_num, customer_name, customer_phone, delivery_date, delivery_address, and notes return null when not visible. delivery_date must be YYYY-MM-DD when visible.
   For generic "רשימת ברזל" / bar schedule documents, header email addresses and phone numbers are supplier/contact details, not customer names. Never put an email address, URL, or phone number in customer_name. If the customer name is not clearly visible, return null.
@@ -280,7 +280,7 @@ module.exports = function createIntakeRouter(deps) {
         const straightByContract = intakeWorkflow.isStraightOcrShape(item);
         const lShapeCorrection = straightByContract
           ? { segments: [], adjusted: false, addedLegMm: 0 }
-          : intakeWorkflow.normalizeOcrLShapeSegments(item, factorySegments);
+          : intakeWorkflow.normalizeOcrLShapeSegments(item, factorySegments, reportedLength);
         const normalizedSegments = lShapeCorrection.segments;
         const segmentSum = normalizedSegments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
         const straightLength = reportedLength || factorySegments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
@@ -295,7 +295,7 @@ module.exports = function createIntakeRouter(deps) {
           notes.push('Straight bar contract: sketch markers were kept out of shape geometry; total cut length comes from the printed row length.');
         }
         if (lShapeCorrection.adjusted) {
-          notes.push('OCR L-shape correction: added visible 20 cm hook leg instead of treating 180 as a side length.');
+          notes.push(`OCR L-shape correction: inferred ${lShapeCorrection.addedLegMm} mm leg from total cut length instead of treating a bend marker as a side length.`);
         }
         if (!straightByContract && reportedLength && segmentSum && Math.abs(reportedLength - segmentSum) > 5) {
           notes.push(`Review required: total cut length ${reportedLength} mm does not match visible shape dimensions sum ${segmentSum} mm.`);

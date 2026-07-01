@@ -369,7 +369,7 @@ function isLikelyOcrLShape(item = {}) {
   return /(^|\W)(l|hook|angle|bent|bend)(\W|$)|90/.test(text);
 }
 
-function normalizeOcrLShapeSegments(item = {}, sourceSegments = []) {
+function normalizeOcrLShapeSegments(item = {}, sourceSegments = [], reportedLengthMm = 0) {
   const segments = (sourceSegments || []).map(segment => ({
     ...segment,
     length_mm: Number(segment.length_mm || 0),
@@ -385,14 +385,19 @@ function normalizeOcrLShapeSegments(item = {}, sourceSegments = []) {
     return { segments, adjusted: false, addedLegMm: 0 };
   }
 
-  const addedLegMm = 200;
+  const reportedLength = Number(reportedLengthMm || 0);
+  const inferredLegMm = Number((reportedLength - only.length_mm).toFixed(3));
+  if (!reportedLength || inferredLegMm <= 0.001) {
+    return { segments, adjusted: false, addedLegMm: 0 };
+  }
+
   return {
     segments: [
-      { length_mm: addedLegMm, angle_deg: 90 },
+      { length_mm: inferredLegMm, angle_deg: 90 },
       { ...only, angle_deg: 0 },
     ],
     adjusted: true,
-    addedLegMm,
+    addedLegMm: inferredLegMm,
   };
 }
 function distributeSurplusToEndSegments(sourceSegments, reportedLengthMm) {
