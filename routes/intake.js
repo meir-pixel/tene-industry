@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const axios = require('axios');
 const steelDocumentParser = require('../services/steelDocumentParser');
+const { extractPdfWordsFromBuffer } = require('../services/pdfWordExtractor');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 const {
   findSourceIdentityDuplicate,
@@ -135,6 +136,34 @@ module.exports = function createIntakeRouter(deps) {
           ? 'תעודת ספק / קבלת חומר נקלטת דרך מודול מלאי, לא דרך הזמנה חדשה.'
           : 'מחירון ברזל נקלט דרך מודול מחירונים, לא דרך הזמנה חדשה.',
       });
+    }
+    if (mime === 'application/pdf') {
+      try {
+        const pdfText = await extractPdfWordsFromBuffer(req.file.buffer);
+        const steelPdfParsed = steelDocumentParser.parseSteelDocument({
+          text: pdfText.fullText,
+          pages: pdfText.pages,
+          fileName: req.file.originalname || 'order.pdf',
+        });
+        if (steelPdfParsed.metrics?.rows_detected > 0 && steelPdfParsed.metrics?.usable_rows > 0) {
+          const payload = intakeWorkflow.withStructuredReviewNotes({
+            ...steelPdfParsed,
+            success: true,
+            supplier_order_num: steelPdfParsed.supplier_order_num || null,
+            customer_name: cleanRecognizedCustomerName(steelPdfParsed.customer_name) || null,
+            customer_phone: steelPdfParsed.customer_phone || null,
+            delivery_date: steelPdfParsed.delivery_date || null,
+            delivery_address: steelPdfParsed.delivery_address || null,
+            notes: steelPdfParsed.review_notes?.map(note => note.message).filter(Boolean).join(' ') || null,
+          }, { sourceIdentity: sourceIdentityFromRequest(req, 'ocr') });
+          if (shouldSaveToIntake(req)) {
+            payload.intakeId = saveAnalysisToIntake(req, payload);
+          }
+          return res.json(payload);
+        }
+      } catch (pdfErr) {
+        console.warn('[intake/analyze-image] PDF table parser fallback:', pdfErr.message);
+      }
     }
     const schema = {
       type: 'object',

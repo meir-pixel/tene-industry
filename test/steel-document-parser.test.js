@@ -28,9 +28,10 @@ test('steel document parser reconstructs the uploaded order105 PDF benchmark row
   assert.equal(row1.quantity, 51);
   assert.equal(row1.total_length_cm, 690);
   assert.equal(row1.weight_kg, 139);
-  assert.deepEqual(row1.segments, [
-    { length_cm: 20, angle_deg: 90 },
-    { length_cm: 670, angle_deg: 0 },
+  assert.equal(row1.total_length_mm, 6900);
+  assert.deepEqual(row1.segments.map(segment => ({ length_cm: segment.length_cm, length_mm: segment.length_mm, angle_deg: segment.angle_deg })), [
+    { length_cm: 20, length_mm: 200, angle_deg: 90 },
+    { length_cm: 670, length_mm: 6700, angle_deg: 0 },
   ]);
   assert.equal(row1.source_ref.page, 1);
   assert.ok(row1.fields.quantity.source_bbox);
@@ -45,9 +46,10 @@ test('steel document parser maps drawing value 20 to shape context, not quantity
   assert.equal(row10.diameter, 8);
   assert.equal(row10.quantity, 51);
   assert.equal(row10.total_length_cm, 1070);
-  assert.deepEqual(row10.segments, [
-    { length_cm: 20, angle_deg: 90 },
-    { length_cm: 1050, angle_deg: 0 },
+  assert.equal(row10.total_length_mm, 10700);
+  assert.deepEqual(row10.segments.map(segment => ({ length_cm: segment.length_cm, length_mm: segment.length_mm, angle_deg: segment.angle_deg })), [
+    { length_cm: 20, length_mm: 200, angle_deg: 90 },
+    { length_cm: 1050, length_mm: 10500, angle_deg: 0 },
   ]);
   assert.notEqual(row10.quantity, 20);
 });

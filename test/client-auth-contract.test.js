@@ -1466,3 +1466,13 @@ test('OCR prompt separates TASSA bar mark from quantity', () => {
   assert.match(intakeRoute, /shape side dimensions belong only to the sketch/);
   assert.match(intakeRoute, /do not silently change the visible shape/);
 });
+
+
+test('analyze-image PDF route uses steel document parser before saving an empty OCR draft', () => {
+  const intakeRoute = read('routes/intake.js');
+
+  assert.match(intakeRoute, /extractPdfWordsFromBuffer/);
+  assert.match(intakeRoute, /steelPdfParsed\.metrics\?\.\s*rows_detected > 0/);
+  assert.match(intakeRoute, /steelPdfParsed\.metrics\?\.\s*usable_rows > 0/);
+  assert.match(intakeRoute, /return res\.json\(payload\)/);
+});

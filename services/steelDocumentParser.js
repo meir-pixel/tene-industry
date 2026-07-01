@@ -175,6 +175,11 @@ function checksumMatches(totalLengthCm, segmentsCm) {
   return total > 0 && Math.abs(total - sum) <= 1;
 }
 
+function shapeSegment(lengthCm, angleDeg) {
+  const cm = Number(lengthCm || 0);
+  return { length_cm: cm, length_mm: Math.round(cm * 10), angle_deg: angleDeg };
+}
+
 function inferShape(row, values) {
   const notes = [];
   const uncertain = [];
@@ -190,7 +195,7 @@ function inferShape(row, values) {
       shape_name: 'custom bent shape',
       shape_type: 'bent',
       shape_description: elementWords || 'bent shape',
-      segments: sideValues.map((value, index) => ({ length_cm: value, angle_deg: index === sideValues.length - 1 ? 0 : 90 })),
+      segments: sideValues.map((value, index) => shapeSegment(value, index === sideValues.length - 1 ? 0 : 90)),
       confidence: sideValues.length >= 2 ? 0.72 : 0.44,
       review_notes: sideValues.length >= 2 ? [] : [{ field: 'shape', code: 'shape_not_detected', message: 'Shape text indicates bent/custom geometry but dimensions are incomplete.' }],
     };
@@ -202,8 +207,8 @@ function inferShape(row, values) {
       shape_type: 'bent',
       shape_description: 'L shape from shape-column dimensions',
       segments: [
-        { length_cm: leg, angle_deg: 90 },
-        { length_cm: longSide, angle_deg: 0 },
+        shapeSegment(leg, 90),
+        shapeSegment(longSide, 0),
       ],
       confidence: 0.9,
       review_notes: [],
@@ -233,7 +238,7 @@ function inferShape(row, values) {
     shape_name: 'unknown',
     shape_type: 'unknown',
     shape_description: '',
-    segments: longSide ? [{ length_cm: longSide, angle_deg: 0 }] : [],
+    segments: longSide ? [shapeSegment(longSide, 0)] : [],
     confidence: 0.38,
     note: notes.join(' '),
     review_notes: uncertain,
@@ -273,6 +278,7 @@ function parseTassaRow(row, index) {
   const shapeLegCm = toNumber(legWord?.text);
   const shapeDimensionCm = toNumber(shapeWord?.text);
   const totalLengthCm = unitLengthM ? Math.round(unitLengthM * 100) : null;
+  const totalLengthMm = totalLengthCm ? totalLengthCm * 10 : null;
   const shape = inferShape(row, { total_length_cm: totalLengthCm, shape_dimension_cm: shapeDimensionCm, shape_leg_cm: shapeLegCm });
   const reviewNotes = [...(shape.review_notes || [])];
 
@@ -309,8 +315,12 @@ function parseTassaRow(row, index) {
     shape_description: shape.shape_description || null,
     diameter,
     quantity,
+    qty: quantity,
     unit_length_cm: totalLengthCm,
     total_length_cm: totalLengthCm,
+    total_length_mm: totalLengthMm,
+    length_mm: totalLengthMm,
+    length: totalLengthMm,
     row_total_length_m: rowTotalLengthM,
     weight_kg: weightKg,
     shape_name: shape.shape_name,

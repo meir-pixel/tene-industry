@@ -895,6 +895,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - connected the main analyze-image PDF route to the steel parser so extractable PDFs create populated review drafts instead of empty OCR items.
   - added a steel-document parser layer for order OCR: TASSA/Easybar rows are reconstructed from positioned PDF/OCR tokens by page, row, column and source bbox, with per-field confidence and structured review notes.
   - TASSA/Easybar OCR now separates table total length from sketch side dimensions so 6.90m + 670cm can recover the missing 20cm leg.
   - straight OCR labels no longer erase visible shape parameters; straight is now a fallback only when no geometry/bend evidence exists.
