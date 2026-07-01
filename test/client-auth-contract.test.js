@@ -1406,3 +1406,42 @@ test('server hardens production auth and websocket upgrades', () => {
     assert.match(read(file), /IronBendAuth\?\.webSocketUrl/, file);
   }
 });
+
+
+test('OCR review shape refresh keeps compact cell without edit pencil', () => {
+  const intake = read('public/intake.html');
+  const shapeCell = intake.slice(
+    intake.indexOf('function ocrShapeCellHtml(item, index) {'),
+    intake.indexOf('function removeOcrItem(index)')
+  );
+
+  assert.match(shapeCell, /class="ocr-review-shape"/);
+  assert.match(shapeCell, /handleOfficialOcrShapeClick/);
+  assert.doesNotMatch(shapeCell, /ocr-queue-edit/);
+
+  const refreshVisual = intake.slice(
+    intake.indexOf('function refreshOcrShapeVisual(index) {'),
+    intake.indexOf('function shapeSelectedFromIntake(data)')
+  );
+  assert.match(refreshVisual, /shapeTd.innerHTML = ocrShapeCellHtml/);
+});
+
+test('OCR review editable cell lookup prefers visible inputs over hidden fields', () => {
+  const intake = read('public/intake.html');
+  const inputLookup = intake.slice(
+    intake.indexOf('function ocrItemInput(index, field) {'),
+    intake.indexOf('function itemSegmentsOf(item)')
+  );
+
+  assert.match(inputLookup, /querySelectorAll/);
+  assert.match(inputLookup, /input.type !== 'hidden'/);
+});
+
+test('OCR prompt separates TASSA bar mark from quantity', () => {
+  const intakeRoute = read('routes/intake.js');
+
+  assert.match(intakeRoute, /bar-mark column is never quantity/);
+  assert.match(intakeRoute, /quantity-column value is the item quantity/);
+  assert.match(intakeRoute, /quantity=51/);
+  assert.match(intakeRoute, /segments \[20,670\] cm/);
+});

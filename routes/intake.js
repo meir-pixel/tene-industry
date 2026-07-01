@@ -199,6 +199,7 @@ module.exports = function createIntakeRouter(deps) {
   - Later pages are "רשימת ברזל לכיפוף" / bending schedules. Extract each numbered table row as a separate item.
   - Do not treat the cover-page free text or phone line as a steel item.
   - Use the quantity from the "כמות" / units column only. Do not confuse weight/משקל, page totals, row numbers, or drawing labels with quantity.
+  - In TASSA/Easybar tables, the bar-mark column is never quantity. The quantity-column value is the item quantity. Example: row 1 with bar mark 20, diameter 8, quantity 51, and L sketch 20+670 must return item_number=1, diameter=8, quantity=51, segments [20,670] cm, total_length_cm=690.
   - Use the bar diameter from the diameter column or Ø mark. Use the row sketch dimensions for segments.
   - If the table gives a true straight bar row with no visible bend/hook leg, use the printed row length as one 180-degree segment.
   - In TASSA/Easybar-style L sketches, the small vertical value 20 is a physical 20 cm leg, not an angle and not a row marker. Return it as its own segment: [20, printed_length] cm with angle_deg 90 after the 20 cm leg. Never encode the small leg as 180.

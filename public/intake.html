@@ -723,7 +723,8 @@ function ocrItemKind(item) {
 }
 
 function ocrItemInput(index, field) {
-  return document.querySelector(`[data-item-index="${index}"][data-item-field="${field}"]`);
+  const matches = Array.from(document.querySelectorAll(`[data-item-index="${index}"][data-item-field="${field}"]`));
+  return matches.find(input => input.type !== 'hidden') || matches[0] || null;
 }
 
 function itemSegmentsOf(item) {
@@ -1164,14 +1165,17 @@ function ocrRowApproveButton(index, item, action = {}) {
   return '<div class="ocr-row-review-cell"><button type="button" class="ocr-row-approve ' + key + '" id="ocrRowApprove_' + index + '" onclick="toggleOcrRowReviewMenu(event,' + index + ')" aria-haspopup="menu" aria-expanded="false" title="' + label + '">' + escapeHtml(itemNumber) + '</button><div class="ocr-row-review-menu" id="ocrRowReviewMenu_' + index + '" role="menu"><button type="button" class="verified" onclick="event.stopPropagation();setOcrItemReviewStatus(' + index + ',\'verified\')">\u05d0\u05e9\u05e8 \u05e9\u05d5\u05e8\u05d4</button><button type="button" class="review" onclick="event.stopPropagation();setOcrItemReviewStatus(' + index + ',\'review\')">\u05d3\u05d5\u05e8\u05e9 \u05d1\u05d3\u05d9\u05e7\u05d4</button><button type="button" class="missing" onclick="event.stopPropagation();setOcrItemReviewStatus(' + index + ',\'missing\')">\u05d7\u05e1\u05e8 / \u05dc\u05d0 \u05ea\u05e7\u05d9\u05df</button></div></div><input type="hidden" value="' + escapeHtml(itemNumber) + '" data-item-index="' + index + '" data-item-field="item_number">';
 }
 function ocrShapeCellHtml(item, index) {
-  return `
-    <div class="ocr-table-shape" id="ocrShapeCell_${index}">
-      <button type="button" class="ocr-queue-edit" onclick="openOcrShapeEditor(${index})" title="ערוך צורה" aria-label="ערוך צורה">✎</button>
-      <button type="button" class="ocr-shape-large ocr-shape-drawing" onclick="openOcrShapeEditor(${index})" title="פתח עורך צורה">
-        ${ocrCardShapeSvg(item, 78, 50) || ocrShapeSvgHtml(item, 130, 70)}
-      </button>
-    </div>
-  `;
+  item = normalizeLegacyOcrLShapeItem(item || {});
+  const isSpiral = isSpiralOcrItem(item);
+  const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
+  const segmentsValue = isSpiral ? '' : segmentsToText(item);
+  const reviewValue = ocrReviewStatus(item) === 'accepted' ? 'accepted' : '';
+  const operatorReviewValue = ocrOperatorApproved(item) ? 'accepted' : '';
+  const operatorApprovedValue = operatorReviewValue ? '1' : '';
+  const operatorReviewedAt = item.operator_reviewed_at || '';
+  const targetWeight = ocrTargetWeightKg(item) || '';
+  const shapeSvg = ocrCardShapeSvg(item, 124, 58) || ocrShapeSvgHtml(item, 140, 66);
+  return '<button type="button" class="ocr-review-shape" id="ocrShapeCell_' + index + '" data-item-index="' + index + '" onclick="handleOfficialOcrShapeClick(this)" title="Open Shape Editor">' + shapeSvg + '</button><div class="ocr-hidden-fields"><input type="hidden" value="' + escapeHtml(shape) + '" data-item-index="' + index + '" data-item-field="shape_name"><input type="hidden" value="' + escapeHtml(segmentsValue) + '" data-item-index="' + index + '" data-item-field="segments"><input type="hidden" value="' + escapeHtml(item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '') + '" data-item-index="' + index + '" data-item-field="spiral_diameter_mm"><input type="hidden" value="' + escapeHtml(item.spiral_turns ?? item.spiralTurns ?? '') + '" data-item-index="' + index + '" data-item-field="spiral_turns"><input type="hidden" value="' + escapeHtml(reviewValue) + '" data-item-index="' + index + '" data-item-field="review_status"><input type="hidden" value="' + escapeHtml(operatorReviewValue) + '" data-item-index="' + index + '" data-item-field="operator_review_status"><input type="hidden" value="' + escapeHtml(operatorApprovedValue) + '" data-item-index="' + index + '" data-item-field="operator_approved"><input type="hidden" value="' + escapeHtml(operatorReviewedAt) + '" data-item-index="' + index + '" data-item-field="operator_reviewed_at"><input type="hidden" value="' + escapeHtml(targetWeight) + '" data-item-index="' + index + '" data-item-field="target_weight_kg"></div>';
 }
 function removeOcrItem(index) {
   if (!activeCompareOriginal || !Array.isArray(activeCompareOriginal.items)) return;
@@ -1485,7 +1489,11 @@ function refreshOcrShapeVisual(index) {
   const preview = document.getElementById(`ocrShapePreview_${index}`);
   if (preview) preview.outerHTML = ocrShapePreviewHtml(nextItem, index);
   const cell = document.getElementById(`ocrShapeCell_${index}`);
-  if (cell) cell.outerHTML = ocrShapeCellHtml(nextItem, index);
+  if (cell) {
+    const shapeTd = cell.closest('td');
+    if (shapeTd) shapeTd.innerHTML = ocrShapeCellHtml(nextItem, index);
+    else cell.outerHTML = ocrShapeCellHtml(nextItem, index);
+  }
   const row = document.getElementById(`ocrOrderRow_${index}`);
   const title = row?.querySelector('.ocr-shape-title span');
   if (title) title.textContent = ocrDisplayName(nextItem);
