@@ -1426,6 +1426,15 @@ test('OCR review shape refresh keeps compact cell without edit pencil', () => {
   assert.match(refreshVisual, /shapeTd.innerHTML = ocrShapeCellHtml/);
 });
 
+
+test('OCR review straight detection is explicit and does not treat any bar text as straight', () => {
+  const intake = read('public/intake.html');
+  assert.match(intake, /function ocrHasStraightHint\(item\)/);
+  assert.match(intake, /straight\|straight bar/);
+  assert.match(intake, /ocrHasStraightHint\(item\) && !ocrHasBentHint\(item\)/);
+  assert.doesNotMatch(intake, /straight\|bar\/i\.test\(raw\)/);
+});
+
 test('OCR review editable cell lookup prefers visible inputs over hidden fields', () => {
   const intake = read('public/intake.html');
   const inputLookup = intake.slice(
@@ -1444,4 +1453,8 @@ test('OCR prompt separates TASSA bar mark from quantity', () => {
   assert.match(intakeRoute, /quantity-column value is the item quantity/);
   assert.match(intakeRoute, /quantity=51/);
   assert.match(intakeRoute, /segments \[20,670\] cm/);
+  assert.match(intakeRoute, /shape_type as one of: straight, bent, stirrup, spiral, unknown/);
+  assert.match(intakeRoute, /segments=\[\]/);
+  assert.match(intakeRoute, /Do not encode straight rows as 180-degree segments/);
+  assert.match(intakeRoute, /shape_marker_candidate/);
 });

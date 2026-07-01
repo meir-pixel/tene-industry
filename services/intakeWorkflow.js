@@ -337,8 +337,10 @@ function intakeShapeText(value) {
   return String(value || '').toLowerCase();
 }
 
-function isLikelyOcrLShape(item = {}) {
-  const text = [
+function ocrShapeContractText(item = {}) {
+  return [
+    item.shape_type,
+    item.shapeType,
     item.shape_name,
     item.shapeName,
     item.shape,
@@ -348,6 +350,22 @@ function isLikelyOcrLShape(item = {}) {
     item.note,
     item.notes,
   ].map(intakeShapeText).join(' ');
+}
+
+function isStraightOcrShape(item = {}) {
+  const text = ocrShapeContractText(item);
+  if (/(^|\W)(stirrup|spiral|coil|ring|hook|angle|bent|bend|bench|lift|closed|open u|u[- ]?shape)(\W|$)|90/.test(text)) {
+    return false;
+  }
+  return /(^|\W)(straight|straight bar)(\W|$)/.test(text)
+    || text.includes('\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8')
+    || text.includes('\u05d1\u05e8\u05d6\u05dc \u05d9\u05e9\u05e8')
+    || /(^|\s)\u05d9\u05e9\u05e8($|\s)/.test(text);
+}
+
+function isLikelyOcrLShape(item = {}) {
+  if (isStraightOcrShape(item)) return false;
+  const text = ocrShapeContractText(item);
   return /(^|\W)(l|hook|angle|bent|bend)(\W|$)|90/.test(text);
 }
 
@@ -463,6 +481,7 @@ module.exports = {
   isTechnicalRecognitionNote,
   normalizeIntakePhone,
   normalizeIntakeItem,
+  isStraightOcrShape,
   normalizeOcrLShapeSegments,
   operationalOrderNote,
   parseDelimitedRows,

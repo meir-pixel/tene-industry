@@ -484,3 +484,13 @@ flowchart RTL
 
 דפוס נכון: `Source document + dense OCR table + selected row detail panel`.
 דפוס אסור: `Source document + one large card per extracted row`.
+
+
+## OCR Shape Classification Contract
+
+- OCR must classify each item before building geometry: `shape_type` is `straight`, `bent`, `stirrup`, `spiral`, or `unknown`.
+- A true straight bar uses `shape_name=straight bar`, `segments=[]`, and `total_length_mm` from the printed row length. It must not receive a visual 180-degree angle.
+- Numbers close to the sketch, including 20, 180, bar marks, row numbers, and drawing labels, are review candidates unless the drawing clearly proves they are physical sides.
+- A bent/L/stirrup item is allowed only when the source shows multiple sides, a non-straight sketch, or explicit wording such as hook, U, stirrup, bench, lift, bent, closed, or equivalent Hebrew wording.
+- Weight is recalculated from canonical steel kg/m by diameter, item length, and quantity after every OCR correction.
+- Old OCR rows are normalized on open so legacy straight rows are shown without angles and can be refreshed when recognition was wrong.

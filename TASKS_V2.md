@@ -895,6 +895,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - added strict OCR shape classification protection: straight bars remain angle-free, shape markers stay review candidates, and straight lengths drive recalculated weights.
   - changed OCR row-number approval to a reversible toggle and anchored source highlights inside the PDF zoom layer for closer row alignment.
   - separated manual OCR row approval from legacy accepted status and requested clean embedded PDF source view without viewer side panels.
   - corrected OCR review colors: green is operator-approved only, yellow is OCR confidence, red is missing.

@@ -6,6 +6,7 @@ const {
   buildStructuredReviewNotes,
   cleanRecognizedCustomerName,
   isTechnicalRecognitionNote,
+  isStraightOcrShape,
   normalizeIntakeItem,
   normalizeOcrLShapeSegments,
   operationalOrderNote,
@@ -40,6 +41,19 @@ test('normalizeOcrLShapeSegments treats 180 as angle and restores 20 cm L leg', 
     { length_mm: 6700, angle_deg: 0 },
   ]);
 });
+
+test('OCR shape contract keeps straight rows out of bent L correction', () => {
+  assert.equal(isStraightOcrShape({ shape_type: 'straight', shape_name: 'straight bar' }), true);
+  assert.equal(isStraightOcrShape({ shape_name: 'L angle' }), false);
+
+  const result = normalizeOcrLShapeSegments({ shape_type: 'straight', shape_name: 'straight bar' }, [
+    { length_mm: 6700, angle_deg: 180 },
+  ]);
+
+  assert.equal(result.adjusted, false);
+  assert.deepEqual(result.segments, [{ length_mm: 6700, angle_deg: 180 }]);
+});
+
 test('normalizeIntakeItem keeps real spiral parameters as first-class item fields', () => {
   const item = normalizeIntakeItem({
     diameter: '8',

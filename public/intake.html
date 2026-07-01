@@ -682,7 +682,7 @@ function isLegacyOcrLMarkerSegment(value) {
 function normalizeLegacyOcrLShapeItem(item = {}) {
   if (isSpiralOcrItem(item)) return item;
   const raw = ocrShapeRaw(item);
-  const rawStraight = (/straight|bar/i.test(raw) || hasAnyToken(raw, ['\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8', '\u05d9\u05e9\u05e8', '\u05d1\u05e8\u05d6\u05dc \u05d9\u05e9\u05e8'])) && !ocrHasBentHint(item);
+  const rawStraight = ocrHasStraightHint(item) && !ocrHasBentHint(item);
   if (rawStraight) {
     const length = toNumber(item.total_length_mm ?? item.length_mm ?? item.length);
     return {
@@ -784,7 +784,7 @@ function isStraightOcrItem(item) {
   if (isSpiralOcrItem(item)) return false;
   if (ocrHasBentGeometry(item)) return false;
   const raw = ocrShapeRaw(item);
-  if (/straight|bar/i.test(raw) || hasAnyToken(raw, ['מוט ישר', 'ישר', 'ברזל ישר'])) return true;
+  if (ocrHasStraightHint(item)) return true;
   const { sides, angles } = itemSidesAngles(item);
   const realAngles = (angles || []).map(toNumber).filter(angle => angle && Math.abs(angle) !== 180);
   return sides.length <= 1 && realAngles.length === 0;
@@ -850,10 +850,17 @@ function ocrText(value, fallback = '-') {
 }
 
 function ocrShapeRaw(item) {
-  return [item?.shape_name, item?.shapeName, item?.shape, item?.type, item?.shape_description, item?.shapeDescription, item?.customer_shape_description, item?.shape_desc]
+  return [item?.shape_type, item?.shapeType, item?.shape_name, item?.shapeName, item?.shape, item?.type, item?.shape_description, item?.shapeDescription, item?.customer_shape_description, item?.shape_desc]
     .filter(Boolean)
     .join(' ')
     .trim();
+}
+
+function ocrHasStraightHint(item) {
+  const raw = ocrShapeRaw(item);
+  return /(^|\W)(straight|straight bar)(\W|$)/i.test(raw)
+    || hasAnyToken(raw, ['\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8', '\u05d1\u05e8\u05d6\u05dc \u05d9\u05e9\u05e8'])
+    || /(^|\s)\u05d9\u05e9\u05e8($|\s)/i.test(raw);
 }
 
 function hasAnyToken(text, tokens) {
