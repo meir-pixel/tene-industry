@@ -1455,7 +1455,7 @@ test('OCR prompt separates TASSA bar mark from quantity', () => {
   assert.match(intakeRoute, /segments \[20,670\] cm/);
   assert.match(intakeRoute, /shape_type as one of: straight, bent, stirrup, spiral, unknown/);
   assert.match(intakeRoute, /segments=\[\]/);
-  assert.match(intakeRoute, /Do not encode straight rows as 180-degree segments/);
+  assert.match(intakeRoute, /straight label must never erase visible shape parameters/);
   assert.match(intakeRoute, /Every visible number has a role based on its visual context/);
   assert.match(intakeRoute, /Do not blacklist values such as 20 or 180/);
   assert.match(intakeRoute, /total cut length \/ overall row length/);

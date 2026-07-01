@@ -208,7 +208,7 @@ module.exports = function createIntakeRouter(deps) {
   - Use the bar diameter from the diameter column or Ø mark. Use the row sketch dimensions for segments.
   - Shape classification is separate from text extraction. Return shape_type as one of: straight, bent, stirrup, spiral, unknown.
   - total_length_cm is the total cut length / overall row length: it is the result/checksum of the visible shape and the value used for cutting and weight. It is not automatically a side of the shape unless the row is a true straight bar.
-  - For a true straight bar row with no clear bend/hook/stirrup evidence, set shape_type="straight", shape_name="straight bar", segments=[], and total_length_cm to the printed total cut length. Do not encode straight rows as 180-degree segments.
+  - A row is straight only when no shape parameters are visible: no drawn side sequence, no bend marker, no hook, no stirrup/spiral evidence, and no checksum mismatch that implies a missing side. A straight label must never erase visible shape parameters.
   - Every visible number has a role based on its visual context. Do not blacklist values such as 20 or 180. A number inside a table column belongs to that column; a number adjacent to a drawn side belongs to that side; a number near a bend/arc may be an angle; row numbers and bar marks remain identifiers. When uncertain, list the possible roles in uncertain_fields and note.
   - Classify a row as bent/stirrup when there is clear evidence: multiple visible sides, a non-straight drawing, or wording such as U, hook, stirrup, bench, lift, bent, closed, or Hebrew equivalents.
   - In TASSA/Easybar-style L sketches, any visible vertical-side value is a physical leg when it is drawn next to that leg and the total cut length confirms it. Return it as its own segment with angle_deg 90 before the long side. Never encode a leg value as 180.
@@ -277,11 +277,12 @@ module.exports = function createIntakeRouter(deps) {
           angle_deg: Number(segment.angle_deg) || 0,
         })));
         const reportedLength = (Number(item.total_length_cm) || 0) * 10;
-        const straightByContract = intakeWorkflow.isStraightOcrShape(item);
-        const lShapeCorrection = straightByContract
-          ? { segments: [], adjusted: false, addedLegMm: 0 }
-          : intakeWorkflow.normalizeOcrLShapeSegments(item, factorySegments, reportedLength);
+        const lShapeCorrection = intakeWorkflow.normalizeOcrLShapeSegments(item, factorySegments, reportedLength);
         const normalizedSegments = lShapeCorrection.segments;
+        const hasShapeParameters = lShapeCorrection.adjusted
+          || normalizedSegments.length > 1
+          || normalizedSegments.some(segment => Number(segment.angle_deg || 0) !== 0);
+        const straightByContract = intakeWorkflow.isStraightOcrShape(item) && !hasShapeParameters;
         const segmentSum = normalizedSegments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
         const straightLength = reportedLength || factorySegments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
         const lengthAdjustment = straightByContract

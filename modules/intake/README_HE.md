@@ -490,7 +490,7 @@ flowchart RTL
 
 - OCR must classify each item before building geometry: `shape_type` is `straight`, `bent`, `stirrup`, `spiral`, or `unknown`.
 - `total_length_mm` is the total cut length: the calculated result/checksum of the visible shape and the value used for cutting and weight. It is not automatically a shape side.
-- A true straight bar uses `shape_name=straight bar`, `segments=[]`, and `total_length_mm` from the printed row length. It must not receive a visual 180-degree angle.
+- A true straight bar is a fallback only when no shape parameters are visible. A `straight` label must never erase visible sides, bend markers, hooks, or checksum evidence for a missing side.
 - No numeric value is treated as inherently dangerous or disposable. Every visible number gets a role from context: table column, drawn side, bend angle, row number, bar mark, or total length.
 - A bent/L/stirrup item is allowed when the source shows multiple sides, a non-straight sketch, or explicit wording such as hook, U, stirrup, bench, lift, bent, closed, or equivalent Hebrew wording. L-leg recovery must be inferred from source geometry and the total-length checksum, not from a hardcoded value.
 - For bent rows, the shape geometry comes from sketch side dimensions. If side dimensions do not match total cut length, keep the geometry and mark the row for review instead of silently changing the shape.

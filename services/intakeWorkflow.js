@@ -364,7 +364,6 @@ function isStraightOcrShape(item = {}) {
 }
 
 function isLikelyOcrLShape(item = {}) {
-  if (isStraightOcrShape(item)) return false;
   const text = ocrShapeContractText(item);
   return /(^|\W)(l|hook|angle|bent|bend)(\W|$)|90/.test(text);
 }
@@ -376,7 +375,7 @@ function normalizeOcrLShapeSegments(item = {}, sourceSegments = [], reportedLeng
     angle_deg: Number(segment.angle_deg ?? segment.angle ?? 0),
   })).filter(segment => segment.length_mm > 0);
 
-  if (segments.length !== 1 || !isLikelyOcrLShape(item)) {
+  if (segments.length !== 1) {
     return { segments, adjusted: false, addedLegMm: 0 };
   }
 
@@ -387,6 +386,9 @@ function normalizeOcrLShapeSegments(item = {}, sourceSegments = [], reportedLeng
 
   const reportedLength = Number(reportedLengthMm || 0);
   const inferredLegMm = Number((reportedLength - only.length_mm).toFixed(3));
+  if (!isLikelyOcrLShape(item) && inferredLegMm <= 0.001) {
+    return { segments, adjusted: false, addedLegMm: 0 };
+  }
   if (!reportedLength || inferredLegMm <= 0.001) {
     return { segments, adjusted: false, addedLegMm: 0 };
   }

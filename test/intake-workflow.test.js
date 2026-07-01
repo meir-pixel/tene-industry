@@ -52,7 +52,7 @@ test('normalizeOcrLShapeSegments infers any missing L leg from total cut length'
   ]);
 });
 
-test('OCR shape contract keeps straight rows out of bent L correction', () => {
+test('OCR shape parameters override a straight label', () => {
   assert.equal(isStraightOcrShape({ shape_type: 'straight', shape_name: 'straight bar' }), true);
   assert.equal(isStraightOcrShape({ shape_name: 'L angle' }), false);
 
@@ -60,14 +60,18 @@ test('OCR shape contract keeps straight rows out of bent L correction', () => {
     { length_mm: 6700, angle_deg: 180 },
   ], 6900);
 
-  assert.equal(result.adjusted, false);
-  assert.deepEqual(result.segments, [{ length_mm: 6700, angle_deg: 180 }]);
+  assert.equal(result.adjusted, true);
+  assert.deepEqual(result.segments, [
+    { length_mm: 200, angle_deg: 90 },
+    { length_mm: 6700, angle_deg: 0 },
+  ]);
 });
 
 test('OCR route contract treats total length as cut length and sketch as geometry', () => {
   const route = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'routes', 'intake.js'), 'utf8');
   assert.match(route, /total_length_cm is the total cut length/);
   assert.match(route, /Every visible number has a role based on its visual context/);
+  assert.match(route, /straight label must never erase visible shape parameters/);
   assert.match(route, /shape side dimensions belong only to the sketch/);
   assert.match(route, /do not silently change the visible shape/);
   assert.doesNotMatch(route, /assigned to the two end legs/);
