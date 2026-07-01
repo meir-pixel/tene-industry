@@ -570,8 +570,11 @@ test('intake import and manual parsing live in an intake workflow service', () =
   assert.match(server, /intakeWorkflow\.buildOrderImportPreview/);
   assert.match(reviewRoute, /intakeWorkflow\.parseManualIntakeText/);
   assert.match(server, /intakeWorkflow\.resolveIntakeCustomer/);
-  assert.match(intakeRoute, /intakeWorkflow\.distributeSurplusToEndSegments/);
-  assert.doesNotMatch(intakeRoute, /intake\.distributeSurplusToEndSegments/);
+  assert.match(intakeRoute, /intakeWorkflow\.isStraightOcrShape/);
+  assert.match(intakeRoute, /intakeWorkflow\.normalizeOcrLShapeSegments/);
+  assert.match(intakeRoute, /total cut length/);
+  assert.match(intakeRoute, /visible shape dimensions sum/);
+  assert.doesNotMatch(intakeRoute, /assigned to the two end legs/);
   assert.match(server, /intakeWorkflow,\s*wsBroadcast,\s*\}\)\);/);
 });
 

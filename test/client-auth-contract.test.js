@@ -1457,4 +1457,7 @@ test('OCR prompt separates TASSA bar mark from quantity', () => {
   assert.match(intakeRoute, /segments=\[\]/);
   assert.match(intakeRoute, /Do not encode straight rows as 180-degree segments/);
   assert.match(intakeRoute, /shape_marker_candidate/);
+  assert.match(intakeRoute, /total cut length \/ overall row length used for cutting and weight/);
+  assert.match(intakeRoute, /shape side dimensions belong only to the sketch/);
+  assert.match(intakeRoute, /do not silently change the visible shape/);
 });

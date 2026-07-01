@@ -54,6 +54,14 @@ test('OCR shape contract keeps straight rows out of bent L correction', () => {
   assert.deepEqual(result.segments, [{ length_mm: 6700, angle_deg: 180 }]);
 });
 
+test('OCR route contract treats total length as cut length and sketch as geometry', () => {
+  const route = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'routes', 'intake.js'), 'utf8');
+  assert.match(route, /total_length_cm is the total cut length/);
+  assert.match(route, /shape side dimensions belong only to the sketch/);
+  assert.match(route, /do not silently change the visible shape/);
+  assert.doesNotMatch(route, /assigned to the two end legs/);
+});
+
 test('normalizeIntakeItem keeps real spiral parameters as first-class item fields', () => {
   const item = normalizeIntakeItem({
     diameter: '8',

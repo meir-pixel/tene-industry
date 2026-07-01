@@ -207,7 +207,8 @@ module.exports = function createIntakeRouter(deps) {
   - In TASSA/Easybar tables, the bar-mark column is never quantity. The quantity-column value is the item quantity. Example: row 1 with bar mark 20, diameter 8, quantity 51, and L sketch 20+670 must return item_number=1, diameter=8, quantity=51, segments [20,670] cm, total_length_cm=690.
   - Use the bar diameter from the diameter column or Ø mark. Use the row sketch dimensions for segments.
   - Shape classification is separate from text extraction. Return shape_type as one of: straight, bent, stirrup, spiral, unknown.
-  - For a true straight bar row with no clear bend/hook/stirrup evidence, set shape_type="straight", shape_name="straight bar", segments=[], and total_length_cm to the printed row total/length. Do not encode straight rows as 180-degree segments.
+  - total_length_cm is the total cut length / overall row length used for cutting and weight. It is not automatically a side of the shape unless the row is a true straight bar.
+  - For a true straight bar row with no clear bend/hook/stirrup evidence, set shape_type="straight", shape_name="straight bar", segments=[], and total_length_cm to the printed total cut length. Do not encode straight rows as 180-degree segments.
   - Numbers near a sketch such as 20, 180, row numbers, bar marks, and drawing labels are shape_marker_candidate values unless they clearly belong to a visible bent side. Put uncertain markers in uncertain_fields and note; do not convert them into sides or angles automatically.
   - Classify a row as bent/stirrup only when there is clear evidence: multiple visible sides, a non-straight drawing, or wording such as U, hook, stirrup, bench, lift, bent, closed, or Hebrew equivalents.
   - In TASSA/Easybar-style L sketches, a small vertical value such as 20 is a physical 20 cm leg only when the drawing clearly shows a vertical leg. Return it as its own segment: [20, printed_length] cm with angle_deg 90 after the 20 cm leg. Never encode the small leg as 180.
@@ -215,14 +216,14 @@ module.exports = function createIntakeRouter(deps) {
   For supplier_order_num, customer_name, customer_phone, delivery_date, delivery_address, and notes return null when not visible. delivery_date must be YYYY-MM-DD when visible.
   For generic "רשימת ברזל" / bar schedule documents, header email addresses and phone numbers are supplier/contact details, not customer names. Never put an email address, URL, or phone number in customer_name. If the customer name is not clearly visible, return null.
   Extract every numbered table row that contains any visible steel data. Do not summarize rows as blank unless the row number area and all steel columns are clearly empty. If a row is hard to read, still return a reviewed item with the visible values and explain uncertainty in note.
-  For a visible table row, quantity belongs to the "כמות" column, diameter belongs to the "קוטר" column, and length/shape dimensions belong to "אורך" / "תיאור צורה". Do not use header phone/email digits as steel item values.
+  For a visible table row, quantity belongs to the quantity column, diameter belongs to the diameter column, total cut length belongs to the length column, and shape side dimensions belong only to the sketch or shape-description area. Do not use header phone/email digits as steel item values.
   For handwritten factory cards, visible dimensions are centimeters. Return every visible side in length_cm exactly as written. Return the row's total cut length in total_length_cm exactly as written. Do not convert centimeters to millimeters yourself.
   Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
   Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
   Read every digit after the diameter symbol. A leading 1 is often handwritten very close to the Ø mark: do not read Ø16 as Ø6 just because the 1 touches or overlaps the symbol. Inspect consecutive rows carefully when the same diameter repeats.
   Trace every shape continuously from one physical end of the bar to the other. Do not group equal dimensions just because they look similar or are written close together.
   For an open U-shaped bar with two equal parallel legs and one base, return [leg,base,leg]. Example: two 80 cm legs and a 60 cm base become [80,60,80], not [80,80,60].
-  If a row gives a total cut length that is longer than the visible side dimensions, the hidden excess belongs to the two physical end legs of the bar. Add half of the excess to the first segment and half to the last segment instead of only writing a review note.
+  If a bent row gives a total cut length that is different from the visible side dimensions, do not silently change the visible shape. Keep the sketch dimensions as geometry, keep total_length_cm as cut length for weight, and write a review note unless the drawing explicitly shows tails/overlap that explain the difference.
   For a fully closed rectangular stirrup with the small 90-degree overlap mark, never return an open hooked bar. Include the full outer rectangle and the two overlap tails as segments, with one tail at each end of the continuous trace.
   Closed stirrup segment order must follow the physical bending path: [tail,height,width,height,width,tail]. Do not swap width and height.
   When the row gives a total cut length and a rectangular stirrup sketch with outer width W and height H, calculate remaining tail length as (total - 2*W - 2*H) / 2. Return six segments: [tail,H,W,H,W,tail].
@@ -236,7 +237,7 @@ module.exports = function createIntakeRouter(deps) {
   - segments must be [] because a spiral is not a side/angle shape.
   - total_length_cm should be the calculated cut length in centimeters when possible: pi * spiral_diameter_mm * spiral_turns / 10.
   - Put uncertainty in note, but do not encode spiral parameters only in note.
-  For bent shapes, use one segment per visible side. angle_deg is the interior angle after that segment; use 90 for a square bend. For straight bars, keep segments=[] and do not return a 180 angle.
+  For bent shapes, use one segment per visible side from the sketch. angle_deg is the interior angle after that segment; use 90 for a square bend. Validate that the sum of visible shape sides matches total_length_cm when applicable. For straight bars, keep segments=[] and do not return a 180 angle.
   Return JSON that matches the requested schema only.`;
     try {
       const response = await require('axios').post('https://api.openai.com/v1/responses', {
@@ -281,24 +282,23 @@ module.exports = function createIntakeRouter(deps) {
           ? { segments: [], adjusted: false, addedLegMm: 0 }
           : intakeWorkflow.normalizeOcrLShapeSegments(item, factorySegments);
         const normalizedSegments = lShapeCorrection.segments;
+        const segmentSum = normalizedSegments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
         const straightLength = reportedLength || factorySegments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
         const lengthAdjustment = straightByContract
           ? { segments: [], adjusted: false, surplus: 0, perEnd: 0, totalLength: straightLength, segmentSum: straightLength }
-          : intakeWorkflow.distributeSurplusToEndSegments(normalizedSegments, reportedLength);
+          : { segments: normalizedSegments, adjusted: false, surplus: reportedLength ? Number((reportedLength - segmentSum).toFixed(3)) : 0, perEnd: 0, totalLength: reportedLength || segmentSum, segmentSum };
         const segments = lengthAdjustment.segments;
         const computedLength = lengthAdjustment.totalLength;
         const notes = [];
         if (item.note) notes.push(item.note);
         if (straightByContract && factorySegments.length) {
-          notes.push('Straight bar contract: sketch markers were kept out of shape geometry; total length comes from the printed row length.');
+          notes.push('Straight bar contract: sketch markers were kept out of shape geometry; total cut length comes from the printed row length.');
         }
         if (lShapeCorrection.adjusted) {
           notes.push('OCR L-shape correction: added visible 20 cm hook leg instead of treating 180 as a side length.');
         }
-        if (lengthAdjustment.adjusted) {
-          notes.push(`Length surplus ${lengthAdjustment.surplus} mm was assigned to the two end legs (${lengthAdjustment.perEnd} mm per end).`);
-        } else if (reportedLength && Math.abs(reportedLength - computedLength) > 0.001) {
-          notes.push(`Review required: reported total ${reportedLength} mm is shorter than segment sum ${computedLength} mm.`);
+        if (!straightByContract && reportedLength && segmentSum && Math.abs(reportedLength - segmentSum) > 5) {
+          notes.push(`Review required: total cut length ${reportedLength} mm does not match visible shape dimensions sum ${segmentSum} mm.`);
         }
         if (segments.length === 1 && segments[0].length_mm > 0 && segments[0].length_mm < 1000) {
           notes.push('Review required: extracted straight-bar length is shorter than 1000 mm; verify cm-to-mm conversion.');
