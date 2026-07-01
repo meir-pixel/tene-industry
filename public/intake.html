@@ -424,6 +424,7 @@ let intakeCompareZoom = 1;
 let intakeShapeEditor = null;
 let activeOcrShapeIndex = null;
 let activeQueueShapeContext = null;
+let initialIntakeOpenHandled = false;
 
 function escapeHtml(value) {
   return window.IronBendSafe
@@ -1981,7 +1982,7 @@ function renderIntakeQueue() {
       </article>
     `;
   }).join('');
-  scrollToHashIntake();
+  openRequestedIntakeFromUrl();
 }
 function handleIntakeListClick(event) {
   const button = event.target.closest('[data-intake-action]');
@@ -2018,12 +2019,28 @@ document.getElementById('intakeList')?.addEventListener('keydown', event => {
   const id = Number(card.dataset.intakeCardId);
   if (Number.isFinite(id)) safeOpenIntakeCompare(id);
 });
+function requestedIntakeOpenId() {
+  const params = new URLSearchParams(window.location.search || '');
+  const open = params.get('open');
+  if (open && /^\d+$/.test(open)) return Number(open);
+  const hash = decodeURIComponent(location.hash || '').replace(/^#intake_/, '');
+  return /^\d+$/.test(hash) ? Number(hash) : null;
+}
+
 function scrollToHashIntake() {
   const id = decodeURIComponent(location.hash || '').replace(/^#/, '');
   if (!id) return;
   const el = document.getElementById(id);
   if (!el) return;
   setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+}
+
+function openRequestedIntakeFromUrl() {
+  const id = requestedIntakeOpenId();
+  if (!id || initialIntakeOpenHandled) return scrollToHashIntake();
+  if (!intakeRows.some(row => row.id === id)) return scrollToHashIntake();
+  initialIntakeOpenHandled = true;
+  setTimeout(() => safeOpenIntakeCompare(id), 80);
 }
 
 async function loadIntakeQueue() {

@@ -984,8 +984,9 @@ test('new order OCR upload creates an intake review task before direct import', 
   const route = read('routes/intake.js');
 
   assert.match(index, /save_to_intake/);
-  assert.match(index, /openSavedOcrIntake/);
-  assert.match(index, /openSavedOcrIntakeBtn/);
+  assert.match(index, /intakeReviewUrl/);
+  assert.match(index, /\/intake\.html\?source=order-upload/);
+  assert.match(index, /window\.location\.href = intakeReviewUrl\(intakeId\)/);
   assert.match(route, /pending_review/);
   assert.match(route, /original_data_url/);
 });

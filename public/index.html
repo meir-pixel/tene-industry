@@ -2428,18 +2428,13 @@ function analyzeOrderImage(input) {
     })
     .then(function(data) {
       document.getElementById('imgLoading').style.display = 'none';
-      if (!data.success || !data.items || !data.items.length) {
-        showImgError(ocrErrorMessage(data.code || data.error || 'לא נמצאו פריטים בתמונה'));
+      var intakeId = data.intakeId || data.intake_id || data.id || null;
+      if (!data.success || !intakeId) {
+        showImgError(ocrErrorMessage(data.code || data.error || 'לא נוצרה פנייה במרכז הקליטה'));
         return;
       }
-      _imgAnalyzedItems = data.items;
-      _imgAnalyzedMeta = data || {};
-      _imgSavedIntakeId = data.intakeId || null;
-      var openIntakeBtn = document.getElementById('openSavedOcrIntakeBtn');
-      if (openIntakeBtn && _imgSavedIntakeId) openIntakeBtn.style.display = 'inline-flex';
-      applyAnalyzedMeta(data);
-      renderImgItems(data.items);
-      document.getElementById('imgResults').style.display = 'block';
+      _imgSavedIntakeId = intakeId;
+      window.location.href = intakeReviewUrl(intakeId);
     })
     .catch(function(err) {
       document.getElementById('imgLoading').style.display = 'none';
@@ -2687,10 +2682,14 @@ function confirmImgItems() {
   }
 }
 
+function intakeReviewUrl(intakeId) {
+  var target = '/intake.html?source=order-upload';
+  if (intakeId) target += '&open=' + encodeURIComponent(intakeId) + '#intake_' + encodeURIComponent(intakeId);
+  return target;
+}
+
 function openSavedOcrIntake() {
-  var target = '/intake.html';
-  if (_imgSavedIntakeId) target += '#intake_' + encodeURIComponent(_imgSavedIntakeId);
-  window.location.href = target;
+  window.location.href = intakeReviewUrl(_imgSavedIntakeId);
 }
 
 function closeImgModal() {
