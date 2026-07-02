@@ -278,6 +278,7 @@ var allItems      = ${JSON.stringify(allItems.map(it => ({
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
   segments:       tryParseJSON(it.segments, []),
+  shape_svg:      cards.shapeSvg(it.segments),
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   pallet_num:     it._palletNum  || 1,
@@ -686,7 +687,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-print-main">';
   h += '<div class="pc-print-head"><b>ITEM '+item.id+badge+'</b><b>Ø '+item.diameter+'</b></div>';
   h += '<div class="pc-print-ref">'+printRef+'</div>';
-  h += '<div class="pc-print-shape">'+buildShapeSVG(segs)+'</div>';
+  h += '<div class="pc-print-shape">'+(item.shape_svg || buildShapeSVG(segs))+'</div>';
   h += '<div class="pc-print-bottom"><span>L = '+printLengthCm+' cm</span><span>PCS '+subQty+'</span><span>'+wProp+' kg</span></div>';
   h += '</div>';
   h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div><div class="pc-print-status">SCAN STATUS</div></div>';
@@ -717,7 +718,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div><label>סטייה</label><div id="card-weight-dev-'+uid+'" class="pc-weight-chip'+deviationClass(savedDeviation)+'">'+fmtPct(savedDeviation)+'</div></div>';
   h += '<button onclick="saveCardWeight('+item.id+','+(cardIdx+1)+','+totalCards+','+subQty+',&quot;'+uid+'&quot;,event)">שמור משקל</button>';
   h += '</div>';
-  h += '<div class="pc-shape-area">'+buildShapeSVG(segs)+'</div>';
+  h += '<div class="pc-shape-area">'+(item.shape_svg || buildShapeSVG(segs))+'</div>';
   if (dimHtml) h += '<div class="pc-dims">'+dimHtml+'</div>';
   h += '<div class="pc-spec-row">';
   h += '<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>\xd8'+item.diameter+'</b></div>';

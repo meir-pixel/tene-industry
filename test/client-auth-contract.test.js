@@ -1573,3 +1573,12 @@ test('order detail shape renderer keeps visible dimension and angle labels', () 
   assert.match(rendererJs, /data-shape-right-angle/);
   assert.equal(rendererJs.includes("len >= 1000 ? (len/1000).toFixed(2)+'m' : len+'mm'"), false);
 });
+
+
+test('worker visual prefers server-rendered production shape SVG', () => {
+  const worker = read('public/worker-visual.html');
+  const productionRoute = read('routes/production.js');
+
+  assert.match(worker, /if\(item\.shape_svg\)return item\.shape_svg/);
+  assert.match(productionRoute, /productionCards\.shapeSvg\(item\.segments\)/);
+});

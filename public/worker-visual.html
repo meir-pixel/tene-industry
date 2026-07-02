@@ -182,6 +182,7 @@
       return `<div class="weight-check" onclick="event.stopPropagation()"><div><label>משקל רצוי</label><div class="weight-chip">${fmtWeight(target)}</div></div><div><label>משקל מצוי</label><input id="actual-weight-${item.id}" type="number" min="0" step="0.01" value="${actual||''}" placeholder="ק״ג"></div><div><label>סטייה</label><div class="weight-chip ${cls}">${esc(pctText)}</div></div><button onclick="saveActualWeight(${item.id},event)">שמור</button></div>`;
     }
     function drawing(item){
+      if(item.shape_svg)return item.shape_svg;
       const seg=segments(item),name=String(item.shape_name||'').toLowerCase();
       if(/spiral|ring|coil|ספיר|טבעת|סליל|לולאה/.test(name)&&seg.length>1)return spiral(seg);
       if(isOpenUShape(seg))return openU(seg);

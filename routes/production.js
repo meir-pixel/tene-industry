@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const createProductionMachinesRouter = require('./productionMachines');
+const productionCards = require('../services/productionCards');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/production missing dependency: ${name}`);
@@ -298,6 +299,7 @@ module.exports = function createProductionRouter(deps) {
     if (machine) { q += ' AND i.machine=?'; params.push(machine); }
     q += ' ORDER BY i.machine, priority_score DESC, o.delivery_date ASC, i.diameter ASC';
     const items = db.prepare(q).all(...params);
+    items.forEach(item => { item.shape_svg = productionCards.shapeSvg(item.segments); });
 
     // Group by machine
     const grouped = {};

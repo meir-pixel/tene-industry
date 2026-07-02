@@ -106,6 +106,8 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.match(html, /grid-template-columns:78mm 27mm/);
   assert.match(html, /pc-print-qr-code/);
   assert.match(html, /worker-visual\.html\?scan=1&card=/);
+  assert.match(html, /"shape_svg":/);
+  assert.match(html, /item\.shape_svg \|\| buildShapeSVG\(segs\)/);
   assert.match(html, /qrFallbackUrl/);
   assert.match(html, /api\.qrserver\.com\/v1\/create-qr-code/);
   assert.match(html, /data-qr-target/);
