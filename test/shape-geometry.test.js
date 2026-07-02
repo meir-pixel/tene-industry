@@ -690,32 +690,6 @@ test('production card accepts closed stirrup OCR with one visible overlap tail',
   assert.doesNotMatch(svg, /<circle/);
 });
 
-
-test('production card normalizes generic bent shapes to sit downward', () => {
-  const svg = shapeSvg(JSON.stringify([
-    { length_mm: 200, angle_deg: 90 },
-    { length_mm: 250, angle_deg: 90 },
-    { length_mm: 75, angle_deg: 45 },
-    { length_mm: 75, angle_deg: 45 },
-    { length_mm: 250, angle_deg: 0 },
-  ]));
-
-  assert.match(svg, /data-orientation="down-normalized"/);
-  const path = svg.match(/<path d="M ([^"]+)" fill="none" stroke="#1a2332"/)[1];
-  const points = path.split(' L ').map(part => part.split(',').map(Number));
-  const segments = points.slice(0, -1).map((point, index) => {
-    const next = points[index + 1];
-    const dx = next[0] - point[0];
-    const dy = next[1] - point[1];
-    return { dx, dy, length: Math.sqrt(dx * dx + dy * dy), y: (point[1] + next[1]) / 2 };
-  });
-  const longest = segments.reduce((best, segment) => segment.length > best.length ? segment : best, segments[0]);
-  const centerY = points.reduce((sum, point) => sum + point[1], 0) / points.length;
-
-  assert.ok(Math.abs(longest.dy) < 0.2, 'expected dominant side to be horizontal');
-  assert.ok(centerY >= longest.y, 'expected shape body to sit below the dominant side');
-});
-
 test('orders detail shape renderer has a dedicated closed-stirrup path', () => {
   const renderer = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-renderer.js'), 'utf8');
 

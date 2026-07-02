@@ -245,31 +245,6 @@ function closedStirrupSvg(parts) {
   return `<svg data-shape-kind="closed-stirrup" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:112px">${svg}</svg>`;
 }
 
-
-function normalizeProductionCardShapePoints(points) {
-  if (!Array.isArray(points) || points.length < 2) return points;
-  let longest = { index: 0, length: 0, angle: 0 };
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const dx = points[i + 1][0] - points[i][0];
-    const dy = points[i + 1][1] - points[i][1];
-    const length = Math.sqrt(dx * dx + dy * dy);
-    if (length > longest.length) longest = { index: i, length, angle: Math.atan2(dy, dx) };
-  }
-  if (!longest.length) return points;
-
-  const cos = Math.cos(-longest.angle);
-  const sin = Math.sin(-longest.angle);
-  let rotated = points.map(([x, y]) => [x * cos - y * sin, x * sin + y * cos]);
-  const base = rotated[longest.index];
-  const baseNext = rotated[longest.index + 1];
-  const baseY = (base[1] + baseNext[1]) / 2;
-  const bodyY = rotated.reduce((sum, point) => sum + point[1], 0) / rotated.length;
-  if (bodyY < baseY) {
-    rotated = rotated.map(([x, y]) => [x, baseY + (baseY - y)]);
-  }
-  return rotated;
-}
-
 function shapeSvg(segmentsRaw) {
   try {
     const segments = parseSegments(segmentsRaw);
@@ -300,9 +275,8 @@ function shapeSvg(segmentsRaw) {
       if (i < angles.length - 1 && angles[i] != null) direction -= (180 - angles[i]);
     }
 
-    const displayPoints = normalizeProductionCardShapePoints(points);
-    const xs = displayPoints.map(point => point[0]);
-    const ys = displayPoints.map(point => point[1]);
+    const xs = points.map(point => point[0]);
+    const ys = points.map(point => point[1]);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
@@ -312,7 +286,7 @@ function shapeSvg(segmentsRaw) {
     const scale = Math.min((width - padding * 2) / rangeX, (height - padding * 2) / rangeY);
     const offsetX = padding + ((width - padding * 2) - rangeX * scale) / 2;
     const offsetY = padding + ((height - padding * 2) - rangeY * scale) / 2;
-    const mapped = displayPoints.map(point => [
+    const mapped = points.map(point => [
       Number((offsetX + (point[0] - minX) * scale).toFixed(1)),
       Number((offsetY + (point[1] - minY) * scale).toFixed(1)),
     ]);
@@ -332,7 +306,7 @@ function shapeSvg(segmentsRaw) {
       }
     }
 
-    return `<svg data-orientation="down-normalized" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:100px">${svg}</svg>`;
+    return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;max-height:100px">${svg}</svg>`;
   } catch {
     return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
   }
