@@ -14,19 +14,10 @@ module.exports = function createFinanceCostsRouter(deps) {
   const settingsService = required('settingsService', deps.settingsService);
 
 // ── ORDER COSTS ────────────────────────────────────────────
-function getSteelPriceForDiameter(diameter) {
-  // Try steel_price_history first (per-diameter if available)
-  let row = diameter ? db.prepare(
-    'SELECT price_per_ton FROM steel_price_history WHERE diameter=? ORDER BY effective_date DESC, id DESC LIMIT 1'
-  ).get(diameter) : null;
-  // Fallback: any diameter in steel_price_history
-  if (!row) row = db.prepare(
+function getLatestSteelPrice() {
+  let row = db.prepare(
     'SELECT price_per_ton FROM steel_price_history ORDER BY effective_date DESC, id DESC LIMIT 1'
   ).get();
-  // Fallback: steel_prices table
-  if (!row && diameter) row = db.prepare(
-    'SELECT price_per_ton FROM steel_prices WHERE diameter=? ORDER BY effective_date DESC, id DESC LIMIT 1'
-  ).get(diameter);
   if (!row) row = db.prepare(
     'SELECT price_per_ton FROM steel_prices ORDER BY effective_date DESC, id DESC LIMIT 1'
   ).get();
@@ -41,32 +32,19 @@ function calculateOrderCost(orderId) {
   pallets.forEach(p => { p.items = db.prepare('SELECT * FROM items WHERE pallet_id=?').all(p.id); });
   const allItems = pallets.flatMap(p => p.items);
 
-  // Material cost: calculate per-diameter (most accurate)
-  let material_cost = 0;
-  let totalWeightKg = 0;
+  const pricePerTon = getLatestSteelPrice();
   const hasSteelHistory = !!db.prepare('SELECT 1 FROM steel_price_history LIMIT 1').get();
 
-  if (allItems.length > 0) {
-    // Group items by diameter for per-diameter pricing
-    const byDiameter = {};
-    allItems.forEach(it => {
-      const d = it.diameter || 0;
-      if (!byDiameter[d]) byDiameter[d] = { weightKg: 0 };
-      const w = it.total_weight > 0 ? it.total_weight
-        : (industry.weightPerUnit({ diameter: it.diameter, total_length_mm: it.total_length_mm || 0 }) * (it.quantity || 1));
-      byDiameter[d].weightKg += (w || 0);
-      totalWeightKg += (w || 0);
-    });
-    Object.entries(byDiameter).forEach(([d, { weightKg }]) => {
-      const ppt = getSteelPriceForDiameter(Number(d));
-      material_cost += (weightKg / 1000) * ppt;
-    });
-  } else {
-    // No items — use order.total_weight with a single price
-    totalWeightKg = order.total_weight || 0;
-    material_cost = (totalWeightKg / 1000) * getSteelPriceForDiameter(null);
+  // Total weight
+  let totalWeightKg = order.total_weight || 0;
+  if (totalWeightKg === 0 && allItems.length > 0) {
+    totalWeightKg = allItems.reduce((s, it) => {
+      if (it.total_weight > 0) return s + it.total_weight;
+      return s + (industry.weightPerUnit({ diameter: it.diameter, total_length_mm: it.total_length_mm || 0 }) * (it.quantity || 1));
+    }, 0);
   }
-  if (totalWeightKg === 0) totalWeightKg = order.total_weight || 0;
+
+  const material_cost = (totalWeightKg / 1000) * pricePerTon;
 
   // Labor cost: base rate × (1 + bends complexity factor)
   const laborBasePerTon = settingsService.getNum('LABOR_COST_PER_HOUR', 120) * 8;
@@ -92,9 +70,83 @@ function calculateOrderCost(orderId) {
   const overhead_cost  = directCosts * overheadFactor;
   const total_cost     = directCosts + overhead_cost;
 
-  // Revenue: use actual billed amount if set, otherwise 0 (billing goes through Priority)
+  // Revenue: calculate from customer price book
+  // Price book has range-based material prices (per kg) + separate processing fees (cutting, bending per kg)
+  // Fall back to billed_amount (actual Priority invoice) if available
+  let revenue = 0;
+  let revenue_source = 'none';
+  if (order.customer_id) {
+    const book = db.prepare(`
+      SELECT b.id FROM pricing_price_books b
+      WHERE b.customer_id=? AND b.status='active'
+      ORDER BY b.updated_at DESC LIMIT 1
+    `).get(order.customer_id);
+    if (book) {
+      // Get all active per-kg items from the price book
+      const bookItems = db.prepare(`
+        SELECT sku, description, diameter, price_before_vat, unit, category
+        FROM pricing_price_items
+        WHERE price_book_id=? AND active=1 AND price_before_vat > 0
+        ORDER BY sort_order, id
+      `).all(book.id);
+
+      // Helper: find base material price for a given diameter
+      // Price book uses diameter ranges — match by: exact diameter field, or find smallest price that covers the diameter
+      function materialPriceForDiameter(d) {
+        // First: try exact diameter match
+        const exact = bookItems.find(i => i.unit === 'kg' && i.diameter === d);
+        if (exact) return exact.price_before_vat;
+        // Second: look for range item whose description includes this diameter
+        // Items like "8-25 מ"מ" match diameters 8..25, "28-36 מ"מ" match 28..36
+        for (const i of bookItems) {
+          if (i.unit !== 'kg') continue;
+          const m = String(i.description || i.sku || '').match(/(\d+)-(\d+)/);
+          if (m && d >= Number(m[1]) && d <= Number(m[2])) return i.price_before_vat;
+        }
+        // Third: fallback to cheapest per-kg material item (exclude processing/delivery)
+        const materialItems = bookItems.filter(i => i.unit === 'kg' && i.price_before_vat > 0);
+        if (materialItems.length) return Math.min(...materialItems.map(i => i.price_before_vat));
+        return 0;
+      }
+
+      // Processing fees per kg from price book (חיתוך + כיפוף)
+      const cuttingItem  = bookItems.find(i => i.unit === 'kg' && /חית/.test(i.description || i.sku || ''));
+      const bendingItem  = bookItems.find(i => i.unit === 'kg' && /כיפ/.test(i.description || i.sku || ''));
+      const cuttingPrice = cuttingItem ? cuttingItem.price_before_vat : 0;
+      const bendingPrice = bendingItem ? bendingItem.price_before_vat : 0;
+
+      let bookRevenue = 0;
+      if (allItems.length > 0) {
+        allItems.forEach(it => {
+          const w = it.total_weight > 0 ? it.total_weight
+            : (industry.weightPerUnit({ diameter: it.diameter, total_length_mm: it.total_length_mm || 0 }) * (it.quantity || 1));
+          const matPrice = materialPriceForDiameter(it.diameter || 0);
+          const segs = (() => { try { return JSON.parse(it.segments || '[]'); } catch(e) { return []; } })();
+          const hasBends = segs.length > 1;
+          // Revenue = material + cutting (always for processed) + bending (if has bends)
+          const unitPrice = matPrice + cuttingPrice + (hasBends ? bendingPrice : 0);
+          bookRevenue += w * unitPrice;
+        });
+      } else if (totalWeightKg > 0) {
+        // No items detail — use base price only
+        const basePrice = materialItems && materialItems.length
+          ? Math.min(...bookItems.filter(i => i.unit === 'kg').map(i => i.price_before_vat))
+          : 0;
+        bookRevenue = totalWeightKg * basePrice;
+      }
+
+      if (bookRevenue > 0) {
+        revenue = bookRevenue;
+        revenue_source = 'price_book';
+      }
+    }
+  }
+  // Override with actual billed amount if recorded (actual Priority invoice — most accurate)
   const billing = db.prepare('SELECT billed_amount FROM order_billing WHERE order_id=?').get(orderId);
-  const revenue = billing ? (billing.billed_amount || 0) : 0;
+  if (billing && billing.billed_amount > 0) {
+    revenue = billing.billed_amount;
+    revenue_source = 'billed';
+  }
 
   const gross_margin = revenue - total_cost;
   const margin_pct   = revenue > 0 ? (gross_margin / revenue) * 100 : null;
@@ -105,7 +157,7 @@ function calculateOrderCost(orderId) {
 
   return {
     order_id: orderId, material_cost, labor_cost, machine_cost,
-    scrap_cost, overhead_cost, total_cost, revenue,
+    scrap_cost, overhead_cost, total_cost, revenue, revenue_source,
     gross_margin, margin_pct, tons_delivered, cost_per_ton, confidence
   };
 }
