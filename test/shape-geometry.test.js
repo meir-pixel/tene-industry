@@ -336,8 +336,8 @@ test('shape editor active segment selection does not recolor the drawn bar', () 
 test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
-  assert.match(index, /shape-editor\.js\?v=54/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=53/);
+  assert.match(index, /shape-editor\.js\?v=55/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=54/);
 });
 
 test('shape editor exposes editable order item quantity outside the shape contract', () => {
@@ -348,6 +348,16 @@ test('shape editor exposes editable order item quantity outside the shape contra
   assert.match(editor, /orderItemQuantity/);
   assert.match(editor, /delete normalized\.quantity/);
   assert.match(editor, /delete normalized\.qty/);
+});
+
+test('new order item rows render a visible shape preview from length fallback', () => {
+  const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+
+  assert.match(index, /function itemShapeSides\(item = \{\}\)/);
+  assert.match(index, /item\.length \?\? item\.totalLengthMm \?\? item\.total_length_mm/);
+  assert.match(index, /const sides = itemShapeSides\(item\);/);
+  assert.match(index, /const sides = itemShapeSides\(item \|\| \{\}\);/);
+  assert.match(index, /shapeSVGPath\(sides, angles, 68, 52, 7\)/);
 });
 
 test('manual add item opens the shape editor before creating an empty order row', () => {

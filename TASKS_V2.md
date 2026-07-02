@@ -1512,3 +1512,27 @@
 - verification:
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
+
+### V2-006AE - New Order Item Shape Thumbnail Fallback
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/index.html`
+  - `test/shape-geometry.test.js`
+- input:
+  - Order item rows must show the visible shape in the right-side shape cell even when the item only has a length and no explicit `shapeSides`.
+- output:
+  - New-order item rows derive preview sides from `shapeSides`, Shape snapshot data, or length fallback.
+  - Opening the Shape Editor from that row uses the same derived sides, so a length-only item opens as a visible straight bar instead of an empty/icon-only shape.
+  - Shape Editor asset query is bumped for cloud cache refresh.
+- guardrails:
+  - No UI redesign.
+  - No new shapes or shape families.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`

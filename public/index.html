@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="/rebar-weights.js"></script>
-<script src="/shape-editor.js?v=54"></script>
+<script src="/shape-editor.js?v=55"></script>
 <script src="/offline-db.js"></script>
 <script src="/auth-client.js"></script>
 <script src="/nav.js" defer></script>
@@ -2013,10 +2013,30 @@ window.toggleThumb3D = function() {
   renderPallets();
 };
 
+function itemShapeSides(item = {}) {
+  const direct = Array.isArray(item.shapeSides) ? item.shapeSides.map(Number).filter(v => Number.isFinite(v) && v > 0) : [];
+  if (direct.length) return direct;
+  const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null;
+  const data = snapshot?.data || snapshot || {};
+  const saved = Array.isArray(data.sides) ? data.sides.map(Number).filter(v => Number.isFinite(v) && v > 0) : [];
+  if (saved.length) return saved;
+  const length = Number(item.length ?? item.totalLengthMm ?? item.total_length_mm ?? data.totalLengthMm ?? snapshot?.calculated?.totalLengthMm ?? 0);
+  return Number.isFinite(length) && length > 0 ? [length] : [];
+}
+
+function itemShapeAngles(item = {}) {
+  const direct = Array.isArray(item.shapeAngles) ? item.shapeAngles.map(Number).filter(v => Number.isFinite(v)) : [];
+  if (direct.length) return direct;
+  const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null;
+  const data = snapshot?.data || snapshot || {};
+  const saved = Array.isArray(data.angles) ? data.angles.map(Number).filter(v => Number.isFinite(v)) : [];
+  return saved;
+}
+
 function renderItemRow(palletId, item) {
   const w = calcItemWeight(item);
-  const sides = item.shapeSides || [];
-  const angles = item.shapeAngles || [];
+  const sides = itemShapeSides(item);
+  const angles = itemShapeAngles(item);
   const perimeter = sides.reduce((s, l) => s + Number(l), 0);
 
   let svgPreview;
@@ -2081,10 +2101,12 @@ function openShapeEditor(palletId, itemId) {
   _shapeTarget = { palletId, itemId, isNew: false };
   const pallet = pallets.find(p => p.id === palletId);
   const item   = pallet?.items.find(i => i.id == itemId);
-  shapeEditor.open(item?.shapeSides?.length ? {
+  const sides = itemShapeSides(item || {});
+  const angles = itemShapeAngles(item || {});
+  shapeEditor.open(sides.length ? {
     presetId: item.shapeId,
-    sides: item.shapeSides,
-    angles: item.shapeAngles || [],
+    sides,
+    angles,
     azAngles: item.azAngles || null,
     elAngles: item.elAngles || null,
     is3d: item.is3d || 0,
