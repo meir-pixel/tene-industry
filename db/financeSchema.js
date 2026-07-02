@@ -70,6 +70,20 @@ function ensureFinanceSchema(db) {
       created_at  TEXT DEFAULT (datetime('now'))
     );
 
+    -- ── PROFITABILITY BILLING (actual charged amount from Priority) ──
+    CREATE TABLE IF NOT EXISTS order_billing (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id             INTEGER NOT NULL REFERENCES orders(id) UNIQUE,
+      order_num            TEXT,
+      billed_amount        REAL DEFAULT 0,     -- actual amount billed (excl. VAT), ILS
+      billed_date          TEXT,               -- date sent to Priority / invoice date
+      priority_invoice_ref TEXT DEFAULT '',    -- Priority invoice number / reference
+      billing_notes        TEXT DEFAULT '',
+      billed_by            TEXT DEFAULT '',    -- who entered this
+      created_at           TEXT DEFAULT (datetime('now')),
+      updated_at           TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS pricing_price_books (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       code            TEXT NOT NULL UNIQUE,

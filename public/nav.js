@@ -47,6 +47,7 @@
     { group:'בקרה', href:'/reports.html', icon:'📈', label:'דוחות', id:'reports' },
 
     { group:'ניהול', href:'/finance.html', icon:'💰', label:'פיננסים', id:'finance' },
+    { group:'ניהול', href:'/profitability.html', icon:'📊', label:'ריווחיות', id:'profitability' },
     { group:'ניהול', href:'/pricing.html', icon:'₪', label:'מחירונים', id:'pricing' },
     { group:'ניהול', href:'/projects.html', icon:'🏗️', label:'פרויקטים', id:'projects' },
     { group:'ניהול', href:'/holdings.html', icon:'🏢', label:'אחזקות', id:'holdings' },

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ריווחיות – IronBend</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#e07b39">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
+<script src="/auth-client.js"></script>
+<script src="/safe-dom.js" defer></script>
+<script src="/nav.js" defer></script>
+<style>
+:root{
+  --accent:#c9621a; --accent-light:#e07b39;
+  --success:#1a7a42; --danger:#b83227; --warning:#a86b00; --info:#1560a8;
+  --text:#1a2533; --dim:#526070; --muted:#8fa0b0;
+  --bg:#f0f4f8; --card:#ffffff; --border:rgba(0,0,0,0.09);
+  --radius:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);}
+.page{max-width:1400px;margin:0 auto;padding:14px 14px 40px;}
+
+/* ── KPI CARDS ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+.kpi-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;}
+.kpi-val{font-size:22px;font-weight:800;color:var(--text);}
+.kpi-sub{font-size:11px;color:var(--dim);margin-top:2px;}
+.kpi.green .kpi-val{color:var(--success);}
+.kpi.orange .kpi-val{color:var(--accent);}
+.kpi.red .kpi-val{color:var(--danger);}
+
+/* ── FILTERS ── */
+.filters{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+.filter-input{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);
+  color:var(--text);font-family:'Heebo',sans-serif;font-size:13px;min-height:38px;}
+.filter-input:focus{outline:none;border-color:var(--accent);}
+.filter-btn{padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--card);
+  color:var(--dim);cursor:pointer;font-family:'Heebo',sans-serif;font-size:13px;font-weight:600;
+  min-height:38px;transition:all .18s;}
+.filter-btn.active{background:rgba(224,123,57,0.12);border-color:var(--accent);color:var(--accent);}
+.btn-primary{padding:8px 16px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-light));
+  border:none;color:#fff;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;
+  cursor:pointer;min-height:38px;}
+
+/* ── TABLE ── */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{background:#f6f8fa;padding:10px 12px;font-weight:700;color:var(--dim);font-size:12px;
+  white-space:nowrap;border-bottom:1px solid var(--border);text-align:right;}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:#fafbfc;}
+tbody td{padding:10px 12px;vertical-align:middle;}
+.order-num{font-weight:700;color:var(--accent);font-size:13px;}
+.customer-name{color:var(--text);font-weight:600;}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.tag.green{background:#e8f5ee;color:var(--success);}
+.tag.yellow{background:#fff8e1;color:#8a6000;}
+.tag.red{background:#fdecea;color:var(--danger);}
+.tag.grey{background:#eef1f4;color:var(--muted);}
+.margin-bar-wrap{display:flex;align-items:center;gap:8px;}
+.margin-bar{height:6px;border-radius:4px;background:#e0e4ea;flex:1;min-width:60px;max-width:100px;overflow:hidden;}
+.margin-bar-fill{height:100%;border-radius:4px;background:var(--success);transition:width .3s;}
+.margin-bar-fill.yellow{background:#f0a500;}
+.margin-bar-fill.red{background:var(--danger);}
+.mono{font-family:monospace;font-size:13px;}
+.no-data{padding:40px;text-align:center;color:var(--muted);}
+.no-billing{color:var(--muted);font-size:12px;font-style:italic;}
+
+/* ── BILLING MODAL ── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;}
+.modal-backdrop.hidden{display:none;}
+.modal{background:var(--card);border-radius:var(--radius);padding:24px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+.modal h3{font-size:16px;font-weight:800;margin-bottom:6px;}
+.modal .order-ref{font-size:12px;color:var(--muted);margin-bottom:18px;}
+.form-group{margin-bottom:14px;}
+.form-group label{display:block;font-size:12px;font-weight:700;color:var(--dim);margin-bottom:5px;}
+.form-group input,.form-group textarea{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+  font-family:'Heebo',sans-serif;font-size:14px;color:var(--text);}
+.form-group input:focus,.form-group textarea:focus{outline:none;border-color:var(--accent);}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;}
+.btn-cancel{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;
+  font-family:'Heebo',sans-serif;font-size:13px;cursor:pointer;color:var(--dim);}
+.cost-breakdown{background:#f6f8fa;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;}
+.cost-breakdown .row{display:flex;justify-content:space-between;padding:2px 0;color:var(--dim);}
+.cost-breakdown .row.total{font-weight:700;color:var(--text);border-top:1px solid var(--border);margin-top:6px;padding-top:6px;}
+
+/* ── STEEL PRICES PANEL ── */
+.section-title{font-size:15px;font-weight:800;margin-bottom:10px;}
+.steel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:16px;}
+.steel-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+.steel-diam{font-size:11px;color:var(--muted);font-weight:600;}
+.steel-price{font-size:17px;font-weight:800;color:var(--text);}
+.steel-date{font-size:10px;color:var(--muted);}
+.add-price-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px;}
+.add-price-form .form-group{margin:0;flex:1;min-width:100px;}
+
+.tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);}
+.tab{padding:10px 18px;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;
+  color:var(--muted);border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+.by-customer-table td,.by-customer-table th{padding:10px 12px;}
+</style>
+</head>
+<body>
+<div id="nav-placeholder"></div>
+<div class="page">
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('orders')">הזמנות</button>
+    <button class="tab" onclick="switchTab('customers')">לפי לקוח</button>
+    <button class="tab" onclick="switchTab('steel')">מחירי פלדה</button>
+  </div>
+
+  <!-- ── ORDERS TAB ── -->
+  <div id="tab-orders">
+    <div class="kpi-row" id="kpi-row">
+      <div class="kpi"><div class="kpi-label">סה"כ הזמנות</div><div class="kpi-val" id="kpi-orders">—</div></div>
+      <div class="kpi orange"><div class="kpi-label">הכנסות שחויבו</div><div class="kpi-val" id="kpi-revenue">—</div><div class="kpi-sub">ללא מע"מ</div></div>
+      <div class="kpi"><div class="kpi-label">סה"כ עלויות</div><div class="kpi-val" id="kpi-cost">—</div></div>
+      <div class="kpi green"><div class="kpi-label">רווח גולמי</div><div class="kpi-val" id="kpi-margin">—</div></div>
+      <div class="kpi green"><div class="kpi-label">אחוז מרווח ממוצע</div><div class="kpi-val" id="kpi-margin-pct">—</div></div>
+      <div class="kpi"><div class="kpi-label">טון כולל</div><div class="kpi-val" id="kpi-tons">—</div></div>
+    </div>
+
+    <div class="filters">
+      <input type="date" class="filter-input" id="f-from" placeholder="מתאריך">
+      <input type="date" class="filter-input" id="f-to" placeholder="עד תאריך">
+      <input type="text" class="filter-input" id="f-customer" placeholder="לקוח..." style="min-width:140px">
+      <select class="filter-input" id="f-status">
+        <option value="">כל הסטטוסים</option>
+        <option>סופקה</option>
+        <option>בייצור</option>
+        <option>ממתינה לאישור</option>
+        <option>מאושרת</option>
+      </select>
+      <button class="btn-primary" onclick="loadOrders()">סנן</button>
+      <button class="filter-btn" onclick="resetFilters()">נקה</button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>הזמנה</th>
+              <th>לקוח</th>
+              <th>תאריך</th>
+              <th>טון</th>
+              <th>עלות ₪</th>
+              <th>חויב ₪</th>
+              <th>רווח ₪</th>
+              <th>מרווח %</th>
+              <th>ביטחון</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="orders-tbody">
+            <tr><td colspan="10" class="no-data">טוען...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CUSTOMERS TAB ── -->
+  <div id="tab-customers" style="display:none">
+    <div class="filters">
+      <input type="date" class="filter-input" id="fc-from" placeholder="מתאריך">
+      <input type="date" class="filter-input" id="fc-to" placeholder="עד תאריך">
+      <button class="btn-primary" onclick="loadByCustomer()">סנן</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="by-customer-table">
+          <thead>
+            <tr>
+              <th>לקוח</th>
+              <th>הזמנות</th>
+              <th>טון</th>
+              <th>הכנסות ₪</th>
+              <th>עלויות ₪</th>
+              <th>רווח גולמי ₪</th>
+              <th>מרווח %</th>
+            </tr>
+          </thead>
+          <tbody id="customers-tbody">
+            <tr><td colspan="7" class="no-data">בחר תאריכים וסנן</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STEEL PRICES TAB ── -->
+  <div id="tab-steel" style="display:none">
+    <div class="section-title">מחירי פלדה נוכחיים (לפי קוטר)</div>
+    <div class="steel-grid" id="steel-grid">טוען...</div>
+
+    <div class="section-title">הוספת מחיר חדש</div>
+    <div class="add-price-form">
+      <div class="form-group">
+        <label>קוטר (מ"מ) – ריק = כל הקוטרים</label>
+        <input type="number" id="sp-diameter" placeholder="12" min="6" max="40">
+      </div>
+      <div class="form-group">
+        <label>מחיר לטון (₪, ללא מע"מ)</label>
+        <input type="number" id="sp-price" placeholder="3800" min="0">
+      </div>
+      <div class="form-group">
+        <label>תאריך תחולה</label>
+        <input type="date" id="sp-date">
+      </div>
+      <div class="form-group">
+        <label>הערות</label>
+        <input type="text" id="sp-notes" placeholder="ספק / מבצע...">
+      </div>
+      <button class="btn-primary" onclick="addSteelPrice()" style="align-self:flex-end;height:38px">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── BILLING MODAL ── -->
+<div class="modal-backdrop hidden" id="billing-modal">
+  <div class="modal">
+    <h3>עדכון חיוב – Priority</h3>
+    <div class="order-ref" id="modal-order-ref"></div>
+    <div class="cost-breakdown" id="modal-breakdown"></div>
+    <div class="form-group">
+      <label>סכום שחויב (₪, ללא מע"מ)</label>
+      <input type="number" id="billed-amount" placeholder="0" min="0" step="0.01">
+    </div>
+    <div class="form-group">
+      <label>מספר חשבונית Priority</label>
+      <input type="text" id="priority-ref" placeholder="INV-2026-001">
+    </div>
+    <div class="form-group">
+      <label>תאריך חיוב</label>
+      <input type="date" id="billed-date">
+    </div>
+    <div class="form-group">
+      <label>הערות</label>
+      <input type="text" id="billing-notes" placeholder="">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">ביטול</button>
+      <button class="btn-primary" onclick="saveBilling()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentOrderId = null;
+let allOrders = [];
+
+function fmtILS(v) {
+  if (v == null || isNaN(v)) return '—';
+  return '₪' + Number(v).toLocaleString('he-IL', { maximumFractionDigits: 0 });
+}
+function fmtPct(v) {
+  if (v == null || isNaN(v)) return '—';
+  return Number(v).toFixed(1) + '%';
+}
+function fmtTons(v) {
+  if (!v) return '—';
+  return Number(v).toFixed(2) + 't';
+}
+
+function marginClass(pct) {
+  if (pct == null) return 'grey';
+  if (pct >= 15) return 'green';
+  if (pct >= 8) return 'yellow';
+  return 'red';
+}
+
+function switchTab(name) {
+  ['orders','customers','steel'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t === name ? '' : 'none';
+    document.querySelectorAll('.tab')[['orders','customers','steel'].indexOf(t)].classList.toggle('active', t === name);
+  });
+  if (name === 'steel') loadSteelPrices();
+  if (name === 'customers') loadByCustomer();
+}
+
+async function apiFetch(url, opts = {}) {
+  const token = sessionStorage.getItem('ib_access_token') || localStorage.getItem('ib_access_token');
+  const res = await fetch(url, {
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    ...opts,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function loadOrders() {
+  const from = document.getElementById('f-from').value;
+  const to   = document.getElementById('f-to').value;
+  const cust = document.getElementById('f-customer').value;
+  const stat = document.getElementById('f-status').value;
+  let url = '/api/profitability?';
+  if (from) url += `from=${from}&`;
+  if (to)   url += `to=${to}&`;
+  if (stat) url += `status=${encodeURIComponent(stat)}&`;
+
+  const tbody = document.getElementById('orders-tbody');
+  tbody.innerHTML = '<tr><td colspan="10" class="no-data">טוען...</td></tr>';
+
+  try {
+    const data = await apiFetch(url);
+    allOrders = data.orders || [];
+
+    // Filter by customer name (client-side since no customer_id input)
+    const custFilter = cust.trim().toLowerCase();
+    const filtered = custFilter
+      ? allOrders.filter(o => (o.customer_name || '').toLowerCase().includes(custFilter))
+      : allOrders;
+
+    // KPIs
+    const sum = data.summary;
+    document.getElementById('kpi-orders').textContent = sum.total_orders;
+    document.getElementById('kpi-revenue').textContent = fmtILS(sum.total_revenue);
+    document.getElementById('kpi-cost').textContent = fmtILS(sum.total_cost);
+    document.getElementById('kpi-margin').textContent = fmtILS(sum.total_gross_margin);
+    document.getElementById('kpi-margin-pct').textContent = fmtPct(sum.avg_margin_pct);
+    document.getElementById('kpi-tons').textContent = (sum.total_weight_tons || 0).toFixed(1) + 't';
+
+    if (sum.total_gross_margin > 0) {
+      document.querySelector('#kpi-margin').closest('.kpi').className = 'kpi green';
+    } else if (sum.total_gross_margin < 0) {
+      document.querySelector('#kpi-margin').closest('.kpi').className = 'kpi red';
+    }
+
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr><td colspan="10" class="no-data">אין נתונים</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(o => {
+      const mc = marginClass(o.margin_pct);
+      const hasBilling = o.billed_amount > 0;
+      const barW = hasBilling && o.margin_pct != null ? Math.max(0, Math.min(100, o.margin_pct)) : 0;
+      const barClass = mc === 'green' ? '' : mc === 'yellow' ? ' yellow' : ' red';
+      return `<tr onclick="openBillingModal(${o.id})">
+        <td><span class="order-num">${o.order_num}</span></td>
+        <td><span class="customer-name">${o.customer_name || '—'}</span></td>
+        <td>${(o.created_at || '').slice(0,10)}</td>
+        <td class="mono">${fmtTons(o.tons_delivered || o.total_weight/1000)}</td>
+        <td class="mono">${fmtILS(o.total_cost)}</td>
+        <td class="mono">${hasBilling ? fmtILS(o.billed_amount) : '<span class="no-billing">לא חויב</span>'}</td>
+        <td class="mono">${hasBilling ? fmtILS(o.gross_margin) : '—'}</td>
+        <td>
+          <div class="margin-bar-wrap">
+            <span class="tag ${mc}">${hasBilling ? fmtPct(o.margin_pct) : '—'}</span>
+            ${hasBilling ? `<div class="margin-bar"><div class="margin-bar-fill${barClass}" style="width:${barW}%"></div></div>` : ''}
+          </div>
+        </td>
+        <td><span class="tag ${o.confidence === 'high' ? 'green' : 'grey'}">${o.confidence === 'high' ? 'גבוה' : 'נמוך'}</span></td>
+        <td><button class="filter-btn" onclick="event.stopPropagation();openBillingModal(${o.id})" style="font-size:12px;padding:4px 10px">חיוב</button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="10" class="no-data">שגיאה: ${e.message}</td></tr>`;
+  }
+}
+
+async function openBillingModal(orderId) {
+  currentOrderId = orderId;
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  document.getElementById('modal-order-ref').textContent = `הזמנה ${order.order_num} | ${order.customer_name || ''} | ${fmtTons(order.tons_delivered)}`;
+
+  // Show cost breakdown
+  const bd = document.getElementById('modal-breakdown');
+  bd.innerHTML = `
+    <div class="row"><span>חומר גלם (פלדה)</span><span>${fmtILS(order.material_cost)}</span></div>
+    <div class="row"><span>עבודה</span><span>${fmtILS(order.labor_cost)}</span></div>
+    <div class="row"><span>מכונות</span><span>${fmtILS(order.machine_cost)}</span></div>
+    <div class="row"><span>פחת/גרוטאות</span><span>${fmtILS(order.scrap_cost)}</span></div>
+    <div class="row"><span>תקורה</span><span>${fmtILS(order.overhead_cost)}</span></div>
+    <div class="row total"><span>סה"כ עלות</span><span>${fmtILS(order.total_cost)}</span></div>
+  `;
+
+  // Load existing billing
+  try {
+    const billing = await apiFetch(`/api/orders/${orderId}/costs/billing`);
+    if (billing) {
+      document.getElementById('billed-amount').value = billing.billed_amount || '';
+      document.getElementById('priority-ref').value = billing.priority_invoice_ref || '';
+      document.getElementById('billed-date').value = billing.billed_date || '';
+      document.getElementById('billing-notes').value = billing.billing_notes || '';
+    } else {
+      document.getElementById('billed-amount').value = '';
+      document.getElementById('priority-ref').value = '';
+      document.getElementById('billed-date').value = new Date().toISOString().slice(0,10);
+      document.getElementById('billing-notes').value = '';
+    }
+  } catch(e) {
+    document.getElementById('billed-date').value = new Date().toISOString().slice(0,10);
+  }
+
+  document.getElementById('billing-modal').classList.remove('hidden');
+  document.getElementById('billed-amount').focus();
+}
+
+function closeModal() {
+  document.getElementById('billing-modal').classList.add('hidden');
+  currentOrderId = null;
+}
+
+async function saveBilling() {
+  if (!currentOrderId) return;
+  const billed_amount = parseFloat(document.getElementById('billed-amount').value);
+  if (isNaN(billed_amount) || billed_amount < 0) { alert('נא להזין סכום תקין'); return; }
+
+  try {
+    await apiFetch(`/api/orders/${currentOrderId}/costs/billing`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        billed_amount,
+        priority_invoice_ref: document.getElementById('priority-ref').value,
+        billed_date: document.getElementById('billed-date').value,
+        billing_notes: document.getElementById('billing-notes').value,
+      })
+    });
+    closeModal();
+    loadOrders();
+  } catch(e) {
+    alert('שגיאה: ' + e.message);
+  }
+}
+
+async function loadByCustomer() {
+  const from = document.getElementById('fc-from').value;
+  const to   = document.getElementById('fc-to').value;
+  let url = '/api/profitability/by-customer?';
+  if (from) url += `from=${from}&`;
+  if (to)   url += `to=${to}&`;
+
+  const tbody = document.getElementById('customers-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="no-data">טוען...</td></tr>';
+  try {
+    const rows = await apiFetch(url);
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="no-data">אין נתונים</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => {
+      const mc = marginClass(r.avg_margin_pct);
+      return `<tr>
+        <td><strong>${r.customer_name || 'לא ידוע'}</strong></td>
+        <td>${r.order_count}</td>
+        <td class="mono">${fmtTons(r.total_tons)}</td>
+        <td class="mono">${fmtILS(r.total_revenue)}</td>
+        <td class="mono">${fmtILS(r.total_cost)}</td>
+        <td class="mono">${fmtILS(r.total_margin)}</td>
+        <td><span class="tag ${mc}">${fmtPct(r.avg_margin_pct)}</span></td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="no-data">שגיאה: ${e.message}</td></tr>`;
+  }
+}
+
+async function loadSteelPrices() {
+  const grid = document.getElementById('steel-grid');
+  grid.textContent = 'טוען...';
+  try {
+    const rows = await apiFetch('/api/steel-prices');
+    if (!rows.length) { grid.textContent = 'אין מחירים – הוסף למטה'; return; }
+    grid.innerHTML = rows.map(r => `
+      <div class="steel-card">
+        <div class="steel-diam">קוטר ${r.diameter ? r.diameter + ' מ"מ' : 'כללי'}</div>
+        <div class="steel-price">${fmtILS(r.price_per_ton)}<span style="font-size:11px;font-weight:400;color:var(--muted)">/טון</span></div>
+        <div class="steel-date">${r.effective_date || ''}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    grid.textContent = 'שגיאה: ' + e.message;
+  }
+  // Set default date
+  if (!document.getElementById('sp-date').value) {
+    document.getElementById('sp-date').value = new Date().toISOString().slice(0,10);
+  }
+}
+
+async function addSteelPrice() {
+  const price = parseFloat(document.getElementById('sp-price').value);
+  if (!price || price <= 0) { alert('נא להזין מחיר'); return; }
+  try {
+    await apiFetch('/api/steel-prices', {
+      method: 'POST',
+      body: JSON.stringify({
+        diameter: document.getElementById('sp-diameter').value || null,
+        price_per_ton: price,
+        effective_date: document.getElementById('sp-date').value,
+        notes: document.getElementById('sp-notes').value,
+      })
+    });
+    document.getElementById('sp-price').value = '';
+    document.getElementById('sp-notes').value = '';
+    loadSteelPrices();
+  } catch(e) {
+    alert('שגיאה: ' + e.message);
+  }
+}
+
+// Close modal on backdrop click
+document.getElementById('billing-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// Init
+loadOrders();
+</script>
+</body>
+</html>

@@ -14,6 +14,25 @@ module.exports = function createFinanceCostsRouter(deps) {
   const settingsService = required('settingsService', deps.settingsService);
 
 // ── ORDER COSTS ────────────────────────────────────────────
+function getSteelPriceForDiameter(diameter) {
+  // Try steel_price_history first (per-diameter if available)
+  let row = diameter ? db.prepare(
+    'SELECT price_per_ton FROM steel_price_history WHERE diameter=? ORDER BY effective_date DESC, id DESC LIMIT 1'
+  ).get(diameter) : null;
+  // Fallback: any diameter in steel_price_history
+  if (!row) row = db.prepare(
+    'SELECT price_per_ton FROM steel_price_history ORDER BY effective_date DESC, id DESC LIMIT 1'
+  ).get();
+  // Fallback: steel_prices table
+  if (!row && diameter) row = db.prepare(
+    'SELECT price_per_ton FROM steel_prices WHERE diameter=? ORDER BY effective_date DESC, id DESC LIMIT 1'
+  ).get(diameter);
+  if (!row) row = db.prepare(
+    'SELECT price_per_ton FROM steel_prices ORDER BY effective_date DESC, id DESC LIMIT 1'
+  ).get();
+  return row ? row.price_per_ton : 3800;
+}
+
 function calculateOrderCost(orderId) {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
   if (!order) return null;
@@ -22,64 +41,67 @@ function calculateOrderCost(orderId) {
   pallets.forEach(p => { p.items = db.prepare('SELECT * FROM items WHERE pallet_id=?').all(p.id); });
   const allItems = pallets.flatMap(p => p.items);
 
-  // Get latest steel price (use existing steel_price_history table, or steel_prices if available)
-  let steelPrice = db.prepare(
-    'SELECT price_per_ton FROM steel_price_history ORDER BY effective_date DESC, id DESC LIMIT 1'
-  ).get();
-  if (!steelPrice) steelPrice = db.prepare(
-    'SELECT price_per_ton FROM steel_prices ORDER BY effective_date DESC, id DESC LIMIT 1'
-  ).get();
-  const pricePerTon = steelPrice ? steelPrice.price_per_ton : 3800; // default ILS/ton
+  // Material cost: calculate per-diameter (most accurate)
+  let material_cost = 0;
+  let totalWeightKg = 0;
+  const hasSteelHistory = !!db.prepare('SELECT 1 FROM steel_price_history LIMIT 1').get();
 
-  // Total weight: prefer order.total_weight (most accurate), then sum items, then calculate from diameter+length
-  let totalWeightKg = order.total_weight || 0;
-  if (totalWeightKg === 0) {
-    // Try summing items
-    totalWeightKg = allItems.reduce((s, it) => {
-      if (it.total_weight && it.total_weight > 0) return s + it.total_weight;
-      // Calculate from diameter + length
-      if (!Number.isFinite(Number(it.diameter))) return s;
-      return s + (industry.weightPerUnit({
-        diameter: it.diameter,
-        total_length_mm: it.total_length_mm || 0,
-      }) * (it.quantity || 1));
-    }, 0);
+  if (allItems.length > 0) {
+    // Group items by diameter for per-diameter pricing
+    const byDiameter = {};
+    allItems.forEach(it => {
+      const d = it.diameter || 0;
+      if (!byDiameter[d]) byDiameter[d] = { weightKg: 0 };
+      const w = it.total_weight > 0 ? it.total_weight
+        : (industry.weightPerUnit({ diameter: it.diameter, total_length_mm: it.total_length_mm || 0 }) * (it.quantity || 1));
+      byDiameter[d].weightKg += (w || 0);
+      totalWeightKg += (w || 0);
+    });
+    Object.entries(byDiameter).forEach(([d, { weightKg }]) => {
+      const ppt = getSteelPriceForDiameter(Number(d));
+      material_cost += (weightKg / 1000) * ppt;
+    });
+  } else {
+    // No items — use order.total_weight with a single price
+    totalWeightKg = order.total_weight || 0;
+    material_cost = (totalWeightKg / 1000) * getSteelPriceForDiameter(null);
   }
-  const material_cost = (totalWeightKg / 1000) * pricePerTon;
+  if (totalWeightKg === 0) totalWeightKg = order.total_weight || 0;
 
-  // Labor cost: approximate based on weight + complexity
-  // base rate from settings (LABOR_COST_PER_HOUR → per ton conversion: ~8h/ton)
+  // Labor cost: base rate × (1 + bends complexity factor)
   const laborBasePerTon = settingsService.getNum('LABOR_COST_PER_HOUR', 120) * 8;
-  const avgBends = allItems.reduce((s, it) => {
-    const segs = (() => { try { return JSON.parse(it.segments || '[]'); } catch(e) { return []; } })();
-    return s + Math.max(0, segs.length - 1);
-  }, 0) / Math.max(1, allItems.length);
+  const avgBends = allItems.length > 0
+    ? allItems.reduce((s, it) => {
+        const segs = (() => { try { return JSON.parse(it.segments || '[]'); } catch(e) { return []; } })();
+        return s + Math.max(0, segs.length - 1);
+      }, 0) / allItems.length
+    : 3;
   const laborRatePerTon = laborBasePerTon + (avgBends * 40);
   const labor_cost = (totalWeightKg / 1000) * laborRatePerTon;
 
-  // Machine cost: based on weight (approx ILS 80/ton)
-  const machine_cost = (totalWeightKg / 1000) * 80;
+  // Machine cost
+  const machine_cost = (totalWeightKg / 1000) * settingsService.getNum('MACHINE_COST_PER_TON', 80);
 
-  // Scrap cost: from settings (SCRAP_COST_PCT, default 3%)
+  // Scrap/waste cost
   const scrapPct   = settingsService.getNum('SCRAP_COST_PCT', 3) / 100;
   const scrap_cost = material_cost * scrapPct;
 
-  // Overhead: from settings (OVERHEAD_COST_FACTOR, default 0.15 = 15%)
+  // Overhead
   const overheadFactor = settingsService.getNum('OVERHEAD_COST_FACTOR', 0.15);
   const directCosts    = material_cost + labor_cost + machine_cost + scrap_cost;
   const overhead_cost  = directCosts * overheadFactor;
-  const total_cost = directCosts + overhead_cost;
+  const total_cost     = directCosts + overhead_cost;
 
-  // Revenue from order (portal_price is the customer-facing price in ILS)
-  const revenue = order.portal_price || 0;
+  // Revenue: use actual billed amount if set, otherwise 0 (billing goes through Priority)
+  const billing = db.prepare('SELECT billed_amount FROM order_billing WHERE order_id=?').get(orderId);
+  const revenue = billing ? (billing.billed_amount || 0) : 0;
 
   const gross_margin = revenue - total_cost;
-  const margin_pct   = revenue > 0 ? (gross_margin / revenue) * 100 : 0;
+  const margin_pct   = revenue > 0 ? (gross_margin / revenue) * 100 : null;
   const tons_delivered = totalWeightKg / 1000;
   const cost_per_ton   = tons_delivered > 0 ? total_cost / tons_delivered : 0;
 
-  // Confidence: low if missing prices, high if verified
-  const confidence = steelPrice ? 'high' : 'low';
+  const confidence = hasSteelHistory ? 'high' : 'low';
 
   return {
     order_id: orderId, material_cost, labor_cost, machine_cost,
@@ -153,14 +175,161 @@ router.get('/orders/:id/costs/snapshots', requireAnyRole(['finance', 'manager', 
   res.json(snaps.map(s => ({ ...s, snapshot: JSON.parse(s.snapshot) })));
 });
 
+// PATCH /api/orders/:id/costs/billing — record actual billed amount from Priority
+router.patch('/orders/:id/costs/billing', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+  const orderId = Number(req.params.id);
+  const order = db.prepare('SELECT id, order_num FROM orders WHERE id=?').get(orderId);
+  if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
+
+  const { billed_amount, billed_date, priority_invoice_ref, billing_notes } = req.body;
+  if (billed_amount === undefined || billed_amount === null) {
+    return res.status(400).json({ error: 'billed_amount נדרש' });
+  }
+  const user = req.auth?.display_name || req.auth?.sub || 'system';
+
+  db.prepare(`
+    INSERT INTO order_billing (order_id, order_num, billed_amount, billed_date, priority_invoice_ref, billing_notes, billed_by, updated_at)
+    VALUES (?,?,?,?,?,?,?,datetime('now'))
+    ON CONFLICT(order_id) DO UPDATE SET
+      billed_amount=excluded.billed_amount,
+      billed_date=excluded.billed_date,
+      priority_invoice_ref=excluded.priority_invoice_ref,
+      billing_notes=excluded.billing_notes,
+      billed_by=excluded.billed_by,
+      updated_at=datetime('now')
+  `).run(orderId, order.order_num, Number(billed_amount), billed_date || null, priority_invoice_ref || '', billing_notes || '', user);
+
+  // Re-calculate costs with updated revenue
+  const calc = calculateOrderCost(orderId);
+  db.prepare(`INSERT OR REPLACE INTO order_costs
+    (order_id,material_cost,labor_cost,machine_cost,scrap_cost,overhead_cost,
+     total_cost,revenue,gross_margin,margin_pct,tons_delivered,cost_per_ton,confidence,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`)
+    .run(calc.order_id, calc.material_cost, calc.labor_cost, calc.machine_cost,
+         calc.scrap_cost, calc.overhead_cost, calc.total_cost, calc.revenue,
+         calc.gross_margin, calc.margin_pct, calc.tons_delivered, calc.cost_per_ton, calc.confidence);
+
+  wsBroadcast('cost_update', { orderId, margin_pct: calc.margin_pct, gross_margin: calc.gross_margin });
+  res.json({ success: true, billing: { billed_amount, billed_date, priority_invoice_ref }, costs: calc });
+});
+
+// GET /api/orders/:id/costs/billing — get billing record
+router.get('/orders/:id/costs/billing', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+  const billing = db.prepare('SELECT * FROM order_billing WHERE order_id=?').get(req.params.id);
+  res.json(billing || null);
+});
+
+// GET /api/profitability — summary across all orders
+router.get('/profitability', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+  const { from, to, customer_id, status } = req.query;
+  let where = ['1=1'];
+  const params = [];
+  if (from)        { where.push("o.created_at >= ?"); params.push(from); }
+  if (to)          { where.push("o.created_at <= ?"); params.push(to + ' 23:59:59'); }
+  if (customer_id) { where.push("o.customer_id = ?"); params.push(Number(customer_id)); }
+  if (status)      { where.push("o.status = ?"); params.push(status); }
+
+  const rows = db.prepare(`
+    SELECT
+      o.id, o.order_num, o.status, o.created_at, o.total_weight,
+      o.customer_id,
+      c.name AS customer_name,
+      oc.material_cost, oc.labor_cost, oc.machine_cost, oc.scrap_cost,
+      oc.overhead_cost, oc.total_cost, oc.revenue, oc.gross_margin,
+      oc.margin_pct, oc.tons_delivered, oc.cost_per_ton, oc.confidence,
+      oc.locked, oc.updated_at AS costs_updated_at,
+      ob.billed_amount, ob.billed_date, ob.priority_invoice_ref
+    FROM orders o
+    LEFT JOIN customers c ON c.id = o.customer_id
+    LEFT JOIN order_costs oc ON oc.order_id = o.id
+    LEFT JOIN order_billing ob ON ob.order_id = o.id
+    WHERE ${where.join(' AND ')}
+    ORDER BY o.created_at DESC
+    LIMIT 500
+  `).all(...params);
+
+  // Summary totals
+  const billed = rows.filter(r => r.billed_amount > 0);
+  const summary = {
+    total_orders: rows.length,
+    billed_orders: billed.length,
+    total_revenue: billed.reduce((s, r) => s + (r.billed_amount || 0), 0),
+    total_cost: rows.reduce((s, r) => s + (r.total_cost || 0), 0),
+    total_gross_margin: billed.reduce((s, r) => s + (r.gross_margin || 0), 0),
+    total_weight_tons: rows.reduce((s, r) => s + (r.tons_delivered || r.total_weight / 1000 || 0), 0),
+    avg_margin_pct: billed.length > 0
+      ? billed.reduce((s, r) => s + (r.margin_pct || 0), 0) / billed.length
+      : null,
+  };
+
+  res.json({ summary, orders: rows });
+});
+
+// GET /api/profitability/by-customer
+router.get('/profitability/by-customer', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+  const { from, to } = req.query;
+  let where = ['1=1'];
+  const params = [];
+  if (from) { where.push("o.created_at >= ?"); params.push(from); }
+  if (to)   { where.push("o.created_at <= ?"); params.push(to + ' 23:59:59'); }
+
+  const rows = db.prepare(`
+    SELECT
+      o.customer_id,
+      c.name AS customer_name,
+      COUNT(o.id) AS order_count,
+      SUM(ob.billed_amount) AS total_revenue,
+      SUM(oc.total_cost) AS total_cost,
+      SUM(oc.gross_margin) AS total_margin,
+      SUM(oc.tons_delivered) AS total_tons,
+      AVG(oc.margin_pct) AS avg_margin_pct
+    FROM orders o
+    LEFT JOIN customers c ON c.id = o.customer_id
+    LEFT JOIN order_costs oc ON oc.order_id = o.id
+    LEFT JOIN order_billing ob ON ob.order_id = o.id
+    WHERE ${where.join(' AND ')}
+    GROUP BY o.customer_id
+    ORDER BY total_revenue DESC NULLS LAST
+  `).all(...params);
+
+  res.json(rows);
+});
+
+// GET /api/steel-prices — list current steel prices
+router.get('/steel-prices', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+  const rows = db.prepare(`
+    SELECT h1.*
+    FROM steel_price_history h1
+    WHERE h1.id = (
+      SELECT h2.id FROM steel_price_history h2
+      WHERE h2.diameter = h1.diameter OR (h2.diameter IS NULL AND h1.diameter IS NULL)
+      ORDER BY h2.effective_date DESC, h2.id DESC LIMIT 1
+    )
+    ORDER BY h1.diameter ASC NULLS LAST
+  `).all();
+  res.json(rows);
+});
+
+// POST /api/steel-prices — add new steel price
+router.post('/steel-prices', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => {
+  const { diameter, price_per_ton, effective_date, notes } = req.body;
+  if (!price_per_ton || price_per_ton <= 0) return res.status(400).json({ error: 'מחיר לא תקין' });
+  const user = req.auth?.sub || null;
+  const result = db.prepare(`
+    INSERT INTO steel_price_history (diameter, price_per_ton, effective_date, notes, created_by)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(diameter || null, Number(price_per_ton), effective_date || new Date().toISOString().slice(0,10), notes || '', user);
+  res.json({ id: result.lastInsertRowid, success: true });
+});
+
   return router;
 };
 
 module.exports.manifest = {
-  screens: [],
-  access: { default: 'hidden', roles: { admin: 'edit' } },
+  screens: [{ path: '/profitability.html', label: 'ריווחיות', roles: ['finance', 'manager', 'admin'] }],
+  access: { default: 'hidden', roles: { finance: 'view', manager: 'view', admin: 'edit' } },
   id: 'finance-costs',
   label: 'עלויות ומרווח',
-  consumes: [{ table: 'orders' }, { table: 'items' }],
-  produces: [{ event: 'cost_update' }],
+  consumes: [{ table: 'orders' }, { table: 'items' }, { table: 'steel_price_history' }, { table: 'order_billing' }],
+  produces: [{ event: 'cost_update' }, { table: 'order_costs' }, { table: 'order_billing' }],
 };
