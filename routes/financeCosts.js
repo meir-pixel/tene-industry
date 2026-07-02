@@ -14,6 +14,23 @@ module.exports = function createFinanceCostsRouter(deps) {
   const settingsService = required('settingsService', deps.settingsService);
 
 // ── ORDER COSTS ────────────────────────────────────────────
+const STANDARD_LENGTHS_MM = [6000, 12000];
+
+function detectPriceCategory(item) {
+  // If manually set (not 'auto'), respect it
+  if (item.price_category && item.price_category !== 'auto') return item.price_category;
+
+  const segs = (() => { try { return JSON.parse(item.segments || '[]'); } catch(e) { return []; } })();
+  const isStraight = segs.length <= 1;
+
+  if (isStraight) {
+    const lenMm = item.total_length_mm || 0;
+    const isStandard = STANDARD_LENGTHS_MM.some(l => Math.abs(lenMm - l) < 10);
+    return isStandard ? 'straight_standard' : 'straight_cut';
+  }
+  return 'bent';
+}
+
 function getLatestSteelPrice() {
   let row = db.prepare(
     'SELECT price_per_ton FROM steel_price_history ORDER BY effective_date DESC, id DESC LIMIT 1'
@@ -109,30 +126,46 @@ function calculateOrderCost(orderId) {
         return 0;
       }
 
-      // Processing fees per kg from price book (חיתוך + כיפוף)
+      // Processing fees per kg from price book
       const cuttingItem  = bookItems.find(i => i.unit === 'kg' && /חית/.test(i.description || i.sku || ''));
       const bendingItem  = bookItems.find(i => i.unit === 'kg' && /כיפ/.test(i.description || i.sku || ''));
       const cuttingPrice = cuttingItem ? cuttingItem.price_before_vat : 0;
       const bendingPrice = bendingItem ? bendingItem.price_before_vat : 0;
+
+      // Per-unit items (חישוקים, כסאות, ציפורים) — unit='יח' or 'pcs'
+      const perUnitItems = bookItems.filter(i => i.unit === 'יח' || i.unit === 'pcs' || i.unit === 'unit');
 
       let bookRevenue = 0;
       if (allItems.length > 0) {
         allItems.forEach(it => {
           const w = it.total_weight > 0 ? it.total_weight
             : (industry.weightPerUnit({ diameter: it.diameter, total_length_mm: it.total_length_mm || 0 }) * (it.quantity || 1));
-          const matPrice = materialPriceForDiameter(it.diameter || 0);
-          const segs = (() => { try { return JSON.parse(it.segments || '[]'); } catch(e) { return []; } })();
-          const hasBends = segs.length > 1;
-          // Revenue = material + cutting (always for processed) + bending (if has bends)
-          const unitPrice = matPrice + cuttingPrice + (hasBends ? bendingPrice : 0);
-          bookRevenue += w * unitPrice;
+          const cat = detectPriceCategory(it);
+
+          if (cat === 'per_unit') {
+            // Find matching per-unit price by description/sku match on shape_name or struct_element
+            const label = (it.shape_name || it.struct_element || '').toLowerCase();
+            const puItem = perUnitItems.find(p => {
+              const desc = (p.description || p.sku || '').toLowerCase();
+              return desc.includes('חישוק') && label.includes('חישוק')
+                || desc.includes('כסא') && label.includes('כסא')
+                || desc.includes('ציפור') && label.includes('ציפור');
+            }) || perUnitItems[0];
+            if (puItem) bookRevenue += (it.quantity || 1) * puItem.price_before_vat;
+          } else {
+            const matPrice = materialPriceForDiameter(it.diameter || 0);
+            // straight_standard = material only (bar sold by kg, no cutting)
+            // straight_cut      = material + cutting
+            // bent              = material + cutting + bending
+            const processingPrice = cat === 'straight_standard' ? 0
+              : cat === 'straight_cut' ? cuttingPrice
+              : cuttingPrice + bendingPrice; // bent
+            bookRevenue += w * (matPrice + processingPrice);
+          }
         });
       } else if (totalWeightKg > 0) {
-        // No items detail — use base price only
-        const basePrice = materialItems && materialItems.length
-          ? Math.min(...bookItems.filter(i => i.unit === 'kg').map(i => i.price_before_vat))
-          : 0;
-        bookRevenue = totalWeightKg * basePrice;
+        const basePrice = Math.min(...bookItems.filter(i => i.unit === 'kg' && i.price_before_vat > 0).map(i => i.price_before_vat).filter(Boolean));
+        bookRevenue = totalWeightKg * (isFinite(basePrice) ? basePrice : 0);
       }
 
       if (bookRevenue > 0) {

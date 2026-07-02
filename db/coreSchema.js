@@ -914,6 +914,12 @@ function ensureCoreSchema(db) {
 
   ensureIntakeSourceIdentityIndex(db);
 
+  // price_category: how this item is billed in the price book
+  // 'straight_standard' = bar at 6m/12m (material only)
+  // 'straight_cut'      = straight bar cut to custom length (material + cutting)
+  // 'bent'              = has bends (material + cutting + bending)
+  // 'per_unit'          = stirrups, chairs, birds — charged per piece
+  ensureColumn(db, 'items', 'price_category', "TEXT DEFAULT 'auto'");
 
   ensureFinanceSchema(db);
 }
