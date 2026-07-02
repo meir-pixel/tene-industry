@@ -1456,6 +1456,29 @@
 - verification:
   - `node --test test\shape-geometry.test.js`
 
+
+### V2-006AC - Shape Editor Visual Flip Control
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - Ambiguous bar orientation needs a manual flip option in the editor.
+- output:
+  - Shape editor exposes a visual-only flip button near the 2D/3D controls.
+  - Flip changes the preview orientation without changing sides, angles, order data, or machine output.
+- guardrails:
+  - No UI redesign.
+  - No new shapes or shape families.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- verification:
+  - `node --test test\shape-geometry.test.js`
+
 ## ? הושלם
 
 ### V2-DOC-001 — מסמך אמת V2
