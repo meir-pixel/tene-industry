@@ -1415,6 +1415,28 @@
 
 ---
 
+### V2-011B - Production Card Shape Orientation Normalization
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards/steel-rebar
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `services/productionCards.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - production card PDF where one bent shape appears upside down and another appears diagonal.
+- output:
+  - Generic bent bar previews on production cards are normalized for display so the dominant side is horizontal and the shape body sits downward.
+- guardrails:
+  - Rendering-only change for production card SVG previews.
+  - No order data changes.
+  - No production status, pricing, warehouse, OCR, API, or DB changes.
+- verification:
+  - `node --test test\shape-geometry.test.js`
+
+
 ## ? הושלם
 
 ### V2-DOC-001 — מסמך אמת V2
