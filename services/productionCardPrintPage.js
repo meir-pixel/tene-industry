@@ -533,8 +533,7 @@ function rightAngleMarkerSvg(previous, corner, next) {
 }
 
 function dimensionLabelSvg(text, x, y, width = 38) {
-  return '<rect x="' + (x - width / 2).toFixed(1) + '" y="' + (y - 7).toFixed(1) + '" width="' + width + '" height="14" rx="3" fill="white" fill-opacity="0.96" stroke="#aeb8c5" stroke-width="0.7"/>' +
-    '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + escapeHtml(text) + '</text>';
+  return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.4" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
 }
 
 function sideDimensionSvg(start, end, value, center, distance = 18) {
