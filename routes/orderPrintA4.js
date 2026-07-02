@@ -349,10 +349,10 @@ function drawShape2D(svgEl, segments, W, H) {
     var rad = dir * Math.PI / 180;
     var p = pts[pts.length-1];
     pts.push([p[0] + sides[i]*Math.cos(rad), p[1] + sides[i]*Math.sin(rad)]);
-    // Apply turn: bend angle 90° = turn 90° (dir decreases by 180-angle)
-    if (i < bendAngs.length - 1) dir -= (180 - bendAngs[i+1]);
+    // Apply stored preview turn directly so print matches the worker card drawing.
+    if (i < bendAngs.length - 1) dir += Number(bendAngs[i] || 0);
   }
-  var PAD=16;
+  var PAD=24;
   var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
   var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs);
   var minY=Math.min.apply(null,ys), maxY=Math.max.apply(null,ys);
@@ -369,7 +369,7 @@ function drawShape2D(svgEl, segments, W, H) {
     var x2=parseFloat(mapped[i+1][0]),y2=parseFloat(mapped[i+1][1]);
     var mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
     if (len < 6) continue;
-    var nx=(-dy/len)*9, ny=(dx/len)*9;
+    var nx=(-dy/len)*11, ny=(dx/len)*11;
     svg+='<rect x="'+(mx+nx-14).toFixed(1)+'" y="'+(my+ny-6).toFixed(1)+'" width="28" height="11" rx="2" fill="white" fill-opacity="0.9"/>';
     svg+='<text x="'+(mx+nx).toFixed(1)+'" y="'+(my+ny).toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
   }
@@ -397,13 +397,13 @@ function buildTable() {
     var it = allItems[i];
     totalQty += it.quantity;
     totalWt  += it.total_weight;
-    var SVG_W = 130, SVG_H = 55;
+    var SVG_W = 130, SVG_H = 68;
     var uid = 'sv'+i;
     var row = document.createElement('tr');
     row.innerHTML =
       '<td class="row-num">'+it.rowNum+'</td>'+
       '<td class="diam">Ø'+it.diameter+'</td>'+
-      '<td class="shape-td"><svg id="'+uid+'" class="shape-svg" width="'+SVG_W+'" height="'+SVG_H+'" viewBox="0 0 '+SVG_W+' '+SVG_H+'"></svg></td>'+
+      '<td class="shape-td"><svg id="'+uid+'" class="shape-svg" width="'+SVG_W+'" height="'+SVG_H+'" preserveAspectRatio="xMidYMid meet" viewBox="0 0 '+SVG_W+' '+SVG_H+'"></svg></td>'+
       '<td class="dims-td">'+buildDimsHtml(it.segments)+'</td>'+
       '<td><span class="len-val">'+it.total_length_cm+'</span></td>'+
       '<td><span class="qty-val">'+it.quantity+'</span></td>'+
@@ -430,7 +430,7 @@ function buildTable() {
   // Draw shapes
   for (var j=0; j<allItems.length; j++) {
     var svgEl = document.getElementById('sv'+j);
-    if (svgEl) drawShape2D(svgEl, allItems[j].segments, 130, 55);
+    if (svgEl) drawShape2D(svgEl, allItems[j].segments, 130, 68);
   }
 }
 

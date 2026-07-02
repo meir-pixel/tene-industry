@@ -170,7 +170,7 @@ function straightShapeSvg(segment) {
   svg += '<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round"/>';
   svg += dimensionLabelSvg(text, width / 2, 18, Math.max(34, Math.min(54, text.length * 7 + 18)));
   svg += '<line x1="' + (width / 2).toFixed(1) + '" y1="25" x2="' + (width / 2).toFixed(1) + '" y2="' + (y - 5) + '" stroke="#aeb8c5" stroke-width="0.8"/>';
-  return '<svg data-shape-kind="straight-bar" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;max-height:90px">' + svg + '</svg>';
+  return '<svg data-shape-kind="straight-bar" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:90px;overflow:visible">' + svg + '</svg>';
 }
 
 function openUShapeSvg(segments) {
@@ -204,7 +204,7 @@ function openUShapeSvg(segments) {
     svg += rightAngleMarkerSvg(previous, corner, next);
   });
 
-  return `<svg data-shape-kind="open-u" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:100px">${svg}</svg>`;
+  return `<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
 }
 
 function closedStirrupSvg(parts) {
@@ -257,15 +257,15 @@ function closedStirrupSvg(parts) {
     svg += rightAngleMarkerSvg(previous, corner, next);
   });
 
-  return `<svg data-shape-kind="closed-stirrup" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:112px">${svg}</svg>`;
+  return `<svg data-shape-kind="closed-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
 }
 
 function shapeSvg(segmentsRaw) {
   try {
     const segments = parseSegments(segmentsRaw);
-    const width = 240;
-    const height = 120;
-    const padding = 36;
+    const width = 260;
+    const height = 140;
+    const padding = 46;
     if (!segments.length) {
       return '<svg viewBox="0 0 220 60" style="width:100%;max-height:80px">' +
         '<line x1="12" y1="30" x2="208" y2="30" stroke="#1a2332" stroke-width="3" stroke-linecap="round"/>' +
@@ -288,7 +288,7 @@ function shapeSvg(segmentsRaw) {
         previous[0] + sides[i] * Math.cos(radians),
         previous[1] + sides[i] * Math.sin(radians),
       ]);
-      if (i < angles.length - 1 && angles[i] != null) direction -= (180 - angles[i]);
+      if (i < angles.length - 1 && angles[i] != null) direction += Number(angles[i] || 0);
     }
 
     const xs = points.map(point => point[0]);
@@ -312,7 +312,7 @@ function shapeSvg(segmentsRaw) {
 
     const center = [mapped.reduce((sum, point) => sum + point[0], 0) / mapped.length, mapped.reduce((sum, point) => sum + point[1], 0) / mapped.length];
     for (let i = 0; i < mapped.length - 1; i += 1) {
-      svg += sideDimensionSvg(mapped[i], mapped[i + 1], sides[i], center, 19);
+      svg += sideDimensionSvg(mapped[i], mapped[i + 1], sides[i], center, 15);
     }
 
     for (let i = 1; i < mapped.length - 1; i += 1) {
@@ -322,7 +322,7 @@ function shapeSvg(segmentsRaw) {
       }
     }
 
-    return `<svg viewBox="0 0 ${width} ${height}" style="width:100%;max-height:100px">${svg}</svg>`;
+    return `<svg data-shape-kind="generic-bar" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
   } catch {
     return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
   }
