@@ -60,24 +60,23 @@ test('shape editor 2D preview rotates U bars so the long bridge is the bottom ba
   assert.ok(centerY <= longest.y, 'expected the long bridge to be the bottom base with the legs/body above it');
 });
 
-test('shape editor exposes a visual-only flip control for ambiguous bar orientation', () => {
+test('shape editor exposes a visual-only 90-degree rotation control for ambiguous bar orientation', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const { shapeSVGPath } = loadShapeEditorGeometry();
-  const { pts } = shapeSVGPath([300, 1000, 300], [90, 90], 300, 260, 38, { flipVertical: true });
+  const { pts } = shapeSVGPath([300, 1000, 300], [90, 90], 300, 260, 38, { rotateDegrees: 90 });
   const segments = pts.slice(0, -1).map((point, index) => {
     const next = pts[index + 1];
     const dx = next[0] - point[0];
     const dy = next[1] - point[1];
-    return { dy, length: Math.hypot(dx, dy), y: (point[1] + next[1]) / 2 };
+    return { dx, dy, length: Math.hypot(dx, dy) };
   });
   const longest = segments.reduce((best, segment) => segment.length > best.length ? segment : best, segments[0]);
-  const centerY = pts.reduce((sum, point) => sum + point[1], 0) / pts.length;
 
-  assert.match(editor, /id="seFlipShape"/);
-  assert.match(editor, /window.seFlipShape = function/);
-  assert.match(editor, /_flipPreview/);
-  assert.ok(Math.abs(longest.dy) < 0.2, 'expected flipped long side to remain horizontal');
-  assert.ok(centerY >= longest.y, 'expected flip control to mirror the base to the top when needed');
+  assert.match(editor, /id="seRotateShape"/);
+  assert.match(editor, /window.seRotateShape90 = function/);
+  assert.match(editor, /_previewRotation/);
+  assert.ok(Math.abs(longest.dx) < 0.2, 'expected 90-degree rotation to turn the long side vertical');
+  assert.ok(Math.abs(longest.dy) > 100, 'expected rotated preview to keep the full shape geometry, not just move labels');
 });
 
 test('visual-only 3D preview does not use true-3D azimuth arrays', () => {

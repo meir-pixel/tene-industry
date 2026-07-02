@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "shape-flip-control";
+window.IRONBEND_ASSET_VERSION = "shape-rotate-90-control";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -109,11 +109,20 @@ function normalizeShapePointsBaseBottom(points, opts = {}) {
   if (bodyY > baseY) {
     rotated = rotated.map(([x, y]) => [x, baseY + (baseY - y)]);
   }
-  if (opts.flipVertical) {
+  const rotateDegrees = Number(opts.rotateDegrees || 0);
+  if (rotateDegrees) {
+    const xs = rotated.map(point => point[0]);
     const ys = rotated.map(point => point[1]);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    rotated = rotated.map(([x, y]) => [x, minY + maxY - y]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const rad = rotateDegrees * Math.PI / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    rotated = rotated.map(([x, y]) => {
+      const dx = x - cx;
+      const dy = y - cy;
+      return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+    });
   }
   return rotated;
 }
@@ -398,7 +407,7 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
   if (opts.azAngles) {
     pts3d = calcShapePoints3D(sides, opts.azAngles, opts.elAngles || []);
   } else {
-    pts3d = normalizeShapePointsBaseBottom(calcShapePoints(sides, angles), { flipVertical: opts.flipVertical }).map(([x, y]) => [x, y, 0]);
+    pts3d = normalizeShapePointsBaseBottom(calcShapePoints(sides, angles), { rotateDegrees: opts.rotateDegrees }).map(([x, y]) => [x, y, 0]);
   }
 
   // Project: rotate around Z by theta, then tilt by phi
@@ -1830,7 +1839,7 @@ class ShapeEditorModal {
           <button id="seView2D" onclick="seSetView('2d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #e07b39;background:rgba(224,123,57,0.1);color:#e07b39;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">2D</button>
           <button id="seView3D" onclick="seSetView('3d')" style="padding:5px 14px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">3D</button>
           <button id="seResetCam" onclick="if(window._seEditor){window._seEditor._camTheta=Math.PI/4;window._seEditor._camPhi=Math.PI/4;window._seEditor._updatePreview();}" style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#7a93ab;cursor:pointer;font-size:13px;transition:all .15s" title="איפוס זווית">↻</button>
-          <button id="seFlipShape" onclick="seFlipShape()" style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;cursor:pointer;font-size:13px;font-weight:900;transition:all .15s" title="הפוך צורה" aria-label="הפוך צורה" aria-pressed="false">↕</button>
+          <button id="seRotateShape" onclick="seRotateShape90()" style="padding:5px 9px;border-radius:6px;border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;cursor:pointer;font-size:12px;font-weight:900;transition:all .15s" title="סובב צורה 90 מעלות" aria-label="סובב צורה 90 מעלות" aria-pressed="false">90°</button>
         </div>
       </div>
       <!-- SVG preview -->
@@ -2276,8 +2285,8 @@ class ShapeEditorModal {
     // pad azAngles if needed
     while (this.current.azAngles.length < n) this.current.azAngles.push(0);
     document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === preset.id));
-    this._flipPreview = false;
-    seSyncFlipButton();
+    this._previewRotation = 0;
+    seSyncRotateButton();
     this._goToEdit();
   }
 
@@ -2916,7 +2925,7 @@ class ShapeEditorModal {
         this._updateSummaryValues();
         return;
       }
-      const { path, pts } = shapeSVGPath(sides, angles, 300, 260, 38, { flipVertical: this._flipPreview === true });
+      const { path, pts } = shapeSVGPath(sides, angles, 300, 260, 38, { rotateDegrees: this._previewRotation || 0 });
       const BAR_PX = Math.max(4, Math.min((this._diameter||12)*0.55, 14));
       const SEG_GRAY = '#3d5e78'; // dark steel-blue — visible on the light editor background
 
@@ -3101,8 +3110,8 @@ class ShapeEditorModal {
     if (orbitCtrl) orbitCtrl.style.display = is3D ? 'flex' : 'none';
     if (svgWrap)   svgWrap.classList.toggle('grab-mode', is3D);
     this._pendingQuantity = Math.max(1, Number(existingData?.quantity || existingData?.qty || 1) || 1);
-    this._flipPreview = false;
-    seSyncFlipButton();
+    this._previewRotation = 0;
+    seSyncRotateButton();
     if (existingData?.family === 'mesh' || existingData?.family === 'piles') {
       this.current = { ...existingData, quantity: this._pendingQuantity };
       document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
@@ -3161,20 +3170,22 @@ window.IronBendShapeGeometry = {
   buildShapeDataContractV2,
   validateShapeContractData,
 };
-window.seSyncFlipButton = function() {
-  const btn = document.getElementById('seFlipShape');
+window.seSyncRotateButton = function() {
+  const btn = document.getElementById('seRotateShape');
   if (!btn) return;
-  const active = window._seEditor?._flipPreview === true;
-  const base = 'padding:5px 9px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:900;transition:all .15s;';
+  const rotation = ((Number(window._seEditor?._previewRotation || 0) % 360) + 360) % 360;
+  const active = rotation !== 0;
+  const base = 'padding:5px 9px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:900;transition:all .15s;';
   btn.style.cssText = active
     ? base + 'border:1.5px solid #ff4047;background:#ff4047;color:#fff;'
     : base + 'border:1.5px solid #d8e2ec;background:#f4f6f9;color:#526070;';
   btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  btn.textContent = rotation ? rotation + '°' : '90°';
 };
-window.seFlipShape = function() {
+window.seRotateShape90 = function() {
   if (!window._seEditor) return;
-  window._seEditor._flipPreview = window._seEditor._flipPreview !== true;
-  window.seSyncFlipButton();
+  window._seEditor._previewRotation = ((Number(window._seEditor._previewRotation || 0) + 90) % 360 + 360) % 360;
+  window.seSyncRotateButton();
   window._seEditor._updatePreview();
 };
 window.seSetView = function(mode) {

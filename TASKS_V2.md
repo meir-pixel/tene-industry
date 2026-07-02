@@ -1489,3 +1489,26 @@
   - `docs/PROJECT_TRUTH_HE.md`
   - Google Docs: IronBend V2 - מסמך אמת מודולרי
 
+
+### V2-006AD - Shape Editor Visual 90 Degree Rotation Control
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - The orientation control must rotate the whole preview by 90 degrees, not mirror it vertically.
+- output:
+  - Shape editor exposes a visual-only 90-degree rotation button near the 2D/3D controls.
+  - Rotation changes only the preview orientation and labels together; sides, angles, quantity, order data, and machine output are unchanged.
+- guardrails:
+  - No UI redesign.
+  - No new shapes or shape families.
+  - No Orders, Production, Pricing, Warehouse, OCR, API, or DB changes.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
