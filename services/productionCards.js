@@ -320,23 +320,33 @@ function angledOpenStirrupSvg(parts) {
   const tailInset = 24;
   const topTailEnd = [left + tailInset, top + tailInset];
   const bottomTailEnd = [left + tailInset, bottom - tailInset];
-  const path = 'M ' + bottomTailEnd.join(',') + ' L ' + left + ',' + bottom + ' L ' + right + ',' + bottom + ' L ' + right + ',' + top + ' L ' + left + ',' + top + ' L ' + topTailEnd.join(',');
+  const points = [
+    bottomTailEnd,
+    [left, bottom],
+    [right, bottom],
+    [right, top],
+    [left, top],
+    topTailEnd,
+  ];
+  const path = 'M ' + points.map(point => point.join(',')).join(' L ');
+  const center = [
+    points.reduce((sum, point) => sum + point[0], 0) / points.length,
+    points.reduce((sum, point) => sum + point[1], 0) / points.length,
+  ];
   let svg = '<path d="' + path + '" fill="none" stroke="#1a2332" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>';
   svg += '<path d="' + path + '" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
 
-  svg += dimensionLabelSvg(displayLengthCm(parts.top), (left + right) / 2, top - 14, 34);
-  svg += dimensionLabelSvg(displayLengthCm(parts.right), right + 20, (top + bottom) / 2, 34);
-  svg += dimensionLabelSvg(displayLengthCm(parts.bottom), (left + right) / 2, bottom + 14, 34);
-  svg += dimensionLabelSvg(displayLengthCm(parts.tailA), bottomTailEnd[0] - 16, bottomTailEnd[1] - 8, 34);
-  svg += dimensionLabelSvg(displayLengthCm(parts.tailB), topTailEnd[0] - 16, topTailEnd[1] + 8, 34);
-  svg += dimensionLabelSvg(Math.round(parts.angleA) + String.fromCharCode(176), left - 4, bottom - 25, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
-  svg += dimensionLabelSvg(Math.round(parts.angleD) + String.fromCharCode(176), left - 4, top + 25, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
-  svg += rightAngleMarkerSvg([left, top], [right, top], [right, bottom]);
-  svg += rightAngleMarkerSvg([right, top], [right, bottom], [left, bottom]);
+  [parts.tailA, parts.bottom, parts.right, parts.top, parts.tailB].forEach((value, index) => {
+    svg += sideDimensionSvg(points[index], points[index + 1], value, center, index === 0 || index === 4 ? 20 : 18);
+  });
+
+  svg += angleMarkerSvg(points[0], points[1], points[2], parts.angleA, center);
+  svg += rightAngleMarkerSvg(points[1], points[2], points[3]);
+  svg += rightAngleMarkerSvg(points[2], points[3], points[4]);
+  svg += angleMarkerSvg(points[3], points[4], points[5], parts.angleD, center);
 
   return '<svg data-shape-kind="angled-open-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + svg + '</svg>';
 }
-
 function shapeSvg(segmentsRaw) {
   try {
     const segments = parseSegments(segmentsRaw);
