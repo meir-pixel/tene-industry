@@ -680,6 +680,14 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
   assert.match(index, /<details class="delivery-toggle" id="deliveryDetails">/);
   assert.match(index, /<details class="compact-toggle" id="notesDetails">/);
   assert.match(index, /id="deliverySiteName"/);
+  assert.match(index, /id="customerSiteChoice"/);
+  assert.match(index, /id="orderSiteId"/);
+  assert.match(index, /\/api\/customers\/.*\/portal-sites/);
+  assert.match(index, /function hydrateSelectedCustomer\(customerId, seed = \{\}\)/);
+  assert.match(index, /function saveOrderDraftForCustomerHandoff\(\)/);
+  assert.match(index, /function restoreOrderDraft\(\)/);
+  assert.match(index, /openCustomersWithDraft\(event\)/);
+  assert.match(index, /siteId: document\.getElementById\('orderSiteId'\)/);
   assert.match(index, /function updateDeliverySummary\(\)/);
   assert.match(index, /function openDeliveryDetails\(\)/);
   assert.match(index, /function openCustomerDetails\(\)/);

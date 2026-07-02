@@ -1379,7 +1379,7 @@
             <span>צריך לפתוח או לערוך כרטיס לקוח מלא?</span>
             <div class="customer-handoff-actions">
               <button type="button" onclick="continueUnassignedCustomer()">המשך ללא שיוך</button>
-              <a href="/customers.html">פתח לקוח חדש</a>
+              <a href="/customers.html" onclick="openCustomersWithDraft(event)">פתח לקוח חדש</a>
             </div>
           </div>
         </div>
@@ -1404,6 +1404,11 @@
           <div class="field span-2">
             <label>&#1513;&#1501; &#1488;&#1514;&#1512;</label>
             <input type="text" id="deliverySiteName" placeholder="&#1500;&#1491;&#1493;&#1490;&#1502;&#1492;: &#1489;&#1504;&#1497;&#1497;&#1503; A, &#1511;&#1493;&#1502;&#1492; 3" oninput="updateDeliverySummary()">
+          </div>
+          <div class="field span-2" id="customerSiteChoiceWrap" style="display:none">
+            <label>&#1489;&#1495;&#1512; &#1488;&#1514;&#1512; &#1500;&#1511;&#1493;&#1495;</label>
+            <select id="customerSiteChoice" onchange="applySelectedCustomerSite()"></select>
+            <input type="hidden" id="orderSiteId">
           </div>
           <div class="field span-2">
             <label><span class="required">*</span>&#1499;&#1514;&#1493;&#1489;&#1514; &#1488;&#1514;&#1512; &#1492;&#1489;&#1504;&#1497;&#1497;&#1492;</label>
@@ -1587,6 +1592,8 @@ let inventoryBatches = [];
 let inventoryByDiameter = {};
 let orderCounter = 1;
 let shapeEditor = null;
+let selectedCustomerSites = [];
+const ORDER_DRAFT_KEY = 'ironbend:new-order:draft:v1';
 
 // ── INIT ──────────────────────────────────────────────
 function init() {
@@ -1612,6 +1619,7 @@ function init() {
 
   // First pallet
   addPallet();
+  restoreOrderDraft();
 
   // Shape editor
   shapeEditor = new ShapeEditorModal(shapeSelected);
@@ -1629,9 +1637,8 @@ function init() {
       .then(c => {
         if (c && c.name) {
           document.getElementById('customerSearch').value = c.name;
-          if (c.phone) document.getElementById('customerPhone').value = c.phone;
-          window._selectedCustomerId = c.id;
-          updateCustomerSummary();
+          applyCustomerDetails(c);
+          hydrateSelectedCustomer(c.id, c);
         }
       }).catch(() => {});
   }
@@ -1644,6 +1651,16 @@ function updateDateTime() {
     currentDateTime.textContent =
       now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   }
+}
+
+function setInputValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value ?? '';
+}
+
+function setInputValueIfEmpty(id, value) {
+  const el = document.getElementById(id);
+  if (el && !String(el.value || '').trim() && value) el.value = value;
 }
 
 function updateDeliverySummary() {
@@ -1833,6 +1850,163 @@ function renderCustomerSearchState(html) {
   results.classList.add('show');
 }
 
+function activeCustomerSites(sites) {
+  return (Array.isArray(sites) ? sites : []).filter(site => String(site.status || 'active') !== 'inactive');
+}
+
+function applyCustomerDetails(c = {}) {
+  if (!c || !c.id) return;
+  window._selectedCustomerId = c.id;
+  setInputValue('customerSearch', c.name || '');
+  setInputValue('customerPhone', c.phone || '');
+  setInputValue('customerPriorityId', c.priority_id || '');
+  setInputValue('contactName', c.contact_name || '');
+  setInputValue('contactPhone', c.contact_phone || '');
+  setInputValueIfEmpty('deliveryAddress', c.address || '');
+  updateCustomerSummary();
+  updateDeliverySummary();
+}
+
+function applyCustomerSite(site = {}) {
+  setInputValue('orderSiteId', site.id || '');
+  setInputValue('deliverySiteName', site.name || '');
+  setInputValue('deliveryAddress', site.address || '');
+  const notes = [site.manager_name, site.manager_phone].filter(Boolean).join(' | ');
+  setInputValueIfEmpty('driverNotes', notes);
+  updateDeliverySummary();
+}
+
+function renderCustomerSiteChoice(sites = [], customer = {}) {
+  selectedCustomerSites = activeCustomerSites(sites);
+  const wrap = document.getElementById('customerSiteChoiceWrap');
+  const select = document.getElementById('customerSiteChoice');
+  if (!wrap || !select) return;
+  if (!selectedCustomerSites.length) {
+    wrap.style.display = 'none';
+    select.innerHTML = '';
+    setInputValue('orderSiteId', '');
+    setInputValueIfEmpty('deliveryAddress', customer.address || '');
+    updateDeliverySummary();
+    return;
+  }
+  if (selectedCustomerSites.length === 1) {
+    wrap.style.display = 'none';
+    select.innerHTML = '';
+    applyCustomerSite(selectedCustomerSites[0]);
+    return;
+  }
+  wrap.style.display = '';
+  select.innerHTML = '<option value="">&#1489;&#1495;&#1512; &#1488;&#1514;&#1512;...</option>' + selectedCustomerSites.map(site => {
+    const label = [site.name, site.address, site.city].filter(Boolean).join(' - ');
+    return '<option value="' + escapeHtml(site.id) + '">' + escapeHtml(label) + '</option>';
+  }).join('');
+  setInputValue('orderSiteId', '');
+  setInputValueIfEmpty('deliveryAddress', customer.address || '');
+  updateDeliverySummary();
+}
+
+function applySelectedCustomerSite() {
+  const id = Number(document.getElementById('customerSiteChoice')?.value || 0);
+  const site = selectedCustomerSites.find(row => Number(row.id) === id);
+  if (site) applyCustomerSite(site);
+}
+
+async function hydrateSelectedCustomer(customerId, seed = {}) {
+  const id = Number(customerId || seed.id || 0);
+  if (!id) return;
+  try {
+    const [customerRes, sitesRes] = await Promise.all([
+      fetch('/api/customers/' + encodeURIComponent(id)),
+      fetch('/api/customers/' + encodeURIComponent(id) + '/portal-sites'),
+    ]);
+    const customer = customerRes.ok ? await customerRes.json() : seed;
+    const sitesData = sitesRes.ok ? await sitesRes.json() : { sites: [] };
+    applyCustomerDetails({ ...seed, ...customer, id });
+    renderCustomerSiteChoice(sitesData.sites || [], { ...seed, ...customer, id });
+    const copy = selectedCustomerSites.length > 1
+      ? '\u05e0\u05d1\u05d7\u05e8 \u05dc\u05e7\u05d5\u05d7 \u05e7\u05d9\u05d9\u05dd. \u05d9\u05e9 \u05dc\u05d5 \u05db\u05de\u05d4 \u05d0\u05ea\u05e8\u05d9\u05dd - \u05d1\u05d7\u05e8 \u05d0\u05ea\u05e8 \u05d1\u05e4\u05e8\u05d8\u05d9 \u05d4\u05d0\u05e1\u05e4\u05e7\u05d4.'
+      : '\u05e0\u05d1\u05d7\u05e8 \u05dc\u05e7\u05d5\u05d7 \u05e7\u05d9\u05d9\u05dd. \u05e4\u05e8\u05d8\u05d9 \u05dc\u05e7\u05d5\u05d7 \u05d5\u05d0\u05ea\u05e8 \u05de\u05d5\u05dc\u05d0\u05d5 \u05d0\u05dd \u05e7\u05d9\u05d9\u05de\u05d9\u05dd.';
+    setCustomerState((customer.priority_id ? '\u05dc\u05e7\u05d5\u05d7 \u05e7\u05d9\u05d9\u05dd: ' + customer.priority_id : '\u05dc\u05e7\u05d5\u05d7 \u05e7\u05d9\u05d9\u05dd \u05e9\u05d5\u05d9\u05da'), copy);
+  } catch (err) {
+    applyCustomerDetails(seed);
+    setCustomerState(seed.priority_id ? '\u05dc\u05e7\u05d5\u05d7 \u05e7\u05d9\u05d9\u05dd: ' + seed.priority_id : '\u05dc\u05e7\u05d5\u05d7 \u05e7\u05d9\u05d9\u05dd \u05e9\u05d5\u05d9\u05da', '\u05d4\u05dc\u05e7\u05d5\u05d7 \u05e0\u05d1\u05d7\u05e8. \u05dc\u05d0 \u05d4\u05e6\u05dc\u05d7\u05e0\u05d5 \u05dc\u05d8\u05e2\u05d5\u05df \u05d0\u05ea\u05e8\u05d9\u05dd \u05db\u05e8\u05d2\u05e2.');
+  }
+}
+
+function captureOrderDraft() {
+  return {
+    customer: {
+      id: window._selectedCustomerId || null,
+      name: document.getElementById('customerSearch')?.value || '',
+      phone: document.getElementById('customerPhone')?.value || '',
+      priorityId: document.getElementById('customerPriorityId')?.value || '',
+      contactName: document.getElementById('contactName')?.value || '',
+      contactPhone: document.getElementById('contactPhone')?.value || '',
+    },
+    delivery: {
+      siteId: document.getElementById('orderSiteId')?.value || '',
+      siteName: document.getElementById('deliverySiteName')?.value || '',
+      address: document.getElementById('deliveryAddress')?.value || '',
+      date: document.getElementById('deliveryDate')?.value || '',
+      time: document.getElementById('deliveryTime')?.value || '',
+      priority: document.getElementById('orderPriority')?.value || '',
+      driverNotes: document.getElementById('driverNotes')?.value || '',
+    },
+    notes: document.getElementById('generalNotes')?.value || '',
+    pallets,
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function saveOrderDraftForCustomerHandoff() {
+  try { localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify(captureOrderDraft())); } catch {}
+}
+
+function restoreOrderDraft() {
+  let draft = null;
+  try { draft = JSON.parse(localStorage.getItem(ORDER_DRAFT_KEY) || 'null'); } catch { draft = null; }
+  if (!draft) return false;
+  const c = draft.customer || {};
+  const d = draft.delivery || {};
+  window._selectedCustomerId = c.id || null;
+  setInputValue('customerSearch', c.name || '');
+  setInputValue('customerPhone', c.phone || '');
+  setInputValue('customerPriorityId', c.priorityId || '');
+  setInputValue('contactName', c.contactName || '');
+  setInputValue('contactPhone', c.contactPhone || '');
+  setInputValue('orderSiteId', d.siteId || '');
+  setInputValue('deliverySiteName', d.siteName || '');
+  setInputValue('deliveryAddress', d.address || '');
+  setInputValue('deliveryTime', d.time || '');
+  setInputValue('driverNotes', d.driverNotes || '');
+  setInputValue('generalNotes', draft.notes || '');
+  if (d.date) setInputValue('deliveryDate', d.date);
+  if (d.priority) {
+    setInputValue('orderPriority', d.priority);
+    document.querySelectorAll('.priority-btn').forEach(btn => btn.classList.toggle('active', btn.textContent.includes(d.priority)));
+  }
+  if (Array.isArray(draft.pallets) && draft.pallets.length) {
+    pallets = draft.pallets;
+    renderPallets();
+  }
+  if (c.id) hydrateSelectedCustomer(c.id, { id: c.id, name: c.name, phone: c.phone, priority_id: c.priorityId, contact_name: c.contactName, contact_phone: c.contactPhone });
+  setCustomerState(c.id ? '\u05d8\u05d9\u05d5\u05d8\u05d4 \u05e9\u05d5\u05d7\u05d6\u05e8\u05d4' : '\u05dc\u05e7\u05d5\u05d7 \u05de\u05d8\u05d9\u05d5\u05d8\u05d4', '\u05d4\u05d8\u05d5\u05e4\u05e1 \u05e9\u05d5\u05d7\u05d6\u05e8 \u05de\u05e9\u05de\u05d9\u05e8\u05d4 \u05de\u05e7\u05d5\u05de\u05d9\u05ea.');
+  updateDeliverySummary();
+  updateCustomerSummary();
+  updateNotesSummary();
+  return true;
+}
+
+function clearOrderDraft() {
+  try { localStorage.removeItem(ORDER_DRAFT_KEY); } catch {}
+}
+
+function openCustomersWithDraft(event) {
+  if (event) event.preventDefault();
+  saveOrderDraftForCustomerHandoff();
+  window.location.href = '/customers.html?return_to_order=1';
+}
+
 function searchCustomer(query) {
   const results = document.getElementById('customerResults');
   const clean = (query || '').trim();
@@ -1852,7 +2026,7 @@ function searchCustomer(query) {
           <div class="customer-results-state"><strong>לא נמצא לקוח מתאים.</strong><br>אפשר לפתוח כרטיס לקוח חדש או להמשיך את ההזמנה ללא שיוך.</div>
           <div class="customer-results-actions">
             <button class="primary" type="button" onclick="newCustomer(decodeURIComponent('${encodeURIComponent(clean)}'))">המשך עם השם שהוקלד</button>
-            <a href="/customers.html">פתח לקוח חדש</a>
+            <a href="/customers.html" onclick="openCustomersWithDraft(event)">פתח לקוח חדש</a>
             <button type="button" onclick="continueUnassignedCustomer()">לקוח לא משויך</button>
           </div>`);
         return;
@@ -1866,7 +2040,7 @@ function searchCustomer(query) {
           <div class="customer-result-action">בחר</div>
         </div>
       `).join('');
-      html += `<div class="customer-results-actions"><button type="button" onclick="newCustomer(decodeURIComponent('${encodeURIComponent(clean)}'))">המשך עם השם שהוקלד</button><a href="/customers.html">פתח לקוח חדש</a></div>`;
+      html += `<div class="customer-results-actions"><button type="button" onclick="newCustomer(decodeURIComponent('${encodeURIComponent(clean)}'))">המשך עם השם שהוקלד</button><a href="/customers.html" onclick="openCustomersWithDraft(event)">פתח לקוח חדש</a></div>`;
       renderCustomerSearchState(html);
     } catch (err) {
       renderCustomerSearchState('<div class="customer-results-state">שגיאה בחיפוש לקוח. נסה שוב בעוד רגע.</div>');
@@ -1875,13 +2049,8 @@ function searchCustomer(query) {
 }
 
 function selectCustomer(c) {
-  document.getElementById('customerSearch').value = c.name;
-  document.getElementById('customerPhone').value = c.phone ?? '';
-  document.getElementById('customerPriorityId').value = c.priority_id ?? '';
-  document.getElementById('contactName').value = c.contact_name ?? '';
-  document.getElementById('contactPhone').value = c.contact_phone ?? '';
   document.getElementById('customerResults').classList.remove('show');
-  setCustomerState(c.priority_id ? `לקוח קיים: ${c.priority_id}` : 'לקוח קיים שויך', `${c.name || 'לקוח'} נבחר להזמנה. טלפון ואיש קשר מולאו אם קיימים בכרטיס.`);
+  hydrateSelectedCustomer(c.id, c);
 }
 
 function newCustomer(name) {
@@ -2282,6 +2451,12 @@ function newOrder() {
   document.getElementById('customerPriorityId').value = '';
   document.getElementById('contactName').value = '';
   document.getElementById('contactPhone').value = '';
+  setInputValue('orderSiteId', '');
+  setInputValue('deliverySiteName', '');
+  const siteWrap = document.getElementById('customerSiteChoiceWrap');
+  if (siteWrap) siteWrap.style.display = 'none';
+  selectedCustomerSites = [];
+  clearOrderDraft();
   setCustomerState('לקוח לא משויך', 'ההזמנה תישמר ללא שיוך לכרטיס לקוח. אפשר להשלים שיוך מאוחר יותר.');
   document.getElementById('deliveryAddress').value = '';
   document.getElementById('deliverySiteName').value = '';
@@ -2325,6 +2500,7 @@ async function submitOrder() {
 
   const payload = {
     customer: {
+      id: window._selectedCustomerId || null,
       name: document.getElementById('customerSearch').value,
       phone: document.getElementById('customerPhone').value,
       address: document.getElementById('deliveryAddress').value,
@@ -2336,6 +2512,7 @@ async function submitOrder() {
       deliveryDate: document.getElementById('deliveryDate').value,
       deliveryTime: document.getElementById('deliveryTime').value,
       deliveryAddress: document.getElementById('deliveryAddress').value,
+      siteId: document.getElementById('orderSiteId')?.value || null,
       priority: document.getElementById('orderPriority').value,
       driverNotes: driverNotes,
       generalNotes: document.getElementById('generalNotes').value,
@@ -2386,6 +2563,7 @@ async function submitOrder() {
       // show/hide cert buttons if online
       const actionsEl = document.getElementById('successActions');
       if (actionsEl) actionsEl.style.display = result.orderId ? 'grid' : 'none';
+      clearOrderDraft();
       document.getElementById('successOverlay').classList.add('show');
       orderCounter++;
     } else {

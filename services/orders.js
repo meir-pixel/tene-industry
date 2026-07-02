@@ -96,6 +96,12 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
       customerId = r.lastInsertRowid;
     }
 
+    const orderSiteId = Number(order.siteId || order.site_id || 0) || null;
+    if (orderSiteId) {
+      const site = db.prepare('SELECT id FROM customer_sites WHERE id=? AND customer_id=?').get(orderSiteId, customerId);
+      if (!site) throw Object.assign(new Error('site_id does not belong to customer'), { statusCode: 400 });
+    }
+
     const orderNum = order.orderNum || generateOrderNum();
     const inventoryPolicy = normalizeStockAllocationPolicy(
       order.inventoryAllocationPolicy || order.stockAllocationPolicy || settingsService?.get('INVENTORY_ALLOCATION_POLICY', 'auto_fifo')
@@ -105,9 +111,9 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
     const billingWeight = totalWeight * (1 + wastePct / 100);
 
     const orderResult = db.prepare(`
-      INSERT INTO orders (order_num,stable_order_id,customer_id,channel,delivery_date,delivery_time,delivery_address,priority,driver_notes,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(orderNum, createStableOrderId(orderNum), customerId, order.channel, order.deliveryDate, order.deliveryTime,
+      INSERT INTO orders (order_num,stable_order_id,customer_id,site_id,channel,delivery_date,delivery_time,delivery_address,priority,driver_notes,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(orderNum, createStableOrderId(orderNum), customerId, orderSiteId, order.channel, order.deliveryDate, order.deliveryTime,
       order.deliveryAddress, order.priority, order.driverNotes, order.generalNotes,
       totalWeight, wastePct, billingWeight, order.createdBy || null);
 

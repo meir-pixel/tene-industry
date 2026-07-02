@@ -891,6 +891,29 @@
   - No code changes.
   - No new shape families.
 
+### V2-007B - New Order Customer Site Autofill And Draft Return
+
+- status: done
+- owner: codex-orders
+- module: orders/customers integration
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/index.html`
+  - `services/orders.js`
+  - `test/client-auth-contract.test.js`
+  - `test/security-routes.test.js`
+- output:
+  - selecting a customer loads customer details and fills available profile fields.
+  - one customer site is applied automatically; multiple sites show a site picker.
+  - opening Customers from a draft order saves a local draft for return.
+  - saved orders persist selected site_id only when it belongs to the selected customer.
+- guardrails:
+  - Orders/customer integration only.
+  - No Production, Portal, Finance, OCR, pricing, or UI redesign.
+- verification:
+  - `node --test test\client-auth-contract.test.js test\security-routes.test.js`
+  - `npm test`
 ### V2-008 — Intake/OCR Module Specification
 
 - status: in_progress

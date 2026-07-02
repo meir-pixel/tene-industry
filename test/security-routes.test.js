@@ -245,6 +245,26 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.notEqual((await request('/api/orders', { method: 'POST', headers: authHeaders(office), body })).status, 403);
   });
 
+  await t.test('order creation stores selected customer site only for that customer', async () => {
+    const customerId = seedCustomer();
+    const siteId = db.prepare('INSERT INTO customer_sites (customer_id,name,address,status) VALUES (?,?,?,?)')
+      .run(customerId, 'Site A', 'Site A address', 'active').lastInsertRowid;
+    const response = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(office),
+      body: JSON.stringify({
+        customer: { id: customerId, name: 'Security Test Customer', phone: '0500000000' },
+        order: { orderNum: 'ORDER-SITE-BOUND', channel: 'office', deliveryAddress: 'Site A address', siteId, totalWeight: 0 },
+        pallets: [{ items: [{ shapeName: 'straight', diameter: 12, length: 1000, qty: 1 }] }],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    const order = db.prepare('SELECT customer_id,site_id,delivery_address FROM orders WHERE id=?').get(created.orderId);
+    assert.equal(order.customer_id, customerId);
+    assert.equal(order.site_id, siteId);
+    assert.equal(order.delivery_address, 'Site A address');
+  });
   await t.test('order contract requires manager approval and rejects draft-to-production', async () => {
     const customerId = seedCustomer();
     const directProductionOrder = seedInternalOrder(customerId, 'ORDER-CONTRACT-SKIP');
