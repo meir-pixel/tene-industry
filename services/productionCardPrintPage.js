@@ -87,17 +87,17 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .pc-split-state{display:inline-flex;align-items:center;border-radius:5px;background:#fff3d7;border:1px solid #ffd6a0;color:#8a4b00;padding:3px 6px;font-size:10px;font-weight:900;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.12);}
 .pc-print-face{display:grid;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
 .pc-print-main{display:grid;grid-template-rows:11mm 7mm 38mm 18.25mm;width:78mm;height:74.25mm;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
-.pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;}
+.pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;background:#1a2332;color:#fff;}
 .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:8px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
 .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
 .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
 .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
 .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
 .pc-print-bottom span:first-child{border-left:0;}
-.pc-print-qr-panel{display:grid;grid-template-rows:52mm 22.25mm;align-items:center;justify-items:center;width:27mm;height:74.25mm;overflow:hidden;}
+.pc-print-qr-panel{display:grid;grid-template-rows:52mm 22.25mm;align-items:center;justify-items:center;width:27mm;height:74.25mm;overflow:hidden;background:#f5f7fa;}
 .pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;}
 .pc-print-qr-code canvas,.pc-print-qr-code img{width:22mm!important;height:22mm!important;display:block;}
-.pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:9px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;}
+.pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:9px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;background:#1a2332;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .pc-head{display:flex;justify-content:space-between;align-items:flex-start;
   padding:7px 10px 5px;border-bottom:2px solid #1a2332;background:#fff;}
 .pc-title{font-size:13px;font-weight:900;color:#1a2332;line-height:1.2;}
@@ -182,17 +182,17 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .prod-card>:not(.pc-print-face){display:none!important;}
   .pc-print-face{display:grid!important;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
   .pc-print-main{display:grid;grid-template-rows:11mm 7mm 38mm 18.25mm;width:78mm;height:74.25mm;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
-  .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;}
+  .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:8px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
   .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
   .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
   .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
   .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
   .pc-print-bottom span:first-child{border-left:0;}
-  .pc-print-qr-panel{display:grid;grid-template-rows:52mm 22.25mm;align-items:center;justify-items:center;width:27mm;height:74.25mm;overflow:hidden;}
+  .pc-print-qr-panel{display:grid;grid-template-rows:52mm 22.25mm;align-items:center;justify-items:center;width:27mm;height:74.25mm;overflow:hidden;background:#f5f7fa!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;}
   .pc-print-qr-code canvas,.pc-print-qr-code img{width:22mm!important;height:22mm!important;display:block;}
-  .pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:9px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;}
+  .pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:9px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .prod-card{
     width:105mm!important;
     height:74.25mm!important;

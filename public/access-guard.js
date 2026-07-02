@@ -26,7 +26,7 @@
   async function enforce() {
     try {
       const token = (typeof IronBendAuth !== 'undefined' && IronBendAuth.getToken && IronBendAuth.getToken()) ||
-                    localStorage.getItem('ib_token');
+                    localStorage.getItem('ib_access_token') || sessionStorage.getItem('ib_access_token');
       if (!token) {
         window.location.href = '/login.html?redirect=' + encodeURIComponent(location.pathname);
         return;

@@ -314,7 +314,7 @@
 
   async function applyAccessControl() {
     try {
-      const token = localStorage.getItem('ib_token');
+      const token = localStorage.getItem('ib_access_token') || sessionStorage.getItem('ib_access_token');
       if (!token) return;
       const res = await fetch('/api/access/me', {
         headers: { Authorization: 'Bearer ' + token }
@@ -552,7 +552,10 @@
       resultsEl.innerHTML = '<div class="ib-sr-empty">מחפש...</div>';
       searchTimer = setTimeout(async () => {
         try {
-          const r = await fetch('/api/search?q=' + encodeURIComponent(q));
+          const _searchToken = localStorage.getItem('ib_access_token') || sessionStorage.getItem('ib_access_token');
+          const r = await fetch('/api/search?q=' + encodeURIComponent(q), {
+            headers: _searchToken ? { Authorization: 'Bearer ' + _searchToken } : {}
+          });
           const { results = [] } = await r.json();
           resultsEl.innerHTML = results.length
             ? results.map(res =>
