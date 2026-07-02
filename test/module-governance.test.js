@@ -1467,7 +1467,7 @@ test('auth request middleware is extracted from server', () => {
   assert.match(auth, /function optionalAuth\(req, _res, next\)/);
   assert.match(auth, /function applyAuthBypass\(req\)/);
   assert.match(auth, /function verifyWhatsAppSignature\(req, res, next\)/);
-  assert.match(auth, /AUTH_BYPASS === 'true' && process\.env\.NODE_ENV !== 'production'/);
+  assert.match(auth, /AUTH_BYPASS === 'true' && process\.env\.NODE_ENV === 'development'/);
   assert.match(auth, /authService\.verifyAccessToken\(token\)/);
   assert.match(auth, /crypto\.timingSafeEqual/);
   assert.match(server, /require\('\.\/middleware\/auth'\)/);

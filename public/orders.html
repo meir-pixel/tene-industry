@@ -81,6 +81,8 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   color:var(--dim);font-family:'Heebo',sans-serif;font-size:12px;font-weight:600;
   cursor:pointer;transition:all .15s;white-space:nowrap;text-decoration:none;
   display:inline-flex;align-items:center;-webkit-tap-highlight-color:transparent;}
+.btn-sm.danger{border-color:#fca5a5;background:#fff5f5;color:#dc2626;}
+.btn-sm.danger:hover{background:#fee2e2;border-color:#f87171;}
 .btn-sm:hover{border-color:var(--accent);color:var(--accent);}
 .btn-sm.success:hover{border-color:var(--success);color:var(--success);}
 
@@ -464,9 +466,11 @@ function actionBtns(o, stopProp = true, includePrints = true) {
     <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" title="כרטיסיות">🖨️</a>
     <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" title="תעודת משלוח">📋</a>
   ` : '';
+  const deleteBtn = `<button class="btn-sm danger" onclick="event.stopPropagation();deleteOrder(${o.id},${jsAttr(o.order_num)})" title="מחק הזמנה">🗑️</button>`;
   return `<div class="actions" ${sp}>
     ${transitionButtons}
     ${printButtons}
+    ${deleteBtn}
   </div>`;
 }
 
@@ -1243,6 +1247,25 @@ async function addParsedItemToOrder(event, index) {
   }
   closeSourcePanel();
   await openDetail(orderId);
+}
+
+async function deleteOrder(orderId, orderNum) {
+  if (!confirm(`למחוק את הזמנה ${orderNum}?\nפעולה זו בלתי הפיכה.`)) return;
+  const token = localStorage.getItem('ib_access_token') || sessionStorage.getItem('ib_access_token');
+  const response = await fetch(`/api/orders/${orderId}`, {
+    method: 'DELETE',
+    headers: token ? { Authorization: 'Bearer ' + token } : {}
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    alert(result.error || 'מחיקת ההזמנה נכשלה');
+    return;
+  }
+  if (currentDetailOrder && Number(currentDetailOrder.id) === Number(orderId)) {
+    document.getElementById('detailPanel')?.classList?.remove('open');
+    currentDetailOrder = null;
+  }
+  fetchOrders();
 }
 
 async function deleteOrderItem(event, orderId, itemId) {

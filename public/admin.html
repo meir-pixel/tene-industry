@@ -872,7 +872,7 @@ async function renderPermissions() {
   if (!grid) return;
   grid.innerHTML = '<div style="padding:16px;color:var(--muted)">טוען מטריצה...</div>';
   try {
-    const token = localStorage.getItem('ib_token');
+    const token = localStorage.getItem('ib_access_token') || sessionStorage.getItem('ib_access_token');
     const res = await fetch('/api/access/matrix', { headers: { Authorization: 'Bearer ' + token } });
     if (!res.ok) { grid.innerHTML = '<div style="padding:16px;color:#b83227">שגיאה בטעינת הרשאות</div>'; return; }
     const { screens, roles, access } = await res.json();
@@ -921,7 +921,7 @@ async function saveAccessOverride(sel) {
   const role = sel.dataset.role;
   const level = sel.value;
   try {
-    const token = localStorage.getItem('ib_token');
+    const token = localStorage.getItem('ib_access_token') || sessionStorage.getItem('ib_access_token');
     const res = await fetch('/api/access/matrix', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },

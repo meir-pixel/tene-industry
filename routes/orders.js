@@ -397,6 +397,29 @@ module.exports = function createOrdersRouter(deps) {
     res.json({ success: true });
   });
 
+  router.delete('/orders/:id', requireAnyRole(['manager', 'admin']), (req, res) => {
+    const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+    if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
+    if (order.locked) return res.status(403).json({ error: 'לא ניתן למחוק הזמנה נעולה' });
+    const started = db.prepare(
+      'SELECT COUNT(*) as c FROM items WHERE pallet_id IN (SELECT id FROM pallets WHERE order_id=?) AND produced_qty > 0'
+    ).get(order.id);
+    if (started.c > 0) return res.status(409).json({ error: 'לא ניתן למחוק הזמנה שהתחיל בה ייצור' });
+
+    const before = JSON.stringify({ order_num: order.order_num, status: order.status });
+    db.transaction(() => {
+      db.prepare('DELETE FROM production_card_weights WHERE order_id=?').run(order.id);
+      db.prepare('DELETE FROM scan_log WHERE order_id=?').run(order.id);
+      db.prepare('DELETE FROM items WHERE pallet_id IN (SELECT id FROM pallets WHERE order_id=?)').run(order.id);
+      db.prepare('DELETE FROM pallets WHERE order_id=?').run(order.id);
+      db.prepare('DELETE FROM orders WHERE id=?').run(order.id);
+    })();
+
+    auditLog('order', order.id, order.order_num, 'order_delete', 'status', before, null, 'מחיקת הזמנה', req.auth?.sub || null, req.auth?.display_name || null);
+    wsBroadcast('order_deleted', { orderId: Number(order.id), orderNum: order.order_num });
+    res.json({ success: true, orderNum: order.order_num });
+  });
+
   return router;
 };
 
@@ -419,6 +442,7 @@ module.exports.manifest = {
     { event: 'order_item_updated' },
     { event: 'order_item_added' },
     { event: 'order_item_deleted' },
+    { event: 'order_deleted' },
     { event: 'machine_assign' },
   ],
 };

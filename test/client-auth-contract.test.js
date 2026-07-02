@@ -320,7 +320,7 @@ test('existing customer portal order submission still creates customer confirmat
   assert.match(orderCreateBlock, /confirmToken/);
   assert.match(customerPage, /function submitOrder\(\)/);
   assert.match(customerPage, /\/api\/c\/order/);
-  assert.match(customerPage, /function approveOrder\(orderId\)/);
+  assert.match(customerPage, /function approveOrder\(orderId, event\)/);
 });
 
 test('high-risk screens load shared safe DOM helper', () => {
@@ -1298,7 +1298,7 @@ test('local server command skips startup snapshot outside production', () => {
 
   assert.match(dbConnection, /SKIP_STARTUP_DB_SNAPSHOT/);
   assert.match(dbConnection, /env\.NODE_ENV !== 'production'/);
-  assert.match(authMiddleware, /AUTH_BYPASS.*NODE_ENV !== 'production'/);
+  assert.match(authMiddleware, /AUTH_BYPASS.*NODE_ENV === 'development'/);
   assert.equal(pkg.scripts['start:local'], 'node scripts/start-local.js');
   assert.match(localStart, /PORT.*3100/);
   assert.match(localStart, /SKIP_STARTUP_DB_SNAPSHOT/);

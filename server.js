@@ -92,7 +92,15 @@ const INTAKE_AI_ENABLED = process.env.INTAKE_AI_ENABLED === 'true'; // default: 
 const PRIORITY_ENABLED  = process.env.PRIORITY_ENABLED  === 'true'; // default: false
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3100')
+  .split(',').map(o => o.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error('CORS origin not allowed: ' + origin));
+  },
+  credentials: true,
+}));
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;

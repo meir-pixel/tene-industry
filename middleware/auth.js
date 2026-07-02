@@ -10,7 +10,7 @@ function required(name, value) {
 function createAuthMiddleware(deps) {
   const authService = required('authService', deps.authService);
   const getRolePermission = required('getRolePermission', deps.getRolePermission);
-  const authBypassEnabled = process.env.AUTH_BYPASS === 'true' && process.env.NODE_ENV !== 'production';
+  const authBypassEnabled = process.env.AUTH_BYPASS === 'true' && process.env.NODE_ENV === 'development';
   const authBypassRole = getRolePermission(process.env.AUTH_BYPASS_ROLE || 'admin')?.role || 'admin';
   let authBypassWarned = false;
 
