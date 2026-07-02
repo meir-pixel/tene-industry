@@ -89,6 +89,8 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.match(html, /function setCardSplit\(itemId, count, event\)/);
   assert.match(html, /pc-screen-tools/);
   assert.match(html, /function openCardSplitMenu\(itemId, event\)/);
+  assert.match(html, /function escapeHtml\(value\)/);
+  assert.ok(html.indexOf('function escapeHtml(value)') < html.indexOf('function dimensionLabelSvg'));
   assert.match(html, /pc-split-hotspot/);
   assert.match(html, /data-split-menu-open/);
   assert.doesNotMatch(html, /\\u05e4\\u05e6\\u05dc \\u05dc-2/);
