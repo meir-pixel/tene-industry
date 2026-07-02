@@ -987,6 +987,9 @@ test('intake OCR review requires source-versus-parsed comparison', () => {
   assert.match(intake, /\/brand\/tene-pdf-logo\.jpg/);
   assert.match(intake, /ocrSourceTargetsHtml/);
   assert.match(intake, /highlightOcrTableTarget/);
+  assert.match(intake, /toggleOcrCompareMode/);
+  assert.match(intake, /setOcrCompareHover/);
+  assert.match(intake, /class="ocr-compare-toggle"/);
   assert.match(intake, /filterOcrReviewRows/);
   assert.match(intake, /target_weight_kg/);
   assert.match(intake, /ocr-review-note/);
