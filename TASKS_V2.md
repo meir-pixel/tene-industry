@@ -242,6 +242,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
+  - added role-aware section navigation to the customer portal home screen so orders, sites, finance, price list, and documents open as clear focused areas instead of one long mixed page.
   - collapsed the customer-site creation form once sites exist so the portal shows existing projects first and only opens a new-site form on explicit request.
   - removed the visible old/new portal split by converting legacy customer links into per-user portal tokens on first portal load.
   - fixed the customer portal home view so saved customer sites are shown automatically after refresh instead of hiding behind the Sites button.

@@ -142,6 +142,27 @@ test('customer portal UI uses OTP verification before storing token', () => {
   assert.match(customer, /completeAuth\(data\.data\)/);
 });
 
+test('customer portal home uses role-aware section navigation', () => {
+  const customerPage = read('public/customer.html');
+
+  assert.match(customerPage, /id="portalHomeTabs"/);
+  assert.match(customerPage, /id="homeTabOrders"/);
+  assert.match(customerPage, /id="homeTabSites"/);
+  assert.match(customerPage, /id="homeTabFinance"/);
+  assert.match(customerPage, /id="homeTabPriceList"/);
+  assert.match(customerPage, /id="homeTabDocs"/);
+  assert.match(customerPage, /id="homeSectionOrders"/);
+  assert.match(customerPage, /id="homeSectionSites"/);
+  assert.match(customerPage, /id="homeSectionFinance"/);
+  assert.match(customerPage, /id="homeSectionPriceList"/);
+  assert.match(customerPage, /id="homeSectionDocs"/);
+  assert.match(customerPage, /function setHomeSection\(name\)/);
+  assert.match(customerPage, /function updatePortalHomeTabs\(\)/);
+  assert.match(customerPage, /homeTabFinance'\s*,\s*financeVisible/);
+  assert.match(customerPage, /homeTabPriceList'\s*,\s*priceVisible/);
+  assert.match(customerPage, /setHomeSection\(currentHomeSection\(\)\)/);
+});
+
 test('customer CRM can rotate and revoke portal links', () => {
   const customers = read('public/customers.html');
   const admin = read('public/admin.html');

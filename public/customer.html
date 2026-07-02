@@ -27,6 +27,7 @@
 
     /* ── Screen ── */
     .screen{display:none;padding:20px;max-width:600px;margin:0 auto}
+    #screenHome{max-width:760px}
     #screenOrder{max-width:980px}
     .screen.active{display:block}
 
@@ -66,7 +67,13 @@
     .welcome-banner p{font-size:13px;color:#bbb}
     .welcome-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
     .welcome-actions .btn{width:auto;margin:0}
-    .new-order-btn{background:var(--orange);color:#fff;border:none;border-radius:14px;padding:16px;width:100%;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:20px;display:flex;align-items:center;justify-content:center;gap:10px}
+    .new-order-btn{background:var(--orange);color:#fff;border:none;border-radius:14px;padding:16px;width:100%;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:10px}
+    .portal-home-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+    .portal-home-tab{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:10px 8px;font-size:13px;font-weight:800;color:#26364a;cursor:pointer;box-shadow:0 1px 6px rgba(0,0,0,.035)}
+    .portal-home-tab.active{border-color:var(--orange);background:#fff7ef;color:#c95700}
+    .portal-home-tab[hidden]{display:none}
+    .portal-home-section{display:none}
+    .portal-home-section.active{display:block}
 
     .order-card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:10px;cursor:pointer;border-right:4px solid transparent}
     .order-card.status-pending{border-right-color:#f39c12}
@@ -206,7 +213,7 @@
     .loader{text-align:center;padding:40px;color:var(--dim);font-size:14px}
 
     @media(min-width:600px){.shapes-grid{grid-template-columns:repeat(4,1fr)}}
-    @media(max-width:720px){.portal-shape-edit{grid-template-columns:1fr}.portal-shape-preview{min-height:150px}.portal-upload-grid{grid-template-columns:1fr}.finance-kpis,.finance-site-metrics{grid-template-columns:1fr 1fr}}
+    @media(max-width:720px){.portal-shape-edit{grid-template-columns:1fr}.portal-shape-preview{min-height:150px}.portal-upload-grid{grid-template-columns:1fr}.finance-kpis,.finance-site-metrics{grid-template-columns:1fr 1fr}.portal-home-tabs{grid-template-columns:repeat(2,1fr)}}
   </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -271,25 +278,47 @@
   <button class="new-order-btn" onclick="showScreen('screenOrder')">
     ➕ הזמנה חדשה
   </button>
-  <div id="customerSitesPanel" class="section-card" style="display:none"></div>
-  <div id="customerFinanceDashboard"></div>
-  <div id="portalPriceListPanel"></div>
-  <div class="section-card guarantee-panel">
-    <div class="guarantee-head">
-      <div>
-        <div class="card-title">מסמכי ערבות ותנאי תשלום</div>
-        <p>אם יש לך תנאי תשלום, העלה כאן את טופס הערבות החתום. המשרד יבדוק ויאשר.</p>
+  <nav class="portal-home-tabs" id="portalHomeTabs" aria-label="ניווט פורטל לקוח">
+    <button type="button" class="portal-home-tab active" id="homeTabOrders" onclick="setHomeSection('orders')">הזמנות</button>
+    <button type="button" class="portal-home-tab" id="homeTabSites" onclick="setHomeSection('sites')" hidden>אתרים</button>
+    <button type="button" class="portal-home-tab" id="homeTabFinance" onclick="setHomeSection('finance')" hidden>כספים</button>
+    <button type="button" class="portal-home-tab" id="homeTabPriceList" onclick="setHomeSection('priceList')" hidden>מחירון</button>
+    <button type="button" class="portal-home-tab" id="homeTabDocs" onclick="setHomeSection('docs')">מסמכים</button>
+  </nav>
+
+  <section class="portal-home-section active" id="homeSectionOrders">
+    <div class="card-title" style="margin-bottom:10px">הזמנות אחרונות</div>
+    <div id="ordersList"><div class="loader">טוען...</div></div>
+  </section>
+
+  <section class="portal-home-section" id="homeSectionSites">
+    <div id="customerSitesPanel" class="section-card"></div>
+  </section>
+
+  <section class="portal-home-section" id="homeSectionFinance">
+    <div id="customerFinanceDashboard"></div>
+  </section>
+
+  <section class="portal-home-section" id="homeSectionPriceList">
+    <div id="portalPriceListPanel"></div>
+  </section>
+
+  <section class="portal-home-section" id="homeSectionDocs">
+    <div class="section-card guarantee-panel">
+      <div class="guarantee-head">
+        <div>
+          <div class="card-title">מסמכי ערבות ותנאי תשלום</div>
+          <p>אם יש לך תנאי תשלום, העלה כאן את טופס הערבות החתום. המשרד יבדוק ויאשר.</p>
+        </div>
+        <span id="guaranteeStatus" class="guarantee-status">לא הועלה</span>
       </div>
-      <span id="guaranteeStatus" class="guarantee-status">לא הועלה</span>
+      <div class="portal-upload-grid">
+        <input type="file" id="guaranteeFile" accept=".pdf,.jpg,.jpeg,.png"/>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="uploadGuaranteeDocument()">העלה טופס חתום</button>
+      </div>
+      <div id="guaranteeDocsList" class="guarantee-list"></div>
     </div>
-    <div class="portal-upload-grid">
-      <input type="file" id="guaranteeFile" accept=".pdf,.jpg,.jpeg,.png"/>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="uploadGuaranteeDocument()">העלה טופס חתום</button>
-    </div>
-    <div id="guaranteeDocsList" class="guarantee-list"></div>
-  </div>
-  <div class="card-title" style="margin-bottom:10px">הזמנות אחרונות</div>
-  <div id="ordersList"><div class="loader">טוען...</div></div>
+  </section>
 </div>
 
 <!-- ══ NEW ORDER SCREEN ══ -->
@@ -493,11 +522,8 @@ function canViewCustomerFinance() {
 }
 
 function toggleSitesPanel(forceOpen) {
-  const panel = document.getElementById('customerSitesPanel');
-  if (!panel) return;
-  const open = typeof forceOpen === 'boolean' ? forceOpen : panel.style.display === 'none';
-  panel.style.display = open ? '' : 'none';
-  if (open) renderCustomerSitesPanel();
+  renderCustomerSitesPanel();
+  setHomeSection('sites');
 }
 
 function renderCustomerSitesPanel() {
@@ -542,15 +568,8 @@ function toggleNewSiteForm(forceOpen) {
 
 function syncCustomerSitesPanel() {
   const btn = document.getElementById('manageSitesBtn');
-  const panel = document.getElementById('customerSitesPanel');
   if (btn) btn.style.display = (canManagePortalSites() || PORTAL_SITES.length) ? '' : 'none';
-  if (!panel) return;
-  if (PORTAL_SITES.length) {
-    panel.style.display = '';
-    renderCustomerSitesPanel();
-  } else if (panel.style.display !== 'none') {
-    renderCustomerSitesPanel();
-  }
+  renderCustomerSitesPanel();
 }
 
 async function createPortalSite() {
@@ -718,6 +737,45 @@ function logoutPortal() {
 // ──────────────────────────────────────────────────────
 // Home
 // ──────────────────────────────────────────────────────
+
+function currentHomeSection() {
+  const active = document.querySelector('.portal-home-section.active');
+  if (!active) return 'orders';
+  return active.id.replace('homeSection', '').replace(/^./, c => c.toLowerCase());
+}
+
+function capHomeSection(name) {
+  return String(name || 'orders').replace(/^./, c => c.toUpperCase());
+}
+
+function setHomeSection(name) {
+  const wanted = capHomeSection(name);
+  const tab = document.getElementById('homeTab' + wanted);
+  const fallback = tab?.hidden ? 'Orders' : wanted;
+  document.querySelectorAll('.portal-home-section').forEach(section => {
+    section.classList.toggle('active', section.id === 'homeSection' + fallback);
+  });
+  document.querySelectorAll('.portal-home-tab').forEach(item => {
+    item.classList.toggle('active', item.id === 'homeTab' + fallback);
+  });
+}
+
+function updatePortalHomeTabs() {
+  const sitesVisible = canManagePortalSites() || PORTAL_SITES.length > 0;
+  const financeVisible = canViewCustomerFinance() && Boolean(PORTAL_FINANCE?.summary);
+  const priceVisible = Boolean(PRICE_LIST_DOCUMENT && !PRICE_LIST_DOCUMENT.priceHidden);
+  [
+    ['homeTabSites', sitesVisible],
+    ['homeTabFinance', financeVisible],
+    ['homeTabPriceList', priceVisible],
+  ].forEach(([id, visible]) => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = !visible;
+  });
+  const activeTab = document.querySelector('.portal-home-tab.active');
+  if (activeTab?.hidden) setHomeSection('orders');
+}
+
 async function showHome(preloaded) {
   document.getElementById('headerName').textContent = ME?.name || '';
   document.getElementById('welcomeName').textContent = `שלום, ${ME?.name || ''}! 👋`;
@@ -731,6 +789,8 @@ async function showHome(preloaded) {
   await loadGuaranteeDocuments();
   renderPortalPriceListPanel();
   renderOrdersList(orders);
+  updatePortalHomeTabs();
+  setHomeSection(currentHomeSection());
 }
 
 function formatKg(value) {
