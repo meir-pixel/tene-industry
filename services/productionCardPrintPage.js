@@ -476,6 +476,41 @@ function displayLengthCm(value) {
   return Math.abs(cm - Math.round(cm)) < 0.001 ? String(Math.round(cm)) : cm.toFixed(1).replace(/\.0$/, '');
 }
 
+function calcShapePointsClient(sides, angles) {
+  var points = [[0, 0]];
+  var direction = 0;
+  for (var i = 0; i < sides.length; i++) {
+    var previous = points[points.length - 1];
+    var radians = direction * Math.PI / 180;
+    points.push([
+      previous[0] + sides[i] * Math.cos(radians),
+      previous[1] + sides[i] * Math.sin(radians)
+    ]);
+    if (i < angles.length) direction -= (180 - Number(angles[i] == null ? 180 : angles[i]));
+  }
+  return points;
+}
+
+function normalizeShapePointsBaseBottomClient(points) {
+  if (!Array.isArray(points) || points.length < 2) return points;
+  var longest = { index: 0, length: 0, angle: 0 };
+  for (var i = 0; i < points.length - 1; i++) {
+    var dx = points[i + 1][0] - points[i][0];
+    var dy = points[i + 1][1] - points[i][1];
+    var length = Math.hypot(dx, dy);
+    if (length > longest.length) longest = { index: i, length: length, angle: Math.atan2(dy, dx) };
+  }
+  if (!longest.length) return points;
+  var cos = Math.cos(-longest.angle);
+  var sin = Math.sin(-longest.angle);
+  var rotated = points.map(function(point){ return [point[0] * cos - point[1] * sin, point[0] * sin + point[1] * cos]; });
+  var base = rotated[longest.index];
+  var baseNext = rotated[longest.index + 1];
+  var baseY = (base[1] + baseNext[1]) / 2;
+  var bodyY = rotated.reduce(function(sum, point){ return sum + point[1]; }, 0) / rotated.length;
+  if (bodyY > baseY) rotated = rotated.map(function(point){ return [point[0], baseY + (baseY - point[1])]; });
+  return rotated;
+}
 function pointAt(point, vector, distance) {
   return [point[0] + vector[0] * distance, point[1] + vector[1] * distance];
 }
@@ -558,12 +593,9 @@ function buildOpenUShapeSVG(segments) {
   var pd = 'M ' + left + ',' + bottom + ' L ' + left + ',' + top + ' L ' + right + ',' + top + ' L ' + right + ',' + bottom;
   var s = '<path d="' + pd + '" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
   s += '<path d="' + pd + '" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
-  s += '<rect x="' + (left - 18) + '" y="' + (midY - 7) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
-  s += '<text x="' + left + '" y="' + midY + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + displayLengthCm(leftLeg) + '</text>';
-  s += '<rect x="' + (midX - 18) + '" y="' + (top - 19) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
-  s += '<text x="' + midX + '" y="' + (top - 12) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + displayLengthCm(bridge) + '</text>';
-  s += '<rect x="' + (right - 18) + '" y="' + (midY - 7) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
-  s += '<text x="' + right + '" y="' + midY + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + displayLengthCm(rightLeg) + '</text>';
+  s += sideDimensionSvg([left, bottom], [left, top], leftLeg, [midX, midY], 22);
+  s += sideDimensionSvg([left, top], [right, top], bridge, [midX, midY], 20);
+  s += sideDimensionSvg([right, top], [right, bottom], rightLeg, [midX, midY], 22);
   [
     [[left, bottom], [left, top], [right, top]],
     [[left, top], [right, top], [right, bottom]],
@@ -625,12 +657,7 @@ function buildShapeSVG(segments) {
     var W=260, H=140, PAD=46;
     var sides = segments.map(function(s){ return +(s.length_mm||0); });
     var angs  = segments.map(function(s){ return s.angle_deg; });
-    var pts=[[0,0]], dir=0;
-    for (var i=0; i<sides.length; i++) {
-      var p=pts[pts.length-1], rad=dir*Math.PI/180;
-      pts.push([p[0]+sides[i]*Math.cos(rad), p[1]+sides[i]*Math.sin(rad)]);
-      if (i<angs.length-1 && angs[i]!=null) dir += Number(angs[i] || 0);
-    }
+    var pts = normalizeShapePointsBaseBottomClient(calcShapePointsClient(sides, angs));
     var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
     var mnX=Math.min.apply(null,xs), mxX=Math.max.apply(null,xs);
     var mnY=Math.min.apply(null,ys), mxY=Math.max.apply(null,ys);

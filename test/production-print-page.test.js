@@ -121,7 +121,7 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.doesNotThrow(() => new vm.Script(inline));
 });
 
-test('production card shape renderer keeps generic bent shapes inside a print-fit viewBox', () => {
+test('production card shape renderer keeps angled open stirrups inside a print-fit viewBox', () => {
   const html = cards.shapeSvg([
     { length_mm: 75, angle_deg: 45 },
     { length_mm: 250, angle_deg: 90 },
@@ -130,9 +130,10 @@ test('production card shape renderer keeps generic bent shapes inside a print-fi
     { length_mm: 75, angle_deg: 0 },
   ]);
 
-  assert.match(html, /data-shape-kind="generic-bar"/);
+  assert.match(html, /data-shape-kind="angled-open-stirrup"/);
   assert.match(html, /data-scale-mode="print-fit"/);
   assert.match(html, /preserveAspectRatio="xMidYMid meet"/);
   assert.match(html, /viewBox="0 0 260 140"/);
   assert.doesNotMatch(html, /viewBox="0 0 240 120"/);
+  assert.match(html, />45°</);
 });

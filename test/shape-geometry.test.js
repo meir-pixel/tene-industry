@@ -702,6 +702,9 @@ test('production card renders open U bars as a readable U shape, not a flattened
   assert.match(svg, />190</);
   assert.match(svg, />20</);
   assert.match(svg, /stroke="#a8b0ba"/);
+  assert.match(svg, /<line x1="42\.0" y1="51\.0" x2="20\.0" y2="51\.0"/);
+  assert.match(svg, /<line x1="110\.0" y1="24\.0" x2="110\.0" y2="4\.0"/);
+  assert.match(svg, /<line x1="178\.0" y1="51\.0" x2="200\.0" y2="51\.0"/);
   assert.doesNotMatch(svg, /90&#176;/);
   assert.doesNotMatch(svg, /<circle/);
 });

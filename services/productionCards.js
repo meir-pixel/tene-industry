@@ -51,6 +51,45 @@ function isSimilarDimension(a, b, tolerance = 0.12) {
   return Math.abs((Number(a) || 0) - (Number(b) || 0)) <= Math.max(10, max * tolerance);
 }
 
+function calcShapePoints(sides, angles) {
+  const points = [[0, 0]];
+  let direction = 0;
+  for (let i = 0; i < sides.length; i += 1) {
+    const previous = points[points.length - 1];
+    const radians = direction * Math.PI / 180;
+    points.push([
+      previous[0] + sides[i] * Math.cos(radians),
+      previous[1] + sides[i] * Math.sin(radians),
+    ]);
+    if (i < angles.length) {
+      direction -= (180 - Number(angles[i] ?? 180));
+    }
+  }
+  return points;
+}
+
+function normalizeShapePointsBaseBottom(points) {
+  if (!Array.isArray(points) || points.length < 2) return points;
+  let longest = { index: 0, length: 0, angle: 0 };
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const dx = points[i + 1][0] - points[i][0];
+    const dy = points[i + 1][1] - points[i][1];
+    const length = Math.hypot(dx, dy);
+    if (length > longest.length) longest = { index: i, length, angle: Math.atan2(dy, dx) };
+  }
+  if (!longest.length) return points;
+
+  const cos = Math.cos(-longest.angle);
+  const sin = Math.sin(-longest.angle);
+  let rotated = points.map(([x, y]) => [x * cos - y * sin, x * sin + y * cos]);
+  const base = rotated[longest.index];
+  const baseNext = rotated[longest.index + 1];
+  const baseY = (base[1] + baseNext[1]) / 2;
+  const bodyY = rotated.reduce((sum, point) => sum + point[1], 0) / rotated.length;
+  if (bodyY > baseY) rotated = rotated.map(([x, y]) => [x, baseY + (baseY - y)]);
+  return rotated;
+}
+
 function closedStirrupParts(segments) {
   if (!Array.isArray(segments) || segments.length < 4) return null;
   const lengths = segments.map(segment => Number(segment.length_mm || 0));
@@ -188,14 +227,9 @@ function openUShapeSvg(segments) {
   let svg = `<path d="${path}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
   svg += `<path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
 
-  svg += `<rect x="${left - 18}" y="${midY - 7}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
-  svg += `<text x="${left}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(displayLengthCm(leftLeg))}</text>`;
-
-  svg += `<rect x="${midX - 18}" y="${top - 19}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
-  svg += `<text x="${midX}" y="${top - 12}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(displayLengthCm(bridge))}</text>`;
-
-  svg += `<rect x="${right - 18}" y="${midY - 7}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
-  svg += `<text x="${right}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(displayLengthCm(rightLeg))}</text>`;
+  svg += sideDimensionSvg([left, bottom], [left, top], leftLeg, [midX, midY], 22);
+  svg += sideDimensionSvg([left, top], [right, top], bridge, [midX, midY], 20);
+  svg += sideDimensionSvg([right, top], [right, bottom], rightLeg, [midX, midY], 22);
 
   [
     [[left, bottom], [left, top], [right, top]],
@@ -205,6 +239,23 @@ function openUShapeSvg(segments) {
   });
 
   return `<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
+}
+
+function angledOpenStirrupParts(segments) {
+  if (!Array.isArray(segments) || segments.length !== 5) return null;
+  const lengths = segments.map(segment => Number(segment.length_mm || 0));
+  if (lengths.some(length => length <= 0)) return null;
+  const [tailA, sideA, sideB, sideC, tailB] = lengths;
+  const angleA = Math.abs(Number(segments[0].angle_deg || 0));
+  const angleB = Number(segments[1].angle_deg || 0);
+  const angleC = Number(segments[2].angle_deg || 0);
+  const angleD = Math.abs(Number(segments[3].angle_deg || 0));
+  const tailsSimilar = isSimilarDimension(tailA, tailB, 0.2);
+  const longSidesSimilar = isSimilarDimension(sideA, sideC, 0.12);
+  const hasAngledTails = Math.abs(angleA - 45) <= 2 && Math.abs(angleD - 45) <= 2;
+  const hasRectBody = isRightAngle(angleB) && isRightAngle(angleC) && longSidesSimilar;
+  if (!tailsSimilar || !hasAngledTails || !hasRectBody) return null;
+  return { tailA, bottom: sideA, right: sideB, top: sideC, tailB, angleA, angleD };
 }
 
 function closedStirrupSvg(parts) {
@@ -260,6 +311,33 @@ function closedStirrupSvg(parts) {
   return `<svg data-shape-kind="closed-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
 }
 
+function angledOpenStirrupSvg(parts) {
+  const width = 260;
+  const height = 140;
+  const left = 64;
+  const right = 198;
+  const top = 32;
+  const bottom = 104;
+  const tailInset = 24;
+  const topTailEnd = [left + tailInset, top + tailInset];
+  const bottomTailEnd = [left + tailInset, bottom - tailInset];
+  const path = 'M ' + bottomTailEnd.join(',') + ' L ' + left + ',' + bottom + ' L ' + right + ',' + bottom + ' L ' + right + ',' + top + ' L ' + left + ',' + top + ' L ' + topTailEnd.join(',');
+  let svg = '<path d="' + path + '" fill="none" stroke="#1a2332" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>';
+  svg += '<path d="' + path + '" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
+
+  svg += dimensionLabelSvg(displayLengthCm(parts.top), (left + right) / 2, top - 14, 34);
+  svg += dimensionLabelSvg(displayLengthCm(parts.right), right + 20, (top + bottom) / 2, 34);
+  svg += dimensionLabelSvg(displayLengthCm(parts.bottom), (left + right) / 2, bottom + 14, 34);
+  svg += dimensionLabelSvg(displayLengthCm(parts.tailA), bottomTailEnd[0] - 16, bottomTailEnd[1] - 8, 34);
+  svg += dimensionLabelSvg(displayLengthCm(parts.tailB), topTailEnd[0] - 16, topTailEnd[1] + 8, 34);
+  svg += dimensionLabelSvg(Math.round(parts.angleA) + String.fromCharCode(176), left - 4, bottom - 25, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
+  svg += dimensionLabelSvg(Math.round(parts.angleD) + String.fromCharCode(176), left - 4, top + 25, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
+  svg += rightAngleMarkerSvg([left, top], [right, top], [right, bottom]);
+  svg += rightAngleMarkerSvg([right, top], [right, bottom], [left, bottom]);
+
+  return '<svg data-shape-kind="angled-open-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + svg + '</svg>';
+}
+
 function shapeSvg(segmentsRaw) {
   try {
     const segments = parseSegments(segmentsRaw);
@@ -276,20 +354,12 @@ function shapeSvg(segmentsRaw) {
     if (isOpenUShape(segments)) return openUShapeSvg(segments);
     const stirrup = closedStirrupParts(segments);
     if (stirrup) return closedStirrupSvg(stirrup);
+    const angledOpenStirrup = angledOpenStirrupParts(segments);
+    if (angledOpenStirrup) return angledOpenStirrupSvg(angledOpenStirrup);
 
     const sides = segments.map(segment => Number(segment.length_mm || 0));
     const angles = segments.map(segment => segment.angle_deg);
-    const points = [[0, 0]];
-    let direction = 0;
-    for (let i = 0; i < sides.length; i += 1) {
-      const previous = points[points.length - 1];
-      const radians = direction * Math.PI / 180;
-      points.push([
-        previous[0] + sides[i] * Math.cos(radians),
-        previous[1] + sides[i] * Math.sin(radians),
-      ]);
-      if (i < angles.length - 1 && angles[i] != null) direction += Number(angles[i] || 0);
-    }
+    const points = normalizeShapePointsBaseBottom(calcShapePoints(sides, angles));
 
     const xs = points.map(point => point[0]);
     const ys = points.map(point => point[1]);
