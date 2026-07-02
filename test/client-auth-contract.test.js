@@ -1556,3 +1556,20 @@ test('post-order OCR review saves row statuses without mutating approved intake 
   assert.match(intake, /function refreshOcrStatusSummary/);
   assert.match(intake, /refreshOcrStatusSummary\(\);/);
 });
+
+test('order detail shape renderer keeps visible dimension and angle labels', () => {
+  const ordersHtml = read('public/orders.html');
+  const rendererJs = read('public/shape-renderer.js');
+
+  assert.match(ordersHtml, /.item-visual svg{width:100%!important;height:100%!important/);
+  assert.match(ordersHtml, /height: 142/);
+  assert.match(ordersHtml, /padding: 34/);
+  assert.match(ordersHtml, /color: '#3d5e78'/);
+  assert.match(rendererJs, /preserveAspectRatio', 'xMidYMid meet'/);
+  assert.match(rendererJs, /data-shape-dim-label/);
+  assert.equal(rendererJs.includes('String.fromCharCode(65 + i)'), true);
+  assert.match(rendererJs, /data-shape-angle-arc/);
+  assert.match(rendererJs, /data-shape-angle-label/);
+  assert.match(rendererJs, /data-shape-right-angle/);
+  assert.equal(rendererJs.includes("len >= 1000 ? (len/1000).toFixed(2)+'m' : len+'mm'"), false);
+});

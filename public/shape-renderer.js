@@ -206,7 +206,10 @@
     svg.setAttribute('width',  W);
     svg.setAttribute('height', H);
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg.style.display = 'block';
+    svg.style.width = '100%';
+    svg.style.height = '100%';
 
     // Background
     const bg = document.createElementNS(NS, 'rect');
@@ -319,25 +322,134 @@
       svg.appendChild(c);
     });
 
-    // Dimension labels (if requested)
+    // Dimension and bend labels (if requested)
     if (opts.showDimensions && sides.length <= 6) {
       const rawPts2 = computePoints(displaySides, angles || []);
-      const {pts: scaledForLabel, scale} = fitPoints(rawPts2, W, H, pad);
+      const {pts: scaledForLabel} = fitPoints(rawPts2, W, H, Math.max(pad, 30));
+      const centerX = scaledForLabel.reduce((sum, p) => sum + p.x, 0) / scaledForLabel.length;
+      const centerY = scaledForLabel.reduce((sum, p) => sum + p.y, 0) / scaledForLabel.length;
+      const segs = [];
+
       sides.forEach((len, i) => {
-        const p1 = scaledForLabel[i], p2 = scaledForLabel[i+1];
+        const p1 = scaledForLabel[i], p2 = scaledForLabel[i + 1];
         if (!p1 || !p2) return;
-        const mx = (p1.x + p2.x)/2;
-        const my = (p1.y + p2.y)/2;
-        const label = document.createElementNS(NS, 'text');
-        label.setAttribute('x', mx.toFixed(1));
-        label.setAttribute('y', (my - 5).toFixed(1));
-        label.setAttribute('text-anchor','middle');
-        label.setAttribute('fill','#526070');
-        label.setAttribute('font-size','9');
-        label.setAttribute('font-family','monospace');
-        label.textContent = len >= 1000 ? (len/1000).toFixed(2)+'m' : len+'mm';
-        svg.appendChild(label);
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const segLen = Math.hypot(dx, dy) || 1;
+        const ux = dx / segLen;
+        const uy = dy / segLen;
+        let nx = -uy;
+        let ny = ux;
+        const mx = (p1.x + p2.x) / 2;
+        const my = (p1.y + p2.y) / 2;
+        if ((mx + nx * 18 - centerX) ** 2 + (my + ny * 18 - centerY) ** 2 <
+            (mx - nx * 18 - centerX) ** 2 + (my - ny * 18 - centerY) ** 2) {
+          nx = -nx;
+          ny = -ny;
+        }
+        let labelAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+        if (labelAngle > 90) labelAngle -= 180;
+        if (labelAngle < -90) labelAngle += 180;
+        const value = String(Math.round(Number(len) || 0));
+        const tagW = Math.max(28, Math.min(52, value.length * 7 + 14));
+        const letter = String.fromCharCode(65 + i);
+        const lx = mx + nx * 22;
+        const ly = my + ny * 22;
+        const g = document.createElementNS(NS, 'g');
+        g.setAttribute('transform', `translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${labelAngle.toFixed(1)})`);
+        g.setAttribute('data-shape-dim-label', String(i));
+
+        const letterText = document.createElementNS(NS, 'text');
+        letterText.setAttribute('x', '0');
+        letterText.setAttribute('y', '-11');
+        letterText.setAttribute('text-anchor', 'middle');
+        letterText.setAttribute('font-size', '9');
+        letterText.setAttribute('font-family', 'Heebo, Arial, sans-serif');
+        letterText.setAttribute('font-weight', '800');
+        letterText.setAttribute('fill', '#475569');
+        letterText.textContent = letter;
+        g.appendChild(letterText);
+
+        const rect = document.createElementNS(NS, 'rect');
+        rect.setAttribute('x', (-tagW / 2).toFixed(1));
+        rect.setAttribute('y', '-7');
+        rect.setAttribute('width', String(tagW));
+        rect.setAttribute('height', '14');
+        rect.setAttribute('rx', '2');
+        rect.setAttribute('fill', '#ffffff');
+        rect.setAttribute('stroke', '#94a3b8');
+        rect.setAttribute('stroke-width', '0.8');
+        g.appendChild(rect);
+
+        const valueText = document.createElementNS(NS, 'text');
+        valueText.setAttribute('x', '0');
+        valueText.setAttribute('y', '4');
+        valueText.setAttribute('text-anchor', 'middle');
+        valueText.setAttribute('font-size', '10');
+        valueText.setAttribute('font-family', 'Heebo, Arial, sans-serif');
+        valueText.setAttribute('font-weight', '900');
+        valueText.setAttribute('fill', '#0b3554');
+        valueText.textContent = value;
+        g.appendChild(valueText);
+        svg.appendChild(g);
+        segs.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, ux, uy });
       });
+
+      for (let i = 0; i < segs.length - 1; i++) {
+        const angle = Number((angles || [])[i]);
+        if (!Number.isFinite(angle) || Math.abs(angle - 180) < 0.001) continue;
+        const s1 = segs[i], s2 = segs[i + 1];
+        const bx = s1.x2;
+        const by = s1.y2;
+        const u1x = -s1.ux, u1y = -s1.uy;
+        const u2x = s2.ux, u2y = s2.uy;
+        if (Math.abs(Math.abs(angle) - 90) < 0.001) {
+          const m = 8;
+          const p1x = bx + u1x * m, p1y = by + u1y * m;
+          const p2x = p1x + u2x * m, p2y = p1y + u2y * m;
+          const p3x = bx + u2x * m, p3y = by + u2y * m;
+          const mark = document.createElementNS(NS, 'path');
+          mark.setAttribute('d', `M ${p1x.toFixed(1)} ${p1y.toFixed(1)} L ${p2x.toFixed(1)} ${p2y.toFixed(1)} L ${p3x.toFixed(1)} ${p3y.toFixed(1)}`);
+          mark.setAttribute('fill', 'none');
+          mark.setAttribute('stroke', '#c4c8cf');
+          mark.setAttribute('stroke-width', '2');
+          mark.setAttribute('data-shape-right-angle', String(i));
+          svg.appendChild(mark);
+        } else {
+          const r = 13;
+          const ax1 = bx + u1x * r, ay1 = by + u1y * r;
+          const ax2 = bx + u2x * r, ay2 = by + u2y * r;
+          let bxOut = u1x + u2x;
+          let byOut = u1y + u2y;
+          const bLen = Math.hypot(bxOut, byOut) || 1;
+          bxOut /= bLen;
+          byOut /= bLen;
+          const tx = bx + bxOut * 20;
+          const ty = by + byOut * 20;
+          const g = document.createElementNS(NS, 'g');
+          g.setAttribute('data-shape-angle-label', String(i));
+          const arc = document.createElementNS(NS, 'path');
+          arc.setAttribute('d', `M ${ax1.toFixed(1)} ${ay1.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 ${Math.abs(angle) > 180 ? 1 : 0} ${angle >= 0 ? 1 : 0} ${ax2.toFixed(1)} ${ay2.toFixed(1)}`);
+          arc.setAttribute('fill', 'none');
+          arc.setAttribute('stroke', '#c9621a');
+          arc.setAttribute('stroke-width', '1.6');
+          arc.setAttribute('stroke-linecap', 'round');
+          arc.setAttribute('data-shape-angle-arc', String(i));
+          g.appendChild(arc);
+          const text = document.createElementNS(NS, 'text');
+          text.setAttribute('x', tx.toFixed(1));
+          text.setAttribute('y', ty.toFixed(1));
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('dominant-baseline', 'middle');
+          text.setAttribute('font-size', '9');
+          text.setAttribute('font-family', 'Heebo, Arial, sans-serif');
+          text.setAttribute('font-weight', '900');
+          text.setAttribute('fill', '#c9621a');
+          text.textContent = String(Math.round(angle)) + '\u00B0';
+          g.appendChild(text);
+          svg.appendChild(g);
+        }
+      }
     }
 
     container.appendChild(svg);
