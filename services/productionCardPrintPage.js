@@ -461,6 +461,14 @@ function closedStirrupPartsClient(segments) {
 }
 
 
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function displayLengthCm(value) {
   var cm = (Number(value) || 0) / 10;
   if (!Number.isFinite(cm)) return '';
