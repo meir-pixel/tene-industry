@@ -331,7 +331,7 @@
     <div class="card-title">מסמך מקור להזמנה</div>
     <div class="portal-upload-grid">
       <input type="file" id="portalSourceFiles" accept=".pdf,image/*,.csv,.tsv,.xlsx,.xls" multiple onchange="handlePortalFiles(this.files)"/>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('portalSourceFiles').click()">בחר PDF / תמונה</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('portalSourceFiles').click()">בחר PDF / הדפסת הזמנה</button>
     </div>
     <div class="portal-upload-note">
       כרגע הקובץ מצורף כהפניה לבדיקה במשרד. OCR מלא לפורטל יחובר כ-endpoint נפרד כדי שלא נכניס נתונים שגויים אוטומטית.
@@ -409,6 +409,8 @@ let PORTAL_CAN_CHOOSE_SITE = false;
 let PORTAL_USER = null;
 let PORTAL_CAPS = {};
 let PORTAL_FINANCE = null;
+let PORTAL_USERS = [];
+let PORTAL_USER_ASSIGNMENTS = [];
 let orderItems  = []; // [{id, shapeId, shapeName, diameter, sides, angles, qty, note}]
 let portalSourceFiles = [];
 let guaranteeDocuments = [];
@@ -513,7 +515,7 @@ function renderOrderSitePicker() {
 
 function canManagePortalSites() {
   const caps = window.PORTAL_CAPS || {};
-  return Boolean(caps.canCreateSites || caps.canManageUsers);
+  return Boolean(caps.canCreateSites || caps.canManageUsers || caps.canAssignSiteUsers);
 }
 
 function canViewCustomerFinance() {
@@ -530,6 +532,8 @@ function renderCustomerSitesPanel() {
   const panel = document.getElementById('customerSitesPanel');
   if (!panel) return;
   const formDisplay = PORTAL_SITES.length ? 'none' : 'grid';
+  const canManageUsers = Boolean(PORTAL_CAPS.canManageUsers);
+  const canAssignUsers = Boolean(PORTAL_CAPS.canAssignSiteUsers || PORTAL_CAPS.canManageUsers);
   const list = PORTAL_SITES.length
     ? PORTAL_SITES.map(site => `
       <div class="guarantee-row">
@@ -538,6 +542,54 @@ function renderCustomerSitesPanel() {
       </div>
     `).join('')
     : '<div class="loader" style="padding:12px">אין אתרים עדיין</div>';
+  const siteOptions = PORTAL_SITES.map(site => `<option value="${site.id}">${escapeHtml(site.name)}${site.city ? ' - ' + escapeHtml(site.city) : ''}</option>`).join('');
+  const usersBySite = new Map();
+  PORTAL_USER_ASSIGNMENTS.forEach(row => {
+    const key = Number(row.portal_user_id);
+    const names = usersBySite.get(key) || [];
+    names.push(row.site_name || 'אתר');
+    usersBySite.set(key, names);
+  });
+  const userRows = PORTAL_USERS.length
+    ? PORTAL_USERS.map(user => `
+      <div class="guarantee-row">
+        <b>${escapeHtml(user.name || user.phone)} <small style="color:var(--dim);font-weight:700">· ${escapeHtml(portalRoleLabel(user.role))}</small></b>
+        <span>${escapeHtml(user.phone || '')}${usersBySite.get(Number(user.id))?.length ? ' · ' + escapeHtml(usersBySite.get(Number(user.id)).join(', ')) : ''}</span>
+        ${user.active ? `<button class="btn btn-secondary btn-sm" type="button" onclick="deactivatePortalUser(${user.id})">בטל</button>` : '<span class="guarantee-status">לא פעיל</span>'}
+      </div>
+    `).join('')
+    : '<div class="loader" style="padding:12px">אין משתמשים נוספים עדיין</div>';
+  const userForm = canManageUsers ? `
+    <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+      <div class="guarantee-head">
+        <div class="card-title">מנהלי עבודה והרשאות</div>
+        <span class="guarantee-status">${PORTAL_USERS.length}</span>
+      </div>
+      <div class="guarantee-list">${userRows}</div>
+      <div id="newPortalUserForm" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+        <input id="portalUserName" placeholder="שם משתמש" />
+        <input id="portalUserPhone" placeholder="טלפון לכניסה" />
+        <select id="portalUserRole" onchange="syncPortalUserRoleDefaults()">
+          <option value="field_manager">מנהל עבודה באתר</option>
+          <option value="orderer">מזמין</option>
+          <option value="approver">מאשר הזמנות</option>
+          <option value="finance">מנהל כספים</option>
+          <option value="customer_admin">מנהל לקוח</option>
+        </select>
+        <select id="portalUserSiteId" ${PORTAL_SITES.length ? '' : 'disabled'}>
+          <option value="">ללא אתר קבוע</option>
+          ${siteOptions}
+        </select>
+        <label style="display:flex;gap:6px;align-items:center"><input id="portalPermCreateOrders" type="checkbox" checked> פתיחת הזמנות</label>
+        ${PORTAL_CAPS.canApprove ? '<label style="display:flex;gap:6px;align-items:center"><input id="portalPermApproveOrders" type="checkbox"> אישור הזמנות</label>' : ''}
+        ${PORTAL_CAPS.seePrice ? '<label style="display:flex;gap:6px;align-items:center"><input id="portalPermViewPrices" type="checkbox"> צפייה במחירים</label>' : ''}
+        ${PORTAL_CAPS.canViewBudget ? '<label style="display:flex;gap:6px;align-items:center"><input id="portalPermViewBudget" type="checkbox"> צפייה בתקציב</label>' : ''}
+        ${PORTAL_CAPS.canViewInvoices ? '<label style="display:flex;gap:6px;align-items:center"><input id="portalPermViewInvoices" type="checkbox"> חשבוניות ותשלומים</label>' : ''}
+        ${canAssignUsers ? '<label style="display:flex;gap:6px;align-items:center"><input id="portalPermAssignUsers" type="checkbox"> שיוך משתמשים לאתרים</label>' : ''}
+        <button class="btn btn-primary" style="grid-column:1/-1;margin-top:0" onclick="createPortalUser()">הוסף משתמש</button>
+      </div>
+    </div>
+  ` : '';
   const form = canManagePortalSites() ? `
     ${PORTAL_SITES.length ? `<button class="btn btn-secondary btn-sm" type="button" onclick="toggleNewSiteForm()" style="margin-top:12px">הוסף אתר</button>` : ''}
     <div id="newSiteForm" style="display:${formDisplay};grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
@@ -556,6 +608,7 @@ function renderCustomerSitesPanel() {
     </div>
     <div class="guarantee-list">${list}</div>
     ${form}
+    ${userForm}
   `;
 }
 
@@ -570,6 +623,92 @@ function syncCustomerSitesPanel() {
   const btn = document.getElementById('manageSitesBtn');
   if (btn) btn.style.display = (canManagePortalSites() || PORTAL_SITES.length) ? '' : 'none';
   renderCustomerSitesPanel();
+}
+
+
+function portalRoleLabel(role) {
+  return ({
+    field_manager: 'מנהל עבודה',
+    orderer: 'מזמין',
+    approver: 'מאשר',
+    finance: 'כספים',
+    customer_admin: 'מנהל לקוח',
+    both: 'מלא',
+  })[role] || role || 'משתמש';
+}
+
+function syncPortalUserRoleDefaults() {
+  const role = document.getElementById('portalUserRole')?.value || 'field_manager';
+  const price = document.getElementById('portalPermViewPrices');
+  const budget = document.getElementById('portalPermViewBudget');
+  const invoices = document.getElementById('portalPermViewInvoices');
+  const approve = document.getElementById('portalPermApproveOrders');
+  if (price) price.checked = role === 'finance' || role === 'customer_admin';
+  if (budget) budget.checked = role === 'finance' || role === 'customer_admin';
+  if (invoices) invoices.checked = role === 'finance' || role === 'customer_admin';
+  if (approve) approve.checked = role === 'approver' || role === 'customer_admin';
+}
+
+async function loadPortalUsers() {
+  if (!PORTAL_CAPS.canManageUsers) {
+    PORTAL_USERS = [];
+    PORTAL_USER_ASSIGNMENTS = [];
+    return;
+  }
+  const data = await fetch(`/api/c/users?token=${TOKEN}`).then(r=>r.json()).catch(()=>null);
+  PORTAL_USERS = Array.isArray(data?.users) ? data.users : [];
+  PORTAL_USER_ASSIGNMENTS = Array.isArray(data?.assignments) ? data.assignments : [];
+}
+
+async function createPortalUser() {
+  const name = document.getElementById('portalUserName')?.value.trim();
+  const phone = document.getElementById('portalUserPhone')?.value.trim();
+  const role = document.getElementById('portalUserRole')?.value || 'field_manager';
+  const siteId = Number(document.getElementById('portalUserSiteId')?.value || 0);
+  if (!name || !phone) { toast('שם וטלפון חובה', true); return; }
+  const body = {
+    token: TOKEN,
+    name,
+    phone,
+    role,
+    siteIds: siteId ? [siteId] : [],
+    defaultSiteId: siteId || null,
+    canCreateOrders: document.getElementById('portalPermCreateOrders')?.checked !== false,
+    canApproveOrders: Boolean(document.getElementById('portalPermApproveOrders')?.checked),
+    canViewPrices: Boolean(document.getElementById('portalPermViewPrices')?.checked),
+    canViewBudget: Boolean(document.getElementById('portalPermViewBudget')?.checked),
+    canViewInvoices: Boolean(document.getElementById('portalPermViewInvoices')?.checked),
+    canAssignSiteUsers: Boolean(document.getElementById('portalPermAssignUsers')?.checked),
+    canViewDeliveryNotes: true,
+  };
+  const res = await fetch('/api/c/users', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+  if (!res) { toast('שגיאה בחיבור לשרת', true); return; }
+  if (!res.ok || !res.data?.success) { toast(res.data?.error || 'לא ניתן להוסיף משתמש', true); return; }
+  toast('המשתמש נוסף');
+  await loadPortalUsers();
+  renderCustomerSitesPanel();
+}
+
+async function deactivatePortalUser(id) {
+  if (!confirm('לבטל את הגישה של המשתמש?')) return;
+  const res = await fetch(`/api/c/users/${id}/deactivate`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ token:TOKEN })
+  }).then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+  if (!res || !res.ok || !res.data?.success) { toast(res?.data?.error || 'לא ניתן לבטל משתמש', true); return; }
+  toast('הגישה בוטלה');
+  await loadPortalUsers();
+  renderCustomerSitesPanel();
+}
+
+function openPortalOrderPdf(orderId) {
+  if (!orderId || !TOKEN) return;
+  window.open(`/api/c/orders/${orderId}/print?token=${encodeURIComponent(TOKEN)}`, '_blank', 'noopener,noreferrer');
 }
 
 async function createPortalSite() {
@@ -784,6 +923,7 @@ async function showHome(preloaded) {
   showScreen('screenHome');
 
   const orders = preloaded ?? await fetch(`/api/c/me?token=${TOKEN}`).then(r=>r.json()).then(d=>{ setPortalContext(d); return d.orders; }).catch(()=>[]);
+  await loadPortalUsers();
   syncCustomerSitesPanel();
   await loadCustomerFinanceDashboard();
   await loadGuaranteeDocuments();
@@ -1274,6 +1414,8 @@ function renderDetail(order) {
         <div class="order-detail-kpi"><span>משקל</span><strong>${totalWeight ? totalWeight.toFixed(1) + ' ק"ג' : '-'}</strong></div>
       </div>
     </div>
+
+    <div style="margin:12px 0"><button type="button" class="btn btn-secondary btn-sm" onclick="openPortalOrderPdf(${order.id})">PDF / הדפסת הזמנה</button></div>
 
     ${approvalBanner}
 

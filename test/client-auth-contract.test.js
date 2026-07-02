@@ -207,6 +207,29 @@ test('customer portal enforces site-scoped users and order site binding', () => 
   assert.match(customerPage, /siteId:\s+selectedPortalSiteId\(\)/);
 });
 
+test('customer portal lets customer admins manage field users and print safe order documents', () => {
+  const portalRoute = read('routes/portal.js');
+  const customerPage = read('public/customer.html');
+
+  assert.match(portalRoute, /router\.get\('\/c\/users'/);
+  assert.match(portalRoute, /router\.post\('\/c\/users'/);
+  assert.match(portalRoute, /canManageUsers/);
+  assert.match(portalRoute, /canAssignSiteUsers/);
+  assert.match(portalRoute, /field_manager/);
+  assert.match(portalRoute, /customer_site_users/);
+  assert.match(portalRoute, /portal_user_created_by_customer/);
+  assert.match(portalRoute, /router\.get\('\/c\/orders\/:orderId\/print'/);
+  assert.match(portalRoute, /orderPrintEsc/);
+  assert.doesNotMatch(portalRoute.match(/router\.get\('\/c\/orders\/:orderId\/print'[\s\S]*?res\.type\('html'\)\.send/)?.[0] || '', /machine_id|worker_id|actual_waste|review_notes/);
+
+  assert.match(customerPage, /function loadPortalUsers/);
+  assert.match(customerPage, /function createPortalUser/);
+  assert.match(customerPage, /id="portalUserSiteId"/);
+  assert.match(customerPage, /מנהלי עבודה והרשאות/);
+  assert.match(customerPage, /function openPortalOrderPdf/);
+  assert.match(customerPage, /openPortalOrderPdf\(\$\{order\.id\}\).*PDF \/ הדפסת הזמנה/);
+});
+
 test('customer portal exposes finance dashboard with explicit money permissions', () => {
   const coreSchema = read('db/coreSchema.js');
   const startup = read('db/startup.js');

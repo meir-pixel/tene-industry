@@ -86,6 +86,55 @@ module.exports = function createPortalRouter(deps) {
     return Boolean(caps.seePrice || caps.canViewBudget || caps.canSetBudget || caps.canViewInvoices || caps.canViewPaymentAlerts);
   }
 
+  function portalBoolFlag(value, fallback = false) {
+    if (value === undefined || value === null) return fallback ? 1 : 0;
+    if (value === true || value === 1 || value === '1' || value === 'true' || value === 'on') return 1;
+    return 0;
+  }
+
+  function portalAuthorizedSiteIds(s, rawSiteIds = []) {
+    const allowed = new Set((s.portal.sites || []).map(site => Number(site.id)).filter(Boolean));
+    const requested = Array.isArray(rawSiteIds) ? rawSiteIds : [rawSiteIds];
+    const ids = requested.map(Number).filter(id => Number.isFinite(id) && id > 0);
+    const unique = [...new Set(ids)];
+    const invalid = unique.find(id => !allowed.has(id));
+    if (invalid) return { ok: false, status: 403, error: 'אין הרשאה לשייך לאתר הזה' };
+    return { ok: true, ids: unique };
+  }
+
+  function portalSafeUserRow(user) {
+    return {
+      id: user.id,
+      phone: user.phone,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      active: user.active,
+      default_site_id: user.default_site_id,
+      can_manage_users: user.can_manage_users,
+      can_create_sites: user.can_create_sites,
+      can_assign_site_users: user.can_assign_site_users,
+      can_create_orders: user.can_create_orders,
+      can_approve_orders: user.can_approve_orders,
+      can_view_prices: user.can_view_prices,
+      can_view_budget: user.can_view_budget,
+      can_set_budget: user.can_set_budget,
+      can_view_invoices: user.can_view_invoices,
+      can_view_delivery_notes: user.can_view_delivery_notes,
+      can_view_payment_alerts: user.can_view_payment_alerts,
+    };
+  }
+
+  function orderPrintEsc(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[ch]));
+  }
+
   function orderAccessWhere(s, alias = 'o', siteId = null) {
     const where = [`${alias}.customer_id=?`];
     const params = [s.customer.id];
@@ -293,40 +342,113 @@ module.exports = function createPortalRouter(deps) {
     res.json({ success: true });
   });
 
-  // ── ניהול משתמשי פורטל (מאשר בלבד) ────────────────────────────
+  // Portal user and field-manager delegation
   router.get('/c/users', customerPortalActionLimiter, (req, res) => {
     const s = session(req.query.token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
-    if (!s.caps.canApprove) return res.status(403).json({ error: 'רק מאשר יכול לנהל משתמשים' });
-    const users = db.prepare('SELECT id,phone,name,role,active FROM portal_users WHERE customer_id=? ORDER BY id').all(s.customer.id);
-    res.json({ users });
+    if (!s.caps.canManageUsers) return res.status(403).json({ error: 'אין הרשאה לנהל משתמשים' });
+    const users = db.prepare(`
+      SELECT id,phone,name,email,role,active,default_site_id,
+             can_manage_users,can_create_sites,can_assign_site_users,can_create_orders,can_approve_orders,
+             can_view_prices,can_view_budget,can_set_budget,can_view_invoices,can_view_delivery_notes,can_view_payment_alerts
+      FROM portal_users
+      WHERE customer_id=?
+      ORDER BY active DESC, id
+    `).all(s.customer.id).map(portalSafeUserRow);
+    const assignments = db.prepare(`
+      SELECT su.portal_user_id,su.site_id,su.is_default,cs.name AS site_name
+      FROM customer_site_users su
+      LEFT JOIN customer_sites cs ON cs.id=su.site_id
+      WHERE su.customer_id=?
+      ORDER BY su.portal_user_id,su.is_default DESC,cs.name
+    `).all(s.customer.id);
+    res.json({ users, assignments, sites: s.portal.sites, caps: s.caps });
   });
 
   router.post('/c/users', customerPortalActionLimiter, (req, res) => {
     const s = session(req.body.token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
-    if (!s.caps.canApprove) return res.status(403).json({ error: 'רק מאשר יכול לנהל משתמשים' });
+    if (!s.caps.canManageUsers) return res.status(403).json({ error: 'אין הרשאה לנהל משתמשים' });
     const phone = normalizePortalPhone(req.body.phone);
-    const name = req.body.name || null;
-    const role = ['orderer', 'approver', 'both'].includes(req.body.role) ? req.body.role : 'orderer';
+    const name = String(req.body.name || '').trim() || null;
+    const email = String(req.body.email || '').trim() || null;
+    const allowedRoles = ['orderer','approver','both','finance','field_manager','customer_admin'];
+    const role = allowedRoles.includes(req.body.role) ? req.body.role : 'field_manager';
     if (!phone) return res.status(400).json({ error: 'טלפון חובה' });
+
+    const siteResult = portalAuthorizedSiteIds(s, req.body.siteIds || (req.body.defaultSiteId ? [req.body.defaultSiteId] : []));
+    if (!siteResult.ok) return res.status(siteResult.status).json({ error: siteResult.error });
+    const siteIds = siteResult.ids;
+    const defaultSiteIdRaw = Number(req.body.defaultSiteId || siteIds[0] || 0);
+    const defaultSiteId = siteIds.includes(defaultSiteIdRaw) ? defaultSiteIdRaw : (siteIds[0] || null);
+
+    const flags = {
+      can_manage_users: s.caps.canManageUsers && portalBoolFlag(req.body.canManageUsers) ? 1 : 0,
+      can_create_sites: s.caps.canCreateSites && portalBoolFlag(req.body.canCreateSites) ? 1 : 0,
+      can_assign_site_users: s.caps.canAssignSiteUsers && portalBoolFlag(req.body.canAssignSiteUsers) ? 1 : 0,
+      can_create_orders: portalBoolFlag(req.body.canCreateOrders, true),
+      can_approve_orders: s.caps.canApprove && portalBoolFlag(req.body.canApproveOrders) ? 1 : 0,
+      can_view_prices: s.caps.seePrice && portalBoolFlag(req.body.canViewPrices) ? 1 : 0,
+      can_view_budget: s.caps.canViewBudget && portalBoolFlag(req.body.canViewBudget) ? 1 : 0,
+      can_set_budget: s.caps.canSetBudget && portalBoolFlag(req.body.canSetBudget) ? 1 : 0,
+      can_view_invoices: s.caps.canViewInvoices && portalBoolFlag(req.body.canViewInvoices) ? 1 : 0,
+      can_view_delivery_notes: portalBoolFlag(req.body.canViewDeliveryNotes, true),
+      can_view_payment_alerts: s.caps.canViewPaymentAlerts && portalBoolFlag(req.body.canViewPaymentAlerts) ? 1 : 0,
+    };
+
     const existing = db.prepare('SELECT * FROM portal_users WHERE phone=?').get(phone);
-    if (existing) {
-      if (existing.customer_id !== s.customer.id) return res.status(409).json({ error: 'הטלפון משויך ללקוח אחר' });
-      db.prepare('UPDATE portal_users SET name=COALESCE(?,name), role=?, active=1 WHERE id=?').run(name, role, existing.id);
-      return res.json({ success: true, id: existing.id, updated: true });
+    let userId = existing?.id || null;
+    if (existing && existing.customer_id !== s.customer.id) {
+      return res.status(409).json({ error: 'הטלפון משויך ללקוח אחר' });
     }
-    const r = db.prepare('INSERT INTO portal_users (customer_id,phone,name,role) VALUES (?,?,?,?)').run(s.customer.id, phone, name, role);
-    res.json({ success: true, id: r.lastInsertRowid });
+    if (existing) {
+      db.prepare(`
+        UPDATE portal_users SET
+          name=COALESCE(?,name),email=COALESCE(?,email),role=?,active=1,default_site_id=?,
+          can_manage_users=?,can_create_sites=?,can_assign_site_users=?,can_create_orders=?,can_approve_orders=?,
+          can_view_prices=?,can_view_budget=?,can_set_budget=?,can_view_invoices=?,can_view_delivery_notes=?,
+          can_view_payment_alerts=?,updated_at=CURRENT_TIMESTAMP
+        WHERE id=? AND customer_id=?
+      `).run(
+        name,email,role,defaultSiteId,
+        flags.can_manage_users,flags.can_create_sites,flags.can_assign_site_users,flags.can_create_orders,flags.can_approve_orders,
+        flags.can_view_prices,flags.can_view_budget,flags.can_set_budget,flags.can_view_invoices,flags.can_view_delivery_notes,
+        flags.can_view_payment_alerts,userId,s.customer.id
+      );
+    } else {
+      const r = db.prepare(`
+        INSERT INTO portal_users
+          (customer_id,phone,name,email,role,default_site_id,can_manage_users,can_create_sites,can_assign_site_users,
+           can_create_orders,can_approve_orders,can_view_prices,can_view_budget,can_set_budget,can_view_invoices,
+           can_view_delivery_notes,can_view_payment_alerts)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(
+        s.customer.id,phone,name,email,role,defaultSiteId,
+        flags.can_manage_users,flags.can_create_sites,flags.can_assign_site_users,flags.can_create_orders,flags.can_approve_orders,
+        flags.can_view_prices,flags.can_view_budget,flags.can_set_budget,flags.can_view_invoices,flags.can_view_delivery_notes,
+        flags.can_view_payment_alerts
+      );
+      userId = r.lastInsertRowid;
+    }
+
+    db.prepare('DELETE FROM customer_site_users WHERE customer_id=? AND portal_user_id=?').run(s.customer.id, userId);
+    const addSite = db.prepare('INSERT OR IGNORE INTO customer_site_users (customer_id,site_id,portal_user_id,is_default) VALUES (?,?,?,?)');
+    siteIds.forEach(siteId => addSite.run(s.customer.id, siteId, userId, siteId === defaultSiteId ? 1 : 0));
+    db.prepare(`
+      INSERT INTO customer_portal_permission_audit (customer_id,actor_portal_user_id,target_portal_user_id,action,after_json)
+      VALUES (?,?,?,?,?)
+    `).run(s.customer.id, s.user?.id || null, userId, existing ? 'portal_user_updated_by_customer' : 'portal_user_created_by_customer', JSON.stringify({ role, defaultSiteId, siteIds, flags }));
+    res.json({ success: true, id: userId, updated: Boolean(existing) });
   });
 
   router.post('/c/users/:id/deactivate', customerPortalActionLimiter, (req, res) => {
     const s = session(req.body.token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
-    if (!s.caps.canApprove) return res.status(403).json({ error: 'רק מאשר יכול לנהל משתמשים' });
+    if (!s.caps.canManageUsers) return res.status(403).json({ error: 'אין הרשאה לנהל משתמשים' });
     const u = db.prepare('SELECT * FROM portal_users WHERE id=? AND customer_id=?').get(req.params.id, s.customer.id);
     if (!u) return res.status(404).json({ error: 'לא נמצא' });
-    db.prepare('UPDATE portal_users SET active=0 WHERE id=?').run(u.id);
+    if (s.user && Number(u.id) === Number(s.user.id)) return res.status(400).json({ error: 'אי אפשר לבטל את המשתמש הנוכחי' });
+    db.prepare('UPDATE portal_users SET active=0,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(u.id);
     res.json({ success: true });
   });
 
@@ -854,6 +976,74 @@ module.exports = function createPortalRouter(deps) {
   }
 
   // Customer order history
+  router.get('/c/orders/:orderId/print', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.query.token);
+    if (!s) return res.status(401).send('לא מורשה');
+    const access = orderAccessWhere(s, 'o');
+    const order = db.prepare(`
+      SELECT o.id,o.order_num,o.status,o.created_at,o.delivery_date,o.delivery_address,o.delivery_time,
+             o.general_notes AS notes,o.total_weight,o.billing_weight,o.portal_price,o.site_id,cs.name AS site_name
+      FROM orders o
+      LEFT JOIN customer_sites cs ON cs.id=o.site_id
+      WHERE o.id=? AND ${access.where}
+    `).get(req.params.orderId, ...access.params);
+    if (!order) return res.status(404).send('לא נמצא');
+    const pallets = db.prepare("SELECT id,pallet_num,'' AS notes FROM pallets WHERE order_id=?").all(order.id);
+    const rows = [];
+    pallets.forEach(pallet => {
+      const items = db.prepare(`
+        SELECT id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,
+               segments,struct_element,struct_floor,sheet_num,status,note
+        FROM items WHERE pallet_id=?
+      `).all(pallet.id);
+      items.forEach(item => rows.push({ pallet, item }));
+    });
+    const canSeeMoney = Boolean(s.caps.seePrice);
+    const itemRows = rows.map(({ item }, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${orderPrintEsc(item.shape_name || 'ישר')}</td>
+        <td>${orderPrintEsc(item.diameter || '')}</td>
+        <td>${orderPrintEsc(item.total_length_mm || '')}</td>
+        <td>${orderPrintEsc(item.quantity || '')}</td>
+        <td>${orderPrintEsc(item.total_weight ? Number(item.total_weight).toFixed(1) : '')}</td>
+        <td>${orderPrintEsc([item.struct_floor,item.struct_element,item.note].filter(Boolean).join(' / '))}</td>
+      </tr>
+    `).join('');
+    const priceHtml = canSeeMoney && order.portal_price ? `
+      <div class="totals"><span>משקל לחיוב: ${orderPrintEsc(Number(order.billing_weight || 0).toFixed(2))} ק"ג</span><b>סה"כ לפני מע"מ: ₪${orderPrintEsc(Number(order.portal_price || 0).toLocaleString('he-IL', { minimumFractionDigits: 2 }))}</b></div>
+    ` : '';
+    res.type('html').send(`<!doctype html><html lang="he" dir="rtl"><head>
+      <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>הזמנה ${orderPrintEsc(order.order_num)}</title>
+      <style>
+        body{font-family:Arial,'Segoe UI',sans-serif;margin:0;background:#eef3f8;color:#111827;direction:rtl}
+        .page{max-width:920px;margin:24px auto;background:#fff;padding:30px;border:1px solid #d8e2ee}
+        .top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:3px solid #0b2a4d;padding-bottom:16px}
+        h1{margin:0 0 8px;font-size:28px}.muted{color:#667085;font-size:13px}.logo{height:62px}
+        .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}.box{border:1px solid #d8e2ee;border-radius:8px;padding:10px}
+        table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #d8e2ee;padding:8px;text-align:right;font-size:13px}th{background:#f4f7fb}
+        .totals{display:flex;justify-content:space-between;gap:16px;margin-top:18px;border-top:2px solid #0b2a4d;padding-top:12px;font-size:16px}
+        .actions{display:flex;justify-content:flex-start;margin:18px 0}.actions button{background:#e46a00;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer}
+        @media print{body{background:#fff}.page{margin:0;max-width:none;border:0}.actions{display:none}}
+      </style>
+    </head><body><div class="page">
+      <div class="actions"><button onclick="window.print()">הדפס / שמור PDF</button></div>
+      <div class="top">
+        <div><h1>הזמנה ${orderPrintEsc(order.order_num)}</h1><div class="muted">${orderPrintEsc(order.created_at || '')}</div></div>
+        <img class="logo" src="/brand/tene-logo.png" alt="טנא">
+      </div>
+      <div class="grid">
+        <div class="box"><b>לקוח</b><br>${orderPrintEsc(s.customer.name || '')}<br>${orderPrintEsc(s.customer.tax_id ? 'ח.פ ' + s.customer.tax_id : '')}</div>
+        <div class="box"><b>אתר / אספקה</b><br>${orderPrintEsc(order.site_name || 'ללא אתר')}<br>${orderPrintEsc([order.delivery_date,order.delivery_time,order.delivery_address].filter(Boolean).join(' / '))}</div>
+        <div class="box"><b>סטטוס</b><br>${orderPrintEsc(order.status || '')}</div>
+        <div class="box"><b>משקל</b><br>${orderPrintEsc(Number(order.billing_weight || order.total_weight || 0).toFixed(1))} ק"ג</div>
+      </div>
+      <table><thead><tr><th>#</th><th>צורה</th><th>קוטר</th><th>אורך מ"מ</th><th>כמות</th><th>משקל ק"ג</th><th>הערות</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">אין פריטים להצגה</td></tr>'}</tbody></table>
+      ${priceHtml}
+    </div></body></html>`);
+  });
+
   router.get('/c/orders/:orderId', customerPortalActionLimiter, (req, res) => {
     const { token } = req.query;
     const s = session(token);
