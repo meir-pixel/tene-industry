@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "downward-editor-shapes";
+window.IRONBEND_ASSET_VERSION = "base-bottom-editor-shapes";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -88,7 +88,7 @@ function calcShapePoints(sides, angles) {
   return pts;
 }
 
-function normalizeShapePointsDown(points) {
+function normalizeShapePointsBaseBottom(points) {
   if (!Array.isArray(points) || points.length < 2) return points;
   let longest = { index: 0, length: 0, angle: 0 };
   for (let i = 0; i < points.length - 1; i++) {
@@ -106,7 +106,7 @@ function normalizeShapePointsDown(points) {
   const baseNext = rotated[longest.index + 1];
   const baseY = (base[1] + baseNext[1]) / 2;
   const bodyY = rotated.reduce((sum, point) => sum + point[1], 0) / rotated.length;
-  if (bodyY < baseY) {
+  if (bodyY > baseY) {
     rotated = rotated.map(([x, y]) => [x, baseY + (baseY - y)]);
   }
   return rotated;
@@ -172,7 +172,7 @@ function calcShapePoints3D(sides, azAngles, elAngles) {
 
 function shapeSVGPath(sides, angles, w, h, padding = 14) {
   if (!sides || sides.length === 0) return { path: '', pts: [] };
-  const pts = normalizeShapePointsDown(calcShapePoints(sides, angles));
+  const pts = normalizeShapePointsBaseBottom(calcShapePoints(sides, angles));
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
@@ -392,7 +392,7 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
   if (opts.azAngles) {
     pts3d = calcShapePoints3D(sides, opts.azAngles, opts.elAngles || []);
   } else {
-    pts3d = normalizeShapePointsDown(calcShapePoints(sides, angles)).map(([x, y]) => [x, y, 0]);
+    pts3d = normalizeShapePointsBaseBottom(calcShapePoints(sides, angles)).map(([x, y]) => [x, y, 0]);
   }
 
   // Project: rotate around Z by theta, then tilt by phi
