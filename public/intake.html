@@ -574,14 +574,14 @@ function ocrSourceRefForPath(path) {
 
 function ocrSourceRectPercent(ref, fallbackTop) {
   const bbox = ref?.bbox || ref?.source_bbox;
-  if (!bbox) return { left: 16, top: fallbackTop, width: 68, height: 24 };
+  if (!bbox) return { left: 16, top: fallbackTop, width: 68, height: 3.8 };
   const pageW = Number(ref.page_width || ref.width || 595.32);
   const pageH = Number(ref.page_height || ref.height || 841.92);
   const x0 = Number(bbox.x0 ?? bbox.left ?? bbox.x ?? 0);
   const x1 = Number(bbox.x1 ?? (x0 + Number(bbox.width || 0)));
   const y0 = Number(bbox.y0 ?? bbox.top ?? bbox.y ?? 0);
   const y1 = Number(bbox.y1 ?? bbox.bottom ?? (y0 + Number(bbox.height || 0)));
-  if (!pageW || !pageH || !Number.isFinite(x0) || !Number.isFinite(y0)) return { left: 16, top: fallbackTop, width: 68, height: 24 };
+  if (!pageW || !pageH || !Number.isFinite(x0) || !Number.isFinite(y0)) return { left: 16, top: fallbackTop, width: 68, height: 3.8 };
   const rawLeft = (x0 / pageW) * 100;
   const rawTop = (y0 / pageH) * 100;
   const rawWidth = ((x1 - x0) / pageW) * 100;

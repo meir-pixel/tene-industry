@@ -1550,6 +1550,7 @@ test('post-order OCR review saves row statuses without mutating approved intake 
   assert.match(intake, /function ocrSourceRefForPath/);
   assert.match(intake, /function ocrSourceRectPercent/);
   assert.match(intake, /const centeredHeight = rawHeight > 5 \? 3\.8/);
+  assert.match(intake, /height: 3\.8/);
   assert.match(intake, /item\.fields\?\.\[field\]/);
   assert.match(intake, /row\?\.post_order_review \? .*order-review/);
   assert.match(intake, /function refreshOcrStatusSummary/);

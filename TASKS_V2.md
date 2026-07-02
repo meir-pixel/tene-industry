@@ -901,6 +901,7 @@
   - added source-field highlighting from parser bounding boxes and row-level OCR learning examples on approved review rows.
   - tightened OCR source highlighting so large parser row boxes render as a single compact row band.
   - added OCR compare hover mode linking table rows and source PDF targets without saving data.
+  - reduced OCR compare fallback source highlights to one compact row band when exact boxes are missing.
   - reconstructed post-order OCR review tables from existing order items when legacy OCR parsed items are empty.
   - persisted post-order OCR row approvals through a review-only Intake endpoint so row counters and approved Orders stay consistent.
   - connected the main analyze-image PDF route to the steel parser so extractable PDFs create populated review drafts instead of empty OCR items.
