@@ -319,18 +319,14 @@ function drawShape(svgEl, segments) {
   var pd='M '+mapped.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' L ');
   var svg='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
   svg+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  var center = [mapped.reduce(function(sum, point){ return sum + point[0]; }, 0) / mapped.length, mapped.reduce(function(sum, point){ return sum + point[1]; }, 0) / mapped.length];
   for (var i=0; i<mapped.length-1; i++) {
-    var x1=mapped[i][0],y1=mapped[i][1],x2=mapped[i+1][0],y2=mapped[i+1][1];
-    var mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
-    var nx=-dy/len*10,ny=dx/len*10,lx=mx+nx,ly=my+ny;
-    svg+='<rect x="'+(lx-14).toFixed(1)+'" y="'+(ly-7).toFixed(1)+'" width="28" height="12" rx="2" fill="white" fill-opacity="0.85"/>';
-    svg+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
+    svg += sideDimensionSvg(mapped[i], mapped[i + 1], sides[i], center, 19);
   }
   for (var i=1; i<mapped.length-1; i++) {
-    var x=mapped[i][0],y=mapped[i][1];
-    if (angles[i-1] !== undefined && angles[i-1] !== 180) {
-      svg+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
-      svg+='<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">'+angles[i-1]+'&deg;</text>';
+    var angle = angles[i - 1];
+    if (angle !== undefined && angle !== 180) {
+      svg += angleMarkerSvg(mapped[i - 1], mapped[i], mapped[i + 1], angle, center);
     }
   }
   var ep=mapped[mapped.length-1];
@@ -464,6 +460,75 @@ function closedStirrupPartsClient(segments) {
   return null;
 }
 
+
+function displayLengthCm(value) {
+  var cm = (Number(value) || 0) / 10;
+  if (!Number.isFinite(cm)) return '';
+  return Math.abs(cm - Math.round(cm)) < 0.001 ? String(Math.round(cm)) : cm.toFixed(1).replace(/\.0$/, '');
+}
+
+function pointAt(point, vector, distance) {
+  return [point[0] + vector[0] * distance, point[1] + vector[1] * distance];
+}
+
+function unitVector(from, to) {
+  var dx = to[0] - from[0];
+  var dy = to[1] - from[1];
+  var len = Math.sqrt(dx * dx + dy * dy) || 1;
+  return [dx / len, dy / len];
+}
+
+function rightAngleMarkerSvg(previous, corner, next) {
+  var a = unitVector(corner, previous);
+  var b = unitVector(corner, next);
+  var d = 9;
+  var p1 = pointAt(corner, a, d);
+  var p2 = [p1[0] + b[0] * d, p1[1] + b[1] * d];
+  var p3 = pointAt(corner, b, d);
+  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>';
+}
+
+function dimensionLabelSvg(text, x, y, width = 38) {
+  return '<rect x="' + (x - width / 2).toFixed(1) + '" y="' + (y - 7).toFixed(1) + '" width="' + width + '" height="14" rx="3" fill="white" fill-opacity="0.96" stroke="#aeb8c5" stroke-width="0.7"/>' +
+    '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + escapeHtml(text) + '</text>';
+}
+
+function sideDimensionSvg(start, end, value, center, distance = 18) {
+  var mid = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
+  var dx = end[0] - start[0];
+  var dy = end[1] - start[1];
+  var len = Math.sqrt(dx * dx + dy * dy) || 1;
+  var nx = -dy / len;
+  var ny = dx / len;
+  if ((mid[0] + nx * distance - center[0]) * nx + (mid[1] + ny * distance - center[1]) * ny < 0) {
+    nx *= -1;
+    ny *= -1;
+  }
+  var label = [mid[0] + nx * distance, mid[1] + ny * distance];
+  var text = displayLengthCm(value);
+  var width = Math.max(30, Math.min(48, text.length * 7 + 14));
+  return '<line x1="' + mid[0].toFixed(1) + '" y1="' + mid[1].toFixed(1) + '" x2="' + label[0].toFixed(1) + '" y2="' + label[1].toFixed(1) + '" stroke="#aeb8c5" stroke-width="0.8"/>' +
+    dimensionLabelSvg(text, label[0], label[1], width);
+}
+
+function angleMarkerSvg(previous, corner, next, angle, center) {
+  if (isRightAngle(angle)) return rightAngleMarkerSvg(previous, corner, next);
+  var a = unitVector(corner, previous);
+  var b = unitVector(corner, next);
+  var p1 = pointAt(corner, a, 13);
+  var p2 = pointAt(corner, b, 13);
+  var vx = corner[0] - center[0];
+  var vy = corner[1] - center[1];
+  var len = Math.sqrt(vx * vx + vy * vy) || 1;
+  vx /= len;
+  vy /= len;
+  var lx = corner[0] + vx * 20;
+  var ly = corner[1] + vy * 20;
+  var text = String(Math.round(Number(angle) || 0)) + '°';
+  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' Q ' + corner[0].toFixed(1) + ',' + corner[1].toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + '" fill="none" stroke="#c9621a" stroke-width="1.4" stroke-linecap="round"/>' +
+    dimensionLabelSvg(text, lx, ly, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
+}
+
 function buildOpenUShapeSVG(segments) {
   var leftLeg = +(segments[0].length_mm || 0);
   var bridge = +(segments[1].length_mm || 0);
@@ -474,14 +539,16 @@ function buildOpenUShapeSVG(segments) {
   var s = '<path d="' + pd + '" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
   s += '<path d="' + pd + '" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
   s += '<rect x="' + (left - 18) + '" y="' + (midY - 7) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
-  s += '<text x="' + left + '" y="' + midY + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + leftLeg + '</text>';
+  s += '<text x="' + left + '" y="' + midY + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + displayLengthCm(leftLeg) + '</text>';
   s += '<rect x="' + (midX - 18) + '" y="' + (top - 19) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
-  s += '<text x="' + midX + '" y="' + (top - 12) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + bridge + '</text>';
+  s += '<text x="' + midX + '" y="' + (top - 12) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + displayLengthCm(bridge) + '</text>';
   s += '<rect x="' + (right - 18) + '" y="' + (midY - 7) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
-  s += '<text x="' + right + '" y="' + midY + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + rightLeg + '</text>';
-  [[left, top], [right, top]].forEach(function(p) {
-    s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
-    s += '<text x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">90&deg;</text>';
+  s += '<text x="' + right + '" y="' + midY + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + displayLengthCm(rightLeg) + '</text>';
+  [
+    [[left, bottom], [left, top], [right, top]],
+    [[left, top], [right, top], [right, bottom]],
+  ].forEach(function(points) {
+    s += rightAngleMarkerSvg(points[0], points[1], points[2]);
   });
   return '<svg data-shape-kind="open-u" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:100px">' + s + '</svg>';
 }
@@ -511,7 +578,15 @@ function buildClosedStirrupSVG(parts) {
     { x: x - 20, y: midY, value: parts.left }
   ].forEach(function(label) {
     s += '<rect x="' + (label.x - 18).toFixed(1) + '" y="' + (label.y - 7).toFixed(1) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
-    s += '<text x="' + label.x.toFixed(1) + '" y="' + label.y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + label.value + '</text>';
+    s += '<text x="' + label.x.toFixed(1) + '" y="' + label.y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + displayLengthCm(label.value) + '</text>';
+  });
+  [
+    [[x, bottom], [x, y], [right, y]],
+    [[x, y], [right, y], [right, bottom]],
+    [[right, y], [right, bottom], [x, bottom]],
+    [[right, bottom], [x, bottom], [x, y]],
+  ].forEach(function(points) {
+    s += rightAngleMarkerSvg(points[0], points[1], points[2]);
   });
   return '<svg data-shape-kind="closed-stirrup" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:112px">' + s + '</svg>';
 }
@@ -526,7 +601,7 @@ function buildShapeSVG(segments) {
     if (isOpenUShapeClient(segments)) return buildOpenUShapeSVG(segments);
     var stirrup = closedStirrupPartsClient(segments);
     if (stirrup) return buildClosedStirrupSVG(stirrup);
-    var W=220, H=100, PAD=18;
+    var W=240, H=120, PAD=36;
     var sides = segments.map(function(s){ return +(s.length_mm||0); });
     var angs  = segments.map(function(s){ return s.angle_deg; });
     var pts=[[0,0]], dir=0;
@@ -545,19 +620,14 @@ function buildShapeSVG(segments) {
     var pd='M '+mpts.map(function(p){return p.join(',');}).join(' L ');
     var s='<path d="'+pd+'" fill="none" stroke="#1a2332" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
     s+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
+    var center = [mpts.reduce(function(sum, point){ return sum + point[0]; }, 0) / mpts.length, mpts.reduce(function(sum, point){ return sum + point[1]; }, 0) / mpts.length];
     for (var i=0; i<mpts.length-1; i++) {
-      var x1=mpts[i][0],y1=mpts[i][1],x2=mpts[i+1][0],y2=mpts[i+1][1];
-      var mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,ln=Math.sqrt(dx*dx+dy*dy)||1;
-      var nx=-dy/ln*10,ny=dx/ln*10;
-      s+='<rect x="'+(mx+nx-14).toFixed(1)+'" y="'+(my+ny-6).toFixed(1)+'" width="28" height="12" rx="2" fill="white" fill-opacity="0.9"/>';
-      s+='<text x="'+(mx+nx).toFixed(1)+'" y="'+(my+ny).toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">'+sides[i]+'</text>';
+      s += sideDimensionSvg(mpts[i], mpts[i + 1], sides[i], center, 19);
     }
     for (var i=1; i<mpts.length-1; i++) {
       var a=angs[i-1];
       if (a!=null && a!==180) {
-        var x=mpts[i][0], y=mpts[i][1];
-        s+='<circle cx="'+x+'" cy="'+y+'" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>';
-        s+='<text x="'+x+'" y="'+y+'" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">'+a+'\xb0</text>';
+        s += angleMarkerSvg(mpts[i - 1], mpts[i], mpts[i + 1], a, center);
       }
     }
     return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:100px">'+s+'</svg>';
@@ -580,7 +650,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var dimHtml = '';
   for (var i=0; i<segs.length; i++) {
     var lbl = String.fromCharCode(0x05D0+i);
-    dimHtml += '<span class="dim-seg">'+lbl+': <b>'+segs[i].length_mm+'</b></span>';
+    dimHtml += '<span class="dim-seg">'+lbl+': <b>'+displayLengthCm(segs[i].length_mm)+'</b> ס״מ</span>';
     if (i < segs.length-1 && segs[i].angle_deg && segs[i].angle_deg !== 180)
       dimHtml += '<span class="dim-ang">'+segs[i].angle_deg+'&deg;</span>';
   }
@@ -634,7 +704,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-spec-sep"></div>';
   h += '<div class="pc-spec-cell"><span class="spec-lbl">כיתה:</span> <b>'+(item.material_grade||'B500B')+'</b></div>';
   h += '<div class="pc-spec-sep"></div>';
-  h += '<div class="pc-spec-cell"><span class="spec-lbl">אורך:</span> <b>'+item.total_length_mm+'</b> מ"מ</div>';
+  h += '<div class="pc-spec-cell"><span class="spec-lbl">אורך:</span> <b>'+Math.round((Number(item.total_length_mm || 0)) / 10)+'</b> ס״מ</div>';
   if (item.struct_element) h += '<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> '+item.struct_element+'</div>';
   h += '</div>';
   if (item.note) h += '<div class="pc-note">⚠ '+item.note+'</div>';

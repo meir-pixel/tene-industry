@@ -89,6 +89,75 @@ function closedStirrupParts(segments) {
   return null;
 }
 
+
+function displayLengthCm(value) {
+  const cm = (Number(value) || 0) / 10;
+  if (!Number.isFinite(cm)) return '';
+  return Number.isInteger(cm) ? String(cm) : cm.toFixed(1).replace(/\.0$/, '');
+}
+
+function pointAt(point, vector, distance) {
+  return [point[0] + vector[0] * distance, point[1] + vector[1] * distance];
+}
+
+function unitVector(from, to) {
+  const dx = to[0] - from[0];
+  const dy = to[1] - from[1];
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  return [dx / len, dy / len];
+}
+
+function rightAngleMarkerSvg(previous, corner, next) {
+  const a = unitVector(corner, previous);
+  const b = unitVector(corner, next);
+  const d = 9;
+  const p1 = pointAt(corner, a, d);
+  const p2 = [p1[0] + b[0] * d, p1[1] + b[1] * d];
+  const p3 = pointAt(corner, b, d);
+  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>';
+}
+
+function dimensionLabelSvg(text, x, y, width = 38) {
+  return '<rect x="' + (x - width / 2).toFixed(1) + '" y="' + (y - 7).toFixed(1) + '" width="' + width + '" height="14" rx="3" fill="white" fill-opacity="0.96" stroke="#aeb8c5" stroke-width="0.7"/>' +
+    '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + escapeHtml(text) + '</text>';
+}
+
+function sideDimensionSvg(start, end, value, center, distance = 18) {
+  const mid = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  let nx = -dy / len;
+  let ny = dx / len;
+  if ((mid[0] + nx * distance - center[0]) * nx + (mid[1] + ny * distance - center[1]) * ny < 0) {
+    nx *= -1;
+    ny *= -1;
+  }
+  const label = [mid[0] + nx * distance, mid[1] + ny * distance];
+  const text = displayLengthCm(value);
+  const width = Math.max(30, Math.min(48, text.length * 7 + 14));
+  return '<line x1="' + mid[0].toFixed(1) + '" y1="' + mid[1].toFixed(1) + '" x2="' + label[0].toFixed(1) + '" y2="' + label[1].toFixed(1) + '" stroke="#aeb8c5" stroke-width="0.8"/>' +
+    dimensionLabelSvg(text, label[0], label[1], width);
+}
+
+function angleMarkerSvg(previous, corner, next, angle, center) {
+  if (isRightAngle(angle)) return rightAngleMarkerSvg(previous, corner, next);
+  const a = unitVector(corner, previous);
+  const b = unitVector(corner, next);
+  const p1 = pointAt(corner, a, 13);
+  const p2 = pointAt(corner, b, 13);
+  let vx = corner[0] - center[0];
+  let vy = corner[1] - center[1];
+  const len = Math.sqrt(vx * vx + vy * vy) || 1;
+  vx /= len;
+  vy /= len;
+  const lx = corner[0] + vx * 20;
+  const ly = corner[1] + vy * 20;
+  const text = String(Math.round(Number(angle) || 0)) + '°';
+  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' Q ' + corner[0].toFixed(1) + ',' + corner[1].toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + '" fill="none" stroke="#c9621a" stroke-width="1.4" stroke-linecap="round"/>' +
+    dimensionLabelSvg(text, lx, ly, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
+}
+
 function openUShapeSvg(segments) {
   const [leftLeg, bridge, rightLeg] = segments.map(segment => Number(segment.length_mm || 0));
   const width = 220;
@@ -105,17 +174,19 @@ function openUShapeSvg(segments) {
   svg += `<path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
 
   svg += `<rect x="${left - 18}" y="${midY - 7}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
-  svg += `<text x="${left}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(leftLeg)}</text>`;
+  svg += `<text x="${left}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(displayLengthCm(leftLeg))}</text>`;
 
   svg += `<rect x="${midX - 18}" y="${top - 19}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
-  svg += `<text x="${midX}" y="${top - 12}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(bridge)}</text>`;
+  svg += `<text x="${midX}" y="${top - 12}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(displayLengthCm(bridge))}</text>`;
 
   svg += `<rect x="${right - 18}" y="${midY - 7}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
-  svg += `<text x="${right}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(rightLeg)}</text>`;
+  svg += `<text x="${right}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(displayLengthCm(rightLeg))}</text>`;
 
-  [[left, top], [right, top]].forEach(([x, y]) => {
-    svg += `<circle cx="${x}" cy="${y}" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>`;
-    svg += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">90&#176;</text>`;
+  [
+    [[left, bottom], [left, top], [right, top]],
+    [[left, top], [right, top], [right, bottom]],
+  ].forEach(([previous, corner, next]) => {
+    svg += rightAngleMarkerSvg(previous, corner, next);
   });
 
   return `<svg data-shape-kind="open-u" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:100px">${svg}</svg>`;
@@ -159,12 +230,16 @@ function closedStirrupSvg(parts) {
     { x: x - 20, y: midY, value: parts.left },
   ].forEach(label => {
     svg += `<rect x="${(label.x - 18).toFixed(1)}" y="${(label.y - 7).toFixed(1)}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
-    svg += `<text x="${label.x.toFixed(1)}" y="${label.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(label.value)}</text>`;
+    svg += `<text x="${label.x.toFixed(1)}" y="${label.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(displayLengthCm(label.value))}</text>`;
   });
 
-  [[x, y], [right, y], [right, bottom], [x, bottom]].forEach(([cx, cy]) => {
-    svg += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="8" fill="white" stroke="#c9621a" stroke-width="1.2"/>`;
-    svg += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="6.5" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">90&#176;</text>`;
+  [
+    [[x, bottom], [x, y], [right, y]],
+    [[x, y], [right, y], [right, bottom]],
+    [[right, y], [right, bottom], [x, bottom]],
+    [[right, bottom], [x, bottom], [x, y]],
+  ].forEach(([previous, corner, next]) => {
+    svg += rightAngleMarkerSvg(previous, corner, next);
   });
 
   return `<svg data-shape-kind="closed-stirrup" viewBox="0 0 ${width} ${height}" style="width:100%;max-height:112px">${svg}</svg>`;
@@ -173,9 +248,9 @@ function closedStirrupSvg(parts) {
 function shapeSvg(segmentsRaw) {
   try {
     const segments = parseSegments(segmentsRaw);
-    const width = 220;
-    const height = 100;
-    const padding = 18;
+    const width = 240;
+    const height = 120;
+    const padding = 36;
     if (!segments.length) {
       return '<svg viewBox="0 0 220 60" style="width:100%;max-height:80px">' +
         '<line x1="12" y1="30" x2="208" y2="30" stroke="#1a2332" stroke-width="3" stroke-linecap="round"/>' +
@@ -219,26 +294,15 @@ function shapeSvg(segmentsRaw) {
     let svg = `<path d="${path}" fill="none" stroke="#1a2332" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`;
     svg += `<path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 
+    const center = [mapped.reduce((sum, point) => sum + point[0], 0) / mapped.length, mapped.reduce((sum, point) => sum + point[1], 0) / mapped.length];
     for (let i = 0; i < mapped.length - 1; i += 1) {
-      const [x1, y1] = mapped[i];
-      const [x2, y2] = mapped[i + 1];
-      const midX = (x1 + x2) / 2;
-      const midY = (y1 + y2) / 2;
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      const lineLength = Math.sqrt(dx * dx + dy * dy) || 1;
-      const normalX = -dy / lineLength * 10;
-      const normalY = dx / lineLength * 10;
-      svg += `<rect x="${(midX + normalX - 14).toFixed(1)}" y="${(midY + normalY - 6).toFixed(1)}" width="28" height="12" rx="2" fill="white" fill-opacity="0.9"/>`;
-      svg += `<text x="${(midX + normalX).toFixed(1)}" y="${(midY + normalY).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">${escapeHtml(sides[i])}</text>`;
+      svg += sideDimensionSvg(mapped[i], mapped[i + 1], sides[i], center, 19);
     }
 
     for (let i = 1; i < mapped.length - 1; i += 1) {
       const angle = angles[i - 1];
       if (angle != null && angle !== 180) {
-        const [x, y] = mapped[i];
-        svg += `<circle cx="${x}" cy="${y}" r="9" fill="white" stroke="#c9621a" stroke-width="1.2"/>`;
-        svg += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">${escapeHtml(angle)}°</text>`;
+        svg += angleMarkerSvg(mapped[i - 1], mapped[i], mapped[i + 1], angle, center);
       }
     }
 
@@ -287,7 +351,7 @@ function itemCard(item, order, printDate, rebarWeights) {
   let dimensions = '';
   for (let i = 0; i < segments.length; i += 1) {
     const label = String.fromCharCode(0x05D0 + i);
-    dimensions += `<span class="dim-seg">${label}: <b>${escapeHtml(segments[i].length_mm || '')}</b></span>`;
+    dimensions += `<span class="dim-seg">${label}: <b>${escapeHtml(displayLengthCm(segments[i].length_mm || 0))}</b> ס״מ</span>`;
     if (i < segments.length - 1 && segments[i].angle_deg && segments[i].angle_deg !== 180) {
       dimensions += `<span class="dim-ang">${escapeHtml(segments[i].angle_deg)}°</span>`;
     }
@@ -315,7 +379,7 @@ function itemCard(item, order, printDate, rebarWeights) {
     '<div class="pc-spec-row">' +
       `<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>Ø${escapeHtml(item.diameter || '?')}</b></div>` +
       '<div class="pc-spec-sep"></div>' +
-      `<div class="pc-spec-cell"><span class="spec-lbl">אורך פיתוח:</span> <b>${item.total_length_mm || 0}</b> מ"מ</div>` +
+      `<div class="pc-spec-cell"><span class="spec-lbl">אורך פיתוח:</span> <b>${Math.round((Number(item.total_length_mm || 0)) / 10)}</b> ס״מ</div>` +
       (item.struct_element ? `<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> ${escapeHtml(item.struct_element)}</div>` : '') +
     '</div>' +
     (note ? `<div class="pc-note">⚠ ${escapeHtml(note)}</div>` : '') +

@@ -643,9 +643,11 @@ test('production card renders open U bars as a readable U shape, not a flattened
 
   assert.match(svg, /data-shape-kind="open-u"/);
   assert.match(svg, /M 42,78 L 42,24 L 178,24 L 178,78/);
-  assert.match(svg, />1900</);
-  assert.match(svg, />200</);
-  assert.match(svg, /90&#176;/);
+  assert.match(svg, />190</);
+  assert.match(svg, />20</);
+  assert.match(svg, /stroke="#a8b0ba"/);
+  assert.doesNotMatch(svg, /90&#176;/);
+  assert.doesNotMatch(svg, /<circle/);
 });
 
 test('production card renders closed stirrups as a closed rectangular hoop', () => {
@@ -660,11 +662,13 @@ test('production card renders closed stirrups as a closed rectangular hoop', () 
 
   assert.match(svg, /data-shape-kind="closed-stirrup"/);
   assert.match(svg, /Z/);
-  assert.match(svg, />300</);
-  assert.match(svg, />950</);
+  assert.match(svg, />30</);
+  assert.match(svg, />95</);
+  assert.match(svg, /stroke="#a8b0ba"/);
   assert.match(svg, /data-stirrup-marker="overlap"/);
   assert.doesNotMatch(svg, /data-tail=/);
   assert.doesNotMatch(svg, /end tails/);
+  assert.doesNotMatch(svg, /<circle/);
 });
 
 test('production card accepts closed stirrup OCR with one visible overlap tail', () => {
@@ -677,11 +681,13 @@ test('production card accepts closed stirrup OCR with one visible overlap tail',
   ]));
 
   assert.match(svg, /data-shape-kind="closed-stirrup"/);
-  assert.match(svg, />300</);
-  assert.match(svg, />950</);
+  assert.match(svg, />30</);
+  assert.match(svg, />95</);
+  assert.match(svg, /stroke="#a8b0ba"/);
   assert.match(svg, /data-stirrup-marker="overlap"/);
   assert.doesNotMatch(svg, /data-tail=/);
   assert.doesNotMatch(svg, /end tails/);
+  assert.doesNotMatch(svg, /<circle/);
 });
 
 test('orders detail shape renderer has a dedicated closed-stirrup path', () => {
