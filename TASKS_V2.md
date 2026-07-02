@@ -1415,6 +1415,26 @@
 
 ---
 
+### V2-006AA - Shape Editor Downward Bar Preview Orientation
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - U/bar editor screenshot where 300/1000/300 appears standing on its side.
+- output:
+  - Generic 2D bar previews normalize display orientation so the dominant side is horizontal and the shape body sits downward.
+- guardrails:
+  - Display-only change in the shape editor.
+  - No shape data, orders, pricing, production, OCR, or machine output changes.
+- verification:
+  - `node --test test\shape-geometry.test.js`
+
 ## ? הושלם
 
 ### V2-DOC-001 — מסמך אמת V2

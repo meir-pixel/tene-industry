@@ -44,6 +44,22 @@ test('shape geometry closes a square when all four bends are 90 degrees', () => 
   ]));
 });
 
+test('shape editor 2D preview rotates U bars so the long bridge is horizontal and legs sit downward', () => {
+  const { shapeSVGPath } = loadShapeEditorGeometry();
+  const { pts } = shapeSVGPath([300, 1000, 300], [90, 90], 300, 260, 38);
+  const segments = pts.slice(0, -1).map((point, index) => {
+    const next = pts[index + 1];
+    const dx = next[0] - point[0];
+    const dy = next[1] - point[1];
+    return { dx, dy, length: Math.hypot(dx, dy), y: (point[1] + next[1]) / 2 };
+  });
+  const longest = segments.reduce((best, segment) => segment.length > best.length ? segment : best, segments[0]);
+  const centerY = pts.reduce((sum, point) => sum + point[1], 0) / pts.length;
+
+  assert.ok(Math.abs(longest.dy) < 0.2, 'expected the long bridge side to be horizontal');
+  assert.ok(centerY >= longest.y, 'expected the U legs/body to sit below the long bridge');
+});
+
 test('visual-only 3D preview does not use true-3D azimuth arrays', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
