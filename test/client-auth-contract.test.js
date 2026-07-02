@@ -133,6 +133,13 @@ test('production card split renders only production cards without a master card'
   assert.match(productionCardsRoute, /pc-print-qr-code/);
 });
 
+test('customer portal uses clear logout wording', () => {
+  const customerPage = read('public/customer.html');
+
+  assert.match(customerPage, /onclick="logoutPortal\(\)">התנתק<\/button>/);
+  assert.doesNotMatch(customerPage, /החלף לקוח \/ יציאה/);
+});
+
 test('customer portal UI uses OTP verification before storing token', () => {
   const customer = read('public/customer.html');
 
