@@ -537,7 +537,7 @@ function buildStraightShapeSVG(segment) {
   s += '<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round"/>';
   s += dimensionLabelSvg(text, W / 2, 18, Math.max(34, Math.min(54, text.length * 7 + 18)));
   s += '<line x1="' + (W / 2).toFixed(1) + '" y1="25" x2="' + (W / 2).toFixed(1) + '" y2="' + (y - 5) + '" stroke="#aeb8c5" stroke-width="0.8"/>';
-  return '<svg data-shape-kind="straight-bar" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:90px">' + s + '</svg>';
+  return '<svg data-shape-kind="straight-bar" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:90px;overflow:visible">' + s + '</svg>';
 }
 
 function buildOpenUShapeSVG(segments) {
@@ -561,7 +561,7 @@ function buildOpenUShapeSVG(segments) {
   ].forEach(function(points) {
     s += rightAngleMarkerSvg(points[0], points[1], points[2]);
   });
-  return '<svg data-shape-kind="open-u" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:100px">' + s + '</svg>';
+  return '<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:100px;overflow:visible">' + s + '</svg>';
 }
 
 function buildClosedStirrupSVG(parts) {
@@ -599,7 +599,7 @@ function buildClosedStirrupSVG(parts) {
   ].forEach(function(points) {
     s += rightAngleMarkerSvg(points[0], points[1], points[2]);
   });
-  return '<svg data-shape-kind="closed-stirrup" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:112px">' + s + '</svg>';
+  return '<svg data-shape-kind="closed-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + s + '</svg>';
 }
 
 function buildShapeSVG(segments) {
@@ -613,14 +613,14 @@ function buildShapeSVG(segments) {
     if (isOpenUShapeClient(segments)) return buildOpenUShapeSVG(segments);
     var stirrup = closedStirrupPartsClient(segments);
     if (stirrup) return buildClosedStirrupSVG(stirrup);
-    var W=240, H=120, PAD=36;
+    var W=260, H=140, PAD=46;
     var sides = segments.map(function(s){ return +(s.length_mm||0); });
     var angs  = segments.map(function(s){ return s.angle_deg; });
     var pts=[[0,0]], dir=0;
     for (var i=0; i<sides.length; i++) {
       var p=pts[pts.length-1], rad=dir*Math.PI/180;
       pts.push([p[0]+sides[i]*Math.cos(rad), p[1]+sides[i]*Math.sin(rad)]);
-      if (i<angs.length-1 && angs[i]!=null) dir-=(180-angs[i]);
+      if (i<angs.length-1 && angs[i]!=null) dir += Number(angs[i] || 0);
     }
     var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
     var mnX=Math.min.apply(null,xs), mxX=Math.max.apply(null,xs);
@@ -634,7 +634,7 @@ function buildShapeSVG(segments) {
     s+='<path d="'+pd+'" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
     var center = [mpts.reduce(function(sum, point){ return sum + point[0]; }, 0) / mpts.length, mpts.reduce(function(sum, point){ return sum + point[1]; }, 0) / mpts.length];
     for (var i=0; i<mpts.length-1; i++) {
-      s += sideDimensionSvg(mpts[i], mpts[i + 1], sides[i], center, 19);
+      s += sideDimensionSvg(mpts[i], mpts[i + 1], sides[i], center, 15);
     }
     for (var i=1; i<mpts.length-1; i++) {
       var a=angs[i-1];
@@ -642,7 +642,7 @@ function buildShapeSVG(segments) {
         s += angleMarkerSvg(mpts[i - 1], mpts[i], mpts[i + 1], a, center);
       }
     }
-    return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:100px">'+s+'</svg>';
+    return '<svg data-shape-kind="generic-bar" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 '+W+' '+H+'" style="width:100%;height:100%;max-height:100px;overflow:visible">'+s+'</svg>';
   } catch(e) {
     return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
   }
