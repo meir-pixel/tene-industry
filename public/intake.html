@@ -580,11 +580,17 @@ function ocrSourceRectPercent(ref, fallbackTop) {
   const y0 = Number(bbox.y0 ?? bbox.top ?? bbox.y ?? 0);
   const y1 = Number(bbox.y1 ?? bbox.bottom ?? (y0 + Number(bbox.height || 0)));
   if (!pageW || !pageH || !Number.isFinite(x0) || !Number.isFinite(y0)) return { left: 16, top: fallbackTop, width: 68, height: 24 };
+  const rawLeft = (x0 / pageW) * 100;
+  const rawTop = (y0 / pageH) * 100;
+  const rawWidth = ((x1 - x0) / pageW) * 100;
+  const rawHeight = ((y1 - y0) / pageH) * 100;
+  const centeredHeight = rawHeight > 5 ? 3.8 : Math.max(2.2, Math.min(4.8, rawHeight));
+  const centerY = rawTop + rawHeight / 2;
   return {
-    left: Math.max(0, Math.min(96, (x0 / pageW) * 100)),
-    top: Math.max(0, Math.min(96, (y0 / pageH) * 100)),
-    width: Math.max(2.5, Math.min(96, ((x1 - x0) / pageW) * 100)),
-    height: Math.max(2.2, Math.min(18, ((y1 - y0) / pageH) * 100)),
+    left: Math.max(0, Math.min(96, rawLeft)),
+    top: Math.max(0, Math.min(96, centerY - centeredHeight / 2)),
+    width: Math.max(2.5, Math.min(96, rawWidth)),
+    height: centeredHeight,
   };
 }
 
