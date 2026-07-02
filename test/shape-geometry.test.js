@@ -650,6 +650,17 @@ test('shape editor approve path returns the SHAPE_DATA_CONTRACT_V2 envelope', ()
   assert.match(confirmBlock[0], /\.\.\.contract/);
 });
 
+test('production card renders a single straight bar with readable centimeter dimension', () => {
+  const svg = shapeSvg(JSON.stringify([
+    { length_mm: 850, angle_deg: 0 },
+  ]));
+
+  assert.match(svg, /data-shape-kind="straight-bar"/);
+  assert.match(svg, />85</);
+  assert.match(svg, /stroke="#1a2332"/);
+  assert.doesNotMatch(svg, /stroke="#ccc"/);
+});
+
 test('production card renders open U bars as a readable U shape, not a flattened line', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 200, angle_deg: 90 },

@@ -158,6 +158,21 @@ function angleMarkerSvg(previous, corner, next, angle, center) {
     dimensionLabelSvg(text, lx, ly, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
 }
 
+function straightShapeSvg(segment) {
+  const length = Number(segment && segment.length_mm || 0);
+  const width = 220;
+  const height = 80;
+  const y = 40;
+  const x1 = 22;
+  const x2 = 198;
+  const text = displayLengthCm(length);
+  let svg = '<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke="#1a2332" stroke-width="4" stroke-linecap="round"/>';
+  svg += '<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round"/>';
+  svg += dimensionLabelSvg(text, width / 2, 18, Math.max(34, Math.min(54, text.length * 7 + 18)));
+  svg += '<line x1="' + (width / 2).toFixed(1) + '" y1="25" x2="' + (width / 2).toFixed(1) + '" y2="' + (y - 5) + '" stroke="#aeb8c5" stroke-width="0.8"/>';
+  return '<svg data-shape-kind="straight-bar" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;max-height:90px">' + svg + '</svg>';
+}
+
 function openUShapeSvg(segments) {
   const [leftLeg, bridge, rightLeg] = segments.map(segment => Number(segment.length_mm || 0));
   const width = 220;
@@ -257,6 +272,7 @@ function shapeSvg(segmentsRaw) {
         '<circle cx="12" cy="30" r="3" fill="#1a2332"/><circle cx="208" cy="30" r="3" fill="#1a2332"/></svg>';
     }
 
+    if (segments.length === 1) return straightShapeSvg(segments[0]);
     if (isOpenUShape(segments)) return openUShapeSvg(segments);
     const stirrup = closedStirrupParts(segments);
     if (stirrup) return closedStirrupSvg(stirrup);

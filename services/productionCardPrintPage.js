@@ -529,6 +529,17 @@ function angleMarkerSvg(previous, corner, next, angle, center) {
     dimensionLabelSvg(text, lx, ly, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
 }
 
+function buildStraightShapeSVG(segment) {
+  var length = Number(segment && segment.length_mm || 0);
+  var W = 220, H = 80, y = 40, x1 = 22, x2 = 198;
+  var text = displayLengthCm(length);
+  var s = '<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke="#1a2332" stroke-width="4" stroke-linecap="round"/>';
+  s += '<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round"/>';
+  s += dimensionLabelSvg(text, W / 2, 18, Math.max(34, Math.min(54, text.length * 7 + 18)));
+  s += '<line x1="' + (W / 2).toFixed(1) + '" y1="25" x2="' + (W / 2).toFixed(1) + '" y2="' + (y - 5) + '" stroke="#aeb8c5" stroke-width="0.8"/>';
+  return '<svg data-shape-kind="straight-bar" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-height:90px">' + s + '</svg>';
+}
+
 function buildOpenUShapeSVG(segments) {
   var leftLeg = +(segments[0].length_mm || 0);
   var bridge = +(segments[1].length_mm || 0);
@@ -598,6 +609,7 @@ function buildShapeSVG(segments) {
         '<line x1="12" y1="30" x2="208" y2="30" stroke="#1a2332" stroke-width="3" stroke-linecap="round"/>' +
         '<circle cx="12" cy="30" r="3" fill="#1a2332"/><circle cx="208" cy="30" r="3" fill="#1a2332"/></svg>';
     }
+    if (segments.length === 1) return buildStraightShapeSVG(segments[0]);
     if (isOpenUShapeClient(segments)) return buildOpenUShapeSVG(segments);
     var stirrup = closedStirrupPartsClient(segments);
     if (stirrup) return buildClosedStirrupSVG(stirrup);
