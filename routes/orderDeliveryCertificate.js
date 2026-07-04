@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { isTechnicalRecognitionNote } = require('../services/intakeWorkflow');
+const productionCards = require('../services/productionCards');
 
 const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
 
@@ -11,6 +12,65 @@ function required(name, value) {
 function printableItemNote(note) {
   if (!note) return '';
   return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
+}
+
+
+function isSixOrTwelveMeterStraight(lengthMm) {
+  const mm = Number(lengthMm || 0);
+  return Math.abs(mm - 6000) <= 5 || Math.abs(mm - 12000) <= 5;
+}
+
+function deliverySectionKey(item, segs) {
+  const text = [item.shape_name, item.shape_id, item.struct_element, item.note]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const diameter = Number(item.diameter || 0);
+  if (/mesh|wire|רשת/.test(text)) return 'mesh';
+  if (/cage|pile|כלוב|כלונס/.test(text)) return 'cage';
+  if (/חישוק|hoop/.test(text)) return 'hoops';
+  if (/כסא|כסאות|chair/.test(text)) return 'chairs';
+  if (/ציפור|ציפורים|אוזן|אזני|הרמה|קרום|קרומים|bird|lifting|insert/.test(text)) return 'lifting';
+  if (/spiral|ring|coil|ספיר|טבעת|סליל|לולאה/.test(text)) return diameter <= 12 ? 'spiral_upto_12' : 'spiral_14_plus';
+  const angles = Array.isArray(segs) ? segs.map(seg => Number(seg.angle_deg)).filter(Number.isFinite) : [];
+  const bent = Array.isArray(segs) && segs.length > 1 && angles.some(angle => Math.abs(angle) > 0.001 && angle < 175);
+  if (bent) return 'bent_rebar';
+  return isSixOrTwelveMeterStraight(item.total_length_mm) ? 'straight_stock' : 'straight_cut';
+}
+
+function buildDeliveryWorkSummary(allItems, parseSegs, calcItemWeight) {
+  const labels = {
+    steel: 'ברזל',
+    cutting: 'חיתוך',
+    bending: 'כיפוף',
+    straight_stock: 'ברזל ישר 6/12 מטר',
+    mesh: 'רשתות',
+    cage: 'כלונסאות / כלובים',
+    hoops: 'חישוקים',
+    chairs: 'כסאות',
+    lifting: 'ציפורים / אזני הרמה / קרומים',
+    spiral_upto_12: 'עיבוד ספירלות טבעות עד קוטר 12 כולל',
+    spiral_14_plus: 'עיבוד ספירלות מקוטר 14 ומעלה',
+  };
+  const basis = { steel:'kg', cutting:'kg', bending:'kg', straight_stock:'kg', mesh:'kg', cage:'kg', hoops:'unit', chairs:'unit', lifting:'unit', spiral_upto_12:'kg', spiral_14_plus:'kg' };
+  const rows = new Map();
+  const add = (key, item, weight) => {
+    const row = rows.get(key) || { key, label: labels[key], basis: basis[key], weight: 0, units: 0, items: 0 };
+    row.weight += Number(weight || 0);
+    row.units += Number(item.quantity || 0);
+    row.items += 1;
+    rows.set(key, row);
+  };
+  allItems.forEach(item => {
+    const segs = parseSegs(item.segments);
+    const weight = calcItemWeight(item);
+    const key = deliverySectionKey(item, segs);
+    if (key === 'bent_rebar') { add('steel', item, weight); add('cutting', item, weight); add('bending', item, weight); return; }
+    if (key === 'straight_cut') { add('steel', item, weight); add('cutting', item, weight); return; }
+    if (key === 'straight_stock') { add('straight_stock', item, weight); return; }
+    add(key, item, weight);
+  });
+  return Array.from(rows.values()).filter(row => row.weight > 0 || row.units > 0);
 }
 
 module.exports = function createOrderDeliveryCertificateRouter(deps) {
@@ -35,36 +95,33 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
   const today = fmtDate();
   const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '—';
 
-  // Classify each item: מכופף or ישר
   const parseSegs = raw => { try { return JSON.parse(raw) || []; } catch { return []; } };
-  const isBent = item => {
-    const segs = parseSegs(item.segments);
-    const angles = segs.map(s => s.angle_deg).filter(a => a !== undefined);
-    return angles.some(a => a < 175);
-  };
+  const isBent = item => deliverySectionKey(item, parseSegs(item.segments)) === 'bent_rebar';
 
   const calcItemWeight = it => {
-    if (it.total_weight && it.total_weight > 0) return it.total_weight;
+    if (it.total_weight && it.total_weight > 0) return Number(it.total_weight);
     const kgm = industry.kgPerMeter(Math.round(it.diameter));
     if (!kgm) return 0;
-    return Math.round((it.total_length_mm / 1000) * kgm * (it.quantity || 1) * 10) / 10;
+    return Math.round((Number(it.total_length_mm || 0) / 1000) * kgm * (it.quantity || 1) * 10) / 10;
   };
 
-  // Weight totals
-  let wBent = 0, wStraight = 0;
-  allItems.forEach(item => {
-    const w = calcItemWeight(item);
-    if (isBent(item)) wBent += w; else wStraight += w;
-  });
-  const wTotal = wBent + wStraight;
-  const fmt1 = v => v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const fmtTon = v => (v / 1000).toFixed(2);
+  const workSummary = buildDeliveryWorkSummary(allItems, parseSegs, calcItemWeight);
+  const wTotal = allItems.reduce((sum, item) => sum + calcItemWeight(item), 0);
+  const fmt1 = v => Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+  const fmtTon = v => (Number(v || 0) / 1000).toFixed(2);
 
   // Position range label
   const bentCount = allItems.filter(isBent).length;
   const posLabel = allItems.length > 0
-    ? `ריכוז קומפלט: ברזל מכופף (פוז' 1-${bentCount}) ותוספות מוטות ישרים`
-    : 'ריכוז קומפלט';
+    ? 'תעודת משלוח לפי פריטים שסופקו וסיכום סעיפי עבודה'
+    : 'תעודת משלוח';
+
+  const workSummaryRowsHtml = workSummary.map(row => {
+    const value = row.basis === 'unit'
+      ? fmt1(row.units) + ' &#1497;&#1495;&#1523;'
+      : fmt1(row.weight) + ' &#1511;&#1524;&#1490; (' + fmtTon(row.weight) + ' &#1496;&#1493;&#1503;)';
+    return '<div class="sum-row"><span class="sum-lbl">' + row.label + ':</span><span class="sum-val">' + value + '</span></div>';
+  }).join('');
 
   // Build table rows
   let rows = '';
@@ -73,65 +130,13 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
     const bent   = isBent(item);
     const posNum = idx + 1;
     const diam   = item.diameter || '–';
-    const type   = bent ? "מכופף (ח')" : 'ישר';
+    const type   = bent ? 'מכופף' : (isSixOrTwelveMeterStraight(item.total_length_mm) ? 'ברזל ישר 6/12' : 'ישר חתוך');
     const lenCm  = item.total_length_mm ? Math.round(item.total_length_mm / 10) : '–';
     const qty    = item.quantity || 1;
     const wt     = fmt1(calcItemWeight(item));
     const notes  = [item.struct_element, item.struct_floor, item.sheet_num, printableItemNote(item.note)].filter(Boolean).join(' · ') || '–';
 
-    // Inline SVG shape (80×52)
-    const svgShape = (() => {
-      if (!segs.length) {
-        // Straight bar — show a simple horizontal line with length label
-        const lenLabel = item.total_length_mm ? Math.round(item.total_length_mm) + '' : '–';
-        return `<line x1="8" y1="26" x2="72" y2="26" stroke="#1a2332" stroke-width="2.5" stroke-linecap="round"/>
-                <circle cx="8" cy="26" r="2.5" fill="#1a2332"/>
-                <circle cx="72" cy="26" r="2.5" fill="#1a2332"/>
-                <rect x="25" y="16" width="30" height="9" rx="1.5" fill="white" fill-opacity="0.9"/>
-                <text x="40" y="23" text-anchor="middle" dominant-baseline="middle" font-size="6.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">${lenLabel}</text>`;
-      }
-      const sides  = segs.map(s => s.length_mm);
-      const angles = segs.map(s => s.angle_deg).slice(0, -1);
-      const pts    = [[0, 0]];
-      let dir = 0;
-      for (let i = 0; i < sides.length; i++) {
-        const rad = dir * Math.PI / 180;
-        const p   = pts[pts.length - 1];
-        pts.push([p[0] + sides[i] * Math.cos(rad), p[1] + sides[i] * Math.sin(rad)]);
-        if (i < angles.length) dir -= (180 - angles[i]);
-      }
-      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-      const minX = Math.min(...xs), maxX = Math.max(...xs);
-      const minY = Math.min(...ys), maxY = Math.max(...ys);
-      const W = 80, H = 52, PAD = 10;
-      const rX = maxX - minX || 1, rY = maxY - minY || 1;
-      const sc = Math.min((W - PAD * 2) / rX, (H - PAD * 2) / rY);
-      const oX = PAD + ((W - PAD * 2) - rX * sc) / 2;
-      const oY = PAD + ((H - PAD * 2) - rY * sc) / 2;
-      const mp = p => [oX + (p[0] - minX) * sc, oY + (p[1] - minY) * sc];
-      const mapped = pts.map(mp);
-      const pd = 'M ' + mapped.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' L ');
-      let svg = `<path d="${pd}" fill="none" stroke="#1a2332" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
-      // Segment length labels
-      for (let i = 0; i < mapped.length - 1; i++) {
-        const [x1,y1] = mapped[i], [x2,y2] = mapped[i+1];
-        const mx=(x1+x2)/2, my=(y1+y2)/2;
-        const len=Math.sqrt((x2-x1)**2+(y2-y1)**2)||1;
-        const nx=-(y2-y1)/len*8, ny=(x2-x1)/len*8;
-        svg += `<rect x="${(mx+nx-11).toFixed(1)}" y="${(my+ny-4.5).toFixed(1)}" width="22" height="9" rx="1.5" fill="white" fill-opacity="0.9"/>`;
-        svg += `<text x="${(mx+nx).toFixed(1)}" y="${(my+ny+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="6.5" font-family="Heebo,Arial" font-weight="700" fill="#1a2332">${sides[i]}</text>`;
-      }
-      // Angle labels
-      for (let i = 1; i < mapped.length - 1; i++) {
-        const [x,y] = mapped[i];
-        const a = angles[i-1];
-        if (a !== undefined && a < 175) {
-          svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="white" stroke="#c9621a" stroke-width="1"/>`;
-          svg += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="5.5" font-family="Heebo,Arial" font-weight="700" fill="#c9621a">${a}°</text>`;
-        }
-      }
-      return svg;
-    })();
+    const shapeSvg = productionCards.shapeSvg(item.segments);
 
     rows += `
       <tr>
@@ -142,7 +147,7 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
         <td class="c">${qty}</td>
         <td class="c"><b>${wt}</b></td>
         <td class="shape-cell">
-          <svg viewBox="0 0 80 52" width="80" height="52" xmlns="http://www.w3.org/2000/svg">${svgShape}</svg>
+          <div class="delivery-shape">${shapeSvg}</div>
         </td>
         <td>${notes}</td>
       </tr>`;
@@ -181,10 +186,10 @@ body{font-family:'Heebo',Arial,sans-serif;direction:rtl;background:#f0f2f5;paddi
 .meta-val{font-weight:700;}
 
 /* ── Summary box ── */
-.summary-box{background:#f0f4f8;border:1.5px solid #1a2332;border-radius:6px;
-  padding:10px 16px;margin-bottom:16px;display:inline-block;float:left;}
-.summary-title{font-size:11px;font-weight:900;color:#1a2332;margin-bottom:7px;text-align:center;}
-.sum-row{display:flex;justify-content:space-between;gap:24px;font-size:11.5px;margin-bottom:4px;}
+.summary-box{background:#f7fafc;border:2px solid #1a2332;border-radius:4px;
+  padding:12px 16px;margin-bottom:16px;display:inline-block;float:left;min-width:92mm;box-shadow:0 1px 0 rgba(26,35,50,.12);}
+.summary-title{font-size:12px;font-weight:900;color:#1a2332;margin-bottom:9px;text-align:center;border-bottom:2px solid #1a2332;padding-bottom:5px;}
+.sum-row{display:flex;justify-content:space-between;gap:24px;font-size:12px;margin-bottom:5px;}
 .sum-lbl{color:#444;}
 .sum-val{font-weight:700;color:#1a2332;}
 .sum-total{border-top:1.5px solid #1a2332;margin-top:6px;padding-top:6px;}
@@ -201,7 +206,9 @@ tbody tr:nth-child(even){background:#f7f9fc;}
 tbody tr:hover{background:#eaf2ff;}
 tbody td{padding:5px 5px;border:1px solid #d0d8e4;vertical-align:middle;}
 td.c{text-align:center;}
-.shape-cell{text-align:center;padding:2px 4px;}
+.shape-cell{text-align:center;padding:3px 5px;width:38mm;}
+.delivery-shape{width:36mm;height:23mm;margin:0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.delivery-shape svg{width:100%!important;height:100%!important;max-height:none!important;display:block;}
 tfoot td{background:#1a2332;color:#fff;font-weight:900;padding:8px 6px;
   border:1px solid #1a2332;text-align:center;}
 tfoot .total-val{font-size:14px;color:#f0a060;}
@@ -242,19 +249,12 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
 
   <!-- Summary box -->
   <div class="clearfix">
-    <div class="summary-box">
-      <div class="summary-title">סיכום משקלי משלוח קומפלט</div>
-      <div class="sum-row">
-        <span class="sum-lbl">סה"כ משקל ברזל מכופף:</span>
-        <span class="sum-val">${fmt1(wBent)} ק"ג (${fmtTon(wBent)} טון)</span>
-      </div>
-      <div class="sum-row">
-        <span class="sum-lbl">סה"כ משקל ברזל ישר:</span>
-        <span class="sum-val">${fmt1(wStraight)} ק"ג (${fmtTon(wStraight)} טון)</span>
-      </div>
+    <div class="summary-box" data-summary-contract="steel-cutting-bending">
+      <div class="summary-title">&#1505;&#1497;&#1499;&#1493;&#1501; &#1505;&#1506;&#1497;&#1508;&#1497; &#1506;&#1489;&#1493;&#1491;&#1492; &#1500;&#1502;&#1513;&#1500;&#1493;&#1495;</div>
+      ${workSummaryRowsHtml}
       <div class="sum-row sum-total">
-        <span class="sum-lbl"><b>סך הכל משקל כללי:</b></span>
-        <span class="sum-val"><b>${fmt1(wTotal)} ק"ג (כ-${fmtTon(wTotal)} טון)</b></span>
+        <span class="sum-lbl"><b>&#1505;&#1492;&#1524;&#1499; &#1502;&#1513;&#1511;&#1500; &#1513;&#1505;&#1493;&#1508;&#1511;:</b></span>
+        <span class="sum-val"><b>${fmt1(wTotal)} &#1511;&#1524;&#1490; (&#1499;-${fmtTon(wTotal)} &#1496;&#1493;&#1503;)</b></span>
       </div>
     </div>
   </div>

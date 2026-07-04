@@ -640,6 +640,21 @@ test('technical OCR metadata does not print on customer-facing documents', () =>
   assert.doesNotMatch(printPage, /note:\s+it\.note\s+\|\|/);
 });
 
+
+
+test('delivery certificate summarizes work sections and reuses production card shapes', () => {
+  const deliveryCertificate = read('routes/orderDeliveryCertificate.js');
+
+  assert.match(deliveryCertificate, /function buildDeliveryWorkSummary/);
+  assert.ok(deliveryCertificate.includes("add('steel', item, weight); add('cutting', item, weight); add('bending', item, weight)"));
+  assert.match(deliveryCertificate, /isSixOrTwelveMeterStraight/);
+  assert.ok(deliveryCertificate.includes('productionCards.shapeSvg(item.segments)'));
+  assert.match(deliveryCertificate, /data-summary-contract="steel-cutting-bending"/);
+  assert.match(deliveryCertificate, /delivery-shape svg/);
+  assert.doesNotMatch(deliveryCertificate, /const svgShape/);
+  assert.doesNotMatch(deliveryCertificate, /wBent|wStraight/);
+});
+
 test('order creation success copy does not promise production before approval', () => {
   const index = read('public/index.html');
 
