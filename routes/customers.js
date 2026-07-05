@@ -28,7 +28,7 @@ module.exports = function createCustomersRouter(deps) {
     const rows = db.prepare(`
       SELECT c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,
              c.portal_can_manage_users,c.portal_can_create_sites,c.portal_can_set_budgets,c.portal_can_expose_prices,
-             c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,
+             c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,c.portal_profile_locked_at,
              COALESCE(cc.open_debt,0) AS balance,
              COALESCE(cc.credit_limit,0) AS credit_limit,
              c.created_at,
@@ -47,7 +47,7 @@ module.exports = function createCustomersRouter(deps) {
   });
 
   // BUG-26: no portal_token in admin customer detail — use dedicated /token endpoint
-  const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,c.portal_can_manage_users,c.portal_can_create_sites,c.portal_can_set_budgets,c.portal_can_expose_prices,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
+  const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,c.portal_can_manage_users,c.portal_can_create_sites,c.portal_can_set_budgets,c.portal_can_expose_prices,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,c.portal_profile_locked_at,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
   router.get('/customers/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers c LEFT JOIN customer_credit cc ON cc.customer_id=c.id WHERE c.id=?`).get(req.params.id);
     if (!c) return res.status(404).json({ error: 'לא נמצא' });
@@ -62,6 +62,19 @@ module.exports = function createCustomersRouter(deps) {
       FROM orders WHERE customer_id=?
     `).get(c.id);
     c.stats = stats;
+    c.profile_change_requests = db.prepare(`
+      SELECT r.id,r.customer_id,r.portal_user_id,r.status,r.current_json,r.requested_json,r.notes,r.created_at,r.updated_at,r.reviewed_at,r.reviewed_by,
+             pu.name AS portal_user_name, pu.phone AS portal_user_phone
+      FROM customer_profile_change_requests r
+      LEFT JOIN portal_users pu ON pu.id=r.portal_user_id
+      WHERE r.customer_id=?
+      ORDER BY r.status='pending' DESC, r.updated_at DESC, r.created_at DESC
+      LIMIT 10
+    `).all(c.id).map(row => ({
+      ...row,
+      current: JSON.parse(row.current_json || '{}'),
+      requested: JSON.parse(row.requested_json || '{}'),
+    }));
     res.json(c);
   });
 
@@ -77,6 +90,40 @@ module.exports = function createCustomersRouter(deps) {
     const { name, phone, email, address, taxId, paymentTerms, portalPriceListVisibility, portalCanManageUsers, portalCanCreateSites, portalCanSetBudgets, portalCanExposePrices, contactName, contactPhone, priorityId, notes } = req.body;
     db.prepare(`UPDATE customers SET name=?,phone=?,email=?,address=?,tax_id=?,payment_terms=?,portal_price_list_visibility=?,portal_can_manage_users=?,portal_can_create_sites=?,portal_can_set_budgets=?,portal_can_expose_prices=?,contact_name=?,contact_phone=?,priority_id=?,notes=? WHERE id=?`)
       .run(name, phone, email, address, taxId, paymentTerms, normalizePortalPriceListVisibility(portalPriceListVisibility), boolFlag(portalCanManageUsers), boolFlag(portalCanCreateSites), boolFlag(portalCanSetBudgets), boolFlag(portalCanExposePrices), contactName, contactPhone, priorityId, notes, req.params.id);
+    res.json({ success: true });
+  });
+
+  router.post('/customers/:id/profile-change-requests/:requestId/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const row = db.prepare(`
+      SELECT * FROM customer_profile_change_requests
+      WHERE id=? AND customer_id=? AND status='pending'
+    `).get(req.params.requestId, req.params.id);
+    if (!row) return res.status(404).json({ error: '׳‘׳§׳©׳× ׳©׳™׳ ׳•׳™ ׳׳ ׳ ׳׳¦׳׳”' });
+    const requested = JSON.parse(row.requested_json || '{}');
+    if (!requested.name) return res.status(400).json({ error: '׳©׳ ׳׳§׳•׳— ׳—׳¡׳¨ ׳‘׳‘׳§׳©׳”' });
+    db.prepare(`
+      UPDATE customers SET name=?,email=?,address=?,portal_profile_locked_at=COALESCE(portal_profile_locked_at,CURRENT_TIMESTAMP)
+      WHERE id=?
+    `).run(requested.name, requested.email || null, requested.address || null, req.params.id);
+    db.prepare(`
+      UPDATE customer_profile_change_requests
+      SET status='approved',reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
+      WHERE id=?
+    `).run(req.auth?.sub || req.userId || null, row.id);
+    res.json({ success: true });
+  });
+
+  router.post('/customers/:id/profile-change-requests/:requestId/reject', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const row = db.prepare(`
+      SELECT id FROM customer_profile_change_requests
+      WHERE id=? AND customer_id=? AND status='pending'
+    `).get(req.params.requestId, req.params.id);
+    if (!row) return res.status(404).json({ error: '׳‘׳§׳©׳× ׳©׳™׳ ׳•׳™ ׳׳ ׳ ׳׳¦׳׳”' });
+    db.prepare(`
+      UPDATE customer_profile_change_requests
+      SET status='rejected',notes=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
+      WHERE id=?
+    `).run(req.body?.notes || null, req.auth?.sub || req.userId || null, row.id);
     res.json({ success: true });
   });
 

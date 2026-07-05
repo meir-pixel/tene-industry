@@ -80,6 +80,7 @@ function ensureCoreSchema(db) {
       contact_phone TEXT,
       priority_id TEXT,
       notes TEXT,
+      portal_profile_locked_at TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -185,6 +186,22 @@ function ensureCoreSchema(db) {
       FOREIGN KEY (customer_id) REFERENCES customers(id),
       FOREIGN KEY (actor_portal_user_id) REFERENCES portal_users(id),
       FOREIGN KEY (target_portal_user_id) REFERENCES portal_users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS customer_profile_change_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      portal_user_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      current_json TEXT,
+      requested_json TEXT NOT NULL,
+      notes TEXT,
+      reviewed_by INTEGER,
+      reviewed_at TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (portal_user_id) REFERENCES portal_users(id)
     );
 
     CREATE TABLE IF NOT EXISTS orders (

@@ -482,7 +482,14 @@ module.exports = function createPortalRouter(deps) {
         address: c.address,
         tax_id: c.tax_id,
         payment_terms: c.payment_terms,
-        portal_price_list_visibility: c.portal_price_list_visibility
+        portal_price_list_visibility: c.portal_price_list_visibility,
+        portal_profile_locked_at: c.portal_profile_locked_at,
+        pending_profile_change_request: db.prepare(`
+          SELECT id,status,requested_json,created_at,updated_at
+          FROM customer_profile_change_requests
+          WHERE customer_id=? AND status='pending'
+          ORDER BY updated_at DESC, created_at DESC LIMIT 1
+        `).get(c.id) || null
       },
       role: s.role,
       caps: s.caps,
@@ -504,12 +511,47 @@ module.exports = function createPortalRouter(deps) {
     const email = String(req.body.email || '').trim() || null;
     const address = String(req.body.address || '').trim() || null;
     if (!name) return res.status(400).json({ error: 'Customer name required' });
-    db.prepare('UPDATE customers SET name=?,email=?,address=? WHERE id=?').run(name, email, address, s.customer.id);
-    const customer = db.prepare(`
-      SELECT id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility
+    const current = db.prepare(`
+      SELECT id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_profile_locked_at
       FROM customers WHERE id=?
     `).get(s.customer.id);
-    res.json({ success: true, customer });
+    if (!current) return res.status(404).json({ error: 'Customer not found' });
+    const requested = { name, email, address };
+    const currentPublic = { name: current.name, email: current.email, address: current.address };
+    const unchanged = requested.name === currentPublic.name && (requested.email || null) === (currentPublic.email || null) && (requested.address || null) === (currentPublic.address || null);
+    if (!current.portal_profile_locked_at) {
+      db.prepare('UPDATE customers SET name=?,email=?,address=?,portal_profile_locked_at=CURRENT_TIMESTAMP WHERE id=?').run(name, email, address, s.customer.id);
+      const customer = db.prepare(`
+        SELECT id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_profile_locked_at
+        FROM customers WHERE id=?
+      `).get(s.customer.id);
+      return res.json({ success: true, firstUpdate: true, customer });
+    }
+    if (unchanged) return res.json({ success: true, unchanged: true, customer: current });
+    const pending = db.prepare(`
+      SELECT id FROM customer_profile_change_requests
+      WHERE customer_id=? AND status='pending'
+      ORDER BY updated_at DESC, created_at DESC LIMIT 1
+    `).get(s.customer.id);
+    if (pending) {
+      db.prepare(`
+        UPDATE customer_profile_change_requests
+        SET portal_user_id=?,current_json=?,requested_json=?,updated_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(s.user?.id || null, JSON.stringify(currentPublic), JSON.stringify(requested), pending.id);
+    } else {
+      db.prepare(`
+        INSERT INTO customer_profile_change_requests (customer_id,portal_user_id,current_json,requested_json)
+        VALUES (?,?,?,?)
+      `).run(s.customer.id, s.user?.id || null, JSON.stringify(currentPublic), JSON.stringify(requested));
+    }
+    const requestRow = db.prepare(`
+      SELECT id,status,requested_json,created_at,updated_at
+      FROM customer_profile_change_requests
+      WHERE customer_id=? AND status='pending'
+      ORDER BY updated_at DESC, created_at DESC LIMIT 1
+    `).get(s.customer.id);
+    res.json({ success: true, pendingApproval: true, customer: current, request: requestRow });
   });
 
   router.get('/c/sites', customerPortalActionLimiter, (req, res) => {

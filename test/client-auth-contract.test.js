@@ -161,6 +161,25 @@ test('customer portal exposes quote before order submission', () => {
   assert.match(customerPage, /onclick="showQuoteScreen\(\)"/);
 });
 
+test('customer profile changes lock after first edit and route to internal approval', () => {
+  const portalRoute = read('routes/portal.js');
+  const customersRoute = read('routes/customers.js');
+  const customerPage = read('public/customer.html');
+  const customersPage = read('public/customers.html');
+  const schema = read('db/coreSchema.js');
+
+  assert.match(schema, /customer_profile_change_requests/);
+  assert.match(schema, /portal_profile_locked_at/);
+  assert.match(portalRoute, /pendingApproval/);
+  assert.match(portalRoute, /portal_profile_locked_at=CURRENT_TIMESTAMP/);
+  assert.match(customersRoute, /profile-change-requests\/:requestId\/approve/);
+  assert.match(customersRoute, /profile-change-requests\/:requestId\/reject/);
+  assert.match(customerPage, /שלח בקשת שינוי/);
+  assert.match(customerPage, /בקשת השינוי נשלחה לאישור/);
+  assert.match(customersPage, /בקשות שינוי פרטי לקוח/);
+  assert.match(customersPage, /approveProfileChange/);
+});
+
 test('customer portal has a project-first home and editable profile', () => {
   const portalRoute = read('routes/portal.js');
   const customerPage = read('public/customer.html');
@@ -174,7 +193,7 @@ test('customer portal has a project-first home and editable profile', () => {
   assert.match(customerPage, /function saveCustomerProfile/);
   assert.match(customerPage, /\/api\/c\/profile/);
   assert.match(portalRoute, /router\.post\('\/c\/profile'/);
-  assert.match(portalRoute, /UPDATE customers SET name=\?,email=\?,address=\? WHERE id=\?/);
+  assert.match(portalRoute, /UPDATE customers SET name=\?,email=\?,address=\?,portal_profile_locked_at=CURRENT_TIMESTAMP WHERE id=\?/);
 });
 
 test('customer portal home uses role-aware section navigation', () => {

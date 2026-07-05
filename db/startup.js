@@ -102,6 +102,7 @@ function runCoreMigrations(db) {
   addCol('orders',     'portal_price',       'REAL DEFAULT 0');   // calculated price in ILS
   addCol('orders',     'confirm_token',      'TEXT');             // one-time approval token
   addCol('customers',  'price_approved_at',  'TEXT');             // last time customer approved the price list
+  addCol('customers',  'portal_profile_locked_at', 'TEXT');       // first customer profile edit locks future changes for approval
   addCol('orders',     'site_id',            'INTEGER');          // delivery site
   addCol('orders',     'project_id',         'INTEGER');          // project reference
   addCol('orders',     'locked',             'INTEGER DEFAULT 0'); // locked after shipment
@@ -229,6 +230,22 @@ function runCoreMigrations(db) {
       FOREIGN KEY (customer_id) REFERENCES customers(id),
       FOREIGN KEY (actor_portal_user_id) REFERENCES portal_users(id),
       FOREIGN KEY (target_portal_user_id) REFERENCES portal_users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS customer_profile_change_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      portal_user_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      current_json TEXT,
+      requested_json TEXT NOT NULL,
+      notes TEXT,
+      reviewed_by INTEGER,
+      reviewed_at TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (portal_user_id) REFERENCES portal_users(id)
     );
 
     CREATE TABLE IF NOT EXISTS order_imports (

@@ -568,14 +568,18 @@ function openProjectPanel(forceNewProject) {
 function renderCustomerProfilePanel() {
   const panel = document.getElementById('customerProfilePanel');
   if (!panel) return;
+  const locked = Boolean(ME?.portal_profile_locked_at);
+  const pending = ME?.pending_profile_change_request;
+  const requested = pending?.requested_json ? JSON.parse(pending.requested_json) : null;
   panel.innerHTML = `
     <div class="guarantee-head">
       <div>
         <div class="card-title">פרטי לקוח</div>
         <p>כאן מעדכנים את הפרטים שמופיעים במסמכי הפורטל ובהזמנות.</p>
       </div>
-      <span class="guarantee-status">${PORTAL_SITES.length} פרויקטים</span>
+      <span class="guarantee-status">${pending ? 'בקשת שינוי ממתינה' : (locked ? 'שינויים דורשים אישור' : 'עריכה ראשונה פתוחה')}</span>
     </div>
+    ${pending ? `<div class="loader" style="padding:12px;text-align:right">בקשת שינוי נשלחה לאישור. מבוקש: ${escapeHtml([requested?.name, requested?.email, requested?.address].filter(Boolean).join(' · '))}</div>` : ''}
     <div class="portal-profile-grid">
       <div class="field"><label>שם לקוח</label><input id="profileCustomerName" value="${escapeHtml(ME?.name || '')}"></div>
       <div class="field"><label>ח.פ</label><input class="portal-readonly" value="${escapeHtml(ME?.tax_id || '-')}" readonly></div>
@@ -583,7 +587,7 @@ function renderCustomerProfilePanel() {
       <div class="field"><label>אימייל למסמכים</label><input id="profileCustomerEmail" value="${escapeHtml(ME?.email || '')}"></div>
       <div class="field full"><label>כתובת חברה</label><input id="profileCustomerAddress" value="${escapeHtml(ME?.address || '')}"></div>
       <div class="field full"><label>תנאי תשלום</label><input class="portal-readonly" value="${escapeHtml(ME?.payment_terms || 'לא הוגדר')}" readonly></div>
-      <button type="button" class="btn btn-primary full" onclick="saveCustomerProfile()">שמור פרטי לקוח</button>
+      <button type="button" class="btn btn-primary full" onclick="saveCustomerProfile()">${locked ? 'שלח בקשת שינוי' : 'שמור פרטי לקוח'}</button>
     </div>
   `;
 }
@@ -724,10 +728,11 @@ async function saveCustomerProfile() {
   }).then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
   if (!res || !res.ok || !res.data?.success) { toast(res?.data?.error || 'לא ניתן לשמור פרטים', true); return; }
   ME = res.data.customer || ME;
+  if (res.data.request) ME.pending_profile_change_request = res.data.request;
   document.getElementById('headerName').textContent = ME?.name || '';
   document.getElementById('welcomeName').textContent = `שלום, ${ME?.name || ''}! 👋`;
   renderCustomerProfilePanel();
-  toast('פרטי הלקוח נשמרו');
+  toast(res.data.pendingApproval ? 'בקשת השינוי נשלחה לאישור' : 'פרטי הלקוח נשמרו');
 }
 
 async function loadPortalUsers() {

@@ -670,6 +670,46 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(unauthenticatedOrder.status, 401);
   });
 
+  await t.test('customer profile first edit is direct and later changes require internal approval', async () => {
+    const customerId = seedPortalCustomer('Profile Customer', '0505555555', 'profile-legacy-token');
+    const portalToken = seedPortalUser(customerId, '0505555555', 'customer_admin', 'profile-user-token');
+
+    const first = await request('/api/c/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: portalToken, name: 'Profile Customer Updated', email: 'first@example.com', address: 'First Address' }),
+    });
+    assert.equal(first.status, 200);
+    const firstBody = await first.json();
+    assert.equal(firstBody.firstUpdate, true);
+    let customer = db.prepare('SELECT name,email,address,portal_profile_locked_at FROM customers WHERE id=?').get(customerId);
+    assert.equal(customer.name, 'Profile Customer Updated');
+    assert.ok(customer.portal_profile_locked_at);
+
+    const second = await request('/api/c/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: portalToken, name: 'Needs Approval', email: 'pending@example.com', address: 'Pending Address' }),
+    });
+    assert.equal(second.status, 200);
+    const secondBody = await second.json();
+    assert.equal(secondBody.pendingApproval, true);
+    customer = db.prepare('SELECT name,email,address FROM customers WHERE id=?').get(customerId);
+    assert.equal(customer.name, 'Profile Customer Updated');
+    const changeRequest = db.prepare('SELECT * FROM customer_profile_change_requests WHERE customer_id=? AND status=?').get(customerId, 'pending');
+    assert.ok(changeRequest);
+
+    assert.equal((await request('/api/customers/' + customerId + '/profile-change-requests/' + changeRequest.id + '/approve', { method: 'POST' })).status, 401);
+    assert.equal((await request('/api/customers/' + customerId + '/profile-change-requests/' + changeRequest.id + '/approve', { method: 'POST', headers: authHeaders(production) })).status, 403);
+    const approved = await request('/api/customers/' + customerId + '/profile-change-requests/' + changeRequest.id + '/approve', { method: 'POST', headers: authHeaders(office) });
+    assert.equal(approved.status, 200);
+    customer = db.prepare('SELECT name,email,address FROM customers WHERE id=?').get(customerId);
+    assert.equal(customer.name, 'Needs Approval');
+    assert.equal(customer.email, 'pending@example.com');
+    assert.equal(customer.address, 'Pending Address');
+    assert.equal(db.prepare('SELECT status FROM customer_profile_change_requests WHERE id=?').get(changeRequest.id).status, 'approved');
+  });
+
   await t.test('customer portal order detail is scoped to portal token owner', async () => {
     const customerA = seedPortalCustomer('Portal Customer A', '0500000001', 'portal-token-a');
     const customerB = seedPortalCustomer('Portal Customer B', '0500000002', 'portal-token-b');

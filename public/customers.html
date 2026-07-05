@@ -1003,6 +1003,19 @@ function fmtWeight(w) {
   return n.toFixed(0) + ' ק"ג';
 }
 
+async function approveProfileChange(customerId, requestId) {
+  const r = await fetch('/api/customers/' + customerId + '/profile-change-requests/' + requestId + '/approve', { method: 'POST' });
+  if (!r.ok) return alert('לא ניתן לאשר את בקשת השינוי');
+  await loadCustomers(lastCustomerQuery);
+  selectCustomer(customerId);
+}
+
+async function rejectProfileChange(customerId, requestId) {
+  const r = await fetch('/api/customers/' + customerId + '/profile-change-requests/' + requestId + '/reject', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ notes: 'נדחה ממסך לקוחות' }) });
+  if (!r.ok) return alert('לא ניתן לדחות את בקשת השינוי');
+  selectCustomer(customerId);
+}
+
 function priceListVisibilityLabel(value) {
   return ({
     none: 'ללא מחירון',
@@ -1181,6 +1194,22 @@ function renderDetail(c) {
   }
   html += '</div>';
   html += '</div>'; // info-grid
+
+  const pendingProfileRequests = (c.profile_change_requests || []).filter(r => r.status === 'pending');
+  if (pendingProfileRequests.length) {
+    html += '<div class="notes-section">' +
+      '<h4>🪪 בקשות שינוי פרטי לקוח</h4>' +
+      pendingProfileRequests.map(r => '<div class="order-row" style="align-items:flex-start">' +
+        '<div><b>בקשה #' + esc(r.id) + '</b><div style="font-size:12px;color:var(--text-muted);margin-top:4px">' +
+          'שם: ' + esc(r.requested?.name || '-') + ' · אימייל: ' + esc(r.requested?.email || '-') + ' · כתובת: ' + esc(r.requested?.address || '-') +
+        '</div></div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+          '<button class="btn-action primary" onclick="approveProfileChange(' + c.id + ',' + r.id + ')">אשר</button>' +
+          '<button class="btn-action" onclick="rejectProfileChange(' + c.id + ',' + r.id + ')">דחה</button>' +
+        '</div>' +
+      '</div>').join('') +
+    '</div>';
+  }
 
   html += '<div class="info-grid">';
   html += '<div class="info-section"><h4>💳 תנאי לקוח</h4>';
