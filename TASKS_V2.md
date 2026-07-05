@@ -930,6 +930,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - OCR draft autosave no longer fails when OCR training-example persistence is unavailable; row approval remains saved and training is skipped with a warning.
   - Intake/OCR spiral rows keep bar diameter, spiral diameter, and turn count separate; 60 turns stays 60 instead of guessed 160.
   - normalized OCR spiral rows as first-class steel items: bar diameter, spiral diameter, and turn count stay separate, with cut length calculated without guessing 160 when source says 60.
   - added source-field highlighting from parser bounding boxes and row-level OCR learning examples on approved review rows.
@@ -970,6 +971,7 @@
   - modules/intake/module.manifest.js
   - docs/event-registry.md
   - routes/intake.js
+  - routes/intakeReview.js
   - routes/catalog.js
   - public/intake.html
   - public/pricing.html

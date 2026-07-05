@@ -1660,6 +1660,8 @@ test('post-order OCR review saves row statuses without mutating approved intake 
   assert.match(intakeReviewRoute, /function orderItemToParsedItem/);
   assert.match(intakeReviewRoute, /function saveReviewedItemCorrectionExample/);
   assert.match(intakeReviewRoute, /Intake row approval/);
+  assert.match(intakeReviewRoute, /Training example save skipped/);
+  assert.match(intakeReviewRoute, /Row approval training example save skipped/);
   assert.match(intakeReviewRoute, /const parsedItems = next\.items\.length \? next\.items : orderItems\.map\(orderItemToParsedItem\)/);
   assert.match(intakeReviewRoute, /shape_snapshot_json,shape_id,shape_name,diameter/);
   assert.match(intakeReviewRoute, /COALESCE\(review_notes,note\) AS review_note_text/);
