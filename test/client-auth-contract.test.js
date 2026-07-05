@@ -758,6 +758,9 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
   assert.match(index, /const selectedSiteId = selectedCustomerId \? \(document\.getElementById\('orderSiteId'\)\?\.value \|\| null\) : null/);
   assert.match(index, /siteId: selectedSiteId/);
   assert.match(index, /alert\(result\.error \|\|/);
+  assert.match(index, /function isSpiralOrderItem\(item = \{\}\)/);
+  assert.match(index, /sides: isSpiralOrderItem\(item\) \? \[\] :/);
+  assert.match(index, /function isSpiralImgItem\(it\)/);
   assert.match(index, /function updateDeliverySummary\(\)/);
   assert.match(index, /function openDeliveryDetails\(\)/);
   assert.match(index, /function openCustomerDetails\(\)/);

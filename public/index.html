@@ -2468,13 +2468,18 @@ function setMaxWeight(palletId, value) {
 }
 
 // ── WEIGHT CALC ──────────────────────────────────────────────
+function isSpiralOrderItem(item = {}) {
+  const spiralDiameter = Number(item.spiral_diameter_mm || item.spiralDiameterMm || 0);
+  const spiralTurns = Number(item.spiral_turns || item.spiralTurns || 0);
+  const nameLooksSpiral = /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(item.shapeName || item.shape_name || item.shape || item.type || ''));
+  return spiralDiameter > 0 && spiralTurns > 0 && (nameLooksSpiral || !Array.isArray(item.shapeSides) || item.shapeSides.length <= 2);
+}
+
 function calcItemWeight(item) {
   if (!item.diameter || !item.qty) return 0;
   const spiralDiameter = Number(item.spiral_diameter_mm || item.spiralDiameterMm || 0);
   const spiralTurns = Number(item.spiral_turns || item.spiralTurns || 0);
-  const isSpiral = /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(item.shapeName || item.shape_name || ''))
-    && spiralDiameter > 0
-    && spiralTurns > 0;
+  const isSpiral = isSpiralOrderItem(item);
   const length = isSpiral ? spiralLengthMm(spiralDiameter, spiralTurns) : item.length;
   const sides = isSpiral ? [] : (item.shapeSides?.length ? item.shapeSides : (length ? [length] : []));
   if (isSpiral) return window.IronBendRebar.itemWeightKg({ ...item, length, total_length_mm: length, sides: [length] });
@@ -2591,7 +2596,7 @@ async function submitOrder() {
         shapeName: item.shapeName,
         diameter: item.diameter,
         length: item.length,
-        sides: item.shapeSides && item.shapeSides.length ? item.shapeSides : (item.length ? [item.length] : []),
+        sides: isSpiralOrderItem(item) ? [] : (item.shapeSides && item.shapeSides.length ? item.shapeSides : (item.length ? [item.length] : [])),
         angles: item.shapeAngles || [],
         spiral_diameter_mm: item.spiral_diameter_mm || item.spiralDiameterMm || null,
         spiral_turns: item.spiral_turns || item.spiralTurns || null,
@@ -2916,7 +2921,11 @@ function parseImgSegments(text) {
 }
 
 function isSpiralImgItem(it) {
-  return /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String((it && (it.shape_name || it.shapeName || it.shape || it.type)) || ''));
+  if (!it) return false;
+  const spiralDiameter = Number(it.spiral_diameter_mm || it.spiralDiameterMm || 0);
+  const spiralTurns = Number(it.spiral_turns || it.spiralTurns || 0);
+  const nameLooksSpiral = /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(it.shape_name || it.shapeName || it.shape || it.type || ''));
+  return spiralDiameter > 0 && spiralTurns > 0 && (nameLooksSpiral || !Array.isArray(it.segments) || it.segments.length <= 2);
 }
 
 function spiralLengthMm(spiralDiameterMm, turns) {
@@ -2967,7 +2976,7 @@ function confirmImgItems() {
     // Build sides/angles from segments
     var spiralDiameter = Number(it.spiral_diameter_mm || it.spiralDiameterMm || 0);
     var spiralTurns = Number(it.spiral_turns || it.spiralTurns || 0);
-    var isSpiral = isSpiralImgItem(it) && spiralDiameter > 0 && spiralTurns > 0;
+    var isSpiral = isSpiralImgItem(it);
     var sides  = isSpiral ? [] : (it.segments || []).map(function(s) { return s.length_mm || 500; });
     var angles = isSpiral ? [] : (it.segments || []).slice(0, -1).map(function(s) { return s.angle_deg != null ? s.angle_deg : 180; });
     if (!isSpiral && !sides.length) sides = [it.total_length_mm || 1000];

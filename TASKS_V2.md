@@ -903,6 +903,7 @@
 - scope:
   - `TASKS_V2.md`
   - `public/index.html`
+  - `modules/steel-rebar/shapes.js`
   - `services/orders.js`
   - `test/client-auth-contract.test.js`
   - `test/security-routes.test.js`
@@ -912,6 +913,7 @@
   - opening Customers from a draft order saves a local draft for return.
   - saved orders persist selected site_id only when it belongs to the selected customer.
   - new-order save clears stale customer/site bindings before submit and shows server save errors.
+  - new-order save treats rows with spiral diameter and turns as spiral items even when source labels are generic.
 - guardrails:
   - Orders/customer integration only.
   - No Production, Portal, Finance, OCR, pricing, or UI redesign.

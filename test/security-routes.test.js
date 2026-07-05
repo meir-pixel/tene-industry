@@ -265,6 +265,34 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(order.site_id, siteId);
     assert.equal(order.delivery_address, 'Site A address');
   });
+  await t.test('order creation treats spiral fields as spiral even when source name is generic', async () => {
+    const response = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(office),
+      body: JSON.stringify({
+        customer: { name: 'Spiral Import Customer', phone: '0500000002' },
+        order: { orderNum: 'ORDER-SPIRAL-GENERIC', channel: 'office', deliveryAddress: 'Factory', totalWeight: 0 },
+        pallets: [{ items: [{
+          shapeName: 'custom',
+          diameter: 8,
+          length: 47124,
+          sides: [47124, 47124],
+          angles: [0],
+          qty: 2,
+          spiral_diameter_mm: 300,
+          spiral_turns: 50,
+        }] }],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    const item = db.prepare('SELECT shape_name,segments,spiral_diameter_mm,spiral_turns,total_length_mm FROM items WHERE order_id=?').get(created.orderId);
+    assert.equal(item.shape_name, 'spiral');
+    assert.deepEqual(JSON.parse(item.segments), []);
+    assert.equal(item.spiral_diameter_mm, 300);
+    assert.equal(item.spiral_turns, 50);
+    assert.equal(item.total_length_mm, 47124);
+  });
   await t.test('order contract requires manager approval and rejects draft-to-production', async () => {
     const customerId = seedCustomer();
     const directProductionOrder = seedInternalOrder(customerId, 'ORDER-CONTRACT-SKIP');
