@@ -911,6 +911,7 @@
   - one customer site is applied automatically; multiple sites show a site picker.
   - opening Customers from a draft order saves a local draft for return.
   - saved orders persist selected site_id only when it belongs to the selected customer.
+  - new-order save clears stale customer/site bindings before submit and shows server save errors.
 - guardrails:
   - Orders/customer integration only.
   - No Production, Portal, Finance, OCR, pricing, or UI redesign.

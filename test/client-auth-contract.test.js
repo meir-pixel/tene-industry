@@ -748,10 +748,16 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
   assert.match(index, /id="orderSiteId"/);
   assert.match(index, /\/api\/customers\/.*\/portal-sites/);
   assert.match(index, /function hydrateSelectedCustomer\(customerId, seed = \{\}\)/);
+  assert.match(index, /function clearSelectedCustomerBinding\(\)/);
+  assert.match(index, /function onCustomerSearchInput\(value\)/);
+  assert.match(index, /window\._selectedCustomerName = c\.name \|\| ''/);
   assert.match(index, /function saveOrderDraftForCustomerHandoff\(\)/);
   assert.match(index, /function restoreOrderDraft\(\)/);
   assert.match(index, /openCustomersWithDraft\(event\)/);
-  assert.match(index, /siteId: document\.getElementById\('orderSiteId'\)/);
+  assert.match(index, /const selectedCustomerId = Number\(window\._selectedCustomerId \|\| 0\) \|\| null/);
+  assert.match(index, /const selectedSiteId = selectedCustomerId \? \(document\.getElementById\('orderSiteId'\)\?\.value \|\| null\) : null/);
+  assert.match(index, /siteId: selectedSiteId/);
+  assert.match(index, /alert\(result\.error \|\|/);
   assert.match(index, /function updateDeliverySummary\(\)/);
   assert.match(index, /function openDeliveryDetails\(\)/);
   assert.match(index, /function openCustomerDetails\(\)/);

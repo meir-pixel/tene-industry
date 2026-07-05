@@ -1396,7 +1396,7 @@
               <label><span class="required">*</span>חיפוש / שם לקוח</label>
               <div class="customer-search-wrap">
                 <span class="customer-search-mark">&#8981;</span>
-                <input type="text" id="customerSearch" placeholder="שם לקוח, טלפון או מספר לקוח..." autocomplete="off" oninput="searchCustomer(this.value);updateCustomerSummary()">
+                <input type="text" id="customerSearch" placeholder="שם לקוח, טלפון או מספר לקוח..." autocomplete="off" oninput="onCustomerSearchInput(this.value)">
                 <div class="customer-results" id="customerResults"></div>
               </div>
             </div>
@@ -1892,9 +1892,30 @@ function activeCustomerSites(sites) {
   return (Array.isArray(sites) ? sites : []).filter(site => String(site.status || 'active') !== 'inactive');
 }
 
+function clearSelectedCustomerBinding() {
+  window._selectedCustomerId = null;
+  window._selectedCustomerName = '';
+  selectedCustomerSites = [];
+  setInputValue('orderSiteId', '');
+  const wrap = document.getElementById('customerSiteChoiceWrap');
+  const select = document.getElementById('customerSiteChoice');
+  if (wrap) wrap.style.display = 'none';
+  if (select) select.innerHTML = '';
+}
+
+function onCustomerSearchInput(value) {
+  const selectedName = (window._selectedCustomerName || '').trim();
+  if (window._selectedCustomerId && selectedName && String(value || '').trim() !== selectedName) {
+    clearSelectedCustomerBinding();
+  }
+  searchCustomer(value);
+  updateCustomerSummary();
+}
+
 function applyCustomerDetails(c = {}) {
   if (!c || !c.id) return;
   window._selectedCustomerId = c.id;
+  window._selectedCustomerName = c.name || '';
   setInputValue('customerSearch', c.name || '');
   setInputValue('customerPhone', c.phone || '');
   setInputValue('customerPriorityId', c.priority_id || '');
@@ -2007,6 +2028,7 @@ function restoreOrderDraft() {
   const c = draft.customer || {};
   const d = draft.delivery || {};
   window._selectedCustomerId = c.id || null;
+  window._selectedCustomerName = c.name || '';
   setInputValue('customerSearch', c.name || '');
   setInputValue('customerPhone', c.phone || '');
   setInputValue('customerPriorityId', c.priorityId || '');
@@ -2092,6 +2114,7 @@ function selectCustomer(c) {
 }
 
 function newCustomer(name) {
+  clearSelectedCustomerBinding();
   document.getElementById('customerSearch').value = name;
   document.getElementById('customerPriorityId').value = 'יוצר אוטומטית';
   document.getElementById('customerResults').classList.remove('show');
@@ -2101,6 +2124,7 @@ function newCustomer(name) {
 }
 
 function continueUnassignedCustomer() {
+  clearSelectedCustomerBinding();
   document.getElementById('customerPriorityId').value = '';
   document.getElementById('contactName').value = '';
   document.getElementById('contactPhone').value = '';
@@ -2536,10 +2560,12 @@ async function submitOrder() {
   const deliverySiteName = (document.getElementById('deliverySiteName')?.value || '').trim();
   const driverNotesRaw = (document.getElementById('driverNotes')?.value || '').trim();
   const driverNotes = deliverySiteName ? (`\u05d0\u05ea\u05e8: ${deliverySiteName}` + (driverNotesRaw ? ` | ${driverNotesRaw}` : '')) : driverNotesRaw;
+  const selectedCustomerId = Number(window._selectedCustomerId || 0) || null;
+  const selectedSiteId = selectedCustomerId ? (document.getElementById('orderSiteId')?.value || null) : null;
 
   const payload = {
     customer: {
-      id: window._selectedCustomerId || null,
+      id: selectedCustomerId,
       name: document.getElementById('customerSearch').value,
       phone: document.getElementById('customerPhone').value,
       address: document.getElementById('deliveryAddress').value,
@@ -2551,7 +2577,7 @@ async function submitOrder() {
       deliveryDate: document.getElementById('deliveryDate').value,
       deliveryTime: document.getElementById('deliveryTime').value,
       deliveryAddress: document.getElementById('deliveryAddress').value,
-      siteId: document.getElementById('orderSiteId')?.value || null,
+      siteId: selectedSiteId,
       priority: document.getElementById('orderPriority').value,
       driverNotes: driverNotes,
       generalNotes: document.getElementById('generalNotes').value,
@@ -2593,7 +2619,7 @@ async function submitOrder() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
 
     if (result.success) {
       document.getElementById('successOrderNum').textContent = result.orderNum;
@@ -2606,7 +2632,8 @@ async function submitOrder() {
       document.getElementById('successOverlay').classList.add('show');
       orderCounter++;
     } else {
-      alert('שגיאה בשמירה – נסה שוב');
+      alert(result.error || 'שגיאה בשמירה – נסה שוב');
+      return;
     }
   } catch (err) {
     // OFFLINE – save locally
