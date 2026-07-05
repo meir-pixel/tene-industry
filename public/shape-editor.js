@@ -1642,7 +1642,7 @@ class ShapeEditorModal {
   color:#fff;
   box-shadow:none;
 }
-#seModal .se-preset-name{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+#seModal .se-preset-name{display:block;font-size:11px;font-weight:700;color:#1a2332;text-align:center;margin-top:4px;line-height:1.3;word-break:break-word;}
 
 
 /* One-screen shape edit layout: keep a single shape editable without page scroll */
