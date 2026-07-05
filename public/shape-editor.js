@@ -3334,7 +3334,7 @@ class ShapeEditorModal {
     this._pendingQuantity = Math.max(1, Number(existingData?.quantity || existingData?.qty || 1) || 1);
     this._previewRotation = 0;
     seSyncRotateButton();
-    if (existingData?.family === 'mesh' || existingData?.family === 'piles') {
+    if (existingData?.family === 'mesh' || existingData?.family === 'piles' || existingData?.family === 'spirals') {
       this.current = { ...existingData, quantity: this._pendingQuantity };
       document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
       this._goToEdit();
