@@ -1690,3 +1690,29 @@
 - verification:
   - `node --test test\pile-cage-engine.test.js`
   - visual review of `docs/mockups/pile-cage-a4-report.html`
+
+
+---
+
+### V2-011G - Unit Progress For Pile Cages
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / worker-dashboard
+- scope:
+  - `TASKS_V2.md`
+  - `routes/production.js`
+  - `public/worker-visual.html`
+  - `test/production-item-boundaries.test.js`
+  - `test/client-auth-contract.test.js`
+  - `test/module-governance.test.js`
+- goal:
+  - Pile cage / unit-based production can update produced quantity per completed unit.
+  - Partial produced quantity moves released work into production without completing the whole item.
+  - Full produced quantity completes the item and lets existing order completion logic run.
+- guardrails:
+  - Do not change Orders lifecycle, Finance, Portal, OCR, Warehouse, or Shape V2 contract.
+  - No database migration.
+- verification:
+  - `node --test test\production-item-boundaries.test.js test\client-auth-contract.test.js test\module-governance.test.js`
+  - `npm test`

@@ -885,6 +885,10 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /data-scale-mode="readable"/);
   assert.match(workerVisual, /actual_weight_kg/);
   assert.match(workerVisual, /produced_qty/);
+  assert.match(workerVisual, /isUnitProgressItem/);
+  assert.match(workerVisual, /adjustProducedQty/);
+  assert.match(workerVisual, /unit-progress/);
+  assert.match(workerVisual, /pile\|cage\|/);
   assert.match(workerVisual, /worker-inline-panel/);
   assert.match(workerVisual, /worker-status-actions/);
   assert.match(workerVisual, /inlineProductionPanel/);

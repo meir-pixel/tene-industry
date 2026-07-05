@@ -989,7 +989,7 @@ test('production execution API routes are split out of the server monolith', () 
   assert.match(route, /checkOrderComplete/);
   assert.match(route, /actual_weight_kg/);
   assert.match(route, /weight_deviation_pct/);
-  assert.match(route, /SELECT total_weight FROM items WHERE id=\?/);
+  assert.match(route, /SELECT i\.\*, p\.order_id, o\.order_num, o\.status AS order_status/);
   assert.match(route, /\(\(actualWeight - targetWeight\) \/ targetWeight\) \* 100/);
   assert.match(route, /i\.actual_weight_kg, i\.weight_deviation_pct/);
   assert.ok(!route.includes("router.get('/machines'"));

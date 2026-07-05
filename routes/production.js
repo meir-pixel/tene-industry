@@ -262,45 +262,98 @@ module.exports = function createProductionRouter(deps) {
     }
     const { produced_qty, actual_waste, actual_weight_kg, note, status } = req.body;
     const fields = [], vals = [];
-    if (produced_qty !== undefined) { fields.push('produced_qty=?'); vals.push(produced_qty); }
+    let loadedItem = null;
+    let nextItemStatus = null;
+
+    function loadProductionItem() {
+      if (!loadedItem) {
+        loadedItem = db.prepare(`
+          SELECT i.*, p.order_id, o.order_num, o.status AS order_status
+          FROM items i
+          JOIN pallets p ON i.pallet_id=p.id
+          JOIN orders o ON p.order_id=o.id
+          WHERE i.id=?
+        `).get(req.params.id);
+      }
+      return loadedItem;
+    }
+
+    function addStatusUpdate(item, nextStatus) {
+      if (!statusContracts.isValidItemStatus(nextStatus) || !productionWritableItemStatuses.has(nextStatus)) {
+        return false;
+      }
+      if (nextStatus === ITEM_STATUS.IN_PRODUCTION && !isProductionGateOpen(item)) {
+        sendProductionGateError(res, item);
+        return false;
+      }
+      if (nextStatus === ITEM_STATUS.DONE && item.status === ITEM_STATUS.WAITING && !isProductionGateOpen(item)) {
+        sendProductionGateError(res, item);
+        return false;
+      }
+      fields.push('status=?'); vals.push(nextStatus);
+      nextItemStatus = nextStatus;
+      if (nextStatus === ITEM_STATUS.IN_PRODUCTION && !item.started_at) {
+        fields.push('started_at=?'); vals.push(new Date().toISOString());
+      }
+      if (nextStatus === ITEM_STATUS.DONE) {
+        fields.push('completed_at=?'); vals.push(new Date().toISOString());
+      }
+      return true;
+    }
+
+    if (produced_qty !== undefined) {
+      const item = loadProductionItem();
+      if (!item) return res.status(404).json({ error: 'not found' });
+      const producedQty = Number(produced_qty);
+      const requestedQty = Number(item.quantity) || 0;
+      if (!Number.isFinite(producedQty) || producedQty < 0 || !Number.isInteger(producedQty)) {
+        return res.status(400).json({ error: 'invalid produced_qty' });
+      }
+      if (requestedQty > 0 && producedQty > requestedQty) {
+        return res.status(400).json({ error: 'produced_qty_exceeds_quantity', quantity: requestedQty });
+      }
+      fields.push('produced_qty=?'); vals.push(producedQty);
+
+      if (status === undefined) {
+        if (requestedQty > 0 && producedQty >= requestedQty && item.status !== ITEM_STATUS.DONE) {
+          if (!addStatusUpdate(item, ITEM_STATUS.DONE)) return;
+        } else if (producedQty > 0 && item.status === ITEM_STATUS.WAITING) {
+          if (!addStatusUpdate(item, ITEM_STATUS.IN_PRODUCTION)) return;
+        }
+      }
+    }
     if (actual_waste !== undefined) { fields.push('actual_waste=?'); vals.push(actual_waste); }
     if (actual_weight_kg !== undefined) {
       const actualWeight = Number(actual_weight_kg);
       if (!Number.isFinite(actualWeight) || actualWeight < 0) return res.status(400).json({ error: 'invalid actual_weight_kg' });
-      const item = db.prepare('SELECT total_weight FROM items WHERE id=?').get(req.params.id);
+      const item = loadProductionItem();
       if (!item) return res.status(404).json({ error: 'not found' });
       const targetWeight = Number(item.total_weight) || 0;
       const deviationPct = targetWeight > 0 ? ((actualWeight - targetWeight) / targetWeight) * 100 : null;
       fields.push('actual_weight_kg=?'); vals.push(actualWeight);
       fields.push('weight_deviation_pct=?'); vals.push(deviationPct);
     }
-    if (note         !== undefined) { fields.push('note=?');         vals.push(note); }
-    if (status       !== undefined) {
-      if (!statusContracts.isValidItemStatus(status) || !productionWritableItemStatuses.has(status)) return res.status(400).json({ error: 'invalid production status' });
-      const item = db.prepare(`
-        SELECT i.*, p.order_id, o.order_num, o.status AS order_status
-        FROM items i
-        JOIN pallets p ON i.pallet_id=p.id
-        JOIN orders o ON p.order_id=o.id
-        WHERE i.id=?
-      `).get(req.params.id);
+    if (note !== undefined) { fields.push('note=?'); vals.push(note); }
+    if (status !== undefined) {
+      const item = loadProductionItem();
       if (!item) return res.status(404).json({ error: 'not found' });
-      if (status === ITEM_STATUS.IN_PRODUCTION && !isProductionGateOpen(item)) return sendProductionGateError(res, item);
-      fields.push('status=?');       vals.push(status);
+      if (!addStatusUpdate(item, status)) return;
     }
     if (!fields.length) return res.json({ ok: true });
     vals.push(req.params.id);
     db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);
-    const savedItem = status !== undefined ? db.prepare(`
+
+    const savedItem = nextItemStatus ? db.prepare(`
       SELECT i.*, p.order_id, o.order_num, o.status AS order_status
       FROM items i
       JOIN pallets p ON i.pallet_id=p.id
       JOIN orders o ON p.order_id=o.id
       WHERE i.id=?
     `).get(req.params.id) : null;
-    const orderStatus = savedItem ? syncOrderStatusAfterItemStatus(savedItem, status) : null;
-    if (status !== undefined) wsBroadcast('item_status', { id: Number(req.params.id), status });
-    res.json({ ok: true, order_status: orderStatus });
+    const orderStatus = savedItem ? syncOrderStatusAfterItemStatus(savedItem, nextItemStatus) : null;
+    if (nextItemStatus) wsBroadcast('item_status', { id: Number(req.params.id), status: nextItemStatus });
+    if (produced_qty !== undefined) wsBroadcast('item_progress', { id: Number(req.params.id), produced_qty: Number(produced_qty) });
+    res.json({ ok: true, order_status: orderStatus, status: nextItemStatus });
   });
 
   // ── PRODUCTION QUEUE ──────────────────────────────────────────────
@@ -383,6 +436,7 @@ module.exports.manifest = {
     { event: 'machine_assign' },
     { event: 'end_of_day' },
     { event: 'item_status' },
+    { event: 'item_progress' },
     { event: 'order_complete' },
   ],
 };

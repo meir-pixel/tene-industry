@@ -186,6 +186,52 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.deepEqual(after, before);
   });
 
+  await t.test('partial produced quantity starts released item without completing the order', async () => {
+    const approved = seedOrderWithItem('PB-PARTIAL-UNIT-PROGRESS', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    const response = await request(`/api/items/${approved.itemId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ produced_qty: 3 }),
+    });
+    assert.equal(response.status, 200);
+    const item = db.prepare('SELECT produced_qty,status,quantity FROM items WHERE id=?').get(approved.itemId);
+    assert.equal(item.produced_qty, 3);
+    assert.equal(item.status, statusContracts.ITEM_STATUS.IN_PRODUCTION);
+    assert.equal(item.quantity, 5);
+    const order = db.prepare('SELECT status FROM orders WHERE id=?').get(approved.orderId);
+    assert.equal(order.status, statusContracts.ORDER_STATUS.IN_PRODUCTION);
+  });
+
+  await t.test('full produced quantity completes released item and order', async () => {
+    const approved = seedOrderWithItem('PB-FULL-UNIT-PROGRESS', statusContracts.ORDER_STATUS.IN_PRODUCTION, statusContracts.ITEM_STATUS.IN_PRODUCTION);
+    const response = await request(`/api/items/${approved.itemId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ produced_qty: 5 }),
+    });
+    assert.equal(response.status, 200);
+    const item = db.prepare('SELECT produced_qty,status FROM items WHERE id=?').get(approved.itemId);
+    assert.equal(item.produced_qty, 5);
+    assert.equal(item.status, statusContracts.ITEM_STATUS.DONE);
+    const order = db.prepare('SELECT status FROM orders WHERE id=?').get(approved.orderId);
+    assert.equal(order.status, statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP);
+  });
+
+  await t.test('produced quantity cannot exceed requested quantity', async () => {
+    const approved = seedOrderWithItem('PB-OVER-UNIT-PROGRESS', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    const response = await request(`/api/items/${approved.itemId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ produced_qty: 6 }),
+    });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, 'produced_qty_exceeds_quantity');
+    const item = db.prepare('SELECT produced_qty,status FROM items WHERE id=?').get(approved.itemId);
+    assert.equal(item.produced_qty, 0);
+    assert.equal(item.status, statusContracts.ITEM_STATUS.WAITING);
+  });
+
   await t.test('production item patch still allows production-owned execution fields', async () => {
     const approved = seedOrderWithItem('PB-APPROVED-PRODUCTION', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
     const response = await request(`/api/items/${approved.itemId}`, {
