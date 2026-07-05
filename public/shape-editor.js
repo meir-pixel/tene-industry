@@ -2057,13 +2057,14 @@ class ShapeEditorModal {
     document.getElementById('seOk').onclick            = () => this._confirm();
     document.getElementById('seAddSide').onclick       = () => this._addSide();
     document.getElementById('seSaveShapeBtn').onclick  = () => this._showSaveBar();
-    document.getElementById('seBackBtn').onclick = () => this.close();
+    document.getElementById('seBackBtn').onclick = () => this._goBack();
     this._el.addEventListener('click', e => { if (e.target === this._el) this.close(); });
     this._bindDragRotation();
     this._bindWheelZoom();
   }
 
   _goToCount() {
+    this._currentPage = 'count';
     document.getElementById('sePageCount').style.display  = '';
     document.getElementById('sePageSelect').style.display = 'none';
     document.getElementById('sePageEdit').style.display   = 'none';
@@ -2139,7 +2140,29 @@ class ShapeEditorModal {
   }
 
   _goToSelect() {
-    this._startDefaultEdit(this._selectedFamily || 'bars');
+    this._currentPage = 'select';
+    document.getElementById('sePageCount').style.display  = 'none';
+    document.getElementById('sePageSelect').style.display = '';
+    document.getElementById('sePageEdit').style.display   = 'none';
+    document.getElementById('seFoot').style.display       = 'none';
+    document.getElementById('seBackBtn').style.display    = '';
+    document.getElementById('seHeadTitle').textContent    = 'בחר צורה';
+    const step = document.getElementById('seStepIndicator'); if (step) step.textContent = 'שלב 2 מתוך 3';
+    this._renderFamilyTabs();
+    this._renderCategoryFilters();
+    this._renderSideFilters();
+    this._renderSavedShapes(this._selectedCount);
+    this._renderPresets(this._selectedCount);
+  }
+
+  _goBack() {
+    if (this._currentPage === 'edit') {
+      this._goToSelect();
+    } else if (this._currentPage === 'select') {
+      this._goToCount();
+    } else {
+      this.close();
+    }
   }
 
   _renderFamilyTabs() {
@@ -2199,6 +2222,7 @@ class ShapeEditorModal {
   }
 
   _goToEdit() {
+    this._currentPage = 'edit';
     this._activeSeg = null; // clear selection when entering edit page
     document.getElementById('sePageCount').style.display  = 'none';
     document.getElementById('sePageSelect').style.display = 'none';
@@ -3364,10 +3388,11 @@ class ShapeEditorModal {
       document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
       this._goToEdit();
     } else {
-      // No existing shape: open the editor directly; family tabs switch presets from inside the workspace.
+      // No existing shape: show preset browser so user can pick or open a saved shape.
       this._selectedCount = null;
       this._selectedSideCount = null;
-      this._startDefaultEdit('bars');
+      this._selectedFamily = 'bars';
+      this._goToSelect();
     }
     this._el.classList.add('show');
   }
