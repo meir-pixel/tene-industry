@@ -759,6 +759,12 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
   assert.match(index, /siteId: selectedSiteId/);
   assert.match(index, /alert\(result\.error \|\|/);
   assert.match(index, /function isSpiralOrderItem\(item = \{\}\)/);
+  assert.match(index, /function itemShapeContract\(item = \{\}\)/);
+  assert.match(index, /function approvedShapeContract\(data = \{\}\)/);
+  assert.match(index, /function spiralFieldsFromShapeData\(data = \{\}\)/);
+  assert.match(index, /item\.shapeSnapshot = approvedShapeContract\(data\)/);
+  assert.match(index, /shapeSnapshot: item\.shapeSnapshot \|\| null/);
+  assert.match(index, /openShapeEditor\(\$\{palletId\}, '\$\{item\.id\}'\)/);
   assert.match(index, /sides: isSpiralOrderItem\(item\) \? \[\] :/);
   assert.match(index, /function isSpiralImgItem\(it\)/);
   assert.match(index, /function updateDeliverySummary\(\)/);

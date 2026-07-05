@@ -2245,6 +2245,9 @@ window.toggleThumb3D = function() {
 };
 
 function itemShapeSides(item = {}) {
+  const shapeContract = itemShapeContract(item);
+  const spiral = spiralFieldsFromShapeData(item);
+  if (item.family === 'spirals' || shapeContract?.family === 'spirals' || (spiral.spiralDiameterMm > 0 && spiral.spiralTurns > 0)) return [];
   const direct = Array.isArray(item.shapeSides) ? item.shapeSides.map(Number).filter(v => Number.isFinite(v) && v > 0) : [];
   if (direct.length) return direct;
   const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null;
@@ -2264,11 +2267,46 @@ function itemShapeAngles(item = {}) {
   return saved;
 }
 
+
+function itemShapeContract(item = {}) {
+  const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null;
+  if (snapshot && snapshot.contractVersion && snapshot.shapeType && snapshot.family && snapshot.data) return snapshot;
+  return null;
+}
+
+function approvedShapeContract(data = {}) {
+  if (!data || !data.contractVersion || !data.shapeType || !data.family || !data.data) return null;
+  return {
+    contractVersion: data.contractVersion,
+    shapeVersion: data.shapeVersion,
+    shapeId: data.shapeId,
+    shapeType: data.shapeType,
+    family: data.family,
+    source: data.source,
+    approvedAt: data.approvedAt,
+    displayName: data.displayName,
+    data: data.data,
+    calculated: data.calculated,
+    machineOutput: data.machineOutput,
+    validation: data.validation,
+  };
+}
+
+function spiralFieldsFromShapeData(data = {}) {
+  const contract = itemShapeContract(data) || approvedShapeContract(data) || data.shapeSnapshot || null;
+  const source = contract?.data || data.data || data || {};
+  return {
+    spiralDiameterMm: Number(source.spiralDiameterMm || source.spiral_diameter_mm || source.spiralDiameter || data.spiralDiameterMm || data.spiral_diameter_mm || data.spiralDiameter || 0),
+    spiralTurns: Number(source.spiralTurns || source.spiral_turns || source.turns || data.spiralTurns || data.spiral_turns || data.turns || 0),
+    barDiameter: Number(source.barDiameter || source.barDiameterMm || data.barDiameter || data.diameter || 0),
+  };
+}
 function renderItemRow(palletId, item) {
   const w = calcItemWeight(item);
   const sides = itemShapeSides(item);
   const angles = itemShapeAngles(item);
   const perimeter = sides.reduce((s, l) => s + Number(l), 0);
+  const isSpiralRow = item.family === 'spirals' || itemShapeContract(item)?.family === 'spirals' || isSpiralOrderItem(item);
 
   let svgPreview;
   if (sides.length) {
@@ -2295,9 +2333,11 @@ function renderItemRow(palletId, item) {
       </div>
     </td>
     <td>
-      <select onchange="updateItem(${palletId},'${item.id}','diameter',this.value)">
-        ${DIAMETERS.map(d => `<option ${item.diameter==d?'selected':''}>${d}</option>`).join('')}
-      </select>
+      ${isSpiralRow
+        ? `<button type="button" onclick="openShapeEditor(${palletId}, '${item.id}')" title="Edit diameter in shape editor" style="width:84px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;font-weight:800;cursor:pointer">${item.diameter || 8}</button>`
+        : `<select onchange="updateItem(${palletId},'${item.id}','diameter',this.value)">
+          ${DIAMETERS.map(d => `<option ${item.diameter==d?'selected':''}>${d}</option>`).join('')}
+        </select>`}
     </td>
     <td style="min-width:90px">
       <div style="font-size:12px;color:#e07b39;font-weight:700;text-align:center;cursor:pointer"
@@ -2334,6 +2374,20 @@ function openShapeEditor(palletId, itemId) {
   const item   = pallet?.items.find(i => i.id == itemId);
   const sides = itemShapeSides(item || {});
   const angles = itemShapeAngles(item || {});
+  const contract = itemShapeContract(item || {});
+  if (contract?.family === 'spirals') {
+    const spiral = spiralFieldsFromShapeData({ ...item, shapeSnapshot: contract });
+    shapeEditor.open({
+      family: 'spirals',
+      presetId: item.shapeId || contract.shapeId || 'spiral',
+      presetName: item.shapeName || contract.displayName || 'spiral',
+      barDiameter: spiral.barDiameter || item.diameter || 8,
+      spiralDiameter: spiral.spiralDiameterMm || 400,
+      turns: spiral.spiralTurns || 20,
+      quantity: item.qty || 1,
+    });
+    return;
+  }
   shapeEditor.open(sides.length ? {
     presetId: item.shapeId,
     sides,
@@ -2359,12 +2413,20 @@ function shapeSelected(data) {
   item.shapeName   = data.presetName;
   item.shapeEmoji  = data.presetEmoji;
   item.family      = data.family || 'bars';
-  item.shapeSides  = data.sides || [];
-  item.shapeAngles = data.angles || [];
+  item.shapeSnapshot = approvedShapeContract(data);
+  const spiral = spiralFieldsFromShapeData(data);
+  const isSpiral = item.family === 'spirals' || (spiral.spiralDiameterMm > 0 && spiral.spiralTurns > 0);
+  item.shapeSides  = isSpiral ? [] : (data.sides || []);
+  item.shapeAngles = isSpiral ? [] : (data.angles || []);
   item.is3d       = data.is3d ? 1 : 0;
   item.azAngles   = item.is3d ? (data.azAngles || []) : null;
   item.elAngles   = item.is3d ? (data.elAngles || []) : null;
-  item.length      = Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0);
+  item.diameter   = isSpiral ? (spiral.barDiameter || item.diameter || 8) : (data.diameter || item.diameter || 12);
+  item.spiral_diameter_mm = isSpiral ? (spiral.spiralDiameterMm || null) : null;
+  item.spiral_turns = isSpiral ? (spiral.spiralTurns || null) : null;
+  item.length      = isSpiral
+    ? (data.calculated?.totalLengthMm || data.total_length_mm || spiralLengthMm(spiral.spiralDiameterMm, spiral.spiralTurns))
+    : (Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0));
   item.qty         = Math.max(1, Number(data.orderItemQuantity || item.qty || 1) || 1);
   _shapeTarget = null;
   renderPallets();
@@ -2594,6 +2656,7 @@ async function submitOrder() {
       items: p.items.map(item => ({
         shapeId: item.shapeId,
         shapeName: item.shapeName,
+        shapeSnapshot: item.shapeSnapshot || null,
         diameter: item.diameter,
         length: item.length,
         sides: isSpiralOrderItem(item) ? [] : (item.shapeSides && item.shapeSides.length ? item.shapeSides : (item.length ? [item.length] : [])),

@@ -1830,3 +1830,27 @@
   - `node --check routes\orders.js routes\production.js routes\orderPrintA4.js routes\orderDeliveryCertificate.js services\productionCardPrintPage.js`
   - `node --test test\client-auth-contract.test.js test\production-print-page.test.js test\security-routes.test.js`
 
+
+---
+
+### V2-011K - Spiral Shape Editor Order Handoff
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing + Shape Editor handoff
+- files:
+  - `public/index.html`
+  - `services/orderContracts.js`
+  - `test/client-auth-contract.test.js`
+  - `test/security-routes.test.js`
+- goal:
+  - New order rows preserve approved Shape V2 contracts from the shape editor.
+  - Spiral items keep bar diameter, spiral diameter, turns, and total length from the editor instead of becoming straight length rows.
+  - Spiral bar diameter is edited through the shape editor; the order table reflects it and opens the editor for changes.
+- guardrails:
+  - Preserve Orders lifecycle, Production status flow, QR routing, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --test test\client-auth-contract.test.js`
+  - `node --test test\security-routes.test.js`
+  - `index.html` inline script syntax check

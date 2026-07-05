@@ -126,6 +126,38 @@ function shapeV2Envelope() {
   };
 }
 
+function spiralShapeV2Envelope() {
+  return {
+    contractVersion: 2,
+    shapeVersion: 1,
+    shapeId: 'spiral-v2-001',
+    shapeType: 'spiral',
+    family: 'spirals',
+    displayName: 'Spiral Shape V2',
+    data: {
+      barDiameter: 8,
+      spiralDiameter: 300,
+      turns: 50,
+    },
+    calculated: {
+      totalLengthMm: 47124,
+      weightKg: 18.6,
+    },
+    machineOutput: {
+      generic: {
+        family: 'spirals',
+        shapeType: 'spiral',
+        barDiameter: 8,
+        spiralDiameter: 300,
+        turns: 50,
+        totalLengthMm: 47124,
+      },
+      machineProfiles: {},
+    },
+    validation: { valid: true, warnings: [], errors: [] },
+  };
+}
+
 test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   seedUser('admin', 'admin', '1001');
   seedUser('manager', 'manager', '1002');
@@ -292,6 +324,29 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(item.spiral_diameter_mm, 300);
     assert.equal(item.spiral_turns, 50);
     assert.equal(item.total_length_mm, 47124);
+  });
+
+  await t.test('order creation extracts spiral fields from Shape V2 envelope', async () => {
+    const envelope = spiralShapeV2Envelope();
+    const response = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(office),
+      body: JSON.stringify({
+        customer: { name: 'Spiral Shape Contract Customer', phone: '0500000004' },
+        order: { orderNum: 'ORDER-SPIRAL-SHAPE-V2', channel: 'office', deliveryAddress: 'Factory', totalWeight: 0 },
+        pallets: [{ items: [{ shapeSnapshot: envelope, qty: 2 }] }],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    const item = db.prepare('SELECT shape_name,segments,diameter,spiral_diameter_mm,spiral_turns,total_length_mm,shape_snapshot_json FROM items WHERE order_id=?').get(created.orderId);
+    assert.equal(item.shape_name, 'spiral');
+    assert.deepEqual(JSON.parse(item.segments), []);
+    assert.equal(item.diameter, 8);
+    assert.equal(item.spiral_diameter_mm, 300);
+    assert.equal(item.spiral_turns, 50);
+    assert.equal(item.total_length_mm, 47124);
+    assert.deepEqual(JSON.parse(item.shape_snapshot_json), envelope);
   });
 
   await t.test('order creation treats long simple imported cut length as coil instead of segment', async () => {
