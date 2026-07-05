@@ -149,6 +149,21 @@ test('customer portal UI uses OTP verification before storing token', () => {
   assert.match(customer, /completeAuth\(data\.data\)/);
 });
 
+test('customer portal links use public base URL instead of localhost fallback', () => {
+  const portalAccess = read('services/portalAccess.js');
+  const portalAdminRoute = read('routes/portalAdmin.js');
+  const portalRoute = read('routes/portal.js');
+
+  assert.match(portalAccess, /settingsService\.get\('BASE_URL'/);
+  assert.match(portalAccess, /function portalLink/);
+  assert.match(portalAccess, /encodeURIComponent\(token\)/);
+  assert.match(portalAdminRoute, /x-forwarded-host/);
+  assert.match(portalAdminRoute, /portalAuthResponse\(c, \{ baseUrl: requestPublicBaseUrl\(req\) \}\)/);
+  assert.match(portalAdminRoute, /configuredBaseUrl\(requestPublicBaseUrl\(req\)\)/);
+  assert.match(portalRoute, /x-forwarded-host/);
+  assert.match(portalRoute, /portalAccess\.portalLink\(token, \{ baseUrl: requestPublicBaseUrl\(req\) \}\)/);
+});
+
 test('customer portal exposes quote before order submission', () => {
   const portalRoute = read('routes/portal.js');
   const customerPage = read('public/customer.html');

@@ -16,6 +16,12 @@ module.exports = function createPortalAdminRouter(deps) {
 
   const portalAccess = createPortalAccessService({ db, crypto, settingsService, PORT });
 
+  function requestPublicBaseUrl(req) {
+    const proto = String(req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0].trim();
+    const host = String(req.get('x-forwarded-host') || req.get('host') || '').split(',')[0].trim();
+    return host ? `${proto}://${host}` : '';
+  }
+
   function portalTokenPayload(result) {
     const accessCode = String(result.token || '')
       .replace(/[^a-zA-Z0-9]/g, '')
@@ -29,14 +35,14 @@ module.exports = function createPortalAdminRouter(deps) {
   router.get('/customers/:id/token', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
     if (!c) return res.status(404).json({ error: 'לא נמצא' });
-    const result = portalAccess.portalAuthResponse(c);
+    const result = portalAccess.portalAuthResponse(c, { baseUrl: requestPublicBaseUrl(req) });
     res.json(portalTokenPayload(result));
   });
 
   router.post('/customers/:id/token/rotate', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
     if (!c) return res.status(404).json({ error: 'not found' });
-    const result = portalAccess.portalAuthResponse(c, { forceRotate: true });
+    const result = portalAccess.portalAuthResponse(c, { forceRotate: true, baseUrl: requestPublicBaseUrl(req) });
     auditLog('customer', c.id, null, 'portal_token_rotate', null, null, null, null, req.userId || null, null);
     res.json(portalTokenPayload(result));
   });
@@ -56,7 +62,7 @@ module.exports = function createPortalAdminRouter(deps) {
       phone,
       userId: user.id,
       temporaryPassword,
-      message: `שלום ${c.name || ''}, הכניסה לפורטל טנא: ${process.env.BASE_URL || `http://localhost:${PORT}`}/customer.html\nטלפון: ${phone}\nסיסמה זמנית: ${temporaryPassword}`
+      message: `שלום ${c.name || ''}, הכניסה לפורטל טנא: ${portalAccess.configuredBaseUrl(requestPublicBaseUrl(req))}/customer.html\nטלפון: ${phone}\nסיסמה זמנית: ${temporaryPassword}`
     });
   });
 

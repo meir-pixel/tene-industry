@@ -242,6 +242,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
+  - fixed customer portal access links to use BASE_URL or the public request host instead of localhost.
   - added first-edit customer profile locking so later portal detail changes become internal approval requests.
   - exposed a customer quote-before-order entry point and a dedicated quote panel before order submission.
   - made the customer portal home project-first with visible new-project actions and an editable customer details panel.

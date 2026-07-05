@@ -24,6 +24,12 @@ module.exports = function createPortalRouter(deps) {
   const IS_TEST = Boolean(deps.IS_TEST);
 
   const portalAccess = createPortalAccessService({ db, crypto, settingsService, PORT });
+  function requestPublicBaseUrl(req) {
+    const proto = String(req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0].trim();
+    const host = String(req.get('x-forwarded-host') || req.get('host') || '').split(',')[0].trim();
+    return host ? `${proto}://${host}` : '';
+  }
+
   const {
     normalizePortalPhone,
     resolveCustomer,
@@ -57,7 +63,6 @@ module.exports = function createPortalRouter(deps) {
     const issued = issueUserToken(user);
     const freshUser = db.prepare('SELECT * FROM portal_users WHERE id=?').get(user.id);
     const ctx = portalContext(customer, freshUser);
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     return {
       customer,
       user: freshUser,
@@ -66,7 +71,7 @@ module.exports = function createPortalRouter(deps) {
       portal: ctx,
       upgradedToken: issued.token,
       upgradedExpiresAt: issued.expiresAt,
-      upgradedLink: `${baseUrl}/customer.html?token=${issued.token}`,
+      upgradedLink: portalAccess.portalLink(issued.token),
     };
   }
 
@@ -266,10 +271,9 @@ module.exports = function createPortalRouter(deps) {
     const freshUser = db.prepare('SELECT * FROM portal_users WHERE id=?').get(user.id);
     const portal = portalContext(c, freshUser);
     const caps = portal.caps;
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     res.json({
       token,
-      link: `${baseUrl}/customer.html?token=${token}`,
+      link: portalAccess.portalLink(token, { baseUrl: requestPublicBaseUrl(req) }),
       expiresAt,
       role: portal.role,
       caps,
@@ -304,10 +308,9 @@ module.exports = function createPortalRouter(deps) {
     const { token, expiresAt } = issueUserToken(user);
     const portal = portalContext(customer, user);
     const caps = portal.caps;
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     res.json({
       token,
-      link: `${baseUrl}/customer.html?token=${token}`,
+      link: portalAccess.portalLink(token, { baseUrl: requestPublicBaseUrl(req) }),
       expiresAt,
       role: portal.role,
       caps,
@@ -955,8 +958,7 @@ module.exports = function createPortalRouter(deps) {
     wsBroadcast('new_order', { orderNum, orderId, channel: 'פורטל לקוח', status: 'ממתינה לאישור לקוח' });
 
     // Send WhatsApp confirmation with approve link (non-blocking)
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-    const approveLink = `${baseUrl}/api/c/approve/${confirmToken}`;
+    const approveLink = `${portalAccess.configuredBaseUrl(requestPublicBaseUrl(req))}/api/c/approve/${encodeURIComponent(confirmToken)}`;
     const delivInfo = deliveryDate ? `📅 אספקה: ${deliveryDate}${deliveryTime ? ' ' + deliveryTime : ''}` : '';
     const addrInfo  = deliveryAddress ? `📍 ${deliveryAddress}` : '';
     const waMsg = `📋 *הזמנה ${orderNum} – ממתינה לאישורך*\n\nשלום ${c.name},\nקיבלנו את הזמנתך:\n\n${itemLines.join('\n')}\n\n⚖️ משקל לחיוב: ${billingWeight.toFixed(1)} ק"ג\n💰 סה"כ: ₪${portalPrice.toFixed(0)}\n${delivInfo}\n${addrInfo}\n\n*לאישור פרטי ההזמנה ושליחה לבדיקה – לחץ כאן:*\n${approveLink}\n\n_⚠️ ייצור יתחיל רק לאחר בדיקה ואישור פנימי של טנא_`;
