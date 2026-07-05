@@ -829,16 +829,35 @@ function loadSavedShapes() {
 function persistSavedShape(shapeData, name) {
   const shapes = loadSavedShapes();
   const id = 'u' + Date.now();
-  shapes.push({
-    id, name: (name || 'צורה מותאמת').trim(),
-    sides:    [...shapeData.sides],
-    angles:   [...shapeData.angles],
-    is3d:     shapeData.is3d ? 1 : 0,
-    azAngles: shapeData.is3d && shapeData.azAngles ? [...shapeData.azAngles] : null,
-    elAngles: shapeData.is3d && shapeData.elAngles ? [...shapeData.elAngles] : null,
-    bends:    shapeData.angles.length,
-    savedAt:  Date.now(),
-  });
+  const family = shapeData.family || 'bars';
+  const entry = { id, name: (name || 'צורה מותאמת').trim(), family, savedAt: Date.now() };
+  if (family === 'spirals') {
+    entry.barDiameter    = shapeData.barDiameter    || 8;
+    entry.spiralDiameter = shapeData.spiralDiameter || 400;
+    entry.turns          = shapeData.turns          || 20;
+  } else if (family === 'mesh') {
+    Object.assign(entry, {
+      length: shapeData.length, width: shapeData.width,
+      longitudinalDiameter: shapeData.longitudinalDiameter, longitudinalSpacing: shapeData.longitudinalSpacing,
+      transverseDiameter: shapeData.transverseDiameter, transverseSpacing: shapeData.transverseSpacing,
+      edgeLeft: shapeData.edgeLeft, edgeRight: shapeData.edgeRight,
+      edgeTop: shapeData.edgeTop, edgeBottom: shapeData.edgeBottom,
+    });
+  } else if (family === 'piles') {
+    Object.assign(entry, {
+      pileDiameter: shapeData.pileDiameter, pileLength: shapeData.pileLength,
+      longitudinalBars: shapeData.longitudinalBars, longitudinalDiameter: shapeData.longitudinalDiameter,
+      spiralDiameter: shapeData.spiralDiameter, spiralZones: shapeData.spiralZones,
+    });
+  } else {
+    entry.sides    = [...(shapeData.sides || [])];
+    entry.angles   = [...(shapeData.angles || [])];
+    entry.is3d     = shapeData.is3d ? 1 : 0;
+    entry.azAngles = shapeData.is3d && shapeData.azAngles ? [...shapeData.azAngles] : null;
+    entry.elAngles = shapeData.is3d && shapeData.elAngles ? [...shapeData.elAngles] : null;
+    entry.bends    = (shapeData.angles || []).length;
+  }
+  shapes.push(entry);
   localStorage.setItem(SAVED_SHAPES_KEY, JSON.stringify(shapes));
   return id;
 }
@@ -2272,12 +2291,28 @@ class ShapeEditorModal {
     const saved  = loadSavedShapes();
     const cont   = document.getElementById('seSavedSection');
     if (!cont) return;
+    const currentFamily = this._selectedFamily || 'bars';
     const sideCount = this._selectedSideCount === undefined || this._selectedSideCount === 'הכל' ? countFilter : Number(this._selectedSideCount);
-    const list   = sideCount ? saved.filter(s => s.sides.length === sideCount) : saved;
+    const list = saved.filter(s => {
+      const sf = s.family || 'bars';
+      if (sf !== currentFamily) return false;
+      if (currentFamily === 'bars' && sideCount) return (s.sides || []).length === sideCount;
+      return true;
+    });
     if (list.length === 0) { cont.innerHTML = ''; return; }
 
     const cardsHtml = list.map(s => {
-      const svgStr = shape3DSVG(s.sides, s.angles || [], 100, 68, 12, { showAxes: false, showDims: false, dark: false });
+      const sf = s.family || 'bars';
+      let svgStr;
+      if (sf === 'spirals') {
+        svgStr = SpiralEngine.render(s, 100, 68);
+      } else if (sf === 'mesh') {
+        svgStr = MeshEngine.render(s, 100, 68);
+      } else if (sf === 'piles') {
+        svgStr = PileCageEngine.render(s, 100, 68);
+      } else {
+        svgStr = shape3DSVG(s.sides || [], s.angles || [], 100, 68, 12, { showAxes: false, showDims: false, dark: false });
+      }
       return `<button class="se-preset-btn" data-saved-id="${s.id}" title="${s.name}" style="position:relative;">
         <svg viewBox="0 0 100 68" width="100" height="68" style="display:block;margin:0 auto 6px;flex-shrink:0">${svgStr}</svg>
         <span style="font-size:12px;font-weight:700;line-height:1.3;word-break:break-word;color:inherit">${s.name}</span>
@@ -2311,16 +2346,26 @@ class ShapeEditorModal {
   }
 
   _loadSavedShape(saved) {
-    const n = saved.sides.length;
-    this.current = {
-      presetId:    saved.id,
-      presetName:  saved.name,
-      presetEmoji: '⭐',
-      sides:       [...saved.sides],
-      angles:      [...saved.angles],
-      azAngles:    saved.azAngles ? [...saved.azAngles] : Array(n).fill(0),
-      elAngles:    saved.elAngles ? [...saved.elAngles] : Array(n).fill(0),
-    };
+    const family = saved.family || 'bars';
+    if (family === 'spirals') {
+      this.current = { ...saved, family: 'spirals', presetId: saved.id, presetName: saved.name, presetEmoji: '⭐' };
+    } else if (family === 'mesh') {
+      this.current = { ...saved, family: 'mesh', presetId: saved.id, presetName: saved.name, presetEmoji: '⭐' };
+    } else if (family === 'piles') {
+      this.current = { ...saved, family: 'piles', presetId: saved.id, presetName: saved.name, presetEmoji: '⭐' };
+    } else {
+      const n = (saved.sides || []).length;
+      this.current = {
+        presetId:    saved.id,
+        presetName:  saved.name,
+        presetEmoji: '⭐',
+        family:      'bars',
+        sides:       [...(saved.sides || [])],
+        angles:      [...(saved.angles || [])],
+        azAngles:    saved.azAngles ? [...saved.azAngles] : Array(n).fill(0),
+        elAngles:    saved.elAngles ? [...saved.elAngles] : Array(n).fill(0),
+      };
+    }
     this._goToEdit();
   }
 
