@@ -3458,11 +3458,10 @@ class ShapeEditorModal {
       document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
       this._goToEdit();
     } else {
-      // No existing shape: show preset browser so user can pick or open a saved shape.
+      // No existing shape: open editor directly.
       this._selectedCount = null;
       this._selectedSideCount = null;
-      this._selectedFamily = 'bars';
-      this._goToSelect();
+      this._startDefaultEdit('bars');
     }
     this._el.classList.add('show');
   }
