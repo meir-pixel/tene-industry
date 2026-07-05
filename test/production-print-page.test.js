@@ -180,6 +180,9 @@ test('production print page expands pile cages to master and component cards', (
   assert.match(html, /טבעות חיזוק פנימיות/);
   assert.match(html, /HZ-PILE-001-000501-P1-MASTER/);
   assert.match(html, /HZ-PILE-001-000501-P2-C3/);
+  assert.match(html, /data-shape-kind=\"pile-spiral-component\"/);
+  assert.match(html, /data-component-type=\"spiral_zone\"/);
+  assert.match(html, /data-shape-kind=\"pile-hoop-component\"/);
   assert.equal(new Set(html.match(/HZ-PILE-001-000501-P[12]-(?:MASTER|C[123])/g) || []).size, 8);
   assert.equal((html.match(/class="cards-page"/g) || []).length, 1);
 });

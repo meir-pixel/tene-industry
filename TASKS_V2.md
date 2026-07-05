@@ -1746,3 +1746,31 @@
 - verification:
   - `node --check modules\steel-rebar\pile-cage-engine.js`
   - `node --test test\pile-cage-engine.test.js test\production-print-page.test.js`
+
+---
+
+### V2-011I - Pile Component Shape Visuals Use Engine Output
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / pile-cages / printing
+- scope:
+  - `TASKS_V2.md`
+  - `services/productionCardPrintPage.js`
+  - `services/productionCards.js`
+  - `public/shape-editor.js`
+  - `test/production-print-page.test.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Pile cage component cards do not fall back to straight-bar drawing for spiral and hoop components.
+  - Printed cards prefer the shape SVG produced by the shape contract / shape engine when available.
+  - Shape Editor pile contract exposes manufacturing breakdown and production card metadata from the pile cage engine.
+- guardrails:
+  - Preserve production status flow, QR routing, Orders lifecycle, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --check services\productionCardPrintPage.js`
+  - `node --check services\productionCards.js`
+  - `node --test test\shape-geometry.test.js test\pile-cage-engine.test.js test\production-print-page.test.js`
+  - `npm test`

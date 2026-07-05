@@ -33,6 +33,57 @@ function pileCardTitle(card) {
   return card.title || card.description || 'רכיב כלונס';
 }
 
+
+function formatPileMm(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return Math.round(n).toLocaleString('en-US') + ' mm';
+}
+
+function pileComponentShapeSvg(card, fallbackLengthMm) {
+  const componentType = card && (card.componentType || card.type);
+  const source = card && card.source && typeof card.source === 'object' ? card.source : (card || {});
+  if (componentType === 'spiral_zone') {
+    const zoneLengthMm = Number(source.zoneLengthMm || source.lengthMm || card.zoneLengthMm || fallbackLengthMm || 0);
+    const pitchMm = Number(source.pitchMm || source.pitch || card.pitchMm || 0);
+    const turns = Math.max(5, Math.min(13, Math.round(zoneLengthMm / Math.max(1, pitchMm || 300))));
+    const width = 240;
+    const height = 118;
+    const startX = 28;
+    const endX = 212;
+    const centerY = 58;
+    const amp = 24;
+    const step = (endX - startX) / turns;
+    let d = `M ${startX} ${centerY}`;
+    for (let i = 0; i < turns; i += 1) {
+      const x0 = startX + i * step;
+      const x1 = x0 + step / 2;
+      const x2 = x0 + step;
+      d += ` C ${(x0 + step * 0.22).toFixed(1)} ${(centerY - amp).toFixed(1)}, ${(x1 - step * 0.22).toFixed(1)} ${(centerY - amp).toFixed(1)}, ${x1.toFixed(1)} ${centerY}`;
+      d += ` C ${(x1 + step * 0.22).toFixed(1)} ${(centerY + amp).toFixed(1)}, ${(x2 - step * 0.22).toFixed(1)} ${(centerY + amp).toFixed(1)}, ${x2.toFixed(1)} ${centerY}`;
+    }
+    let svg = `<path d="${d}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+    svg += `<path d="${d}" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    svg += `<line x1="${startX}" y1="${centerY}" x2="${endX}" y2="${centerY}" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="5 4"/>`;
+    svg += `<text x="120" y="18" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">SPIRAL</text>`;
+    if (pitchMm > 0) svg += `<text x="120" y="104" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">pitch ${Math.round(pitchMm)} mm</text>`;
+    if (zoneLengthMm > 0) svg += `<text x="216" y="28" text-anchor="end" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">L ${formatPileMm(zoneLengthMm)}</text>`;
+    return `<svg data-shape-kind="pile-spiral-component" data-component-type="spiral_zone" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
+  }
+  if (componentType === 'hoop_ring') {
+    const hoopDiameterMm = Number(source.hoopDiameterMm || source.innerDiameterMm || card.hoopDiameterMm || 0);
+    const quantity = Math.max(1, Math.round(Number(source.quantity || card.quantity || 1)));
+    const width = 220;
+    const height = 118;
+    let svg = '<ellipse cx="110" cy="58" rx="62" ry="38" fill="none" stroke="#1a2332" stroke-width="4"/>';
+    svg += '<ellipse cx="110" cy="58" rx="52" ry="31" fill="none" stroke="#3a5070" stroke-width="1.6"/>';
+    svg += '<text x="110" y="19" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">HOOP RING</text>';
+    svg += `<text x="110" y="104" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">PCS ${quantity}${hoopDiameterMm > 0 ? ' · D ' + Math.round(hoopDiameterMm) + ' mm' : ''}</text>`;
+    return `<svg data-shape-kind="pile-hoop-component" data-component-type="hoop_ring" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
+  }
+  return '';
+}
+
 function fallbackPileProductionCards(item, snapshot) {
   const quantity = Math.max(1, Math.round(Number(item.quantity) || Number(snapshot?.quantity) || 1));
   const breakdown = snapshot?.productionCards
@@ -88,8 +139,10 @@ function expandPileCageProductionItems(allItems, tryParseJSON) {
         total_length_mm: lengthMm,
         total_weight: totalWeight,
         weight_per_unit: quantity > 0 ? totalWeight / quantity : totalWeight,
-        segments: JSON.stringify(lengthMm > 0 ? [{ length_mm: lengthMm, angle_deg: 0 }] : []),
-        shape_svg: card.cardType === 'pile_master' ? item.shape_svg : '',
+        segments: JSON.stringify(card.cardType === 'pile_master' || ['longitudinal_l_bar', 'longitudinal_straight_bar'].includes(card.componentType)
+          ? (lengthMm > 0 ? [{ length_mm: lengthMm, angle_deg: 0 }] : [])
+          : []),
+        shape_svg: card.cardType === 'pile_master' ? item.shape_svg : pileComponentShapeSvg(card, lengthMm),
         note: card.cardType === 'pile_master' ? 'כרטיס אב לכלונס - עדכון יחידה שהושלמה' : (card.description || card.title || ''),
       });
     });

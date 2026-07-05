@@ -669,6 +669,82 @@ MeshEngine.render = function(mesh, w = 300, h = 260) {
 };
 
 function PileCageEngine() {}
+
+function pileRound(value, digits = 3) {
+  const p = 10 ** digits;
+  return Math.round((Number(value) || 0) * p) / p;
+}
+
+PileCageEngine.calculate = function(shape = {}) {
+  const zones = Array.isArray(shape.spiralZones) ? shape.spiralZones.map((zone, index) => ({
+    index: index + 1,
+    zoneIndex: index + 1,
+    name: String(zone.name || `Zone ${String.fromCharCode(65 + index)}`),
+    length: Math.max(0, Number(zone.length || zone.lengthMm || 0)),
+    pitch: Math.max(1, Number(zone.pitch || zone.pitchMm || 20)),
+    noWrap: zone.noWrap === true || zone.noWrap === 1 || zone.noWrap === 'true',
+  })) : [];
+  const data = {
+    pileDiameter: Math.max(1, Number(shape.pileDiameter || 70)),
+    pileLength: Math.max(1, Number(shape.pileLength || 2200)),
+    concreteCover: Math.max(0, Number(shape.concreteCover || 0)),
+    longitudinalBars: Math.max(0, Math.round(Number(shape.longitudinalBars || 0))),
+    longitudinalDiameter: Math.max(1, Number(shape.longitudinalDiameter || 22)),
+    spiralDiameter: Math.max(1, Number(shape.spiralDiameter || 8)),
+    spiralType: String(shape.spiralType || 'zoned'),
+    spiralZones: zones,
+    hoopsEnabled: shape.hoopsEnabled !== false && shape.hoopsEnabled !== 0 && shape.hoopsEnabled !== 'false',
+    hoopDiameter: Math.max(14, Number(shape.hoopDiameter || 14)),
+    hoopSpacing: Math.max(1, Number(shape.hoopSpacing || 300)),
+    hoopStart: Math.max(0, Number(shape.hoopStart || 0)),
+    hoopEnd: Math.max(0, Number(shape.hoopEnd || shape.pileLength || 2200)),
+    barPattern: String(shape.barPattern || 'straight'),
+    lHookLength: Math.max(0, Number(shape.lHookLength || 0)),
+  };
+
+  let startMm = 0;
+  const machineZones = zones.map(zone => {
+    const out = { index: zone.index, zoneIndex: zone.zoneIndex, name: zone.name, startMm, lengthMm: zone.length, pitchMm: zone.pitch, noWrap: zone.noWrap };
+    startMm += zone.length;
+    return out;
+  });
+  const wrapZones = machineZones.filter(zone => !zone.noWrap);
+  const totalLongitudinalLengthMm = data.pileLength * data.longitudinalBars;
+  const totalLongitudinalWeightKg = pileRound((totalLongitudinalLengthMm / 1000) * sharedKgPerMeter(data.longitudinalDiameter));
+  const totalSpiralLengthMm = wrapZones.reduce((sum, zone) => sum + pileSpiralLengthMm(Math.max(1, data.pileDiameter - data.concreteCover * 2), zone.lengthMm, zone.pitchMm), 0);
+  const totalSpiralWeightKg = pileRound((totalSpiralLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter));
+  const hoopPositions = [];
+  if (data.hoopsEnabled) {
+    const start = Math.min(data.pileLength, data.hoopStart);
+    const end = Math.min(data.pileLength, Math.max(start, data.hoopEnd));
+    for (let pos = start; pos <= end + 0.001; pos += data.hoopSpacing) hoopPositions.push(pileRound(pos, 1));
+    if (!hoopPositions.length) hoopPositions.push(start);
+  }
+  const hoopLengthMm = Math.PI * Math.max(1, data.pileDiameter - data.concreteCover * 2);
+  const totalHoopLengthMm = pileRound(hoopLengthMm * hoopPositions.length, 1);
+  const totalHoopWeightKg = pileRound((totalHoopLengthMm / 1000) * sharedKgPerMeter(data.hoopDiameter));
+  const totalLengthMm = pileRound(totalLongitudinalLengthMm + totalSpiralLengthMm + totalHoopLengthMm, 1);
+  const weightKg = pileRound(totalLongitudinalWeightKg + totalSpiralWeightKg + totalHoopWeightKg);
+
+  const manufacturingBreakdown = [];
+  manufacturingBreakdown.push({ componentType: data.barPattern === 'l' ? 'longitudinal_l_bar' : 'longitudinal_straight_bar', sourceSystem: 'longitudinalBars', description: data.barPattern === 'l' ? 'Longitudinal L bars' : 'Longitudinal straight bars', diameterMm: data.longitudinalDiameter, quantity: data.longitudinalBars, totalLengthMm: totalLongitudinalLengthMm, weightKg: totalLongitudinalWeightKg });
+  wrapZones.forEach(zone => manufacturingBreakdown.push({ componentType: 'spiral_zone', sourceSystem: 'spiral', description: `Spiral zone ${zone.name}`, name: zone.name, zoneIndex: zone.zoneIndex, diameterMm: data.spiralDiameter, pitchMm: zone.pitchMm, quantity: 1, startMm: zone.startMm, zoneLengthMm: zone.lengthMm, totalLengthMm: pileSpiralLengthMm(Math.max(1, data.pileDiameter - data.concreteCover * 2), zone.lengthMm, zone.pitchMm), weightKg: pileRound((pileSpiralLengthMm(Math.max(1, data.pileDiameter - data.concreteCover * 2), zone.lengthMm, zone.pitchMm) / 1000) * sharedKgPerMeter(data.spiralDiameter)) }));
+  if (data.hoopsEnabled) manufacturingBreakdown.push({ componentType: 'hoop_ring', sourceSystem: 'hoops', description: 'Internal reinforcement hoops', diameterMm: data.hoopDiameter, hoopDiameterMm: Math.max(1, data.pileDiameter - data.concreteCover * 2), quantity: hoopPositions.length, positionsMm: hoopPositions, totalLengthMm: totalHoopLengthMm, weightKg: totalHoopWeightKg });
+
+  const productionCards = [{ cardType: 'pile_master', componentType: 'pile_master', title: 'Pile cage 1/1', unitIndex: 1, unitTotal: 1, componentIndex: 0, quantity: 1, totalLengthMm: data.pileLength, diameterMm: data.longitudinalDiameter, scanCodeSuffix: 'P1-MASTER' }]
+    .concat(manufacturingBreakdown.map((part, index) => ({ cardType: 'pile_component', componentType: part.componentType, title: part.description, unitIndex: 1, unitTotal: 1, componentIndex: index + 1, quantity: part.quantity || 1, diameterMm: part.diameterMm, totalLengthMm: part.totalLengthMm, weightKg: part.weightKg, source: part, scanCodeSuffix: `P1-C${index + 1}` })));
+
+  const validation = validateShapeContractData('piles', data);
+  return {
+    data,
+    calculated: { totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, weightKg, totalLongitudinalWeightKg, totalSpiralWeightKg, totalHoopWeightKg, manufacturingBreakdown },
+    machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, manufacturingBreakdown, productionCards }, machineProfiles: {} },
+    validation,
+    manufacturingBreakdown,
+    productionCards,
+  };
+};
+
 PileCageEngine.render = function(pile, w = 300, h = 260) {
   const pileDiameter = Math.max(1, Number(pile?.pileDiameter || 70));
   const pileLength = Math.max(1, Number(pile?.pileLength || 2200));
@@ -1018,36 +1094,12 @@ function buildMeshShapeContract(shape) {
 }
 
 function buildPileShapeContract(shape) {
-  const zones = Array.isArray(shape?.spiralZones) ? shape.spiralZones.map((zone, index) => ({
-    name: String(zone.name || `Zone ${String.fromCharCode(65 + index)}`),
-    length: Math.max(0, Number(zone.length || 0)),
-    pitch: Math.max(1, Number(zone.pitch || 20)),
-  })) : [];
-  const data = {
-    pileDiameter: Math.max(1, Number(shape?.pileDiameter || 70)),
-    pileLength: Math.max(1, Number(shape?.pileLength || 2200)),
-    longitudinalBars: Math.max(0, Math.round(Number(shape?.longitudinalBars || 0))),
-    longitudinalDiameter: Math.max(1, Number(shape?.longitudinalDiameter || 22)),
-    spiralDiameter: Math.max(1, Number(shape?.spiralDiameter || 8)),
-    spiralZones: zones,
-  };
-  const totalLongitudinalLengthMm = data.pileLength * data.longitudinalBars;
-  const totalSpiralLengthMm = zones.reduce((sum, zone) => sum + pileSpiralLengthMm(data.pileDiameter, zone.length, zone.pitch), 0);
-  const totalLengthMm = totalLongitudinalLengthMm + totalSpiralLengthMm;
-  const longWeight = (totalLongitudinalLengthMm / 1000) * sharedKgPerMeter(data.longitudinalDiameter);
-  const spiralWeight = (totalSpiralLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter);
-  const calculated = { totalLongitudinalLengthMm, totalSpiralLengthMm, totalLengthMm, weightKg: Number((longWeight + spiralWeight).toFixed(3)) };
-  let startMm = 0;
-  const machineZones = zones.map((zone, index) => {
-    const item = { index: index + 1, name: zone.name, startMm, lengthMm: zone.length, pitchMm: zone.pitch };
-    startMm += zone.length;
-    return item;
-  });
+  const pile = PileCageEngine.calculate(shape || {});
   return {
-    data,
-    calculated,
-    generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, totalLongitudinalLengthMm, totalSpiralLengthMm, totalLengthMm },
-    validation: validateShapeContractData('piles', data),
+    data: pile.data,
+    calculated: pile.calculated,
+    generic: pile.machineOutput.generic,
+    validation: pile.validation,
   };
 }
 
@@ -2211,6 +2263,8 @@ class ShapeEditorModal {
   }
 
   _goToSelect() {
+    this._startDefaultEdit(this._selectedFamily || 'bars');
+    return;
     this._currentPage = 'select';
     document.getElementById('sePageCount').style.display  = 'none';
     document.getElementById('sePageSelect').style.display = '';

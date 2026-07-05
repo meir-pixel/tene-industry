@@ -437,6 +437,7 @@ function itemCard(item, order, printDate, rebarWeights) {
   const scanSuffix = item.scan_suffix ? `-${String(item.scan_suffix).replace(/[^a-zA-Z0-9_-]/g, '')}` : '';
   const barcode = `${order.order_num || ''}-${String(item.id).padStart(6, '0')}${scanSuffix}`;
   const segments = parseSegments(item.segments);
+  const visualShapeSvg = item.shape_svg ? String(item.shape_svg) : shapeSvg(item.segments);
   const title = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
   const note = printableItemNote(item.note);
   const kgPerMeter = rebarWeights[Math.round(item.diameter || 0)];
@@ -470,7 +471,7 @@ function itemCard(item, order, printDate, rebarWeights) {
       '<div class="pc-wq-sep"></div>' +
       `<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">${escapeHtml(order.customer_name || '')}</span></div>` +
     '</div>' +
-    `<div class="pc-shape-area">${shapeSvg(item.segments)}</div>` +
+    `<div class="pc-shape-area">${visualShapeSvg}</div>` +
     (dimensions ? `<div class="pc-dims">${dimensions}</div>` : '') +
     '<div class="pc-spec-row">' +
       `<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>Ø${escapeHtml(item.diameter || '?')}</b></div>` +

@@ -121,12 +121,13 @@ test('shape editor direct-open hides the count picker before edit page', () => {
 test('shape editor bypasses the legacy shape selection screen', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const goToSelect = editor.match(new RegExp("_goToSelect\\(\\) \\{[\\s\\S]*?\\n  \\}"));
-  const openFallback = editor.match(/No existing shape: open the editor directly[\s\S]*?this\._startDefaultEdit\('bars'\)/);
+  const openBlock = editor.match(/open\(existingData\) \{[\s\S]*?\n  \}/);
 
   assert.ok(goToSelect, 'expected _goToSelect body');
   assert.match(goToSelect[0], /this\._startDefaultEdit\(this\._selectedFamily \|\| 'bars'\)/);
   assert.doesNotMatch(goToSelect[0], /sePageSelect'\)\.style\.display\s*=\s*'flex'/);
-  assert.ok(openFallback, 'expected new shapes to open directly in edit mode');
+  assert.ok(openBlock, 'expected open block');
+  assert.match(openBlock[0], /this\._startDefaultEdit\('bars'\)/);
 });
 
 test('shape editor family tabs switch directly to family editors', () => {
@@ -286,7 +287,7 @@ test('shape editor exposes side-count filters for built-in and saved shapes', ()
   assert.match(editor, /id="seSideFilters"/);
   assert.match(editor, /class="se-side-filter/);
   assert.match(editor, /const sideCount = this\._selectedSideCount/);
-  assert.match(editor, /saved\.filter\(s => s\.sides\.length === sideCount\)/);
+  assert.match(editor, /\(s\.sides \|\| \[\]\)\.length === sideCount/);
 });
 
 test('shape editor defaults newly added 3D side bends to 90 degrees', () => {
@@ -430,7 +431,7 @@ test('shape editor switches to a mesh editor without side or angle fields', () =
   }
   assert.doesNotMatch(block[0], /data-side=/);
   assert.doesNotMatch(block[0], /data-angle=/);
-  assert.match(editor, /this\.current\.family === 'mesh'\) return this\._renderMeshEditor\(\)/);
+  assert.match(editor, /this\.current\.family === 'mesh'\)\s+return this\._renderMeshEditor\(\)/);
 });
 
 test('shape editor switches to a pile cage editor with editable spiral zones', () => {
@@ -448,7 +449,7 @@ test('shape editor switches to a pile cage editor with editable spiral zones', (
   assert.match(editor, /_deleteSpiralZone\(index\)/);
   assert.doesNotMatch(block[0], /data-side=/);
   assert.doesNotMatch(block[0], /data-angle=/);
-  assert.match(editor, /this\.current\.family === 'piles'\) return this\._renderPileCageEditor\(\)/);
+  assert.match(editor, /this\.current\.family === 'piles'\)\s+return this\._renderPileCageEditor\(\)/);
 });
 
 test('MeshEngine spacing changes grid count while diameter changes bar thickness', () => {
@@ -661,8 +662,12 @@ test('buildShapeDataContractV2 returns pile cage envelope with spiral zone machi
   assert.equal(contract.data.spiralZones[0].name, 'Zone A');
   assert.equal(contract.calculated.totalLongitudinalLengthMm, 57200);
   assert.ok(contract.calculated.totalSpiralLengthMm > 0);
+  assert.ok(contract.calculated.manufacturingBreakdown.length >= 2);
   assert.equal(contract.machineOutput.generic.spiralZones[1].startMm, 70);
   assert.equal(contract.machineOutput.generic.spiralZones[2].pitchMm, 20);
+  assert.ok(contract.machineOutput.generic.manufacturingBreakdown.some(part => part.componentType === 'spiral_zone'));
+  assert.ok(contract.machineOutput.generic.productionCards.some(card => card.cardType === 'pile_master'));
+  assert.ok(contract.machineOutput.generic.productionCards.some(card => card.cardType === 'pile_component'));
   assert.equal(contract.validation.valid, true);
   assert.equal('quantity' in contract.data, false);
   assert.deepEqual(Object.keys(contract.machineOutput.machineProfiles).sort(), ['MEP', 'PEDAX', 'SCHNELL']);
