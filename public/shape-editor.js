@@ -2337,9 +2337,9 @@ class ShapeEditorModal {
       } else {
         svgStr = shape3DSVG(s.sides || [], s.angles || [], 100, 68, 12, { showAxes: false, showDims: false, dark: false });
       }
-      return `<button class="se-preset-btn" data-saved-id="${s.id}" title="${s.name}" style="position:relative;">
-        <svg viewBox="0 0 100 68" width="100" height="68" style="display:block;margin:0 auto 6px;flex-shrink:0">${svgStr}</svg>
-        <span style="font-size:12px;font-weight:700;line-height:1.3;word-break:break-word;color:inherit">${s.name}</span>
+      return `<button class="se-preset-btn" data-saved-id="${s.id}" title="${s.name}" aria-label="${s.name}" style="position:relative;">
+        <svg viewBox="0 0 100 68" aria-hidden="true">${svgStr}</svg>
+        <span class="se-preset-name">${s.name}</span>
         <button class="se-del-saved-btn" data-del-id="${s.id}" title="מחק צורה">✕</button>
       </button>`;
     }).join('');
