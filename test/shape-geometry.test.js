@@ -227,15 +227,21 @@ test('shape editor focuses Z angle fields without switching to side length editi
   assert.doesNotMatch(editor, /if \(el\) meta = \{ \.\.\.meta, focusKey: `bar-side-\$\{el\}`/);
 });
 
-test('shape editor includes synchronized engineering helper views', () => {
+test('shape editor includes pile cage 2D engineering views without 3D helper output', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const pileRenderBlock = editor.match(/PileCageEngine\.render = function\(pile, w = 300, h = 260\) \{[\s\S]*?\n\};/);
 
-  assert.match(editor, /class="se-engineer-helper"/);
-  assert.match(editor, /data-view="side"/);
-  assert.match(editor, /data-view="top"/);
-  assert.match(editor, /data-view="3d"/);
+  assert.ok(pileRenderBlock, 'expected PileCageEngine renderer block');
+  assert.match(pileRenderBlock[0], /data-view=\"side\"/);
+  assert.match(pileRenderBlock[0], /data-view=\"top\"/);
+  assert.match(pileRenderBlock[0], /pile-side-engineering-view/);
+  assert.match(pileRenderBlock[0], /pile-top-engineering-view/);
+  assert.match(pileRenderBlock[0], /pile-zone-dimension/);
+  assert.match(pileRenderBlock[0], /pile-pitch-control/);
+  assert.match(pileRenderBlock[0], /pile-spiral-loop/);
   assert.match(editor, /data-se-focus="mesh-longitudinal-spacing mesh-transverse-spacing"/);
-  assert.match(editor, /data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch pile-hoops"/);
+  assert.doesNotMatch(pileRenderBlock[0], /data-view=\"3d\"/);
+  assert.doesNotMatch(pileRenderBlock[0], /se-engineer-helper/);
 });
 
 test('shape editor renders one row per side in the 2D dimensions panel', () => {
@@ -492,6 +498,15 @@ test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine
   assert.match(svg, /data-longitudinal-bars="26"/);
   assert.match(svg, /data-spiral-zones="70@10,200@20,1350@20"/);
   assert.equal((svg.match(/class="pile-longitudinal-bar"/g) || []).length, 26);
+  assert.match(svg, /class="pile-side-engineering-view"/);
+  assert.match(svg, /class="pile-top-engineering-view"/);
+  assert.match(svg, /class="pile-zone-dimension/);
+  assert.match(svg, /class="pile-pitch-control"/);
+  assert.match(svg, /class="pile-spiral-loop"/);
+  assert.match(svg, /L 2200/);
+  assert.match(svg, /D/);
+  assert.match(svg, /d' 8/);
+  assert.doesNotMatch(svg, /data-view="3d"/);
 });
 
 

@@ -1698,6 +1698,32 @@
 
 ---
 
+### V2-006AH - Pile Cage Shape Editor 2D Engineering Preview
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - Stage A: make the pile cage preview look like the engineering reference without adding 3D.
+  - Use the existing Shape Editor screen and the existing PileCageEngine renderer only.
+- output:
+  - Pile cage preview draws a large side view with L, zone dimensions, pitch controls, spiral loops, hoops, and D.
+  - Pile cage preview draws a top/cross-section view with longitudinal bars, D, and spiral diameter.
+  - 3D helper output is intentionally removed from this stage.
+- guardrails:
+  - No Orders, Production, Printing/A4/cards, OCR, API, DB, Pricing, Portal, or Warehouse changes.
+  - No new shape families.
+  - No 3D work in this stage.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js test\pile-cage-engine.test.js`
+
+---
 ### V2-011G - Unit Progress For Pile Cages
 
 - status: done

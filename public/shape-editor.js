@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "shape-rotate-90-control";
+window.IRONBEND_ASSET_VERSION = "pile-2d-engineering-preview-a";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -752,75 +752,109 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const longitudinalDiameter = Math.max(1, Number(pile?.longitudinalDiameter || 22));
   const spiralDiameter = Math.max(1, Number(pile?.spiralDiameter || 8));
   const hoopsEnabled = pile?.hoopsEnabled !== false && pile?.hoopsEnabled !== 0 && pile?.hoopsEnabled !== 'false';
-  const hoopDiameter = Math.max(1, Number(pile?.hoopDiameter || 8));
-  const hoopSpacing = Math.max(1, Number(pile?.hoopSpacing || 200));
+  const hoopDiameter = Math.max(1, Number(pile?.hoopDiameter || 14));
+  const hoopSpacing = Math.max(1, Number(pile?.hoopSpacing || 3000));
   const hoopStart = Math.max(0, Number(pile?.hoopStart || 0));
   const hoopEnd = Math.max(hoopStart, Number(pile?.hoopEnd || pileLength));
   const barPattern = String(pile?.barPattern || 'straight');
   const lHookLength = Math.max(0, Number(pile?.lHookLength || 250));
-  const zones = Array.isArray(pile?.spiralZones) ? pile.spiralZones : [];
-  const sideBox = scaleBox(pileLength, pileDiameter, w * 0.74, h * 0.38, 18);
-  const sideX = 18, sideY = 30;
-  const sx0 = sideX + sideBox.x, sy0 = sideY + sideBox.y, sx1 = sx0 + sideBox.drawW, syMid = sy0 + sideBox.drawH / 2;
-  const cageH = sideBox.drawH;
-  const topCx = w * 0.78, topCy = h * 0.68;
-  const topR = Math.min(w * 0.17, h * 0.18);
-  const zoneLines = [];
-  const zoneLabels = [];
-  const noWrapRects = [];
+  const zones = Array.isArray(pile?.spiralZones) && pile.spiralZones.length
+    ? pile.spiralZones
+    : [{ name: 'Zone A', length: pileLength, pitch: Number(pile?.spiralPitch || 20) || 20 }];
+  const sideLeft = w * 0.08;
+  const sideRight = w * 0.93;
+  const sideTop = h * 0.13;
+  const sideMid = h * 0.30;
+  const cageHeight = Math.max(24, Math.min(h * 0.20, w * 0.15));
+  const sideW = Math.max(40, sideRight - sideLeft);
+  const scale = sideW / pileLength;
+  const topY = sideMid - cageHeight / 2;
+  const bottomY = sideMid + cageHeight / 2;
+  const barStroke = Math.max(2.2, Math.min(5.5, longitudinalDiameter * 0.16));
+  const spiralStroke = Math.max(1.1, Math.min(3.2, spiralDiameter * 0.18));
+  const hoopStroke = Math.max(1.2, Math.min(3.4, hoopDiameter * 0.14));
+  const cx = w * 0.30;
+  const cy = h * 0.72;
+  const r = Math.max(24, Math.min(w * 0.17, h * 0.17));
+  const dimColor = '#94a3b8';
+  const steelColor = '#111827';
+  const auxColor = '#64748b';
+  const accent = '#1d4ed8';
+  const labelBox = (x, y, value, cls = '', rotate = 0) => `<g class="pile-label ${cls}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rotate})"><rect x="-17" y="-8" width="34" height="16" rx="3" fill="#fff" stroke="#94a3b8" stroke-width=".9"/><text text-anchor="middle" dominant-baseline="central" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">${svgEscape(value)}</text></g>`;
+  const dimLine = (x1, y1, x2, y2, cls = '', focus = '') => `<line class="pile-dimension-line ${cls}" data-se-focus="${focus}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>`;
+
+  const longitudinalLines = [
+    topY + cageHeight * 0.36,
+    bottomY - cageHeight * 0.36,
+  ].map(y => `<line class="pile-straight-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" x1="${sideLeft.toFixed(1)}" y1="${y.toFixed(1)}" x2="${sideRight.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#374151" stroke-width="${barStroke.toFixed(1)}" stroke-linecap="square"/>`).join('');
+
   let offsetMm = 0;
+  const zoneDimensions = [];
+  const pitchControls = [];
+  const spiralLoops = [];
+  const zoneBoundaries = [];
+  const noWrapZones = [];
   zones.forEach((zone, zoneIndex) => {
     const len = Math.max(0, Number(zone.length || 0));
     const pitch = Math.max(1, Number(zone.pitch || 20));
-    const zoneStart = offsetMm;
-    const zoneEnd = offsetMm + len;
+    const startMm = offsetMm;
+    const endMm = Math.min(pileLength, offsetMm + len);
+    const startX = sideLeft + Math.min(pileLength, startMm) * scale;
+    const endX = sideLeft + endMm * scale;
+    const midX = (startX + endX) / 2;
     const noWrap = zone.noWrap === true || zone.noWrap === 1 || zone.noWrap === 'true';
+    zoneBoundaries.push(`<line class="pile-zone-boundary" data-zone="${zoneIndex}" data-se-focus="pile-zone" x1="${startX.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${startX.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
+    zoneDimensions.push(`${dimLine(startX, sideTop, endX, sideTop, 'pile-zone-dimension', 'pile-zone pile-spiral-pitch')}<text class="pile-zone-dimension" data-se-focus="pile-zone pile-spiral-pitch" x="${midX.toFixed(1)}" y="${(sideTop - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">L${zoneIndex + 1}</text>${labelBox(midX, sideTop + 10, Math.round(len), 'pile-zone-dimension')}`);
+    pitchControls.push(`<g class="pile-pitch-control" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-zone" transform="translate(${midX.toFixed(1)} ${(bottomY + 30).toFixed(1)})"><text x="0" y="-7" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">${zoneIndex + 1}@</text><rect x="-15" y="-1" width="30" height="17" rx="3" fill="#fff" stroke="#94a3b8"/><path d="M -9 5 l4 4 l4 -4" fill="none" stroke="#64748b" stroke-width="1.2"/><text x="6" y="8" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#111827">${svgEscape(pitch)}</text></g>`);
     if (noWrap) {
-      const xA = sx0 + Math.min(pileLength, zoneStart) * sideBox.scale;
-      const xB = sx0 + Math.min(pileLength, zoneEnd) * sideBox.scale;
-      noWrapRects.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-se-focus="pile-no-wrap pile-zone" x="${Math.min(xA, xB).toFixed(1)}" y="${(syMid - cageH / 2).toFixed(1)}" width="${Math.max(2, Math.abs(xB - xA)).toFixed(1)}" height="${cageH.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".88"/><text data-se-focus="pile-no-wrap pile-zone" x="${((xA + xB) / 2).toFixed(1)}" y="${(syMid - cageH / 2 - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#64748b">No wrap</text>`);
+      noWrapZones.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-se-focus="pile-no-wrap pile-zone" x="${startX.toFixed(1)}" y="${topY.toFixed(1)}" width="${Math.max(1, endX - startX).toFixed(1)}" height="${cageHeight.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".95"/><text data-se-focus="pile-no-wrap pile-zone" x="${midX.toFixed(1)}" y="${(sideMid + 3).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#64748b">ללא כריכות</text>`);
     } else {
-      for (let xMm = zoneStart; xMm <= zoneEnd + 0.001; xMm += pitch) {
-        const x = sx0 + Math.min(pileLength, xMm) * sideBox.scale;
-        zoneLines.push(`<line data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="${Math.max(1.2, spiralDiameter * 0.20).toFixed(1)}" opacity=".75"/>`);
+      for (let pos = startMm; pos <= endMm + 0.001; pos += pitch) {
+        const x = sideLeft + pos * scale;
+        const rx = Math.max(4, Math.min(11, pitch * scale * 0.52));
+        spiralLoops.push(`<ellipse class="pile-spiral-loop" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" cx="${x.toFixed(1)}" cy="${sideMid.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${(cageHeight * 0.54).toFixed(1)}" fill="none" stroke="${steelColor}" stroke-width="${spiralStroke.toFixed(1)}" opacity=".82"/>`);
       }
     }
-    const labelX = sx0 + Math.min(pileLength, zoneStart + len / 2) * sideBox.scale;
-    zoneLabels.push(`<text x="${labelX.toFixed(1)}" y="${(syMid + cageH/2 + 16).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#526070">${svgEscape(len)} @${svgEscape(pitch)}</text>`);
     offsetMm += len;
   });
-  const longBarsSide = [-0.32, 0.32].map(rel => `<line class="pile-straight-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="${Math.max(3, longitudinalDiameter * 0.18).toFixed(1)}" stroke-linecap="round"/>`).join('');
+  zoneBoundaries.push(`<line class="pile-zone-boundary" data-se-focus="pile-zone" x1="${sideRight.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${sideRight.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
+
   const hoopLines = [];
   if (hoopsEnabled) {
     const start = Math.min(pileLength, hoopStart);
     const end = Math.min(pileLength, hoopEnd);
     for (let xMm = start; xMm <= end + 0.001; xMm += hoopSpacing) {
-      const x = sx0 + xMm * sideBox.scale;
-      hoopLines.push(`<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2 - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2 + 3).toFixed(1)}" stroke="#16a34a" stroke-width="${Math.max(1.4, hoopDiameter * 0.18).toFixed(1)}" opacity=".9"/>`);
+      const x = sideLeft + xMm * scale;
+      hoopLines.push(`<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(topY - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(bottomY + 3).toFixed(1)}" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".9"/>`);
     }
   }
+
   const lBarsSide = (barPattern === 'l' || barPattern === 'alternate')
     ? [0.18, 0.50, 0.82].map(pos => {
-        const x = sx0 + (sx1 - sx0) * pos;
-        const y = syMid + cageH / 2;
-        const hook = Math.min(34, Math.max(10, lHookLength * sideBox.scale));
-        return `<path class="pile-l-bar" data-se-focus="pile-l-bars pile-l-hook" d="M ${x.toFixed(1)} ${(syMid - cageH / 2).toFixed(1)} V ${y.toFixed(1)} h ${hook.toFixed(1)}" fill="none" stroke="#2563eb" stroke-width="${Math.max(2.5, longitudinalDiameter * 0.15).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const x = sideLeft + sideW * pos;
+        const hook = Math.min(36, Math.max(12, lHookLength * scale));
+        return `<path class="pile-l-bar" data-se-focus="pile-l-bars pile-l-hook" d="M ${x.toFixed(1)} ${(topY + 1).toFixed(1)} V ${(bottomY + 7).toFixed(1)} h ${hook.toFixed(1)}" fill="none" stroke="${accent}" stroke-width="${Math.max(2.2, barStroke * 0.75).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>`;
       }).join('')
     : '';
+
   const topBars = Array.from({ length: longitudinalBars }, (_, i) => {
     const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, longitudinalBars);
-    const x = topCx + Math.cos(a) * topR * 0.78;
-    const y = topCy + Math.sin(a) * topR * 0.78;
-    return `<circle class="pile-longitudinal-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.5, longitudinalDiameter * 0.13).toFixed(1)}" fill="#111827"/>`;
+    const x = cx + Math.cos(a) * r * 0.78;
+    const y = cy + Math.sin(a) * r * 0.78;
+    const label = i + 1;
+    const labelText = longitudinalBars <= 18 && i % 2 === 0
+      ? `<text class="pile-bar-index" x="${(cx + Math.cos(a) * r * 1.12).toFixed(1)}" y="${(cy + Math.sin(a) * r * 1.12 + 3).toFixed(1)}" text-anchor="middle" font-size="7" font-family="Heebo,Arial" font-weight="800" fill="${accent}">${label}</text>`
+      : '';
+    return `<circle class="pile-longitudinal-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.4, Math.min(4.8, longitudinalDiameter * 0.13)).toFixed(1)}" fill="#111827"/>${labelText}`;
   }).join('');
-  const zoneSummary = zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}${(z.noWrap === true || z.noWrap === 1 || z.noWrap === 'true') ? ':no-wrap' : ''}`).join(',');
   const topHoop = hoopsEnabled
-    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.90).toFixed(1)}" fill="none" stroke="#16a34a" stroke-width="${Math.max(1.4, hoopDiameter * 0.18).toFixed(1)}"/>`
+    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.90).toFixed(1)}" fill="none" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".75"/>`
     : '';
-  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-bar-pattern="${svgEscape(barPattern)}"><g data-view="side"><text data-se-focus="pile-length" x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${lBarsSide}${noWrapRects.join('')}${zoneLines.join('')}${hoopLines.join('')}${zoneLabels.join('')}</g><g data-view="top">${topHoop}<circle data-se-focus="pile-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="${Math.max(1.4, spiralDiameter * 0.18).toFixed(1)}"/>${topBars}<text data-se-focus="pile-diameter" x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g><g class="se-engineer-helper" data-view="3d" data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch pile-hoops"><rect class="se-helper-panel" x="12" y="198" width="86" height="48" rx="5"/><path d="M 26 228 L 70 210 L 88 219 L 44 237 Z M 26 228 V 215 L 70 197 V 210" stroke="#475569" stroke-width="1.5" fill="none"/><text x="55" y="243" text-anchor="middle" font-size="8">׳×׳¦׳•׳’׳× 3D</text></g></g>`;
+  const zoneSummary = zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}${(z.noWrap === true || z.noWrap === 1 || z.noWrap === 'true') ? ':no-wrap' : ''}`).join(',');
+
+  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-bar-pattern="${svgEscape(barPattern)}"><defs><marker id="sePileDimArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 4 L 8 0 L 8 8 Z" fill="${dimColor}"/></marker></defs><g data-view="side" class="pile-side-engineering-view"><text data-se-focus="pile-length" x="${(w / 2).toFixed(1)}" y="${(sideTop - 18).toFixed(1)}" text-anchor="middle" font-size="13" font-family="Heebo,Arial" font-weight="800" fill="#111827">L ${pileLength}</text>${dimLine(sideLeft, sideTop - 12, sideRight, sideTop - 12, 'pile-total-dimension', 'pile-length')}${zoneDimensions.join('')}${zoneBoundaries.join('')}${longitudinalLines}${noWrapZones.join('')}${spiralLoops.join('')}${hoopLines.join('')}${lBarsSide}<line class="pile-diameter-dimension" data-se-focus="pile-diameter" x1="${(sideRight + 12).toFixed(1)}" y1="${topY.toFixed(1)}" x2="${(sideRight + 12).toFixed(1)}" y2="${bottomY.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>${labelBox(sideRight + 24, sideMid, pileDiameter, 'pile-diameter-label', -90)}${pitchControls.join('')}</g><g data-view="top" class="pile-top-engineering-view"><text x="${cx.toFixed(1)}" y="${(cy - r - 26).toFixed(1)}" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#12315a">מבט חזית (חתך)</text>${topHoop}<circle data-se-focus="pile-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.82).toFixed(1)}" fill="none" stroke="${auxColor}" stroke-width="${spiralStroke.toFixed(1)}"/>${topBars}<line class="pile-dimension-line pile-top-diameter" data-se-focus="pile-diameter" x1="${(cx - r).toFixed(1)}" y1="${(cy + r + 16).toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${(cy + r + 16).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">Ø${pileDiameter}</text><text data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">d' ${spiralDiameter}</text></g></g>`;
 };
 
-// ── SPIRAL ENGINE ─────────────────────────────────────────────────
 function SpiralEngine() {}
 SpiralEngine.render = function(spiral, w = 300, h = 260) {
   const barDia     = Math.max(1, Number(spiral?.barDiameter    || 8));
