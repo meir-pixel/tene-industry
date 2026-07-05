@@ -2076,7 +2076,7 @@ class ShapeEditorModal {
   }
 
   _defaultPresetForFamily(family = 'bars') {
-    const normalizedFamily = (family === 'mesh' || family === 'piles') ? family : 'bars';
+    const normalizedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars';
     const requestedSideCount = Number(this._selectedCount || this._selectedSideCount);
     const candidates = SHAPE_PRESETS.filter(shape => (shape.family || 'bars') === normalizedFamily && !shape.custom);
     if (normalizedFamily === 'bars' && Number.isFinite(requestedSideCount) && requestedSideCount > 0) {
@@ -2087,7 +2087,7 @@ class ShapeEditorModal {
   }
 
   _startDefaultEdit(family = 'bars') {
-    this._selectedFamily = (family === 'mesh' || family === 'piles') ? family : 'bars';
+    this._selectedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars';
     this._selectedCategory = '';
     if (this._selectedSideCount === undefined) this._selectedSideCount = this._selectedCount || null;
     const preset = this._defaultPresetForFamily(this._selectedFamily);
@@ -2451,7 +2451,7 @@ class ShapeEditorModal {
   }
 
   _jumpToFamily(family) {
-    this._selectedFamily = (family === 'mesh' || family === 'piles') ? family : 'bars';
+    this._selectedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars';
     this._selectedCategory = '';
     this._selectedSideCount = null;
     this._selectedCount = null;
