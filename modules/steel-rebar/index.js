@@ -17,6 +17,7 @@ const {
   normalizeFactoryShapeName,
 } = require('./shapes');
 const { parseBVBS, parseBVBSLine } = require('./bvbs');
+const { calculatePileCage } = require('./pile-cage-engine');
 
 function weightPerUnit(item = {}) {
   const spiral = normalizeSpiralParams(item);
@@ -42,6 +43,7 @@ module.exports = {
   normalizeFactoryShapeName,
   parseBVBS,
   parseBVBSLine,
+  calculatePileCage,
 
   // Generic industry module contract.
   id: 'steel-rebar',
