@@ -1154,15 +1154,18 @@ async function shapeSelectedFromOrder(data) {
   if (!pendingShapeEdit) return;
   const ctx = pendingShapeEdit;
   pendingShapeEdit = null;
-  const segments = orderShapeSegmentsFromEditor(data);
-  const totalLength = segments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
+  const isSpiral = data?.family === 'spirals';
+  const segments = isSpiral ? [] : orderShapeSegmentsFromEditor(data);
+  const totalLength = isSpiral
+    ? (Number(data?.total_length_mm) || 0)
+    : segments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
   const payload = {
     shape_name: String(data?.shapeName || data?.presetName || '\u05d9\u05e9\u05e8').trim(),
     diameter: Number(data?.diameter) || 12,
     quantity: Number(ctx.quantity) || 1,
     total_length_mm: totalLength,
-    spiral_diameter_mm: null,
-    spiral_turns: null,
+    spiral_diameter_mm: isSpiral ? (Number(data?.spiralDiameter) || null) : null,
+    spiral_turns: isSpiral ? (Number(data?.turns) || null) : null,
     segments,
     note: ctx.note || '',
   };

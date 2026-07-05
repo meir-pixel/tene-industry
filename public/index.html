@@ -2334,12 +2334,13 @@ function shapeSelected(data) {
   item.shapeId     = data.presetId;
   item.shapeName   = data.presetName;
   item.shapeEmoji  = data.presetEmoji;
-  item.shapeSides  = data.sides;
-  item.shapeAngles = data.angles;
+  item.family      = data.family || 'bars';
+  item.shapeSides  = data.sides || [];
+  item.shapeAngles = data.angles || [];
   item.is3d       = data.is3d ? 1 : 0;
   item.azAngles   = item.is3d ? (data.azAngles || []) : null;
   item.elAngles   = item.is3d ? (data.elAngles || []) : null;
-  item.length      = data.sides.reduce((s, l) => s + Number(l), 0);
+  item.length      = Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0);
   item.qty         = Math.max(1, Number(data.orderItemQuantity || item.qty || 1) || 1);
   _shapeTarget = null;
   renderPallets();
