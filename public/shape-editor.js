@@ -1320,6 +1320,15 @@ class ShapeEditorModal {
 #seModal .se-save-shape-btn:hover{background:rgba(58,123,213,0.14);border-color:#2c62b8;}
 .se-saved-section-title{padding:10px 16px 6px;font-size:11px;font-weight:700;color:#3a7bd5;
   text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;}
+#seShapeTooltip{
+  position:fixed;z-index:9999;pointer-events:none;
+  background:#fff;border:1.5px solid #dde4ed;border-radius:14px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.18);padding:10px 12px 8px;
+  display:none;flex-direction:column;align-items:center;gap:4px;
+  min-width:160px;
+}
+#seShapeTooltip svg{display:block;}
+#seShapeTooltip .se-tip-name{font-family:Heebo,sans-serif;font-size:12px;font-weight:700;color:#1a2332;text-align:center;}
 .se-del-saved-btn{position:absolute;top:4px;left:4px;width:20px;height:20px;
   border-radius:50%;border:none;background:rgba(231,76,60,0.12);color:#e74c3c;
   cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;
@@ -1617,38 +1626,6 @@ class ShapeEditorModal {
   font-weight:900;
 }
 #seSideFilters .se-side-filter.active{background:#2f394b;color:#fff;border-color:#2f394b;}
-#sePresets,#seSavedSection .se-saved-grid{
-  display:grid!important;
-  grid-template-columns:repeat(auto-fill,minmax(110px,1fr))!important;
-  gap:12px!important;
-  padding:12px 16px 16px!important;
-}
-#sePresets .se-preset-btn,#seSavedSection .se-preset-btn{
-  width:100%!important;
-  height:auto!important;
-  min-height:110px!important;
-  padding:10px 8px 8px!important;
-  border:1.5px solid #dde4ed!important;
-  border-radius:12px!important;
-  background:#fff!important;
-  color:#526070!important;
-  display:flex!important;
-  flex-direction:column!important;
-  align-items:center!important;
-  gap:6px!important;
-  place-items:unset!important;
-}
-#sePresets .se-preset-btn svg,#seSavedSection .se-preset-btn svg{
-  width:72px!important;height:52px!important;margin:0!important;display:block!important;
-}
-#sePresets .se-preset-btn:hover,#seSavedSection .se-preset-btn:hover{
-  border-color:#aab8c8!important;background:#edf1f7!important;color:#1a2332!important;
-  transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,0.08)!important;
-}
-#sePresets .se-preset-btn.active,#seSavedSection .se-preset-btn.active{
-  background:rgba(224,123,57,0.08)!important;border-color:#e07b39!important;
-  color:#e07b39!important;box-shadow:0 0 0 3px rgba(224,123,57,0.15)!important;
-}
 #seModal .se-preset-btn{
   width:58px;
   height:58px;
@@ -2088,6 +2065,72 @@ class ShapeEditorModal {
     this._el.addEventListener('click', e => { if (e.target === this._el) this.close(); });
     this._bindDragRotation();
     this._bindWheelZoom();
+    this._initShapeTooltip();
+  }
+
+  _initShapeTooltip() {
+    if (document.getElementById('seShapeTooltip')) return;
+    const tip = document.createElement('div');
+    tip.id = 'seShapeTooltip';
+    document.body.appendChild(tip);
+    let hideTimer = null;
+    const showTip = (btn, e) => {
+      clearTimeout(hideTimer);
+      const svgContent = this._tooltipSvgForBtn(btn);
+      if (!svgContent) return;
+      const name = btn.title || btn.getAttribute('aria-label') || '';
+      tip.innerHTML = `<svg viewBox="0 0 200 140" width="200" height="140">${svgContent}</svg><div class="se-tip-name">${name}</div>`;
+      tip.style.display = 'flex';
+      this._positionTip(tip, e);
+    };
+    const hideTip = () => { hideTimer = setTimeout(() => { tip.style.display = 'none'; }, 80); };
+    document.getElementById('sePageSelect').addEventListener('mouseover', e => {
+      const btn = e.target.closest('.se-preset-btn');
+      if (btn) showTip(btn, e);
+    });
+    document.getElementById('sePageSelect').addEventListener('mousemove', e => {
+      if (tip.style.display === 'flex') this._positionTip(tip, e);
+    });
+    document.getElementById('sePageSelect').addEventListener('mouseout', e => {
+      const btn = e.target.closest('.se-preset-btn');
+      if (btn) hideTip();
+    });
+    document.getElementById('sePageSelect').addEventListener('click', () => { tip.style.display = 'none'; });
+  }
+
+  _positionTip(tip, e) {
+    const margin = 16;
+    let x = e.clientX + 18;
+    let y = e.clientY - 80;
+    if (x + 224 > window.innerWidth)  x = e.clientX - 224 - margin;
+    if (y < margin)                    y = margin;
+    if (y + 200 > window.innerHeight)  y = window.innerHeight - 200 - margin;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  }
+
+  _tooltipSvgForBtn(btn) {
+    const savedId  = btn.dataset.savedId;
+    const presetId = btn.dataset.id;
+    if (savedId) {
+      const saved = loadSavedShapes().find(s => s.id === savedId);
+      if (!saved) return null;
+      const sf = saved.family || 'bars';
+      if (sf === 'spirals') return SpiralEngine.render(saved, 200, 140);
+      if (sf === 'mesh')    return MeshEngine.render(saved, 200, 140);
+      if (sf === 'piles')   return PileCageEngine.render(saved, 200, 140);
+      return shape3DSVG(saved.sides || [], saved.angles || [], 200, 140, 12, { showAxes: false, showDims: false });
+    }
+    if (presetId) {
+      const preset = SHAPE_PRESETS.find(s => s.id === presetId);
+      if (!preset) return null;
+      const fam = preset.family || 'bars';
+      if (fam === 'spirals') return SpiralEngine.render(preset, 200, 140);
+      if (fam === 'mesh')    return MeshEngine.render(preset, 200, 140);
+      if (fam === 'piles')   return PileCageEngine.render(preset, 200, 140);
+      return shape3DSVG(preset.sides || [], preset.angles || [], 200, 140, preset.diameter || 12, { showAxes: false, showDims: false });
+    }
+    return null;
   }
 
   _goToCount() {
