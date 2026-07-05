@@ -2348,13 +2348,7 @@ class ShapeEditorModal {
   }
 
   _goBack() {
-    if (this._currentPage === 'edit') {
-      this._goToSelect();
-    } else if (this._currentPage === 'select') {
-      this._goToCount();
-    } else {
-      this.close();
-    }
+    this.close();
   }
 
   _renderFamilyTabs() {
