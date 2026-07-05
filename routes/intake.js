@@ -249,6 +249,12 @@ module.exports = function createIntakeRouter(deps) {
   For generic "רשימת ברזל" / bar schedule documents, header email addresses and phone numbers are supplier/contact details, not customer names. Never put an email address, URL, or phone number in customer_name. If the customer name is not clearly visible, return null.
   Extract every numbered table row that contains any visible steel data. Do not summarize rows as blank unless the row number area and all steel columns are clearly empty. If a row is hard to read, still return a reviewed item with the visible values and explain uncertainty in note.
   For a visible table row, quantity belongs to the quantity column, diameter belongs to the diameter column, total cut length belongs to the length column, and shape side dimensions belong only to the sketch or shape-description area. Do not use header phone/email digits as steel item values.
+  For foundation rebar lists where the columns are item number, part, diameter, bending sketch, and units/quantity:
+  - Extract every visible numbered row, including rows 1 and 2. Do not start at row 3 just because rows 1-2 contain drawings instead of a simple straight bar.
+  - A foundation row with a U/open-rectangular sketch and visible side labels 20, 100, 20 plus L=180 must return shape_type="bent", shape_name="U shape", segments [20,100,20] cm, total_length_cm=180, and the quantity from the units column.
+  - A foundation row with side labels 20, 80, 20 plus L=100 must return segments [20,80,20] cm and total_length_cm=100. It is not an L shape and not a straight bar.
+  - A single straight row with one straight sketch and L=300 is a straight bar with total_length_cm=300.
+  - A coil / spiral row with a circle and diameter label such as OD/diameter 50 cm is a spiral/coil row. Use the bar diameter from the diameter column, the units column as turns/count when written as turns, and the circle diameter as spiral_diameter_mm.
   For handwritten factory cards, visible dimensions are centimeters. Return every visible side in length_cm exactly as written. Return the row's total cut length in total_length_cm exactly as written. Do not convert centimeters to millimeters yourself.
   Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
   Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.

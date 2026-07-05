@@ -925,6 +925,7 @@
 - priority: critical
 - latest_change:
   - added source-field highlighting from parser bounding boxes and row-level OCR learning examples on approved review rows.
+  - added foundation rebar-list OCR guidance so Vision extracts rows 1-2, U-shape side sequences, straight singles, and coil rows instead of skipping non-straight rows.
   - tightened OCR source highlighting so large parser row boxes render as a single compact row band.
   - added OCR compare hover mode linking table rows and source PDF targets without saving data.
   - reduced OCR compare fallback source highlights to one compact row band when exact boxes are missing.

@@ -1596,6 +1596,11 @@ test('OCR prompt separates TASSA bar mark from quantity', () => {
   assert.match(intakeRoute, /Do not blacklist values such as 20 or 180/);
   assert.match(intakeRoute, /total cut length \/ overall row length/);
   assert.match(intakeRoute, /shape side dimensions belong only to the sketch/);
+  assert.match(intakeRoute, /foundation rebar lists/);
+  assert.match(intakeRoute, /Extract every visible numbered row, including rows 1 and 2/);
+  assert.match(intakeRoute, /segments \[20,100,20\] cm/);
+  assert.match(intakeRoute, /segments \[20,80,20\] cm/);
+  assert.match(intakeRoute, /coil \/ spiral row/);
   assert.match(intakeRoute, /do not silently change the visible shape/);
 });
 
