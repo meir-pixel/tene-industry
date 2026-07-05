@@ -1559,3 +1559,29 @@
 - verification:
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
+
+### V2-006AF - Shape Editor Unified Asset Cache Version
+
+- status: done
+- owner: codex-production-cards-printing
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/index.html`
+  - `public/orders.html`
+  - `public/intake.html`
+  - `public/customer.html`
+  - `test/order-shape-editor-add.test.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - Runtime screens were loading different `shape-editor.js` cache versions, causing inconsistent shape visuals between order, intake, customer, and production-related flows.
+- output:
+  - All active screens load `shape-editor.js?v=56`.
+  - Existing version-contract tests were updated to protect the unified cache version.
+- guardrails:
+  - Cache-bust only.
+  - No shape engine, order lifecycle, production workflow, OCR logic, portal logic, pricing, finance, warehouse, API, or DB changes.
+- verification:
+  - `node --test test\order-shape-editor-add.test.js test\client-auth-contract.test.js`
+

@@ -336,8 +336,8 @@ test('shape editor active segment selection does not recolor the drawn bar', () 
 test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
-  assert.match(index, /shape-editor\.js\?v=55/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=54/);
+  assert.match(index, /shape-editor\.js\?v=56/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=55/);
 });
 
 test('shape editor exposes editable order item quantity outside the shape contract', () => {
