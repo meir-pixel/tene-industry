@@ -108,7 +108,7 @@
       try{const url=new URL(value,location.origin);token=url.searchParams.get('card')||url.searchParams.get('item')||value}catch{}
       const clean=String(token||'').trim();
       const itemParam=/^\d+$/.test(clean)?Number(clean):null;
-      const match=clean.match(/-(\d{1,12})(?:-C(\d+)OF(\d+))?$/i);
+      const match=clean.match(/-(\d{1,12})(?:-[A-Z]+[A-Z0-9]*)*(?:-C(\d+)OF(\d+))?$/i);
       return {raw:value,token:clean,itemId:itemParam||(match?Number(match[1]):null),cardIndex:match&&match[2]?Number(match[2]):1,cardTotal:match&&match[3]?Number(match[3]):1};
     }
     function scanFromLocation(){

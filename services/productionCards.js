@@ -434,7 +434,8 @@ function masterCard(allItems, order, printDate, deliveryDate, numPallets) {
 }
 
 function itemCard(item, order, printDate, rebarWeights) {
-  const barcode = `${order.order_num || ''}-${String(item.id).padStart(6, '0')}`;
+  const scanSuffix = item.scan_suffix ? `-${String(item.scan_suffix).replace(/[^a-zA-Z0-9_-]/g, '')}` : '';
+  const barcode = `${order.order_num || ''}-${String(item.id).padStart(6, '0')}${scanSuffix}`;
   const segments = parseSegments(item.segments);
   const title = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
   const note = printableItemNote(item.note);

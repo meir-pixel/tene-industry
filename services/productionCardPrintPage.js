@@ -7,6 +7,96 @@ function printableItemNote(note) {
   return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
 }
 
+
+function parseCardSnapshot(value, tryParseJSON) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  return tryParseJSON ? tryParseJSON(value, null) : null;
+}
+
+function pileSnapshotForItem(item, tryParseJSON) {
+  const direct = parseCardSnapshot(item.shape_snapshot_json, tryParseJSON)
+    || parseCardSnapshot(item.shapeSnapshot, tryParseJSON)
+    || parseCardSnapshot(item.shape_data_json, tryParseJSON);
+  if (direct && (direct.family === 'piles' || direct.shapeType === 'round_pile_cage')) return direct;
+  const text = [item.shape_id, item.shape_name, item.note].map(value => String(value || '').toLowerCase()).join(' ');
+  if (/pile|cage|כלונס|כלונסאות|כלוב|כלובי/.test(text)) return direct || { family: 'piles' };
+  return null;
+}
+
+function pileCardTitle(card) {
+  if (card.cardType === 'pile_master') return `כלונס ${card.unitIndex}/${card.unitTotal}`;
+  if (card.componentType === 'longitudinal_l_bar') return 'מוטות אורך L';
+  if (card.componentType === 'longitudinal_straight_bar') return 'מוטות אורך ישרים';
+  if (card.componentType === 'spiral_zone') return `ספירלה ${card.source?.name || card.name || card.zoneIndex || ''}`.trim();
+  if (card.componentType === 'hoop_ring') return 'טבעות חיזוק פנימיות';
+  return card.title || card.description || 'רכיב כלונס';
+}
+
+function fallbackPileProductionCards(item, snapshot) {
+  const quantity = Math.max(1, Math.round(Number(item.quantity) || Number(snapshot?.quantity) || 1));
+  const breakdown = snapshot?.productionCards
+    || snapshot?.machineOutput?.generic?.productionCards
+    || snapshot?.manufacturingBreakdown
+    || snapshot?.calculated?.manufacturingBreakdown
+    || snapshot?.machineOutput?.generic?.manufacturingBreakdown
+    || [];
+  const componentCards = Array.isArray(breakdown) ? breakdown : [];
+  const rows = [];
+  for (let unitIndex = 1; unitIndex <= quantity; unitIndex += 1) {
+    rows.push({ cardType: 'pile_master', componentType: 'pile_master', unitIndex, unitTotal: quantity, quantity: 1, totalLengthMm: Number(item.total_length_mm || snapshot?.data?.general?.pileLengthMm || snapshot?.geometry?.pileLengthMm || 0), weightKg: Number(item.total_weight || 0) / quantity, diameterMm: item.diameter, scanCodeSuffix: `P${unitIndex}-MASTER` });
+    componentCards.forEach((part, index) => {
+      if (part.cardType === 'pile_master') return;
+      rows.push({ ...part, cardType: part.cardType || 'pile_component', componentType: part.componentType || part.type, unitIndex, unitTotal: quantity, componentIndex: index + 1, scanCodeSuffix: part.scanCodeSuffix || `P${unitIndex}-C${index + 1}` });
+    });
+  }
+  return rows;
+}
+
+function expandPileCageProductionItems(allItems, tryParseJSON) {
+  const expanded = [];
+  for (const item of allItems) {
+    const snapshot = pileSnapshotForItem(item, tryParseJSON);
+    const cards = snapshot ? fallbackPileProductionCards(item, snapshot) : [];
+    if (!cards.length || cards.length === 1 && cards[0].cardType === 'pile_master') {
+      expanded.push(item);
+      continue;
+    }
+    cards.forEach((card, index) => {
+      const parentId = Number(item.id);
+      const cardKey = `${parentId}-${card.scanCodeSuffix || 'P' + (index + 1)}`;
+      const quantity = Math.max(1, Math.round(Number(card.quantity) || 1));
+      const totalWeight = Number.isFinite(Number(card.weightKg)) && Number(card.weightKg) > 0
+        ? Number(card.weightKg)
+        : (card.cardType === 'pile_master' ? (Number(item.total_weight || 0) / Math.max(1, Number(item.quantity) || 1)) : 0);
+      const lengthMm = Number(card.totalLengthMm || card.lengthMm || item.total_length_mm || 0);
+      expanded.push({
+        ...item,
+        id: parentId,
+        parent_item_id: parentId,
+        card_key: cardKey,
+        virtual_card: 1,
+        pile_card_type: card.cardType,
+        pile_component_type: card.componentType,
+        pile_unit_index: card.unitIndex,
+        pile_unit_total: card.unitTotal,
+        pile_component_index: card.componentIndex || 0,
+        scan_suffix: card.scanCodeSuffix || `P${card.unitIndex || 1}-C${index + 1}`,
+        shape_name: pileCardTitle(card),
+        quantity,
+        diameter: Number(card.diameterMm || item.diameter || 0),
+        total_length_mm: lengthMm,
+        total_weight: totalWeight,
+        weight_per_unit: quantity > 0 ? totalWeight / quantity : totalWeight,
+        segments: JSON.stringify(lengthMm > 0 ? [{ length_mm: lengthMm, angle_deg: 0 }] : []),
+        shape_svg: card.cardType === 'pile_master' ? item.shape_svg : '',
+        note: card.cardType === 'pile_master' ? 'כרטיס אב לכלונס - עדכון יחידה שהושלמה' : (card.description || card.title || ''),
+      });
+    });
+  }
+  return expanded;
+}
+
 function renderPrintCardsPage({
   order,
   pallets,
@@ -37,7 +127,8 @@ function renderA4CardPages(cardHtmlList) {
   return pages.join('');
 }
 
-const serverCardsHtml = renderA4CardPages(allItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))));
+const cardItems = expandPileCageProductionItems(allItems, tryParseJSON);
+const serverCardsHtml = renderA4CardPages(cardItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))));
 
 
 
@@ -249,7 +340,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   ${previewNoticeHtml}
   <div class="toolbar">
     ${printButtonHtml}
-    <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${order.customer_name || ''} · ${allItems.length} פריטים</span>
+    <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${order.customer_name || ''} · ${cardItems.length} כרטיסיות</span>
   </div>
 
 <!-- ── Card grid – server-rendered, barcodes added by JS ── -->
@@ -269,8 +360,13 @@ var ORDER_STATUS  = ${JSON.stringify(order.status || '')};
 var TOTAL_WEIGHT  = ${(order.total_weight||0).toFixed(1)};
 var TOTAL_PALLETS = ${pallets.length};
 var PREVIEW_ONLY  = ${isPreviewOnly ? 'true' : 'false'};
-var allItems      = ${JSON.stringify(allItems.map(it => ({
+var allItems      = ${JSON.stringify(cardItems.map(it => ({
   id:             it.id,
+  parent_item_id: it.parent_item_id || it.id,
+  card_key:       it.card_key || String(it.id),
+  virtual_card:   it.virtual_card || 0,
+  scan_suffix:    it.scan_suffix || '',
+  pile_card_type: it.pile_card_type || '',
   shape_name:     it.shape_name  || '',
   diameter:       it.diameter    || 12,
   quantity:       it.quantity    || 1,
@@ -278,7 +374,7 @@ var allItems      = ${JSON.stringify(allItems.map(it => ({
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
   segments:       tryParseJSON(it.segments, []),
-  shape_svg:      cards.shapeSvg(it.segments),
+  shape_svg:      it.shape_svg || cards.shapeSvg(it.segments),
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   pallet_num:     it._palletNum  || 1,
@@ -376,14 +472,14 @@ var cardSplits = {};
 function openCardSplitMenu(itemId, event) {
   if (event) event.stopPropagation();
   document.querySelectorAll('.prod-card[data-split-menu-open="1"]').forEach(function(card){ card.removeAttribute('data-split-menu-open'); });
-  var card = document.querySelector('.prod-card[data-item-id="' + itemId + '"]');
+  var card = document.querySelector('.prod-card[data-parent-item-id="' + itemId + '"]:not([data-virtual-card="1"]), .prod-card[data-item-id="' + itemId + '"]');
   if (card) card.setAttribute('data-split-menu-open', '1');
 }
 
 function setCardSplit(itemId, count, event) {
   if (event) event.stopPropagation();
-  var item = allItems.find(function(row){ return Number(row.id) === Number(itemId); });
-  if (!item) return;
+  var item = allItems.find(function(row){ return Number(row.id) === Number(itemId) && !row.virtual_card; }) || allItems.find(function(row){ return Number(row.id) === Number(itemId); });
+  if (!item || item.virtual_card) return;
   var next = Math.max(1, Math.min(2, Number(count) || 1));
   if (next === 1) delete cardSplits[itemId];
   else cardSplits[itemId] = next;
@@ -395,7 +491,7 @@ function cardPlan() {
   var rows = [];
   for (var i=0; i<allItems.length; i++) {
     var item = allItems[i];
-    var n = Math.max(1, Math.min(2, Number(cardSplits[item.id] || 1)));
+    var n = item.virtual_card ? 1 : Math.max(1, Math.min(2, Number(cardSplits[item.id] || 1)));
     var subs = splitQty(item.quantity || 1, n);
     for (var ci=0; ci<n; ci++) {
       rows.push({
@@ -686,12 +782,15 @@ function buildShapeSVG(segments) {
 // ── Build one item card ───────────────────────────────────────────
 function buildCard(item, subQty, totalCards, cardIdx) {
   var cardNum = totalCards > 1 ? (cardIdx+1) + '/' + totalCards : '';
-  var uid     = 'g' + item.id + (totalCards > 1 ? 'c' + (cardIdx+1) : '');
-  var barData = ORDER_NUM + '-' + String(item.id).padStart(6,'0') + (totalCards > 1 ? '-C' + (cardIdx+1) + 'OF' + totalCards : '');
+  var itemId = Number(item.parent_item_id || item.id);
+  var cardKey = String(item.card_key || item.id).replace(/[^a-zA-Z0-9_-]/g,'');
+  var uid     = 'g' + cardKey + (totalCards > 1 ? 'c' + (cardIdx+1) : '');
+  var extraSuffix = item.scan_suffix ? '-' + item.scan_suffix : '';
+  var barData = ORDER_NUM + '-' + String(itemId).padStart(6,'0') + extraSuffix + (totalCards > 1 ? '-C' + (cardIdx+1) + 'OF' + totalCards : '');
   var workerUrl = '/worker-visual.html?scan=1&card=' + encodeURIComponent(barData);
   var segs    = item.segments || [];
   var wProp   = item.quantity > 0 ? (item.total_weight * subQty / item.quantity).toFixed(2) : '0.00';
-  var title   = item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף';
+  var title   = item.virtual_card ? item.shape_name : (item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף');
   var badge   = cardNum ? '<span class="split-badge">'+cardNum+'</span>' : '';
 
   var dimHtml = '';
@@ -704,10 +803,11 @@ function buildCard(item, subQty, totalCards, cardIdx) {
 
   var printRef = SHORT_REF || CUSTOMER || ORDER_NUM;
   var printLengthCm = Math.round((Number(item.total_length_mm || 0)) / 10);
-  var splitTools = totalCards > 1
+  var allowSplit = !item.virtual_card;
+  var splitTools = !allowSplit ? '<div class="pc-screen-tools"><span class="pc-split-state">'+(item.pile_card_type==='pile_master'?'כרטיס כלונס':'רכיב כלונס')+'</span></div>' : totalCards > 1
     ? '<div class="pc-screen-tools"><div class="pc-split-menu"><span class="pc-split-state">\u05db\u05e8\u05d8\u05d9\u05e1 '+(cardIdx+1)+'/'+totalCards+'</span><button type="button" onclick="setCardSplit('+item.id+',1,event)">\u05d1\u05d8\u05dc \u05e4\u05d9\u05e6\u05d5\u05dc</button></div></div>'
     : '<button class="pc-split-hotspot" type="button" aria-label="\u05d0\u05e4\u05e9\u05e8\u05d5\u05d9\u05d5\u05ea \u05e4\u05d9\u05e6\u05d5\u05dc \u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d9\u05d4" onclick="openCardSplitMenu('+item.id+',event)"></button><div class="pc-screen-tools"><div class="pc-split-menu"><button type="button" onclick="setCardSplit('+item.id+',2,event)">\u05e4\u05e6\u05dc \u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d9\u05d4</button></div></div>';
-  var h = '<div class="prod-card" data-item-id="'+item.id+'">';
+  var h = '<div class="prod-card" data-item-id="'+cardKey+'" data-parent-item-id="'+itemId+'" data-virtual-card="'+(item.virtual_card?1:0)+'">';
   h += splitTools;
   h += '<div class="pc-print-face">';
   h += '<div class="pc-print-main">';
@@ -742,7 +842,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div><label>משקל רצוי לכרטיסייה</label><div class="pc-weight-chip">'+wProp+' ק"ג</div></div>';
   h += '<div><label>משקל מצוי</label><input id="card-weight-'+uid+'" type="number" min="0" step="0.01" value="'+(savedActual || '')+'" placeholder="ק״ג"></div>';
   h += '<div><label>סטייה</label><div id="card-weight-dev-'+uid+'" class="pc-weight-chip'+deviationClass(savedDeviation)+'">'+fmtPct(savedDeviation)+'</div></div>';
-  h += '<button onclick="saveCardWeight('+item.id+','+(cardIdx+1)+','+totalCards+','+subQty+',&quot;'+uid+'&quot;,event)">שמור משקל</button>';
+  h += '<button onclick="saveCardWeight('+itemId+','+(cardIdx+1)+','+totalCards+','+subQty+',&quot;'+uid+'&quot;,event)">שמור משקל</button>';
   h += '</div>';
   h += '<div class="pc-shape-area">'+(item.shape_svg || buildShapeSVG(segs))+'</div>';
   if (dimHtml) h += '<div class="pc-dims">'+dimHtml+'</div>';
