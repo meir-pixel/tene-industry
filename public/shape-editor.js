@@ -1088,7 +1088,14 @@ function legacyApprovedShapeFields(shape, contract) {
     shapeType: contract.shapeType,
     family,
   };
-  if (family === 'mesh' || family === 'piles' || family === 'spirals') return { ...base, ...contract.data };
+  if (family === 'mesh' || family === 'piles') return { ...base, ...contract.data };
+  if (family === 'spirals') return {
+    ...base,
+    ...contract.data,
+    diameter: contract.data.barDiameter,
+    total_length_mm: contract.calculated?.totalLengthMm || 0,
+    segments: JSON.stringify([{ length: contract.calculated?.totalLengthMm || 0 }]),
+  };
   return {
     ...base,
     sides: [...contract.data.sides],
