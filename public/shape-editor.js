@@ -2150,6 +2150,7 @@ class ShapeEditorModal {
         <div class="se-summary-item"><span>אורך במטר</span><div><strong id="seBarLength">0.00</strong><small>מטר</small></div></div>
         <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
         <div class="se-summary-item se-quantity-item"><span>כמות</span><div><input id="seQuantityInput" class="se-quantity-input" type="number" min="1" step="1" value="1" onfocus="this.select()" oninput="window._seEditor?._setQuantity(this.value)"><small>יח׳</small></div></div>
+        <div class="se-summary-item" id="seDiameterItem"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)">${[6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d=>`<option value="${d}">${d}</option>`).join('')}</select><small>מ״מ</small></div></div>
         <div class="se-summary-item"><span>כיפופים</span><strong id="seBends">0</strong></div>
       </div>
       <div class="se-foot-actions">
@@ -2821,6 +2822,8 @@ class ShapeEditorModal {
     set('seTotalWeight', weightKg.toFixed(2));
     const qtyInput = document.getElementById('seQuantityInput');
     if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = String(qty);
+    const diaSelect = document.getElementById('seDiameterSelect');
+    if (diaSelect && document.activeElement !== diaSelect) diaSelect.value = String(this.current.diameter || 12);
     set('seBends', bends);
     set('sePanelTotalMm', totalMm.toLocaleString('he-IL'));
     set('sePanelTotalM', (totalMm / 1000).toFixed(2));
@@ -2832,6 +2835,12 @@ class ShapeEditorModal {
     const qty = Math.max(1, Math.round(Number(value) || 1));
     this.current.quantity = qty;
     this._updateSummaryValues();
+  }
+
+  _setDiameter(value) {
+    if (!this.current) return;
+    this.current.diameter = Number(value) || 12;
+    this._updatePreview();
   }
 
   _setFamilyEditorChrome(kind) {
@@ -2848,6 +2857,8 @@ class ShapeEditorModal {
     if (modeNote) modeNote.style.display = isBars ? '' : 'none';
     if (summary) summary.style.display = isBars ? '' : 'none';
     if (title) title.textContent = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : 'מידות צלעות וזוויות';
+    const diaItem = document.getElementById('seDiameterItem');
+    if (diaItem) diaItem.style.display = isBars ? '' : 'none';
   }
 
   _renderMeshEditor() {
