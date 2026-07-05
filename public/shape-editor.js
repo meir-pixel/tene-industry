@@ -1032,6 +1032,21 @@ function buildPileShapeContract(shape) {
   };
 }
 
+function buildSpiralShapeContract(shape) {
+  const barDiameter    = Math.max(1, Number(shape?.barDiameter    || 8));
+  const spiralDiameter = Math.max(1, Number(shape?.spiralDiameter || 400));
+  const turns          = Math.max(1, Number(shape?.turns          || 20));
+  const totalLengthMm  = Math.round(turns * Math.PI * spiralDiameter);
+  const weightKg       = Number(((totalLengthMm / 1000) * sharedKgPerMeter(barDiameter)).toFixed(3));
+  const data = { barDiameter, spiralDiameter, turns };
+  return {
+    data,
+    calculated: { totalLengthMm, weightKg },
+    generic: { family: 'spirals', shapeType: 'spiral', barDiameter, spiralDiameter, turns, totalLengthMm },
+    validation: validateShapeContractData('spirals', data),
+  };
+}
+
 function buildShapeDataContractV2(shape) {
   const family = normalizeShapeFamily(shape);
   const shapeType = resolveShapeType({ ...shape, family });
@@ -1039,7 +1054,9 @@ function buildShapeDataContractV2(shape) {
     ? buildMeshShapeContract(shape)
     : family === 'piles'
       ? buildPileShapeContract(shape)
-      : buildBarsShapeContract(shape);
+      : family === 'spirals'
+        ? buildSpiralShapeContract(shape)
+        : buildBarsShapeContract(shape);
   const displayName = shape?.displayName || shape?.presetName || shape?.shapeName || shape?.name || '';
   return {
     contractVersion: 1,
