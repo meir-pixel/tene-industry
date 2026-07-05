@@ -1887,6 +1887,7 @@ class ShapeEditorModal {
       <button class="se-family-card" data-edit-family="bars" onclick="window._seEditor._jumpToFamily('bars')">${shapePresetIconSVG('straight')}<span>מוטות ברזל</span></button>
       <button class="se-family-card" data-edit-family="mesh" onclick="window._seEditor._jumpToFamily('mesh')">${shapePresetIconSVG('mesh')}<span>רשתות</span></button>
       <button class="se-family-card" data-edit-family="piles" onclick="window._seEditor._jumpToFamily('piles')">${shapePresetIconSVG('pile')}<span>כלונסאות</span></button>
+      <button class="se-family-card" data-edit-family="spirals" onclick="window._seEditor._jumpToFamily('spirals')">${shapePresetIconSVG('spiral')}<span>ספיראלות</span></button>
     </aside>
     <!-- Center: preview -->
     <div class="se-preview-panel">
