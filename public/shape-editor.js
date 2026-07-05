@@ -1935,6 +1935,7 @@ class ShapeEditorModal {
       <button class="se-family-card" data-edit-family="mesh" onclick="window._seEditor._jumpToFamily('mesh')">${shapePresetIconSVG('mesh')}<span>רשתות</span></button>
       <button class="se-family-card" data-edit-family="piles" onclick="window._seEditor._jumpToFamily('piles')">${shapePresetIconSVG('pile')}<span>כלונסאות</span></button>
       <button class="se-family-card" data-edit-family="spirals" onclick="window._seEditor._jumpToFamily('spirals')">${shapePresetIconSVG('spiral')}<span>ספיראלות</span></button>
+      <div id="seSidebarSaved" style="margin-top:8px;border-top:1px solid #c5cbd4;padding-top:10px;"></div>
     </aside>
     <!-- Center: preview -->
     <div class="se-preview-panel">
@@ -2483,6 +2484,7 @@ class ShapeEditorModal {
     persistSavedShape(this.current, name);
     this._hideSaveBar();
     this._showToast('✅ "' + name + '" נשמרה בהצלחה');
+    this._renderSidebarSavedShapes(normalizeShapeFamily(this.current || {}));
   }
 
   _showToast(msg) {
@@ -2625,6 +2627,43 @@ class ShapeEditorModal {
   _syncEditFamilyCards() {
     const family = normalizeShapeFamily(this.current || {});
     document.querySelectorAll('[data-edit-family]').forEach(btn => btn.classList.toggle('active', btn.dataset.editFamily === family));
+    this._renderSidebarSavedShapes(family);
+  }
+
+  _renderSidebarSavedShapes(family) {
+    const cont = document.getElementById('seSidebarSaved');
+    if (!cont) return;
+    const list = loadSavedShapes().filter(s => (s.family || 'bars') === family);
+    if (!list.length) { cont.innerHTML = ''; return; }
+    const cards = list.map(s => {
+      const sf = s.family || 'bars';
+      let inner;
+      if (sf === 'spirals') inner = SpiralEngine.render(s, 100, 68);
+      else if (sf === 'mesh') inner = MeshEngine.render(s, 100, 68);
+      else if (sf === 'piles') inner = PileCageEngine.render(s, 100, 68);
+      else inner = shape3DSVG(s.sides || [], s.angles || [], 100, 68, 12, { showAxes: false, showDims: false });
+      return `<button class="se-preset-btn se-sidebar-saved-btn" data-saved-id="${s.id}" title="${s.name}" aria-label="${s.name}" style="position:relative;">
+        <svg viewBox="0 0 100 68" aria-hidden="true">${inner}</svg>
+        <button class="se-del-saved-btn" data-del-id="${s.id}" title="מחק">✕</button>
+      </button>`;
+    }).join('');
+    cont.innerHTML = `<div style="font-size:10px;font-weight:800;color:#8a96a6;margin-bottom:6px;letter-spacing:0.4px;">⭐ שמורות</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>`;
+    cont.querySelectorAll('.se-sidebar-saved-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        if (e.target.closest('.se-del-saved-btn')) return;
+        const shape = loadSavedShapes().find(s => s.id === btn.dataset.savedId);
+        if (shape) this._loadSavedShape(shape);
+      });
+    });
+    cont.querySelectorAll('.se-del-saved-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!confirm('למחוק?')) return;
+        deleteSavedShape(btn.dataset.delId);
+        this._renderSidebarSavedShapes(family);
+      });
+    });
   }
 
   _focusFamilyField(key) {
