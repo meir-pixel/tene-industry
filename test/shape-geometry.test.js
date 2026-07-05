@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
-const { shapeSvg } = require('../services/productionCards');
+const { shapeSvg, itemShapeSvg } = require('../services/productionCards');
 const { normalizeFactorySegments, normalizeFactoryShapeName, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 const { distributeSurplusToEndSegments } = require('../services/intakeWorkflow');
 
@@ -682,6 +682,37 @@ test('shape editor approve path returns the SHAPE_DATA_CONTRACT_V2 envelope', ()
   assert.match(confirmBlock[0], /delete normalized\.qty/);
   assert.match(confirmBlock[0], /const contract = buildShapeDataContractV2\(normalized\)/);
   assert.match(confirmBlock[0], /\.\.\.contract/);
+});
+
+
+
+test('production card renders real spiral items from item fields instead of straight fallback', () => {
+  const svg = itemShapeSvg({
+    shape_name: 'spiral',
+    spiral_diameter_mm: 300,
+    spiral_turns: 30,
+    segments: JSON.stringify([]),
+  });
+
+  assert.match(svg, /data-shape-kind="spiral"/);
+  assert.doesNotMatch(svg, /data-shape-kind="straight-bar"/);
+  assert.match(svg, /30 turns/);
+});
+
+test('production card renders legacy spiral snapshot retroactively', () => {
+  const svg = itemShapeSvg({
+    shape_snapshot_json: JSON.stringify({
+      contract: 'ORDER_ITEM_SHAPE_SNAPSHOT',
+      shapeName: 'ספיראלה',
+      spiralDiameterMm: 250,
+      spiralTurns: 18,
+      segments: [],
+    }),
+    segments: JSON.stringify([]),
+  });
+
+  assert.match(svg, /data-shape-kind="spiral"/);
+  assert.match(svg, /18 turns/);
 });
 
 test('production card renders a single straight bar with readable centimeter dimension', () => {

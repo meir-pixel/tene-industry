@@ -211,6 +211,81 @@ function straightShapeSvg(segment) {
   return '<svg data-shape-kind="straight-bar" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:90px;overflow:visible">' + svg + '</svg>';
 }
 
+function parseJsonObject(value) {
+  if (!value) return null;
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isSpiralName(value) {
+  return /spiral|ring|coil|spring|helix|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(value || ''));
+}
+
+function spiralParamsFromItem(item = {}) {
+  const snapshot = parseJsonObject(item.shape_snapshot_json || item.shapeSnapshot || item.shape_snapshot || item.shapeData || item.shape_data) || {};
+  const data = snapshot.data || {};
+  const generic = snapshot.machineOutput && snapshot.machineOutput.generic ? snapshot.machineOutput.generic : {};
+  const spiralDiameterMm = Number(
+    item.spiral_diameter_mm ?? item.spiralDiameterMm ?? item.spiralDiameter ??
+    snapshot.spiralDiameterMm ?? snapshot.spiral_diameter_mm ??
+    data.spiralDiameterMm ?? data.spiralDiameter ?? data.spiral_diameter_mm ??
+    generic.spiralDiameterMm ?? generic.spiralDiameter ?? 0
+  );
+  const turns = Number(
+    item.spiral_turns ?? item.spiralTurns ?? item.turns ??
+    snapshot.spiralTurns ?? snapshot.spiral_turns ??
+    data.spiralTurns ?? data.turns ?? data.spiral_turns ??
+    generic.spiralTurns ?? generic.turns ?? 0
+  );
+  const name = item.shape_name || item.shapeName || item.shape || snapshot.shapeName || snapshot.displayName || snapshot.shapeType || snapshot.shapeId;
+  const family = item.family || snapshot.family || data.family || generic.family;
+  const shapeType = item.shapeType || snapshot.shapeType || data.shapeType || generic.shapeType;
+  const isSpiral = isSpiralName(name) || isSpiralName(shapeType) || family === 'spirals';
+  return {
+    isSpiral: isSpiral && Number.isFinite(spiralDiameterMm) && spiralDiameterMm > 0 && Number.isFinite(turns) && turns > 0,
+    spiralDiameterMm,
+    turns,
+  };
+}
+
+function spiralShapeSvg(item = {}) {
+  const spiral = spiralParamsFromItem(item);
+  if (!spiral.isSpiral) return '';
+  const width = 240;
+  const height = 118;
+  const startX = 28;
+  const endX = 212;
+  const centerY = 58;
+  const amp = 24;
+  const visualTurns = Math.max(5, Math.min(14, Math.round(spiral.turns / 8) || 8));
+  const step = (endX - startX) / visualTurns;
+  let d = `M ${startX} ${centerY}`;
+  for (let i = 0; i < visualTurns; i += 1) {
+    const x0 = startX + i * step;
+    const x1 = x0 + step / 2;
+    const x2 = x0 + step;
+    d += ` C ${(x0 + step * 0.22).toFixed(1)} ${(centerY - amp).toFixed(1)}, ${(x1 - step * 0.22).toFixed(1)} ${(centerY - amp).toFixed(1)}, ${x1.toFixed(1)} ${centerY}`;
+    d += ` C ${(x1 + step * 0.22).toFixed(1)} ${(centerY + amp).toFixed(1)}, ${(x2 - step * 0.22).toFixed(1)} ${(centerY + amp).toFixed(1)}, ${x2.toFixed(1)} ${centerY}`;
+  }
+  let svg = `<path d="${d}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  svg += `<path d="${d}" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  svg += `<line x1="${startX}" y1="${centerY}" x2="${endX}" y2="${centerY}" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="5 4"/>`;
+  svg += `<text x="120" y="18" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">SPIRAL</text>`;
+  svg += `<text x="120" y="104" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">D ${Math.round(spiral.spiralDiameterMm)} mm · ${Math.round(spiral.turns)} turns</text>`;
+  return `<svg data-shape-kind="spiral" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
+}
+
+function itemShapeSvg(item = {}) {
+  const spiralSvg = spiralShapeSvg(item);
+  return spiralSvg || shapeSvg(item.segments);
+}
+
 function openUShapeSvg(segments) {
   const [leftLeg, bridge, rightLeg] = segments.map(segment => Number(segment.length_mm || 0));
   const width = 220;
@@ -437,7 +512,7 @@ function itemCard(item, order, printDate, rebarWeights) {
   const scanSuffix = item.scan_suffix ? `-${String(item.scan_suffix).replace(/[^a-zA-Z0-9_-]/g, '')}` : '';
   const barcode = `${order.order_num || ''}-${String(item.id).padStart(6, '0')}${scanSuffix}`;
   const segments = parseSegments(item.segments);
-  const visualShapeSvg = item.shape_svg ? String(item.shape_svg) : shapeSvg(item.segments);
+  const visualShapeSvg = item.shape_svg ? String(item.shape_svg) : itemShapeSvg(item);
   const title = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
   const note = printableItemNote(item.note);
   const kgPerMeter = rebarWeights[Math.round(item.diameter || 0)];
@@ -491,6 +566,8 @@ module.exports = {
   escapeHtml,
   printableItemNote,
   shapeSvg,
+  itemShapeSvg,
+  spiralShapeSvg,
   masterCard,
   itemCard,
   parseSegments,

@@ -387,7 +387,7 @@ module.exports = function createProductionRouter(deps) {
     if (machine) { q += ' AND i.machine=?'; params.push(machine); }
     q += ' ORDER BY i.machine, priority_score DESC, o.delivery_date ASC, i.diameter ASC';
     const items = db.prepare(q).all(...params);
-    items.forEach(item => { item.shape_svg = productionCards.shapeSvg(item.segments); });
+    items.forEach(item => { item.shape_svg = productionCards.itemShapeSvg(item); });
 
     // Group by machine
     const grouped = {};

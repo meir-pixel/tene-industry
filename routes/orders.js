@@ -118,7 +118,7 @@ module.exports = function createOrdersRouter(deps) {
     const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
     pallets.forEach(p => {
       p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id);
-      p.items.forEach(item => { item.shape_svg = productionCards.shapeSvg(item.segments); });
+      p.items.forEach(item => { item.shape_svg = productionCards.itemShapeSvg(item); });
     });
     order.pallets = pallets;
     res.json(order);

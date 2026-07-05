@@ -427,7 +427,7 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
   segments:       tryParseJSON(it.segments, []),
-  shape_svg:      it.shape_svg || cards.shapeSvg(it.segments),
+  shape_svg:      it.shape_svg || cards.itemShapeSvg(it),
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   pallet_num:     it._palletNum  || 1,

@@ -1774,3 +1774,33 @@
   - `node --check services\productionCards.js`
   - `node --test test\shape-geometry.test.js test\pile-cage-engine.test.js test\production-print-page.test.js`
   - `npm test`
+
+---
+
+### V2-011J - Server Spiral Item Shape Rendering
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / order-display / printing
+- scope:
+  - `TASKS_V2.md`
+  - `services/productionCards.js`
+  - `services/productionCardPrintPage.js`
+  - `routes/orders.js`
+  - `routes/production.js`
+  - `routes/orderPrintA4.js`
+  - `routes/orderDeliveryCertificate.js`
+  - `test/shape-geometry.test.js`
+  - `test/client-auth-contract.test.js`
+- goal:
+  - Display and print views recognize saved spiral items from item fields or legacy shape snapshots.
+  - Spiral items no longer fall back to straight-bar SVG when `segments` is empty.
+  - Existing saved spiral rows work retroactively when `spiral_diameter_mm` and `spiral_turns` are present.
+- guardrails:
+  - Preserve Orders lifecycle, Production status flow, QR routing, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --check services\productionCards.js`
+  - `node --check routes\orders.js routes\production.js routes\orderPrintA4.js routes\orderDeliveryCertificate.js services\productionCardPrintPage.js`
+  - `node --test test\client-auth-contract.test.js test\production-print-page.test.js test\security-routes.test.js`
+

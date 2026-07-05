@@ -697,7 +697,7 @@ test('delivery certificate summarizes work sections and reuses production card s
   assert.match(deliveryCertificate, /function buildDeliveryWorkSummary/);
   assert.ok(deliveryCertificate.includes("add('steel', item, weight); add('cutting', item, weight); add('bending', item, weight)"));
   assert.match(deliveryCertificate, /isSixOrTwelveMeterStraight/);
-  assert.ok(deliveryCertificate.includes('productionCards.shapeSvg(item.segments)'));
+  assert.ok(deliveryCertificate.includes('productionCards.itemShapeSvg(item)'));
   assert.match(deliveryCertificate, /data-summary-contract="steel-cutting-bending"/);
   assert.match(deliveryCertificate, /delivery-shape svg/);
   assert.doesNotMatch(deliveryCertificate, /const svgShape/);
@@ -1661,7 +1661,7 @@ test('order detail prefers canonical server-rendered production shape SVG', () =
   assert.match(ordersHtml, /data-shape-svg/);
   assert.match(ordersHtml, /el.dataset.shapeSvg/);
   assert.match(ordersHtml, /decodeURIComponent\(el\.dataset\.shapeSvg\)/);
-  assert.match(ordersRoute, /item\.shape_svg = productionCards\.shapeSvg\(item\.segments\)/);
+  assert.match(ordersRoute, /item\.shape_svg = productionCards\.itemShapeSvg\(item\)/);
 });
 
 
@@ -1671,7 +1671,7 @@ test('display-only production views prefer server-rendered production shape SVG'
   const orderPrintA4 = read('routes/orderPrintA4.js');
 
   assert.match(worker, /if\(item\.shape_svg\)return item\.shape_svg/);
-  assert.match(productionRoute, /productionCards\.shapeSvg\(item\.segments\)/);
-  assert.match(orderPrintA4, /shape_svg:\s+productionCards\.shapeSvg\(it\.segments\)/);
+  assert.match(productionRoute, /productionCards\.itemShapeSvg\(item\)/);
+  assert.match(orderPrintA4, /shape_svg:\s+productionCards\.itemShapeSvg\(it\)/);
   assert.doesNotMatch(orderPrintA4, /function drawShape2D/);
 });

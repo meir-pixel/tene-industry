@@ -140,7 +140,7 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
     struct_element: it.struct_element || '',
     note:           it.note || '',
     pallet_num:     it._palletNum || 1,
-    shape_svg:      productionCards.shapeSvg(it.segments),
+    shape_svg:      productionCards.itemShapeSvg(it),
   })));
 
   const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
