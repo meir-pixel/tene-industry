@@ -127,26 +127,32 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
       (pallet.items || []).forEach(rawItem => {
         const item = withShapeContractLegacyFields(rawItem);
         const spiral = normalizeSpiralParams(item);
-        const sides = spiral.isSpiral
+        const sourceLengthMm = Number(item.length ?? item.total_length_mm ?? 0) || 0;
+        const sourceSides = Array.isArray(item.sides) ? item.sides : [];
+        const longSimpleCoil = !spiral.isSpiral && sourceLengthMm > 20000 && sourceSides.length <= 2;
+        const isSpiralLike = spiral.isSpiral || longSimpleCoil;
+        const sides = isSpiralLike
           ? []
           : ((item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []));
-        const totalLengthMm = spiral.isSpiral
-          ? (Number(item.length ?? item.total_length_mm) || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns))
+        const totalLengthMm = isSpiralLike
+          ? (sourceLengthMm || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns))
           : (sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0);
         const angles = item.angles || [];
-        const segmentsArr = spiral.isSpiral
+        const segmentsArr = isSpiralLike
           ? []
           : normalizeSegments(
               item.shapeName,
               sides.map((len, i) => ({ length_mm: Number(len), angle_deg: angles[i] ?? 0 }))
             );
-        const shapeName = spiral.isSpiral
+        const shapeName = longSimpleCoil
+          ? 'spiral'
+          : isSpiralLike
           ? normalizeShapeName(item.shapeName || item.shape_name || 'spiral', segmentsArr, {
-              spiral_diameter_mm: spiral.spiralDiameterMm,
-              spiral_turns: spiral.turns,
+              spiral_diameter_mm: spiral.spiralDiameterMm || null,
+              spiral_turns: spiral.turns || null,
             })
           : normalizeShapeName(item.shapeName, segmentsArr);
-        if (!spiral.isSpiral) {
+        if (!isSpiralLike) {
           const geoCheck = validateShapeGeometry(segmentsArr);
           if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
         }
@@ -166,8 +172,8 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
           shapeId: item.shapeId,
           shapeName: persistedShapeName,
           diameter: item.diameter,
-          spiralDiameterMm: spiral.isSpiral ? spiral.spiralDiameterMm : null,
-          spiralTurns: spiral.isSpiral ? spiral.turns : null,
+          spiralDiameterMm: isSpiralLike ? (spiral.spiralDiameterMm || null) : null,
+          spiralTurns: isSpiralLike ? (spiral.turns || null) : null,
           segments,
           totalLengthMm,
           is3d: item.is_3d ? 1 : 0,
@@ -175,8 +181,8 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
         const itemResult = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,spiral_diameter_mm,spiral_turns,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,review_status,review_notes,struct_element,struct_floor,sheet_num,machine,is_3d)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(pr.lastInsertRowid, orderId, shapeSnapshot, item.shapeId, persistedShapeName, item.diameter,
-            spiral.isSpiral ? spiral.spiralDiameterMm : null,
-            spiral.isSpiral ? spiral.turns : null,
+            isSpiralLike ? (spiral.spiralDiameterMm || null) : null,
+            isSpiralLike ? (spiral.turns || null) : null,
             segments, totalLengthMm, item.qty || 1, productionQty,
             weightPerUnit, totalWeight,
             item.note, reviewStatus, reviewNotesJson, item.structElement, item.structFloor, item.sheetNum, machine,

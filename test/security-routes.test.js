@@ -293,6 +293,32 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(item.spiral_turns, 50);
     assert.equal(item.total_length_mm, 47124);
   });
+
+  await t.test('order creation treats long simple imported cut length as coil instead of segment', async () => {
+    const response = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(office),
+      body: JSON.stringify({
+        customer: { name: 'Long Coil Customer', phone: '0500000003' },
+        order: { orderNum: 'ORDER-LONG-COIL', channel: 'office', deliveryAddress: 'Factory', totalWeight: 0 },
+        pallets: [{ items: [{
+          shapeName: 'custom',
+          diameter: 8,
+          length: 47124,
+          sides: [47124],
+          angles: [0],
+          qty: 2,
+        }] }],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    const item = db.prepare('SELECT shape_name,segments,total_length_mm,quantity FROM items WHERE order_id=?').get(created.orderId);
+    assert.equal(item.shape_name, 'spiral');
+    assert.deepEqual(JSON.parse(item.segments), []);
+    assert.equal(item.total_length_mm, 47124);
+    assert.equal(item.quantity, 2);
+  });
   await t.test('order contract requires manager approval and rejects draft-to-production', async () => {
     const customerId = seedCustomer();
     const directProductionOrder = seedInternalOrder(customerId, 'ORDER-CONTRACT-SKIP');

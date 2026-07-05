@@ -914,6 +914,7 @@
   - saved orders persist selected site_id only when it belongs to the selected customer.
   - new-order save clears stale customer/site bindings before submit and shows server save errors.
   - new-order save treats rows with spiral diameter and turns as spiral items even when source labels are generic.
+  - new-order save treats long simple imported cut lengths as coil/spiral items instead of validating them as bar segments.
 - guardrails:
   - Orders/customer integration only.
   - No Production, Portal, Finance, OCR, pricing, or UI redesign.
