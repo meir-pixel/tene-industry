@@ -1165,16 +1165,54 @@
 
   @media (max-width: 1120px) {
     .main {
-      grid-template-columns: minmax(0, 1fr) 270px;
+      grid-template-columns: minmax(0, 1fr);
       padding: 14px;
     }
-    .progress-bar, .order-import-section, #customer-section, #delivery-section, #items-section, .notes-section { grid-column: 1; }
+    .progress-bar,
+    .order-import-section,
+    #customer-section,
+    #delivery-section,
+    #items-section,
+    .notes-section,
+    .summary-bar {
+      grid-column: 1 / -1;
+      min-width: 0;
+    }
     .order-import-section { grid-template-columns: 1fr; }
     .order-import-section .section-header { border-bottom: 1px solid var(--border); }
     .customer-quick-row { grid-template-columns: 1fr; }
-    .summary-bar { grid-column: 2; grid-row: 2 / span 6; }
+    .summary-bar {
+      grid-row: auto;
+      position: static;
+      top: auto;
+    }
+    .summary-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 
+  @media (max-width: 900px) {
+    .progress-step > div:last-child {
+      min-width: 0;
+    }
+    .progress-step > div:last-child div {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .summary-bar {
+      gap: 10px;
+    }
+    .summary-order {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+    .summary-order-time {
+      grid-column: 1 / -1;
+    }
+    .submit-btn {
+      min-width: 0;
+      white-space: normal;
+    }
+  }
   @media (max-width: 768px) {
     html, body { overflow-x: hidden; }
     .img-modal { max-height: 96vh; }
