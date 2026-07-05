@@ -681,16 +681,21 @@ function itemMachineSequence(item) {
 }
 
 function renderDetailShapes() {
+  document.querySelectorAll('[data-detail-shape][data-shape-svg]').forEach(el => {
+    if (el.dataset.shapeSvg) el.innerHTML = decodeURIComponent(el.dataset.shapeSvg);
+  });
+  const fallbackShapes = Array.from(document.querySelectorAll('[data-detail-shape], [data-spiral-shape]')).filter(el => !el.dataset.shapeSvg);
+  if (!fallbackShapes.length) return;
   if (!window.IronBendShapes) {
     setTimeout(renderDetailShapes, 80);
     return;
   }
-  document.querySelectorAll('[data-spiral-shape]').forEach(el => {
+  fallbackShapes.filter(el => el.hasAttribute('data-spiral-shape')).forEach(el => {
     const diameter = Number(el.dataset.spiralDiameter || 0);
     const turns = Number(el.dataset.spiralTurns || 0);
     el.innerHTML = buildSpiralSvg(diameter, turns);
   });
-  document.querySelectorAll('[data-detail-shape]').forEach(el => {
+  fallbackShapes.filter(el => el.hasAttribute('data-detail-shape')).forEach(el => {
     try {
       const sides = JSON.parse(decodeURIComponent(el.dataset.sides || '%5B%5D'));
       const angles = JSON.parse(decodeURIComponent(el.dataset.angles || '%5B%5D'));
@@ -888,10 +893,12 @@ function buildDetailHTML(o, pkgs) {
       const displayNote = visibleItemNote(item.note);
       const measuredWeight = actualWeight(item);
       const deviationPct = weightDeviationPct(item);
+      const canonicalShapeSvg = encodeURIComponent(item.shape_svg || '');
       const visualHtml = isRealSpiralItem(item)
-        ? `<div class="item-visual" data-spiral-shape="1" data-spiral-diameter="${escHtml(item.spiral_diameter_mm)}" data-spiral-turns="${escHtml(item.spiral_turns)}" onclick="openItemEdit(event, ${o.id}, ${item.id})" title="ערוך צורה"></div>`
+        ? `<div class="item-visual" data-detail-shape="1" data-shape-svg="${canonicalShapeSvg}" data-spiral-shape="1" data-spiral-diameter="${escHtml(item.spiral_diameter_mm)}" data-spiral-turns="${escHtml(item.spiral_turns)}" onclick="openItemEdit(event, ${o.id}, ${item.id})" title="ערוך צורה"></div>`
         : `<div class="item-visual"
           data-detail-shape="1"
+          data-shape-svg="${canonicalShapeSvg}"
           data-sides="${encodeURIComponent(JSON.stringify(sides))}"
           data-angles="${encodeURIComponent(JSON.stringify(angles))}"
           onclick="openItemEdit(event, ${o.id}, ${item.id})"

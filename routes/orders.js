@@ -33,6 +33,7 @@ module.exports = function createOrdersRouter(deps) {
   const buildOrderImportPreview = required('buildOrderImportPreview', deps.buildOrderImportPreview);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
   const auditLog = required('auditLog', deps.auditLog);
+  const productionCards = deps.productionCards || require('../services/productionCards');
 
   function cleanItemPayload(body, existingItem = {}) {
     body = withShapeContractLegacyFields(body || {});
@@ -115,7 +116,10 @@ module.exports = function createOrdersRouter(deps) {
       FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
     if (!order) return res.status(404).json({ error: 'לא נמצא' });
     const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
-    pallets.forEach(p => { p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id); });
+    pallets.forEach(p => {
+      p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id);
+      p.items.forEach(item => { item.shape_svg = productionCards.shapeSvg(item.segments); });
+    });
     order.pallets = pallets;
     res.json(order);
   });

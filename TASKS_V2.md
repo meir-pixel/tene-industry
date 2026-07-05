@@ -1628,3 +1628,29 @@
   - No database migration.
 - verification:
   - Production boundary tests cover automatic order status sync from item status updates.
+
+---
+
+### V2-011F - Canonical Server Shape SVG For Display Views
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / printing / order-detail
+- scope:
+  - `TASKS_V2.md`
+  - `server.js`
+  - `routes/orders.js`
+  - `routes/orderDocuments.js`
+  - `routes/orderPrintA4.js`
+  - `public/orders.html`
+  - `test/client-auth-contract.test.js`
+- goal:
+  - Order detail and A4 production/document display views prefer the canonical server-rendered production shape SVG.
+  - Shape Editor remains the editing surface; display-only views do not each invent their own drawing.
+  - Legacy client drawing remains only as fallback when no server SVG is available.
+- guardrails:
+  - Preserve Production workflow, Orders lifecycle, QR routing, Finance, Portal, OCR, Warehouse, and Shape V2 contract.
+  - No database migration.
+- verification:
+  - `node --test test\client-auth-contract.test.js`
+  - `npm test`

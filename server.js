@@ -436,6 +436,7 @@ app.use('/api', requireModule('orders'), createOrdersRouter({
   buildOrderImportPreview,
   wsBroadcast,
   auditLog,
+  productionCards,
 }));
 
 app.use('/api', requireModule('production'), createProductionCardsRouter({
@@ -454,6 +455,7 @@ app.use('/api', requireModule('production'), createOrderDocumentsRouter({
   requireAnyRole,
   industry,
   tryParseJSON,
+  productionCards,
 }));
 
 app.use('/api', requireModule('finance'), createFinanceInvoicesRouter({

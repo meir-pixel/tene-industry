@@ -1586,28 +1586,25 @@ test('post-order OCR review saves row statuses without mutating approved intake 
   assert.match(intake, /refreshOcrStatusSummary\(\);/);
 });
 
-test('order detail shape renderer keeps visible dimension and angle labels', () => {
+test('order detail prefers canonical server-rendered production shape SVG', () => {
   const ordersHtml = read('public/orders.html');
-  const rendererJs = read('public/shape-renderer.js');
+  const ordersRoute = read('routes/orders.js');
 
   assert.match(ordersHtml, /.item-visual svg{width:100%!important;height:100%!important/);
-  assert.match(ordersHtml, /height: 142/);
-  assert.match(ordersHtml, /padding: 34/);
-  assert.match(ordersHtml, /color: '#3d5e78'/);
-  assert.match(rendererJs, /preserveAspectRatio', 'xMidYMid meet'/);
-  assert.match(rendererJs, /data-shape-dim-label/);
-  assert.equal(rendererJs.includes('String.fromCharCode(65 + i)'), true);
-  assert.match(rendererJs, /data-shape-angle-arc/);
-  assert.match(rendererJs, /data-shape-angle-label/);
-  assert.match(rendererJs, /data-shape-right-angle/);
-  assert.equal(rendererJs.includes("len >= 1000 ? (len/1000).toFixed(2)+'m' : len+'mm'"), false);
+  assert.match(ordersHtml, /data-shape-svg/);
+  assert.match(ordersHtml, /el.dataset.shapeSvg/);
+  assert.match(ordersHtml, /decodeURIComponent\(el\.dataset\.shapeSvg\)/);
+  assert.match(ordersRoute, /item\.shape_svg = productionCards\.shapeSvg\(item\.segments\)/);
 });
 
 
-test('worker visual prefers server-rendered production shape SVG', () => {
+test('display-only production views prefer server-rendered production shape SVG', () => {
   const worker = read('public/worker-visual.html');
   const productionRoute = read('routes/production.js');
+  const orderPrintA4 = read('routes/orderPrintA4.js');
 
   assert.match(worker, /if\(item\.shape_svg\)return item\.shape_svg/);
   assert.match(productionRoute, /productionCards\.shapeSvg\(item\.segments\)/);
+  assert.match(orderPrintA4, /shape_svg:\s+productionCards\.shapeSvg\(it\.segments\)/);
+  assert.doesNotMatch(orderPrintA4, /function drawShape2D/);
 });
