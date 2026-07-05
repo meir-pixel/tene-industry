@@ -1088,7 +1088,7 @@ function legacyApprovedShapeFields(shape, contract) {
     shapeType: contract.shapeType,
     family,
   };
-  if (family === 'mesh' || family === 'piles') return { ...base, ...contract.data };
+  if (family === 'mesh' || family === 'piles' || family === 'spirals') return { ...base, ...contract.data };
   return {
     ...base,
     sides: [...contract.data.sides],
