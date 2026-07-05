@@ -237,7 +237,7 @@ test('shape editor includes pile cage 2D engineering views without 3D helper out
   assert.match(pileRenderBlock[0], /pile-side-engineering-view/);
   assert.match(pileRenderBlock[0], /pile-top-engineering-view/);
   assert.match(pileRenderBlock[0], /pile-zone-dimension/);
-  assert.match(pileRenderBlock[0], /pile-pitch-control/);
+  assert.match(pileRenderBlock[0], /pile-pitch-label/);
   assert.match(pileRenderBlock[0], /pile-spiral-loop/);
   assert.match(editor, /data-se-focus="mesh-longitudinal-spacing mesh-transverse-spacing"/);
   assert.doesNotMatch(pileRenderBlock[0], /data-view=\"3d\"/);
@@ -345,6 +345,14 @@ test('shape editor index loads a fresh shape editor asset version', () => {
 
   assert.match(index, /shape-editor\.js\?v=56/);
   assert.doesNotMatch(index, /shape-editor\.js\?v=55/);
+});
+
+
+test('shape editor summary weight stays per shape unit and does not multiply by order quantity', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /set\('seTotalWeight', weightKg\.toFixed\(2\)\)/);
+  assert.doesNotMatch(editor, /set\('seTotalWeight', \(weightKg \* qty\)\.toFixed\(2\)\)/);
 });
 
 test('shape editor exposes editable order item quantity outside the shape contract', () => {
@@ -473,6 +481,34 @@ test('MeshEngine spacing changes grid count while diameter changes bar thickness
   assert.match(thickSvg, /data-longitudinal-count="31"/);
 });
 
+test('PileCageEngine treats pile editor dimension fields as centimeters', () => {
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'piles',
+    pileDiameter: 50,
+    pileLength: 9800,
+    longitudinalBars: 6,
+    longitudinalDiameter: 16,
+    spiralDiameter: 8,
+    spiralZones: [
+      { length: 80, pitch: 10, noWrap: true },
+      { length: 200, pitch: 10 },
+      { length: 700, pitch: 20 },
+    ],
+    hoopsEnabled: true,
+    hoopDiameter: 8,
+    hoopSpacing: 200,
+    hoopStart: 0,
+    hoopEnd: 2200,
+  });
+
+  assert.equal(contract.data.pileDiameter, 500);
+  assert.equal(contract.data.pileLength, 98000);
+  assert.deepEqual(contract.data.spiralZones.map(zone => [zone.length, zone.pitch]), [[800, 100], [2000, 100], [7000, 200]]);
+  assert.ok(contract.calculated.totalLengthMm < 1000000);
+  assert.ok(contract.calculated.weightKg < 1000);
+});
+
 test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine', () => {
   const { ShapeEngineRouter, PileCageEngine } = loadShapeEditorGeometry();
   const pile = {
@@ -493,15 +529,16 @@ test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine
   assert.match(svg, /data-engine="PileCageEngine"/);
   assert.match(svg, /data-view="side"/);
   assert.match(svg, /data-view="top"/);
-  assert.match(svg, /data-pile-diameter="70"/);
-  assert.match(svg, /data-pile-length="2200"/);
+  assert.match(svg, /data-pile-diameter="700"/);
+  assert.match(svg, /data-input-unit="cm"/);
+  assert.match(svg, /data-pile-length="22000"/);
   assert.match(svg, /data-longitudinal-bars="26"/);
-  assert.match(svg, /data-spiral-zones="70@10,200@20,1350@20"/);
+  assert.match(svg, /data-spiral-zones="700@100,2000@200,13500@200"/);
   assert.equal((svg.match(/class="pile-longitudinal-bar"/g) || []).length, 26);
   assert.match(svg, /class="pile-side-engineering-view"/);
   assert.match(svg, /class="pile-top-engineering-view"/);
   assert.match(svg, /class="pile-zone-dimension/);
-  assert.match(svg, /class="pile-pitch-control"/);
+  assert.match(svg, /class="pile-pitch-label"/);
   assert.match(svg, /class="pile-spiral-loop"/);
   assert.match(svg, /L 2200/);
   assert.match(svg, /D/);
@@ -541,6 +578,7 @@ test('PileCageEngine pitch changes only the edited spiral zone', () => {
   assert.notEqual(countZone(baseSvg, 1), countZone(changedSvg, 1));
   assert.equal(countZone(baseSvg, 2), countZone(changedSvg, 2));
   assert.match(changedSvg, /data-spiral-diameter="8"/);
+  assert.doesNotMatch(changedSvg, /pile-pitch-control/);
 });
 
 
@@ -573,7 +611,7 @@ test('PileCageEngine renders no-wrap zones, hoops, and L longitudinal bars', () 
   assert.match(svg, /class="pile-l-bar"/);
   assert.match(svg, /data-hoop-count="9"/);
   assert.match(svg, /data-bar-pattern="alternate"/);
-  assert.match(svg, /data-spiral-zones="70@10,200@20:no-wrap,1350@20"/);
+  assert.match(svg, /data-spiral-zones="700@100,2000@200:no-wrap,13500@200"/);
 });
 
 
@@ -675,11 +713,11 @@ test('buildShapeDataContractV2 returns pile cage envelope with spiral zone machi
   assert.equal(contract.family, 'piles');
   assert.equal(contract.data.longitudinalBars, 26);
   assert.equal(contract.data.spiralZones[0].name, 'Zone A');
-  assert.equal(contract.calculated.totalLongitudinalLengthMm, 57200);
+  assert.equal(contract.calculated.totalLongitudinalLengthMm, 572000);
   assert.ok(contract.calculated.totalSpiralLengthMm > 0);
   assert.ok(contract.calculated.manufacturingBreakdown.length >= 2);
-  assert.equal(contract.machineOutput.generic.spiralZones[1].startMm, 70);
-  assert.equal(contract.machineOutput.generic.spiralZones[2].pitchMm, 20);
+  assert.equal(contract.machineOutput.generic.spiralZones[1].startMm, 700);
+  assert.equal(contract.machineOutput.generic.spiralZones[2].pitchMm, 200);
   assert.ok(contract.machineOutput.generic.manufacturingBreakdown.some(part => part.componentType === 'spiral_zone'));
   assert.ok(contract.machineOutput.generic.productionCards.some(card => card.cardType === 'pile_master'));
   assert.ok(contract.machineOutput.generic.productionCards.some(card => card.cardType === 'pile_component'));

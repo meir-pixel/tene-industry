@@ -1711,8 +1711,10 @@
 - input:
   - Stage A: make the pile cage preview look like the engineering reference without adding 3D.
   - Use the existing Shape Editor screen and the existing PileCageEngine renderer only.
+- latest_change:
+  - Pile cage editor dimensions are treated as centimeters and converted to millimeters for contract/calculation output; drawing pitch values are read-only labels.
 - output:
-  - Pile cage preview draws a large side view with L, zone dimensions, pitch controls, spiral loops, hoops, and D.
+  - Pile cage preview draws a large side view with L, zone dimensions, pitch labels, spiral loops, hoops, and D.
   - Pile cage preview draws a top/cross-section view with longitudinal bars, D, and spiral diameter.
   - 3D helper output is intentionally removed from this stage.
 - guardrails:
