@@ -242,6 +242,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
+  - exposed a customer quote-before-order entry point and a dedicated quote panel before order submission.
   - made the customer portal home project-first with visible new-project actions and an editable customer details panel.
   - clarified the customer portal session action by replacing the confusing switch-customer/logout wording with a simple logout label.
   - added customer-facing site/user controls for foreman assignment, delegated portal permissions, and customer-safe order PDF print output.

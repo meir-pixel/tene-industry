@@ -68,7 +68,7 @@
     .welcome-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
     .welcome-actions .btn{width:auto;margin:0}
     .new-order-btn{background:var(--orange);color:#fff;border:none;border-radius:14px;padding:16px;width:100%;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:10px}
-    .portal-action-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px;margin-bottom:14px}
+    .portal-action-grid{display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px}
     .portal-action-grid .new-order-btn{margin-bottom:0;height:100%;min-height:76px}
     .portal-action-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:13px;text-align:right;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.05);font-family:inherit;color:var(--text)}
     .portal-action-card strong{display:block;font-size:15px;margin-bottom:4px}
@@ -221,7 +221,7 @@
     .loader{text-align:center;padding:40px;color:var(--dim);font-size:14px}
 
     @media(min-width:600px){.shapes-grid{grid-template-columns:repeat(4,1fr)}}
-    @media(max-width:720px){.portal-shape-edit{grid-template-columns:1fr}.portal-shape-preview{min-height:150px}.portal-upload-grid{grid-template-columns:1fr}.finance-kpis,.finance-site-metrics{grid-template-columns:1fr 1fr}.portal-home-tabs{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:720px){.portal-shape-edit{grid-template-columns:1fr}.portal-shape-preview{min-height:150px}.portal-upload-grid{grid-template-columns:1fr}.portal-action-grid{grid-template-columns:1fr}.finance-kpis,.finance-site-metrics{grid-template-columns:1fr 1fr}.portal-home-tabs{grid-template-columns:repeat(2,1fr)}}
   </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -285,6 +285,7 @@
   </div>
   <div class="portal-action-grid">
     <button class="new-order-btn" onclick="showScreen('screenOrder')">+ הזמנה חדשה</button>
+    <button type="button" class="portal-action-card" onclick="showQuoteScreen()"><strong>הצעת מחיר</strong><span>בחר צורות וכמויות, קבל מחיר לפני שליחה</span></button>
     <button type="button" class="portal-action-card" onclick="openProjectPanel()"><strong>פרויקט חדש</strong><span>פתח אתר/פרויקט, כתובת ומנהלי עבודה</span></button>
     <button type="button" class="portal-action-card" onclick="setHomeSection('profile')"><strong>פרטי לקוח</strong><span>עדכון שם, כתובת ואימייל לקבלת מסמכים</span></button>
   </div>
@@ -392,14 +393,17 @@
     </div>
   </div>
 
-  <div id="priceBox" class="price-box" style="display:none">
-    <div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:10px">הערכת מחיר</div>
-    <div id="priceBreakdown"></div>
-    <div class="price-note">* המחיר כולל 3% תוספת פסולת · אינו כולל מע"מ</div>
+  <div id="quoteActionPanel" class="section-card">
+    <div class="card-title">הצעת מחיר לפני הזמנה</div>
+    <p style="font-size:12px;color:var(--dim);line-height:1.5;margin-bottom:10px">הלקוח מזין צורות וכמויות, מקבל הערכת מחיר לפי המחירון שמותר לו לראות, ורק אחר כך מחליט אם לשלוח הזמנה.</p>
+    <div id="priceBox" class="price-box" style="display:none">
+      <div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:10px">הערכת מחיר</div>
+      <div id="priceBreakdown"></div>
+      <div class="price-note">* המחיר כולל 3% תוספת פסולת · אינו כולל מע"מ</div>
+    </div>
+    <button class="btn btn-secondary" onclick="calcQuote()" style="margin-bottom:10px;width:100%">קבל הצעת מחיר</button>
+    <button class="btn btn-primary" onclick="submitOrder()">שלח הזמנה ✓</button>
   </div>
-
-  <button class="btn btn-secondary" onclick="calcQuote()" style="margin-bottom:10px;width:100%">🧮 חשב הצעת מחיר</button>
-  <button class="btn btn-primary" onclick="submitOrder()">שלח הזמנה ✓</button>
 </div>
 
 <!-- ══ ORDER DETAIL SCREEN ══ -->
@@ -1534,6 +1538,11 @@ async function approveOrder(orderId, event) {
 // ──────────────────────────────────────────────────────
 // New Order
 // ──────────────────────────────────────────────────────
+function showQuoteScreen() {
+  showOrderScreen();
+  setTimeout(() => document.getElementById('quoteActionPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+}
+
 function showOrderScreen() {
   orderItems = [];
   portalSourceFiles = [];

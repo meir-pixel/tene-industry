@@ -149,6 +149,18 @@ test('customer portal UI uses OTP verification before storing token', () => {
   assert.match(customer, /completeAuth\(data\.data\)/);
 });
 
+test('customer portal exposes quote before order submission', () => {
+  const portalRoute = read('routes/portal.js');
+  const customerPage = read('public/customer.html');
+
+  assert.match(portalRoute, /router\.post\('\/c\/quote'/);
+  assert.match(customerPage, /function showQuoteScreen/);
+  assert.match(customerPage, /id="quoteActionPanel"/);
+  assert.match(customerPage, /הצעת מחיר לפני הזמנה/);
+  assert.match(customerPage, /קבל הצעת מחיר/);
+  assert.match(customerPage, /onclick="showQuoteScreen\(\)"/);
+});
+
 test('customer portal has a project-first home and editable profile', () => {
   const portalRoute = read('routes/portal.js');
   const customerPage = read('public/customer.html');
