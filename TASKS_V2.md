@@ -916,6 +916,7 @@
   - new-order save clears stale customer/site bindings before submit and shows server save errors.
   - new-order save treats rows with spiral diameter and turns as spiral items even when source labels are generic.
   - new-order save treats long simple imported cut lengths as coil/spiral items instead of validating them as bar segments.
+  - office users can delete pending/unapproved test orders while approved or production-started orders remain protected.
 - guardrails:
   - Orders/customer integration only.
   - No Production, Portal, Finance, OCR, pricing, or UI redesign.

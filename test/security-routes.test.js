@@ -276,6 +276,18 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.notEqual((await request('/api/orders', { method: 'POST', headers: authHeaders(office), body })).status, 401);
     assert.notEqual((await request('/api/orders', { method: 'POST', headers: authHeaders(office), body })).status, 403);
   });
+  await t.test('order delete lets office remove pending test orders but protects approved orders', async () => {
+    const customerId = seedCustomer();
+    const pendingOrderId = seedInternalOrder(customerId, 'ORDER-DELETE-OFFICE-PENDING');
+    assert.equal((await request(`/api/orders/${pendingOrderId}`, { method: 'DELETE' })).status, 401);
+    assert.equal((await request(`/api/orders/${pendingOrderId}`, { method: 'DELETE', headers: authHeaders(production) })).status, 403);
+    assert.equal((await request(`/api/orders/${pendingOrderId}`, { method: 'DELETE', headers: authHeaders(office) })).status, 200);
+
+    const approvedOrderId = seedInternalOrder(customerId, 'ORDER-DELETE-OFFICE-APPROVED');
+    db.prepare('UPDATE orders SET status=? WHERE id=?').run(statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION, approvedOrderId);
+    assert.equal((await request(`/api/orders/${approvedOrderId}`, { method: 'DELETE', headers: authHeaders(office) })).status, 403);
+    assert.equal((await request(`/api/orders/${approvedOrderId}`, { method: 'DELETE', headers: authHeaders(manager) })).status, 200);
+  });
 
   await t.test('order creation stores selected customer site only for that customer', async () => {
     const customerId = seedCustomer();

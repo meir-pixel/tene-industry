@@ -10,6 +10,7 @@ const {
   sourceIdentityConflictPayload,
   sourceIdentityFromRequest,
 } = require('../services/importSourceIdentity');
+const { ORDER_STATUS } = require('../status-contracts');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -401,7 +402,18 @@ module.exports = function createOrdersRouter(deps) {
     res.json({ success: true });
   });
 
-  router.delete('/orders/:id', requireAnyRole(['manager', 'admin']), (req, res) => {
+  function canDeleteOrder(order, role) {
+    if (role === 'manager' || role === 'admin') return true;
+    if (role !== 'office') return false;
+    const status = normalizeOrderStatus(order.status);
+    return [
+      ORDER_STATUS.PENDING_APPROVAL,
+      ORDER_STATUS.CUSTOMER_PENDING_APPROVAL,
+      ORDER_STATUS.CANCELLED,
+    ].includes(status);
+  }
+
+  router.delete('/orders/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
     if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
     if (order.locked) return res.status(403).json({ error: 'לא ניתן למחוק הזמנה נעולה' });
@@ -409,11 +421,14 @@ module.exports = function createOrdersRouter(deps) {
       'SELECT COUNT(*) as c FROM items WHERE pallet_id IN (SELECT id FROM pallets WHERE order_id=?) AND produced_qty > 0'
     ).get(order.id);
     if (started.c > 0) return res.status(409).json({ error: 'לא ניתן למחוק הזמנה שהתחיל בה ייצור' });
+    if (!canDeleteOrder(order, req.userRole)) {
+      return res.status(403).json({ error: 'רק מנהל יכול למחוק הזמנה שכבר אושרה או התקדמה לייצור' });
+    }
 
     const before = JSON.stringify({ order_num: order.order_num, status: order.status });
     db.transaction(() => {
       db.prepare('DELETE FROM production_card_weights WHERE order_id=?').run(order.id);
-      db.prepare('DELETE FROM scan_log WHERE order_id=?').run(order.id);
+      db.prepare('DELETE FROM scan_log WHERE order_num=?').run(order.order_num);
       db.prepare('DELETE FROM items WHERE pallet_id IN (SELECT id FROM pallets WHERE order_id=?)').run(order.id);
       db.prepare('DELETE FROM pallets WHERE order_id=?').run(order.id);
       db.prepare('DELETE FROM orders WHERE id=?').run(order.id);
