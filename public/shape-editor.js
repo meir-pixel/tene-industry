@@ -1617,10 +1617,37 @@ class ShapeEditorModal {
   font-weight:900;
 }
 #seSideFilters .se-side-filter.active{background:#2f394b;color:#fff;border-color:#2f394b;}
-#sePresets{
-  grid-template-columns:repeat(auto-fill,minmax(64px,1fr))!important;
-  justify-items:center;
-  gap:16px 14px!important;
+#sePresets,#seSavedSection .se-saved-grid{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fill,minmax(110px,1fr))!important;
+  gap:12px!important;
+  padding:12px 16px 16px!important;
+}
+#sePresets .se-preset-btn,#seSavedSection .se-preset-btn{
+  width:100%!important;
+  height:auto!important;
+  min-height:110px!important;
+  padding:10px 8px 8px!important;
+  border:1.5px solid #dde4ed!important;
+  border-radius:12px!important;
+  background:#fff!important;
+  color:#526070!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  gap:6px!important;
+  place-items:unset!important;
+}
+#sePresets .se-preset-btn svg,#seSavedSection .se-preset-btn svg{
+  width:72px!important;height:52px!important;margin:0!important;display:block!important;
+}
+#sePresets .se-preset-btn:hover,#seSavedSection .se-preset-btn:hover{
+  border-color:#aab8c8!important;background:#edf1f7!important;color:#1a2332!important;
+  transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,0.08)!important;
+}
+#sePresets .se-preset-btn.active,#seSavedSection .se-preset-btn.active{
+  background:rgba(224,123,57,0.08)!important;border-color:#e07b39!important;
+  color:#e07b39!important;box-shadow:0 0 0 3px rgba(224,123,57,0.15)!important;
 }
 #seModal .se-preset-btn{
   width:58px;
@@ -2349,7 +2376,7 @@ class ShapeEditorModal {
         <span style="font-size:11px;font-weight:800;color:#3a7bd5;text-transform:uppercase;letter-spacing:0.5px;">⭐ צורות שמורות שלי</span>
         <span style="font-size:10px;color:#aab8c8;margin-right:auto;">${list.length} צורות</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:10px 16px 14px;">${cardsHtml}</div>
+      <div class="se-saved-grid">${cardsHtml}</div>
       <div style="height:1px;background:#dde4ed;margin:0 16px 8px;"></div>`;
 
     cont.querySelectorAll('[data-saved-id]').forEach(btn => {
