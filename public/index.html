@@ -2333,11 +2333,7 @@ function renderItemRow(palletId, item) {
       </div>
     </td>
     <td>
-      ${isSpiralRow
-        ? `<button type="button" onclick="openShapeEditor(${palletId}, '${item.id}')" title="Edit diameter in shape editor" style="width:84px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;font-weight:800;cursor:pointer">${item.diameter || 8}</button>`
-        : `<select onchange="updateItem(${palletId},'${item.id}','diameter',this.value)">
-          ${DIAMETERS.map(d => `<option ${item.diameter==d?'selected':''}>${d}</option>`).join('')}
-        </select>`}
+      <button type="button" onclick="openShapeEditor(${palletId}, '${item.id}')" title="שנה קוטר בעורך הצורות" style="width:84px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;font-weight:800;cursor:pointer">${item.diameter || (isSpiralRow ? 8 : 12)}</button>
     </td>
     <td style="min-width:90px">
       <div style="font-size:12px;color:#e07b39;font-weight:700;text-align:center;cursor:pointer"
