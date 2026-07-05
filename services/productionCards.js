@@ -259,10 +259,36 @@ function spiralShapeSvg(item = {}) {
   if (!spiral.isSpiral) return '';
   const width = 240;
   const height = 118;
+  const spiralDiameterLabel = Math.round(spiral.spiralDiameterMm);
+  const turnsLabel = Math.round(spiral.turns);
+  const isRing = spiral.turns <= 1.5;
+
+  // \u2500\u2500 RING (1 turn): draw circle with diameter line \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  if (isRing) {
+    const cx = 120, cy = 54, r = 36;
+    let svg = `<defs><marker id="arr-r" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker><marker id="arr-rl" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker></defs>`;
+    svg += `<text x="${cx}" y="13" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">\u05d8\u05d1\u05e2\u05ea</text>`;
+    // circle
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#1a2332" stroke-width="4"/>`;
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#3a5070" stroke-width="1.5"/>`;
+    // diameter dimension line
+    svg += `<line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-rl)" marker-end="url(#arr-r)"/>`;
+    svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
+    // labels
+    svg += `<g data-spiral-visual-labels="1" font-family="Heebo,Arial">`;
+    svg += `<rect x="34" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
+    svg += `<text x="73" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
+    svg += `<rect x="128" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
+    svg += `<text x="167" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">1 \u05db\u05e8\u05d9\u05db\u05d4</text>`;
+    svg += `</g>`;
+    return `<svg data-shape-kind="ring" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
+  }
+
+  // \u2500\u2500 SPIRAL (>1 turn): wavy line + diameter dimension \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const startX = 28;
   const endX = 212;
-  const centerY = 58;
-  const amp = 24;
+  const centerY = 52;
+  const amp = 22;
   const visualTurns = Math.max(5, Math.min(14, Math.round(spiral.turns / 8) || 8));
   const step = (endX - startX) / visualTurns;
   let d = `M ${startX} ${centerY}`;
@@ -273,12 +299,26 @@ function spiralShapeSvg(item = {}) {
     d += ` C ${(x0 + step * 0.22).toFixed(1)} ${(centerY - amp).toFixed(1)}, ${(x1 - step * 0.22).toFixed(1)} ${(centerY - amp).toFixed(1)}, ${x1.toFixed(1)} ${centerY}`;
     d += ` C ${(x1 + step * 0.22).toFixed(1)} ${(centerY + amp).toFixed(1)}, ${(x2 - step * 0.22).toFixed(1)} ${(centerY + amp).toFixed(1)}, ${x2.toFixed(1)} ${centerY}`;
   }
-  let svg = `<path d="${d}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  let svg = `<defs><marker id="arr-s" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker><marker id="arr-sl" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker></defs>`;
+  svg += `<path d="${d}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
   svg += `<path d="${d}" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
   svg += `<line x1="${startX}" y1="${centerY}" x2="${endX}" y2="${centerY}" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="5 4"/>`;
-  svg += `<text x="120" y="18" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">SPIRAL</text>`;
-  svg += `<text x="120" y="104" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">D ${Math.round(spiral.spiralDiameterMm)} mm · ${Math.round(spiral.turns)} turns</text>`;
-  return `<svg data-shape-kind="spiral" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
+  // diameter dimension: vertical arrow on the right side
+  const dimX = endX + 10;
+  svg += `<line x1="${dimX}" y1="${(centerY - amp).toFixed(1)}" x2="${dimX}" y2="${(centerY + amp).toFixed(1)}" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-sl)" marker-end="url(#arr-s)"/>`;
+  svg += `<line x1="${endX}" y1="${(centerY - amp).toFixed(1)}" x2="${dimX + 4}" y2="${(centerY - amp).toFixed(1)}" stroke="#c9621a" stroke-width="1"/>`;
+  svg += `<line x1="${endX}" y1="${(centerY + amp).toFixed(1)}" x2="${dimX + 4}" y2="${(centerY + amp).toFixed(1)}" stroke="#c9621a" stroke-width="1"/>`;
+  svg += `<text x="${dimX + 6}" y="${centerY + 4}" text-anchor="start" font-size="8" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8${spiralDiameterLabel}</text>`;
+  svg += `<text x="120" y="12" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">\u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4</text>`;
+  svg += `<g data-spiral-visual-labels="1" font-family="Heebo,Arial">`;
+  svg += `<rect x="34" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/>`;
+  svg += `<text x="73" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4</text>`;
+  svg += `<text x="73" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${spiralDiameterLabel} \u05de"\u05de</text>`;
+  svg += `<rect x="128" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/>`;
+  svg += `<text x="167" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea</text>`;
+  svg += `<text x="167" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${turnsLabel}</text>`;
+  svg += `</g>`;
+  return `<svg data-shape-kind="spiral" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
 }
 
 function itemShapeSvg(item = {}) {
