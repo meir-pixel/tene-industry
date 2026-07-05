@@ -497,6 +497,21 @@ module.exports = function createPortalRouter(deps) {
     }); // BUG-40: ללא price_tier/discount_pct
   });
 
+  router.post('/c/profile', customerPortalActionLimiter, (req, res) => {
+    const s = session(req.body.token);
+    if (!s) return res.status(401).json({ error: 'Unauthorized' });
+    const name = String(req.body.name || '').trim();
+    const email = String(req.body.email || '').trim() || null;
+    const address = String(req.body.address || '').trim() || null;
+    if (!name) return res.status(400).json({ error: 'Customer name required' });
+    db.prepare('UPDATE customers SET name=?,email=?,address=? WHERE id=?').run(name, email, address, s.customer.id);
+    const customer = db.prepare(`
+      SELECT id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility
+      FROM customers WHERE id=?
+    `).get(s.customer.id);
+    res.json({ success: true, customer });
+  });
+
   router.get('/c/sites', customerPortalActionLimiter, (req, res) => {
     const s = session(req.query.token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });

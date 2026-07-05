@@ -242,6 +242,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
+  - made the customer portal home project-first with visible new-project actions and an editable customer details panel.
   - clarified the customer portal session action by replacing the confusing switch-customer/logout wording with a simple logout label.
   - added customer-facing site/user controls for foreman assignment, delegated portal permissions, and customer-safe order PDF print output.
   - added role-aware section navigation to the customer portal home screen so orders, sites, finance, price list, and documents open as clear focused areas instead of one long mixed page.

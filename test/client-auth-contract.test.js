@@ -149,16 +149,34 @@ test('customer portal UI uses OTP verification before storing token', () => {
   assert.match(customer, /completeAuth\(data\.data\)/);
 });
 
+test('customer portal has a project-first home and editable profile', () => {
+  const portalRoute = read('routes/portal.js');
+  const customerPage = read('public/customer.html');
+
+  assert.match(customerPage, /פרויקט חדש/);
+  assert.match(customerPage, /id="homeTabProfile"/);
+  assert.match(customerPage, /id="homeSectionProfile"/);
+  assert.match(customerPage, /id="customerProfilePanel"/);
+  assert.match(customerPage, /function openProjectPanel/);
+  assert.match(customerPage, /function renderCustomerProfilePanel/);
+  assert.match(customerPage, /function saveCustomerProfile/);
+  assert.match(customerPage, /\/api\/c\/profile/);
+  assert.match(portalRoute, /router\.post\('\/c\/profile'/);
+  assert.match(portalRoute, /UPDATE customers SET name=\?,email=\?,address=\? WHERE id=\?/);
+});
+
 test('customer portal home uses role-aware section navigation', () => {
   const customerPage = read('public/customer.html');
 
   assert.match(customerPage, /id="portalHomeTabs"/);
   assert.match(customerPage, /id="homeTabOrders"/);
+  assert.match(customerPage, /id="homeTabProfile"/);
   assert.match(customerPage, /id="homeTabSites"/);
   assert.match(customerPage, /id="homeTabFinance"/);
   assert.match(customerPage, /id="homeTabPriceList"/);
   assert.match(customerPage, /id="homeTabDocs"/);
   assert.match(customerPage, /id="homeSectionOrders"/);
+  assert.match(customerPage, /id="homeSectionProfile"/);
   assert.match(customerPage, /id="homeSectionSites"/);
   assert.match(customerPage, /id="homeSectionFinance"/);
   assert.match(customerPage, /id="homeSectionPriceList"/);

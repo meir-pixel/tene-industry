@@ -68,7 +68,15 @@
     .welcome-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
     .welcome-actions .btn{width:auto;margin:0}
     .new-order-btn{background:var(--orange);color:#fff;border:none;border-radius:14px;padding:16px;width:100%;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:10px}
-    .portal-home-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+    .portal-action-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px;margin-bottom:14px}
+    .portal-action-grid .new-order-btn{margin-bottom:0;height:100%;min-height:76px}
+    .portal-action-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:13px;text-align:right;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.05);font-family:inherit;color:var(--text)}
+    .portal-action-card strong{display:block;font-size:15px;margin-bottom:4px}
+    .portal-action-card span{display:block;font-size:12px;color:var(--dim);line-height:1.45}
+    .portal-profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .portal-profile-grid .full{grid-column:1/-1}
+    .portal-readonly{background:#f6f8fb;color:#667085}
+    .portal-home-tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px}
     .portal-home-tab{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:10px 8px;font-size:13px;font-weight:800;color:#26364a;cursor:pointer;box-shadow:0 1px 6px rgba(0,0,0,.035)}
     .portal-home-tab.active{border-color:var(--orange);background:#fff7ef;color:#c95700}
     .portal-home-tab[hidden]{display:none}
@@ -271,16 +279,19 @@
     <p id="welcomeSub">מחירון <span id="tierLabel">מחירון</span></p>
     <div class="welcome-actions">
       <button class="btn btn-secondary btn-sm" onclick="changePortalPassword()">שינוי סיסמה</button>
-      <button class="btn btn-secondary btn-sm" id="manageSitesBtn" onclick="toggleSitesPanel()" style="display:none">אתרים</button>
+      <button class="btn btn-secondary btn-sm" id="manageSitesBtn" onclick="openProjectPanel()" style="display:none">פרויקטים</button>
       <button class="btn btn-secondary btn-sm" onclick="logoutPortal()">התנתק</button>
     </div>
   </div>
-  <button class="new-order-btn" onclick="showScreen('screenOrder')">
-    ➕ הזמנה חדשה
-  </button>
+  <div class="portal-action-grid">
+    <button class="new-order-btn" onclick="showScreen('screenOrder')">+ הזמנה חדשה</button>
+    <button type="button" class="portal-action-card" onclick="openProjectPanel()"><strong>פרויקט חדש</strong><span>פתח אתר/פרויקט, כתובת ומנהלי עבודה</span></button>
+    <button type="button" class="portal-action-card" onclick="setHomeSection('profile')"><strong>פרטי לקוח</strong><span>עדכון שם, כתובת ואימייל לקבלת מסמכים</span></button>
+  </div>
   <nav class="portal-home-tabs" id="portalHomeTabs" aria-label="ניווט פורטל לקוח">
     <button type="button" class="portal-home-tab active" id="homeTabOrders" onclick="setHomeSection('orders')">הזמנות</button>
-    <button type="button" class="portal-home-tab" id="homeTabSites" onclick="setHomeSection('sites')" hidden>אתרים</button>
+    <button type="button" class="portal-home-tab" id="homeTabProfile" onclick="setHomeSection('profile')">פרטי לקוח</button>
+    <button type="button" class="portal-home-tab" id="homeTabSites" onclick="setHomeSection('sites')" hidden>פרויקטים</button>
     <button type="button" class="portal-home-tab" id="homeTabFinance" onclick="setHomeSection('finance')" hidden>כספים</button>
     <button type="button" class="portal-home-tab" id="homeTabPriceList" onclick="setHomeSection('priceList')" hidden>מחירון</button>
     <button type="button" class="portal-home-tab" id="homeTabDocs" onclick="setHomeSection('docs')">מסמכים</button>
@@ -289,6 +300,10 @@
   <section class="portal-home-section active" id="homeSectionOrders">
     <div class="card-title" style="margin-bottom:10px">הזמנות אחרונות</div>
     <div id="ordersList"><div class="loader">טוען...</div></div>
+  </section>
+
+  <section class="portal-home-section" id="homeSectionProfile">
+    <div id="customerProfilePanel" class="section-card"></div>
   </section>
 
   <section class="portal-home-section" id="homeSectionSites">
@@ -534,8 +549,39 @@ function canViewCustomerFinance() {
 }
 
 function toggleSitesPanel(forceOpen) {
+  openProjectPanel(forceOpen);
+}
+
+function openProjectPanel(forceNewProject) {
   renderCustomerSitesPanel();
   setHomeSection('sites');
+  if (forceNewProject !== false) {
+    toggleNewSiteForm(true);
+    setTimeout(() => document.getElementById('newSiteName')?.focus(), 0);
+  }
+}
+
+function renderCustomerProfilePanel() {
+  const panel = document.getElementById('customerProfilePanel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="guarantee-head">
+      <div>
+        <div class="card-title">פרטי לקוח</div>
+        <p>כאן מעדכנים את הפרטים שמופיעים במסמכי הפורטל ובהזמנות.</p>
+      </div>
+      <span class="guarantee-status">${PORTAL_SITES.length} פרויקטים</span>
+    </div>
+    <div class="portal-profile-grid">
+      <div class="field"><label>שם לקוח</label><input id="profileCustomerName" value="${escapeHtml(ME?.name || '')}"></div>
+      <div class="field"><label>ח.פ</label><input class="portal-readonly" value="${escapeHtml(ME?.tax_id || '-')}" readonly></div>
+      <div class="field"><label>טלפון ראשי</label><input class="portal-readonly" value="${escapeHtml(ME?.phone || '-')}" readonly></div>
+      <div class="field"><label>אימייל למסמכים</label><input id="profileCustomerEmail" value="${escapeHtml(ME?.email || '')}"></div>
+      <div class="field full"><label>כתובת חברה</label><input id="profileCustomerAddress" value="${escapeHtml(ME?.address || '')}"></div>
+      <div class="field full"><label>תנאי תשלום</label><input class="portal-readonly" value="${escapeHtml(ME?.payment_terms || 'לא הוגדר')}" readonly></div>
+      <button type="button" class="btn btn-primary full" onclick="saveCustomerProfile()">שמור פרטי לקוח</button>
+    </div>
+  `;
 }
 
 function renderCustomerSitesPanel() {
@@ -551,7 +597,7 @@ function renderCustomerSitesPanel() {
         <span>${escapeHtml([site.address, site.city].filter(Boolean).join(', ') || 'ללא כתובת')}</span>
       </div>
     `).join('')
-    : '<div class="loader" style="padding:12px">אין אתרים עדיין</div>';
+    : '<div class="loader" style="padding:12px">אין פרויקטים עדיין. לחץ על פרויקט חדש כדי לפתוח אתר עבודה.</div>';
   const siteOptions = PORTAL_SITES.map(site => `<option value="${site.id}">${escapeHtml(site.name)}${site.city ? ' - ' + escapeHtml(site.city) : ''}</option>`).join('');
   const usersBySite = new Map();
   PORTAL_USER_ASSIGNMENTS.forEach(row => {
@@ -601,18 +647,18 @@ function renderCustomerSitesPanel() {
     </div>
   ` : '';
   const form = canManagePortalSites() ? `
-    ${PORTAL_SITES.length ? `<button class="btn btn-secondary btn-sm" type="button" onclick="toggleNewSiteForm()" style="margin-top:12px">הוסף אתר</button>` : ''}
+    ${PORTAL_SITES.length ? `<button class="btn btn-secondary btn-sm" type="button" onclick="toggleNewSiteForm()" style="margin-top:12px">פרויקט חדש</button>` : ''}
     <div id="newSiteForm" style="display:${formDisplay};grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
-      <input id="newSiteName" placeholder="שם אתר" />
+      <input id="newSiteName" placeholder="שם פרויקט / אתר" />
       <input id="newSiteCity" placeholder="עיר" />
-      <input id="newSiteAddress" placeholder="כתובת" style="grid-column:1/-1" />
-      <button class="btn btn-primary" style="grid-column:1/-1;margin-top:0" onclick="createPortalSite()">פתח אתר</button>
+      <input id="newSiteAddress" placeholder="כתובת אתר" style="grid-column:1/-1" />
+      <button class="btn btn-primary" style="grid-column:1/-1;margin-top:0" onclick="createPortalSite()">פתח פרויקט</button>
     </div>
   ` : '';
   panel.innerHTML = `
     <div class="guarantee-head">
       <div>
-        <div class="card-title">אתרים ופרויקטים</div>
+        <div class="card-title">פרויקטים ואתרים</div>
       </div>
       <span class="guarantee-status">${PORTAL_SITES.length}</span>
     </div>
@@ -657,6 +703,27 @@ function syncPortalUserRoleDefaults() {
   if (budget) budget.checked = role === 'finance' || role === 'customer_admin';
   if (invoices) invoices.checked = role === 'finance' || role === 'customer_admin';
   if (approve) approve.checked = role === 'approver' || role === 'customer_admin';
+}
+
+async function saveCustomerProfile() {
+  const body = {
+    token: TOKEN,
+    name: document.getElementById('profileCustomerName')?.value.trim(),
+    email: document.getElementById('profileCustomerEmail')?.value.trim(),
+    address: document.getElementById('profileCustomerAddress')?.value.trim(),
+  };
+  if (!body.name) { toast('שם לקוח חובה', true); return; }
+  const res = await fetch('/api/c/profile', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).then(async r => ({ ok:r.ok, data: await r.json().catch(()=>null) })).catch(()=>null);
+  if (!res || !res.ok || !res.data?.success) { toast(res?.data?.error || 'לא ניתן לשמור פרטים', true); return; }
+  ME = res.data.customer || ME;
+  document.getElementById('headerName').textContent = ME?.name || '';
+  document.getElementById('welcomeName').textContent = `שלום, ${ME?.name || ''}! 👋`;
+  renderCustomerProfilePanel();
+  toast('פרטי הלקוח נשמרו');
 }
 
 async function loadPortalUsers() {
