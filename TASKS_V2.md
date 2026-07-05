@@ -924,6 +924,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
+  - Intake/OCR spiral rows keep bar diameter, spiral diameter, and turn count separate; 60 turns stays 60 instead of guessed 160.
   - normalized OCR spiral rows as first-class steel items: bar diameter, spiral diameter, and turn count stay separate, with cut length calculated without guessing 160 when source says 60.
   - added source-field highlighting from parser bounding boxes and row-level OCR learning examples on approved review rows.
   - added foundation rebar-list OCR guidance so Vision extracts rows 1-2, U-shape side sequences, straight singles, and coil rows instead of skipping non-straight rows.
