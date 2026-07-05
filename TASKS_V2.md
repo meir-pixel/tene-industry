@@ -1668,7 +1668,7 @@
 
 ---
 
-### V2-006AG - Pile Cage Engineering A4 Preview And Calculator
+### V2-006AG - Pile Cage Engineering Engine Slice
 
 - status: in_progress
 - owner: codex-steel-rebar-shape-editor
@@ -1677,26 +1677,24 @@
 - scope:
   - `TASKS_V2.md`
   - `modules/steel-rebar/pile-cage-engine.js`
-  - `modules/steel-rebar/index.js`
-  - `docs/mockups/pile-cage-a4-report.html`
   - `test/pile-cage-engine.test.js`
 - input:
   - Pile cage is an engineering product, not a generic bent-bar shape.
-  - Default spiral pitch mode is uniform; variable pitch opens zone length + pitch rows.
+  - Primary module is Shapes / Engineering Engine, not Orders, Production, Printing, OCR, Pricing, Finance, Portal, or DB.
+  - Default spiral pitch mode is uniform; zones must cover the active spiral length when enabled.
   - No-spiral gaps are allowed only at the start/end, not in the middle.
-  - Longitudinal bars may use alternating diameter/shape patterns and per-bar overrides.
+  - Longitudinal bars may use uniform, alternating, grouped, or individual diameter/type patterns.
 - output:
-  - Pile cage calculator returns geometry, weights, spiral calculations, validation, and manufacturing breakdown.
-  - A4 engineering preview mockup shows side view, top section, 3D-style overview, element details, and summary.
-  - Live Shape Editor runtime is not changed in this task.
+  - PileCageModel returns `general`, `longitudinalBars`, `spiral`, `hoops`, `calculations`, `manufacturingBreakdown`, `validation`, and `views`.
+  - Shape V2 envelope is preserved with `shapeType = round_pile_cage`, `family = piles`, `machineOutput`, and legacy compatibility fields.
+  - No A4 screen, production card, live Shape Editor UI, or cross-module rewrite is included in this slice.
 - guardrails:
-  - Do not change Orders, Production, Pricing, Warehouse, OCR, API, DB, or live Shape Editor UI.
+  - Do not change Orders, Production, Printing, Pricing, Warehouse, OCR, API, DB, Portal, or live Shape Editor UI.
   - Do not add new shape families.
-  - Keep this as pile-cage-only groundwork before mesh work.
+  - Keep this as pile-cage-only engineering model groundwork before mesh work.
 - verification:
+  - `node --check modules\steel-rebar\pile-cage-engine.js`
   - `node --test test\pile-cage-engine.test.js`
-  - visual review of `docs/mockups/pile-cage-a4-report.html`
-
 
 ---
 
@@ -1722,3 +1720,29 @@
 - verification:
   - `node --test test\production-item-boundaries.test.js test\client-auth-contract.test.js test\module-governance.test.js`
   - `npm test`
+
+
+---
+
+### V2-011H - Pile Cage Production Card Breakdown
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / pile-cages
+- scope:
+  - `TASKS_V2.md`
+  - `modules/steel-rebar/pile-cage-engine.js`
+  - `services/productionCardPrintPage.js`
+  - `public/worker-visual.html`
+  - `test/pile-cage-engine.test.js`
+  - `test/production-print-page.test.js`
+- goal:
+  - Pile cage items print one master card for each pile unit.
+  - Each pile unit also prints production component cards from the pile cage manufacturing breakdown.
+  - Component cards keep QR routing to the parent production item while carrying pile unit/component suffixes.
+- guardrails:
+  - No database migration.
+  - Do not change Orders lifecycle, Finance, Portal, OCR, Warehouse, or pricing.
+- verification:
+  - `node --check modules\steel-rebar\pile-cage-engine.js`
+  - `node --test test\pile-cage-engine.test.js test\production-print-page.test.js`
