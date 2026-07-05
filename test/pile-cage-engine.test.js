@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 
 test('pile cage calculator defaults to one continuous uniform spiral zone', () => {
@@ -73,4 +74,15 @@ test('pile cage rejects internal no-spiral gaps and incomplete variable zones', 
   assert.equal(pile.validation.ok, false);
   assert.match(pile.validation.errors.join('\n'), /internal no-spiral gaps are not allowed/);
   assert.match(pile.validation.errors.join('\n'), /variable spiral zone lengths must exactly fill/);
+});
+
+
+test('runtime pile cage report page exposes A4 sheet and production cards', () => {
+  const html = fs.readFileSync(require('node:path').join(__dirname, '..', 'public', 'pile-cage-report.html'), 'utf8');
+  assert.match(html, /COLUMN_CAGE/);
+  assert.match(html, /production/i);
+  assert.match(html, /id="sideSvg"/);
+  assert.match(html, /id="cards"/);
+  assert.equal(html.includes('/brand/tene-pdf-logo.jpg'), true);
+  assert.equal(html.includes('docs/mockups'), false);
 });
