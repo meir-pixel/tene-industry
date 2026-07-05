@@ -835,6 +835,12 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /data-shape-kind="worker-open-u"/);
   assert.match(workerVisual, /data-scale-mode="readable"/);
   assert.match(workerVisual, /actual_weight_kg/);
+  assert.match(workerVisual, /produced_qty/);
+  assert.match(workerVisual, /worker-inline-panel/);
+  assert.match(workerVisual, /worker-status-actions/);
+  assert.match(workerVisual, /inlineProductionPanel/);
+  assert.match(workerVisual, /saveProductionFields/);
+  assert.doesNotMatch(workerVisual, /<details class="worker-more"/);
   assert.match(workerVisual, /weightDeviation/);
   assert.match(workerVisual, /משקל רצוי/);
   assert.match(workerVisual, /משקל מצוי/);

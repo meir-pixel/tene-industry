@@ -1585,3 +1585,24 @@
 - verification:
   - `node --test test\order-shape-editor-add.test.js test\client-auth-contract.test.js`
 
+
+---
+
+### V2-011D — Worker Dashboard Inline Production Controls
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / worker-dashboard
+- scope:
+  - `TASKS_V2.md`
+  - `public/worker-visual.html`
+  - `test/client-auth-contract.test.js`
+- goal:
+  - Worker can update card status, produced quantity, actual weight, and notes directly on each visible card.
+  - No modal or collapsed details section is required for the core worker update flow.
+- guardrails:
+  - Preserve existing production APIs and status flow.
+  - Do not change Orders, Finance, Portal, OCR, Warehouse, or Shape V2 contract.
+  - No database migration.
+- verification:
+  - Worker visual contract test covers inline controls and prevents reverting to collapsed worker-more details.
