@@ -35,14 +35,16 @@ const SHAPE_PRESETS = [
   { id: 's13', name: 'צורה 12', family: 'bars', category: 'פיגורה', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
   { id: 's14', name: 'צורה 13',    family: 'bars', category: 'פיגורה', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
   { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, edgeLeft: 0, edgeRight: 0, edgeTop: 0, edgeBottom: 0, emoji: '#', specialty: 'mesh' },
-  { id: 'pile1', name: 'כלונס', family: 'piles', icon: 'pile', bends: 0, pileDiameter: 70, pileLength: 2200, longitudinalBars: 26, longitudinalDiameter: 22, spiralDiameter: 8, spiralZones: [{ length: 70, pitch: 10 }, { length: 200, pitch: 20 }, { length: 1350, pitch: 20 }], emoji: '◎', specialty: 'pile' },
+  { id: 'pile1',   name: 'כלונס',    family: 'piles',   icon: 'pile',   bends: 0, pileDiameter: 70, pileLength: 2200, longitudinalBars: 26, longitudinalDiameter: 22, spiralDiameter: 8, spiralZones: [{ length: 70, pitch: 10 }, { length: 200, pitch: 20 }, { length: 1350, pitch: 20 }], emoji: '◎', specialty: 'pile' },
+  { id: 'spiral1', name: 'ספיראלה', family: 'spirals', icon: 'spiral', bends: 0, barDiameter: 8, spiralDiameter: 400, turns: 20, emoji: '🌀', specialty: 'spiral' },
   { id: 's12', name: 'צורה מותאמת',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
 ];
 
 const SHAPE_FAMILIES = [
-  { id: 'bars', label: 'מוטות' },
-  { id: 'mesh', label: 'רשת' },
-  { id: 'piles', label: 'כלונסאות' },
+  { id: 'bars',    label: 'מוטות' },
+  { id: 'mesh',    label: 'רשת' },
+  { id: 'piles',   label: 'כלונסאות' },
+  { id: 'spirals', label: 'ספיראלות' },
 ];
 
 const SHAPE_CATEGORY_FILTERS = ['הכל', 'חישוק', 'פיגורה', 'ספירלים', 'ציפורים', 'משקפיים', 'קלמרה'];
@@ -68,6 +70,7 @@ function shapePresetIconSVG(kind) {
     c: `<path ${stroke} d="M77 24 H31 V74 H77"/>`,
     mesh: `<path ${thin} d="M20 24 H82 M20 40 H82 M20 56 H82 M20 72 H82 M28 16 V80 M44 16 V80 M60 16 V80 M76 16 V80"/>`,
     pile: `<circle cx="50" cy="50" r="30" ${thin}/><circle cx="50" cy="50" r="21" ${thin} opacity=".45"/>${dot(50, 20)}${dot(71, 29)}${dot(80, 50)}${dot(71, 71)}${dot(50, 80)}${dot(29, 71)}${dot(20, 50)}${dot(29, 29)}`,
+    spiral: `<path ${thin} d="M50 82 C22 82 14 68 14 58 C14 44 26 36 38 36 C52 36 58 46 58 54 C58 64 50 70 42 70 C34 70 30 64 30 58 C30 52 36 48 42 48 C48 48 52 52 52 56"/>`,
     custom: `<path ${stroke} d="M24 70 L34 50 L62 22 L78 38 L50 66 Z"/><path ${thin} d="M58 26 L74 42"/>`,
   };
   return `<svg viewBox="0 0 100 100" aria-hidden="true">${icons[kind] || icons.straight}</svg>`;
@@ -741,10 +744,77 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-bar-pattern="${svgEscape(barPattern)}"><g data-view="side"><text data-se-focus="pile-length" x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${lBarsSide}${noWrapRects.join('')}${zoneLines.join('')}${hoopLines.join('')}${zoneLabels.join('')}</g><g data-view="top">${topHoop}<circle data-se-focus="pile-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="${Math.max(1.4, spiralDiameter * 0.18).toFixed(1)}"/>${topBars}<text data-se-focus="pile-diameter" x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g><g class="se-engineer-helper" data-view="3d" data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch pile-hoops"><rect class="se-helper-panel" x="12" y="198" width="86" height="48" rx="5"/><path d="M 26 228 L 70 210 L 88 219 L 44 237 Z M 26 228 V 215 L 70 197 V 210" stroke="#475569" stroke-width="1.5" fill="none"/><text x="55" y="243" text-anchor="middle" font-size="8">׳×׳¦׳•׳’׳× 3D</text></g></g>`;
 };
 
+// ── SPIRAL ENGINE ─────────────────────────────────────────────────
+function SpiralEngine() {}
+SpiralEngine.render = function(spiral, w = 300, h = 260) {
+  const barDia     = Math.max(1, Number(spiral?.barDiameter    || 8));
+  const spiralDia  = Math.max(1, Number(spiral?.spiralDiameter || 400));
+  const turns      = Math.max(1, Number(spiral?.turns          || 20));
+
+  // Computed
+  const circumference = Math.PI * spiralDia;
+  const totalLengthMm = Math.round(turns * circumference);
+
+  const pad = 32;
+  const cx = w / 2, cy = h * 0.42;
+  const rx = Math.min((w - pad * 2) / 2, 90);
+  const ry = rx * 0.28; // ellipse depth for 3D feel
+
+  const barW = Math.max(2, barDia * 0.25);
+
+  // Draw coil turns as stacked ellipses (side view)
+  const displayTurns = Math.min(turns, 14);
+  const turnH = Math.min(12, (h * 0.55) / Math.max(1, displayTurns));
+  const totalH = displayTurns * turnH;
+  const startY = cy - totalH / 2;
+
+  let coils = '';
+  for (let i = 0; i < displayTurns; i++) {
+    const y = startY + i * turnH + turnH / 2;
+    const opacity = 0.55 + 0.45 * (i / Math.max(1, displayTurns - 1));
+    // front half arc
+    coils += `<path d="M ${(cx - rx).toFixed(1)},${y.toFixed(1)} A ${rx},${ry} 0 0,1 ${(cx + rx).toFixed(1)},${y.toFixed(1)}"
+      fill="none" stroke="#111827" stroke-width="${barW.toFixed(1)}" stroke-linecap="round" opacity="${opacity.toFixed(2)}"/>`;
+    // back half arc (dashed, lighter)
+    coils += `<path d="M ${(cx + rx).toFixed(1)},${y.toFixed(1)} A ${rx},${ry} 0 0,1 ${(cx - rx).toFixed(1)},${y.toFixed(1)}"
+      fill="none" stroke="#6b7280" stroke-width="${(barW * 0.7).toFixed(1)}" stroke-linecap="round" stroke-dasharray="4 3" opacity="${(opacity * 0.6).toFixed(2)}"/>`;
+  }
+  if (turns > displayTurns) {
+    coils += `<text x="${cx.toFixed(1)}" y="${(startY + totalH + 14).toFixed(1)}" text-anchor="middle"
+      font-size="9" font-family="Heebo,Arial" fill="#7a93ab">... ${turns} כריכות</text>`;
+  }
+
+  // Top-view circle (bottom-right)
+  const tCx = w * 0.80, tCy = h * 0.80, tR = Math.min(w * 0.13, 28);
+  const topView = `<circle cx="${tCx.toFixed(1)}" cy="${tCy.toFixed(1)}" r="${tR.toFixed(1)}"
+      fill="none" stroke="#111827" stroke-width="${barW.toFixed(1)}"/>
+    <text x="${tCx.toFixed(1)}" y="${(tCy + tR + 13).toFixed(1)}" text-anchor="middle"
+      font-size="9" font-family="Heebo,Arial" fill="#526070">Ø ${spiralDia}</text>`;
+
+  // Dimension arrows
+  const arrowY1 = startY - 6, arrowY2 = startY + totalH + 6;
+  const arrowX  = cx - rx - 14;
+  const dimLine = `<line x1="${arrowX}" y1="${arrowY1.toFixed(1)}" x2="${arrowX}" y2="${arrowY2.toFixed(1)}"
+      stroke="#526070" stroke-width="1" marker-start="url(#se-arr)" marker-end="url(#se-arr)"/>
+    <text x="${(arrowX - 6).toFixed(1)}" y="${((arrowY1 + arrowY2) / 2).toFixed(1)}"
+      text-anchor="middle" font-size="9" font-family="Heebo,Arial" fill="#526070"
+      transform="rotate(-90 ${(arrowX - 6).toFixed(1)} ${((arrowY1 + arrowY2) / 2).toFixed(1)})">${turns} כריכות</text>`;
+
+  // Labels
+  const specLabel = `<text x="${(cx).toFixed(1)}" y="${(h - 8).toFixed(1)}" text-anchor="middle"
+    font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">Ø${barDia} | קוטר ${spiralDia} | ${turns} כריכות | ${(totalLengthMm/1000).toFixed(2)} מ׳</text>`;
+
+  return `<g data-engine="SpiralEngine" data-family="spirals"
+    data-bar-diameter="${barDia}" data-spiral-diameter="${spiralDia}" data-turns="${turns}">
+    ${coils}${topView}${specLabel}
+  </g>`;
+};
+
 function ShapeEngineRouter(shape) {
   const family = shape?.family || 'bars';
-  if (family === 'mesh') return MeshEngine;
-  if (family === 'piles') return PileCageEngine;
+  if (family === 'mesh')    return MeshEngine;
+  if (family === 'piles')   return PileCageEngine;
+  if (family === 'spirals') return SpiralEngine;
   return PolylineBarEngine;
 }
 ShapeEngineRouter.render = function(shape, w = 300, h = 260, opts = {}) {
@@ -802,14 +872,16 @@ function shapeMachineProfiles() {
 }
 
 function normalizeShapeFamily(shape) {
-  return shape?.family === 'mesh' || shape?.family === 'piles' ? shape.family : 'bars';
+  const f = shape?.family;
+  return (f === 'mesh' || f === 'piles' || f === 'spirals') ? f : 'bars';
 }
 
 function resolveShapeType(shape) {
   const family = normalizeShapeFamily(shape);
   if (shape?.shapeType) return String(shape.shapeType);
-  if (family === 'mesh') return 'mesh_rectangular';
-  if (family === 'piles') return 'round_pile_cage';
+  if (family === 'mesh')    return 'mesh_rectangular';
+  if (family === 'piles')   return 'round_pile_cage';
+  if (family === 'spirals') return 'spiral';
   if (shape?.presetId) return String(shape.presetId);
   if (shape?.id) return String(shape.id);
   return 'custom_bar';
@@ -844,7 +916,7 @@ function validateShapeContractData(family, data) {
   const positive = (field, label = field) => {
     if (!(Number(data[field]) > 0)) errors.push(`${label} must be greater than 0`);
   };
-  if (!['bars', 'mesh', 'piles'].includes(family)) errors.push('family must be bars, mesh, or piles');
+  if (!['bars', 'mesh', 'piles', 'spirals'].includes(family)) errors.push('family must be bars, mesh, piles, or spirals');
   if (Object.prototype.hasOwnProperty.call(data, 'quantity')) errors.push('quantity belongs to Order Item, not Shape');
   if (family === 'bars') {
     if (!Array.isArray(data.sides) || data.sides.length === 0) errors.push('sides must be a non-empty array');
@@ -2292,8 +2364,9 @@ class ShapeEditorModal {
 
   _renderTable() {
     if (!this.current) return;
-    if (this.current.family === 'mesh') return this._renderMeshEditor();
-    if (this.current.family === 'piles') return this._renderPileCageEditor();
+    if (this.current.family === 'mesh')    return this._renderMeshEditor();
+    if (this.current.family === 'piles')   return this._renderPileCageEditor();
+    if (this.current.family === 'spirals') return this._renderSpiralEditor();
     return this._renderBarEditor();
   }
 
@@ -2451,7 +2524,7 @@ class ShapeEditorModal {
     if (addRow) addRow.style.display = isBars ? '' : 'none';
     if (modeNote) modeNote.style.display = isBars ? '' : 'none';
     if (summary) summary.style.display = isBars ? '' : 'none';
-    if (title) title.textContent = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : 'מידות צלעות וזוויות';
+    if (title) title.textContent = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : 'מידות צלעות וזוויות';
   }
 
   _renderMeshEditor() {
@@ -2476,6 +2549,85 @@ class ShapeEditorModal {
       <tr class="se-family-row">${field('transverseDiameter', 1)}${field('transverseSpacing', 1)}</tr>
       <tr class="se-family-row">${field('edgeLeft', 0)}${field('edgeRight', 0)}</tr>
       <tr class="se-family-row">${field('edgeTop', 0)}${field('edgeBottom', 0)}</tr>`;
+  }
+
+  _renderSpiralEditor() {
+    this._setFamilyEditorChrome('spirals');
+    const sp = this.current;
+    const body = document.getElementById('seTableBody');
+    if (!body) return;
+
+    const barDia    = Math.max(1, Number(sp.barDiameter    || 8));
+    const spiralDia = Math.max(1, Number(sp.spiralDiameter || 400));
+    const turns     = Math.max(1, Number(sp.turns          || 20));
+    const totalMm   = Math.round(turns * Math.PI * spiralDia);
+
+    const field = (key, label, unit, example, min = 1) =>
+      `<td colspan="2">${this._fieldShell({ icon: '', label, unit, example,
+        input: `<input class="se-input" type="number" min="${min}" value="${sp[key] ?? 0}"
+          onfocus="window._seEditor._focusFamilyField('spiral-${key}')"
+          oninput="window._seEditor._setSpiralField('${key}', this.value)">` })}</td>`;
+
+    const cr = (label, v, unit) =>
+      `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;
+        background:#f0fdf4;border-radius:6px;font-size:12px;margin:2px 0">
+        <span style="color:#526070;font-weight:600">${label}</span>
+        <span style="font-weight:800;color:#15803d">${v} <span style="font-weight:400;color:#888">${unit}</span></span>
+      </div>`;
+
+    body.innerHTML = `
+      <tr class="se-family-row"><td colspan="4" style="padding:4px 0">
+        <div style="font-size:11px;font-weight:800;color:#526070;padding:0 4px;letter-spacing:0.5px">פרמטרים</div>
+      </td></tr>
+      <tr class="se-family-row">
+        ${field('barDiameter',    'Ø קוטר ברזל',     'מ״מ', '8',   1)}
+        ${field('spiralDiameter', 'Ø קוטר ספיראלה',  'מ״מ', '400', 1)}
+      </tr>
+      <tr class="se-family-row">
+        ${field('turns', 'מספר כריכות', 'יח׳', '20', 1)}
+        <td colspan="2"></td>
+      </tr>
+      <tr class="se-family-row"><td colspan="4" style="padding:4px 0">
+        <div style="font-size:11px;font-weight:800;color:#526070;padding:0 4px;letter-spacing:0.5px">מחושב</div>
+      </td></tr>
+      <tr class="se-family-row" data-spiral-computed>
+        <td colspan="4">
+          ${cr('היקף חוג', Math.round(Math.PI * spiralDia), 'מ״מ')}
+          ${cr('אורך כולל', (totalMm / 1000).toFixed(2), 'מ׳')}
+          ${cr('משקל Ø' + barDia, ((totalMm / 1000) * sharedKgPerMeter(barDia)).toFixed(2), 'ק״ג')}
+        </td>
+      </tr>`;
+  }
+
+  _setSpiralField(key, val) {
+    if (!this.current || this.current.family !== 'spirals') return;
+    this.current[key] = Math.max(1, Number(val) || 1);
+    this._updatePreview();
+    this._refreshSpiralComputed();
+  }
+
+  _refreshSpiralComputed() {
+    const sp = this.current;
+    if (!sp) return;
+    const barDia    = Math.max(1, Number(sp.barDiameter    || 8));
+    const spiralDia = Math.max(1, Number(sp.spiralDiameter || 400));
+    const turns     = Math.max(1, Number(sp.turns          || 20));
+    const totalMm   = Math.round(turns * Math.PI * spiralDia);
+    const body = document.getElementById('seTableBody');
+    if (!body) return;
+    const el = body.querySelector('[data-spiral-computed]');
+    if (!el) return;
+    const cr = (label, v, unit) =>
+      `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;
+        background:#f0fdf4;border-radius:6px;font-size:12px;margin:2px 0">
+        <span style="color:#526070;font-weight:600">${label}</span>
+        <span style="font-weight:800;color:#15803d">${v} <span style="font-weight:400;color:#888">${unit}</span></span>
+      </div>`;
+    el.innerHTML = `<td colspan="4">
+      ${cr('היקף חוג', Math.round(Math.PI * spiralDia), 'מ״מ')}
+      ${cr('אורך כולל', (totalMm / 1000).toFixed(2), 'מ׳')}
+      ${cr('משקל Ø' + barDia, ((totalMm / 1000) * sharedKgPerMeter(barDia)).toFixed(2), 'ק״ג')}
+    </td>`;
   }
 
   _renderPileCageEditor() {
