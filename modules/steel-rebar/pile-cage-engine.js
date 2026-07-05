@@ -8,13 +8,13 @@ const DEFAULT_PILE = Object.freeze({
   concreteCoverMm: 50,
   longitudinalBarCount: 16,
   longitudinalDiameterMm: 20,
-  spiralDiameterMm: 10,
+  spiralDiameterMm: 8,
   pitchMode: 'uniform',
   uniformPitchMm: 150,
   noSpiralStartMm: 0,
   noSpiralEndMm: 0,
-  hoopDiameterMm: 8,
-  hoopSpacingMm: 2000,
+  hoopDiameterMm: 14,
+  hoopSpacingMm: 3000,
   hookLengthMm: 400,
 });
 
@@ -113,20 +113,38 @@ function enrichSpiralZones(pile, zones) {
   });
 }
 
+function defaultHoopStartMm(pile) {
+  const zones = buildSpiralZones(pile);
+  return zones.length ? zones[0].startMm : 0;
+}
+
+function defaultHoopPositions(pile) {
+  const startMm = defaultHoopStartMm(pile);
+  const endMm = Math.max(startMm, pile.pileLengthMm - pile.noSpiralEndMm);
+  const spacingMm = number(pile.hoopSpacingMm, DEFAULT_PILE.hoopSpacingMm, 1);
+  const positionsMm = [];
+  for (let positionMm = startMm; positionMm <= endMm + 0.001; positionMm += spacingMm) {
+    positionsMm.push(round(positionMm, 1));
+  }
+  if (!positionsMm.length) positionsMm.push(round(startMm, 1));
+  return positionsMm;
+}
+
 function buildHoops(pile) {
-  const defaultHoop = { diameterMm: Math.max(1, cageDiameterMm(pile) - pile.longitudinalDiameterMm), barDiameterMm: pile.hoopDiameterMm };
+  const defaultHoop = { diameterMm: Math.max(1, cageDiameterMm(pile) - pile.longitudinalDiameterMm), barDiameterMm: Math.max(14, pile.hoopDiameterMm) };
   if (pile.hoops.length) {
     return pile.hoops.map((hoop, idx) => {
       const count = Math.max(1, Math.round(number(hoop.count, 1, 1)));
       const diameterMm = number(hoop.diameterMm, defaultHoop.diameterMm, 1);
-      const barDiameterMm = number(hoop.barDiameterMm, defaultHoop.barDiameterMm, 1);
+      const barDiameterMm = Math.max(14, number(hoop.barDiameterMm, defaultHoop.barDiameterMm, 1));
       const lengthMm = Math.PI * diameterMm;
       return { index: idx + 1, count, diameterMm, barDiameterMm, lengthMm: round(lengthMm, 1), totalLengthMm: round(lengthMm * count, 1), weightKg: round((lengthMm * count / 1000) * rebarKgPerMeter(barDiameterMm), 3) };
     });
   }
-  const count = Math.max(0, Math.floor(pile.pileLengthMm / pile.hoopSpacingMm) + 1);
+  const positionsMm = defaultHoopPositions(pile);
+  const count = positionsMm.length;
   const lengthMm = Math.PI * defaultHoop.diameterMm;
-  return [{ index: 1, count, diameterMm: round(defaultHoop.diameterMm, 1), barDiameterMm: defaultHoop.barDiameterMm, lengthMm: round(lengthMm, 1), totalLengthMm: round(lengthMm * count, 1), weightKg: round((lengthMm * count / 1000) * rebarKgPerMeter(defaultHoop.barDiameterMm), 3) }];
+  return [{ index: 1, count, spacingMm: pile.hoopSpacingMm, positionsMm, startFromMm: positionsMm[0], diameterMm: round(defaultHoop.diameterMm, 1), barDiameterMm: defaultHoop.barDiameterMm, lengthMm: round(lengthMm, 1), totalLengthMm: round(lengthMm * count, 1), weightKg: round((lengthMm * count / 1000) * rebarKgPerMeter(defaultHoop.barDiameterMm), 3) }];
 }
 
 function validatePileCage(pile, spiralZones) {
@@ -182,7 +200,7 @@ function calculatePileCage(input = {}) {
   const manufacturingBreakdown = [
     ...groupBarsForProduction(longitudinalBars),
     ...spiralZones.map(zone => ({ type: 'spiral', name: zone.name, diameterMm: pile.spiralDiameterMm, pitchMm: zone.pitchMm, lengthMm: zone.cutLengthMm, quantity: 1, startMm: zone.startMm, zoneLengthMm: zone.lengthMm, turns: zone.turns, weightKg: zone.weightKg })),
-    ...hoops.map(hoop => ({ type: 'internal_hoop', diameterMm: hoop.barDiameterMm, hoopDiameterMm: hoop.diameterMm, lengthMm: hoop.lengthMm, quantity: hoop.count, totalLengthMm: hoop.totalLengthMm, weightKg: hoop.weightKg })),
+    ...hoops.map(hoop => ({ type: 'internal_hoop', diameterMm: hoop.barDiameterMm, hoopDiameterMm: hoop.diameterMm, lengthMm: hoop.lengthMm, quantity: hoop.count, spacingMm: hoop.spacingMm, positionsMm: hoop.positionsMm, totalLengthMm: hoop.totalLengthMm, weightKg: hoop.weightKg })),
   ];
   return {
     family: 'piles',
@@ -210,6 +228,7 @@ module.exports = {
   normalizePileInput,
   buildLongitudinalBars,
   buildSpiralZones,
+  defaultHoopPositions,
   validatePileCage,
 };
 

@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -77,6 +77,24 @@ test('pile cage rejects internal no-spiral gaps and incomplete variable zones', 
 });
 
 
+test('default internal hoops follow pile standard from spiral side', () => {
+  const pile = calculatePileCage({
+    pileDiameterMm: 680,
+    pileLengthMm: 12000,
+    concreteCoverMm: 50,
+    longitudinalDiameterMm: 20,
+    hoopDiameterMm: 8,
+    noSpiralStartMm: 1000,
+    noSpiralEndMm: 0,
+  });
+
+  assert.equal(pile.spiralZones[0].diameterMm, 572);
+  assert.equal(pile.hoops[0].barDiameterMm, 14);
+  assert.equal(pile.hoops[0].spacingMm, 3000);
+  assert.equal(pile.hoops[0].diameterMm, 560);
+  assert.deepEqual(pile.hoops[0].positionsMm, [1000, 4000, 7000, 10000]);
+  assert.ok(pile.manufacturingBreakdown.some(part => part.type === 'internal_hoop' && part.diameterMm === 14 && part.quantity === 4));
+});
 test('runtime pile cage report page exposes A4 sheet and production cards', () => {
   const html = fs.readFileSync(require('node:path').join(__dirname, '..', 'public', 'pile-cage-report.html'), 'utf8');
   assert.match(html, /COLUMN_CAGE/);
