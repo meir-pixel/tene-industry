@@ -708,6 +708,13 @@ function pileRound(value, digits = 3) {
   return Math.round((Number(value) || 0) * p) / p;
 }
 
+function pileInternalHoopDiameterMm(pile) {
+  const pileDiameter = Math.max(1, Number(pile?.pileDiameter || 0));
+  const cover = Math.max(0, Number(pile?.concreteCover || 0));
+  const longDia = Math.max(1, Number(pile?.longitudinalDiameter || 0));
+  return Math.max(1, pileDiameter - cover * 2 - longDia * 2);
+}
+
 PileCageEngine.calculate = function(shape = {}) {
   const pileLengthMm = Math.max(1, pileCmToMm(shape.pileLength || 2200, 22000));
   const pileDiameterMm = Math.max(1, pileCmToMm(shape.pileDiameter || 70, 700));
@@ -742,7 +749,9 @@ PileCageEngine.calculate = function(shape = {}) {
   const wrapZones = machineZones.filter(zone => !zone.noWrap);
   const totalLongitudinalLengthMm = data.pileLength * data.longitudinalBars;
   const totalLongitudinalWeightKg = pileRound((totalLongitudinalLengthMm / 1000) * sharedKgPerMeter(data.longitudinalDiameter));
-  const totalSpiralLengthMm = wrapZones.reduce((sum, zone) => sum + pileSpiralLengthMm(Math.max(1, data.pileDiameter - data.concreteCover * 2), zone.lengthMm, zone.pitchMm), 0);
+  const spiralCenterDiameterMm = Math.max(1, data.pileDiameter - data.concreteCover * 2);
+  const internalHoopDiameterMm = pileInternalHoopDiameterMm(data);
+  const totalSpiralLengthMm = wrapZones.reduce((sum, zone) => sum + pileSpiralLengthMm(spiralCenterDiameterMm, zone.lengthMm, zone.pitchMm), 0);
   const totalSpiralWeightKg = pileRound((totalSpiralLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter));
   const hoopPositions = [];
   if (data.hoopsEnabled) {
@@ -751,7 +760,7 @@ PileCageEngine.calculate = function(shape = {}) {
     for (let pos = start; pos <= end + 0.001; pos += data.hoopSpacing) hoopPositions.push(pileRound(pos, 1));
     if (!hoopPositions.length) hoopPositions.push(start);
   }
-  const hoopLengthMm = Math.PI * Math.max(1, data.pileDiameter - data.concreteCover * 2);
+  const hoopLengthMm = Math.PI * internalHoopDiameterMm;
   const totalHoopLengthMm = pileRound(hoopLengthMm * hoopPositions.length, 1);
   const totalHoopWeightKg = pileRound((totalHoopLengthMm / 1000) * sharedKgPerMeter(data.hoopDiameter));
   const totalLengthMm = pileRound(totalLongitudinalLengthMm + totalSpiralLengthMm + totalHoopLengthMm, 1);
@@ -759,8 +768,11 @@ PileCageEngine.calculate = function(shape = {}) {
 
   const manufacturingBreakdown = [];
   manufacturingBreakdown.push({ componentType: data.barPattern === 'l' ? 'longitudinal_l_bar' : 'longitudinal_straight_bar', sourceSystem: 'longitudinalBars', description: data.barPattern === 'l' ? 'Longitudinal L bars' : 'Longitudinal straight bars', diameterMm: data.longitudinalDiameter, quantity: data.longitudinalBars, totalLengthMm: totalLongitudinalLengthMm, weightKg: totalLongitudinalWeightKg });
-  wrapZones.forEach(zone => manufacturingBreakdown.push({ componentType: 'spiral_zone', sourceSystem: 'spiral', description: `Spiral zone ${zone.name}`, name: zone.name, zoneIndex: zone.zoneIndex, diameterMm: data.spiralDiameter, pitchMm: zone.pitchMm, quantity: 1, startMm: zone.startMm, zoneLengthMm: zone.lengthMm, totalLengthMm: pileSpiralLengthMm(Math.max(1, data.pileDiameter - data.concreteCover * 2), zone.lengthMm, zone.pitchMm), weightKg: pileRound((pileSpiralLengthMm(Math.max(1, data.pileDiameter - data.concreteCover * 2), zone.lengthMm, zone.pitchMm) / 1000) * sharedKgPerMeter(data.spiralDiameter)) }));
-  if (data.hoopsEnabled) manufacturingBreakdown.push({ componentType: 'hoop_ring', sourceSystem: 'hoops', description: 'Internal reinforcement hoops', diameterMm: data.hoopDiameter, hoopDiameterMm: Math.max(1, data.pileDiameter - data.concreteCover * 2), quantity: hoopPositions.length, positionsMm: hoopPositions, totalLengthMm: totalHoopLengthMm, weightKg: totalHoopWeightKg });
+  wrapZones.forEach(zone => {
+    const zoneLengthMm = pileSpiralLengthMm(spiralCenterDiameterMm, zone.lengthMm, zone.pitchMm);
+    manufacturingBreakdown.push({ componentType: 'spiral_zone', sourceSystem: 'spiral', description: `Spiral zone ${zone.name}`, name: zone.name, zoneIndex: zone.zoneIndex, diameterMm: data.spiralDiameter, pitchMm: zone.pitchMm, quantity: 1, startMm: zone.startMm, zoneLengthMm: zone.lengthMm, totalLengthMm: zoneLengthMm, weightKg: pileRound((zoneLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter)) });
+  });
+  if (data.hoopsEnabled) manufacturingBreakdown.push({ componentType: 'hoop_ring', sourceSystem: 'hoops', description: 'Internal reinforcement hoops', diameterMm: data.hoopDiameter, hoopDiameterMm: internalHoopDiameterMm, quantity: hoopPositions.length, positionsMm: hoopPositions, totalLengthMm: totalHoopLengthMm, weightKg: totalHoopWeightKg });
 
   const productionCards = [{ cardType: 'pile_master', componentType: 'pile_master', title: 'Pile cage 1/1', unitIndex: 1, unitTotal: 1, componentIndex: 0, quantity: 1, totalLengthMm: data.pileLength, diameterMm: data.longitudinalDiameter, scanCodeSuffix: 'P1-MASTER' }]
     .concat(manufacturingBreakdown.map((part, index) => ({ cardType: 'pile_component', componentType: part.componentType, title: part.description, unitIndex: 1, unitTotal: 1, componentIndex: index + 1, quantity: part.quantity || 1, diameterMm: part.diameterMm, totalLengthMm: part.totalLengthMm, weightKg: part.weightKg, source: part, scanCodeSuffix: `P1-C${index + 1}` })));
@@ -768,8 +780,8 @@ PileCageEngine.calculate = function(shape = {}) {
   const validation = validateShapeContractData('piles', data);
   return {
     data,
-    calculated: { totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, weightKg, totalLongitudinalWeightKg, totalSpiralWeightKg, totalHoopWeightKg, manufacturingBreakdown },
-    machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, manufacturingBreakdown, productionCards }, machineProfiles: {} },
+    calculated: { totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, weightKg, totalLongitudinalWeightKg, totalSpiralWeightKg, totalHoopWeightKg, spiralCenterDiameterMm, internalHoopDiameterMm, manufacturingBreakdown },
+    machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, spiralCenterDiameterMm, internalHoopDiameterMm, totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, manufacturingBreakdown, productionCards }, machineProfiles: {} },
     validation,
     manufacturingBreakdown,
     productionCards,
@@ -789,6 +801,8 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const hoopSpacing = Math.max(1, pileCmToMm(pile?.hoopSpacing || 300, 3000));
   const hoopStart = Math.max(0, pileCmToMm(pile?.hoopStart || 0, 0));
   const hoopEnd = Math.max(hoopStart, pileCmToMm(pile?.hoopEnd || pileLengthCm, pileLength));
+  const concreteCover = Math.max(0, pileCmToMm(pile?.concreteCover || 0, 0));
+  const internalHoopDiameter = pileInternalHoopDiameterMm({ pileDiameter, concreteCover, longitudinalDiameter });
   const barPattern = String(pile?.barPattern || 'straight');
   const lHookLength = Math.max(0, pileCmToMm(pile?.lHookLength || 25, 250));
   const zones = Array.isArray(pile?.spiralZones) && pile.spiralZones.length
@@ -809,6 +823,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const cx = w * 0.30;
   const cy = h * 0.72;
   const r = Math.max(24, Math.min(w * 0.17, h * 0.17));
+  const internalHoopRadius = Math.max(4, Math.min(r * 0.96, (internalHoopDiameter / Math.max(1, pileDiameter)) * r));
   const dimColor = '#94a3b8';
   const steelColor = '#111827';
   const auxColor = '#64748b';
@@ -881,7 +896,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     return `<circle class="pile-longitudinal-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.4, Math.min(4.8, longitudinalDiameter * 0.13)).toFixed(1)}" fill="#111827"/>${labelText}`;
   }).join('');
   const topHoop = hoopsEnabled
-    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.90).toFixed(1)}" fill="none" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".75"/>`
+    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${internalHoopRadius.toFixed(1)}" fill="none" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".75"/>`
     : '';
   const zoneSummary = zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}${(z.noWrap === true || z.noWrap === 1 || z.noWrap === 'true') ? ':no-wrap' : ''}`).join(',');
 
@@ -2968,19 +2983,19 @@ class ShapeEditorModal {
     if (!pile.spiralZones.length) pile.spiralZones = [{ name: 'Zone A', length: 70, pitch: 10 }, { name: 'Zone B', length: 200, pitch: 20 }, { name: 'Zone C', length: 1350, pitch: 20 }];
     if (pile.spiralType == null) pile.spiralType = 'zoned';
     if (pile.hoopsEnabled == null) pile.hoopsEnabled = true;
-    if (pile.hoopDiameter == null) pile.hoopDiameter = 8;
+    if (pile.hoopDiameter == null) pile.hoopDiameter = 14;
     if (pile.hoopSpacing == null) pile.hoopSpacing = 200;
     if (pile.hoopStart == null) pile.hoopStart = 0;
     if (pile.hoopEnd == null) pile.hoopEnd = pile.pileLength || 2200;
     if (!pile.barPattern) pile.barPattern = 'straight';
-    if (pile.lHookLength == null) pile.lHookLength = 250;
+    if (pile.lHookLength == null) pile.lHookLength = 25;
     const meta = {
       pileDiameter: ['Ø','קוטר כלונס','ס״מ','70'], pileLength: ['L','אורך כלונס','ס״מ','2200'],
-      longitudinalBars: ['N','מספר מוטות','יח׳','26'], longitudinalDiameter: ['Ø','קוטר מוטות','מ״מ','22'],
-      spiralDiameter: ['Ø','קוטר ספירלה','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
-      hoopsEnabled: ['H','חישוקים','','פעיל'], hoopDiameter: ['Ø','קוטר חישוק','מ״מ','8'],
-      hoopSpacing: ['@','מרווח חישוקים','ס״מ','200'], hoopStart: ['↦','תחילת חישוקים','ס״מ','0'], hoopEnd: ['↤','סוף חישוקים','ס״מ','2200'],
-      barPattern: ['L','סוג מוט אורך','','straight'], lHookLength: ['L','אורך רגל L','מ״מ','250'],
+      longitudinalBars: ['N','מספר מוטות אורך','יח׳','26'], longitudinalDiameter: ['Ø','קוטר ברזל מוטות','מ״מ','22'],
+      spiralDiameter: ['Ø','קוטר ברזל ספיראלה','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
+      hoopsEnabled: ['H','טבעות פנימיות','','פעיל'], hoopDiameter: ['Ø','קוטר ברזל טבעת','מ״מ','14'],
+      hoopSpacing: ['@','מרווח טבעות','ס״מ','200'], hoopStart: ['↦','תחילת טבעות','ס״מ','0'], hoopEnd: ['↤','סוף טבעות','ס״מ','2200'],
+      barPattern: ['L','צורת מוטות אורך','','straight'], lHookLength: ['L','אורך רגל L','ס״מ','25'],
     };
     const field = (key, min = 1) => {
       const m = meta[key] || ['•', key, 'מ״מ', '100'];
@@ -2995,6 +3010,9 @@ class ShapeEditorModal {
       const m = meta[key] || ['•', key, '', ''];
       return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="checkbox" ${pile[key] ? 'checked' : ''} data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" onchange="window._seEditor._setPileField('${key}', this.checked)">` }) + '</td>';
     };
+    const pileDiameterMmForDerived = pileCmToMm(pile.pileDiameter || 70, 700);
+    const coverMmForDerived = pileCmToMm(pile.concreteCover || 0, 0);
+    const internalHoopDiameterCm = pileRound(pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMmForDerived, concreteCover: coverMmForDerived, longitudinalDiameter: pile.longitudinalDiameter || 22 }) / 10, 1);
     const zoneRows = pile.spiralZones.map((zone, i) => `
       <tr class="se-family-row se-zone-row">
         <td>${this._fieldShell({ icon:'Z', label:'שם אזור', unit:'טקסט', example:'A', input:`<input class="se-input" type="text" value="${svgEscape(zone.name || 'Zone ' + String.fromCharCode(65 + i))}" data-zone-field="name" onfocus="window._seEditor._focusFamilyField('zone')" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)">` })}</td>
@@ -3010,7 +3028,8 @@ class ShapeEditorModal {
       <tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>
       ${zoneRows}
       <tr class="se-family-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>
-      <tr class="se-family-row">${checkboxField('hoopsEnabled')}${field('hoopDiameter', 1)}</tr>
+      <tr class="se-family-row"><td colspan="5">${this._fieldShell({ icon:'Ø', label:'קוטר טבעת פנימי מחושב', unit:'ס״מ', example:'מחושב לפי קוטר כלונס פחות מוטות', input:`<output class="se-input se-derived-field" data-pile-derived="internalHoopDiameter">${internalHoopDiameterCm}</output>` })}</td></tr>
+      <tr class="se-family-row">${checkboxField('hoopsEnabled')}${field('hoopDiameter', 14)}</tr>
       <tr class="se-family-row">${field('hoopSpacing', 1)}${field('hoopStart', 0)}</tr>
       <tr class="se-family-row">${field('hoopEnd', 0)}${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>
       <tr class="se-family-row">${field('lHookLength', 0)}</tr>`;

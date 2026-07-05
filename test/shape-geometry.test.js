@@ -505,6 +505,10 @@ test('PileCageEngine treats pile editor dimension fields as centimeters', () => 
   assert.equal(contract.data.pileDiameter, 500);
   assert.equal(contract.data.pileLength, 98000);
   assert.deepEqual(contract.data.spiralZones.map(zone => [zone.length, zone.pitch]), [[800, 100], [2000, 100], [7000, 200]]);
+  assert.equal(contract.calculated.spiralCenterDiameterMm, 500);
+  assert.equal(contract.calculated.internalHoopDiameterMm, 468);
+  const hoopPart = contract.calculated.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+  assert.equal(hoopPart.hoopDiameterMm, 468);
   assert.ok(contract.calculated.totalLengthMm < 1000000);
   assert.ok(contract.calculated.weightKg < 1000);
 });
@@ -744,12 +748,16 @@ test('production card renders real spiral items from item fields instead of stra
     shape_name: 'spiral',
     spiral_diameter_mm: 300,
     spiral_turns: 30,
-    segments: JSON.stringify([]),
   });
 
   assert.match(svg, /data-shape-kind="spiral"/);
+  assert.match(svg, /data-spiral-diameter-mm="300"/);
+  assert.match(svg, /data-spiral-turns="30"/);
+  assert.match(svg, /data-spiral-visual-labels="1"/);
+  assert.match(svg, /\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4/);
+  assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
   assert.doesNotMatch(svg, /data-shape-kind="straight-bar"/);
-  assert.match(svg, /30 turns/);
+  assert.doesNotMatch(svg, /30 turns/);
 });
 
 test('production card renders legacy spiral snapshot retroactively', () => {
@@ -765,7 +773,10 @@ test('production card renders legacy spiral snapshot retroactively', () => {
   });
 
   assert.match(svg, /data-shape-kind="spiral"/);
-  assert.match(svg, /18 turns/);
+  assert.match(svg, /data-spiral-diameter-mm="250"/);
+  assert.match(svg, /data-spiral-turns="18"/);
+  assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
+  assert.doesNotMatch(svg, /18 turns/);
 });
 
 test('production card renders a single straight bar with readable centimeter dimension', () => {

@@ -1717,6 +1717,7 @@
   - Use the existing Shape Editor screen and the existing PileCageEngine renderer only.
 - latest_change:
   - Pile cage editor dimensions are treated as centimeters and converted to millimeters for contract/calculation output; drawing pitch values are read-only labels.
+  - Pile cage editor now labels every rebar diameter explicitly and derives the internal hoop/ring diameter from pile diameter, cover, and longitudinal bar diameter.
 - output:
   - Pile cage preview draws a large side view with L, zone dimensions, pitch labels, spiral loops, hoops, and D.
   - Pile cage preview draws a top/cross-section view with longitudinal bars, D, and spiral diameter.
@@ -1860,3 +1861,25 @@
   - `node --test test\client-auth-contract.test.js`
   - `node --test test\security-routes.test.js`
   - `index.html` inline script syntax check
+---
+
+### V2-011L - Spiral Production Card Visual Labels
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing
+- files:
+  - `services/productionCards.js`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Spiral production cards visually distinguish spiral diameter from turn count.
+  - Printed cards show fixed visual labels for spiral diameter and wrap count instead of unclear English shorthand.
+  - Pile cage internal hoop/ring visual calculation stays aligned with pile diameter, cover, and longitudinal bar diameter.
+- guardrails:
+  - Preserve 8-per-A4 card grid, QR routing, Production status flow, Orders lifecycle, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+  - `npm test`
