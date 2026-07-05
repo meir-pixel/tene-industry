@@ -33,6 +33,7 @@ module.exports = function createProductionRouter(deps) {
     ITEM_STATUS.WAITING,
     ITEM_STATUS.IN_PRODUCTION,
     ITEM_STATUS.DONE,
+    ITEM_STATUS.DELIVERED,
     ITEM_STATUS.ON_HOLD,
     ITEM_STATUS.CANCELLED,
   ]);
@@ -80,6 +81,30 @@ module.exports = function createProductionRouter(deps) {
 
   function forbiddenProductionPatchFields(body) {
     return Object.keys(body || {}).filter(key => forbiddenProductionItemPatchFields.has(key));
+  }
+
+  function setOrderStatusIfChanged(orderId, nextStatus) {
+    const order = db.prepare('SELECT id,order_num,status FROM orders WHERE id=?').get(orderId);
+    if (!order) return null;
+    if (statusContracts.normalizeOrderStatus(order.status) === nextStatus) return null;
+    db.prepare('UPDATE orders SET status=? WHERE id=?').run(nextStatus, order.id);
+    wsBroadcast('order_status', { id: order.id, status: nextStatus, orderNum: order.order_num });
+    return nextStatus;
+  }
+
+  function syncOrderStatusAfterItemStatus(item, nextItemStatus) {
+    if (!item?.order_id) return null;
+    const orderStatus = statusContracts.normalizeOrderStatus(item.order_status);
+    if (nextItemStatus === ITEM_STATUS.IN_PRODUCTION && (
+      orderStatus === ORDER_STATUS.APPROVED_WAITING_PRODUCTION ||
+      orderStatus === ORDER_STATUS.PRODUCTION_QUEUE
+    )) {
+      return setOrderStatusIfChanged(item.order_id, ORDER_STATUS.IN_PRODUCTION);
+    }
+    if (nextItemStatus === ITEM_STATUS.DONE) {
+      checkOrderComplete(item.order_id);
+    }
+    return null;
   }
 
 
@@ -211,7 +236,7 @@ module.exports = function createProductionRouter(deps) {
     const allowed = ['ממתין','בייצור','הושלם','סופק','בהמתנה','בוטל'];
     if (!allowed.includes(status)) return res.status(400).json({ error: 'invalid status' });
     const item = db.prepare(`
-      SELECT i.*, o.status AS order_status
+      SELECT i.*, p.order_id, o.order_num, o.status AS order_status
       FROM items i
       JOIN pallets p ON i.pallet_id=p.id
       JOIN orders o ON p.order_id=o.id
@@ -225,8 +250,9 @@ module.exports = function createProductionRouter(deps) {
     if (status === ITEM_STATUS.DONE) updates.completed_at = new Date().toISOString();
     db.prepare(`UPDATE items SET status=?${status===ITEM_STATUS.IN_PRODUCTION&&!item.started_at?',started_at=?':''}${status===ITEM_STATUS.DONE?',completed_at=?':''} WHERE id=?`)
       .run(...Object.values(updates), req.params.id);
+    const orderStatus = syncOrderStatusAfterItemStatus(item, status);
     wsBroadcast('item_status', { id: Number(req.params.id), status });
-    res.json({ ok: true });
+    res.json({ ok: true, order_status: orderStatus });
   });
 
   router.patch('/items/:id', requireAnyRole(['production', 'kiosk', 'warehouse', 'manager', 'admin']), (req, res) => {
@@ -252,7 +278,7 @@ module.exports = function createProductionRouter(deps) {
     if (status       !== undefined) {
       if (!statusContracts.isValidItemStatus(status) || !productionWritableItemStatuses.has(status)) return res.status(400).json({ error: 'invalid production status' });
       const item = db.prepare(`
-        SELECT i.*, o.status AS order_status
+        SELECT i.*, p.order_id, o.order_num, o.status AS order_status
         FROM items i
         JOIN pallets p ON i.pallet_id=p.id
         JOIN orders o ON p.order_id=o.id
@@ -265,7 +291,16 @@ module.exports = function createProductionRouter(deps) {
     if (!fields.length) return res.json({ ok: true });
     vals.push(req.params.id);
     db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);
-    res.json({ ok: true });
+    const savedItem = status !== undefined ? db.prepare(`
+      SELECT i.*, p.order_id, o.order_num, o.status AS order_status
+      FROM items i
+      JOIN pallets p ON i.pallet_id=p.id
+      JOIN orders o ON p.order_id=o.id
+      WHERE i.id=?
+    `).get(req.params.id) : null;
+    const orderStatus = savedItem ? syncOrderStatusAfterItemStatus(savedItem, status) : null;
+    if (status !== undefined) wsBroadcast('item_status', { id: Number(req.params.id), status });
+    res.json({ ok: true, order_status: orderStatus });
   });
 
   // ── PRODUCTION QUEUE ──────────────────────────────────────────────

@@ -1606,3 +1606,25 @@
   - No database migration.
 - verification:
   - Worker visual contract test covers inline controls and prevents reverting to collapsed worker-more details.
+
+---
+
+### V2-011E — Auto-sync Order Status From Production Item Status
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / worker-dashboard
+- scope:
+  - `TASKS_V2.md`
+  - `routes/production.js`
+  - `test/production-item-boundaries.test.js`
+- goal:
+  - Updating a production card to in-production automatically moves the parent order to in-production.
+  - Completing the final production card automatically moves the parent order to done / waiting pickup.
+  - Worker-visible item statuses stay aligned with server-side allowed production statuses.
+- guardrails:
+  - Preserve Orders lifecycle transition contract.
+  - Do not change Finance, Portal, OCR, Warehouse, or Shape V2 contract.
+  - No database migration.
+- verification:
+  - Production boundary tests cover automatic order status sync from item status updates.

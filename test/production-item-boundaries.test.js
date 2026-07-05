@@ -201,4 +201,28 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.equal(item.note, 'production note');
     assert.equal(item.quantity, 5);
   });
+
+  await t.test('item status update moves approved order into production automatically', async () => {
+    const approved = seedOrderWithItem('PB-AUTO-IN-PRODUCTION', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    const response = await request(`/api/items/${approved.itemId}/status`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status: statusContracts.ITEM_STATUS.IN_PRODUCTION }),
+    });
+    assert.equal(response.status, 200);
+    const order = db.prepare('SELECT status FROM orders WHERE id=?').get(approved.orderId);
+    assert.equal(order.status, statusContracts.ORDER_STATUS.IN_PRODUCTION);
+  });
+
+  await t.test('last completed production item completes the order automatically', async () => {
+    const approved = seedOrderWithItem('PB-AUTO-DONE', statusContracts.ORDER_STATUS.IN_PRODUCTION, statusContracts.ITEM_STATUS.IN_PRODUCTION);
+    const response = await request(`/api/items/${approved.itemId}/status`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status: statusContracts.ITEM_STATUS.DONE }),
+    });
+    assert.equal(response.status, 200);
+    const order = db.prepare('SELECT status FROM orders WHERE id=?').get(approved.orderId);
+    assert.equal(order.status, statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP);
+  });
 });
