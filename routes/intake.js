@@ -2,7 +2,7 @@ const router = require('express').Router();
 const axios = require('axios');
 const steelDocumentParser = require('../services/steelDocumentParser');
 const { extractPdfWordsFromBuffer } = require('../services/pdfWordExtractor');
-const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
+const { spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 const {
   findSourceIdentityDuplicate,
   sourceIdentityConflictError,
@@ -254,7 +254,7 @@ module.exports = function createIntakeRouter(deps) {
   - A foundation row with a U/open-rectangular sketch and visible side labels 20, 100, 20 plus L=180 must return shape_type="bent", shape_name="U shape", segments [20,100,20] cm, total_length_cm=180, and the quantity from the units column.
   - A foundation row with side labels 20, 80, 20 plus L=100 must return segments [20,80,20] cm and total_length_cm=100. It is not an L shape and not a straight bar.
   - A single straight row with one straight sketch and L=300 is a straight bar with total_length_cm=300.
-  - A coil / spiral row with a circle and diameter label such as OD/diameter 50 cm is a spiral/coil row. Use the bar diameter from the diameter column, the units column as turns/count when written as turns, and the circle diameter as spiral_diameter_mm.
+  - A coil / spiral row must keep three separate values: diameter is the bar diameter, spiral_diameter_mm is the visible coil/ring diameter, and spiral_turns is the visible wrap/turn count. If the source says 60 turns, return 60, never 160 unless the digit 1 is clearly visible.
   For handwritten factory cards, visible dimensions are centimeters. Return every visible side in length_cm exactly as written. Return the row's total cut length in total_length_cm exactly as written. Do not convert centimeters to millimeters yourself.
   Never invent an unreadable value. Put every uncertainty, missing dimension, or interpretation issue in note.
   Supported bar diameters are 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, and 40 mm. If a diameter is unclear, state that in note instead of guessing an unsupported value.
@@ -270,8 +270,8 @@ module.exports = function createIntakeRouter(deps) {
   For a spiral / coil / ring / salil / spiral:
   - Return shape_name exactly as "spiral".
   - diameter is the bar diameter.
-  - spiral_diameter_mm is the visible spiral/ring diameter in millimeters.
-  - spiral_turns is the number of wraps/turns.
+  - spiral_diameter_mm is the visible spiral/ring diameter in millimeters. A drawing label such as Ø50 cm means 500 mm.
+  - spiral_turns is the number of wraps/turns from the units/quantity cell when it explicitly says turns/wraps/sibuvim.
   - segments must be [] because a spiral is not a side/angle shape.
   - total_length_cm should be the calculated cut length in centimeters when possible: pi * spiral_diameter_mm * spiral_turns / 10.
   - Put uncertainty in note, but do not encode spiral parameters only in note.
@@ -291,7 +291,7 @@ module.exports = function createIntakeRouter(deps) {
         .find(entry => entry.type === 'output_text')?.text;
       const parsedDocument = JSON.parse(text || '{}');
       const items = (parsedDocument.items || []).map(item => {
-        const spiral = normalizeSpiralParams(item);
+        const spiral = intakeWorkflow.normalizeOcrSpiralItem(item);
         if (spiral.isSpiral) {
           const reportedLength = (Number(item.total_length_cm) || 0) * 10;
           const computedLength = reportedLength || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns);
@@ -307,6 +307,9 @@ module.exports = function createIntakeRouter(deps) {
             spiral_diameter_mm: spiral.spiralDiameterMm,
             spiral_turns: spiral.turns,
             total_length_mm: computedLength,
+            length: computedLength,
+            length_mm: computedLength,
+            total_length_cm: computedLength ? Number((computedLength / 10).toFixed(1)) : Number(item.total_length_cm || 0),
             note: notes.join(' '),
           };
         }

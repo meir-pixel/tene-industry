@@ -288,9 +288,9 @@ function resolveIntakeCustomer(parsed = {}, rawContent = '', lookups = {}) {
 
 function normalizeIntakeItem(item = {}) {
   const reviewNotes = normalizeReviewNotes(item.review_notes || item.reviewNotes);
-  const spiral = normalizeSpiralParams(item);
+  const spiral = normalizeOcrSpiralItem(item);
   if (spiral.isSpiral) {
-    const length = Number(item.length ?? item.total_length_mm) || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns);
+    const length = Number(item.length ?? item.total_length_mm) || spiral.totalLengthMm;
     const qty = Number(item.qty ?? item.quantity ?? 1);
     return {
       diameter: Number(item.diameter),
@@ -352,6 +352,64 @@ function ocrShapeContractText(item = {}) {
   ].map(intakeShapeText).join(' ');
 }
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^\${}()|[\]\\]/g, '\\$&');
+}
+function extractOcrNumberAfter(text, labels) {
+  for (const label of labels) {
+    const match = text.match(new RegExp(escapeRegex(label) + '\\D{0,20}(\\d+(?:\\.\\d+)?)', 'i'));
+    if (match) return Number(match[1]);
+  }
+  return 0;
+}
+
+function extractOcrNumberBefore(text, labels) {
+  for (const label of labels) {
+    const match = text.match(new RegExp('(\\d+(?:\\.\\d+)?)\\D{0,20}' + escapeRegex(label), 'i'));
+    if (match) return Number(match[1]);
+  }
+  return 0;
+}
+
+function normalizeOcrSpiralDiameterMm(value) {
+  const numeric = Number(value) || 0;
+  if (!numeric) return 0;
+  return numeric <= 100 ? numeric * 10 : numeric;
+}
+
+function normalizeOcrSpiralItem(item = {}) {
+  const base = normalizeSpiralParams(item);
+  const text = ocrShapeContractText(item);
+  const mentionsSpiral = base.isSpiral
+    || /(^|\W)(spiral|coil|ring|spring|helix|salil|turns|wraps)(\W|$)/.test(text)
+    || /(\u05e1\u05e4\u05d9\u05e8|\u05e1\u05dc\u05d9\u05dc|\u05e7\u05e4\u05d9\u05e5|\u05e1\u05d9\u05d1\u05d5\u05d1)/.test(text);
+
+  if (!mentionsSpiral) {
+    return { isSpiral: false, spiralDiameterMm: 0, turns: 0, totalLengthMm: 0 };
+  }
+
+  const diameterCandidate = base.spiralDiameterMm
+    || item.spiral_diameter_mm
+    || item.spiralDiameterMm
+    || extractOcrNumberAfter(text, ['spiral diameter', 'coil diameter', 'ring diameter', 'od', 'diameter', '\u00f8', '\u2300', '\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05dc\u05d4'])
+    || extractOcrNumberBefore(text, ['cm diameter', 'diameter', '\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05dc\u05d4']);
+  const spiralDiameterMm = normalizeOcrSpiralDiameterMm(diameterCandidate);
+  const explicitTurns = extractOcrNumberBefore(text, ['turns', 'wraps', '\u05e1\u05d9\u05d1\u05d5\u05d1\u05d9\u05dd', '\u05e1\u05d9\u05d1\u05d5\u05d1'])
+    || extractOcrNumberAfter(text, ['turns', 'wraps', '\u05e1\u05d9\u05d1\u05d5\u05d1\u05d9\u05dd', '\u05e1\u05d9\u05d1\u05d5\u05d1']);
+  const turns = explicitTurns
+    || base.turns
+    || item.spiral_turns
+    || item.spiralTurns
+    || item.turns
+    || item.wraps;
+
+  return {
+    isSpiral: true,
+    spiralDiameterMm,
+    turns: Number(turns) || 0,
+    totalLengthMm: spiralDiameterMm && turns ? spiralCutLengthMm(spiralDiameterMm, turns) : 0,
+  };
+}
 function isStraightOcrShape(item = {}) {
   const text = ocrShapeContractText(item);
   if (/(^|\W)(stirrup|spiral|coil|ring|hook|angle|bent|bend|bench|lift|closed|open u|u[- ]?shape)(\W|$)|90/.test(text)) {
@@ -488,6 +546,7 @@ module.exports = {
   isTechnicalRecognitionNote,
   normalizeIntakePhone,
   normalizeIntakeItem,
+  normalizeOcrSpiralItem,
   isStraightOcrShape,
   normalizeOcrLShapeSegments,
   operationalOrderNote,

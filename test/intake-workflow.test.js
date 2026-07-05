@@ -8,6 +8,7 @@ const {
   isTechnicalRecognitionNote,
   isStraightOcrShape,
   normalizeIntakeItem,
+  normalizeOcrSpiralItem,
   normalizeOcrLShapeSegments,
   operationalOrderNote,
   parseManualIntakeText,
@@ -89,10 +90,51 @@ test('normalizeIntakeItem keeps real spiral parameters as first-class item field
 
   assert.deepEqual(item.sides, []);
   assert.deepEqual(item.angles, []);
-  assert.equal(item.length, Math.round(Math.PI * 50 * 160));
-  assert.equal(item.spiral_diameter_mm, 50);
+  assert.equal(item.length, Math.round(Math.PI * 500 * 160));
+  assert.equal(item.spiral_diameter_mm, 500);
   assert.equal(item.spiral_turns, 160);
   assert.equal(item.qty, 2);
+});
+
+test('OCR spiral normalization keeps bar diameter, spiral diameter and turns separate', () => {
+  const spiral = normalizeOcrSpiralItem({
+    diameter: 8,
+    shape_name: 'spiral',
+    shape_description: 'coil drawing \u00d850 cm',
+    note: '60 \u05e1\u05d9\u05d1\u05d5\u05d1\u05d9\u05dd',
+  });
+
+  assert.equal(spiral.isSpiral, true);
+  assert.equal(spiral.spiralDiameterMm, 500);
+  assert.equal(spiral.turns, 60);
+  assert.equal(spiral.totalLengthMm, Math.round(Math.PI * 500 * 60));
+
+  const item = normalizeIntakeItem({
+    diameter: 8,
+    shape_name: 'spiral',
+    shape_description: 'coil drawing \u00d850 cm',
+    note: '60 \u05e1\u05d9\u05d1\u05d5\u05d1\u05d9\u05dd',
+    quantity: 1,
+  });
+  assert.equal(item.diameter, 8);
+  assert.equal(item.spiral_diameter_mm, 500);
+  assert.equal(item.spiral_turns, 60);
+  assert.equal(item.qty, 1);
+});
+
+test('OCR spiral normalization prefers explicit source turns over stale parsed turns', () => {
+  const spiral = normalizeOcrSpiralItem({
+    diameter: 8,
+    shape_name: 'spiral',
+    spiral_diameter_mm: 50,
+    spiral_turns: 160,
+    note: 'source row says 60 \u05e1\u05d9\u05d1\u05d5\u05d1\u05d9\u05dd',
+  });
+
+  assert.equal(spiral.isSpiral, true);
+  assert.equal(spiral.spiralDiameterMm, 500);
+  assert.equal(spiral.turns, 60);
+  assert.equal(spiral.totalLengthMm, Math.round(Math.PI * 500 * 60));
 });
 
 test('buildIntakeOrderPayload resolves customer and calculates total weight', () => {
