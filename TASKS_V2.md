@@ -2104,3 +2104,22 @@
 - verification:
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
+---
+
+### V2-006AN - Pile Cage Panel Clipping Cleanup
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Stop pile cage accordion sections from clipping internal hoops and production breakdown content.
+  - Reduce wasted empty space inside pile cage editor sections by making full-width rows actually span the panel.
+- guardrails:
+  - No Orders, OCR, Worker, Printing, Pricing, Finance, Warehouse, Portal, Shape Contract, API, DB, renderer, or calculation changes.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`

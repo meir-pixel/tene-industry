@@ -162,6 +162,9 @@ test('shape editor keeps bend parameter rows compact and technical', () => {
   assert.match(editor, /td\.se-empty-cell\{background:transparent/);
   assert.match(editor, /class=\"se-pile-section\"/);
   assert.match(editor, /sectionSummary/);
+  assert.ok(editor.includes('se-family-row>td[colspan]{grid-column:1/-1!important;width:100%;min-width:0;display:block;}'));
+  assert.ok(editor.includes('se-pile-hoop-grid{display:grid;grid-template-columns:24px repeat(3,minmax(50px,1fr))'));
+  assert.ok(editor.includes('se-pile-elements{border:1px solid #d8e2ec;border-radius:7px;background:#fff;padding:5px;display:grid;gap:4px;width:100%;min-width:0;overflow:hidden;}'));
   assert.match(editor, /class="se-angle-cell \$\{i < angles\.length \? '' : 'se-empty-cell'\}"/);
   assert.match(editor, /class="se-no-bend"/);
 });
