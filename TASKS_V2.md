@@ -1904,3 +1904,24 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
   - `npm test`
+---
+
+### V2-011N - Worker Dashboard Canonical Shape Feed
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing
+- files:
+  - `routes/production.js`
+  - `test/client-auth-contract.test.js`
+- goal:
+  - Worker card collection dashboard receives the same shape contract fields used by printed cards and order displays.
+  - Dashboard shape visuals prefer the server-rendered production shape SVG, including spiral and pile-derived shapes.
+  - Local drawing in `worker-visual.html` remains fallback only when no canonical SVG is returned.
+- guardrails:
+  - Preserve Production status flow, QR routing, Orders lifecycle, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --check routes\production.js`
+  - `node --test test\client-auth-contract.test.js`
+  - `npm test`

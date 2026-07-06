@@ -370,7 +370,8 @@ module.exports = function createProductionRouter(deps) {
       SELECT i.id, i.pallet_id, i.shape_id, i.shape_name, i.diameter,
              i.quantity, i.produced_qty, i.total_weight AS weight, i.status, i.machine,
              i.actual_weight_kg, i.weight_deviation_pct,
-             i.segments, i.total_length_mm, i.note, i.qc_status,
+             i.segments, i.shape_snapshot_json, i.spiral_diameter_mm, i.spiral_turns,
+             i.total_length_mm, i.note, i.qc_status,
              p.order_id, p.pallet_num,
              o.order_num, o.priority, o.delivery_date, o.customer_id, o.status AS order_status,
              c.name as customer_name,
@@ -440,3 +441,4 @@ module.exports.manifest = {
     { event: 'order_complete' },
   ],
 };
+

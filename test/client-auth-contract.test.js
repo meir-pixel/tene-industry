@@ -1694,7 +1694,11 @@ test('display-only production views prefer server-rendered production shape SVG'
   const orderPrintA4 = read('routes/orderPrintA4.js');
 
   assert.match(worker, /if\(item\.shape_svg\)return item\.shape_svg/);
+  assert.match(productionRoute, /i\.shape_snapshot_json/);
+  assert.match(productionRoute, /i\.spiral_diameter_mm/);
+  assert.match(productionRoute, /i\.spiral_turns/);
   assert.match(productionRoute, /productionCards\.itemShapeSvg\(item\)/);
   assert.match(orderPrintA4, /shape_svg:\s+productionCards\.itemShapeSvg\(it\)/);
   assert.doesNotMatch(orderPrintA4, /function drawShape2D/);
 });
+
