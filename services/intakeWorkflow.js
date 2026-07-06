@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+const { rebarKgPerMeter } = require('../constants');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 
 const SUPPORTED_DIAMETERS = new Set([6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40]);
@@ -309,7 +311,7 @@ function normalizeIntakeItem(item = {}) {
   if (spiral.isSpiral) {
     const length = Number(item.length ?? item.total_length_mm) || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns);
     const qty = Number(item.qty ?? item.quantity ?? 1);
-    return {
+    const normalized = {
       diameter: Number(item.diameter),
       length,
       sides: [],
@@ -327,18 +329,25 @@ function normalizeIntakeItem(item = {}) {
       reviewNotes,
       review_notes: reviewNotes,
     };
+    normalized.shapeSnapshot = buildIntakeShapeSnapshot(item, normalized);
+    return normalized;
   }
-  const sourceSides = Array.isArray(item.sides) ? item.sides : [];
+  const sourceSegments = Array.isArray(item.segments) ? item.segments : [];
+  const sourceSides = Array.isArray(item.sides) && item.sides.length
+    ? item.sides
+    : sourceSegments.map(segment => segment.length_mm ?? segment.lengthMm ?? segment.length);
   const sides = sourceSides.map(Number).filter(length => Number.isFinite(length) && length > 0);
   const fallbackLength = Number(item.length ?? item.total_length_mm ?? 0);
   if (!sides.length && fallbackLength > 0) sides.push(fallbackLength);
-  const length = sides.reduce((sum, side) => sum + side, 0);
-  const sourceAngles = Array.isArray(item.angles) ? item.angles : [];
+  const length = fallbackLength || sides.reduce((sum, side) => sum + side, 0);
+  const sourceAngles = Array.isArray(item.angles) && item.angles.length
+    ? item.angles
+    : sourceSegments.map(segment => segment.angle_deg ?? segment.angleDeg ?? segment.angle);
   const angles = sourceAngles.length
-    ? sourceAngles.map(Number)
+    ? sourceAngles.map(Number).filter(Number.isFinite).slice(0, Math.max(0, sides.length - 1))
     : Array(Math.max(0, sides.length - 1)).fill(90);
   const qty = Number(item.qty ?? item.quantity ?? 1);
-  return {
+  const normalized = {
     diameter: Number(item.diameter),
     length,
     sides,
@@ -352,6 +361,8 @@ function normalizeIntakeItem(item = {}) {
     reviewNotes,
     review_notes: reviewNotes,
   };
+  normalized.shapeSnapshot = buildIntakeShapeSnapshot(item, normalized);
+  return normalized;
 }
 
 function intakeShapeText(value) {
@@ -371,6 +382,98 @@ function ocrShapeContractText(item = {}) {
     item.note,
     item.notes,
   ].map(intakeShapeText).join(' ');
+}
+
+
+function intakeShapeType(item = {}, sides = [], spiral = null) {
+  const text = ocrShapeContractText(item);
+  if (spiral?.isSpiral || /(^|\W)(spiral|coil|ring)(\W|$)|\u05e1\u05e4\u05d9\u05e8\u05dc|\u05e1\u05dc\u05d9\u05dc/.test(text)) return 'spiral';
+  if (/stirrup|closed|\u05d7\u05d9\u05e9\u05d5\u05e7/.test(text)) return 'stirrup';
+  if (/u[- ]?shape|open u|\bu\b/.test(text) || sides.length === 3) return 'u_bar';
+  if (/l[- ]?shape|hook|angle|\bl\b/.test(text) || sides.length === 2) return 'l_bar';
+  if (sides.length <= 1) return 'straight_bar';
+  return 'bent_bar';
+}
+
+function machineProfilesPlaceholder() {
+  return {
+    MEP: { status: 'not_implemented', profileVersion: null, payload: null },
+    PEDAX: { status: 'not_implemented', profileVersion: null, payload: null },
+    SCHNELL: { status: 'not_implemented', profileVersion: null, payload: null },
+  };
+}
+
+function shapeSnapshotId(item = {}, shapeType = 'bar') {
+  return firstTextValue(item.shapeId, item.shape_id)
+    || crypto.createHash('sha1').update(JSON.stringify({
+      shapeType,
+      diameter: Number(item.diameter),
+      sides: item.sides || null,
+      segments: item.segments || null,
+      length: item.length || item.total_length_mm || item.total_length_cm || null,
+      spiralDiameter: item.spiralDiameterMm || item.spiral_diameter_mm || null,
+      spiralTurns: item.spiralTurns || item.spiral_turns || item.turns || null,
+    })).digest('hex').slice(0, 16);
+}
+
+function buildIntakeShapeSnapshot(item = {}, normalized = {}) {
+  const now = new Date().toISOString();
+  const spiral = normalizeSpiralParams({ ...item, ...normalized });
+  const sides = Array.isArray(normalized.sides) ? normalized.sides.map(Number).filter(value => Number.isFinite(value) && value > 0) : [];
+  const angles = Array.isArray(normalized.angles) ? normalized.angles.map(Number).filter(Number.isFinite) : [];
+  const diameter = Number(normalized.diameter ?? item.diameter);
+  const totalLengthMm = Number(normalized.length ?? item.length ?? item.total_length_mm ?? 0) || 0;
+  const shapeType = intakeShapeType(item, sides, spiral);
+  const shapeId = shapeSnapshotId(item, shapeType);
+  const displayName = normalized.shapeName || item.shapeName || item.shape_name || item.shape || shapeType;
+  const reviewNotes = normalizeReviewNotes(normalized.reviewNotes || normalized.review_notes || item.reviewNotes || item.review_notes);
+  const weightKg = Number.isFinite(diameter) && totalLengthMm > 0 ? rebarKgPerMeter(diameter) * (totalLengthMm / 1000) : 0;
+  const genericSegments = sides.map((lengthMm, index) => ({
+    index: index + 1,
+    lengthMm,
+    bendAfterDeg: index < sides.length - 1 ? (angles[index] ?? 90) : null,
+  }));
+  const data = shapeType === 'spiral'
+    ? { diameter, spiralDiameterMm: spiral.spiralDiameterMm, spiralTurns: spiral.turns }
+    : { sides, angles, diameter };
+  const generic = shapeType === 'spiral'
+    ? {
+        family: 'bars',
+        shapeType,
+        diameter,
+        spiralDiameterMm: spiral.spiralDiameterMm,
+        spiralTurns: spiral.turns,
+        totalLengthMm,
+        segments: [],
+        bendCount: 0,
+      }
+    : {
+        family: 'bars',
+        shapeType,
+        diameter,
+        segments: genericSegments,
+        totalLengthMm,
+        bendCount: angles.length,
+      };
+  return {
+    contractVersion: 2,
+    shapeVersion: 1,
+    shapeId,
+    shapeType,
+    family: 'bars',
+    source: 'intake-ocr-approval',
+    approvedAt: now,
+    displayName,
+    data,
+    calculated: { totalLengthMm, weightKg, bendCount: angles.length },
+    machineOutput: { generic, machineProfiles: machineProfilesPlaceholder() },
+    validation: {
+      valid: true,
+      errors: [],
+      warnings: reviewNotes.map(note => note.message).filter(Boolean),
+      timestamp: now,
+    },
+  };
 }
 
 function isStraightOcrShape(item = {}) {
@@ -509,6 +612,7 @@ module.exports = {
   isTechnicalRecognitionNote,
   normalizeIntakePhone,
   normalizeIntakeItem,
+  buildIntakeShapeSnapshot,
   isStraightOcrShape,
   normalizeOcrLShapeSegments,
   operationalOrderNote,
