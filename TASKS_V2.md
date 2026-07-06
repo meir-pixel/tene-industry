@@ -1893,6 +1893,9 @@
 - files:
   - `public/shape-editor.js`
   - `test/shape-geometry.test.js`
+- latest_change:
+  - Compact pile-cage editor rows reduce empty vertical space in the parameter panel.
+  - Longitudinal bars now support editable per-bar overrides for bar number, diameter, straight/L shape, and L-leg length.
 - goal:
   - Pile cage internal hoop/ring diameter updates immediately when pile diameter or bar diameter changes.
   - Straight longitudinal bars do not show an L-leg field.
@@ -1904,6 +1907,26 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
   - `npm test`
+
+
+---
+
+### V2-011O - Worker Dashboard Canonical Shape SVG Only
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing + Shape Editor handoff
+- files:
+  - `public/worker-visual.html`
+  - `test/client-auth-contract.test.js`
+- goal:
+  - Worker collection cards no longer use a separate local shape drawing fallback.
+  - Worker display prefers server-provided `shape_svg`; if missing, it shows an explicit missing-shape placeholder instead of a wrong shape.
+- guardrails:
+  - Preserve Production status flow, QR routing, Orders lifecycle, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign beyond removing inconsistent fallback drawing.
+- verification:
+  - `node --test test\client-auth-contract.test.js`
 ---
 
 ### V2-011N - Worker Dashboard Canonical Shape Feed

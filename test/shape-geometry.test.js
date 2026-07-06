@@ -482,6 +482,12 @@ test('pile cage editor refreshes derived hoops and gates longitudinal shape rows
   assert.ok(editor.includes("pattern === 'straight'"));
   assert.ok(editor.includes("pattern === 'alternate'"));
   assert.ok(editor.includes('data-pile-bar-editor'));
+  assert.ok(editor.includes('se-pile-compact-row'));
+  assert.ok(editor.includes('se-pile-bar-override-row'));
+  assert.ok(editor.includes('data-pile-bar-field="diameter"'));
+  assert.ok(editor.includes('_addPileBarOverride()'));
+  assert.ok(editor.includes('_deletePileBarOverride(index)'));
+  assert.doesNotMatch(block, /עריכה פרטנית תוגדר בהמשך/);
   assert.ok(editor.includes("field('lHookLength', 0) + '</div>'"));
   const barPatternBranch = editor.slice(editor.indexOf("key === 'barPattern'"), editor.indexOf("const parsed = key === 'longitudinalBars'"));
   assert.ok(barPatternBranch.includes('this._renderPileCageEditor()'));
@@ -509,6 +515,7 @@ test('PileCageEngine treats pile editor dimension fields as centimeters', () => 
     pileLength: 9800,
     longitudinalBars: 6,
     longitudinalDiameter: 16,
+    longitudinalBarOverrides: [{ barIndex: 3, diameter: 20, barPattern: 'l', lHookLength: 25 }],
     spiralDiameter: 8,
     spiralZones: [
       { length: 80, pitch: 10, noWrap: true },
@@ -525,6 +532,8 @@ test('PileCageEngine treats pile editor dimension fields as centimeters', () => 
   assert.equal(contract.data.pileDiameter, 500);
   assert.equal(contract.data.pileLength, 98000);
   assert.deepEqual(contract.data.spiralZones.map(zone => [zone.length, zone.pitch]), [[800, 100], [2000, 100], [7000, 200]]);
+  assert.deepEqual(contract.data.longitudinalBarOverrides, [{ barIndex: 3, diameter: 20, barPattern: 'l', lHookLength: 250 }]);
+  assert.deepEqual(contract.machineOutput.generic.longitudinalBarOverrides, [{ barIndex: 3, diameter: 20, barPattern: 'l', lHookLength: 250 }]);
   assert.equal(contract.calculated.spiralCenterDiameterMm, 500);
   assert.equal(contract.calculated.internalHoopDiameterMm, 468);
   const hoopPart = contract.calculated.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');

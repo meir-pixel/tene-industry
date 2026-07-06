@@ -189,68 +189,7 @@
     }
     function drawing(item){
       if(item.shape_svg)return item.shape_svg;
-      const seg=segments(item),name=String(item.shape_name||'').toLowerCase();
-      if(/spiral|ring|coil|ספיר|טבעת|סליל|לולאה/.test(name)&&seg.length>1)return spiral(seg);
-      if(isOpenUShape(seg))return openU(seg);
-      if((/closed|stirrup|overlap|חישוק|חפיפה|מסגרת/.test(name)||seg.length===6)&&seg.length>=4)return closed(seg);
-      return generic(seg);
-    }
-    function rightAngle(value){return Math.abs(Number(value)-90)<0.1}
-    function isOpenUShape(s){
-      if(!Array.isArray(s)||s.length!==3)return false;
-      const lengths=s.map(part=>Number(part.length_mm||0));
-      const [left,bridge,right]=lengths;
-      if(!(left>0&&bridge>0&&right>0))return false;
-      const legsSimilar=Math.abs(left-right)<=Math.max(left,right)*0.25;
-      const bridgeDominant=bridge>=Math.max(left,right)*1.5;
-      return legsSimilar&&bridgeDominant&&rightAngle(s[0].angle_deg)&&rightAngle(s[1].angle_deg);
-    }
-    function clamp(value,min,max){return Math.max(min,Math.min(max,value))}
-    function readableOpenUDimensions(left,bridge,right){
-      const strongestLeg=Math.max(left,right,1),legScale=82/strongestLeg,bridgeRatio=bridge/strongestLeg;
-      const halfBridge=clamp(50*bridgeRatio,66,124),centerX=180,topY=47;
-      return {x1:centerX-halfBridge,x2:centerX+halfBridge,topY,yLeft:topY+clamp(left*legScale,54,105),yRight:topY+clamp(right*legScale,54,105)};
-    }
-    function openU(s){
-      const left=Number(s[0].length_mm||0),bridge=Number(s[1].length_mm||0),right=Number(s[2].length_mm||0);
-      const d=readableOpenUDimensions(left,bridge,right),leftMid=(d.topY+d.yLeft)/2,rightMid=(d.topY+d.yRight)/2;
-      return `<svg data-shape-kind="worker-open-u" data-scale-mode="readable" viewBox="0 0 360 190">
-        <path class="shape" d="M${d.x1} ${d.yLeft} L${d.x1} ${d.topY} L${d.x2} ${d.topY} L${d.x2} ${d.yRight}"/>
-        <text class="measure" x="${d.x1-10}" y="${leftMid+5}" text-anchor="end">${left}</text>
-        <text class="measure" x="180" y="35" text-anchor="middle">${bridge}</text>
-        <text class="measure" x="${d.x2+10}" y="${rightMid+5}" text-anchor="start">${right}</text>
-        <circle cx="${d.x1}" cy="${d.topY}" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
-        <text class="detail" x="${d.x1}" y="${d.topY+5}" text-anchor="middle">90°</text>
-        <circle cx="${d.x2}" cy="${d.topY}" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
-        <text class="detail" x="${d.x2}" y="${d.topY+5}" text-anchor="middle">90°</text>
-      </svg>`
-    }
-    function closed(s){
-      const values=s.map(part=>Number(part.length_mm||0)),tailsAtEnds=values.length>=5&&values[0]<Math.max(values[1],values[2])*.45&&(!values[5]||values[5]<Math.max(values[3],values[4])*.45);
-      const top=tailsAtEnds?values[2]:(values[0]||0),side=tailsAtEnds?values[1]:(values[1]||0),bottom=tailsAtEnds?values[4]:(values[2]||top),left=tailsAtEnds?values[3]:(values[3]||side);
-      const horizontal=Math.max(top,bottom,1),vertical=Math.max(left,side,1),ratio=horizontal/vertical,boxW=ratio>=1?212:Math.max(90,Math.min(212,106*ratio)),boxH=ratio>=1?Math.max(82,Math.min(106,212/ratio)):106,x=(360-boxW)/2,y=(190-boxH)/2;
-      const right=x+boxW,marker=Math.min(32,Math.max(16,Math.min(boxW,boxH)*.28)),markerX=right-marker,markerY=y+marker;
-      return `<svg data-shape-kind="worker-closed-stirrup" viewBox="0 0 360 190">
-        <rect class="shape" x="${x}" y="${y}" width="${boxW}" height="${boxH}"/>
-        <path class="shape" data-stirrup-marker="overlap" d="M${markerX} ${y}V${markerY}H${right}"/>
-        <text class="measure" x="180" y="${y-12}" text-anchor="middle">${top}</text>
-        <text class="measure" x="180" y="${y+boxH+20}" text-anchor="middle">${bottom}</text>
-        <text class="measure" x="${x-19}" y="100" text-anchor="middle">${left}</text>
-        <text class="measure" x="${x+boxW+21}" y="100" text-anchor="middle">${side}</text>
-      </svg>`
-    }
-    function spiral(s){
-      const label=s.map(x=>Number(x.length_mm||0)).filter(Boolean).join(' / ')||'SPIRAL';
-      return `<svg viewBox="0 0 360 190"><polyline class="shape" points="68,150 68,38 292,38 292,150 98,150 98,67 262,67 262,121 128,121 128,92 230,92"/><text class="measure" x="180" y="177" text-anchor="middle">${esc(label)}</text><text class="detail" x="180" y="21" text-anchor="middle">SPIRAL</text></svg>`
-    }
-    function generic(s){
-      if(!s.length)return '<svg viewBox="0 0 360 190"><path class="shape" d="M55 100h250"/><text class="measure" x="180" y="83" text-anchor="middle">אורך</text></svg>';
-      let x=0,y=0,angle=0,pts=[{x,y}],lines=[];
-      s.forEach((part,i)=>{const len=Number(part.length_mm||0),rad=angle*Math.PI/180,nx=x+len*Math.cos(rad),ny=y+len*Math.sin(rad);lines.push({x1:x,y1:y,x2:nx,y2:ny,len});pts.push({x:nx,y:ny});x=nx;y=ny;angle+=Number(part.angle_deg||0)});
-      const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),scale=Math.min(260/Math.max(maxX-minX,1),115/Math.max(maxY-minY,1)),ox=180-(minX+maxX)*scale/2,oy=100-(minY+maxY)*scale/2;
-      const path=pts.map((p,i)=>`${i?'L':'M'}${(ox+p.x*scale).toFixed(1)},${(oy+p.y*scale).toFixed(1)}`).join(' ');
-      const labels=lines.map(l=>`<text class="measure" x="${(ox+(l.x1+l.x2)*scale/2).toFixed(1)}" y="${(oy+(l.y1+l.y2)*scale/2-10).toFixed(1)}" text-anchor="middle">${l.len}</text>`).join('');
-      return `<svg viewBox="0 0 360 190"><path class="shape" d="${path}"/>${labels}</svg>`
+      return '<svg data-shape-kind="worker-canonical-missing" viewBox="0 0 360 190"><rect x="26" y="32" width="308" height="126" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/><text class="detail" x="180" y="87" text-anchor="middle">אין תצוגת צורה</text><text class="measure" x="180" y="116" text-anchor="middle">נדרש shape_svg מהשרת</text></svg>';
     }
     async function saveProductionFields(id,event){
       event&&event.stopPropagation();

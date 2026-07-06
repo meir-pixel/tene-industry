@@ -902,7 +902,8 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /ITEM_STATUS\.IN_PRODUCTION/);
   assert.match(workerVisual, /ITEM_STATUS\.DONE/);
   assert.match(workerVisual, /ITEM_STATUS\.DELIVERED/);
-  assert.match(workerVisual, /isOpenUShape/);
+  assert.match(workerVisual, /worker-canonical-missing/);
+  assert.doesNotMatch(workerVisual, /isOpenUShape/);
   assert.match(workerVisual, /worker-card-summary/);
   assert.match(workerVisual, /SCAN_ENTRY/);
   assert.match(workerVisual, /scan-entry/);
@@ -910,9 +911,6 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /selectedOrder=orders\.find/);
   assert.match(workerVisual, /SCAN_ENTRY\?\(state\.focusItemId/);
   assert.match(workerVisual, /shape-scale-note/);
-  assert.match(workerVisual, /readableOpenUDimensions/);
-  assert.match(workerVisual, /data-shape-kind="worker-open-u"/);
-  assert.match(workerVisual, /data-scale-mode="readable"/);
   assert.match(workerVisual, /actual_weight_kg/);
   assert.match(workerVisual, /produced_qty/);
   assert.match(workerVisual, /isUnitProgressItem/);
@@ -927,7 +925,6 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /weightDeviation/);
   assert.match(workerVisual, /משקל רצוי/);
   assert.match(workerVisual, /משקל מצוי/);
-  assert.match(workerVisual, /spiral\|ring\|coil/);
   assert.match(workerVisual, /דשבורד איסוף כרטיסים/);
   assert.match(workerVisual, /function parseCardToken/);
   assert.match(workerVisual, /openScannedCard/);
@@ -1694,6 +1691,11 @@ test('display-only production views prefer server-rendered production shape SVG'
   const orderPrintA4 = read('routes/orderPrintA4.js');
 
   assert.match(worker, /if\(item\.shape_svg\)return item\.shape_svg/);
+  assert.match(worker, /worker-canonical-missing/);
+  assert.doesNotMatch(worker, /worker-open-u/);
+  assert.doesNotMatch(worker, /worker-closed-stirrup/);
+  assert.doesNotMatch(worker, /function openU\(/);
+  assert.doesNotMatch(worker, /function generic\(/);
   assert.match(productionRoute, /i\.shape_snapshot_json/);
   assert.match(productionRoute, /i\.spiral_diameter_mm/);
   assert.match(productionRoute, /i\.spiral_turns/);
