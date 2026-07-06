@@ -2077,6 +2077,13 @@ class ShapeEditorModal {
 #seModal .se-pile-section{border:1px solid #d8e2ec;border-radius:7px;background:#fff;overflow:hidden;}
 #seModal .se-pile-section summary{cursor:pointer;list-style:none;padding:7px 10px;background:#f8fafc;color:#12315a;font-size:12px;font-weight:900;border-bottom:1px solid #e2e8f0;}
 #seModal .se-pile-section summary::-webkit-details-marker{display:none;}
+#seModal .se-pile-section summary{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+#seModal .se-pile-section summary span{font-size:10px;color:#64748b;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-pile-validations{display:grid;gap:5px;padding:4px;}
+#seModal .se-pile-validation{border:1px solid #dbe4f0;border-radius:7px;background:#fff;padding:6px 8px;color:#12315a;font-size:11px;font-weight:800;}
+#seModal .se-pile-validation.error{border-color:#fecaca;background:#fff1f2;color:#be123c;}
+#seModal .se-pile-validation.warning{border-color:#fde68a;background:#fffbeb;color:#92400e;}
+#seModal .se-pile-validation.ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
 #seModal .se-pile-section[open] summary{background:#eef6ff;}
 #seModal .se-pile-section table{width:100%;border-collapse:separate;border-spacing:0 3px;}
 #seModal .se-pile-section .se-family-row{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:4px!important;}
@@ -2969,10 +2976,10 @@ class ShapeEditorModal {
     if (!body) return;
     const meta = {
       length: ['📏','אורך רשת','מ״מ','לדוגמה 600'], width: ['↕','רוחב רשת','מ״מ','לדוגמה 250'],
-      longitudinalDiameter: ['Ø','קוטר לאורך','מ״מ','לדוגמה 8'], longitudinalSpacing: ['⇅','מרווח לאורך','ס״מ','לדוגמה 20'],
-      transverseDiameter: ['Ø','קוטר לרוחב','מ״מ','לדוגמה 8'], transverseSpacing: ['⇄','מרווח לרוחב','ס״מ','לדוגמה 20'],
-      edgeLeft: ['↤','שול שמאל','ס״מ','לדוגמה 0'], edgeRight: ['↦','שול ימין','ס״מ','לדוגמה 0'],
-      edgeTop: ['↥','שול עליון','ס״מ','לדוגמה 0'], edgeBottom: ['↧','שול תחתון','ס״מ','לדוגמה 0'],
+      longitudinalDiameter: ['Ø','קוטר לאורך','מ״מ','לדוגמה 8'], longitudinalSpacing: ['↔','מרווח לאורך','ס״מ','לדוגמה 20'],
+      transverseDiameter: ['Ø','קוטר לרוחב','מ״מ','לדוגמה 8'], transverseSpacing: ['↕','מרווח לרוחב','ס״מ','לדוגמה 20'],
+      edgeLeft: ['←','שול שמאל','ס״מ','לדוגמה 0'], edgeRight: ['→','שול ימין','ס״מ','לדוגמה 0'],
+      edgeTop: ['↑','שול עליון','ס״מ','לדוגמה 0'], edgeBottom: ['↓','שול תחתון','ס״מ','לדוגמה 0'],
     };
     const field = (key, min = 0) => {
       const m = meta[key] || ['•', key, 'מ״מ', 'לדוגמה 100'];
@@ -2985,7 +2992,6 @@ class ShapeEditorModal {
       <tr class="se-family-row">${field('edgeLeft', 0)}${field('edgeRight', 0)}</tr>
       <tr class="se-family-row">${field('edgeTop', 0)}${field('edgeBottom', 0)}</tr>`;
   }
-
   _renderSpiralEditor() {
     this._setFamilyEditorChrome('spirals');
     const sp = this.current;
@@ -3124,13 +3130,33 @@ class ShapeEditorModal {
         <td>${this._fieldShell({ icon:'—', label:'ללא כריכות', unit:'', example:'כן/לא', input:`<input class="se-input" type="checkbox" ${zone.noWrap ? 'checked' : ''} data-zone-field="noWrap" onfocus="window._seEditor._focusFamilyField('noWrap')" onchange="window._seEditor._setSpiralZoneField(${i}, 'noWrap', this.checked)">` })}</td>
         <td><button class="se-del-btn" onclick="window._seEditor._deleteSpiralZone(${i})">&times;</button></td>
       </tr>`).join('');
-    const pileSection = (title, rows, open = false) => `<tr class="se-pile-section-row"><td colspan="5"><details class="se-pile-section" ${open ? 'open' : ''}><summary>${title}</summary><table><tbody>${rows}</tbody></table></details></td></tr>`;
+    const calc = PileCageEngine.calculate(pile);
+    const hoopCount = Array.isArray(calc.manufacturingBreakdown) ? (calc.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring')?.quantity || 0) : 0;
+    const spiralPitchSummary = (pile.spiralZones || []).filter(z => !z.noWrap).map(z => Number(z.pitch || 0)).filter(Boolean).pop() || 0;
+    const validationRows = [];
+    if (!Number(pile.pileDiameter || 0)) validationRows.push(['error', 'חסר קוטר כלונס']);
+    if (!Number(pile.pileLength || 0)) validationRows.push(['error', 'חסר אורך כלונס']);
+    if (!Number(pile.longitudinalBars || 0)) validationRows.push(['error', 'אין מוטות אורך']);
+    if (!(pile.spiralZones || []).length) validationRows.push(['warning', 'אין אזורי ספירלה']);
+    const validationHtml = validationRows.length
+      ? validationRows.map(([kind, msg]) => `<div class="se-pile-validation ${kind}">${msg}</div>`).join('')
+      : '<div class="se-pile-validation ok">הנתונים תקינים לעריכה</div>';
+    const sectionSummary = {
+      general: `קוטר ${pile.pileDiameter || 0} | אורך ${pile.pileLength || 0}`,
+      bars: `${pile.longitudinalBars || 0} מוטות | Ø${pile.longitudinalDiameter || 0} | ${pile.barPattern || 'ישר'}`,
+      spiral: `Ø${pile.spiralDiameter || 0} | פסיעה ${spiralPitchSummary || '-'} | ${(pile.spiralZones || []).length} אזורים`,
+      hoops: `${pile.hoopsEnabled ? 'פעיל' : 'כבוי'} | Ø${pile.hoopDiameter || 0} | ${hoopCount} יח׳`,
+      breakdown: `${(calc.manufacturingBreakdown || []).length} רכיבים | ${pileRound(calc.weightKg || 0, 2)} ק״ג`,
+      validation: validationRows.length ? `${validationRows.length} הערות` : 'תקין',
+    };
+    const pileSection = (id, title, summary, rows, open = false, focusKey = '') => `<tr class="se-pile-section-row"><td colspan="5"><details class="se-pile-section" data-pile-section="${id}" ${open ? 'open' : ''}><summary onclick="window._seEditor && window._seEditor._focusFamilyField('${focusKey || id}')"><strong>${title}</strong><span>${summary}</span></summary><table><tbody>${rows}</tbody></table></details></td></tr>`;
     body.innerHTML = `
-      ${pileSection('כללי', `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true)}
-      ${pileSection('מוטות אורך', `<tr class="se-family-row se-pile-compact-row">${field('longitudinalBars', 0)}${field('longitudinalDiameter', 1)}</tr><tr class="se-family-row se-pile-compact-row">${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>${this._renderPileLongitudinalShapeRows(field)}`, true)}
-      ${pileSection('ספירלה', `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${selectField('spiralType', [['continuous','רציפה'], ['zoned','אזורים'], ['segmented','מקטעים']])}</tr><tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>${zoneRows}<tr class="se-family-row se-pile-action-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>`, true)}
-      ${pileSection('טבעות פנימיות', hoopRow(), false)}
-      ${pileSection('פירוק לייצור', this._renderPileElementsSummary(), false)}`;  }
+      ${pileSection('general', 'כללי', sectionSummary.general, `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true, 'pile-diameter')}
+      ${pileSection('bars', 'מוטות אורך', sectionSummary.bars, `<tr class="se-family-row se-pile-compact-row">${field('longitudinalBars', 0)}${field('longitudinalDiameter', 1)}</tr><tr class="se-family-row se-pile-compact-row">${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>${this._renderPileLongitudinalShapeRows(field)}`, true, 'pile-longitudinal-bars')}
+      ${pileSection('spiral', 'ספירלה', sectionSummary.spiral, `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${selectField('spiralType', [['continuous','רציפה'], ['zoned','אזורים'], ['segmented','מקטעים']])}</tr><tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>${zoneRows}<tr class="se-family-row se-pile-action-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>`, false, 'pile-spiral-pitch')}
+      ${pileSection('hoops', 'טבעות / חישוקים', sectionSummary.hoops, hoopRow(), false, 'pile-hoops')}
+      ${pileSection('breakdown', 'פירוק לייצור', sectionSummary.breakdown, this._renderPileElementsSummary(), false, 'pile-longitudinal-bars')}
+      ${pileSection('validation', 'בדיקות / שגיאות', sectionSummary.validation, `<tr class="se-family-row"><td colspan="5"><div class="se-pile-validations">${validationHtml}</div></td></tr>`, false, 'pile-zone')}`;  }
 
   _renderPileLongitudinalShapeRows(field) {
     const pile = this.current || {};

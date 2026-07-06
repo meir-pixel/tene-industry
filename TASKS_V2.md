@@ -2084,3 +2084,23 @@
   - No 3D implementation in this slice.
 - verification:
   - `node --check public\shape-editor.js`
+---
+
+### V2-006AM - Pile Cage Editor Usability Fix
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Make the current pile cage editor usable with readable accordion sections, summaries, validation feedback, and section-to-drawing focus.
+  - Preserve the current data model, calculations, shape contract, APIs, and renderer.
+- guardrails:
+  - No Orders, OCR, Worker, Printing, Pricing, Finance, Warehouse, Portal, Shape Contract, API, or DB schema changes.
+  - No 3D and no full editor rewrite.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`

@@ -158,8 +158,10 @@ test('shape editor keeps bend parameter rows compact and technical', () => {
   assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*font-size:12px/);
   assert.match(editor, /#seModal \.se-table\.se-table-2d tr\{[\s\S]*minmax\(72px,\.58fr\)/);
   assert.match(editor, /#seModal \.se-param-example\{display:none;\}/);
-  assert.match(editor, /grid-template-columns:440px minmax\(360px,1fr\) 154px/);
+  assert.match(editor, /grid-template-columns:360px minmax\(0,1fr\) 154px/);
   assert.match(editor, /td\.se-empty-cell\{background:transparent/);
+  assert.match(editor, /class=\"se-pile-section\"/);
+  assert.match(editor, /sectionSummary/);
   assert.match(editor, /class="se-angle-cell \$\{i < angles\.length \? '' : 'se-empty-cell'\}"/);
   assert.match(editor, /class="se-no-bend"/);
 });
