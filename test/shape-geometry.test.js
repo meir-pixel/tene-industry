@@ -466,6 +466,26 @@ test('shape editor switches to a pile cage editor with editable spiral zones', (
   assert.match(editor, /this\.current\.family === 'piles'\)\s+return this\._renderPileCageEditor\(\)/);
 });
 
+test('pile cage editor refreshes derived hoops and gates longitudinal shape rows', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const start = editor.indexOf('_renderPileCageEditor() {');
+  const end = editor.indexOf('_renderBarEditor', start);
+  const block = editor.slice(start, end);
+
+  assert.ok(start > 0 && end > start, 'expected pile cage editor block before longitudinal rows helper');
+  assert.ok(block.includes('data-pile-derived="internalHoopDiameter"'));
+  assert.ok(block.includes('${this._renderPileLongitudinalShapeRows(field)}'));
+  assert.equal(block.includes("${field('lHookLength', 0)}</tr>"), false);
+  assert.ok(editor.includes('_refreshPileDerived()'));
+  assert.ok(editor.includes('data-pile-derived="internalHoopDiameter"'));
+  assert.ok(editor.includes('out.textContent = internalHoopDiameterCm'));
+  assert.ok(editor.includes("pattern === 'straight'"));
+  assert.ok(editor.includes("pattern === 'alternate'"));
+  assert.ok(editor.includes('data-pile-bar-editor'));
+  assert.ok(editor.includes("field('lHookLength', 0) + '</div>'"));
+  const barPatternBranch = editor.slice(editor.indexOf("key === 'barPattern'"), editor.indexOf("const parsed = key === 'longitudinalBars'"));
+  assert.ok(barPatternBranch.includes('this._renderPileCageEditor()'));
+});
 test('MeshEngine spacing changes grid count while diameter changes bar thickness', () => {
   const { ShapeEngineRouter } = loadShapeEditorGeometry();
   const base = { family: 'mesh', length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20 };

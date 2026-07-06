@@ -3032,7 +3032,35 @@ class ShapeEditorModal {
       <tr class="se-family-row">${checkboxField('hoopsEnabled')}${field('hoopDiameter', 14)}</tr>
       <tr class="se-family-row">${field('hoopSpacing', 1)}${field('hoopStart', 0)}</tr>
       <tr class="se-family-row">${field('hoopEnd', 0)}${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>
-      <tr class="se-family-row">${field('lHookLength', 0)}</tr>`;
+      ${this._renderPileLongitudinalShapeRows(field)}`;
+  }
+
+  _renderPileLongitudinalShapeRows(field) {
+    const pile = this.current || {};
+    const pattern = String(pile.barPattern || 'straight');
+    const shell = (title, desc, body) => `<td colspan="5"><div class="se-pile-bar-editor" data-pile-bar-editor="${svgEscape(title)}" style="border:1px solid #d8e2ec;border-radius:10px;background:#f8fafc;padding:10px 12px;display:grid;gap:7px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong style="font-size:13px;color:#12315a">${title}</strong><span style="font-size:11px;color:#64748b;font-weight:700">${desc}</span></div>${body}</div></td>`;
+    if (pattern === 'straight') {
+      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוט A', 'ישר - ללא רגל L', '<span style="font-size:12px;color:#526070;font-weight:700">אורך המוט לפי אורך הכלונס.</span>')}</tr>`;
+    }
+    if (pattern === 'l') {
+      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוט A', 'מוט L', '<div style="display:grid;grid-template-columns:1fr;gap:6px">' + field('lHookLength', 0) + '</div>')}</tr>`;
+    }
+    if (pattern === 'alternate') {
+      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוט A', 'ישר', '<span style="font-size:12px;color:#526070;font-weight:700">ללא רגל L.</span>')}</tr><tr class="se-family-row se-pile-bar-shape-row">${shell('מוט B', 'L / משולב', '<div style="display:grid;grid-template-columns:1fr;gap:6px">' + field('lHookLength', 0) + '</div>')}</tr>`;
+    }
+    return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות אורך', 'ידני', '<span style="font-size:12px;color:#526070;font-weight:700">עריכה פרטנית תוגדר בהמשך; כרגע אין שדה רגל L אוטומטי.</span>')}</tr>`;
+  }
+
+  _refreshPileDerived() {
+    if (!this.current || this.current.family !== 'piles') return;
+    const out = document.querySelector('[data-pile-derived="internalHoopDiameter"]');
+    if (!out) return;
+    const pile = this.current;
+    const pileDiameterMm = pileCmToMm(pile.pileDiameter || 70, 700);
+    const coverMm = pileCmToMm(pile.concreteCover || 0, 0);
+    const internalHoopDiameterCm = pileRound(pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMm, concreteCover: coverMm, longitudinalDiameter: pile.longitudinalDiameter || 22 }) / 10, 1);
+    out.value = internalHoopDiameterCm;
+    out.textContent = internalHoopDiameterCm;
   }
 
   _renderBarEditor() {
@@ -3124,12 +3152,15 @@ class ShapeEditorModal {
     if (!this.current || this.current.family !== 'piles') return;
     if (key === 'hoopsEnabled') {
       this.current[key] = val === true || val === 1 || val === 'true' || val === 'on';
+      this._refreshPileDerived();
     } else if (key === 'barPattern' || key === 'spiralType') {
       this.current[key] = String(val || '');
+      this._renderPileCageEditor();
     } else {
       const parsed = key === 'longitudinalBars' ? Math.round(Number(val) || 0) : Number(val) || 1;
       const min = key === 'longitudinalBars' || key === 'hoopStart' || key === 'hoopEnd' || key === 'lHookLength' ? 0 : 1;
       this.current[key] = Math.max(min, parsed);
+      this._refreshPileDerived();
     }
     this._updatePreview();
   }

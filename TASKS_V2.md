@@ -1883,3 +1883,24 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
   - `npm test`
+---
+
+### V2-011M - Pile Cage Editor Live Derived Rows
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing + Shape Editor handoff
+- files:
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Pile cage internal hoop/ring diameter updates immediately when pile diameter or bar diameter changes.
+  - Straight longitudinal bars do not show an L-leg field.
+  - Mixed longitudinal bars show separate visual editors for bar A and bar B.
+- guardrails:
+  - Preserve Production status flow, QR routing, Orders lifecycle, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No module rewrite.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+  - `npm test`
