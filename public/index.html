@@ -2198,7 +2198,7 @@ function renderPalletHTML(p, idx) {
             <th>כמות</th>
             <th>משקל ק"ג</th>
             <th>מלאי</th>
-            <th>הערה</th>
+            <th>שייך ל / תיאור ללקוח</th>
             <th style="width:36px"></th>
           </tr>
         </thead>
@@ -2355,7 +2355,7 @@ function renderItemRow(palletId, item) {
     </td>
     <td>${renderStockSelect(palletId, item)}</td>
     <td>
-      <input type="text" value="${item.note||''}" placeholder="הערה..."
+      <input type="text" value="${escapeAttr(item.note||'')}" placeholder="לדוגמה: קיר חומה מבנה 103, קומה 2"
         onchange="updateItem(${palletId},'${item.id}','note',this.value)">
     </td>
     <td>
@@ -2943,10 +2943,10 @@ function renderImgItems(items) {
     html += '<label class="img-item-field">קוטר ספיראלה <input class="img-item-inp" type="number" value="' + escapeHtml(it.spiral_diameter_mm || it.spiralDiameterMm || '') + '" id="imgSpiralD' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field">מספר כריכות <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(it.spiral_turns || it.spiralTurns || '') + '" id="imgSpiralTurns' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field" style="grid-column:span 2">צלעות: אורך@זווית <textarea class="img-item-textarea" id="imgSegs' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(segmentsText) + '</textarea></label>';
-    html += '<label class="img-item-field">הערה <textarea class="img-item-textarea" id="imgNote' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(it.note || it.notes || '') + '</textarea></label>';
+    html += '<label class="img-item-field">שייך ל / תיאור <textarea class="img-item-textarea" id="imgNote' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(it.note || it.notes || it.shape_description || it.shapeDescription || '') + '</textarea></label>';
     html += '</div>';
     if (it.note || it.notes) {
-      html += '<div class="img-note">⚠ ההערה ניתנת לעריכה בשדה למעלה, ורק אחרי אישור תיכנס לטופס.</div>';
+      html += '<div class="img-note">⚠ התיאור ניתן לעריכה בשדה למעלה, ורק אחרי אישור ייכנס לטופס.</div>';
     }
     html += '</div>';
   });
