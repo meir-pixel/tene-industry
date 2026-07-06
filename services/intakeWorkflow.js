@@ -286,8 +286,25 @@ function resolveIntakeCustomer(parsed = {}, rawContent = '', lookups = {}) {
   };
 }
 
+function firstTextValue(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+  }
+  return '';
+}
+
+function intakeItemElementName(item = {}) {
+  return firstTextValue(item.structElement, item.struct_element, item.element_name, item.elementName, item.element, item.member_name, item.memberName);
+}
+
+function intakeItemNote(item = {}) {
+  return firstTextValue(item.notes, item.note, item.shape_description, item.shapeDescription);
+}
+
 function normalizeIntakeItem(item = {}) {
   const reviewNotes = normalizeReviewNotes(item.review_notes || item.reviewNotes);
+  const structElement = intakeItemElementName(item);
+  const note = intakeItemNote(item);
   const spiral = normalizeSpiralParams(item);
   if (spiral.isSpiral) {
     const length = Number(item.length ?? item.total_length_mm) || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns);
@@ -304,7 +321,9 @@ function normalizeIntakeItem(item = {}) {
       spiralTurns: spiral.turns,
       spiral_diameter_mm: spiral.spiralDiameterMm,
       spiral_turns: spiral.turns,
-      note: item.notes || item.note || '',
+      note,
+      structElement,
+      struct_element: structElement,
       reviewNotes,
       review_notes: reviewNotes,
     };
@@ -327,7 +346,9 @@ function normalizeIntakeItem(item = {}) {
     qty,
     shapeId: item.shapeId || item.shape || (sides.length === 3 ? 's3' : 's1'),
     shapeName: item.shapeName || item.shape || (sides.length === 3 ? 'U - anchor' : 'straight'),
-    note: item.notes || item.note || '',
+    note,
+    structElement,
+    struct_element: structElement,
     reviewNotes,
     review_notes: reviewNotes,
   };

@@ -62,7 +62,16 @@ module.exports = function createOrdersRouter(deps) {
         : Number(existingItem.total_length_mm));
     const spiralDiameter = body.spiral_diameter_mm !== undefined ? Number(body.spiral_diameter_mm) : existingItem.spiral_diameter_mm;
     const spiralTurns = body.spiral_turns !== undefined ? Number(body.spiral_turns) : existingItem.spiral_turns;
-    const note = body.note !== undefined ? String(body.note || '') : (existingItem.note || '');
+    const note = body.note !== undefined ? String(body.note || '') : (body.shape_description !== undefined ? String(body.shape_description || '') : (body.shapeDescription !== undefined ? String(body.shapeDescription || '') : (existingItem.note || '')));
+    const structElement = body.structElement !== undefined ? String(body.structElement || '').trim()
+      : (body.struct_element !== undefined ? String(body.struct_element || '').trim()
+        : (body.element_name !== undefined ? String(body.element_name || '').trim()
+          : (body.elementName !== undefined ? String(body.elementName || '').trim()
+            : (existingItem.struct_element || ''))));
+    const structFloor = body.structFloor !== undefined ? String(body.structFloor || '').trim()
+      : (body.struct_floor !== undefined ? String(body.struct_floor || '').trim() : (existingItem.struct_floor || ''));
+    const sheetNum = body.sheetNum !== undefined ? String(body.sheetNum || '').trim()
+      : (body.sheet_num !== undefined ? String(body.sheet_num || '').trim() : (existingItem.sheet_num || ''));
 
     if (!shapeName) throw Object.assign(new Error('shape_name is required'), { statusCode: 400 });
     if (!Number.isFinite(diameter) || diameter <= 0) throw Object.assign(new Error('invalid diameter'), { statusCode: 400 });
@@ -71,7 +80,7 @@ module.exports = function createOrdersRouter(deps) {
 
     const weightPerUnit = industry.weightPerUnit({ diameter, total_length_mm: totalLengthMm });
     const totalWeight = weightPerUnit * quantity;
-    return { shapeName, diameter, quantity, totalLengthMm, segments, spiralDiameter, spiralTurns, note, weightPerUnit, totalWeight };
+    return { shapeName, diameter, quantity, totalLengthMm, segments, spiralDiameter, spiralTurns, note, structElement, structFloor, sheetNum, weightPerUnit, totalWeight };
   }
 
   function recalcOrderWeights(orderId) {
@@ -271,9 +280,9 @@ module.exports = function createOrdersRouter(deps) {
       const item = cleanItemPayload(req.body, { shape_name: '', diameter: 12, quantity: 1, total_length_mm: 0, segments: '[]' });
       const pallet = firstOrCreatePallet(order.id);
       const hasOrderIdColumn = db.prepare("PRAGMA table_info(items)").all().some(column => column.name === 'order_id');
-      const shapeSnapshot = shapeSnapshotJson({ ...req.body, shapeId: item.shapeName, shapeName: item.shapeName, diameter: item.diameter, segments: item.segments, totalLengthMm: item.totalLengthMm, spiralDiameterMm: item.spiralDiameter || null, spiralTurns: item.spiralTurns || null });
-      const columns = ['pallet_id', 'shape_snapshot_json', 'shape_id', 'shape_name', 'diameter', 'quantity', 'production_qty', 'segments', 'total_length_mm', 'weight_per_unit', 'total_weight', 'note', 'status', 'spiral_diameter_mm', 'spiral_turns', 'review_status'];
-      const values = [pallet.id, shapeSnapshot, item.shapeName, item.shapeName, item.diameter, item.quantity, item.quantity, item.segments, item.totalLengthMm, item.weightPerUnit, item.totalWeight, item.note, 'ממתין', item.spiralDiameter || null, item.spiralTurns || null, 'pending'];
+      const shapeSnapshot = shapeSnapshotJson({ ...req.body, shapeId: item.shapeName, shapeName: item.shapeName, diameter: item.diameter, segments: item.segments, totalLengthMm: item.totalLengthMm, spiralDiameterMm: item.spiralDiameter || null, spiralTurns: item.spiralTurns || null, note: item.note, structElement: item.structElement, structFloor: item.structFloor, sheetNum: item.sheetNum });
+      const columns = ['pallet_id', 'shape_snapshot_json', 'shape_id', 'shape_name', 'diameter', 'quantity', 'production_qty', 'segments', 'total_length_mm', 'weight_per_unit', 'total_weight', 'note', 'status', 'spiral_diameter_mm', 'spiral_turns', 'review_status', 'struct_element', 'struct_floor', 'sheet_num'];
+      const values = [pallet.id, shapeSnapshot, item.shapeName, item.shapeName, item.diameter, item.quantity, item.quantity, item.segments, item.totalLengthMm, item.weightPerUnit, item.totalWeight, item.note, 'ממתין', item.spiralDiameter || null, item.spiralTurns || null, 'pending', item.structElement || null, item.structFloor || null, item.sheetNum || null];
       if (hasOrderIdColumn) {
         columns.splice(1, 0, 'order_id');
         values.splice(1, 0, order.id);
@@ -306,7 +315,7 @@ module.exports = function createOrdersRouter(deps) {
     } catch (error) {
       return res.status(error.statusCode || 400).json({ error: error.message });
     }
-    const { shapeName, diameter, quantity, totalLengthMm, segments, spiralDiameter, spiralTurns, note, weightPerUnit, totalWeight } = cleanItem;
+    const { shapeName, diameter, quantity, totalLengthMm, segments, spiralDiameter, spiralTurns, note, structElement, structFloor, sheetNum, weightPerUnit, totalWeight } = cleanItem;
     const before = JSON.stringify({
       shape_name: item.shape_name,
       diameter: item.diameter,
@@ -319,9 +328,9 @@ module.exports = function createOrdersRouter(deps) {
       SET shape_name=?, diameter=?, quantity=?, production_qty=?, total_length_mm=?,
           segments=?, spiral_diameter_mm=?, spiral_turns=?, weight_per_unit=?, total_weight=?,
           item_uid=COALESCE(item_uid, ?), shape_snapshot_json=COALESCE(shape_snapshot_json, ?),
-          note=?, review_status='pending', reviewed_by=NULL, reviewed_at=NULL
+          note=?, struct_element=?, struct_floor=?, sheet_num=?, review_status='pending', reviewed_by=NULL, reviewed_at=NULL
       WHERE id=?
-    `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, buildOrderItemUid(req.params.orderId, item.id), shapeSnapshotJson({ ...req.body, shapeId: item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null }), note, item.id);
+    `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, buildOrderItemUid(req.params.orderId, item.id), shapeSnapshotJson({ ...req.body, shapeId: item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null, note, structElement, structFloor, sheetNum }), note, structElement || null, structFloor || null, sheetNum || null, item.id);
 
     const orderTotal = recalcOrderWeights(req.params.orderId);
 

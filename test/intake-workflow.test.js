@@ -242,6 +242,25 @@ test('buildStructuredReviewNotes keeps old confident intake data usable without 
   assert.deepEqual(notes.map(note => note.field), ['source_identity']);
 });
 
+test('buildIntakeOrderPayload maps OCR element name and description to order item fields', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    items: [{
+      diameter: 12,
+      length: 1000,
+      quantity: 1,
+      shape_name: 'straight',
+      element_name: 'Wall element 103',
+      shape_description: 'starter bars for wall',
+    }],
+  }, { calcWeightPerUnit: () => 1 });
+
+  const item = payload.pallets[0].items[0];
+  assert.equal(item.structElement, 'Wall element 103');
+  assert.equal(item.struct_element, 'Wall element 103');
+  assert.equal(item.note, 'starter bars for wall');
+});
+
 test('buildIntakeOrderPayload carries item review notes into draft order payload', () => {
   const payload = buildIntakeOrderPayload({
     customer_name: 'Customer A',

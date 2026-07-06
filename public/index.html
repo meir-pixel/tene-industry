@@ -3055,7 +3055,8 @@ function confirmImgItems() {
       qty:         it.quantity || 1,
       spiral_diameter_mm: isSpiral ? spiralDiameter : null,
       spiral_turns: isSpiral ? spiralTurns : null,
-      note:        it.note || ''
+      structElement: String(it.structElement || it.struct_element || it.element_name || it.elementName || it.element || it.member_name || it.memberName || '').trim(),
+      note:        it.note || it.notes || it.shape_description || it.shapeDescription || ''
     });
   });
 

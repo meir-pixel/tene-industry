@@ -1228,6 +1228,7 @@ function parsedOcrSegments(item) {
 function parsedOcrItemPayload(item) {
   const segments = parsedOcrSegments(item);
   const totalLength = Number(item?.total_length_mm ?? item?.length_mm ?? item?.length) || segments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
+  const structElement = String(item?.structElement || item?.struct_element || item?.element_name || item?.elementName || item?.element || item?.member_name || item?.memberName || '').trim();
   return {
     shape_name: String(item?.shape_name || item?.shapeName || item?.shape || 'ישר').trim(),
     diameter: Number(item?.diameter ?? item?.diameter_mm) || 12,
@@ -1236,7 +1237,8 @@ function parsedOcrItemPayload(item) {
     spiral_diameter_mm: item?.spiral_diameter_mm ? Number(item.spiral_diameter_mm) : null,
     spiral_turns: item?.spiral_turns ? Number(item.spiral_turns) : null,
     segments,
-    note: item?.note || item?.notes || 'נוסף מ־OCR להזמנה קיימת',
+    structElement,
+    note: item?.note || item?.notes || item?.shape_description || item?.shapeDescription || 'נוסף מ־OCR להזמנה קיימת',
   };
 }
 

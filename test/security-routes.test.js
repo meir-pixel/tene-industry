@@ -427,6 +427,8 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
       total_length_mm: 1200,
       segments: [{ length_mm: 1200, angle_deg: 0 }],
       shape: { quantity: 999 },
+      element_name: 'Wall element 103',
+      shape_description: 'starter bars for wall',
     });
     const createResponse = await request(`/api/orders/${orderId}/items`, { method: 'POST', headers: authHeaders(manager), body: createBody });
     assert.equal(createResponse.status, 200);
@@ -435,6 +437,8 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(item.order_id, orderId);
     assert.equal(item.quantity, 5);
     assert.equal(item.item_uid, `order-${orderId}:item-${created.itemId}`);
+    assert.equal(item.struct_element, 'Wall element 103');
+    assert.equal(item.note, 'starter bars for wall');
     const snapshot = JSON.parse(item.shape_snapshot_json);
     assert.equal(snapshot.shapeName, 'contract-bend');
     assert.equal(Object.hasOwn(snapshot, 'quantity'), false);
