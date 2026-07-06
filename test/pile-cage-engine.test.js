@@ -2,105 +2,194 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 
-test('pile cage calculator defaults to one continuous uniform spiral zone', () => {
-  const pile = calculatePileCage({
-    pileDiameterMm: 680,
-    pileLengthMm: 12000,
-    longitudinalBarCount: 16,
-    longitudinalDiameterMm: 20,
-    spiralDiameterMm: 10,
-    uniformPitchMm: 150,
-  });
+function codes(result) {
+  return result.validation.errorCodes;
+}
 
-  assert.equal(pile.family, 'piles');
+function componentTypes(result) {
+  return new Set(result.manufacturingBreakdown.map(part => part.componentType));
+}
+
+test('uniform spiral pile cage calculates active length correctly', () => {
+  const pile = calculatePileCage({ pileLengthMm: 12000, noSpiralStartMm: 1000, noSpiralEndMm: 500, uniformPitchMm: 150 });
+
   assert.equal(pile.pitchMode, 'uniform');
+  assert.equal(pile.calculated.activeSpiralLengthMm, 10500);
   assert.equal(pile.spiralZones.length, 1);
-  assert.equal(pile.spiralZones[0].lengthMm, 12000);
-  assert.equal(pile.spiralZones[0].pitchMm, 150);
-  assert.equal(pile.longitudinalBars.length, 16);
+  assert.equal(pile.spiralZones[0].startMm, 1000);
+  assert.equal(pile.spiralZones[0].endMm, 11500);
   assert.equal(pile.validation.ok, true);
-  assert.ok(pile.calculated.totalSpiralLengthMm > 0);
-  assert.ok(pile.calculated.weightKg > 0);
 });
 
-test('pile cage supports alternating bar diameter and shape patterns', () => {
-  const pile = calculatePileCage({
-    pileLengthMm: 10000,
-    longitudinalBarCount: 9,
-    longitudinalDiameterMm: 20,
-    hookLengthMm: 400,
-    barPattern: [
-      { repeat: 2, diameterMm: 20, shapeType: 'straight' },
-      { repeat: 1, diameterMm: 16, shapeType: 'L', hookLengthMm: 500 },
-    ],
-  });
+test('start no-spiral and end no-spiral zones are allowed', () => {
+  const pile = calculatePileCage({ pileLengthMm: 2200, noSpiralStartMm: 70, noSpiralEndMm: 200, uniformPitchMm: 100 });
 
-  assert.deepEqual(pile.longitudinalBars.map(bar => bar.diameterMm), [20, 20, 16, 20, 20, 16, 20, 20, 16]);
-  assert.equal(pile.longitudinalBars[2].shapeType, 'L');
-  assert.equal(pile.longitudinalBars[2].lengthMm, 10500);
-  assert.ok(pile.manufacturingBreakdown.some(part => part.type === 'longitudinal_bar' && part.shapeType === 'L' && part.quantity === 3));
+  assert.equal(pile.validation.ok, true);
+  assert.equal(pile.data.spiral.startNoSpiralMm, 70);
+  assert.equal(pile.data.spiral.endNoSpiralMm, 200);
+  assert.equal(pile.calculated.activeSpiralLengthMm, 1930);
 });
 
-test('variable pitch zones must fill the wrapped length continuously', () => {
+test('no-spiral zone in middle is rejected', () => {
+  const pile = calculatePileCage({ internalNoSpiralZones: [{ startMm: 900, lengthMm: 100 }] });
+
+  assert.equal(pile.validation.ok, false);
+  assert.ok(codes(pile).includes('no_spiral_zone_in_middle_not_allowed'));
+});
+
+test('spiral zones must cover active length', () => {
   const pile = calculatePileCage({
     pileLengthMm: 2200,
+    pitchMode: 'zones',
     noSpiralStartMm: 70,
     noSpiralEndMm: 0,
-    pitchMode: 'variable',
-    spiralZones: [
-      { name: 'A', lengthMm: 200, pitchMm: 100 },
-      { name: 'B', lengthMm: 1930, pitchMm: 200 },
-    ],
-  });
-
-  assert.equal(pile.validation.ok, true);
-  assert.equal(pile.spiralZones[0].startMm, 70);
-  assert.equal(pile.spiralZones[1].startMm, 270);
-  assert.equal(pile.spiralZones[0].pitchMm, 100);
-  assert.equal(pile.spiralZones[1].pitchMm, 200);
-});
-
-test('pile cage rejects internal no-spiral gaps and incomplete variable zones', () => {
-  const pile = calculatePileCage({
-    pileLengthMm: 2200,
-    pitchMode: 'variable',
-    internalNoSpiralZones: [{ startMm: 900, lengthMm: 100 }],
-    spiralZones: [{ name: 'A', lengthMm: 1000, pitchMm: 150 }],
+    spiralZones: [{ name: 'A', lengthMm: 200, pitchMm: 100 }],
   });
 
   assert.equal(pile.validation.ok, false);
-  assert.match(pile.validation.errors.join('\n'), /internal no-spiral gaps are not allowed/);
-  assert.match(pile.validation.errors.join('\n'), /variable spiral zone lengths must exactly fill/);
+  assert.ok(codes(pile).includes('spiral_zones_do_not_cover_active_length'));
 });
 
-
-test('default internal hoops follow pile standard from spiral side', () => {
+test('spiral turns are calculated per zone', () => {
   const pile = calculatePileCage({
-    pileDiameterMm: 680,
-    pileLengthMm: 12000,
-    concreteCoverMm: 50,
-    longitudinalDiameterMm: 20,
-    hoopDiameterMm: 8,
-    noSpiralStartMm: 1000,
-    noSpiralEndMm: 0,
+    pileLengthMm: 2200,
+    pitchMode: 'zones',
+    spiralZones: [
+      { name: 'A', lengthMm: 200, pitchMm: 100 },
+      { name: 'B', lengthMm: 2000, pitchMm: 200 },
+    ],
   });
 
-  assert.equal(pile.spiralZones[0].diameterMm, 572);
-  assert.equal(pile.hoops[0].barDiameterMm, 14);
-  assert.equal(pile.hoops[0].spacingMm, 3000);
-  assert.equal(pile.hoops[0].diameterMm, 560);
-  assert.deepEqual(pile.hoops[0].positionsMm, [1000, 4000, 7000, 10000]);
-  assert.ok(pile.manufacturingBreakdown.some(part => part.type === 'internal_hoop' && part.diameterMm === 14 && part.quantity === 4));
+  assert.equal(pile.validation.ok, true);
+  assert.equal(pile.spiralZones[0].turnsCalculated, 2);
+  assert.equal(pile.spiralZones[1].turnsCalculated, 10);
 });
-test('runtime pile cage report page exposes A4 sheet and production cards', () => {
-  const html = fs.readFileSync(require('node:path').join(__dirname, '..', 'public', 'pile-cage-report.html'), 'utf8');
-  assert.match(html, /COLUMN_CAGE/);
-  assert.match(html, /production/i);
-  assert.match(html, /id="sideSvg"/);
-  assert.match(html, /id="cards"/);
-  assert.equal(html.includes('/brand/tene-pdf-logo.jpg'), true);
-  assert.equal(html.includes('docs/mockups'), false);
+
+test('longitudinal bars uniform layout generates correct bar count', () => {
+  const pile = calculatePileCage({ longitudinalBars: { totalBars: 26, defaultDiameterMm: 22, layoutMode: 'uniform' } });
+
+  assert.equal(pile.data.longitudinalBars.layoutMode, 'uniform');
+  assert.equal(pile.longitudinalBars.length, 26);
+  assert.equal(pile.longitudinalBars.every(bar => bar.diameterMm === 22), true);
+});
+
+test('alternating straight/L bars generates correct pattern', () => {
+  const pile = calculatePileCage({
+    pileLengthMm: 10000,
+    longitudinalBars: {
+      totalBars: 9,
+      layoutMode: 'alternating',
+      pattern: [
+        { repeat: 2, diameterMm: 20, type: 'straight' },
+        { repeat: 1, diameterMm: 16, type: 'L', bendLengthMm: 500 },
+      ],
+    },
+  });
+
+  assert.deepEqual(pile.longitudinalBars.map(bar => bar.diameterMm), [20, 20, 16, 20, 20, 16, 20, 20, 16]);
+  assert.deepEqual(pile.longitudinalBars.map(bar => bar.type), ['straight', 'straight', 'L', 'straight', 'straight', 'L', 'straight', 'straight', 'L']);
+  assert.ok(pile.validation.warningCodes.includes('mixed_bar_diameters'));
+  assert.ok(pile.validation.warningCodes.includes('mixed_bar_types'));
+});
+
+test('L bar includes bendLengthMm in length calculation', () => {
+  const pile = calculatePileCage({
+    pileLengthMm: 12000,
+    longitudinalBars: { totalBars: 4, defaultType: 'L', defaultBendLengthMm: 400 },
+  });
+
+  assert.equal(pile.longitudinalBars[0].mainLengthMm, 12000);
+  assert.equal(pile.longitudinalBars[0].bendLengthMm, 400);
+  assert.equal(pile.longitudinalBars[0].lengthMm, 12400);
+  assert.equal(pile.calculated.totalLBars, 4);
+});
+
+test('mixed diameters group correctly in manufacturing breakdown', () => {
+  const pile = calculatePileCage({
+    longitudinalBars: {
+      totalBars: 3,
+      bars: [
+        { barIndex: 1, diameterMm: 20 },
+        { barIndex: 2, diameterMm: 20 },
+        { barIndex: 3, diameterMm: 16 },
+      ],
+    },
+  });
+  const barGroups = pile.manufacturingBreakdown.filter(part => part.sourceSystem === 'longitudinalBars');
+
+  assert.equal(barGroups.length, 2);
+  assert.deepEqual(barGroups.map(group => group.quantity).sort((a, b) => a - b), [1, 2]);
+});
+
+test('hoops by spacing calculate hoop count', () => {
+  const pile = calculatePileCage({
+    pileLengthMm: 12000,
+    noSpiralStartMm: 1000,
+    hoops: { spacingMode: 'bySpacing', spacingMm: 3000, hoopBarDiameterMm: 8 },
+  });
+
+  assert.equal(pile.hoops[0].barDiameterMm, 14);
+  assert.deepEqual(pile.hoops[0].positionsMm, [1000, 4000, 7000, 10000]);
+  assert.equal(pile.hoops[0].count, 4);
+});
+
+test('manufacturing breakdown includes all required component types', () => {
+  const pile = calculatePileCage({
+    longitudinalBars: {
+      totalBars: 4,
+      pattern: [
+        { repeat: 1, type: 'straight' },
+        { repeat: 1, type: 'L', bendLengthMm: 400 },
+      ],
+    },
+  });
+  const types = componentTypes(pile);
+
+  assert.ok(types.has('longitudinal_straight_bar'));
+  assert.ok(types.has('longitudinal_l_bar'));
+  assert.ok(types.has('spiral_zone'));
+  assert.ok(types.has('hoop_ring'));
+});
+
+test('total weight equals component weights', () => {
+  const pile = calculatePileCage({ longitudinalBars: { totalBars: 6 }, uniformPitchMm: 200 });
+  const componentWeight = pile.manufacturingBreakdown.reduce((sum, part) => sum + part.weightKg, 0);
+
+  assert.equal(pile.calculated.totalWeightKg, Math.round(componentWeight * 1000) / 1000);
+  assert.equal(pile.calculated.weightKg, pile.calculated.totalWeightKg);
+});
+
+test('Shape V2 envelope remains valid for pile cage', () => {
+  const pile = calculatePileCage({ shapeId: 'shape-test-1', shapeVersion: 3 });
+
+  assert.equal(pile.contractVersion, 1);
+  assert.equal(pile.shapeVersion, 3);
+  assert.equal(pile.shapeId, 'shape-test-1');
+  assert.equal(pile.shapeType, 'round_pile_cage');
+  assert.equal(pile.family, 'piles');
+  assert.ok(pile.data.general);
+  assert.ok(pile.data.longitudinalBars);
+  assert.ok(pile.data.spiral);
+  assert.ok(pile.data.hoops);
+  assert.ok(pile.calculated.manufacturingBreakdown);
+  assert.ok(pile.machineOutput.generic);
+  assert.deepEqual(pile.machineOutput.machineProfiles, {});
+  assert.ok(pile.views.sideView);
+  assert.ok(pile.views.topView);
+  assert.ok(pile.views.isoView);
+  assert.ok(pile.views.selectedBarView);
+});
+
+
+test('production cards include one master and component cards per pile unit', () => {
+  const pile = calculatePileCage({ quantity: 2, longitudinalBars: { totalBars: 4 }, uniformPitchMm: 200 });
+  const perUnitComponentCount = pile.manufacturingBreakdown.length;
+
+  assert.equal(pile.productionCards.length, 2 * (1 + perUnitComponentCount));
+  assert.equal(pile.productionCards.filter(card => card.cardType === 'pile_master').length, 2);
+  assert.equal(pile.productionCards.filter(card => card.cardType === 'pile_component').length, 2 * perUnitComponentCount);
+  assert.deepEqual(pile.productionCards.filter(card => card.cardType === 'pile_master').map(card => card.unitIndex), [1, 2]);
+  assert.ok(pile.machineOutput.generic.productionCards.length === pile.productionCards.length);
 });

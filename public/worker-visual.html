@@ -94,6 +94,8 @@
     const SCAN_ENTRY=ENTRY_PARAMS.get('scan')==='1'||ENTRY_PARAMS.has('card')||ENTRY_PARAMS.has('item');
     document.body.classList.toggle('scan-entry',SCAN_ENTRY);
     const ITEM_STATUS=(window.IronBendStatus&&window.IronBendStatus.ITEM_STATUS)||{WAITING:'ממתין',IN_PRODUCTION:'בייצור',DONE:'הושלם',DELIVERED:'סופק'};
+    const publicWorkerCardToken=()=>state.scanToken||ENTRY_PARAMS.get('card')||ENTRY_PARAMS.get('item')||'';
+    const workerCardApi=(id,suffix='')=>SCAN_ENTRY?`/api/worker-card/${id}${suffix}`:`/api/items/${id}${suffix}`;
     const statusKey=s=>s===ITEM_STATUS.IN_PRODUCTION?'production':s===ITEM_STATUS.DONE?'done':s===ITEM_STATUS.DELIVERED?'supplied':'waiting';
     const statusText={waiting:'ממתין',production:'בייצור',done:'בוצע',supplied:'סופק'};
     const apiStatus={waiting:ITEM_STATUS.WAITING,production:ITEM_STATUS.IN_PRODUCTION,done:ITEM_STATUS.DONE,supplied:ITEM_STATUS.DELIVERED};
@@ -108,7 +110,7 @@
       try{const url=new URL(value,location.origin);token=url.searchParams.get('card')||url.searchParams.get('item')||value}catch{}
       const clean=String(token||'').trim();
       const itemParam=/^\d+$/.test(clean)?Number(clean):null;
-      const match=clean.match(/-(\d{1,12})(?:-C(\d+)OF(\d+))?$/i);
+      const match=clean.match(/-(\d{1,12})(?:-[A-Z]+[A-Z0-9]*)*(?:-C(\d+)OF(\d+))?$/i);
       return {raw:value,token:clean,itemId:itemParam||(match?Number(match[1]):null),cardIndex:match&&match[2]?Number(match[2]):1,cardTotal:match&&match[3]?Number(match[3]):1};
     }
     function scanFromLocation(){
@@ -189,68 +191,7 @@
     }
     function drawing(item){
       if(item.shape_svg)return item.shape_svg;
-      const seg=segments(item),name=String(item.shape_name||'').toLowerCase();
-      if(/spiral|ring|coil|ספיר|טבעת|סליל|לולאה/.test(name)&&seg.length>1)return spiral(seg);
-      if(isOpenUShape(seg))return openU(seg);
-      if((/closed|stirrup|overlap|חישוק|חפיפה|מסגרת/.test(name)||seg.length===6)&&seg.length>=4)return closed(seg);
-      return generic(seg);
-    }
-    function rightAngle(value){return Math.abs(Number(value)-90)<0.1}
-    function isOpenUShape(s){
-      if(!Array.isArray(s)||s.length!==3)return false;
-      const lengths=s.map(part=>Number(part.length_mm||0));
-      const [left,bridge,right]=lengths;
-      if(!(left>0&&bridge>0&&right>0))return false;
-      const legsSimilar=Math.abs(left-right)<=Math.max(left,right)*0.25;
-      const bridgeDominant=bridge>=Math.max(left,right)*1.5;
-      return legsSimilar&&bridgeDominant&&rightAngle(s[0].angle_deg)&&rightAngle(s[1].angle_deg);
-    }
-    function clamp(value,min,max){return Math.max(min,Math.min(max,value))}
-    function readableOpenUDimensions(left,bridge,right){
-      const strongestLeg=Math.max(left,right,1),legScale=82/strongestLeg,bridgeRatio=bridge/strongestLeg;
-      const halfBridge=clamp(50*bridgeRatio,66,124),centerX=180,topY=47;
-      return {x1:centerX-halfBridge,x2:centerX+halfBridge,topY,yLeft:topY+clamp(left*legScale,54,105),yRight:topY+clamp(right*legScale,54,105)};
-    }
-    function openU(s){
-      const left=Number(s[0].length_mm||0),bridge=Number(s[1].length_mm||0),right=Number(s[2].length_mm||0);
-      const d=readableOpenUDimensions(left,bridge,right),leftMid=(d.topY+d.yLeft)/2,rightMid=(d.topY+d.yRight)/2;
-      return `<svg data-shape-kind="worker-open-u" data-scale-mode="readable" viewBox="0 0 360 190">
-        <path class="shape" d="M${d.x1} ${d.yLeft} L${d.x1} ${d.topY} L${d.x2} ${d.topY} L${d.x2} ${d.yRight}"/>
-        <text class="measure" x="${d.x1-10}" y="${leftMid+5}" text-anchor="end">${left}</text>
-        <text class="measure" x="180" y="35" text-anchor="middle">${bridge}</text>
-        <text class="measure" x="${d.x2+10}" y="${rightMid+5}" text-anchor="start">${right}</text>
-        <circle cx="${d.x1}" cy="${d.topY}" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
-        <text class="detail" x="${d.x1}" y="${d.topY+5}" text-anchor="middle">90°</text>
-        <circle cx="${d.x2}" cy="${d.topY}" r="17" fill="#fff7ed" stroke="#d2691e" stroke-width="2"/>
-        <text class="detail" x="${d.x2}" y="${d.topY+5}" text-anchor="middle">90°</text>
-      </svg>`
-    }
-    function closed(s){
-      const values=s.map(part=>Number(part.length_mm||0)),tailsAtEnds=values.length>=5&&values[0]<Math.max(values[1],values[2])*.45&&(!values[5]||values[5]<Math.max(values[3],values[4])*.45);
-      const top=tailsAtEnds?values[2]:(values[0]||0),side=tailsAtEnds?values[1]:(values[1]||0),bottom=tailsAtEnds?values[4]:(values[2]||top),left=tailsAtEnds?values[3]:(values[3]||side);
-      const horizontal=Math.max(top,bottom,1),vertical=Math.max(left,side,1),ratio=horizontal/vertical,boxW=ratio>=1?212:Math.max(90,Math.min(212,106*ratio)),boxH=ratio>=1?Math.max(82,Math.min(106,212/ratio)):106,x=(360-boxW)/2,y=(190-boxH)/2;
-      const right=x+boxW,marker=Math.min(32,Math.max(16,Math.min(boxW,boxH)*.28)),markerX=right-marker,markerY=y+marker;
-      return `<svg data-shape-kind="worker-closed-stirrup" viewBox="0 0 360 190">
-        <rect class="shape" x="${x}" y="${y}" width="${boxW}" height="${boxH}"/>
-        <path class="shape" data-stirrup-marker="overlap" d="M${markerX} ${y}V${markerY}H${right}"/>
-        <text class="measure" x="180" y="${y-12}" text-anchor="middle">${top}</text>
-        <text class="measure" x="180" y="${y+boxH+20}" text-anchor="middle">${bottom}</text>
-        <text class="measure" x="${x-19}" y="100" text-anchor="middle">${left}</text>
-        <text class="measure" x="${x+boxW+21}" y="100" text-anchor="middle">${side}</text>
-      </svg>`
-    }
-    function spiral(s){
-      const label=s.map(x=>Number(x.length_mm||0)).filter(Boolean).join(' / ')||'SPIRAL';
-      return `<svg viewBox="0 0 360 190"><polyline class="shape" points="68,150 68,38 292,38 292,150 98,150 98,67 262,67 262,121 128,121 128,92 230,92"/><text class="measure" x="180" y="177" text-anchor="middle">${esc(label)}</text><text class="detail" x="180" y="21" text-anchor="middle">SPIRAL</text></svg>`
-    }
-    function generic(s){
-      if(!s.length)return '<svg viewBox="0 0 360 190"><path class="shape" d="M55 100h250"/><text class="measure" x="180" y="83" text-anchor="middle">אורך</text></svg>';
-      let x=0,y=0,angle=0,pts=[{x,y}],lines=[];
-      s.forEach((part,i)=>{const len=Number(part.length_mm||0),rad=angle*Math.PI/180,nx=x+len*Math.cos(rad),ny=y+len*Math.sin(rad);lines.push({x1:x,y1:y,x2:nx,y2:ny,len});pts.push({x:nx,y:ny});x=nx;y=ny;angle+=Number(part.angle_deg||0)});
-      const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),scale=Math.min(260/Math.max(maxX-minX,1),115/Math.max(maxY-minY,1)),ox=180-(minX+maxX)*scale/2,oy=100-(minY+maxY)*scale/2;
-      const path=pts.map((p,i)=>`${i?'L':'M'}${(ox+p.x*scale).toFixed(1)},${(oy+p.y*scale).toFixed(1)}`).join(' ');
-      const labels=lines.map(l=>`<text class="measure" x="${(ox+(l.x1+l.x2)*scale/2).toFixed(1)}" y="${(oy+(l.y1+l.y2)*scale/2-10).toFixed(1)}" text-anchor="middle">${l.len}</text>`).join('');
-      return `<svg viewBox="0 0 360 190"><path class="shape" d="${path}"/>${labels}</svg>`
+      return '<svg data-shape-kind="worker-canonical-missing" viewBox="0 0 360 190"><rect x="26" y="32" width="308" height="126" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/><text class="detail" x="180" y="87" text-anchor="middle">אין תצוגת צורה</text><text class="measure" x="180" y="116" text-anchor="middle">נדרש shape_svg מהשרת</text></svg>';
     }
     async function saveProductionFields(id,event){
       event&&event.stopPropagation();
@@ -267,9 +208,10 @@
       if((qtyText&&!Number.isFinite(produced))||produced<0||!Number.isInteger(produced))return;
       if(qtyText&&requested&&produced>requested)return;
       const payload={note:noteInput?.value||''};
+      if(SCAN_ENTRY)payload.card=publicWorkerCardToken();
       if(weightText)payload.actual_weight_kg=actual;
       if(qtyText)payload.produced_qty=produced;
-      const r=await fetch(`/api/items/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const r=await fetch(workerCardApi(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       if(r.ok){const item=state.items.find(item=>item.id===id);if(item){if(weightText){item.actual_weight_kg=actual;const target=targetWeight(item);item.weight_deviation_pct=target?((actual-target)/target)*100:null}if(qtyText)item.produced_qty=produced;item.note=payload.note}render()}
     }
     async function adjustProducedQty(id,delta,event){
@@ -282,12 +224,12 @@
       if(input)input.value=next||'';
       await saveProductionFields(id,event);
     }
-    async function setStatus(id,key){const r=await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:apiStatus[key]})});if(r.ok){const item=state.items.find(item=>item.id===id);if(item)item.status=apiStatus[key];render()}}
+    async function setStatus(id,key){const payload={status:apiStatus[key]};if(SCAN_ENTRY)payload.card=publicWorkerCardToken();const r=await fetch(workerCardApi(id,'/status'),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(r.ok){const item=state.items.find(item=>item.id===id);if(item)item.status=apiStatus[key];render()}}
     function selectOrder(id){state.selected=id;state.focusItemId=null;state.scanToken=null;render();document.querySelector('.panel').classList.add('mobile-hidden');document.querySelector('.stage').classList.remove('mobile-hidden')}
-    async function load(){try{const r=await fetch('/api/production-queue?visual=1');if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='חי';const parsed=state.focusItemId?null:scanFromLocation();if(parsed&&parsed.itemId){if(!focusScannedCard(parsed)){render();showScanResult('הקוד נסרק, אבל הכרטיס לא נמצא בתור הייצור הנוכחי.','err')}}else render()}catch{document.querySelector('#sync').textContent='מתחבר מחדש'}}
+    async function load(){try{const scanToken=publicWorkerCardToken();const url=SCAN_ENTRY?`/api/worker-card?card=${encodeURIComponent(scanToken)}`:'/api/production-queue?visual=1';const r=await fetch(url);if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='חי';const parsed=state.focusItemId?null:scanFromLocation();if(parsed&&parsed.itemId){if(!focusScannedCard(parsed)){render();showScanResult('הקוד נסרק, אבל הכרטיס לא נמצא בתור הייצור הנוכחי.','err')}}else render()}catch{document.querySelector('#sync').textContent='מתחבר מחדש'}}
     document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelector('.panel').classList.toggle('mobile-hidden',b.dataset.pane!=='panel');document.querySelector('.stage').classList.toggle('mobile-hidden',b.dataset.pane!=='stage')});
     function ws(){try{const socket=new WebSocket(window.IronBendAuth?.webSocketUrl?.('/')||`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=event=>{try{if(['item_status','item_progress','new_order','order_status'].includes(JSON.parse(event.data).type))load()}catch{}};socket.onclose=()=>setTimeout(ws,2000)}catch{}}
-    load();ws();
+    load();if(!SCAN_ENTRY)ws();
   </script>
 <script src="/production-i18n.js" defer></script>
 </body>

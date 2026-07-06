@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
-const { shapeSvg } = require('../services/productionCards');
+const { shapeSvg, itemShapeSvg } = require('../services/productionCards');
 const { normalizeFactorySegments, normalizeFactoryShapeName, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 const { distributeSurplusToEndSegments } = require('../services/intakeWorkflow');
 
@@ -121,12 +121,13 @@ test('shape editor direct-open hides the count picker before edit page', () => {
 test('shape editor bypasses the legacy shape selection screen', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const goToSelect = editor.match(new RegExp("_goToSelect\\(\\) \\{[\\s\\S]*?\\n  \\}"));
-  const openFallback = editor.match(/No existing shape: open the editor directly[\s\S]*?this\._startDefaultEdit\('bars'\)/);
+  const openBlock = editor.match(/open\(existingData\) \{[\s\S]*?\n  \}/);
 
   assert.ok(goToSelect, 'expected _goToSelect body');
   assert.match(goToSelect[0], /this\._startDefaultEdit\(this\._selectedFamily \|\| 'bars'\)/);
   assert.doesNotMatch(goToSelect[0], /sePageSelect'\)\.style\.display\s*=\s*'flex'/);
-  assert.ok(openFallback, 'expected new shapes to open directly in edit mode');
+  assert.ok(openBlock, 'expected open block');
+  assert.match(openBlock[0], /this\._startDefaultEdit\('bars'\)/);
 });
 
 test('shape editor family tabs switch directly to family editors', () => {
@@ -157,8 +158,13 @@ test('shape editor keeps bend parameter rows compact and technical', () => {
   assert.match(editor, /#seModal \.se-field-shell \.se-input\{[\s\S]*font-size:12px/);
   assert.match(editor, /#seModal \.se-table\.se-table-2d tr\{[\s\S]*minmax\(72px,\.58fr\)/);
   assert.match(editor, /#seModal \.se-param-example\{display:none;\}/);
-  assert.match(editor, /grid-template-columns:440px minmax\(360px,1fr\) 154px/);
+  assert.match(editor, /grid-template-columns:360px minmax\(0,1fr\) 154px/);
   assert.match(editor, /td\.se-empty-cell\{background:transparent/);
+  assert.match(editor, /class=\"se-pile-section\"/);
+  assert.match(editor, /sectionSummary/);
+  assert.ok(editor.includes('se-family-row>td[colspan]{grid-column:1/-1!important;width:100%;min-width:0;display:block;}'));
+  assert.ok(editor.includes('se-pile-hoop-grid{display:grid;grid-template-columns:24px repeat(3,minmax(50px,1fr))'));
+  assert.ok(editor.includes('se-pile-elements{border:1px solid #d8e2ec;border-radius:7px;background:#fff;padding:5px;display:grid;gap:4px;width:100%;min-width:0;overflow:hidden;}'));
   assert.match(editor, /class="se-angle-cell \$\{i < angles\.length \? '' : 'se-empty-cell'\}"/);
   assert.match(editor, /class="se-no-bend"/);
 });
@@ -226,15 +232,21 @@ test('shape editor focuses Z angle fields without switching to side length editi
   assert.doesNotMatch(editor, /if \(el\) meta = \{ \.\.\.meta, focusKey: `bar-side-\$\{el\}`/);
 });
 
-test('shape editor includes synchronized engineering helper views', () => {
+test('shape editor includes pile cage 2D engineering views without 3D helper output', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const pileRenderBlock = editor.match(/PileCageEngine\.render = function\(pile, w = 300, h = 260\) \{[\s\S]*?\n\};/);
 
-  assert.match(editor, /class="se-engineer-helper"/);
-  assert.match(editor, /data-view="side"/);
-  assert.match(editor, /data-view="top"/);
-  assert.match(editor, /data-view="3d"/);
+  assert.ok(pileRenderBlock, 'expected PileCageEngine renderer block');
+  assert.match(pileRenderBlock[0], /data-view=\"side\"/);
+  assert.match(pileRenderBlock[0], /data-view=\"top\"/);
+  assert.match(pileRenderBlock[0], /pile-side-engineering-view/);
+  assert.match(pileRenderBlock[0], /pile-top-engineering-view/);
+  assert.match(pileRenderBlock[0], /pile-zone-dimension/);
+  assert.match(pileRenderBlock[0], /pile-pitch-label/);
+  assert.match(pileRenderBlock[0], /pile-spiral-loop/);
   assert.match(editor, /data-se-focus="mesh-longitudinal-spacing mesh-transverse-spacing"/);
-  assert.match(editor, /data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch pile-hoops"/);
+  assert.doesNotMatch(pileRenderBlock[0], /data-view=\"3d\"/);
+  assert.doesNotMatch(pileRenderBlock[0], /se-engineer-helper/);
 });
 
 test('shape editor renders one row per side in the 2D dimensions panel', () => {
@@ -286,7 +298,7 @@ test('shape editor exposes side-count filters for built-in and saved shapes', ()
   assert.match(editor, /id="seSideFilters"/);
   assert.match(editor, /class="se-side-filter/);
   assert.match(editor, /const sideCount = this\._selectedSideCount/);
-  assert.match(editor, /saved\.filter\(s => s\.sides\.length === sideCount\)/);
+  assert.match(editor, /\(s\.sides \|\| \[\]\)\.length === sideCount/);
 });
 
 test('shape editor defaults newly added 3D side bends to 90 degrees', () => {
@@ -338,6 +350,14 @@ test('shape editor index loads a fresh shape editor asset version', () => {
 
   assert.match(index, /shape-editor\.js\?v=56/);
   assert.doesNotMatch(index, /shape-editor\.js\?v=55/);
+});
+
+
+test('shape editor summary weight stays per shape unit and does not multiply by order quantity', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /set\('seTotalWeight', weightKg\.toFixed\(2\)\)/);
+  assert.doesNotMatch(editor, /set\('seTotalWeight', \(weightKg \* qty\)\.toFixed\(2\)\)/);
 });
 
 test('shape editor exposes editable order item quantity outside the shape contract', () => {
@@ -430,7 +450,7 @@ test('shape editor switches to a mesh editor without side or angle fields', () =
   }
   assert.doesNotMatch(block[0], /data-side=/);
   assert.doesNotMatch(block[0], /data-angle=/);
-  assert.match(editor, /this\.current\.family === 'mesh'\) return this\._renderMeshEditor\(\)/);
+  assert.match(editor, /this\.current\.family === 'mesh'\)\s+return this\._renderMeshEditor\(\)/);
 });
 
 test('shape editor switches to a pile cage editor with editable spiral zones', () => {
@@ -448,9 +468,87 @@ test('shape editor switches to a pile cage editor with editable spiral zones', (
   assert.match(editor, /_deleteSpiralZone\(index\)/);
   assert.doesNotMatch(block[0], /data-side=/);
   assert.doesNotMatch(block[0], /data-angle=/);
-  assert.match(editor, /this\.current\.family === 'piles'\) return this\._renderPileCageEditor\(\)/);
+  assert.match(editor, /this\.current\.family === 'piles'\)\s+return this\._renderPileCageEditor\(\)/);
 });
 
+test('pile cage editor refreshes derived hoops and gates longitudinal shape rows', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const start = editor.indexOf('_renderPileCageEditor() {');
+  const end = editor.indexOf('_renderBarEditor', start);
+  const block = editor.slice(start, end);
+
+  assert.ok(start > 0 && end > start, 'expected pile cage editor block before longitudinal rows helper');
+  assert.ok(block.includes('data-pile-derived="internalHoopDiameter"'));
+  assert.ok(block.includes('${this._renderPileLongitudinalShapeRows(field)}'));
+  assert.equal(block.includes("${field('lHookLength', 0)}</tr>"), false);
+  assert.ok(editor.includes('_refreshPileDerived()'));
+  assert.ok(editor.includes('data-pile-derived="internalHoopDiameter"'));
+  assert.ok(editor.includes('out.textContent = out.classList'));
+  assert.ok(editor.includes("pattern === 'straight'"));
+  assert.ok(editor.includes("pattern === 'alternate'"));
+  assert.ok(editor.includes('data-pile-bar-editor'));
+  assert.ok(editor.includes('se-pile-compact-row'));
+  assert.ok(editor.includes('se-pile-bar-override-row'));
+  assert.ok(editor.includes('data-pile-bar-field="diameter"'));
+  assert.ok(editor.includes('se-pile-hoop-grid'));
+  assert.ok(editor.includes('hoopStartSide'));
+  assert.ok(editor.includes('data-pile-elements-summary'));
+  assert.ok(editor.includes('_renderPileElementsSummary()'));
+  assert.ok(editor.includes('_refreshPileElementsSummary()'));
+  assert.ok(editor.includes('_addPileBarOverride()'));
+  assert.ok(editor.includes('_deletePileBarOverride(index)'));
+  assert.doesNotMatch(block, /עריכה פרטנית תוגדר בהמשך/);
+  assert.ok(editor.includes("field('lHookLength', 0) + '</div>'"));
+  const barPatternBranch = editor.slice(editor.indexOf("key === 'barPattern'"), editor.indexOf("const parsed = key === 'longitudinalBars'"));
+  assert.ok(barPatternBranch.includes('this._renderPileCageEditor()'));
+});
+
+test('PileCageEngine derives internal hoop diameter from cage diameter and bar diameter only', () => {
+  const { PileCageEngine } = loadShapeEditorGeometry();
+  const result = PileCageEngine.calculate({
+    family: 'piles',
+    pileDiameter: 50,
+    pileLength: 2200,
+    concreteCover: 18,
+    longitudinalBars: 6,
+    longitudinalDiameter: 46,
+    spiralDiameter: 8,
+    spiralZones: [{ name: 'Zone A', length: 2200, pitch: 20 }],
+    hoopsEnabled: true,
+    hoopDiameter: 14,
+    hoopSpacing: 200,
+    hoopStart: 0,
+    hoopEnd: 2200,
+  });
+
+  assert.equal(result.calculated.internalHoopDiameterMm, 408);
+  assert.equal(result.machineOutput.generic.internalHoopDiameterMm, 408);
+});
+
+test('PileCageEngine counts hoop spacing from the selected side', () => {
+  const { PileCageEngine } = loadShapeEditorGeometry();
+  const base = {
+    family: 'piles',
+    pileDiameter: 70,
+    pileLength: 100,
+    longitudinalBars: 6,
+    longitudinalDiameter: 16,
+    spiralDiameter: 8,
+    spiralZones: [{ name: 'Zone A', length: 100, pitch: 20 }],
+    hoopsEnabled: true,
+    hoopDiameter: 14,
+    hoopSpacing: 30,
+    hoopStart: 0,
+    hoopEnd: 100,
+  };
+  const fromStart = PileCageEngine.calculate({ ...base, hoopStartSide: 'start' });
+  const fromEnd = PileCageEngine.calculate({ ...base, hoopStartSide: 'end' });
+  const startHoops = fromStart.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+  const endHoops = fromEnd.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+
+  assert.deepEqual(startHoops.positionsMm, [0, 300, 600, 900]);
+  assert.deepEqual(endHoops.positionsMm, [100, 400, 700, 1000]);
+});
 test('MeshEngine spacing changes grid count while diameter changes bar thickness', () => {
   const { ShapeEngineRouter } = loadShapeEditorGeometry();
   const base = { family: 'mesh', length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20 };
@@ -464,6 +562,41 @@ test('MeshEngine spacing changes grid count while diameter changes bar thickness
   assert.match(spacingSvg, /data-longitudinal-count="21"/);
   assert.match(thickSvg, /stroke-width="3\.5"/);
   assert.match(thickSvg, /data-longitudinal-count="31"/);
+});
+
+test('PileCageEngine treats pile editor dimension fields as centimeters', () => {
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'piles',
+    pileDiameter: 50,
+    pileLength: 9800,
+    longitudinalBars: 6,
+    longitudinalDiameter: 16,
+    longitudinalBarOverrides: [{ barIndex: 3, diameter: 20, barPattern: 'l', lHookLength: 25 }],
+    spiralDiameter: 8,
+    spiralZones: [
+      { length: 80, pitch: 10, noWrap: true },
+      { length: 200, pitch: 10 },
+      { length: 700, pitch: 20 },
+    ],
+    hoopsEnabled: true,
+    hoopDiameter: 8,
+    hoopSpacing: 200,
+    hoopStart: 0,
+    hoopEnd: 2200,
+  });
+
+  assert.equal(contract.data.pileDiameter, 500);
+  assert.equal(contract.data.pileLength, 98000);
+  assert.deepEqual(contract.data.spiralZones.map(zone => [zone.length, zone.pitch]), [[800, 100], [2000, 100], [7000, 200]]);
+  assert.deepEqual(contract.data.longitudinalBarOverrides, [{ barIndex: 3, diameter: 20, barPattern: 'l', lHookLength: 250 }]);
+  assert.deepEqual(contract.machineOutput.generic.longitudinalBarOverrides, [{ barIndex: 3, diameter: 20, barPattern: 'l', lHookLength: 250 }]);
+  assert.equal(contract.calculated.spiralCenterDiameterMm, 500);
+  assert.equal(contract.calculated.internalHoopDiameterMm, 468);
+  const hoopPart = contract.calculated.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+  assert.equal(hoopPart.hoopDiameterMm, 468);
+  assert.ok(contract.calculated.totalLengthMm < 1000000);
+  assert.ok(contract.calculated.weightKg < 1000);
 });
 
 test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine', () => {
@@ -486,11 +619,21 @@ test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine
   assert.match(svg, /data-engine="PileCageEngine"/);
   assert.match(svg, /data-view="side"/);
   assert.match(svg, /data-view="top"/);
-  assert.match(svg, /data-pile-diameter="70"/);
-  assert.match(svg, /data-pile-length="2200"/);
+  assert.match(svg, /data-pile-diameter="700"/);
+  assert.match(svg, /data-input-unit="cm"/);
+  assert.match(svg, /data-pile-length="22000"/);
   assert.match(svg, /data-longitudinal-bars="26"/);
-  assert.match(svg, /data-spiral-zones="70@10,200@20,1350@20"/);
+  assert.match(svg, /data-spiral-zones="700@100,2000@200,13500@200"/);
   assert.equal((svg.match(/class="pile-longitudinal-bar"/g) || []).length, 26);
+  assert.match(svg, /class="pile-side-engineering-view"/);
+  assert.match(svg, /class="pile-top-engineering-view"/);
+  assert.match(svg, /class="pile-zone-dimension/);
+  assert.match(svg, /class="pile-pitch-label"/);
+  assert.match(svg, /class="pile-spiral-loop"/);
+  assert.match(svg, /L 2200/);
+  assert.match(svg, /D/);
+  assert.match(svg, /d' 8/);
+  assert.doesNotMatch(svg, /data-view="3d"/);
 });
 
 
@@ -525,6 +668,7 @@ test('PileCageEngine pitch changes only the edited spiral zone', () => {
   assert.notEqual(countZone(baseSvg, 1), countZone(changedSvg, 1));
   assert.equal(countZone(baseSvg, 2), countZone(changedSvg, 2));
   assert.match(changedSvg, /data-spiral-diameter="8"/);
+  assert.doesNotMatch(changedSvg, /pile-pitch-control/);
 });
 
 
@@ -557,7 +701,7 @@ test('PileCageEngine renders no-wrap zones, hoops, and L longitudinal bars', () 
   assert.match(svg, /class="pile-l-bar"/);
   assert.match(svg, /data-hoop-count="9"/);
   assert.match(svg, /data-bar-pattern="alternate"/);
-  assert.match(svg, /data-spiral-zones="70@10,200@20:no-wrap,1350@20"/);
+  assert.match(svg, /data-spiral-zones="700@100,2000@200:no-wrap,13500@200"/);
 });
 
 
@@ -659,10 +803,14 @@ test('buildShapeDataContractV2 returns pile cage envelope with spiral zone machi
   assert.equal(contract.family, 'piles');
   assert.equal(contract.data.longitudinalBars, 26);
   assert.equal(contract.data.spiralZones[0].name, 'Zone A');
-  assert.equal(contract.calculated.totalLongitudinalLengthMm, 57200);
+  assert.equal(contract.calculated.totalLongitudinalLengthMm, 572000);
   assert.ok(contract.calculated.totalSpiralLengthMm > 0);
-  assert.equal(contract.machineOutput.generic.spiralZones[1].startMm, 70);
-  assert.equal(contract.machineOutput.generic.spiralZones[2].pitchMm, 20);
+  assert.ok(contract.calculated.manufacturingBreakdown.length >= 2);
+  assert.equal(contract.machineOutput.generic.spiralZones[1].startMm, 700);
+  assert.equal(contract.machineOutput.generic.spiralZones[2].pitchMm, 200);
+  assert.ok(contract.machineOutput.generic.manufacturingBreakdown.some(part => part.componentType === 'spiral_zone'));
+  assert.ok(contract.machineOutput.generic.productionCards.some(card => card.cardType === 'pile_master'));
+  assert.ok(contract.machineOutput.generic.productionCards.some(card => card.cardType === 'pile_component'));
   assert.equal(contract.validation.valid, true);
   assert.equal('quantity' in contract.data, false);
   assert.deepEqual(Object.keys(contract.machineOutput.machineProfiles).sort(), ['MEP', 'PEDAX', 'SCHNELL']);
@@ -677,6 +825,44 @@ test('shape editor approve path returns the SHAPE_DATA_CONTRACT_V2 envelope', ()
   assert.match(confirmBlock[0], /delete normalized\.qty/);
   assert.match(confirmBlock[0], /const contract = buildShapeDataContractV2\(normalized\)/);
   assert.match(confirmBlock[0], /\.\.\.contract/);
+});
+
+
+
+test('production card renders real spiral items from item fields instead of straight fallback', () => {
+  const svg = itemShapeSvg({
+    shape_name: 'spiral',
+    spiral_diameter_mm: 300,
+    spiral_turns: 30,
+  });
+
+  assert.match(svg, /data-shape-kind="spiral"/);
+  assert.match(svg, /data-spiral-diameter-mm="300"/);
+  assert.match(svg, /data-spiral-turns="30"/);
+  assert.match(svg, /data-spiral-visual-labels="1"/);
+  assert.match(svg, /\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4/);
+  assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
+  assert.doesNotMatch(svg, /data-shape-kind="straight-bar"/);
+  assert.doesNotMatch(svg, /30 turns/);
+});
+
+test('production card renders legacy spiral snapshot retroactively', () => {
+  const svg = itemShapeSvg({
+    shape_snapshot_json: JSON.stringify({
+      contract: 'ORDER_ITEM_SHAPE_SNAPSHOT',
+      shapeName: 'ספיראלה',
+      spiralDiameterMm: 250,
+      spiralTurns: 18,
+      segments: [],
+    }),
+    segments: JSON.stringify([]),
+  });
+
+  assert.match(svg, /data-shape-kind="spiral"/);
+  assert.match(svg, /data-spiral-diameter-mm="250"/);
+  assert.match(svg, /data-spiral-turns="18"/);
+  assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
+  assert.doesNotMatch(svg, /18 turns/);
 });
 
 test('production card renders a single straight bar with readable centimeter dimension', () => {
@@ -707,6 +893,22 @@ test('production card renders open U bars as a readable U shape, not a flattened
   assert.match(svg, /<line x1="178\.0" y1="51\.0" x2="200\.0" y2="51\.0"/);
   assert.doesNotMatch(svg, /90&#176;/);
   assert.doesNotMatch(svg, /<circle/);
+});
+
+test('production card keeps short bent legs visually readable next to a long bar', () => {
+  const svg = shapeSvg(JSON.stringify([
+    { length_mm: 75, angle_deg: 90 },
+    { length_mm: 2500, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 0 },
+  ]));
+  const pathMatch = svg.match(/<path d="M ([^"]+)"/);
+  assert.ok(pathMatch, 'expected a drawn production-card path');
+  const points = pathMatch[1].split(' L ').map(pair => pair.split(',').map(Number));
+  const firstSegmentLength = Math.hypot(points[1][0] - points[0][0], points[1][1] - points[0][1]);
+
+  assert.match(svg, /data-proportional-short-bends="1"/);
+  assert.ok(firstSegmentLength >= 18, `expected short bent leg to remain readable, got ${firstSegmentLength}`);
+  assert.match(svg, />7.5</);
 });
 
 test('production card renders closed stirrups as a closed rectangular hoop', () => {

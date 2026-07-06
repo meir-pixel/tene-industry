@@ -284,6 +284,25 @@ test('buildStructuredReviewNotes keeps old confident intake data usable without 
   assert.deepEqual(notes.map(note => note.field), ['source_identity']);
 });
 
+test('buildIntakeOrderPayload maps OCR element name and description to order item fields', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    items: [{
+      diameter: 12,
+      length: 1000,
+      quantity: 1,
+      shape_name: 'straight',
+      element_name: 'Wall element 103',
+      shape_description: 'starter bars for wall',
+    }],
+  }, { calcWeightPerUnit: () => 1 });
+
+  const item = payload.pallets[0].items[0];
+  assert.equal(item.structElement, 'Wall element 103');
+  assert.equal(item.struct_element, 'Wall element 103');
+  assert.equal(item.note, 'starter bars for wall');
+});
+
 test('buildIntakeOrderPayload carries item review notes into draft order payload', () => {
   const payload = buildIntakeOrderPayload({
     customer_name: 'Customer A',
@@ -305,4 +324,44 @@ test('buildIntakeOrderPayload carries item review notes into draft order payload
   assert.equal(Array.isArray(itemNotes), true);
   assert.ok(itemNotes.some(note => note.field === 'quantity' && note.scope === 'item'));
   assert.equal(payload.order.reviewNotes.some(note => note.field === 'quantity' && note.scope === 'item'), true);
+});
+
+
+test('buildIntakeOrderPayload adds full Shape V2 snapshot to OCR approval items', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    delivery_date: '2026-06-03',
+    delivery_address: 'Site A',
+    items: [{
+      diameter: 12,
+      segments: [
+        { length_mm: 300, angle_deg: 90 },
+        { length_mm: 600, angle_deg: 90 },
+        { length_mm: 300, angle_deg: 0 },
+      ],
+      total_length_mm: 1200,
+      quantity: 4,
+      shape_name: 'U bar from OCR',
+      note: 'manager checked OCR row',
+    }],
+  }, { calcWeightPerUnit: () => 1 });
+
+  const item = payload.pallets[0].items[0];
+  const snapshot = item.shapeSnapshot;
+  assert.equal(item.qty, 4);
+  assert.equal(snapshot.contractVersion, 2);
+  assert.equal(snapshot.shapeVersion, 1);
+  assert.equal(snapshot.shapeType, 'u_bar');
+  assert.equal(snapshot.family, 'bars');
+  assert.deepEqual(snapshot.data.sides, [300, 600, 300]);
+  assert.deepEqual(snapshot.data.angles, [90, 90]);
+  assert.equal(snapshot.data.diameter, 12);
+  assert.equal(snapshot.calculated.totalLengthMm, 1200);
+  assert.equal(snapshot.calculated.bendCount, 2);
+  assert.equal(snapshot.machineOutput.generic.segments.length, 3);
+  assert.ok(snapshot.machineOutput.machineProfiles.MEP);
+  assert.ok(snapshot.machineOutput.machineProfiles.PEDAX);
+  assert.ok(snapshot.machineOutput.machineProfiles.SCHNELL);
+  assert.equal(snapshot.validation.valid, true);
+  assert.equal(Object.hasOwn(snapshot, 'quantity'), false);
 });

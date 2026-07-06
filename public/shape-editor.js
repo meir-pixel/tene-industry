@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "shape-rotate-90-control";
+window.IRONBEND_ASSET_VERSION = "pile-2d-engineering-preview-a";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -37,6 +37,7 @@ const SHAPE_PRESETS = [
   { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, edgeLeft: 0, edgeRight: 0, edgeTop: 0, edgeBottom: 0, emoji: '#', specialty: 'mesh' },
   { id: 'pile1',   name: 'כלונס',    family: 'piles',   icon: 'pile',   bends: 0, pileDiameter: 70, pileLength: 2200, longitudinalBars: 26, longitudinalDiameter: 22, spiralDiameter: 8, spiralZones: [{ length: 70, pitch: 10 }, { length: 200, pitch: 20 }, { length: 1350, pitch: 20 }], emoji: '◎', specialty: 'pile' },
   { id: 'spiral1', name: 'ספיראלה', family: 'spirals', icon: 'spiral', bends: 0, barDiameter: 8, spiralDiameter: 400, turns: 20, emoji: '🌀', specialty: 'spiral' },
+  { id: 'ring1',   name: 'טבעת',    family: 'spirals', icon: 'spiral', bends: 0, barDiameter: 8, spiralDiameter: 400, turns: 1,  emoji: '⭕', specialty: 'spiral' },
   { id: 's12', name: 'צורה מותאמת',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
 ];
 
@@ -669,82 +670,266 @@ MeshEngine.render = function(mesh, w = 300, h = 260) {
 };
 
 function PileCageEngine() {}
+
+function pileCmToMm(value, fallback = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return n * 10;
+}
+function pileZonesCmToMm(zones, fallbackPitchCm = 20) {
+  return (Array.isArray(zones) ? zones : []).map((zone, index) => ({
+    ...zone,
+    name: zone?.name || `Zone ${String.fromCharCode(65 + index)}`,
+    length: pileCmToMm(zone?.length, 0),
+    pitch: Math.max(1, pileCmToMm(zone?.pitch, pileCmToMm(fallbackPitchCm, 200))),
+  }));
+}
+function normalizePileZones(zones, pileLengthMm = 0) {
+  const list = Array.isArray(zones) ? zones : [];
+  let usedMm = 0;
+  return list.map((zone, index) => {
+    const length = Math.max(0, Number(zone?.length || zone?.lengthMm || 0));
+    const available = pileLengthMm > 0 ? Math.max(0, pileLengthMm - usedMm) : length;
+    const normalizedLength = Math.min(length, available);
+    const normalized = {
+      index: index + 1,
+      zoneIndex: index + 1,
+      name: String(zone?.name || `Zone ${String.fromCharCode(65 + index)}`),
+      length: normalizedLength,
+      pitch: Math.max(1, Number(zone?.pitch || zone?.pitchMm || 200)),
+      noWrap: zone?.noWrap === true || zone?.noWrap === 1 || zone?.noWrap === 'true',
+    };
+    usedMm += normalizedLength;
+    return normalized;
+  });
+}
+function pileRound(value, digits = 3) {
+  const p = 10 ** digits;
+  return Math.round((Number(value) || 0) * p) / p;
+}
+
+function pileInternalHoopDiameterMm(pile) {
+  const pileDiameter = Math.max(1, Number(pile?.pileDiameter || 0));
+  const longDia = Math.max(1, Number(pile?.longitudinalDiameter || 0));
+  return Math.max(1, pileDiameter - longDia * 2);
+}
+
+function pileHoopPositionsMm({ enabled = true, pileLength = 0, start = 0, end = pileLength, spacing = 1, side = 'start' } = {}) {
+  if (!enabled) return [];
+  const length = Math.max(0, Number(pileLength || 0));
+  const from = Math.min(length, Math.max(0, Number(start || 0)));
+  const to = Math.min(length, Math.max(from, Number(end ?? length)));
+  const gap = Math.max(1, Number(spacing || 1));
+  const positions = [];
+  if (String(side || 'start') === 'end') {
+    for (let pos = to; pos >= from - 0.001; pos -= gap) positions.push(pileRound(pos, 1));
+    return positions.sort((a, b) => a - b);
+  }
+  for (let pos = from; pos <= to + 0.001; pos += gap) positions.push(pileRound(pos, 1));
+  return positions;
+}
+
+function normalizePileBarOverrides(overrides, totalBars = 0) {
+  if (!Array.isArray(overrides)) return [];
+  const maxBar = Math.max(0, Math.round(Number(totalBars) || 0));
+  const byIndex = new Map();
+  overrides.forEach((entry) => {
+    const barIndex = Math.max(1, Math.round(Number(entry?.barIndex || entry?.index || 1)));
+    if (maxBar && barIndex > maxBar) return;
+    byIndex.set(barIndex, {
+      barIndex,
+      diameter: Math.max(1, Math.round(Number(entry?.diameter || entry?.diameterMm || 0) || 1)),
+      barPattern: String(entry?.barPattern || entry?.type || 'straight').toLowerCase() === 'l' ? 'l' : 'straight',
+      lHookLength: Math.max(0, Math.round(Number(entry?.lHookLength || entry?.bendLength || 0) || 0)),
+    });
+  });
+  return Array.from(byIndex.values()).sort((a, b) => a.barIndex - b.barIndex);
+}
+
+PileCageEngine.calculate = function(shape = {}) {
+  const pileLengthMm = Math.max(1, pileCmToMm(shape.pileLength || 2200, 22000));
+  const pileDiameterMm = Math.max(1, pileCmToMm(shape.pileDiameter || 70, 700));
+  const zones = normalizePileZones(
+    pileZonesCmToMm(shape.spiralZones, shape.spiralPitch || 20),
+    pileLengthMm,
+  );
+  const data = {
+    pileDiameter: pileDiameterMm,
+    pileLength: pileLengthMm,
+    concreteCover: Math.max(0, pileCmToMm(shape.concreteCover || 0, 0)),
+    longitudinalBars: Math.max(0, Math.round(Number(shape.longitudinalBars || 0))),
+    longitudinalDiameter: Math.max(1, Number(shape.longitudinalDiameter || 22)),
+    spiralDiameter: Math.max(1, Number(shape.spiralDiameter || 8)),
+    spiralType: String(shape.spiralType || 'zoned'),
+    spiralZones: zones,
+    hoopsEnabled: shape.hoopsEnabled !== false && shape.hoopsEnabled !== 0 && shape.hoopsEnabled !== 'false',
+    hoopDiameter: Math.max(14, Number(shape.hoopDiameter || 14)),
+    hoopSpacing: Math.max(1, pileCmToMm(shape.hoopSpacing || 300, 3000)),
+    hoopStart: Math.max(0, pileCmToMm(shape.hoopStart || 0, 0)),
+    hoopEnd: Math.max(0, pileCmToMm(shape.hoopEnd || shape.pileLength || 2200, pileLengthMm)),
+    hoopStartSide: String(shape.hoopStartSide || 'start') === 'end' ? 'end' : 'start',
+    barPattern: String(shape.barPattern || 'straight'),
+    lHookLength: Math.max(0, pileCmToMm(shape.lHookLength || 0, 0)),
+    longitudinalBarOverrides: [],
+  };
+  data.longitudinalBarOverrides = normalizePileBarOverrides((shape.longitudinalBarOverrides || []).map(entry => ({
+    ...entry,
+    lHookLength: pileCmToMm(entry?.lHookLength || entry?.bendLength || 0, 0),
+  })), data.longitudinalBars);
+
+  let startMm = 0;
+  const machineZones = zones.map(zone => {
+    const out = { index: zone.index, zoneIndex: zone.zoneIndex, name: zone.name, startMm, lengthMm: zone.length, pitchMm: zone.pitch, noWrap: zone.noWrap };
+    startMm += zone.length;
+    return out;
+  });
+  const wrapZones = machineZones.filter(zone => !zone.noWrap);
+  const totalLongitudinalLengthMm = data.pileLength * data.longitudinalBars;
+  const totalLongitudinalWeightKg = pileRound((totalLongitudinalLengthMm / 1000) * sharedKgPerMeter(data.longitudinalDiameter));
+  const spiralCenterDiameterMm = Math.max(1, data.pileDiameter - data.concreteCover * 2);
+  const internalHoopDiameterMm = pileInternalHoopDiameterMm(data);
+  const totalSpiralLengthMm = wrapZones.reduce((sum, zone) => sum + pileSpiralLengthMm(spiralCenterDiameterMm, zone.lengthMm, zone.pitchMm), 0);
+  const totalSpiralWeightKg = pileRound((totalSpiralLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter));
+  const hoopPositions = pileHoopPositionsMm({ enabled: data.hoopsEnabled, pileLength: data.pileLength, start: data.hoopStart, end: data.hoopEnd, spacing: data.hoopSpacing, side: data.hoopStartSide });
+  const hoopLengthMm = Math.PI * internalHoopDiameterMm;
+  const totalHoopLengthMm = pileRound(hoopLengthMm * hoopPositions.length, 1);
+  const totalHoopWeightKg = pileRound((totalHoopLengthMm / 1000) * sharedKgPerMeter(data.hoopDiameter));
+  const totalLengthMm = pileRound(totalLongitudinalLengthMm + totalSpiralLengthMm + totalHoopLengthMm, 1);
+  const weightKg = pileRound(totalLongitudinalWeightKg + totalSpiralWeightKg + totalHoopWeightKg);
+
+  const manufacturingBreakdown = [];
+  manufacturingBreakdown.push({ componentType: data.barPattern === 'l' ? 'longitudinal_l_bar' : 'longitudinal_straight_bar', sourceSystem: 'longitudinalBars', description: data.barPattern === 'l' ? 'Longitudinal L bars' : 'Longitudinal straight bars', diameterMm: data.longitudinalDiameter, quantity: data.longitudinalBars, totalLengthMm: totalLongitudinalLengthMm, weightKg: totalLongitudinalWeightKg });
+  wrapZones.forEach(zone => {
+    const zoneLengthMm = pileSpiralLengthMm(spiralCenterDiameterMm, zone.lengthMm, zone.pitchMm);
+    manufacturingBreakdown.push({ componentType: 'spiral_zone', sourceSystem: 'spiral', description: `Spiral zone ${zone.name}`, name: zone.name, zoneIndex: zone.zoneIndex, diameterMm: data.spiralDiameter, pitchMm: zone.pitchMm, quantity: 1, startMm: zone.startMm, zoneLengthMm: zone.lengthMm, totalLengthMm: zoneLengthMm, weightKg: pileRound((zoneLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter)) });
+  });
+  if (data.hoopsEnabled) manufacturingBreakdown.push({ componentType: 'hoop_ring', sourceSystem: 'hoops', description: 'Internal reinforcement hoops', diameterMm: data.hoopDiameter, hoopDiameterMm: internalHoopDiameterMm, quantity: hoopPositions.length, positionsMm: hoopPositions, totalLengthMm: totalHoopLengthMm, weightKg: totalHoopWeightKg });
+
+  const productionCards = [{ cardType: 'pile_master', componentType: 'pile_master', title: 'Pile cage 1/1', unitIndex: 1, unitTotal: 1, componentIndex: 0, quantity: 1, totalLengthMm: data.pileLength, diameterMm: data.longitudinalDiameter, scanCodeSuffix: 'P1-MASTER' }]
+    .concat(manufacturingBreakdown.map((part, index) => ({ cardType: 'pile_component', componentType: part.componentType, title: part.description, unitIndex: 1, unitTotal: 1, componentIndex: index + 1, quantity: part.quantity || 1, diameterMm: part.diameterMm, totalLengthMm: part.totalLengthMm, weightKg: part.weightKg, source: part, scanCodeSuffix: `P1-C${index + 1}` })));
+
+  const validation = validateShapeContractData('piles', data);
+  return {
+    data,
+    calculated: { totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, weightKg, totalLongitudinalWeightKg, totalSpiralWeightKg, totalHoopWeightKg, spiralCenterDiameterMm, internalHoopDiameterMm, manufacturingBreakdown },
+    machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, spiralCenterDiameterMm, internalHoopDiameterMm, totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, manufacturingBreakdown, productionCards }, machineProfiles: {} },
+    validation,
+    manufacturingBreakdown,
+    productionCards,
+  };
+};
+
 PileCageEngine.render = function(pile, w = 300, h = 260) {
-  const pileDiameter = Math.max(1, Number(pile?.pileDiameter || 70));
-  const pileLength = Math.max(1, Number(pile?.pileLength || 2200));
+  const pileDiameterCm = Math.max(1, Number(pile?.pileDiameter || 70));
+  const pileLengthCm = Math.max(1, Number(pile?.pileLength || 2200));
+  const pileDiameter = pileCmToMm(pileDiameterCm, 700);
+  const pileLength = pileCmToMm(pileLengthCm, 22000);
   const longitudinalBars = Math.max(0, Math.round(Number(pile?.longitudinalBars || 0)));
   const longitudinalDiameter = Math.max(1, Number(pile?.longitudinalDiameter || 22));
   const spiralDiameter = Math.max(1, Number(pile?.spiralDiameter || 8));
   const hoopsEnabled = pile?.hoopsEnabled !== false && pile?.hoopsEnabled !== 0 && pile?.hoopsEnabled !== 'false';
-  const hoopDiameter = Math.max(1, Number(pile?.hoopDiameter || 8));
-  const hoopSpacing = Math.max(1, Number(pile?.hoopSpacing || 200));
-  const hoopStart = Math.max(0, Number(pile?.hoopStart || 0));
-  const hoopEnd = Math.max(hoopStart, Number(pile?.hoopEnd || pileLength));
+  const hoopDiameter = Math.max(1, Number(pile?.hoopDiameter || 14));
+  const hoopSpacing = Math.max(1, pileCmToMm(pile?.hoopSpacing || 300, 3000));
+  const hoopStart = Math.max(0, pileCmToMm(pile?.hoopStart || 0, 0));
+  const hoopEnd = Math.max(hoopStart, pileCmToMm(pile?.hoopEnd || pileLengthCm, pileLength));
+  const hoopStartSide = String(pile?.hoopStartSide || 'start') === 'end' ? 'end' : 'start';
+  const concreteCover = Math.max(0, pileCmToMm(pile?.concreteCover || 0, 0));
+  const internalHoopDiameter = pileInternalHoopDiameterMm({ pileDiameter, concreteCover, longitudinalDiameter });
   const barPattern = String(pile?.barPattern || 'straight');
-  const lHookLength = Math.max(0, Number(pile?.lHookLength || 250));
-  const zones = Array.isArray(pile?.spiralZones) ? pile.spiralZones : [];
-  const sideBox = scaleBox(pileLength, pileDiameter, w * 0.74, h * 0.38, 18);
-  const sideX = 18, sideY = 30;
-  const sx0 = sideX + sideBox.x, sy0 = sideY + sideBox.y, sx1 = sx0 + sideBox.drawW, syMid = sy0 + sideBox.drawH / 2;
-  const cageH = sideBox.drawH;
-  const topCx = w * 0.78, topCy = h * 0.68;
-  const topR = Math.min(w * 0.17, h * 0.18);
-  const zoneLines = [];
-  const zoneLabels = [];
-  const noWrapRects = [];
+  const lHookLength = Math.max(0, pileCmToMm(pile?.lHookLength || 25, 250));
+  const zones = Array.isArray(pile?.spiralZones) && pile.spiralZones.length
+    ? pileZonesCmToMm(pile.spiralZones, pile?.spiralPitch || 20)
+    : [{ name: 'Zone A', length: pileLength, pitch: pileCmToMm(pile?.spiralPitch || 20, 200) }];
+  const sideLeft = w * 0.08;
+  const sideRight = w * 0.93;
+  const sideTop = h * 0.13;
+  const sideMid = h * 0.30;
+  const cageHeight = Math.max(24, Math.min(h * 0.20, w * 0.15));
+  const sideW = Math.max(40, sideRight - sideLeft);
+  const scale = sideW / pileLength;
+  const topY = sideMid - cageHeight / 2;
+  const bottomY = sideMid + cageHeight / 2;
+  const barStroke = Math.max(2.2, Math.min(5.5, longitudinalDiameter * 0.16));
+  const spiralStroke = Math.max(1.1, Math.min(3.2, spiralDiameter * 0.18));
+  const hoopStroke = Math.max(1.2, Math.min(3.4, hoopDiameter * 0.14));
+  const cx = w * 0.30;
+  const cy = h * 0.72;
+  const r = Math.max(24, Math.min(w * 0.17, h * 0.17));
+  const internalHoopRadius = Math.max(4, Math.min(r * 0.96, (internalHoopDiameter / Math.max(1, pileDiameter)) * r));
+  const dimColor = '#94a3b8';
+  const steelColor = '#111827';
+  const auxColor = '#64748b';
+  const accent = '#1d4ed8';
+  const labelBox = (x, y, value, cls = '', rotate = 0) => `<g class="pile-label ${cls}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rotate})"><rect x="-17" y="-8" width="34" height="16" rx="3" fill="#fff" stroke="#94a3b8" stroke-width=".9"/><text text-anchor="middle" dominant-baseline="central" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">${svgEscape(value)}</text></g>`;
+  const dimLine = (x1, y1, x2, y2, cls = '', focus = '') => `<line class="pile-dimension-line ${cls}" data-se-focus="${focus}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>`;
+
+  const longitudinalLines = [
+    topY + cageHeight * 0.36,
+    bottomY - cageHeight * 0.36,
+  ].map(y => `<line class="pile-straight-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" x1="${sideLeft.toFixed(1)}" y1="${y.toFixed(1)}" x2="${sideRight.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#374151" stroke-width="${barStroke.toFixed(1)}" stroke-linecap="square"/>`).join('');
+
   let offsetMm = 0;
+  const zoneDimensions = [];
+  const pitchLabels = [];
+  const spiralLoops = [];
+  const zoneBoundaries = [];
+  const noWrapZones = [];
   zones.forEach((zone, zoneIndex) => {
     const len = Math.max(0, Number(zone.length || 0));
     const pitch = Math.max(1, Number(zone.pitch || 20));
-    const zoneStart = offsetMm;
-    const zoneEnd = offsetMm + len;
+    const startMm = offsetMm;
+    const endMm = Math.min(pileLength, offsetMm + len);
+    const startX = sideLeft + Math.min(pileLength, startMm) * scale;
+    const endX = sideLeft + endMm * scale;
+    const midX = (startX + endX) / 2;
     const noWrap = zone.noWrap === true || zone.noWrap === 1 || zone.noWrap === 'true';
+    zoneBoundaries.push(`<line class="pile-zone-boundary" data-zone="${zoneIndex}" data-se-focus="pile-zone" x1="${startX.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${startX.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
+    zoneDimensions.push(`${dimLine(startX, sideTop, endX, sideTop, 'pile-zone-dimension', 'pile-zone pile-spiral-pitch')}<text class="pile-zone-dimension" data-se-focus="pile-zone pile-spiral-pitch" x="${midX.toFixed(1)}" y="${(sideTop - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">L${zoneIndex + 1}</text>${labelBox(midX, sideTop + 10, Math.round(len), 'pile-zone-dimension')}`);
+    if (!noWrap) pitchLabels.push(`<text class="pile-pitch-label" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-zone" x="${midX.toFixed(1)}" y="${(bottomY + 24).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">@${Math.round(pitch / 10)}</text>`);
     if (noWrap) {
-      const xA = sx0 + Math.min(pileLength, zoneStart) * sideBox.scale;
-      const xB = sx0 + Math.min(pileLength, zoneEnd) * sideBox.scale;
-      noWrapRects.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-se-focus="pile-no-wrap pile-zone" x="${Math.min(xA, xB).toFixed(1)}" y="${(syMid - cageH / 2).toFixed(1)}" width="${Math.max(2, Math.abs(xB - xA)).toFixed(1)}" height="${cageH.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".88"/><text data-se-focus="pile-no-wrap pile-zone" x="${((xA + xB) / 2).toFixed(1)}" y="${(syMid - cageH / 2 - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#64748b">No wrap</text>`);
+      noWrapZones.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-se-focus="pile-no-wrap pile-zone" x="${startX.toFixed(1)}" y="${topY.toFixed(1)}" width="${Math.max(1, endX - startX).toFixed(1)}" height="${cageHeight.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".95"/><text data-se-focus="pile-no-wrap pile-zone" x="${midX.toFixed(1)}" y="${(sideMid + 3).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#64748b">ללא כריכות</text>`);
     } else {
-      for (let xMm = zoneStart; xMm <= zoneEnd + 0.001; xMm += pitch) {
-        const x = sx0 + Math.min(pileLength, xMm) * sideBox.scale;
-        zoneLines.push(`<line data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2).toFixed(1)}" stroke="#111827" stroke-width="${Math.max(1.2, spiralDiameter * 0.20).toFixed(1)}" opacity=".75"/>`);
+      for (let pos = startMm; pos <= endMm + 0.001; pos += pitch) {
+        const x = sideLeft + pos * scale;
+        const rx = Math.max(4, Math.min(11, pitch * scale * 0.52));
+        spiralLoops.push(`<ellipse class="pile-spiral-loop" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" cx="${x.toFixed(1)}" cy="${sideMid.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${(cageHeight * 0.54).toFixed(1)}" fill="none" stroke="${steelColor}" stroke-width="${spiralStroke.toFixed(1)}" opacity=".82"/>`);
       }
     }
-    const labelX = sx0 + Math.min(pileLength, zoneStart + len / 2) * sideBox.scale;
-    zoneLabels.push(`<text x="${labelX.toFixed(1)}" y="${(syMid + cageH/2 + 16).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#526070">${svgEscape(len)} @${svgEscape(pitch)}</text>`);
     offsetMm += len;
   });
-  const longBarsSide = [-0.32, 0.32].map(rel => `<line class="pile-straight-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + rel * cageH).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + rel * cageH).toFixed(1)}" stroke="#374151" stroke-width="${Math.max(3, longitudinalDiameter * 0.18).toFixed(1)}" stroke-linecap="round"/>`).join('');
-  const hoopLines = [];
-  if (hoopsEnabled) {
-    const start = Math.min(pileLength, hoopStart);
-    const end = Math.min(pileLength, hoopEnd);
-    for (let xMm = start; xMm <= end + 0.001; xMm += hoopSpacing) {
-      const x = sx0 + xMm * sideBox.scale;
-      hoopLines.push(`<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(syMid - cageH / 2 - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(syMid + cageH / 2 + 3).toFixed(1)}" stroke="#16a34a" stroke-width="${Math.max(1.4, hoopDiameter * 0.18).toFixed(1)}" opacity=".9"/>`);
-    }
-  }
+  zoneBoundaries.push(`<line class="pile-zone-boundary" data-se-focus="pile-zone" x1="${sideRight.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${sideRight.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
+
+  const hoopLines = pileHoopPositionsMm({ enabled: hoopsEnabled, pileLength, start: hoopStart, end: hoopEnd, spacing: hoopSpacing, side: hoopStartSide }).map(xMm => {
+    const x = sideLeft + xMm * scale;
+    return `<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(topY - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(bottomY + 3).toFixed(1)}" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".9"/>`;
+  });
+
   const lBarsSide = (barPattern === 'l' || barPattern === 'alternate')
     ? [0.18, 0.50, 0.82].map(pos => {
-        const x = sx0 + (sx1 - sx0) * pos;
-        const y = syMid + cageH / 2;
-        const hook = Math.min(34, Math.max(10, lHookLength * sideBox.scale));
-        return `<path class="pile-l-bar" data-se-focus="pile-l-bars pile-l-hook" d="M ${x.toFixed(1)} ${(syMid - cageH / 2).toFixed(1)} V ${y.toFixed(1)} h ${hook.toFixed(1)}" fill="none" stroke="#2563eb" stroke-width="${Math.max(2.5, longitudinalDiameter * 0.15).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+        const x = sideLeft + sideW * pos;
+        const hook = Math.min(36, Math.max(12, lHookLength * scale));
+        return `<path class="pile-l-bar" data-se-focus="pile-l-bars pile-l-hook" d="M ${x.toFixed(1)} ${(topY + 1).toFixed(1)} V ${(bottomY + 7).toFixed(1)} h ${hook.toFixed(1)}" fill="none" stroke="${accent}" stroke-width="${Math.max(2.2, barStroke * 0.75).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>`;
       }).join('')
     : '';
+
   const topBars = Array.from({ length: longitudinalBars }, (_, i) => {
     const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, longitudinalBars);
-    const x = topCx + Math.cos(a) * topR * 0.78;
-    const y = topCy + Math.sin(a) * topR * 0.78;
-    return `<circle class="pile-longitudinal-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.5, longitudinalDiameter * 0.13).toFixed(1)}" fill="#111827"/>`;
+    const x = cx + Math.cos(a) * r * 0.78;
+    const y = cy + Math.sin(a) * r * 0.78;
+    const label = i + 1;
+    const labelText = longitudinalBars <= 18 && i % 2 === 0
+      ? `<text class="pile-bar-index" x="${(cx + Math.cos(a) * r * 1.12).toFixed(1)}" y="${(cy + Math.sin(a) * r * 1.12 + 3).toFixed(1)}" text-anchor="middle" font-size="7" font-family="Heebo,Arial" font-weight="800" fill="${accent}">${label}</text>`
+      : '';
+    return `<circle class="pile-longitudinal-bar" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.4, Math.min(4.8, longitudinalDiameter * 0.13)).toFixed(1)}" fill="#111827"/>${labelText}`;
   }).join('');
-  const zoneSummary = zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}${(z.noWrap === true || z.noWrap === 1 || z.noWrap === 'true') ? ':no-wrap' : ''}`).join(',');
   const topHoop = hoopsEnabled
-    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.90).toFixed(1)}" fill="none" stroke="#16a34a" stroke-width="${Math.max(1.4, hoopDiameter * 0.18).toFixed(1)}"/>`
+    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${internalHoopRadius.toFixed(1)}" fill="none" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".75"/>`
     : '';
-  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-bar-pattern="${svgEscape(barPattern)}"><g data-view="side"><text data-se-focus="pile-length" x="${(w/2).toFixed(1)}" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${pileLength}</text><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid - cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid - cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/><line data-se-focus="pile-length pile-diameter" x1="${sx0.toFixed(1)}" y1="${(syMid + cageH/2).toFixed(1)}" x2="${sx1.toFixed(1)}" y2="${(syMid + cageH/2).toFixed(1)}" stroke="#6b7280" stroke-width="2"/>${longBarsSide}${lBarsSide}${noWrapRects.join('')}${zoneLines.join('')}${hoopLines.join('')}${zoneLabels.join('')}</g><g data-view="top">${topHoop}<circle data-se-focus="pile-diameter" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${topR.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${topCx.toFixed(1)}" cy="${topCy.toFixed(1)}" r="${(topR * 0.80).toFixed(1)}" fill="none" stroke="#6b7280" stroke-width="${Math.max(1.4, spiralDiameter * 0.18).toFixed(1)}"/>${topBars}<text data-se-focus="pile-diameter" x="${(topCx + topR + 12).toFixed(1)}" y="${topCy.toFixed(1)}" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">D ${pileDiameter}</text></g><g class="se-engineer-helper" data-view="3d" data-se-focus="pile-length pile-diameter pile-longitudinal-bars pile-spiral-pitch pile-hoops"><rect class="se-helper-panel" x="12" y="198" width="86" height="48" rx="5"/><path d="M 26 228 L 70 210 L 88 219 L 44 237 Z M 26 228 V 215 L 70 197 V 210" stroke="#475569" stroke-width="1.5" fill="none"/><text x="55" y="243" text-anchor="middle" font-size="8">׳×׳¦׳•׳’׳× 3D</text></g></g>`;
+  const zoneSummary = zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}${(z.noWrap === true || z.noWrap === 1 || z.noWrap === 'true') ? ':no-wrap' : ''}`).join(',');
+
+  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-input-unit="cm" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-internal-hoop-diameter="${internalHoopDiameter}" data-bar-pattern="${svgEscape(barPattern)}"><defs><marker id="sePileDimArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 4 L 8 0 L 8 8 Z" fill="${dimColor}"/></marker></defs><g data-view="side" class="pile-side-engineering-view"><text data-se-focus="pile-length" x="${(w / 2).toFixed(1)}" y="${(sideTop - 18).toFixed(1)}" text-anchor="middle" font-size="13" font-family="Heebo,Arial" font-weight="800" fill="#111827">L ${pileLengthCm}</text>${dimLine(sideLeft, sideTop - 12, sideRight, sideTop - 12, 'pile-total-dimension', 'pile-length')}${zoneDimensions.join('')}${zoneBoundaries.join('')}${longitudinalLines}${noWrapZones.join('')}${spiralLoops.join('')}${hoopLines.join('')}${lBarsSide}<line class="pile-diameter-dimension" data-se-focus="pile-diameter" x1="${(sideRight + 12).toFixed(1)}" y1="${topY.toFixed(1)}" x2="${(sideRight + 12).toFixed(1)}" y2="${bottomY.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>${labelBox(sideRight + 24, sideMid, pileDiameterCm, 'pile-diameter-label', -90)}${pitchLabels.join('')}</g><g data-view="top" class="pile-top-engineering-view"><text x="${cx.toFixed(1)}" y="${(cy - r - 26).toFixed(1)}" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#12315a">מבט חזית (חתך)</text>${topHoop}<circle data-se-focus="pile-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.82).toFixed(1)}" fill="none" stroke="${auxColor}" stroke-width="${spiralStroke.toFixed(1)}"/>${topBars}<line class="pile-dimension-line pile-top-diameter" data-se-focus="pile-diameter" x1="${(cx - r).toFixed(1)}" y1="${(cy + r + 16).toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${(cy + r + 16).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">Ø${pileDiameterCm}</text><text data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">d' ${spiralDiameter}</text></g></g>`;
 };
 
-// ── SPIRAL ENGINE ─────────────────────────────────────────────────
 function SpiralEngine() {}
 SpiralEngine.render = function(spiral, w = 300, h = 260) {
   const barDia     = Math.max(1, Number(spiral?.barDiameter    || 8));
@@ -847,6 +1032,7 @@ function persistSavedShape(shapeData, name) {
     Object.assign(entry, {
       pileDiameter: shapeData.pileDiameter, pileLength: shapeData.pileLength,
       longitudinalBars: shapeData.longitudinalBars, longitudinalDiameter: shapeData.longitudinalDiameter,
+      longitudinalBarOverrides: normalizePileBarOverrides(shapeData.longitudinalBarOverrides || [], shapeData.longitudinalBars || 0),
       spiralDiameter: shapeData.spiralDiameter, spiralZones: shapeData.spiralZones,
     });
   } else {
@@ -1018,36 +1204,12 @@ function buildMeshShapeContract(shape) {
 }
 
 function buildPileShapeContract(shape) {
-  const zones = Array.isArray(shape?.spiralZones) ? shape.spiralZones.map((zone, index) => ({
-    name: String(zone.name || `Zone ${String.fromCharCode(65 + index)}`),
-    length: Math.max(0, Number(zone.length || 0)),
-    pitch: Math.max(1, Number(zone.pitch || 20)),
-  })) : [];
-  const data = {
-    pileDiameter: Math.max(1, Number(shape?.pileDiameter || 70)),
-    pileLength: Math.max(1, Number(shape?.pileLength || 2200)),
-    longitudinalBars: Math.max(0, Math.round(Number(shape?.longitudinalBars || 0))),
-    longitudinalDiameter: Math.max(1, Number(shape?.longitudinalDiameter || 22)),
-    spiralDiameter: Math.max(1, Number(shape?.spiralDiameter || 8)),
-    spiralZones: zones,
-  };
-  const totalLongitudinalLengthMm = data.pileLength * data.longitudinalBars;
-  const totalSpiralLengthMm = zones.reduce((sum, zone) => sum + pileSpiralLengthMm(data.pileDiameter, zone.length, zone.pitch), 0);
-  const totalLengthMm = totalLongitudinalLengthMm + totalSpiralLengthMm;
-  const longWeight = (totalLongitudinalLengthMm / 1000) * sharedKgPerMeter(data.longitudinalDiameter);
-  const spiralWeight = (totalSpiralLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter);
-  const calculated = { totalLongitudinalLengthMm, totalSpiralLengthMm, totalLengthMm, weightKg: Number((longWeight + spiralWeight).toFixed(3)) };
-  let startMm = 0;
-  const machineZones = zones.map((zone, index) => {
-    const item = { index: index + 1, name: zone.name, startMm, lengthMm: zone.length, pitchMm: zone.pitch };
-    startMm += zone.length;
-    return item;
-  });
+  const pile = PileCageEngine.calculate(shape || {});
   return {
-    data,
-    calculated,
-    generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, totalLongitudinalLengthMm, totalSpiralLengthMm, totalLengthMm },
-    validation: validateShapeContractData('piles', data),
+    data: pile.data,
+    calculated: pile.calculated,
+    generic: pile.machineOutput.generic,
+    validation: pile.validation,
   };
 }
 
@@ -1320,6 +1482,15 @@ class ShapeEditorModal {
 #seModal .se-save-shape-btn:hover{background:rgba(58,123,213,0.14);border-color:#2c62b8;}
 .se-saved-section-title{padding:10px 16px 6px;font-size:11px;font-weight:700;color:#3a7bd5;
   text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;}
+#seShapeTooltip{
+  position:fixed;z-index:9999;pointer-events:none;
+  background:#fff;border:1.5px solid #dde4ed;border-radius:14px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.18);padding:10px 12px 8px;
+  display:none;flex-direction:column;align-items:center;gap:4px;
+  min-width:160px;
+}
+#seShapeTooltip svg{display:block;}
+#seShapeTooltip .se-tip-name{font-family:Heebo,sans-serif;font-size:12px;font-weight:700;color:#1a2332;text-align:center;}
 .se-del-saved-btn{position:absolute;top:4px;left:4px;width:20px;height:20px;
   border-radius:50%;border:none;background:rgba(231,76,60,0.12);color:#e74c3c;
   cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;
@@ -1617,11 +1788,6 @@ class ShapeEditorModal {
   font-weight:900;
 }
 #seSideFilters .se-side-filter.active{background:#2f394b;color:#fff;border-color:#2f394b;}
-#sePresets{
-  grid-template-columns:repeat(auto-fill,minmax(64px,1fr))!important;
-  justify-items:center;
-  gap:16px 14px!important;
-}
 #seModal .se-preset-btn{
   width:58px;
   height:58px;
@@ -1818,7 +1984,7 @@ class ShapeEditorModal {
 #seModal .se-head-actions{display:flex;align-items:center;gap:10px;direction:rtl;}
 #seModal .se-close{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);border-radius:50%;}
 #seModal .se-back-btn{min-height:38px;padding:8px 14px;border-radius:8px;color:#eef4fb;background:rgba(255,255,255,.09);font-weight:900;}
-#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:440px minmax(360px,1fr) 154px;direction:rtl;background:#d7d7d7;}
+#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:360px minmax(0,1fr) 154px;direction:rtl;background:#d7d7d7;}
 #sePageEdit[style*="display:none"]{display:none!important;}
 #sePageEdit .se-family-panel{order:3;background:#eceeef;border-left:1px solid #c5cbd4;padding:18px 14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
 #sePageEdit .se-family-panel-title{font-size:15px;font-weight:900;color:#243047;margin-bottom:2px;}
@@ -1886,6 +2052,82 @@ class ShapeEditorModal {
 #seModal svg.se-focus-mode [data-se-focus].se-focus-hit text,#seModal svg.se-focus-mode text.se-focus-hit{fill:#111827!important;stroke:none!important;}
 #seModal .se-engineer-helper text{font-family:Heebo,Arial;font-weight:900;fill:#475569;}
 #seModal .se-helper-panel{fill:#f8fafc;stroke:#d8dde5;stroke-width:1;}
+#seModal .se-pile-compact-row{gap:2px!important;}
+#seModal .se-pile-compact-row td{padding:1px 2px!important;border-radius:5px!important;}
+#seModal .se-family-editor-table .se-zone-row td{padding:2px!important;border-radius:5px!important;}
+#seModal .se-pile-compact-row .se-field-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:'label' 'input';gap:0;min-width:0;}
+#seModal .se-family-editor-table .se-zone-row .se-field-shell{grid-template-columns:12px minmax(0,1fr);gap:0 2px;}
+#seModal .se-pile-compact-row .se-param-icon,
+#seModal .se-pile-compact-row .se-param-code,
+#seModal .se-pile-compact-row .se-param-number,
+#seModal .se-pile-compact-row .se-param-unit{display:none!important;}
+#seModal .se-family-editor-table .se-zone-row .se-param-icon{width:12px;height:12px;font-size:7px;}
+#seModal .se-pile-compact-row .se-param-label{font-size:8px;line-height:1;justify-self:center;text-align:center;}
+#seModal .se-family-editor-table .se-zone-row .se-param-label{font-size:9px;line-height:1;}
+#seModal .se-pile-compact-row .se-field-shell .se-input{min-height:20px;font-size:10px;border-radius:5px;padding:0 3px;}
+#seModal .se-family-editor-table .se-zone-row .se-field-shell .se-input{min-height:21px;font-size:11px;border-radius:5px;padding:0 3px;}
+#seModal .se-family-editor-table .se-zone-row .se-param-unit{font-size:7px;}
+#seModal .se-family-editor-table .se-param-icon,
+#seModal .se-family-editor-table .se-param-code,
+#seModal .se-family-editor-table .se-param-number,
+#seModal .se-family-editor-table .se-param-unit{display:none!important;}
+#seModal .se-family-editor-table .se-field-shell{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:'label' 'input'!important;gap:0;min-width:0;}
+#seModal .se-family-editor-table .se-param-label{justify-self:center;text-align:center;}
+#seModal .se-pile-section-row td{background:transparent!important;border:0!important;padding:3px 0!important;}
+#seModal .se-pile-section{border:1px solid #d8e2ec;border-radius:7px;background:#fff;overflow:hidden;}
+#seModal .se-pile-section summary{cursor:pointer;list-style:none;padding:7px 10px;background:#f8fafc;color:#12315a;font-size:12px;font-weight:900;border-bottom:1px solid #e2e8f0;}
+#seModal .se-pile-section summary::-webkit-details-marker{display:none;}
+#seModal .se-pile-section summary{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+#seModal .se-pile-section summary span{font-size:10px;color:#64748b;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-pile-validations{display:grid;gap:5px;padding:4px;}
+#seModal .se-pile-validation{border:1px solid #dbe4f0;border-radius:7px;background:#fff;padding:6px 8px;color:#12315a;font-size:11px;font-weight:800;}
+#seModal .se-pile-validation.error{border-color:#fecaca;background:#fff1f2;color:#be123c;}
+#seModal .se-pile-validation.warning{border-color:#fde68a;background:#fffbeb;color:#92400e;}
+#seModal .se-pile-validation.ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+#seModal .se-pile-section[open] summary{background:#eef6ff;}
+#seModal .se-pile-section table,#seModal .se-pile-section tbody{display:block;width:100%;min-width:0;}
+#seModal .se-pile-section table{border-collapse:separate;border-spacing:0 3px;}
+#seModal .se-pile-section tr{width:100%;min-width:0;}
+#seModal .se-pile-section .se-family-row{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:4px!important;width:100%;min-width:0;}
+#seModal .se-pile-section .se-family-row>td[colspan]{grid-column:1/-1!important;width:100%;min-width:0;display:block;}
+#seModal .se-pile-section .se-zone-row{display:grid!important;grid-template-columns:minmax(62px,.85fr) minmax(54px,.75fr) minmax(50px,.7fr) minmax(54px,.7fr) 24px!important;gap:3px!important;}
+#seModal .se-pile-section .se-zone-head{font-size:9px;}
+#seModal .se-pile-section .se-field-shell .se-input:disabled{opacity:.45;background:#eef2f6;}
+#seModal .se-pile-action-row td{padding:2px!important;background:transparent!important;border:0!important;}
+#seModal .se-pile-action-row .se-add-btn{min-height:28px;font-size:12px;border-radius:6px;}
+#seModal .se-pile-bar-editor{border:1px solid #d8e2ec;border-radius:7px;background:#f8fafc;padding:5px;display:grid;gap:4px;min-width:0;}
+#seModal .se-pile-bar-editor-head{display:flex;justify-content:space-between;gap:6px;align-items:center;min-width:0;}
+#seModal .se-pile-bar-editor-head strong{font-size:12px;color:#12315a;}
+#seModal .se-pile-bar-editor-head span,.se-pile-bar-note{font-size:9px;color:#64748b;font-weight:800;line-height:1.15;}
+#seModal .se-pile-inline-field .se-family-row td{border:0!important;padding:0!important;background:transparent!important;}
+#seModal .se-pile-bar-overrides{display:grid;gap:5px;}
+#seModal .se-pile-bar-override-row{display:grid;grid-template-columns:minmax(45px,.6fr) minmax(50px,.7fr) minmax(58px,.8fr) minmax(55px,.7fr) 24px;gap:4px;align-items:end;direction:rtl;}
+#seModal .se-pile-bar-override-row label{display:grid;gap:1px;font-size:9px;font-weight:900;color:#526070;}
+#seModal .se-pile-bar-override-row .se-input{min-height:22px!important;font-size:11px!important;padding:0 3px!important;border-radius:5px!important;}
+#seModal .se-pile-add-override{min-height:26px!important;font-size:12px;border-radius:6px;}
+#seModal .se-pile-hoop-row td{padding:2px!important;border-radius:5px!important;}
+#seModal .se-pile-hoop-grid{display:grid;grid-template-columns:24px repeat(3,minmax(50px,1fr));gap:4px;align-items:end;direction:rtl;}
+#seModal .se-pile-hoop-grid .se-field-shell,#seModal .se-pile-hoop-grid .se-derived-chip{min-width:0;}
+#seModal .se-pile-hoop-grid .se-derived-chip{grid-column:span 2;}
+#seModal .se-pile-hoop-grid select.se-input{font-size:9px!important;}
+#seModal .se-pile-hoop-grid .se-field-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:'label' 'input' 'unit';gap:0;min-width:0;}
+#seModal .se-pile-hoop-grid .se-param-icon{display:none;}
+#seModal .se-pile-hoop-grid .se-param-code,
+#seModal .se-pile-hoop-grid .se-param-number{display:none!important;}
+#seModal .se-pile-hoop-grid .se-param-label{font-size:8px;line-height:1;justify-self:center;text-align:center;}
+#seModal .se-pile-hoop-grid .se-input{min-height:21px!important;font-size:10px!important;border-radius:5px!important;padding:0 2px!important;}
+#seModal .se-pile-hoop-toggle{display:grid;place-items:center;min-height:28px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;}
+#seModal .se-pile-hoop-toggle input{width:16px;height:16px;}
+#seModal .se-derived-chip{display:grid;place-items:center;min-height:21px;border:1px solid #bdd2ea;border-radius:5px;background:#eef6ff;color:#12315a;font-size:10px;font-weight:900;}
+#seModal .se-pile-elements{border:1px solid #d8e2ec;border-radius:7px;background:#fff;padding:5px;display:grid;gap:4px;width:100%;min-width:0;overflow:hidden;}
+#seModal .se-pile-elements-head{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;font-weight:900;color:#12315a;min-width:0;}
+#seModal .se-pile-elements-head span{font-size:9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-pile-element-row{display:grid;grid-template-columns:minmax(88px,1fr) repeat(4,minmax(38px,.48fr));gap:3px;align-items:center;direction:rtl;border:1px solid #edf1f6;border-radius:6px;background:#f8fafc;padding:3px;min-width:0;}
+#seModal .se-pile-element-row strong{font-size:10px;color:#0f2444;line-height:1.12;display:grid;min-width:0;}
+#seModal .se-pile-element-row span{font-size:9px;color:#64748b;font-weight:800;line-height:1.15;}
+#seModal .se-pile-element-value{border-radius:5px;background:#fff;border:1px solid #d8e2ec;padding:2px 3px;text-align:center;font-size:9px!important;color:#0f2444!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+#seModal .se-pile-element-overrides{display:flex;flex-wrap:wrap;gap:4px;}
+#seModal .se-pile-element-overrides span{border:1px solid #bdd2ea;border-radius:999px;background:#eef6ff;color:#12315a;font-size:9px;font-weight:900;padding:2px 6px;}
 
 @media(max-width:980px){#seModal .se-head{grid-template-columns:1fr;gap:8px;min-height:112px;padding:10px 14px;}#seModal .se-brand{justify-content:center;}#seModal .se-head-actions{justify-content:center;}#sePageEdit{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,38vh);}#sePageEdit .se-family-panel{order:1;flex-direction:row;overflow-x:auto;padding:10px;}#sePageEdit .se-family-card{min-width:132px;min-height:74px;}#sePageEdit .se-preview-panel{order:2;padding:10px;}#sePageEdit .se-data-panel{order:3;width:100%;border-top:1px solid #c5cbd4;}#seModal .se-svg-wrap{height:42vh;max-height:42vh;}#seModal .se-foot{height:auto;min-height:82px;}#seFootNormal{flex-wrap:wrap;}#seModal .se-bottom-summary{width:100%;overflow-x:auto;padding-bottom:2px;}#seModal .se-foot-actions{width:100%;}}
 
@@ -1931,6 +2173,7 @@ class ShapeEditorModal {
       <button class="se-family-card" data-edit-family="mesh" onclick="window._seEditor._jumpToFamily('mesh')">${shapePresetIconSVG('mesh')}<span>רשתות</span></button>
       <button class="se-family-card" data-edit-family="piles" onclick="window._seEditor._jumpToFamily('piles')">${shapePresetIconSVG('pile')}<span>כלונסאות</span></button>
       <button class="se-family-card" data-edit-family="spirals" onclick="window._seEditor._jumpToFamily('spirals')">${shapePresetIconSVG('spiral')}<span>ספיראלות</span></button>
+      <div id="seSidebarSaved" style="margin-top:8px;border-top:1px solid #c5cbd4;padding-top:10px;"></div>
     </aside>
     <!-- Center: preview -->
     <div class="se-preview-panel">
@@ -2027,6 +2270,7 @@ class ShapeEditorModal {
         <div class="se-summary-item"><span>אורך במטר</span><div><strong id="seBarLength">0.00</strong><small>מטר</small></div></div>
         <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
         <div class="se-summary-item se-quantity-item"><span>כמות</span><div><input id="seQuantityInput" class="se-quantity-input" type="number" min="1" step="1" value="1" onfocus="this.select()" oninput="window._seEditor?._setQuantity(this.value)"><small>יח׳</small></div></div>
+        <div class="se-summary-item" id="seDiameterItem"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)">${[6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d=>`<option value="${d}">${d}</option>`).join('')}</select><small>מ״מ</small></div></div>
         <div class="se-summary-item"><span>כיפופים</span><strong id="seBends">0</strong></div>
       </div>
       <div class="se-foot-actions">
@@ -2057,13 +2301,80 @@ class ShapeEditorModal {
     document.getElementById('seOk').onclick            = () => this._confirm();
     document.getElementById('seAddSide').onclick       = () => this._addSide();
     document.getElementById('seSaveShapeBtn').onclick  = () => this._showSaveBar();
-    document.getElementById('seBackBtn').onclick = () => this.close();
+    document.getElementById('seBackBtn').onclick = () => this._goBack();
     this._el.addEventListener('click', e => { if (e.target === this._el) this.close(); });
     this._bindDragRotation();
     this._bindWheelZoom();
+    this._initShapeTooltip();
+  }
+
+  _initShapeTooltip() {
+    if (document.getElementById('seShapeTooltip')) return;
+    const tip = document.createElement('div');
+    tip.id = 'seShapeTooltip';
+    document.body.appendChild(tip);
+    let hideTimer = null;
+    const showTip = (btn, e) => {
+      clearTimeout(hideTimer);
+      const svgContent = this._tooltipSvgForBtn(btn);
+      if (!svgContent) return;
+      const name = btn.title || btn.getAttribute('aria-label') || '';
+      tip.innerHTML = `<svg viewBox="0 0 200 140" width="200" height="140">${svgContent}</svg><div class="se-tip-name">${name}</div>`;
+      tip.style.display = 'flex';
+      this._positionTip(tip, e);
+    };
+    const hideTip = () => { hideTimer = setTimeout(() => { tip.style.display = 'none'; }, 80); };
+    document.getElementById('sePageSelect').addEventListener('mouseover', e => {
+      const btn = e.target.closest('.se-preset-btn');
+      if (btn) showTip(btn, e);
+    });
+    document.getElementById('sePageSelect').addEventListener('mousemove', e => {
+      if (tip.style.display === 'flex') this._positionTip(tip, e);
+    });
+    document.getElementById('sePageSelect').addEventListener('mouseout', e => {
+      const btn = e.target.closest('.se-preset-btn');
+      if (btn) hideTip();
+    });
+    document.getElementById('sePageSelect').addEventListener('click', () => { tip.style.display = 'none'; });
+  }
+
+  _positionTip(tip, e) {
+    const margin = 16;
+    let x = e.clientX + 18;
+    let y = e.clientY - 80;
+    if (x + 224 > window.innerWidth)  x = e.clientX - 224 - margin;
+    if (y < margin)                    y = margin;
+    if (y + 200 > window.innerHeight)  y = window.innerHeight - 200 - margin;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  }
+
+  _tooltipSvgForBtn(btn) {
+    const savedId  = btn.dataset.savedId;
+    const presetId = btn.dataset.id;
+    if (savedId) {
+      const saved = loadSavedShapes().find(s => s.id === savedId);
+      if (!saved) return null;
+      const sf = saved.family || 'bars';
+      if (sf === 'spirals') return SpiralEngine.render(saved, 200, 140);
+      if (sf === 'mesh')    return MeshEngine.render(saved, 200, 140);
+      if (sf === 'piles')   return PileCageEngine.render(saved, 200, 140);
+      return shape3DSVG(saved.sides || [], saved.angles || [], 200, 140, 12, { showAxes: false, showDims: false });
+    }
+    if (presetId) {
+      const preset = SHAPE_PRESETS.find(s => s.id === presetId);
+      if (!preset) return null;
+      const fam = preset.family || 'bars';
+      if (fam === 'spirals') return SpiralEngine.render(preset, 200, 140);
+      if (fam === 'mesh')    return MeshEngine.render(preset, 200, 140);
+      if (fam === 'piles')   return PileCageEngine.render(preset, 200, 140);
+      return shape3DSVG(preset.sides || [], preset.angles || [], 200, 140, preset.diameter || 12, { showAxes: false, showDims: false });
+    }
+    return null;
   }
 
   _goToCount() {
+    this._currentPage = 'count';
     document.getElementById('sePageCount').style.display  = '';
     document.getElementById('sePageSelect').style.display = 'none';
     document.getElementById('sePageEdit').style.display   = 'none';
@@ -2140,6 +2451,24 @@ class ShapeEditorModal {
 
   _goToSelect() {
     this._startDefaultEdit(this._selectedFamily || 'bars');
+    return;
+    this._currentPage = 'select';
+    document.getElementById('sePageCount').style.display  = 'none';
+    document.getElementById('sePageSelect').style.display = '';
+    document.getElementById('sePageEdit').style.display   = 'none';
+    document.getElementById('seFoot').style.display       = 'none';
+    document.getElementById('seBackBtn').style.display    = '';
+    document.getElementById('seHeadTitle').textContent    = 'בחר צורה';
+    const step = document.getElementById('seStepIndicator'); if (step) step.textContent = 'שלב 2 מתוך 3';
+    this._renderFamilyTabs();
+    this._renderCategoryFilters();
+    this._renderSideFilters();
+    this._renderSavedShapes(this._selectedCount);
+    this._renderPresets(this._selectedCount);
+  }
+
+  _goBack() {
+    this.close();
   }
 
   _renderFamilyTabs() {
@@ -2199,6 +2528,7 @@ class ShapeEditorModal {
   }
 
   _goToEdit() {
+    this._currentPage = 'edit';
     this._activeSeg = null; // clear selection when entering edit page
     document.getElementById('sePageCount').style.display  = 'none';
     document.getElementById('sePageSelect').style.display = 'none';
@@ -2313,9 +2643,9 @@ class ShapeEditorModal {
       } else {
         svgStr = shape3DSVG(s.sides || [], s.angles || [], 100, 68, 12, { showAxes: false, showDims: false, dark: false });
       }
-      return `<button class="se-preset-btn" data-saved-id="${s.id}" title="${s.name}" style="position:relative;">
-        <svg viewBox="0 0 100 68" width="100" height="68" style="display:block;margin:0 auto 6px;flex-shrink:0">${svgStr}</svg>
-        <span style="font-size:12px;font-weight:700;line-height:1.3;word-break:break-word;color:inherit">${s.name}</span>
+      return `<button class="se-preset-btn" data-saved-id="${s.id}" title="${s.name}" aria-label="${s.name}" style="position:relative;">
+        <svg viewBox="0 0 100 68" aria-hidden="true">${svgStr}</svg>
+        <span class="se-preset-name">${s.name}</span>
         <button class="se-del-saved-btn" data-del-id="${s.id}" title="מחק צורה">✕</button>
       </button>`;
     }).join('');
@@ -2325,7 +2655,7 @@ class ShapeEditorModal {
         <span style="font-size:11px;font-weight:800;color:#3a7bd5;text-transform:uppercase;letter-spacing:0.5px;">⭐ צורות שמורות שלי</span>
         <span style="font-size:10px;color:#aab8c8;margin-right:auto;">${list.length} צורות</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:10px 16px 14px;">${cardsHtml}</div>
+      <div class="se-saved-grid">${cardsHtml}</div>
       <div style="height:1px;background:#dde4ed;margin:0 16px 8px;"></div>`;
 
     cont.querySelectorAll('[data-saved-id]').forEach(btn => {
@@ -2389,6 +2719,7 @@ class ShapeEditorModal {
     persistSavedShape(this.current, name);
     this._hideSaveBar();
     this._showToast('✅ "' + name + '" נשמרה בהצלחה');
+    this._renderSidebarSavedShapes(normalizeShapeFamily(this.current || {}));
   }
 
   _showToast(msg) {
@@ -2531,6 +2862,43 @@ class ShapeEditorModal {
   _syncEditFamilyCards() {
     const family = normalizeShapeFamily(this.current || {});
     document.querySelectorAll('[data-edit-family]').forEach(btn => btn.classList.toggle('active', btn.dataset.editFamily === family));
+    this._renderSidebarSavedShapes(family);
+  }
+
+  _renderSidebarSavedShapes(family) {
+    const cont = document.getElementById('seSidebarSaved');
+    if (!cont) return;
+    const list = loadSavedShapes().filter(s => (s.family || 'bars') === family);
+    if (!list.length) { cont.innerHTML = ''; return; }
+    const cards = list.map(s => {
+      const sf = s.family || 'bars';
+      let inner;
+      if (sf === 'spirals') inner = SpiralEngine.render(s, 100, 68);
+      else if (sf === 'mesh') inner = MeshEngine.render(s, 100, 68);
+      else if (sf === 'piles') inner = PileCageEngine.render(s, 100, 68);
+      else inner = shape3DSVG(s.sides || [], s.angles || [], 100, 68, 12, { showAxes: false, showDims: false });
+      return `<button class="se-preset-btn se-sidebar-saved-btn" data-saved-id="${s.id}" title="${s.name}" aria-label="${s.name}" style="position:relative;">
+        <svg viewBox="0 0 100 68" aria-hidden="true">${inner}</svg>
+        <button class="se-del-saved-btn" data-del-id="${s.id}" title="מחק">✕</button>
+      </button>`;
+    }).join('');
+    cont.innerHTML = `<div style="font-size:10px;font-weight:800;color:#8a96a6;margin-bottom:6px;letter-spacing:0.4px;">⭐ שמורות</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>`;
+    cont.querySelectorAll('.se-sidebar-saved-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        if (e.target.closest('.se-del-saved-btn')) return;
+        const shape = loadSavedShapes().find(s => s.id === btn.dataset.savedId);
+        if (shape) this._loadSavedShape(shape);
+      });
+    });
+    cont.querySelectorAll('.se-del-saved-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!confirm('למחוק?')) return;
+        deleteSavedShape(btn.dataset.delId);
+        this._renderSidebarSavedShapes(family);
+      });
+    });
   }
 
   _focusFamilyField(key) {
@@ -2565,9 +2933,11 @@ class ShapeEditorModal {
     const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
     set('sePerimeter', totalMm.toLocaleString('he-IL'));
     set('seBarLength', (totalMm / 1000).toFixed(2));
-    set('seTotalWeight', (weightKg * qty).toFixed(2));
+    set('seTotalWeight', weightKg.toFixed(2));
     const qtyInput = document.getElementById('seQuantityInput');
     if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = String(qty);
+    const diaSelect = document.getElementById('seDiameterSelect');
+    if (diaSelect && document.activeElement !== diaSelect) diaSelect.value = String(this.current.diameter || 12);
     set('seBends', bends);
     set('sePanelTotalMm', totalMm.toLocaleString('he-IL'));
     set('sePanelTotalM', (totalMm / 1000).toFixed(2));
@@ -2579,6 +2949,12 @@ class ShapeEditorModal {
     const qty = Math.max(1, Math.round(Number(value) || 1));
     this.current.quantity = qty;
     this._updateSummaryValues();
+  }
+
+  _setDiameter(value) {
+    if (!this.current) return;
+    this.current.diameter = Number(value) || 12;
+    this._updatePreview();
   }
 
   _setFamilyEditorChrome(kind) {
@@ -2595,6 +2971,8 @@ class ShapeEditorModal {
     if (modeNote) modeNote.style.display = isBars ? '' : 'none';
     if (summary) summary.style.display = isBars ? '' : 'none';
     if (title) title.textContent = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : 'מידות צלעות וזוויות';
+    const diaItem = document.getElementById('seDiameterItem');
+    if (diaItem) diaItem.style.display = isBars ? '' : 'none';
   }
 
   _renderMeshEditor() {
@@ -2604,10 +2982,10 @@ class ShapeEditorModal {
     if (!body) return;
     const meta = {
       length: ['📏','אורך רשת','מ״מ','לדוגמה 600'], width: ['↕','רוחב רשת','מ״מ','לדוגמה 250'],
-      longitudinalDiameter: ['Ø','קוטר לאורך','מ״מ','לדוגמה 8'], longitudinalSpacing: ['⇅','מרווח לאורך','ס״מ','לדוגמה 20'],
-      transverseDiameter: ['Ø','קוטר לרוחב','מ״מ','לדוגמה 8'], transverseSpacing: ['⇄','מרווח לרוחב','ס״מ','לדוגמה 20'],
-      edgeLeft: ['↤','שול שמאל','ס״מ','לדוגמה 0'], edgeRight: ['↦','שול ימין','ס״מ','לדוגמה 0'],
-      edgeTop: ['↥','שול עליון','ס״מ','לדוגמה 0'], edgeBottom: ['↧','שול תחתון','ס״מ','לדוגמה 0'],
+      longitudinalDiameter: ['Ø','קוטר לאורך','מ״מ','לדוגמה 8'], longitudinalSpacing: ['↔','מרווח לאורך','ס״מ','לדוגמה 20'],
+      transverseDiameter: ['Ø','קוטר לרוחב','מ״מ','לדוגמה 8'], transverseSpacing: ['↕','מרווח לרוחב','ס״מ','לדוגמה 20'],
+      edgeLeft: ['←','שול שמאל','ס״מ','לדוגמה 0'], edgeRight: ['→','שול ימין','ס״מ','לדוגמה 0'],
+      edgeTop: ['↑','שול עליון','ס״מ','לדוגמה 0'], edgeBottom: ['↓','שול תחתון','ס״מ','לדוגמה 0'],
     };
     const field = (key, min = 0) => {
       const m = meta[key] || ['•', key, 'מ״מ', 'לדוגמה 100'];
@@ -2620,7 +2998,6 @@ class ShapeEditorModal {
       <tr class="se-family-row">${field('edgeLeft', 0)}${field('edgeRight', 0)}</tr>
       <tr class="se-family-row">${field('edgeTop', 0)}${field('edgeBottom', 0)}</tr>`;
   }
-
   _renderSpiralEditor() {
     this._setFamilyEditorChrome('spirals');
     const sp = this.current;
@@ -2709,19 +3086,21 @@ class ShapeEditorModal {
     if (!pile.spiralZones.length) pile.spiralZones = [{ name: 'Zone A', length: 70, pitch: 10 }, { name: 'Zone B', length: 200, pitch: 20 }, { name: 'Zone C', length: 1350, pitch: 20 }];
     if (pile.spiralType == null) pile.spiralType = 'zoned';
     if (pile.hoopsEnabled == null) pile.hoopsEnabled = true;
-    if (pile.hoopDiameter == null) pile.hoopDiameter = 8;
+    if (pile.hoopDiameter == null) pile.hoopDiameter = 14;
     if (pile.hoopSpacing == null) pile.hoopSpacing = 200;
     if (pile.hoopStart == null) pile.hoopStart = 0;
     if (pile.hoopEnd == null) pile.hoopEnd = pile.pileLength || 2200;
+    if (!pile.hoopStartSide) pile.hoopStartSide = 'start';
     if (!pile.barPattern) pile.barPattern = 'straight';
-    if (pile.lHookLength == null) pile.lHookLength = 250;
+    if (pile.lHookLength == null) pile.lHookLength = 25;
+    if (!Array.isArray(pile.longitudinalBarOverrides)) pile.longitudinalBarOverrides = [];
     const meta = {
       pileDiameter: ['Ø','קוטר כלונס','ס״מ','70'], pileLength: ['L','אורך כלונס','ס״מ','2200'],
-      longitudinalBars: ['N','מספר מוטות','יח׳','26'], longitudinalDiameter: ['Ø','קוטר מוטות','מ״מ','22'],
-      spiralDiameter: ['Ø','קוטר ספירלה','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
-      hoopsEnabled: ['H','חישוקים','','פעיל'], hoopDiameter: ['Ø','קוטר חישוק','מ״מ','8'],
-      hoopSpacing: ['@','מרווח חישוקים','ס״מ','200'], hoopStart: ['↦','תחילת חישוקים','ס״מ','0'], hoopEnd: ['↤','סוף חישוקים','ס״מ','2200'],
-      barPattern: ['L','סוג מוט אורך','','straight'], lHookLength: ['L','אורך רגל L','מ״מ','250'],
+      longitudinalBars: ['N','מספר מוטות אורך','יח׳','26'], longitudinalDiameter: ['Ø','קוטר ברזל מוטות','מ״מ','22'],
+      spiralDiameter: ['Ø','קוטר ברזל ספיראלה','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
+      hoopsEnabled: ['H','טבעות פנימיות','','פעיל'], hoopDiameter: ['Ø','קוטר ברזל טבעת','מ״מ','14'],
+      hoopSpacing: ['@','מרווח טבעות','ס״מ','200'], hoopStart: ['↦','תחילת טבעות','ס״מ','0'], hoopEnd: ['↤','סוף טבעות','ס״מ','2200'],
+      hoopStartSide: ['⇄','צד התחלה','','מהתחלה'], barPattern: ['L','צורת מוטות אורך','','straight'], lHookLength: ['L','אורך רגל L','ס״מ','25'],
     };
     const field = (key, min = 1) => {
       const m = meta[key] || ['•', key, 'מ״מ', '100'];
@@ -2736,25 +3115,168 @@ class ShapeEditorModal {
       const m = meta[key] || ['•', key, '', ''];
       return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="checkbox" ${pile[key] ? 'checked' : ''} data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" onchange="window._seEditor._setPileField('${key}', this.checked)">` }) + '</td>';
     };
+    const compactField = (key, min = 1) => {
+      const m = meta[key] || ['•', key, 'מ״מ', '100'];
+      return this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], focusKey:m[4], number:m[5], code:m[6], input:`<input class="se-input" type="number" min="${min}" value="${pile[key] ?? 0}" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setPileField('${key}', this.value)">` });
+    };
+    const compactSelect = (key, options) => {
+      const m = meta[key] || ['•', key, '', ''];
+      const html = options.map(([value, label]) => `<option value="${value}" ${String(pile[key]) === String(value) ? 'selected' : ''}>${label}</option>`).join('');
+      return this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<select class="se-input" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" onchange="window._seEditor._setPileField('${key}', this.value)">${html}</select>` });
+    };
+    const hoopRow = () => `<tr class="se-family-row se-pile-hoop-row"><td colspan="5"><div class="se-pile-hoop-grid" data-pile-hoop-row><label class="se-pile-hoop-toggle" title="טבעות פנימיות"><input type="checkbox" ${pile.hoopsEnabled ? 'checked' : ''} data-pile-field="hoopsEnabled" onchange="window._seEditor._setPileField('hoopsEnabled', this.checked)"></label>${compactField('hoopDiameter', 14)}${compactField('hoopSpacing', 1)}${compactField('hoopStart', 0)}${compactField('hoopEnd', 0)}${compactSelect('hoopStartSide', [['start','מהתחלה'], ['end','מהסוף']])}<div class="se-derived-chip" data-pile-derived="internalHoopDiameter" title="קוטר טבעת פנימי מחושב">Ø${internalHoopDiameterCm}</div></div></td></tr>`;
+    const pileDiameterMmForDerived = pileCmToMm(pile.pileDiameter || 70, 700);
+    const coverMmForDerived = pileCmToMm(pile.concreteCover || 0, 0);
+    const internalHoopDiameterCm = pileRound(pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMmForDerived, concreteCover: coverMmForDerived, longitudinalDiameter: pile.longitudinalDiameter || 22 }) / 10, 1);
     const zoneRows = pile.spiralZones.map((zone, i) => `
       <tr class="se-family-row se-zone-row">
         <td>${this._fieldShell({ icon:'Z', label:'שם אזור', unit:'טקסט', example:'A', input:`<input class="se-input" type="text" value="${svgEscape(zone.name || 'Zone ' + String.fromCharCode(65 + i))}" data-zone-field="name" onfocus="window._seEditor._focusFamilyField('zone')" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)">` })}</td>
         <td>${this._fieldShell({ icon:'↔', label:'אורך', unit:'ס״מ', example:'70', input:`<input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" onfocus="window._seEditor._focusFamilyField('zoneLength')" oninput="window._seEditor._setSpiralZoneField(${i}, 'length', this.value)">` })}</td>
-        <td>${this._fieldShell({ icon:'@', label:'פסיעה', unit:'ס״מ', example:'20', input:`<input class="se-input" type="number" min="1" value="${zone.pitch ?? 20}" data-zone-field="pitch" onfocus="window._seEditor._focusFamilyField('zonePitch')" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)">` })}</td>
+        <td>${this._fieldShell({ icon:'@', label:'פסיעה', unit:'ס״מ', example:'20', input:`<input class="se-input" type="number" min="1" value="${zone.noWrap ? '' : (zone.pitch ?? 20)}" ${zone.noWrap ? 'disabled' : ''} data-zone-field="pitch" onfocus="window._seEditor._focusFamilyField('zonePitch')" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)">` })}</td>
         <td>${this._fieldShell({ icon:'—', label:'ללא כריכות', unit:'', example:'כן/לא', input:`<input class="se-input" type="checkbox" ${zone.noWrap ? 'checked' : ''} data-zone-field="noWrap" onfocus="window._seEditor._focusFamilyField('noWrap')" onchange="window._seEditor._setSpiralZoneField(${i}, 'noWrap', this.checked)">` })}</td>
         <td><button class="se-del-btn" onclick="window._seEditor._deleteSpiralZone(${i})">&times;</button></td>
       </tr>`).join('');
+    const calc = PileCageEngine.calculate(pile);
+    const hoopCount = Array.isArray(calc.manufacturingBreakdown) ? (calc.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring')?.quantity || 0) : 0;
+    const spiralPitchSummary = (pile.spiralZones || []).filter(z => !z.noWrap).map(z => Number(z.pitch || 0)).filter(Boolean).pop() || 0;
+    const validationRows = [];
+    if (!Number(pile.pileDiameter || 0)) validationRows.push(['error', 'חסר קוטר כלונס']);
+    if (!Number(pile.pileLength || 0)) validationRows.push(['error', 'חסר אורך כלונס']);
+    if (!Number(pile.longitudinalBars || 0)) validationRows.push(['error', 'אין מוטות אורך']);
+    if (!(pile.spiralZones || []).length) validationRows.push(['warning', 'אין אזורי ספירלה']);
+    const validationHtml = validationRows.length
+      ? validationRows.map(([kind, msg]) => `<div class="se-pile-validation ${kind}">${msg}</div>`).join('')
+      : '<div class="se-pile-validation ok">הנתונים תקינים לעריכה</div>';
+    const sectionSummary = {
+      general: `קוטר ${pile.pileDiameter || 0} | אורך ${pile.pileLength || 0}`,
+      bars: `${pile.longitudinalBars || 0} מוטות | Ø${pile.longitudinalDiameter || 0} | ${pile.barPattern || 'ישר'}`,
+      spiral: `Ø${pile.spiralDiameter || 0} | פסיעה ${spiralPitchSummary || '-'} | ${(pile.spiralZones || []).length} אזורים`,
+      hoops: `${pile.hoopsEnabled ? 'פעיל' : 'כבוי'} | Ø${pile.hoopDiameter || 0} | ${hoopCount} יח׳`,
+      breakdown: `${(calc.manufacturingBreakdown || []).length} רכיבים | ${pileRound(calc.weightKg || 0, 2)} ק״ג`,
+      validation: validationRows.length ? `${validationRows.length} הערות` : 'תקין',
+    };
+    const pileSection = (id, title, summary, rows, open = false, focusKey = '') => `<tr class="se-pile-section-row"><td colspan="5"><details class="se-pile-section" data-pile-section="${id}" ${open ? 'open' : ''}><summary onclick="window._seEditor && window._seEditor._focusFamilyField('${focusKey || id}')"><strong>${title}</strong><span>${summary}</span></summary><table><tbody>${rows}</tbody></table></details></td></tr>`;
     body.innerHTML = `
-      <tr class="se-family-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>
-      <tr class="se-family-row">${field('longitudinalBars', 0)}${field('longitudinalDiameter', 1)}</tr>
-      <tr class="se-family-row">${field('spiralDiameter', 1)}${selectField('spiralType', [['continuous','רציפה'], ['zoned','אזורים'], ['segmented','מקטעים']])}</tr>
-      <tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>
-      ${zoneRows}
-      <tr class="se-family-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>
-      <tr class="se-family-row">${checkboxField('hoopsEnabled')}${field('hoopDiameter', 1)}</tr>
-      <tr class="se-family-row">${field('hoopSpacing', 1)}${field('hoopStart', 0)}</tr>
-      <tr class="se-family-row">${field('hoopEnd', 0)}${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>
-      <tr class="se-family-row">${field('lHookLength', 0)}</tr>`;
+      ${pileSection('general', 'כללי', sectionSummary.general, `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true, 'pile-diameter')}
+      ${pileSection('bars', 'מוטות אורך', sectionSummary.bars, `<tr class="se-family-row se-pile-compact-row">${field('longitudinalBars', 0)}${field('longitudinalDiameter', 1)}</tr><tr class="se-family-row se-pile-compact-row">${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>${this._renderPileLongitudinalShapeRows(field)}`, true, 'pile-longitudinal-bars')}
+      ${pileSection('spiral', 'ספירלה', sectionSummary.spiral, `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${selectField('spiralType', [['continuous','רציפה'], ['zoned','אזורים'], ['segmented','מקטעים']])}</tr><tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>${zoneRows}<tr class="se-family-row se-pile-action-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>`, false, 'pile-spiral-pitch')}
+      ${pileSection('hoops', 'טבעות / חישוקים', sectionSummary.hoops, hoopRow(), false, 'pile-hoops')}
+      ${pileSection('breakdown', 'פירוק לייצור', sectionSummary.breakdown, this._renderPileElementsSummary(), false, 'pile-longitudinal-bars')}
+      ${pileSection('validation', 'בדיקות / שגיאות', sectionSummary.validation, `<tr class="se-family-row"><td colspan="5"><div class="se-pile-validations">${validationHtml}</div></td></tr>`, false, 'pile-zone')}`;  }
+
+  _renderPileLongitudinalShapeRows(field) {
+    const pile = this.current || {};
+    const pattern = String(pile.barPattern || 'straight');
+    const shell = (title, desc, body) => `<td colspan="5"><div class="se-pile-bar-editor" data-pile-bar-editor="${svgEscape(title)}"><div class="se-pile-bar-editor-head"><strong>${title}</strong><span>${desc}</span></div>${body}</div></td>`;
+    const overrideRows = this._renderPileBarOverrideRows();
+    if (pattern === 'straight') {
+      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות אורך', 'ברירת מחדל: ישרים בקוטר אחיד', '<span class="se-pile-bar-note">שנה רק חריגים: מוט מסוים עם קוטר אחר או צורת L.</span>' + overrideRows)}</tr>`;
+    }
+    if (pattern === 'l') {
+      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות L', 'כל המוטות בצורת L', '<div class="se-pile-inline-field">' + field('lHookLength', 0) + '</div>' + overrideRows)}</tr>`;
+    }
+    if (pattern === 'alternate') {
+      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות משולבים', 'ברירת מחדל: לסירוגין ישר / L', '<div class="se-pile-inline-field">' + field('lHookLength', 0) + '</div>' + overrideRows)}</tr>`;
+    }
+    return `<tr class="se-family-row se-pile-bar-shape-row">${shell('עריכת מוטות אורך', 'חריגים לפי מספר מוט', overrideRows)}</tr>`;
+  }
+
+  _renderPileBarOverrideRows() {
+    const pile = this.current || {};
+    const totalBars = Math.max(0, Math.round(Number(pile.longitudinalBars || 0)));
+    pile.longitudinalBarOverrides = normalizePileBarOverrides(pile.longitudinalBarOverrides || [], totalBars);
+    const options = (value) => `<option value="straight" ${value === 'straight' ? 'selected' : ''}>ישר</option><option value="l" ${value === 'l' ? 'selected' : ''}>L</option>`;
+    const rows = pile.longitudinalBarOverrides.map((entry, i) => `
+      <div class="se-pile-bar-override-row" data-pile-bar-override="${i}">
+        <label>מוט<input class="se-input" type="number" min="1" max="${Math.max(1, totalBars)}" value="${entry.barIndex}" data-pile-bar-field="barIndex" oninput="window._seEditor._setPileBarOverrideField(${i}, 'barIndex', this.value)"></label>
+        <label>קוטר<input class="se-input" type="number" min="1" value="${entry.diameter || pile.longitudinalDiameter || 22}" data-pile-bar-field="diameter" oninput="window._seEditor._setPileBarOverrideField(${i}, 'diameter', this.value)"></label>
+        <label>צורה<select class="se-input" data-pile-bar-field="barPattern" onchange="window._seEditor._setPileBarOverrideField(${i}, 'barPattern', this.value)">${options(entry.barPattern || 'straight')}</select></label>
+        <label>רגל L<input class="se-input" type="number" min="0" value="${entry.lHookLength || 0}" data-pile-bar-field="lHookLength" oninput="window._seEditor._setPileBarOverrideField(${i}, 'lHookLength', this.value)"></label>
+        <button class="se-del-btn" onclick="window._seEditor._deletePileBarOverride(${i})">&times;</button>
+      </div>`).join('');
+    return `<div class="se-pile-bar-overrides">${rows}<button class="se-add-btn se-pile-add-override" onclick="window._seEditor._addPileBarOverride()">הוסף עריכת מוט</button></div>`;
+  }
+
+  _pileElementLabel(part) {
+    const type = String(part?.componentType || '');
+    if (type === 'longitudinal_l_bar') return 'מוטות אורך L';
+    if (type === 'longitudinal_straight_bar') return 'מוטות אורך ישרים';
+    if (type === 'spiral_zone') return `ספירלה ${part.name || ''}`.trim();
+    if (type === 'hoop_ring') return 'טבעות פנימיות';
+    return part?.description || type || 'רכיב';
+  }
+
+  _pileElementsSummaryHtml() {
+    const pile = this.current || {};
+    const calc = PileCageEngine.calculate(pile);
+    const parts = calc.manufacturingBreakdown || [];
+    const rows = parts.map((part) => {
+      const type = svgEscape(part.componentType || 'part');
+      const label = svgEscape(this._pileElementLabel(part));
+      const lengthM = pileRound((Number(part.totalLengthMm || 0)) / 1000, 2).toFixed(2);
+      const weightKg = pileRound(Number(part.weightKg || 0), 2).toFixed(2);
+      const diameter = part.diameterMm ? `Ø${pileRound(Number(part.diameterMm || 0), 1)}` : '-';
+      const qty = part.quantity ?? 1;
+      let details = '';
+      if (part.componentType === 'spiral_zone') details = `@${pileRound((part.pitchMm || 0) / 10, 1)} ס״מ / L ${pileRound((part.zoneLengthMm || 0) / 10, 1)} ס״מ`;
+      if (part.componentType === 'hoop_ring') details = `Ø פנימי ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ס״מ`;
+      return `<div class="se-pile-element-row" data-pile-element="${type}"><strong>${label}<span>${svgEscape(details)}</span></strong><span class="se-pile-element-value">${qty}</span><span class="se-pile-element-value">${diameter}</span><span class="se-pile-element-value">${lengthM} מ׳</span><span class="se-pile-element-value">${weightKg} ק״ג</span></div>`;
+    }).join('');
+    const overrides = normalizePileBarOverrides(pile.longitudinalBarOverrides || [], pile.longitudinalBars || 0).map(row => `<span data-pile-element-override>מוט ${row.barIndex} Ø${row.diameter} ${row.barPattern === 'l' ? 'L' : 'ישר'}</span>`).join('');
+    return `${rows || '<span class="se-pile-bar-note">אין אלמנטים מחושבים</span>'}${overrides ? `<div class="se-pile-element-overrides">${overrides}</div>` : ''}`;
+  }
+
+  _renderPileElementsSummary() {
+    return `<tr class="se-family-row se-pile-elements-row"><td colspan="5"><div class="se-pile-elements" data-pile-elements-summary><div class="se-pile-elements-head">רכיבי יסוד<span>כמות / קוטר / אורך / משקל</span></div><div data-pile-elements-body>${this._pileElementsSummaryHtml()}</div></div></td></tr>`;
+  }
+
+  _refreshPileElementsSummary() {
+    if (!this.current || this.current.family !== 'piles') return;
+    const body = document.querySelector('[data-pile-elements-body]');
+    if (body) body.innerHTML = this._pileElementsSummaryHtml();
+  }
+
+  _setPileBarOverrideField(index, key, val) {
+    if (!this.current || this.current.family !== 'piles') return;
+    if (!Array.isArray(this.current.longitudinalBarOverrides)) this.current.longitudinalBarOverrides = [];
+    const row = this.current.longitudinalBarOverrides[index];
+    if (!row) return;
+    if (key === 'barPattern') row[key] = String(val || 'straight') === 'l' ? 'l' : 'straight';
+    else row[key] = Math.max(key === 'lHookLength' ? 0 : 1, Math.round(Number(val) || 0));
+    this.current.longitudinalBarOverrides = normalizePileBarOverrides(this.current.longitudinalBarOverrides, this.current.longitudinalBars || 0);
+    this._refreshPileElementsSummary();
+    this._updatePreview();
+  }
+
+  _addPileBarOverride() {
+    if (!this.current || this.current.family !== 'piles') return;
+    if (!Array.isArray(this.current.longitudinalBarOverrides)) this.current.longitudinalBarOverrides = [];
+    const totalBars = Math.max(1, Math.round(Number(this.current.longitudinalBars || 1)));
+    const used = new Set(this.current.longitudinalBarOverrides.map(row => Math.round(Number(row.barIndex || 0))));
+    let barIndex = 1;
+    while (used.has(barIndex) && barIndex < totalBars) barIndex += 1;
+    this.current.longitudinalBarOverrides.push({ barIndex, diameter: Math.max(1, Number(this.current.longitudinalDiameter || 22)), barPattern: 'straight', lHookLength: 0 });
+    this._renderPileCageEditor();
+    this._updatePreview();
+  }
+
+  _deletePileBarOverride(index) {
+    if (!this.current || this.current.family !== 'piles' || !Array.isArray(this.current.longitudinalBarOverrides)) return;
+    this.current.longitudinalBarOverrides.splice(index, 1);
+    this._renderPileCageEditor();
+    this._updatePreview();
+  }
+
+  _refreshPileDerived() {
+    if (!this.current || this.current.family !== 'piles') return;
+    const out = document.querySelector('[data-pile-derived="internalHoopDiameter"]');
+    if (!out) return;
+    const pile = this.current;
+    const pileDiameterMm = pileCmToMm(pile.pileDiameter || 70, 700);
+    const coverMm = pileCmToMm(pile.concreteCover || 0, 0);
+    const internalHoopDiameterCm = pileRound(pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMm, concreteCover: coverMm, longitudinalDiameter: pile.longitudinalDiameter || 22 }) / 10, 1);
+    if ('value' in out) out.value = internalHoopDiameterCm;
+    out.textContent = out.classList && out.classList.contains('se-derived-chip') ? `Ø${internalHoopDiameterCm}` : internalHoopDiameterCm;
   }
 
   _renderBarEditor() {
@@ -2846,12 +3368,18 @@ class ShapeEditorModal {
     if (!this.current || this.current.family !== 'piles') return;
     if (key === 'hoopsEnabled') {
       this.current[key] = val === true || val === 1 || val === 'true' || val === 'on';
-    } else if (key === 'barPattern' || key === 'spiralType') {
+      this._refreshPileDerived();
+      this._refreshPileElementsSummary();
+    } else if (key === 'barPattern' || key === 'spiralType' || key === 'hoopStartSide') {
       this.current[key] = String(val || '');
+      this._renderPileCageEditor();
     } else {
       const parsed = key === 'longitudinalBars' ? Math.round(Number(val) || 0) : Number(val) || 1;
       const min = key === 'longitudinalBars' || key === 'hoopStart' || key === 'hoopEnd' || key === 'lHookLength' ? 0 : 1;
       this.current[key] = Math.max(min, parsed);
+      if (key === 'longitudinalBars') this.current.longitudinalBarOverrides = normalizePileBarOverrides(this.current.longitudinalBarOverrides || [], this.current.longitudinalBars);
+      this._refreshPileDerived();
+      this._refreshPileElementsSummary();
     }
     this._updatePreview();
   }
@@ -2863,6 +3391,7 @@ class ShapeEditorModal {
     if (key === 'name') zone[key] = String(val);
     else if (key === 'noWrap') zone[key] = val === true || val === 1 || val === 'true' || val === 'on';
     else zone[key] = Math.max(key === 'length' ? 0 : 1, Number(val) || (key === 'length' ? 0 : 1));
+    this._refreshPileElementsSummary();
     this._updatePreview();
   }
 
@@ -3364,7 +3893,7 @@ class ShapeEditorModal {
       document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === existingData.presetId));
       this._goToEdit();
     } else {
-      // No existing shape: open the editor directly; family tabs switch presets from inside the workspace.
+      // No existing shape: open editor directly.
       this._selectedCount = null;
       this._selectedSideCount = null;
       this._startDefaultEdit('bars');

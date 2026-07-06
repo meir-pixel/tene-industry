@@ -13,7 +13,17 @@ function createPortalAccessService(deps) {
   const PORT = required('PORT', deps.PORT);
 
   // BUG-41: limited projection - never return sensitive fields via portal resolver.
-  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_can_manage_users,portal_can_create_sites,portal_can_set_budgets,portal_can_expose_prices,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct,price_approved_at';
+  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_can_manage_users,portal_can_create_sites,portal_can_set_budgets,portal_can_expose_prices,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct,price_approved_at,portal_profile_locked_at';
+
+  function configuredBaseUrl(fallback = '') {
+    const raw = String(process.env.BASE_URL || settingsService.get('BASE_URL', '') || fallback || '').trim();
+    return raw.replace(/\/+$/, '');
+  }
+
+  function portalLink(token, options = {}) {
+    const baseUrl = configuredBaseUrl(options.baseUrl || `http://localhost:${PORT}`);
+    return `${baseUrl}/customer.html?token=${encodeURIComponent(token)}`;
+  }
 
   // ── משתמשי פורטל עם תפקידים (מזמין/מאשר) — ראה docs/spec-portal-roles.md ──
   db.exec(`
@@ -342,11 +352,10 @@ function createPortalAccessService(deps) {
 
   function portalAuthResponse(customer, options = {}) {
     const token = ensurePortalToken(customer, options);
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     const ctx = portalContext(customer, options.portalUser || null);
     return {
       token,
-      link: `${baseUrl}/customer.html?token=${token}`,
+      link: portalLink(token, options),
       expiresAt: customer.portal_token_expires_at || null,
       role: ctx.role,
       caps: ctx.caps,
@@ -385,6 +394,8 @@ function createPortalAccessService(deps) {
     issuePortalOtp,
     verifyPortalOtp,
     portalAuthResponse,
+    portalLink,
+    configuredBaseUrl,
   };
 }
 

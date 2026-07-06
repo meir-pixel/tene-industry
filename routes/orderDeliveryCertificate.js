@@ -136,7 +136,7 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
     const wt     = fmt1(calcItemWeight(item));
     const notes  = [item.struct_element, item.struct_floor, item.sheet_num, printableItemNote(item.note)].filter(Boolean).join(' · ') || '–';
 
-    const shapeSvg = productionCards.shapeSvg(item.segments);
+    const shapeSvg = productionCards.itemShapeSvg(item);
 
     rows += `
       <tr>

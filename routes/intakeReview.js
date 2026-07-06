@@ -94,15 +94,19 @@ module.exports = function createIntakeReviewRouter(deps) {
   function saveCorrectionExample(row, original, corrected) {
     const pair = correctionPair(original, corrected);
     if (!pair) return;
-    db.prepare(`
-      INSERT INTO intake_training_examples (title, document_type, problem_text, correction_text)
-      VALUES (?, ?, ?, ?)
-    `).run(
-      `Intake correction #${row.id}`,
-      row.source || 'intake_review',
-      pair.problem,
-      pair.correction
-    );
+    try {
+      db.prepare(`
+        INSERT INTO intake_training_examples (title, document_type, problem_text, correction_text)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        `Intake correction #${row.id}`,
+        row.source || 'intake_review',
+        pair.problem,
+        pair.correction
+      );
+    } catch (error) {
+      console.warn('[Intake OCR] Training example save skipped:', error.message);
+    }
   }
 
   function saveReviewedItemCorrectionExample(row, item, index, orderItem) {
@@ -130,15 +134,19 @@ module.exports = function createIntakeReviewRouter(deps) {
     };
     const pair = correctionPair(source, correction);
     if (!pair) return;
-    db.prepare(`
-      INSERT INTO intake_training_examples (title, document_type, problem_text, correction_text)
-      VALUES (?, ?, ?, ?)
-    `).run(
-      `Intake row approval #${row.id}/${index + 1}`,
-      row.source || 'intake_review',
-      pair.problem,
-      pair.correction
-    );
+    try {
+      db.prepare(`
+        INSERT INTO intake_training_examples (title, document_type, problem_text, correction_text)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        `Intake row approval #${row.id}/${index + 1}`,
+        row.source || 'intake_review',
+        pair.problem,
+        pair.correction
+      );
+    } catch (error) {
+      console.warn('[Intake OCR] Row approval training example save skipped:', error.message);
+    }
   }
 
   router.get('/intake/log', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {

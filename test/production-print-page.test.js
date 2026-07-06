@@ -137,3 +137,52 @@ test('production card shape renderer keeps angled open stirrups inside a print-f
   assert.doesNotMatch(html, /viewBox="0 0 240 120"/);
   assert.match(html, />45°</);
 });
+
+
+test('production print page expands pile cages to master and component cards', () => {
+  const pileSnapshot = {
+    family: 'piles',
+    shapeType: 'round_pile_cage',
+    manufacturingBreakdown: [
+      { componentType: 'longitudinal_straight_bar', description: 'Longitudinal straight bars', diameterMm: 20, quantity: 4, totalLengthMm: 12000, weightKg: 118.4 },
+      { componentType: 'spiral_zone', description: 'Spiral zone A', name: 'A', diameterMm: 8, quantity: 1, totalLengthMm: 30000, weightKg: 11.8 },
+      { componentType: 'hoop_ring', description: 'Internal hoop ring', diameterMm: 14, quantity: 4, totalLengthMm: 7000, weightKg: 8.5 },
+    ],
+  };
+  const html = printPage.renderPrintCardsPage({
+    order: { id: 77, order_num: 'HZ-PILE-001', customer_name: 'Pile Customer', status: 'approved' },
+    pallets: [{ id: 1, pallet_num: 1 }],
+    allItems: [{
+      id: 501,
+      shape_name: 'כלונס',
+      diameter: 20,
+      quantity: 2,
+      total_length_mm: 12000,
+      total_weight: 280,
+      segments: JSON.stringify([]),
+      note: '',
+      pallet_num: 1,
+      material_grade: 'B500B',
+      card_weights: [],
+      shape_snapshot_json: JSON.stringify(pileSnapshot),
+    }],
+    printDate: '05-07-2026',
+    delivDate: '10-07-2026',
+    cards,
+    industry,
+    tryParseJSON,
+  });
+
+  assert.match(html, /כלונס 1\/2/);
+  assert.match(html, /כלונס 2\/2/);
+  assert.match(html, /מוטות אורך ישרים/);
+  assert.match(html, /ספירלה A/);
+  assert.match(html, /טבעות חיזוק פנימיות/);
+  assert.match(html, /HZ-PILE-001-000501-P1-MASTER/);
+  assert.match(html, /HZ-PILE-001-000501-P2-C3/);
+  assert.match(html, /data-shape-kind=\"pile-spiral-component\"/);
+  assert.match(html, /data-component-type=\"spiral_zone\"/);
+  assert.match(html, /data-shape-kind=\"pile-hoop-component\"/);
+  assert.equal(new Set(html.match(/HZ-PILE-001-000501-P[12]-(?:MASTER|C[123])/g) || []).size, 8);
+  assert.equal((html.match(/class="cards-page"/g) || []).length, 1);
+});

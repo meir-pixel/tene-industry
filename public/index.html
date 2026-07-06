@@ -2198,7 +2198,7 @@ function renderPalletHTML(p, idx) {
             <th>כמות</th>
             <th>משקל ק"ג</th>
             <th>מלאי</th>
-            <th>הערה</th>
+            <th>שייך ל / תיאור ללקוח</th>
             <th style="width:36px"></th>
           </tr>
         </thead>
@@ -2245,6 +2245,9 @@ window.toggleThumb3D = function() {
 };
 
 function itemShapeSides(item = {}) {
+  const shapeContract = itemShapeContract(item);
+  const spiral = spiralFieldsFromShapeData(item);
+  if (item.family === 'spirals' || shapeContract?.family === 'spirals' || (spiral.spiralDiameterMm > 0 && spiral.spiralTurns > 0)) return [];
   const direct = Array.isArray(item.shapeSides) ? item.shapeSides.map(Number).filter(v => Number.isFinite(v) && v > 0) : [];
   if (direct.length) return direct;
   const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null;
@@ -2264,11 +2267,46 @@ function itemShapeAngles(item = {}) {
   return saved;
 }
 
+
+function itemShapeContract(item = {}) {
+  const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null;
+  if (snapshot && snapshot.contractVersion && snapshot.shapeType && snapshot.family && snapshot.data) return snapshot;
+  return null;
+}
+
+function approvedShapeContract(data = {}) {
+  if (!data || !data.contractVersion || !data.shapeType || !data.family || !data.data) return null;
+  return {
+    contractVersion: data.contractVersion,
+    shapeVersion: data.shapeVersion,
+    shapeId: data.shapeId,
+    shapeType: data.shapeType,
+    family: data.family,
+    source: data.source,
+    approvedAt: data.approvedAt,
+    displayName: data.displayName,
+    data: data.data,
+    calculated: data.calculated,
+    machineOutput: data.machineOutput,
+    validation: data.validation,
+  };
+}
+
+function spiralFieldsFromShapeData(data = {}) {
+  const contract = itemShapeContract(data) || approvedShapeContract(data) || data.shapeSnapshot || null;
+  const source = contract?.data || data.data || data || {};
+  return {
+    spiralDiameterMm: Number(source.spiralDiameterMm || source.spiral_diameter_mm || source.spiralDiameter || data.spiralDiameterMm || data.spiral_diameter_mm || data.spiralDiameter || 0),
+    spiralTurns: Number(source.spiralTurns || source.spiral_turns || source.turns || data.spiralTurns || data.spiral_turns || data.turns || 0),
+    barDiameter: Number(source.barDiameter || source.barDiameterMm || data.barDiameter || data.diameter || 0),
+  };
+}
 function renderItemRow(palletId, item) {
   const w = calcItemWeight(item);
   const sides = itemShapeSides(item);
   const angles = itemShapeAngles(item);
   const perimeter = sides.reduce((s, l) => s + Number(l), 0);
+  const isSpiralRow = item.family === 'spirals' || itemShapeContract(item)?.family === 'spirals' || isSpiralOrderItem(item);
 
   let svgPreview;
   if (sides.length) {
@@ -2295,9 +2333,7 @@ function renderItemRow(palletId, item) {
       </div>
     </td>
     <td>
-      <select onchange="updateItem(${palletId},'${item.id}','diameter',this.value)">
-        ${DIAMETERS.map(d => `<option ${item.diameter==d?'selected':''}>${d}</option>`).join('')}
-      </select>
+      <button type="button" onclick="openShapeEditor(${palletId}, '${item.id}')" title="שנה קוטר בעורך הצורות" style="width:84px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;font-weight:800;cursor:pointer">${item.diameter || (isSpiralRow ? 8 : 12)}</button>
     </td>
     <td style="min-width:90px">
       <div style="font-size:12px;color:#e07b39;font-weight:700;text-align:center;cursor:pointer"
@@ -2319,7 +2355,7 @@ function renderItemRow(palletId, item) {
     </td>
     <td>${renderStockSelect(palletId, item)}</td>
     <td>
-      <input type="text" value="${item.note||''}" placeholder="הערה..."
+      <input type="text" value="${escapeAttr(item.note||'')}" placeholder="לדוגמה: קיר חומה מבנה 103, קומה 2"
         onchange="updateItem(${palletId},'${item.id}','note',this.value)">
     </td>
     <td>
@@ -2334,6 +2370,20 @@ function openShapeEditor(palletId, itemId) {
   const item   = pallet?.items.find(i => i.id == itemId);
   const sides = itemShapeSides(item || {});
   const angles = itemShapeAngles(item || {});
+  const contract = itemShapeContract(item || {});
+  if (contract?.family === 'spirals') {
+    const spiral = spiralFieldsFromShapeData({ ...item, shapeSnapshot: contract });
+    shapeEditor.open({
+      family: 'spirals',
+      presetId: item.shapeId || contract.shapeId || 'spiral',
+      presetName: item.shapeName || contract.displayName || 'spiral',
+      barDiameter: spiral.barDiameter || item.diameter || 8,
+      spiralDiameter: spiral.spiralDiameterMm || 400,
+      turns: spiral.spiralTurns || 20,
+      quantity: item.qty || 1,
+    });
+    return;
+  }
   shapeEditor.open(sides.length ? {
     presetId: item.shapeId,
     sides,
@@ -2359,12 +2409,20 @@ function shapeSelected(data) {
   item.shapeName   = data.presetName;
   item.shapeEmoji  = data.presetEmoji;
   item.family      = data.family || 'bars';
-  item.shapeSides  = data.sides || [];
-  item.shapeAngles = data.angles || [];
+  item.shapeSnapshot = approvedShapeContract(data);
+  const spiral = spiralFieldsFromShapeData(data);
+  const isSpiral = item.family === 'spirals' || (spiral.spiralDiameterMm > 0 && spiral.spiralTurns > 0);
+  item.shapeSides  = isSpiral ? [] : (data.sides || []);
+  item.shapeAngles = isSpiral ? [] : (data.angles || []);
   item.is3d       = data.is3d ? 1 : 0;
   item.azAngles   = item.is3d ? (data.azAngles || []) : null;
   item.elAngles   = item.is3d ? (data.elAngles || []) : null;
-  item.length      = Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0);
+  item.diameter   = isSpiral ? (spiral.barDiameter || item.diameter || 8) : (data.diameter || item.diameter || 12);
+  item.spiral_diameter_mm = isSpiral ? (spiral.spiralDiameterMm || null) : null;
+  item.spiral_turns = isSpiral ? (spiral.spiralTurns || null) : null;
+  item.length      = isSpiral
+    ? (data.calculated?.totalLengthMm || data.total_length_mm || spiralLengthMm(spiral.spiralDiameterMm, spiral.spiralTurns))
+    : (Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0));
   item.qty         = Math.max(1, Number(data.orderItemQuantity || item.qty || 1) || 1);
   _shapeTarget = null;
   renderPallets();
@@ -2468,13 +2526,18 @@ function setMaxWeight(palletId, value) {
 }
 
 // ── WEIGHT CALC ──────────────────────────────────────────────
+function isSpiralOrderItem(item = {}) {
+  const spiralDiameter = Number(item.spiral_diameter_mm || item.spiralDiameterMm || 0);
+  const spiralTurns = Number(item.spiral_turns || item.spiralTurns || 0);
+  const nameLooksSpiral = /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(item.shapeName || item.shape_name || item.shape || item.type || ''));
+  return spiralDiameter > 0 && spiralTurns > 0 && (nameLooksSpiral || !Array.isArray(item.shapeSides) || item.shapeSides.length <= 2);
+}
+
 function calcItemWeight(item) {
   if (!item.diameter || !item.qty) return 0;
   const spiralDiameter = Number(item.spiral_diameter_mm || item.spiralDiameterMm || 0);
   const spiralTurns = Number(item.spiral_turns || item.spiralTurns || 0);
-  const isSpiral = /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(item.shapeName || item.shape_name || ''))
-    && spiralDiameter > 0
-    && spiralTurns > 0;
+  const isSpiral = isSpiralOrderItem(item);
   const length = isSpiral ? spiralLengthMm(spiralDiameter, spiralTurns) : item.length;
   const sides = isSpiral ? [] : (item.shapeSides?.length ? item.shapeSides : (length ? [length] : []));
   if (isSpiral) return window.IronBendRebar.itemWeightKg({ ...item, length, total_length_mm: length, sides: [length] });
@@ -2589,9 +2652,10 @@ async function submitOrder() {
       items: p.items.map(item => ({
         shapeId: item.shapeId,
         shapeName: item.shapeName,
+        shapeSnapshot: item.shapeSnapshot || null,
         diameter: item.diameter,
         length: item.length,
-        sides: item.shapeSides && item.shapeSides.length ? item.shapeSides : (item.length ? [item.length] : []),
+        sides: isSpiralOrderItem(item) ? [] : (item.shapeSides && item.shapeSides.length ? item.shapeSides : (item.length ? [item.length] : [])),
         angles: item.shapeAngles || [],
         spiral_diameter_mm: item.spiral_diameter_mm || item.spiralDiameterMm || null,
         spiral_turns: item.spiral_turns || item.spiralTurns || null,
@@ -2879,10 +2943,10 @@ function renderImgItems(items) {
     html += '<label class="img-item-field">קוטר ספיראלה <input class="img-item-inp" type="number" value="' + escapeHtml(it.spiral_diameter_mm || it.spiralDiameterMm || '') + '" id="imgSpiralD' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field">מספר כריכות <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(it.spiral_turns || it.spiralTurns || '') + '" id="imgSpiralTurns' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field" style="grid-column:span 2">צלעות: אורך@זווית <textarea class="img-item-textarea" id="imgSegs' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(segmentsText) + '</textarea></label>';
-    html += '<label class="img-item-field">הערה <textarea class="img-item-textarea" id="imgNote' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(it.note || it.notes || '') + '</textarea></label>';
+    html += '<label class="img-item-field">שייך ל / תיאור <textarea class="img-item-textarea" id="imgNote' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(it.note || it.notes || it.shape_description || it.shapeDescription || '') + '</textarea></label>';
     html += '</div>';
     if (it.note || it.notes) {
-      html += '<div class="img-note">⚠ ההערה ניתנת לעריכה בשדה למעלה, ורק אחרי אישור תיכנס לטופס.</div>';
+      html += '<div class="img-note">⚠ התיאור ניתן לעריכה בשדה למעלה, ורק אחרי אישור ייכנס לטופס.</div>';
     }
     html += '</div>';
   });
@@ -2916,7 +2980,11 @@ function parseImgSegments(text) {
 }
 
 function isSpiralImgItem(it) {
-  return /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String((it && (it.shape_name || it.shapeName || it.shape || it.type)) || ''));
+  if (!it) return false;
+  const spiralDiameter = Number(it.spiral_diameter_mm || it.spiralDiameterMm || 0);
+  const spiralTurns = Number(it.spiral_turns || it.spiralTurns || 0);
+  const nameLooksSpiral = /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(it.shape_name || it.shapeName || it.shape || it.type || ''));
+  return spiralDiameter > 0 && spiralTurns > 0 && (nameLooksSpiral || !Array.isArray(it.segments) || it.segments.length <= 2);
 }
 
 function spiralLengthMm(spiralDiameterMm, turns) {
@@ -2967,7 +3035,7 @@ function confirmImgItems() {
     // Build sides/angles from segments
     var spiralDiameter = Number(it.spiral_diameter_mm || it.spiralDiameterMm || 0);
     var spiralTurns = Number(it.spiral_turns || it.spiralTurns || 0);
-    var isSpiral = isSpiralImgItem(it) && spiralDiameter > 0 && spiralTurns > 0;
+    var isSpiral = isSpiralImgItem(it);
     var sides  = isSpiral ? [] : (it.segments || []).map(function(s) { return s.length_mm || 500; });
     var angles = isSpiral ? [] : (it.segments || []).slice(0, -1).map(function(s) { return s.angle_deg != null ? s.angle_deg : 180; });
     if (!isSpiral && !sides.length) sides = [it.total_length_mm || 1000];
@@ -2987,7 +3055,8 @@ function confirmImgItems() {
       qty:         it.quantity || 1,
       spiral_diameter_mm: isSpiral ? spiralDiameter : null,
       spiral_turns: isSpiral ? spiralTurns : null,
-      note:        it.note || ''
+      structElement: String(it.structElement || it.struct_element || it.element_name || it.elementName || it.element || it.member_name || it.memberName || '').trim(),
+      note:        it.note || it.notes || it.shape_description || it.shapeDescription || ''
     });
   });
 

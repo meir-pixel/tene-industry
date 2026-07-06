@@ -1408,9 +1408,14 @@ function parseOrderItemSegments(rawSegments) {
   }
 }
 
+function portalCustomerItemDescription(item) {
+  return [item.struct_element, item.note].map(value => String(value || '').trim()).filter(Boolean).filter((value, index, list) => list.indexOf(value) === index).join(' · ');
+}
+
 function portalOrderItemViewModel(item) {
   const shapeName = item.shape_name || item.shapeName || 'ישר';
   const seg = parseOrderItemSegments(item.segments);
+  const customerDescription = portalCustomerItemDescription(item);
   return {
     ...item,
     shapeName,
@@ -1418,6 +1423,7 @@ function portalOrderItemViewModel(item) {
     angles: seg.angles,
     qty: Number(item.quantity || 0),
     diameter: Number(item.diameter || 0),
+    customerDescription,
   };
 }
 
@@ -1450,7 +1456,7 @@ function renderDetail(order) {
         <div class="item-detail-head">
           <div>
             <div class="item-detail-name">פריט ${idx + 1} · ${escapeHtml(item.shapeName)}</div>
-            <div style="font-size:12px;color:var(--dim)">${escapeHtml(item.struct_element || item.struct_floor || item.sheet_num || '')}</div>
+            ${item.customerDescription ? `<div style="font-size:12px;color:var(--dim)">שייך ל / תיאור: ${escapeHtml(item.customerDescription)}</div>` : ''}
           </div>
           <div class="item-detail-diam">Ø${escapeHtml(item.diameter)}</div>
         </div>
@@ -1461,7 +1467,6 @@ function renderDetail(order) {
           ${item.status ? `<span>סטטוס: ${escapeHtml(item.status)}</span>` : ''}
         </div>
         ${segmentsLabel ? `<div class="item-detail-note">צלעות: ${escapeHtml(segmentsLabel)}</div>` : ''}
-        ${item.note ? `<div class="item-detail-note">${escapeHtml(item.note)}</div>` : ''}
         ${isPendingApproval || pct === null ? '' : `
         <div style="margin-top:6px;background:#eee;border-radius:20px;height:6px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:var(--green);transition:.3s"></div>
@@ -1651,8 +1656,8 @@ function renderItemRow(item, num) {
           onfocus="this.select()" style="text-align:center"/>
       </div>
       <div class="field">
-        <label>הערה</label>
-        <input type="text" value="${item.note||''}"
+        <label>שייך ל / תיאור ללקוח</label>
+        <input type="text" value="${escapeHtml(item.note||'')}" placeholder="לדוגמה: קיר חומה מבנה 103, קומה 2"
           onchange="updateField(${item.id},'note',this.value)"/>
       </div>
     </div>

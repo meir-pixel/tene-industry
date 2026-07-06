@@ -49,9 +49,10 @@ function normalizeSpiralParams(item = {}) {
     item.coils,
     item.windings
   );
+  const hasSpiralDimensions = spiralDiameterMm > 0 && turns > 0;
   const isSpiral = isSpiralName(item.shape_name || item.shapeName || item.shape || item.type);
   return {
-    isSpiral: isSpiral && spiralDiameterMm > 0 && turns > 0,
+    isSpiral: hasSpiralDimensions && (isSpiral || !Array.isArray(item.sides) || item.sides.length <= 2),
     spiralDiameterMm,
     turns,
   };

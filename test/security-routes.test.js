@@ -126,6 +126,38 @@ function shapeV2Envelope() {
   };
 }
 
+function spiralShapeV2Envelope() {
+  return {
+    contractVersion: 2,
+    shapeVersion: 1,
+    shapeId: 'spiral-v2-001',
+    shapeType: 'spiral',
+    family: 'spirals',
+    displayName: 'Spiral Shape V2',
+    data: {
+      barDiameter: 8,
+      spiralDiameter: 300,
+      turns: 50,
+    },
+    calculated: {
+      totalLengthMm: 47124,
+      weightKg: 18.6,
+    },
+    machineOutput: {
+      generic: {
+        family: 'spirals',
+        shapeType: 'spiral',
+        barDiameter: 8,
+        spiralDiameter: 300,
+        turns: 50,
+        totalLengthMm: 47124,
+      },
+      machineProfiles: {},
+    },
+    validation: { valid: true, warnings: [], errors: [] },
+  };
+}
+
 test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   seedUser('admin', 'admin', '1001');
   seedUser('manager', 'manager', '1002');
@@ -244,6 +276,18 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.notEqual((await request('/api/orders', { method: 'POST', headers: authHeaders(office), body })).status, 401);
     assert.notEqual((await request('/api/orders', { method: 'POST', headers: authHeaders(office), body })).status, 403);
   });
+  await t.test('order delete lets office remove pending test orders but protects approved orders', async () => {
+    const customerId = seedCustomer();
+    const pendingOrderId = seedInternalOrder(customerId, 'ORDER-DELETE-OFFICE-PENDING');
+    assert.equal((await request(`/api/orders/${pendingOrderId}`, { method: 'DELETE' })).status, 401);
+    assert.equal((await request(`/api/orders/${pendingOrderId}`, { method: 'DELETE', headers: authHeaders(production) })).status, 403);
+    assert.equal((await request(`/api/orders/${pendingOrderId}`, { method: 'DELETE', headers: authHeaders(office) })).status, 200);
+
+    const approvedOrderId = seedInternalOrder(customerId, 'ORDER-DELETE-OFFICE-APPROVED');
+    db.prepare('UPDATE orders SET status=? WHERE id=?').run(statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION, approvedOrderId);
+    assert.equal((await request(`/api/orders/${approvedOrderId}`, { method: 'DELETE', headers: authHeaders(office) })).status, 403);
+    assert.equal((await request(`/api/orders/${approvedOrderId}`, { method: 'DELETE', headers: authHeaders(manager) })).status, 200);
+  });
 
   await t.test('order creation stores selected customer site only for that customer', async () => {
     const customerId = seedCustomer();
@@ -264,6 +308,83 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(order.customer_id, customerId);
     assert.equal(order.site_id, siteId);
     assert.equal(order.delivery_address, 'Site A address');
+  });
+  await t.test('order creation treats spiral fields as spiral even when source name is generic', async () => {
+    const response = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(office),
+      body: JSON.stringify({
+        customer: { name: 'Spiral Import Customer', phone: '0500000002' },
+        order: { orderNum: 'ORDER-SPIRAL-GENERIC', channel: 'office', deliveryAddress: 'Factory', totalWeight: 0 },
+        pallets: [{ items: [{
+          shapeName: 'custom',
+          diameter: 8,
+          length: 47124,
+          sides: [47124, 47124],
+          angles: [0],
+          qty: 2,
+          spiral_diameter_mm: 300,
+          spiral_turns: 50,
+        }] }],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    const item = db.prepare('SELECT shape_name,segments,spiral_diameter_mm,spiral_turns,total_length_mm FROM items WHERE order_id=?').get(created.orderId);
+    assert.equal(item.shape_name, 'spiral');
+    assert.deepEqual(JSON.parse(item.segments), []);
+    assert.equal(item.spiral_diameter_mm, 300);
+    assert.equal(item.spiral_turns, 50);
+    assert.equal(item.total_length_mm, 47124);
+  });
+
+  await t.test('order creation extracts spiral fields from Shape V2 envelope', async () => {
+    const envelope = spiralShapeV2Envelope();
+    const response = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(office),
+      body: JSON.stringify({
+        customer: { name: 'Spiral Shape Contract Customer', phone: '0500000004' },
+        order: { orderNum: 'ORDER-SPIRAL-SHAPE-V2', channel: 'office', deliveryAddress: 'Factory', totalWeight: 0 },
+        pallets: [{ items: [{ shapeSnapshot: envelope, qty: 2 }] }],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    const item = db.prepare('SELECT shape_name,segments,diameter,spiral_diameter_mm,spiral_turns,total_length_mm,shape_snapshot_json FROM items WHERE order_id=?').get(created.orderId);
+    assert.equal(item.shape_name, 'spiral');
+    assert.deepEqual(JSON.parse(item.segments), []);
+    assert.equal(item.diameter, 8);
+    assert.equal(item.spiral_diameter_mm, 300);
+    assert.equal(item.spiral_turns, 50);
+    assert.equal(item.total_length_mm, 47124);
+    assert.deepEqual(JSON.parse(item.shape_snapshot_json), envelope);
+  });
+
+  await t.test('order creation treats long simple imported cut length as coil instead of segment', async () => {
+    const response = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(office),
+      body: JSON.stringify({
+        customer: { name: 'Long Coil Customer', phone: '0500000003' },
+        order: { orderNum: 'ORDER-LONG-COIL', channel: 'office', deliveryAddress: 'Factory', totalWeight: 0 },
+        pallets: [{ items: [{
+          shapeName: 'custom',
+          diameter: 8,
+          length: 47124,
+          sides: [47124],
+          angles: [0],
+          qty: 2,
+        }] }],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const created = await response.json();
+    const item = db.prepare('SELECT shape_name,segments,total_length_mm,quantity FROM items WHERE order_id=?').get(created.orderId);
+    assert.equal(item.shape_name, 'spiral');
+    assert.deepEqual(JSON.parse(item.segments), []);
+    assert.equal(item.total_length_mm, 47124);
+    assert.equal(item.quantity, 2);
   });
   await t.test('order contract requires manager approval and rejects draft-to-production', async () => {
     const customerId = seedCustomer();
@@ -306,6 +427,8 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
       total_length_mm: 1200,
       segments: [{ length_mm: 1200, angle_deg: 0 }],
       shape: { quantity: 999 },
+      element_name: 'Wall element 103',
+      shape_description: 'starter bars for wall',
     });
     const createResponse = await request(`/api/orders/${orderId}/items`, { method: 'POST', headers: authHeaders(manager), body: createBody });
     assert.equal(createResponse.status, 200);
@@ -314,6 +437,8 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(item.order_id, orderId);
     assert.equal(item.quantity, 5);
     assert.equal(item.item_uid, `order-${orderId}:item-${created.itemId}`);
+    assert.equal(item.struct_element, 'Wall element 103');
+    assert.equal(item.note, 'starter bars for wall');
     const snapshot = JSON.parse(item.shape_snapshot_json);
     assert.equal(snapshot.shapeName, 'contract-bend');
     assert.equal(Object.hasOwn(snapshot, 'quantity'), false);

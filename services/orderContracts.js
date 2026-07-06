@@ -122,18 +122,39 @@ function legacyShapeFieldsFromContract(snapshot) {
   const segments = shapeSegmentsFromContract(snapshot).filter(segment => Number.isFinite(segment.length_mm) && segment.length_mm > 0);
   const data = snapshot.data || {};
   const generic = snapshot.machineOutput?.generic || {};
-  const diameter = data.diameter ?? data.diameterMm ?? generic.diameter ?? generic.diameterMm ?? data.longitudinalDiameter ?? data.longitudinalDiameterMm ?? null;
+  const diameter = data.diameter ?? data.diameterMm ?? generic.diameter ?? generic.diameterMm ?? data.barDiameter ?? data.barDiameterMm ?? generic.barDiameter ?? generic.barDiameterMm ?? data.longitudinalDiameter ?? data.longitudinalDiameterMm ?? null;
   const totalLengthMm = numberOrNull(snapshot.calculated?.totalLengthMm ?? generic.totalLengthMm);
+  const spiralDiameterMm = numberOrNull(
+    data.spiralDiameterMm
+      ?? data.spiral_diameter_mm
+      ?? data.spiralDiameter
+      ?? generic.spiralDiameterMm
+      ?? generic.spiral_diameter_mm
+      ?? generic.spiralDiameter
+  );
+  const spiralTurns = numberOrNull(
+    data.spiralTurns
+      ?? data.spiral_turns
+      ?? data.turns
+      ?? generic.spiralTurns
+      ?? generic.spiral_turns
+      ?? generic.turns
+  );
+  const isSpiral = snapshot.family === 'spirals' || snapshot.shapeType === 'spiral' || (spiralDiameterMm > 0 && spiralTurns > 0);
   return {
     shapeId: snapshot.shapeId,
-    shapeName: snapshot.displayName || snapshot.shapeType || snapshot.shapeId,
-    shape_name: snapshot.displayName || snapshot.shapeType || snapshot.shapeId,
+    shapeName: isSpiral ? 'spiral' : (snapshot.displayName || snapshot.shapeType || snapshot.shapeId),
+    shape_name: isSpiral ? 'spiral' : (snapshot.displayName || snapshot.shapeType || snapshot.shapeId),
     diameter: numberOrNull(diameter),
-    segments,
-    sides: segments.map(segment => segment.length_mm),
-    angles: segments.map(segment => segment.angle_deg),
+    segments: isSpiral ? [] : segments,
+    sides: isSpiral ? [] : segments.map(segment => segment.length_mm),
+    angles: isSpiral ? [] : segments.map(segment => segment.angle_deg),
     totalLengthMm,
     total_length_mm: totalLengthMm,
+    spiralDiameterMm,
+    spiral_diameter_mm: spiralDiameterMm,
+    spiralTurns,
+    spiral_turns: spiralTurns,
   };
 }
 
@@ -152,6 +173,10 @@ function withShapeContractLegacyFields(item = {}) {
     angles: item.angles ?? legacy.angles,
     totalLengthMm: item.totalLengthMm ?? item.total_length_mm ?? legacy.totalLengthMm,
     total_length_mm: item.total_length_mm ?? item.totalLengthMm ?? legacy.total_length_mm,
+    spiralDiameterMm: item.spiralDiameterMm ?? item.spiral_diameter_mm ?? legacy.spiralDiameterMm,
+    spiral_diameter_mm: item.spiral_diameter_mm ?? item.spiralDiameterMm ?? legacy.spiral_diameter_mm,
+    spiralTurns: item.spiralTurns ?? item.spiral_turns ?? legacy.spiralTurns,
+    spiral_turns: item.spiral_turns ?? item.spiralTurns ?? legacy.spiral_turns,
   };
 }
 

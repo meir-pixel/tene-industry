@@ -242,6 +242,7 @@
 - module: customers/portal
 - priority: high
 - latest_change:
+  - fixed customer portal access links to use BASE_URL or the public request host instead of localhost.
   - added first-edit customer profile locking so later portal detail changes become internal approval requests.
   - exposed a customer quote-before-order entry point and a dedicated quote panel before order submission.
   - made the customer portal home project-first with visible new-project actions and an editable customer details panel.
@@ -903,6 +904,7 @@
 - scope:
   - `TASKS_V2.md`
   - `public/index.html`
+  - `modules/steel-rebar/shapes.js`
   - `services/orders.js`
   - `test/client-auth-contract.test.js`
   - `test/security-routes.test.js`
@@ -912,6 +914,9 @@
   - opening Customers from a draft order saves a local draft for return.
   - saved orders persist selected site_id only when it belongs to the selected customer.
   - new-order save clears stale customer/site bindings before submit and shows server save errors.
+  - new-order save treats rows with spiral diameter and turns as spiral items even when source labels are generic.
+  - new-order save treats long simple imported cut lengths as coil/spiral items instead of validating them as bar segments.
+  - office users can delete pending/unapproved test orders while approved or production-started orders remain protected.
 - guardrails:
   - Orders/customer integration only.
   - No Production, Portal, Finance, OCR, pricing, or UI redesign.
@@ -925,7 +930,7 @@
 - module: intake-ocr
 - priority: critical
 - latest_change:
-  - Intake/OCR spiral rows keep bar diameter, spiral diameter, and turn count separate; explicit 60 turns overrides stale 160 OCR guesses.
+  - OCR draft autosave no longer fails when OCR training-example persistence is unavailable; row approval remains saved and training is skipped with a warning.
   - Intake/OCR spiral rows keep bar diameter, spiral diameter, and turn count separate; 60 turns stays 60 instead of guessed 160.
   - normalized OCR spiral rows as first-class steel items: bar diameter, spiral diameter, and turn count stay separate, with cut length calculated without guessing 160 when source says 60.
   - added source-field highlighting from parser bounding boxes and row-level OCR learning examples on approved review rows.
@@ -966,6 +971,7 @@
   - modules/intake/module.manifest.js
   - docs/event-registry.md
   - routes/intake.js
+  - routes/intakeReview.js
   - routes/catalog.js
   - public/intake.html
   - public/pricing.html
@@ -1596,6 +1602,36 @@
 
 ---
 
+
+### V2-006AI - Pile Cage Foundation Elements And Hoop Controls
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - Pile cage editor must show the foundation elements that compose the cage.
+  - Internal hoop controls must be compact and edited from one row: enabled, bar diameter, spacing, start, end, and start side.
+  - Internal hoop diameter must be derived from cage diameter and longitudinal bar diameter, without hidden concrete-cover subtraction.
+- output:
+  - Pile cage editor shows a compact element breakdown for longitudinal bars, spiral zones, internal hoops, and per-bar overrides.
+  - Internal hoop controls are consolidated into one compact row with a start-side selector.
+  - Hoop positions are calculated from the selected side and included in manufacturing breakdown.
+- guardrails:
+  - No Orders, Production, Pricing, Warehouse, OCR, Portal, API, or DB changes.
+  - No new shape families.
+  - No full UI redesign.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+  - `node --test test\pile-cage-engine.test.js`
+
+---
+
 ### V2-011D ג€” Worker Dashboard Inline Production Controls
 
 - status: done
@@ -1666,7 +1702,7 @@
 
 ---
 
-### V2-006AG - Pile Cage Engineering A4 Preview And Calculator
+### V2-006AG - Pile Cage Engineering Engine Slice
 
 - status: in_progress
 - owner: codex-steel-rebar-shape-editor
@@ -1675,29 +1711,56 @@
 - scope:
   - `TASKS_V2.md`
   - `modules/steel-rebar/pile-cage-engine.js`
-  - `modules/steel-rebar/index.js`
-  - `docs/mockups/pile-cage-a4-report.html`
   - `test/pile-cage-engine.test.js`
 - input:
   - Pile cage is an engineering product, not a generic bent-bar shape.
-  - Default spiral pitch mode is uniform; variable pitch opens zone length + pitch rows.
+  - Primary module is Shapes / Engineering Engine, not Orders, Production, Printing, OCR, Pricing, Finance, Portal, or DB.
+  - Default spiral pitch mode is uniform; zones must cover the active spiral length when enabled.
   - No-spiral gaps are allowed only at the start/end, not in the middle.
-  - Longitudinal bars may use alternating diameter/shape patterns and per-bar overrides.
+  - Longitudinal bars may use uniform, alternating, grouped, or individual diameter/type patterns.
 - output:
-  - Pile cage calculator returns geometry, weights, spiral calculations, validation, and manufacturing breakdown.
-  - A4 engineering preview mockup shows side view, top section, 3D-style overview, element details, and summary.
-  - Live Shape Editor runtime is not changed in this task.
+  - PileCageModel returns `general`, `longitudinalBars`, `spiral`, `hoops`, `calculations`, `manufacturingBreakdown`, `validation`, and `views`.
+  - Shape V2 envelope is preserved with `shapeType = round_pile_cage`, `family = piles`, `machineOutput`, and legacy compatibility fields.
+  - No A4 screen, production card, live Shape Editor UI, or cross-module rewrite is included in this slice.
 - guardrails:
-  - Do not change Orders, Production, Pricing, Warehouse, OCR, API, DB, or live Shape Editor UI.
+  - Do not change Orders, Production, Printing, Pricing, Warehouse, OCR, API, DB, Portal, or live Shape Editor UI.
   - Do not add new shape families.
-  - Keep this as pile-cage-only groundwork before mesh work.
+  - Keep this as pile-cage-only engineering model groundwork before mesh work.
 - verification:
+  - `node --check modules\steel-rebar\pile-cage-engine.js`
   - `node --test test\pile-cage-engine.test.js`
-  - visual review of `docs/mockups/pile-cage-a4-report.html`
-
 
 ---
 
+### V2-006AH - Pile Cage Shape Editor 2D Engineering Preview
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - Stage A: make the pile cage preview look like the engineering reference without adding 3D.
+  - Use the existing Shape Editor screen and the existing PileCageEngine renderer only.
+- latest_change:
+  - Pile cage editor dimensions are treated as centimeters and converted to millimeters for contract/calculation output; drawing pitch values are read-only labels.
+  - Pile cage editor now labels every rebar diameter explicitly and derives the internal hoop/ring diameter from pile diameter, cover, and longitudinal bar diameter.
+- output:
+  - Pile cage preview draws a large side view with L, zone dimensions, pitch labels, spiral loops, hoops, and D.
+  - Pile cage preview draws a top/cross-section view with longitudinal bars, D, and spiral diameter.
+  - 3D helper output is intentionally removed from this stage.
+- guardrails:
+  - No Orders, Production, Printing/A4/cards, OCR, API, DB, Pricing, Portal, or Warehouse changes.
+  - No new shape families.
+  - No 3D work in this stage.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js test\pile-cage-engine.test.js`
+
+---
 ### V2-011G - Unit Progress For Pile Cages
 
 - status: done
@@ -1720,3 +1783,343 @@
 - verification:
   - `node --test test\production-item-boundaries.test.js test\client-auth-contract.test.js test\module-governance.test.js`
   - `npm test`
+
+
+---
+
+### V2-011H - Pile Cage Production Card Breakdown
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / pile-cages
+- scope:
+  - `TASKS_V2.md`
+  - `modules/steel-rebar/pile-cage-engine.js`
+  - `services/productionCardPrintPage.js`
+  - `public/worker-visual.html`
+  - `test/pile-cage-engine.test.js`
+  - `test/production-print-page.test.js`
+- goal:
+  - Pile cage items print one master card for each pile unit.
+  - Each pile unit also prints production component cards from the pile cage manufacturing breakdown.
+  - Component cards keep QR routing to the parent production item while carrying pile unit/component suffixes.
+- guardrails:
+  - No database migration.
+  - Do not change Orders lifecycle, Finance, Portal, OCR, Warehouse, or pricing.
+- verification:
+  - `node --check modules\steel-rebar\pile-cage-engine.js`
+  - `node --test test\pile-cage-engine.test.js test\production-print-page.test.js`
+
+---
+
+### V2-011I - Pile Component Shape Visuals Use Engine Output
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / pile-cages / printing
+- scope:
+  - `TASKS_V2.md`
+  - `services/productionCardPrintPage.js`
+  - `services/productionCards.js`
+  - `public/shape-editor.js`
+  - `test/production-print-page.test.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Pile cage component cards do not fall back to straight-bar drawing for spiral and hoop components.
+  - Printed cards prefer the shape SVG produced by the shape contract / shape engine when available.
+  - Shape Editor pile contract exposes manufacturing breakdown and production card metadata from the pile cage engine.
+- guardrails:
+  - Preserve production status flow, QR routing, Orders lifecycle, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --check services\productionCardPrintPage.js`
+  - `node --check services\productionCards.js`
+  - `node --test test\shape-geometry.test.js test\pile-cage-engine.test.js test\production-print-page.test.js`
+  - `npm test`
+
+---
+
+### V2-011J - Server Spiral Item Shape Rendering
+
+- status: done
+- owner: codex-production-cards-printing
+- module: production-cards / order-display / printing
+- scope:
+  - `TASKS_V2.md`
+  - `services/productionCards.js`
+  - `services/productionCardPrintPage.js`
+  - `routes/orders.js`
+  - `routes/production.js`
+  - `routes/orderPrintA4.js`
+  - `routes/orderDeliveryCertificate.js`
+  - `test/shape-geometry.test.js`
+  - `test/client-auth-contract.test.js`
+- goal:
+  - Display and print views recognize saved spiral items from item fields or legacy shape snapshots.
+  - Spiral items no longer fall back to straight-bar SVG when `segments` is empty.
+  - Existing saved spiral rows work retroactively when `spiral_diameter_mm` and `spiral_turns` are present.
+- guardrails:
+  - Preserve Orders lifecycle, Production status flow, QR routing, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --check services\productionCards.js`
+  - `node --check routes\orders.js routes\production.js routes\orderPrintA4.js routes\orderDeliveryCertificate.js services\productionCardPrintPage.js`
+  - `node --test test\client-auth-contract.test.js test\production-print-page.test.js test\security-routes.test.js`
+
+
+---
+
+### V2-011K - Spiral Shape Editor Order Handoff
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing + Shape Editor handoff
+- files:
+  - `public/index.html`
+  - `services/orderContracts.js`
+  - `test/client-auth-contract.test.js`
+  - `test/security-routes.test.js`
+- goal:
+  - New order rows preserve approved Shape V2 contracts from the shape editor.
+  - Spiral items keep bar diameter, spiral diameter, turns, and total length from the editor instead of becoming straight length rows.
+  - Spiral bar diameter is edited through the shape editor; the order table reflects it and opens the editor for changes.
+- guardrails:
+  - Preserve Orders lifecycle, Production status flow, QR routing, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --test test\client-auth-contract.test.js`
+  - `node --test test\security-routes.test.js`
+  - `index.html` inline script syntax check
+---
+
+### V2-011L - Spiral Production Card Visual Labels
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing
+- files:
+  - `services/productionCards.js`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Spiral production cards visually distinguish spiral diameter from turn count.
+  - Printed cards show fixed visual labels for spiral diameter and wrap count instead of unclear English shorthand.
+  - Pile cage internal hoop/ring visual calculation stays aligned with pile diameter, cover, and longitudinal bar diameter.
+- guardrails:
+  - Preserve 8-per-A4 card grid, QR routing, Production status flow, Orders lifecycle, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+  - `npm test`
+---
+
+### V2-011M - Pile Cage Editor Live Derived Rows
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing + Shape Editor handoff
+- files:
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- latest_change:
+  - Compact pile-cage editor rows reduce empty vertical space in the parameter panel.
+  - Longitudinal bars now support editable per-bar overrides for bar number, diameter, straight/L shape, and L-leg length.
+- goal:
+  - Pile cage internal hoop/ring diameter updates immediately when pile diameter or bar diameter changes.
+  - Straight longitudinal bars do not show an L-leg field.
+  - Mixed longitudinal bars show separate visual editors for bar A and bar B.
+- guardrails:
+  - Preserve Production status flow, QR routing, Orders lifecycle, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No module rewrite.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+  - `npm test`
+
+
+---
+
+### V2-011O - Worker Dashboard Canonical Shape SVG Only
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing + Shape Editor handoff
+- files:
+  - `public/worker-visual.html`
+  - `test/client-auth-contract.test.js`
+- goal:
+  - Worker collection cards no longer use a separate local shape drawing fallback.
+  - Worker display prefers server-provided `shape_svg`; if missing, it shows an explicit missing-shape placeholder instead of a wrong shape.
+- guardrails:
+  - Preserve Production status flow, QR routing, Orders lifecycle, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign beyond removing inconsistent fallback drawing.
+- verification:
+  - `node --test test\client-auth-contract.test.js`
+---
+
+### V2-011N - Worker Dashboard Canonical Shape Feed
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing
+- files:
+  - `routes/production.js`
+  - `test/client-auth-contract.test.js`
+- goal:
+  - Worker card collection dashboard receives the same shape contract fields used by printed cards and order displays.
+  - Dashboard shape visuals prefer the server-rendered production shape SVG, including spiral and pile-derived shapes.
+  - Local drawing in `worker-visual.html` remains fallback only when no canonical SVG is returned.
+- guardrails:
+  - Preserve Production status flow, QR routing, Orders lifecycle, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign.
+- verification:
+  - `node --check routes\production.js`
+  - `node --test test\client-auth-contract.test.js`
+  - `npm test`
+
+---
+
+### V2-011P - Public Worker Card Scan Updates
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing
+- files:
+  - `routes/production.js`
+  - `public/worker-visual.html`
+  - `test/production-item-boundaries.test.js`
+  - `test/client-auth-contract.test.js`
+  - `test/route-auth-coverage.test.js`
+- goal:
+  - A worker scanning a production card QR can open that specific card without logging in.
+  - Public scan mode can update only production-owned card fields: status, produced quantity, actual weight, and notes.
+  - Full production queue and other system screens remain behind normal role-based authentication.
+- guardrails:
+  - Preserve Orders lifecycle, Production status gates, QR routing, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - Do not expose the full worker queue without authentication.
+  - Temporary/no-login QR update mode only until worker permissions are finalized.
+- verification:
+  - `node --check routes\production.js`
+  - `node --test test\production-item-boundaries.test.js test\client-auth-contract.test.js test\route-auth-coverage.test.js`
+  - `npm test`
+
+---
+
+### V2-006AJ - Pile Cage Hoop Row Readability
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+- goal:
+  - Make the pile cage internal hoop row readable by giving the right parameter panel more width and reducing compact-row chrome.
+  - Preserve the existing editor flow, pile calculations, rendering engine, and shape families.
+- guardrails:
+  - No Orders, Production lifecycle, Pricing, Portal, Warehouse, DB, or machine integration changes.
+  - No redesign and no new shape family.
+- verification:
+  - `node --check public\shape-editor.js`
+
+---
+
+### V2-011Q - Production Card Proportional Short Bend Rendering
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing + Shape Editor handoff
+- files:
+  - `TASKS_V2.md`
+  - `services/productionCards.js`
+  - `services/productionCardPrintPage.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Production card drawings keep short bent legs visually readable when a very long bar segment would otherwise flatten them.
+  - Printed labels and calculated lengths remain true to the real dimensions; only the drawing scale gets a visual minimum for extreme ratios.
+- guardrails:
+  - Preserve Orders lifecycle, Production status flow, QR routing, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign and no new shape families.
+- verification:
+  - `node --check services\productionCards.js`
+  - `node --check services\productionCardPrintPage.js`
+  - `node --test test\shape-geometry.test.js`
+  - `node --test test\production-print-page.test.js`
+
+---
+
+### V2-006AK - Pile Cage Hoop Row Marker Cleanup
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+- goal:
+  - Remove the small field codes and marker bubbles from the internal hoop compact row so the values remain readable.
+  - Hide marker icons/codes across the pile cage parameter table.
+  - Do not display pitch markers for zones marked no-wrap.
+- guardrails:
+  - No Orders, Production lifecycle, Pricing, Portal, Warehouse, DB, or rendering engine changes.
+- verification:
+  - `node --check public\shape-editor.js`
+---
+
+### V2-006AL - Pile Cage Engineering Workspace Slice
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+- goal:
+  - Make the pile cage editor feel closer to an engineering workspace by giving the canvas more width and moving properties into grouped sections.
+  - Keep the work parameter-driven and preserve the existing PileCageEngine calculations and renderer.
+- guardrails:
+  - No Orders, OCR, Worker, Printing, Pricing, Finance, Warehouse, Portal, Shape Contract, API, or DB schema changes.
+  - No 3D implementation in this slice.
+- verification:
+  - `node --check public\shape-editor.js`
+---
+
+### V2-006AM - Pile Cage Editor Usability Fix
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Make the current pile cage editor usable with readable accordion sections, summaries, validation feedback, and section-to-drawing focus.
+  - Preserve the current data model, calculations, shape contract, APIs, and renderer.
+- guardrails:
+  - No Orders, OCR, Worker, Printing, Pricing, Finance, Warehouse, Portal, Shape Contract, API, or DB schema changes.
+  - No 3D and no full editor rewrite.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+---
+
+### V2-006AN - Pile Cage Panel Clipping Cleanup
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Stop pile cage accordion sections from clipping internal hoops and production breakdown content.
+  - Reduce wasted empty space inside pile cage editor sections by making full-width rows actually span the panel.
+- guardrails:
+  - No Orders, OCR, Worker, Printing, Pricing, Finance, Warehouse, Portal, Shape Contract, API, DB, renderer, or calculation changes.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`

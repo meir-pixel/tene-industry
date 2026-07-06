@@ -149,6 +149,21 @@ test('customer portal UI uses OTP verification before storing token', () => {
   assert.match(customer, /completeAuth\(data\.data\)/);
 });
 
+test('customer portal links use public base URL instead of localhost fallback', () => {
+  const portalAccess = read('services/portalAccess.js');
+  const portalAdminRoute = read('routes/portalAdmin.js');
+  const portalRoute = read('routes/portal.js');
+
+  assert.match(portalAccess, /settingsService\.get\('BASE_URL'/);
+  assert.match(portalAccess, /function portalLink/);
+  assert.match(portalAccess, /encodeURIComponent\(token\)/);
+  assert.match(portalAdminRoute, /x-forwarded-host/);
+  assert.match(portalAdminRoute, /portalAuthResponse\(c, \{ baseUrl: requestPublicBaseUrl\(req\) \}\)/);
+  assert.match(portalAdminRoute, /configuredBaseUrl\(requestPublicBaseUrl\(req\)\)/);
+  assert.match(portalRoute, /x-forwarded-host/);
+  assert.match(portalRoute, /portalAccess\.portalLink\(token, \{ baseUrl: requestPublicBaseUrl\(req\) \}\)/);
+});
+
 test('customer portal exposes quote before order submission', () => {
   const portalRoute = read('routes/portal.js');
   const customerPage = read('public/customer.html');
@@ -697,7 +712,7 @@ test('delivery certificate summarizes work sections and reuses production card s
   assert.match(deliveryCertificate, /function buildDeliveryWorkSummary/);
   assert.ok(deliveryCertificate.includes("add('steel', item, weight); add('cutting', item, weight); add('bending', item, weight)"));
   assert.match(deliveryCertificate, /isSixOrTwelveMeterStraight/);
-  assert.ok(deliveryCertificate.includes('productionCards.shapeSvg(item.segments)'));
+  assert.ok(deliveryCertificate.includes('productionCards.itemShapeSvg(item)'));
   assert.match(deliveryCertificate, /data-summary-contract="steel-cutting-bending"/);
   assert.match(deliveryCertificate, /delivery-shape svg/);
   assert.doesNotMatch(deliveryCertificate, /const svgShape/);
@@ -758,6 +773,15 @@ test('new order screen uses compact workspace layout with sticky summary', () =>
   assert.match(index, /const selectedSiteId = selectedCustomerId \? \(document\.getElementById\('orderSiteId'\)\?\.value \|\| null\) : null/);
   assert.match(index, /siteId: selectedSiteId/);
   assert.match(index, /alert\(result\.error \|\|/);
+  assert.match(index, /function isSpiralOrderItem\(item = \{\}\)/);
+  assert.match(index, /function itemShapeContract\(item = \{\}\)/);
+  assert.match(index, /function approvedShapeContract\(data = \{\}\)/);
+  assert.match(index, /function spiralFieldsFromShapeData\(data = \{\}\)/);
+  assert.match(index, /item\.shapeSnapshot = approvedShapeContract\(data\)/);
+  assert.match(index, /shapeSnapshot: item\.shapeSnapshot \|\| null/);
+  assert.match(index, /openShapeEditor\(\$\{palletId\}, '\$\{item\.id\}'\)/);
+  assert.match(index, /sides: isSpiralOrderItem\(item\) \? \[\] :/);
+  assert.match(index, /function isSpiralImgItem\(it\)/);
   assert.match(index, /function updateDeliverySummary\(\)/);
   assert.match(index, /function openDeliveryDetails\(\)/);
   assert.match(index, /function openCustomerDetails\(\)/);
@@ -878,7 +902,8 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /ITEM_STATUS\.IN_PRODUCTION/);
   assert.match(workerVisual, /ITEM_STATUS\.DONE/);
   assert.match(workerVisual, /ITEM_STATUS\.DELIVERED/);
-  assert.match(workerVisual, /isOpenUShape/);
+  assert.match(workerVisual, /worker-canonical-missing/);
+  assert.doesNotMatch(workerVisual, /isOpenUShape/);
   assert.match(workerVisual, /worker-card-summary/);
   assert.match(workerVisual, /SCAN_ENTRY/);
   assert.match(workerVisual, /scan-entry/);
@@ -886,9 +911,6 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /selectedOrder=orders\.find/);
   assert.match(workerVisual, /SCAN_ENTRY\?\(state\.focusItemId/);
   assert.match(workerVisual, /shape-scale-note/);
-  assert.match(workerVisual, /readableOpenUDimensions/);
-  assert.match(workerVisual, /data-shape-kind="worker-open-u"/);
-  assert.match(workerVisual, /data-scale-mode="readable"/);
   assert.match(workerVisual, /actual_weight_kg/);
   assert.match(workerVisual, /produced_qty/);
   assert.match(workerVisual, /isUnitProgressItem/);
@@ -903,7 +925,6 @@ test('shop floor screens use shared item status values', () => {
   assert.match(workerVisual, /weightDeviation/);
   assert.match(workerVisual, /משקל רצוי/);
   assert.match(workerVisual, /משקל מצוי/);
-  assert.match(workerVisual, /spiral\|ring\|coil/);
   assert.match(workerVisual, /דשבורד איסוף כרטיסים/);
   assert.match(workerVisual, /function parseCardToken/);
   assert.match(workerVisual, /openScannedCard/);
@@ -1636,6 +1657,8 @@ test('post-order OCR review saves row statuses without mutating approved intake 
   assert.match(intakeReviewRoute, /function orderItemToParsedItem/);
   assert.match(intakeReviewRoute, /function saveReviewedItemCorrectionExample/);
   assert.match(intakeReviewRoute, /Intake row approval/);
+  assert.match(intakeReviewRoute, /Training example save skipped/);
+  assert.match(intakeReviewRoute, /Row approval training example save skipped/);
   assert.match(intakeReviewRoute, /const parsedItems = next\.items\.length \? next\.items : orderItems\.map\(orderItemToParsedItem\)/);
   assert.match(intakeReviewRoute, /shape_snapshot_json,shape_id,shape_name,diameter/);
   assert.match(intakeReviewRoute, /COALESCE\(review_notes,note\) AS review_note_text/);
@@ -1658,7 +1681,7 @@ test('order detail prefers canonical server-rendered production shape SVG', () =
   assert.match(ordersHtml, /data-shape-svg/);
   assert.match(ordersHtml, /el.dataset.shapeSvg/);
   assert.match(ordersHtml, /decodeURIComponent\(el\.dataset\.shapeSvg\)/);
-  assert.match(ordersRoute, /item\.shape_svg = productionCards\.shapeSvg\(item\.segments\)/);
+  assert.match(ordersRoute, /item\.shape_svg = productionCards\.itemShapeSvg\(item\)/);
 });
 
 
@@ -1668,7 +1691,22 @@ test('display-only production views prefer server-rendered production shape SVG'
   const orderPrintA4 = read('routes/orderPrintA4.js');
 
   assert.match(worker, /if\(item\.shape_svg\)return item\.shape_svg/);
-  assert.match(productionRoute, /productionCards\.shapeSvg\(item\.segments\)/);
-  assert.match(orderPrintA4, /shape_svg:\s+productionCards\.shapeSvg\(it\.segments\)/);
+  assert.match(worker, /worker-canonical-missing/);
+  assert.match(worker, /\/api\/worker-card\?card=/);
+  assert.match(worker, /workerCardApi\(id,'\/status'\)/);
+  assert.match(worker, /if\(!SCAN_ENTRY\)ws\(\)/);
+  assert.match(productionRoute, /router\.get\('\/worker-card'/);
+  assert.match(productionRoute, /router\.patch\('\/worker-card\/:id'/);
+  assert.match(productionRoute, /router\.patch\('\/worker-card\/:id\/status'/);
+  assert.doesNotMatch(worker, /worker-open-u/);
+  assert.doesNotMatch(worker, /worker-closed-stirrup/);
+  assert.doesNotMatch(worker, /function openU\(/);
+  assert.doesNotMatch(worker, /function generic\(/);
+  assert.match(productionRoute, /i\.shape_snapshot_json/);
+  assert.match(productionRoute, /i\.spiral_diameter_mm/);
+  assert.match(productionRoute, /i\.spiral_turns/);
+  assert.match(productionRoute, /productionCards\.itemShapeSvg\(item\)/);
+  assert.match(orderPrintA4, /shape_svg:\s+productionCards\.itemShapeSvg\(it\)/);
   assert.doesNotMatch(orderPrintA4, /function drawShape2D/);
 });
+

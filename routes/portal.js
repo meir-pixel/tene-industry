@@ -24,6 +24,12 @@ module.exports = function createPortalRouter(deps) {
   const IS_TEST = Boolean(deps.IS_TEST);
 
   const portalAccess = createPortalAccessService({ db, crypto, settingsService, PORT });
+  function requestPublicBaseUrl(req) {
+    const proto = String(req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0].trim();
+    const host = String(req.get('x-forwarded-host') || req.get('host') || '').split(',')[0].trim();
+    return host ? `${proto}://${host}` : '';
+  }
+
   const {
     normalizePortalPhone,
     resolveCustomer,
@@ -57,7 +63,6 @@ module.exports = function createPortalRouter(deps) {
     const issued = issueUserToken(user);
     const freshUser = db.prepare('SELECT * FROM portal_users WHERE id=?').get(user.id);
     const ctx = portalContext(customer, freshUser);
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     return {
       customer,
       user: freshUser,
@@ -66,7 +71,7 @@ module.exports = function createPortalRouter(deps) {
       portal: ctx,
       upgradedToken: issued.token,
       upgradedExpiresAt: issued.expiresAt,
-      upgradedLink: `${baseUrl}/customer.html?token=${issued.token}`,
+      upgradedLink: portalAccess.portalLink(issued.token),
     };
   }
 
@@ -266,10 +271,9 @@ module.exports = function createPortalRouter(deps) {
     const freshUser = db.prepare('SELECT * FROM portal_users WHERE id=?').get(user.id);
     const portal = portalContext(c, freshUser);
     const caps = portal.caps;
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     res.json({
       token,
-      link: `${baseUrl}/customer.html?token=${token}`,
+      link: portalAccess.portalLink(token, { baseUrl: requestPublicBaseUrl(req) }),
       expiresAt,
       role: portal.role,
       caps,
@@ -304,10 +308,9 @@ module.exports = function createPortalRouter(deps) {
     const { token, expiresAt } = issueUserToken(user);
     const portal = portalContext(customer, user);
     const caps = portal.caps;
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     res.json({
       token,
-      link: `${baseUrl}/customer.html?token=${token}`,
+      link: portalAccess.portalLink(token, { baseUrl: requestPublicBaseUrl(req) }),
       expiresAt,
       role: portal.role,
       caps,
@@ -943,7 +946,8 @@ module.exports = function createPortalRouter(deps) {
         .run(palletId, orderId, shapeSnapshot, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,
              item.qty||1, Math.ceil((item.qty||1)*(1+wastePct/100)), weight/(item.qty||1), weight, item.note||'', machine);
       db.prepare('UPDATE items SET item_uid=? WHERE id=?').run(buildOrderItemUid(orderId, itemRow.lastInsertRowid), itemRow.lastInsertRowid);
-      itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} – ${Math.round(totalLengthMm/10)}ס"מ`);
+      const itemCustomerDescription = String(item.note || '').trim();
+      itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} - ${Math.round(totalLengthMm/10)}ס"מ${itemCustomerDescription ? ' - ' + itemCustomerDescription : ''}`);
     });
 
     const billingWeight = totalWeight * (1 + wastePct/100);
@@ -955,8 +959,7 @@ module.exports = function createPortalRouter(deps) {
     wsBroadcast('new_order', { orderNum, orderId, channel: 'פורטל לקוח', status: 'ממתינה לאישור לקוח' });
 
     // Send WhatsApp confirmation with approve link (non-blocking)
-    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
-    const approveLink = `${baseUrl}/api/c/approve/${confirmToken}`;
+    const approveLink = `${portalAccess.configuredBaseUrl(requestPublicBaseUrl(req))}/api/c/approve/${encodeURIComponent(confirmToken)}`;
     const delivInfo = deliveryDate ? `📅 אספקה: ${deliveryDate}${deliveryTime ? ' ' + deliveryTime : ''}` : '';
     const addrInfo  = deliveryAddress ? `📍 ${deliveryAddress}` : '';
     const waMsg = `📋 *הזמנה ${orderNum} – ממתינה לאישורך*\n\nשלום ${c.name},\nקיבלנו את הזמנתך:\n\n${itemLines.join('\n')}\n\n⚖️ משקל לחיוב: ${billingWeight.toFixed(1)} ק"ג\n💰 סה"כ: ₪${portalPrice.toFixed(0)}\n${delivInfo}\n${addrInfo}\n\n*לאישור פרטי ההזמנה ושליחה לבדיקה – לחץ כאן:*\n${approveLink}\n\n_⚠️ ייצור יתחיל רק לאחר בדיקה ואישור פנימי של טנא_`;
@@ -1096,7 +1099,7 @@ module.exports = function createPortalRouter(deps) {
         <div class="box"><b>סטטוס</b><br>${orderPrintEsc(order.status || '')}</div>
         <div class="box"><b>משקל</b><br>${orderPrintEsc(Number(order.billing_weight || order.total_weight || 0).toFixed(1))} ק"ג</div>
       </div>
-      <table><thead><tr><th>#</th><th>צורה</th><th>קוטר</th><th>אורך מ"מ</th><th>כמות</th><th>משקל ק"ג</th><th>הערות</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">אין פריטים להצגה</td></tr>'}</tbody></table>
+      <table><thead><tr><th>#</th><th>צורה</th><th>קוטר</th><th>אורך מ"מ</th><th>כמות</th><th>משקל ק"ג</th><th>שייך ל / תיאור</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">אין פריטים להצגה</td></tr>'}</tbody></table>
       ${priceHtml}
     </div></body></html>`);
   });
