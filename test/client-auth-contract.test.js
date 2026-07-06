@@ -1692,6 +1692,12 @@ test('display-only production views prefer server-rendered production shape SVG'
 
   assert.match(worker, /if\(item\.shape_svg\)return item\.shape_svg/);
   assert.match(worker, /worker-canonical-missing/);
+  assert.match(worker, /\/api\/worker-card\?card=/);
+  assert.match(worker, /workerCardApi\(id,'\/status'\)/);
+  assert.match(worker, /if\(!SCAN_ENTRY\)ws\(\)/);
+  assert.match(productionRoute, /router\.get\('\/worker-card'/);
+  assert.match(productionRoute, /router\.patch\('\/worker-card\/:id'/);
+  assert.match(productionRoute, /router\.patch\('\/worker-card\/:id\/status'/);
   assert.doesNotMatch(worker, /worker-open-u/);
   assert.doesNotMatch(worker, /worker-closed-stirrup/);
   assert.doesNotMatch(worker, /function openU\(/);

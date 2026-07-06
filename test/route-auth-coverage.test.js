@@ -107,6 +107,9 @@ const PUBLIC_OR_SCOPED_API_ROUTES = new Set([
   'GET /api/c/orders/:orderId',
   'GET /api/intake/whatsapp',
   'POST /api/intake/whatsapp',
+  'GET /api/worker-card',
+  'PATCH /api/worker-card/:id',
+  'PATCH /api/worker-card/:id/status',
 ]);
 
 const AUTH_GUARD_MARKERS = [

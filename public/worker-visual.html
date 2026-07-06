@@ -94,6 +94,8 @@
     const SCAN_ENTRY=ENTRY_PARAMS.get('scan')==='1'||ENTRY_PARAMS.has('card')||ENTRY_PARAMS.has('item');
     document.body.classList.toggle('scan-entry',SCAN_ENTRY);
     const ITEM_STATUS=(window.IronBendStatus&&window.IronBendStatus.ITEM_STATUS)||{WAITING:'ממתין',IN_PRODUCTION:'בייצור',DONE:'הושלם',DELIVERED:'סופק'};
+    const publicWorkerCardToken=()=>state.scanToken||ENTRY_PARAMS.get('card')||ENTRY_PARAMS.get('item')||'';
+    const workerCardApi=(id,suffix='')=>SCAN_ENTRY?`/api/worker-card/${id}${suffix}`:`/api/items/${id}${suffix}`;
     const statusKey=s=>s===ITEM_STATUS.IN_PRODUCTION?'production':s===ITEM_STATUS.DONE?'done':s===ITEM_STATUS.DELIVERED?'supplied':'waiting';
     const statusText={waiting:'ממתין',production:'בייצור',done:'בוצע',supplied:'סופק'};
     const apiStatus={waiting:ITEM_STATUS.WAITING,production:ITEM_STATUS.IN_PRODUCTION,done:ITEM_STATUS.DONE,supplied:ITEM_STATUS.DELIVERED};
@@ -206,9 +208,10 @@
       if((qtyText&&!Number.isFinite(produced))||produced<0||!Number.isInteger(produced))return;
       if(qtyText&&requested&&produced>requested)return;
       const payload={note:noteInput?.value||''};
+      if(SCAN_ENTRY)payload.card=publicWorkerCardToken();
       if(weightText)payload.actual_weight_kg=actual;
       if(qtyText)payload.produced_qty=produced;
-      const r=await fetch(`/api/items/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const r=await fetch(workerCardApi(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       if(r.ok){const item=state.items.find(item=>item.id===id);if(item){if(weightText){item.actual_weight_kg=actual;const target=targetWeight(item);item.weight_deviation_pct=target?((actual-target)/target)*100:null}if(qtyText)item.produced_qty=produced;item.note=payload.note}render()}
     }
     async function adjustProducedQty(id,delta,event){
@@ -221,12 +224,12 @@
       if(input)input.value=next||'';
       await saveProductionFields(id,event);
     }
-    async function setStatus(id,key){const r=await fetch(`/api/items/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:apiStatus[key]})});if(r.ok){const item=state.items.find(item=>item.id===id);if(item)item.status=apiStatus[key];render()}}
+    async function setStatus(id,key){const payload={status:apiStatus[key]};if(SCAN_ENTRY)payload.card=publicWorkerCardToken();const r=await fetch(workerCardApi(id,'/status'),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(r.ok){const item=state.items.find(item=>item.id===id);if(item)item.status=apiStatus[key];render()}}
     function selectOrder(id){state.selected=id;state.focusItemId=null;state.scanToken=null;render();document.querySelector('.panel').classList.add('mobile-hidden');document.querySelector('.stage').classList.remove('mobile-hidden')}
-    async function load(){try{const r=await fetch('/api/production-queue?visual=1');if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='חי';const parsed=state.focusItemId?null:scanFromLocation();if(parsed&&parsed.itemId){if(!focusScannedCard(parsed)){render();showScanResult('הקוד נסרק, אבל הכרטיס לא נמצא בתור הייצור הנוכחי.','err')}}else render()}catch{document.querySelector('#sync').textContent='מתחבר מחדש'}}
+    async function load(){try{const scanToken=publicWorkerCardToken();const url=SCAN_ENTRY?`/api/worker-card?card=${encodeURIComponent(scanToken)}`:'/api/production-queue?visual=1';const r=await fetch(url);if(!r.ok)throw Error(r.status);state.items=(await r.json()).items||[];document.querySelector('#sync').textContent='חי';const parsed=state.focusItemId?null:scanFromLocation();if(parsed&&parsed.itemId){if(!focusScannedCard(parsed)){render();showScanResult('הקוד נסרק, אבל הכרטיס לא נמצא בתור הייצור הנוכחי.','err')}}else render()}catch{document.querySelector('#sync').textContent='מתחבר מחדש'}}
     document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelector('.panel').classList.toggle('mobile-hidden',b.dataset.pane!=='panel');document.querySelector('.stage').classList.toggle('mobile-hidden',b.dataset.pane!=='stage')});
     function ws(){try{const socket=new WebSocket(window.IronBendAuth?.webSocketUrl?.('/')||`${location.protocol==='https:'?'wss':'ws'}://${location.host}`);socket.onmessage=event=>{try{if(['item_status','item_progress','new_order','order_status'].includes(JSON.parse(event.data).type))load()}catch{}};socket.onclose=()=>setTimeout(ws,2000)}catch{}}
-    load();ws();
+    load();if(!SCAN_ENTRY)ws();
   </script>
 <script src="/production-i18n.js" defer></script>
 </body>

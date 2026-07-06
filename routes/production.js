@@ -83,6 +83,65 @@ module.exports = function createProductionRouter(deps) {
     return Object.keys(body || {}).filter(key => forbiddenProductionItemPatchFields.has(key));
   }
 
+  function parseWorkerCardToken(raw) {
+    const token = String(raw || '').trim();
+    if (!token) return null;
+    const pipeParts = token.split('|');
+    if (pipeParts.length >= 2 && /^\d+$/.test(pipeParts[1])) return { token, itemId: Number(pipeParts[1]) };
+    if (/^\d+$/.test(token)) return { token, itemId: Number(token) };
+    const match = token.match(/-(\d{1,12})(?:-[A-Z]+[A-Z0-9]*)*(?:-C\d+OF\d+)?$/i);
+    return match ? { token, itemId: Number(match[1]) } : null;
+  }
+
+  function tokenMatchesItem(token, itemId) {
+    const parsed = parseWorkerCardToken(token);
+    return Boolean(parsed && Number(parsed.itemId) === Number(itemId));
+  }
+
+  function publicWorkerCardToken(req) {
+    return req.query.card || req.body?.card || req.body?.scanToken || '';
+  }
+
+  function selectWorkerCardById(itemId) {
+    const item = db.prepare(`
+      SELECT i.id, i.pallet_id, i.shape_id, i.shape_name, i.diameter,
+             i.quantity, i.produced_qty, i.total_weight AS weight, i.status, i.machine,
+             i.actual_weight_kg, i.weight_deviation_pct,
+             i.segments, i.shape_snapshot_json, i.spiral_diameter_mm, i.spiral_turns,
+             i.total_length_mm, i.note, i.qc_status,
+             p.order_id, p.pallet_num,
+             o.order_num, o.priority, o.delivery_date, o.customer_id, o.status AS order_status,
+             c.name as customer_name
+      FROM items i
+      JOIN pallets p ON i.pallet_id=p.id
+      JOIN orders o ON p.order_id=o.id
+      LEFT JOIN customers c ON o.customer_id=c.id
+      WHERE i.id=?
+    `).get(itemId);
+    if (item) item.shape_svg = productionCards.itemShapeSvg(item);
+    return item;
+  }
+
+  function authorizePublicWorkerCard(req, res, itemId) {
+    const token = publicWorkerCardToken(req);
+    if (!tokenMatchesItem(token, itemId)) {
+      res.status(403).json({ error: 'invalid_worker_card_token' });
+      return null;
+    }
+    const item = db.prepare(`
+      SELECT i.*, p.order_id, o.order_num, o.status AS order_status
+      FROM items i
+      JOIN pallets p ON i.pallet_id=p.id
+      JOIN orders o ON p.order_id=o.id
+      WHERE i.id=?
+    `).get(itemId);
+    if (!item) {
+      res.status(404).json({ error: 'not_found' });
+      return null;
+    }
+    return item;
+  }
+
   function setOrderStatusIfChanged(orderId, nextStatus) {
     const order = db.prepare('SELECT id,order_num,status FROM orders WHERE id=?').get(orderId);
     if (!order) return null;
@@ -134,6 +193,92 @@ module.exports = function createProductionRouter(deps) {
     STATE_TRANSITIONS,
     checkOrderComplete,
   }));
+
+  router.get('/worker-card', (req, res) => {
+    const parsed = parseWorkerCardToken(req.query.card);
+    if (!parsed?.itemId) return res.status(400).json({ error: 'invalid_worker_card_token' });
+    const item = selectWorkerCardById(parsed.itemId);
+    if (!item) return res.status(404).json({ error: 'not_found' });
+    res.json({ items: [item], grouped: {} });
+  });
+
+  router.patch('/worker-card/:id/status', (req, res) => {
+    const status = req.body?.status;
+    if (!statusContracts.isValidItemStatus(status)) return res.status(400).json({ error: 'invalid status', allowed: statusContracts.VALID_ITEM_STATUSES });
+    if (![ITEM_STATUS.WAITING, ITEM_STATUS.IN_PRODUCTION, ITEM_STATUS.DONE, ITEM_STATUS.DELIVERED].includes(status)) {
+      return res.status(400).json({ error: 'invalid public production status' });
+    }
+    const item = authorizePublicWorkerCard(req, res, req.params.id);
+    if (!item) return;
+    if (status === ITEM_STATUS.IN_PRODUCTION && !isProductionGateOpen(item)) return sendProductionGateError(res, item);
+    const updates = { status };
+    if (status === ITEM_STATUS.IN_PRODUCTION && !item.started_at) updates.started_at = new Date().toISOString();
+    if (status === ITEM_STATUS.DONE) updates.completed_at = new Date().toISOString();
+    db.prepare(`UPDATE items SET status=?${status===ITEM_STATUS.IN_PRODUCTION&&!item.started_at?',started_at=?':''}${status===ITEM_STATUS.DONE?',completed_at=?':''} WHERE id=?`)
+      .run(...Object.values(updates), req.params.id);
+    const orderStatus = syncOrderStatusAfterItemStatus(item, status);
+    wsBroadcast('item_status', { id: Number(req.params.id), status });
+    res.json({ ok: true, order_status: orderStatus });
+  });
+
+  router.patch('/worker-card/:id', (req, res) => {
+    const forbiddenFields = forbiddenProductionPatchFields(req.body);
+    if (forbiddenFields.length) {
+      return res.status(400).json({ error: 'non_production_fields_forbidden', fields: forbiddenFields });
+    }
+    const item = authorizePublicWorkerCard(req, res, req.params.id);
+    if (!item) return;
+    const { produced_qty, actual_weight_kg, note } = req.body || {};
+    const fields = [], vals = [];
+    let nextItemStatus = null;
+    function addStatusUpdate(nextStatus) {
+      if (nextStatus === ITEM_STATUS.IN_PRODUCTION && !isProductionGateOpen(item)) {
+        sendProductionGateError(res, item);
+        return false;
+      }
+      fields.push('status=?'); vals.push(nextStatus); nextItemStatus = nextStatus;
+      if (nextStatus === ITEM_STATUS.IN_PRODUCTION && !item.started_at) { fields.push('started_at=?'); vals.push(new Date().toISOString()); }
+      if (nextStatus === ITEM_STATUS.DONE) { fields.push('completed_at=?'); vals.push(new Date().toISOString()); }
+      return true;
+    }
+    if (produced_qty !== undefined) {
+      const producedQty = Number(produced_qty);
+      const requestedQty = Number(item.quantity) || 0;
+      if (!Number.isFinite(producedQty) || producedQty < 0 || !Number.isInteger(producedQty)) return res.status(400).json({ error: 'invalid produced_qty' });
+      if (requestedQty > 0 && producedQty > requestedQty) return res.status(400).json({ error: 'produced_qty_exceeds_quantity', quantity: requestedQty });
+      fields.push('produced_qty=?'); vals.push(producedQty);
+      if (requestedQty > 0 && producedQty >= requestedQty && item.status !== ITEM_STATUS.DONE) {
+        if (!addStatusUpdate(ITEM_STATUS.DONE)) return;
+      } else if (producedQty > 0 && item.status === ITEM_STATUS.WAITING) {
+        if (!addStatusUpdate(ITEM_STATUS.IN_PRODUCTION)) return;
+      }
+    }
+    if (actual_weight_kg !== undefined) {
+      const actualWeight = Number(actual_weight_kg);
+      if (!Number.isFinite(actualWeight) || actualWeight < 0) return res.status(400).json({ error: 'invalid actual_weight_kg' });
+      const targetWeight = Number(item.total_weight) || 0;
+      const deviationPct = targetWeight > 0 ? ((actualWeight - targetWeight) / targetWeight) * 100 : null;
+      fields.push('actual_weight_kg=?'); vals.push(actualWeight);
+      fields.push('weight_deviation_pct=?'); vals.push(deviationPct);
+    }
+    if (note !== undefined) { fields.push('note=?'); vals.push(note); }
+    if (!fields.length) return res.json({ ok: true });
+    vals.push(req.params.id);
+    db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);
+    if (nextItemStatus) {
+      const savedItem = db.prepare(`
+        SELECT i.*, p.order_id, o.order_num, o.status AS order_status
+        FROM items i
+        JOIN pallets p ON i.pallet_id=p.id
+        JOIN orders o ON p.order_id=o.id
+        WHERE i.id=?
+      `).get(req.params.id);
+      syncOrderStatusAfterItemStatus(savedItem, nextItemStatus);
+      wsBroadcast('item_status', { id: Number(req.params.id), status: nextItemStatus });
+    }
+    if (produced_qty !== undefined) wsBroadcast('item_progress', { id: Number(req.params.id), produced_qty: Number(produced_qty) });
+    res.json({ ok: true, status: nextItemStatus });
+  });
 
   // ── SCAN (QR) ─────────────────────────────────────────────────────
   router.post('/scan', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), (req, res) => {

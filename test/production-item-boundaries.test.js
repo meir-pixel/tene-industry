@@ -232,6 +232,50 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.equal(item.status, statusContracts.ITEM_STATUS.WAITING);
   });
 
+  await t.test('public scanned worker card can load and update production-owned fields without login', async () => {
+    const approved = seedOrderWithItem('PB-PUBLIC-WORKER-CARD', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    const card = `${approved.orderNum}-${String(approved.itemId).padStart(6, '0')}`;
+    const view = await request(`/api/worker-card?card=${encodeURIComponent(card)}`);
+    assert.equal(view.status, 200);
+    const body = await view.json();
+    assert.equal(body.items.length, 1);
+    assert.equal(body.items[0].id, approved.itemId);
+    assert.ok(body.items[0].shape_svg);
+
+    const response = await request(`/api/worker-card/${approved.itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card, produced_qty: 2, actual_weight_kg: 10, note: 'public scan update' }),
+    });
+    assert.equal(response.status, 200);
+    const item = db.prepare('SELECT produced_qty,actual_weight_kg,note,status FROM items WHERE id=?').get(approved.itemId);
+    assert.equal(item.produced_qty, 2);
+    assert.equal(item.actual_weight_kg, 10);
+    assert.equal(item.note, 'public scan update');
+    assert.equal(item.status, statusContracts.ITEM_STATUS.IN_PRODUCTION);
+  });
+
+  await t.test('public scanned worker card rejects mismatched tokens and non-production fields', async () => {
+    const approved = seedOrderWithItem('PB-PUBLIC-WORKER-FORBID', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    const wrongCard = `OTHER-${String(approved.itemId + 1).padStart(6, '0')}`;
+    const mismatch = await request(`/api/worker-card/${approved.itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card: wrongCard, produced_qty: 1 }),
+    });
+    assert.equal(mismatch.status, 403);
+
+    const card = `${approved.orderNum}-${String(approved.itemId).padStart(6, '0')}`;
+    const forbidden = await request(`/api/worker-card/${approved.itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card, quantity: 999 }),
+    });
+    assert.equal(forbidden.status, 400);
+    const body = await forbidden.json();
+    assert.equal(body.error, 'non_production_fields_forbidden');
+    assert.ok(body.fields.includes('quantity'));
+  });
   await t.test('production item patch still allows production-owned execution fields', async () => {
     const approved = seedOrderWithItem('PB-APPROVED-PRODUCTION', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
     const response = await request(`/api/items/${approved.itemId}`, {

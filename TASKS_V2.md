@@ -1948,3 +1948,29 @@
   - `node --check routes\production.js`
   - `node --test test\client-auth-contract.test.js`
   - `npm test`
+
+---
+
+### V2-011P - Public Worker Card Scan Updates
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing
+- files:
+  - `routes/production.js`
+  - `public/worker-visual.html`
+  - `test/production-item-boundaries.test.js`
+  - `test/client-auth-contract.test.js`
+  - `test/route-auth-coverage.test.js`
+- goal:
+  - A worker scanning a production card QR can open that specific card without logging in.
+  - Public scan mode can update only production-owned card fields: status, produced quantity, actual weight, and notes.
+  - Full production queue and other system screens remain behind normal role-based authentication.
+- guardrails:
+  - Preserve Orders lifecycle, Production status gates, QR routing, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - Do not expose the full worker queue without authentication.
+  - Temporary/no-login QR update mode only until worker permissions are finalized.
+- verification:
+  - `node --check routes\production.js`
+  - `node --test test\production-item-boundaries.test.js test\client-auth-contract.test.js test\route-auth-coverage.test.js`
+  - `npm test`
