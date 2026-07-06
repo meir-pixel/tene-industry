@@ -51,6 +51,18 @@ function isSimilarDimension(a, b, tolerance = 0.12) {
   return Math.abs((Number(a) || 0) - (Number(b) || 0)) <= Math.max(10, max * tolerance);
 }
 
+function proportionalPrintSides(sides) {
+  const clean = (Array.isArray(sides) ? sides : []).map(value => Math.max(0, Number(value || 0)));
+  const max = Math.max(0, ...clean);
+  if (!max) return clean;
+  return clean.map(length => {
+    if (!length) return 0;
+    const ratio = max / length;
+    if (ratio < 6) return length;
+    return Math.min(max, Math.max(length, max * 0.14));
+  });
+}
+
 function calcShapePoints(sides, angles) {
   const points = [[0, 0]];
   let direction = 0;
@@ -483,7 +495,8 @@ function shapeSvg(segmentsRaw) {
 
     const sides = segments.map(segment => Number(segment.length_mm || 0));
     const angles = segments.map(segment => segment.angle_deg);
-    const points = normalizeShapePointsBaseBottom(calcShapePoints(sides, angles));
+    const visualSides = proportionalPrintSides(sides);
+    const points = normalizeShapePointsBaseBottom(calcShapePoints(visualSides, angles));
 
     const xs = points.map(point => point[0]);
     const ys = points.map(point => point[1]);
@@ -516,7 +529,7 @@ function shapeSvg(segmentsRaw) {
       }
     }
 
-    return `<svg data-shape-kind="generic-bar" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
+    return `<svg data-shape-kind="generic-bar" data-scale-mode="print-fit" data-proportional-short-bends="1" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
   } catch {
     return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
   }

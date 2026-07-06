@@ -2004,3 +2004,46 @@
   - `node --check routes\production.js`
   - `node --test test\production-item-boundaries.test.js test\client-auth-contract.test.js test\route-auth-coverage.test.js`
   - `npm test`
+
+---
+
+### V2-006AJ - Pile Cage Hoop Row Readability
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+- goal:
+  - Make the pile cage internal hoop row readable by giving the right parameter panel more width and reducing compact-row chrome.
+  - Preserve the existing editor flow, pile calculations, rendering engine, and shape families.
+- guardrails:
+  - No Orders, Production lifecycle, Pricing, Portal, Warehouse, DB, or machine integration changes.
+  - No redesign and no new shape family.
+- verification:
+  - `node --check public\shape-editor.js`
+
+---
+
+### V2-011Q - Production Card Proportional Short Bend Rendering
+
+- status: done
+- owner: codex-production-cards-printing
+- primary_module: Production / Cards / Printing + Shape Editor handoff
+- files:
+  - `TASKS_V2.md`
+  - `services/productionCards.js`
+  - `services/productionCardPrintPage.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Production card drawings keep short bent legs visually readable when a very long bar segment would otherwise flatten them.
+  - Printed labels and calculated lengths remain true to the real dimensions; only the drawing scale gets a visual minimum for extreme ratios.
+- guardrails:
+  - Preserve Orders lifecycle, Production status flow, QR routing, Shape V2 contract, Finance, Portal, OCR, Warehouse, Pricing, and DB schema.
+  - No UI redesign and no new shape families.
+- verification:
+  - `node --check services\productionCards.js`
+  - `node --check services\productionCardPrintPage.js`
+  - `node --test test\shape-geometry.test.js`
+  - `node --test test\production-print-page.test.js`

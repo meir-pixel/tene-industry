@@ -1984,7 +1984,7 @@ class ShapeEditorModal {
 #seModal .se-head-actions{display:flex;align-items:center;gap:10px;direction:rtl;}
 #seModal .se-close{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);border-radius:50%;}
 #seModal .se-back-btn{min-height:38px;padding:8px 14px;border-radius:8px;color:#eef4fb;background:rgba(255,255,255,.09);font-weight:900;}
-#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:440px minmax(360px,1fr) 154px;direction:rtl;background:#d7d7d7;}
+#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:520px minmax(300px,1fr) 154px;direction:rtl;background:#d7d7d7;}
 #sePageEdit[style*="display:none"]{display:none!important;}
 #sePageEdit .se-family-panel{order:3;background:#eceeef;border-left:1px solid #c5cbd4;padding:18px 14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
 #sePageEdit .se-family-panel-title{font-size:15px;font-weight:900;color:#243047;margin-bottom:2px;}
@@ -2078,14 +2078,14 @@ class ShapeEditorModal {
 #seModal .se-pile-bar-override-row .se-input{min-height:22px!important;font-size:11px!important;padding:0 3px!important;border-radius:5px!important;}
 #seModal .se-pile-add-override{min-height:26px!important;font-size:12px;border-radius:6px;}
 #seModal .se-pile-hoop-row td{padding:2px!important;border-radius:5px!important;}
-#seModal .se-pile-hoop-grid{display:grid;grid-template-columns:34px repeat(5,minmax(45px,1fr)) 54px;gap:4px;align-items:end;direction:rtl;}
-#seModal .se-pile-hoop-grid .se-field-shell{grid-template-columns:12px minmax(0,1fr);gap:0 2px;}
-#seModal .se-pile-hoop-grid .se-param-icon{width:12px;height:12px;font-size:7px;}
-#seModal .se-pile-hoop-grid .se-param-label{font-size:9px;line-height:1;}
-#seModal .se-pile-hoop-grid .se-input{min-height:21px!important;font-size:11px!important;border-radius:5px!important;padding:0 3px!important;}
-#seModal .se-pile-hoop-toggle{display:grid;place-items:center;min-height:34px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;}
-#seModal .se-pile-hoop-toggle input{width:18px;height:18px;}
-#seModal .se-derived-chip{display:grid;place-items:center;min-height:21px;border:1px solid #bdd2ea;border-radius:5px;background:#eef6ff;color:#12315a;font-size:11px;font-weight:900;}
+#seModal .se-pile-hoop-grid{display:grid;grid-template-columns:26px minmax(48px,.62fr) minmax(48px,.72fr) minmax(48px,.72fr) minmax(48px,.72fr) minmax(62px,.9fr) minmax(48px,.65fr);gap:3px;align-items:end;direction:rtl;}
+#seModal .se-pile-hoop-grid .se-field-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:'label' 'input' 'unit';gap:0;min-width:0;}
+#seModal .se-pile-hoop-grid .se-param-icon{display:none;}
+#seModal .se-pile-hoop-grid .se-param-label{font-size:8px;line-height:1;}
+#seModal .se-pile-hoop-grid .se-input{min-height:21px!important;font-size:10px!important;border-radius:5px!important;padding:0 2px!important;}
+#seModal .se-pile-hoop-toggle{display:grid;place-items:center;min-height:28px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;}
+#seModal .se-pile-hoop-toggle input{width:16px;height:16px;}
+#seModal .se-derived-chip{display:grid;place-items:center;min-height:21px;border:1px solid #bdd2ea;border-radius:5px;background:#eef6ff;color:#12315a;font-size:10px;font-weight:900;}
 #seModal .se-pile-elements{border:1px solid #d8e2ec;border-radius:7px;background:#fff;padding:7px;display:grid;gap:5px;}
 #seModal .se-pile-elements-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:900;color:#12315a;}
 #seModal .se-pile-elements-head span{font-size:10px;color:#64748b;}

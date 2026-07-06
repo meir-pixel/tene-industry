@@ -890,6 +890,22 @@ test('production card renders open U bars as a readable U shape, not a flattened
   assert.doesNotMatch(svg, /<circle/);
 });
 
+test('production card keeps short bent legs visually readable next to a long bar', () => {
+  const svg = shapeSvg(JSON.stringify([
+    { length_mm: 75, angle_deg: 90 },
+    { length_mm: 2500, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 0 },
+  ]));
+  const pathMatch = svg.match(/<path d="M ([^"]+)"/);
+  assert.ok(pathMatch, 'expected a drawn production-card path');
+  const points = pathMatch[1].split(' L ').map(pair => pair.split(',').map(Number));
+  const firstSegmentLength = Math.hypot(points[1][0] - points[0][0], points[1][1] - points[0][1]);
+
+  assert.match(svg, /data-proportional-short-bends="1"/);
+  assert.ok(firstSegmentLength >= 18, `expected short bent leg to remain readable, got ${firstSegmentLength}`);
+  assert.match(svg, />7.5</);
+});
+
 test('production card renders closed stirrups as a closed rectangular hoop', () => {
   const svg = shapeSvg(JSON.stringify([
     { length_mm: 100, angle_deg: 90 },

@@ -445,16 +445,29 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
 })))};
 
 // ── Shape drawing ─────────────────────────────────────────────────
+function proportionalPrintSidesClient(sides) {
+  var clean = (Array.isArray(sides) ? sides : []).map(function(value){ return Math.max(0, Number(value || 0)); });
+  var max = Math.max.apply(null, clean.concat([0]));
+  if (!max) return clean;
+  return clean.map(function(length){
+    if (!length) return 0;
+    var ratio = max / length;
+    if (ratio < 6) return length;
+    return Math.min(max, Math.max(length, max * 0.14));
+  });
+}
+
 function drawShape(svgEl, segments) {
   if (!segments || !segments.length) return;
   var sides  = segments.map(function(s){ return s.length_mm; });
+  var visualSides = proportionalPrintSidesClient(sides);
   var angles = segments.map(function(s){ return s.angle_deg; }).slice(0, -1);
   var pts = [[0,0]];
   var dir = 0;
   for (var i = 0; i < sides.length; i++) {
     var rad = dir * Math.PI / 180;
     var p = pts[pts.length-1];
-    pts.push([p[0] + sides[i]*Math.cos(rad), p[1] + sides[i]*Math.sin(rad)]);
+    pts.push([p[0] + visualSides[i]*Math.cos(rad), p[1] + visualSides[i]*Math.sin(rad)]);
     if (i < angles.length) dir -= (180 - angles[i]);
   }
   var PAD=28, W=220, H=130;
@@ -805,7 +818,8 @@ function buildShapeSVG(segments) {
     var W=260, H=140, PAD=46;
     var sides = segments.map(function(s){ return +(s.length_mm||0); });
     var angs  = segments.map(function(s){ return s.angle_deg; });
-    var pts = normalizeShapePointsBaseBottomClient(calcShapePointsClient(sides, angs));
+    var visualSides = proportionalPrintSidesClient(sides);
+    var pts = normalizeShapePointsBaseBottomClient(calcShapePointsClient(visualSides, angs));
     var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
     var mnX=Math.min.apply(null,xs), mxX=Math.max.apply(null,xs);
     var mnY=Math.min.apply(null,ys), mxY=Math.max.apply(null,ys);
@@ -826,7 +840,7 @@ function buildShapeSVG(segments) {
         s += angleMarkerSvg(mpts[i - 1], mpts[i], mpts[i + 1], a, center);
       }
     }
-    return '<svg data-shape-kind="generic-bar" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 '+W+' '+H+'" style="width:100%;height:100%;max-height:100px;overflow:visible">'+s+'</svg>';
+    return '<svg data-shape-kind="generic-bar" data-scale-mode="print-fit" data-proportional-short-bends="1" preserveAspectRatio="xMidYMid meet" viewBox="0 0 '+W+' '+H+'" style="width:100%;height:100%;max-height:100px;overflow:visible">'+s+'</svg>';
   } catch(e) {
     return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
   }
