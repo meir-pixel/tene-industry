@@ -946,7 +946,8 @@ module.exports = function createPortalRouter(deps) {
         .run(palletId, orderId, shapeSnapshot, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,
              item.qty||1, Math.ceil((item.qty||1)*(1+wastePct/100)), weight/(item.qty||1), weight, item.note||'', machine);
       db.prepare('UPDATE items SET item_uid=? WHERE id=?').run(buildOrderItemUid(orderId, itemRow.lastInsertRowid), itemRow.lastInsertRowid);
-      itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} – ${Math.round(totalLengthMm/10)}ס"מ`);
+      const itemCustomerDescription = String(item.note || '').trim();
+      itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} - ${Math.round(totalLengthMm/10)}ס"מ${itemCustomerDescription ? ' - ' + itemCustomerDescription : ''}`);
     });
 
     const billingWeight = totalWeight * (1 + wastePct/100);
@@ -1098,7 +1099,7 @@ module.exports = function createPortalRouter(deps) {
         <div class="box"><b>סטטוס</b><br>${orderPrintEsc(order.status || '')}</div>
         <div class="box"><b>משקל</b><br>${orderPrintEsc(Number(order.billing_weight || order.total_weight || 0).toFixed(1))} ק"ג</div>
       </div>
-      <table><thead><tr><th>#</th><th>צורה</th><th>קוטר</th><th>אורך מ"מ</th><th>כמות</th><th>משקל ק"ג</th><th>הערות</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">אין פריטים להצגה</td></tr>'}</tbody></table>
+      <table><thead><tr><th>#</th><th>צורה</th><th>קוטר</th><th>אורך מ"מ</th><th>כמות</th><th>משקל ק"ג</th><th>שייך ל / תיאור</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">אין פריטים להצגה</td></tr>'}</tbody></table>
       ${priceHtml}
     </div></body></html>`);
   });
