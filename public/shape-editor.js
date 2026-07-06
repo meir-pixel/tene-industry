@@ -885,7 +885,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     const noWrap = zone.noWrap === true || zone.noWrap === 1 || zone.noWrap === 'true';
     zoneBoundaries.push(`<line class="pile-zone-boundary" data-zone="${zoneIndex}" data-se-focus="pile-zone" x1="${startX.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${startX.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
     zoneDimensions.push(`${dimLine(startX, sideTop, endX, sideTop, 'pile-zone-dimension', 'pile-zone pile-spiral-pitch')}<text class="pile-zone-dimension" data-se-focus="pile-zone pile-spiral-pitch" x="${midX.toFixed(1)}" y="${(sideTop - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">L${zoneIndex + 1}</text>${labelBox(midX, sideTop + 10, Math.round(len), 'pile-zone-dimension')}`);
-    pitchLabels.push(`<text class="pile-pitch-label" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-zone" x="${midX.toFixed(1)}" y="${(bottomY + 24).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">@${Math.round(pitch / 10)}</text>`);
+    if (!noWrap) pitchLabels.push(`<text class="pile-pitch-label" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-zone" x="${midX.toFixed(1)}" y="${(bottomY + 24).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">@${Math.round(pitch / 10)}</text>`);
     if (noWrap) {
       noWrapZones.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-se-focus="pile-no-wrap pile-zone" x="${startX.toFixed(1)}" y="${topY.toFixed(1)}" width="${Math.max(1, endX - startX).toFixed(1)}" height="${cageHeight.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".95"/><text data-se-focus="pile-no-wrap pile-zone" x="${midX.toFixed(1)}" y="${(sideMid + 3).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#64748b">ללא כריכות</text>`);
     } else {
@@ -1984,7 +1984,7 @@ class ShapeEditorModal {
 #seModal .se-head-actions{display:flex;align-items:center;gap:10px;direction:rtl;}
 #seModal .se-close{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);border-radius:50%;}
 #seModal .se-back-btn{min-height:38px;padding:8px 14px;border-radius:8px;color:#eef4fb;background:rgba(255,255,255,.09);font-weight:900;}
-#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:520px minmax(300px,1fr) 154px;direction:rtl;background:#d7d7d7;}
+#sePageEdit{height:calc(100vh - 132px);max-height:calc(100vh - 132px);display:grid!important;grid-template-columns:360px minmax(0,1fr) 154px;direction:rtl;background:#d7d7d7;}
 #sePageEdit[style*="display:none"]{display:none!important;}
 #sePageEdit .se-family-panel{order:3;background:#eceeef;border-left:1px solid #c5cbd4;padding:18px 14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
 #sePageEdit .se-family-panel-title{font-size:15px;font-weight:900;color:#243047;margin-bottom:2px;}
@@ -2052,19 +2052,37 @@ class ShapeEditorModal {
 #seModal svg.se-focus-mode [data-se-focus].se-focus-hit text,#seModal svg.se-focus-mode text.se-focus-hit{fill:#111827!important;stroke:none!important;}
 #seModal .se-engineer-helper text{font-family:Heebo,Arial;font-weight:900;fill:#475569;}
 #seModal .se-helper-panel{fill:#f8fafc;stroke:#d8dde5;stroke-width:1;}
-#seModal .se-pile-compact-row{gap:4px!important;}
-#seModal .se-pile-compact-row td,
+#seModal .se-pile-compact-row{gap:2px!important;}
+#seModal .se-pile-compact-row td{padding:1px 2px!important;border-radius:5px!important;}
 #seModal .se-family-editor-table .se-zone-row td{padding:2px!important;border-radius:5px!important;}
-#seModal .se-pile-compact-row .se-field-shell,
+#seModal .se-pile-compact-row .se-field-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:'label' 'input';gap:0;min-width:0;}
 #seModal .se-family-editor-table .se-zone-row .se-field-shell{grid-template-columns:12px minmax(0,1fr);gap:0 2px;}
 #seModal .se-pile-compact-row .se-param-icon,
+#seModal .se-pile-compact-row .se-param-code,
+#seModal .se-pile-compact-row .se-param-number,
+#seModal .se-pile-compact-row .se-param-unit{display:none!important;}
 #seModal .se-family-editor-table .se-zone-row .se-param-icon{width:12px;height:12px;font-size:7px;}
-#seModal .se-pile-compact-row .se-param-label,
+#seModal .se-pile-compact-row .se-param-label{font-size:8px;line-height:1;justify-self:center;text-align:center;}
 #seModal .se-family-editor-table .se-zone-row .se-param-label{font-size:9px;line-height:1;}
-#seModal .se-pile-compact-row .se-field-shell .se-input,
+#seModal .se-pile-compact-row .se-field-shell .se-input{min-height:20px;font-size:10px;border-radius:5px;padding:0 3px;}
 #seModal .se-family-editor-table .se-zone-row .se-field-shell .se-input{min-height:21px;font-size:11px;border-radius:5px;padding:0 3px;}
-#seModal .se-pile-compact-row .se-param-unit,
 #seModal .se-family-editor-table .se-zone-row .se-param-unit{font-size:7px;}
+#seModal .se-family-editor-table .se-param-icon,
+#seModal .se-family-editor-table .se-param-code,
+#seModal .se-family-editor-table .se-param-number,
+#seModal .se-family-editor-table .se-param-unit{display:none!important;}
+#seModal .se-family-editor-table .se-field-shell{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:'label' 'input'!important;gap:0;min-width:0;}
+#seModal .se-family-editor-table .se-param-label{justify-self:center;text-align:center;}
+#seModal .se-pile-section-row td{background:transparent!important;border:0!important;padding:3px 0!important;}
+#seModal .se-pile-section{border:1px solid #d8e2ec;border-radius:7px;background:#fff;overflow:hidden;}
+#seModal .se-pile-section summary{cursor:pointer;list-style:none;padding:7px 10px;background:#f8fafc;color:#12315a;font-size:12px;font-weight:900;border-bottom:1px solid #e2e8f0;}
+#seModal .se-pile-section summary::-webkit-details-marker{display:none;}
+#seModal .se-pile-section[open] summary{background:#eef6ff;}
+#seModal .se-pile-section table{width:100%;border-collapse:separate;border-spacing:0 3px;}
+#seModal .se-pile-section .se-family-row{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:4px!important;}
+#seModal .se-pile-section .se-zone-row{display:grid!important;grid-template-columns:minmax(62px,.85fr) minmax(54px,.75fr) minmax(50px,.7fr) minmax(54px,.7fr) 24px!important;gap:3px!important;}
+#seModal .se-pile-section .se-zone-head{font-size:9px;}
+#seModal .se-pile-section .se-field-shell .se-input:disabled{opacity:.45;background:#eef2f6;}
 #seModal .se-pile-action-row td{padding:2px!important;background:transparent!important;border:0!important;}
 #seModal .se-pile-action-row .se-add-btn{min-height:28px;font-size:12px;border-radius:6px;}
 #seModal .se-pile-bar-editor{border:1px solid #d8e2ec;border-radius:7px;background:#f8fafc;padding:7px;display:grid;gap:6px;}
@@ -2081,7 +2099,9 @@ class ShapeEditorModal {
 #seModal .se-pile-hoop-grid{display:grid;grid-template-columns:26px minmax(48px,.62fr) minmax(48px,.72fr) minmax(48px,.72fr) minmax(48px,.72fr) minmax(62px,.9fr) minmax(48px,.65fr);gap:3px;align-items:end;direction:rtl;}
 #seModal .se-pile-hoop-grid .se-field-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:'label' 'input' 'unit';gap:0;min-width:0;}
 #seModal .se-pile-hoop-grid .se-param-icon{display:none;}
-#seModal .se-pile-hoop-grid .se-param-label{font-size:8px;line-height:1;}
+#seModal .se-pile-hoop-grid .se-param-code,
+#seModal .se-pile-hoop-grid .se-param-number{display:none!important;}
+#seModal .se-pile-hoop-grid .se-param-label{font-size:8px;line-height:1;justify-self:center;text-align:center;}
 #seModal .se-pile-hoop-grid .se-input{min-height:21px!important;font-size:10px!important;border-radius:5px!important;padding:0 2px!important;}
 #seModal .se-pile-hoop-toggle{display:grid;place-items:center;min-height:28px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;}
 #seModal .se-pile-hoop-toggle input{width:16px;height:16px;}
@@ -3100,22 +3120,17 @@ class ShapeEditorModal {
       <tr class="se-family-row se-zone-row">
         <td>${this._fieldShell({ icon:'Z', label:'שם אזור', unit:'טקסט', example:'A', input:`<input class="se-input" type="text" value="${svgEscape(zone.name || 'Zone ' + String.fromCharCode(65 + i))}" data-zone-field="name" onfocus="window._seEditor._focusFamilyField('zone')" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)">` })}</td>
         <td>${this._fieldShell({ icon:'↔', label:'אורך', unit:'ס״מ', example:'70', input:`<input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" onfocus="window._seEditor._focusFamilyField('zoneLength')" oninput="window._seEditor._setSpiralZoneField(${i}, 'length', this.value)">` })}</td>
-        <td>${this._fieldShell({ icon:'@', label:'פסיעה', unit:'ס״מ', example:'20', input:`<input class="se-input" type="number" min="1" value="${zone.pitch ?? 20}" data-zone-field="pitch" onfocus="window._seEditor._focusFamilyField('zonePitch')" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)">` })}</td>
+        <td>${this._fieldShell({ icon:'@', label:'פסיעה', unit:'ס״מ', example:'20', input:`<input class="se-input" type="number" min="1" value="${zone.noWrap ? '' : (zone.pitch ?? 20)}" ${zone.noWrap ? 'disabled' : ''} data-zone-field="pitch" onfocus="window._seEditor._focusFamilyField('zonePitch')" oninput="window._seEditor._setSpiralZoneField(${i}, 'pitch', this.value)">` })}</td>
         <td>${this._fieldShell({ icon:'—', label:'ללא כריכות', unit:'', example:'כן/לא', input:`<input class="se-input" type="checkbox" ${zone.noWrap ? 'checked' : ''} data-zone-field="noWrap" onfocus="window._seEditor._focusFamilyField('noWrap')" onchange="window._seEditor._setSpiralZoneField(${i}, 'noWrap', this.checked)">` })}</td>
         <td><button class="se-del-btn" onclick="window._seEditor._deleteSpiralZone(${i})">&times;</button></td>
       </tr>`).join('');
+    const pileSection = (title, rows, open = false) => `<tr class="se-pile-section-row"><td colspan="5"><details class="se-pile-section" ${open ? 'open' : ''}><summary>${title}</summary><table><tbody>${rows}</tbody></table></details></td></tr>`;
     body.innerHTML = `
-      <tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>
-      <tr class="se-family-row se-pile-compact-row">${field('longitudinalBars', 0)}${field('longitudinalDiameter', 1)}</tr>
-      <tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${selectField('spiralType', [['continuous','רציפה'], ['zoned','אזורים'], ['segmented','מקטעים']])}</tr>
-      <tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>
-      ${zoneRows}
-      <tr class="se-family-row se-pile-action-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>
-      ${hoopRow()}
-      <tr class="se-family-row se-pile-compact-row">${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>
-      ${this._renderPileLongitudinalShapeRows(field)}
-      ${this._renderPileElementsSummary()}`;
-  }
+      ${pileSection('כללי', `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true)}
+      ${pileSection('מוטות אורך', `<tr class="se-family-row se-pile-compact-row">${field('longitudinalBars', 0)}${field('longitudinalDiameter', 1)}</tr><tr class="se-family-row se-pile-compact-row">${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>${this._renderPileLongitudinalShapeRows(field)}`, true)}
+      ${pileSection('ספירלה', `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${selectField('spiralType', [['continuous','רציפה'], ['zoned','אזורים'], ['segmented','מקטעים']])}</tr><tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>${zoneRows}<tr class="se-family-row se-pile-action-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>`, true)}
+      ${pileSection('טבעות פנימיות', hoopRow(), false)}
+      ${pileSection('פירוק לייצור', this._renderPileElementsSummary(), false)}`;  }
 
   _renderPileLongitudinalShapeRows(field) {
     const pile = this.current || {};

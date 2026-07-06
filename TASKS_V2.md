@@ -2047,3 +2047,40 @@
   - `node --check services\productionCardPrintPage.js`
   - `node --test test\shape-geometry.test.js`
   - `node --test test\production-print-page.test.js`
+
+---
+
+### V2-006AK - Pile Cage Hoop Row Marker Cleanup
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+- goal:
+  - Remove the small field codes and marker bubbles from the internal hoop compact row so the values remain readable.
+  - Hide marker icons/codes across the pile cage parameter table.
+  - Do not display pitch markers for zones marked no-wrap.
+- guardrails:
+  - No Orders, Production lifecycle, Pricing, Portal, Warehouse, DB, or rendering engine changes.
+- verification:
+  - `node --check public\shape-editor.js`
+---
+
+### V2-006AL - Pile Cage Engineering Workspace Slice
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+- goal:
+  - Make the pile cage editor feel closer to an engineering workspace by giving the canvas more width and moving properties into grouped sections.
+  - Keep the work parameter-driven and preserve the existing PileCageEngine calculations and renderer.
+- guardrails:
+  - No Orders, OCR, Worker, Printing, Pricing, Finance, Warehouse, Portal, Shape Contract, API, or DB schema changes.
+  - No 3D implementation in this slice.
+- verification:
+  - `node --check public\shape-editor.js`
