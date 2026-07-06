@@ -710,9 +710,23 @@ function pileRound(value, digits = 3) {
 
 function pileInternalHoopDiameterMm(pile) {
   const pileDiameter = Math.max(1, Number(pile?.pileDiameter || 0));
-  const cover = Math.max(0, Number(pile?.concreteCover || 0));
   const longDia = Math.max(1, Number(pile?.longitudinalDiameter || 0));
-  return Math.max(1, pileDiameter - cover * 2 - longDia * 2);
+  return Math.max(1, pileDiameter - longDia * 2);
+}
+
+function pileHoopPositionsMm({ enabled = true, pileLength = 0, start = 0, end = pileLength, spacing = 1, side = 'start' } = {}) {
+  if (!enabled) return [];
+  const length = Math.max(0, Number(pileLength || 0));
+  const from = Math.min(length, Math.max(0, Number(start || 0)));
+  const to = Math.min(length, Math.max(from, Number(end ?? length)));
+  const gap = Math.max(1, Number(spacing || 1));
+  const positions = [];
+  if (String(side || 'start') === 'end') {
+    for (let pos = to; pos >= from - 0.001; pos -= gap) positions.push(pileRound(pos, 1));
+    return positions.sort((a, b) => a - b);
+  }
+  for (let pos = from; pos <= to + 0.001; pos += gap) positions.push(pileRound(pos, 1));
+  return positions;
 }
 
 function normalizePileBarOverrides(overrides, totalBars = 0) {
@@ -753,6 +767,7 @@ PileCageEngine.calculate = function(shape = {}) {
     hoopSpacing: Math.max(1, pileCmToMm(shape.hoopSpacing || 300, 3000)),
     hoopStart: Math.max(0, pileCmToMm(shape.hoopStart || 0, 0)),
     hoopEnd: Math.max(0, pileCmToMm(shape.hoopEnd || shape.pileLength || 2200, pileLengthMm)),
+    hoopStartSide: String(shape.hoopStartSide || 'start') === 'end' ? 'end' : 'start',
     barPattern: String(shape.barPattern || 'straight'),
     lHookLength: Math.max(0, pileCmToMm(shape.lHookLength || 0, 0)),
     longitudinalBarOverrides: [],
@@ -775,13 +790,7 @@ PileCageEngine.calculate = function(shape = {}) {
   const internalHoopDiameterMm = pileInternalHoopDiameterMm(data);
   const totalSpiralLengthMm = wrapZones.reduce((sum, zone) => sum + pileSpiralLengthMm(spiralCenterDiameterMm, zone.lengthMm, zone.pitchMm), 0);
   const totalSpiralWeightKg = pileRound((totalSpiralLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter));
-  const hoopPositions = [];
-  if (data.hoopsEnabled) {
-    const start = Math.min(data.pileLength, data.hoopStart);
-    const end = Math.min(data.pileLength, Math.max(start, data.hoopEnd));
-    for (let pos = start; pos <= end + 0.001; pos += data.hoopSpacing) hoopPositions.push(pileRound(pos, 1));
-    if (!hoopPositions.length) hoopPositions.push(start);
-  }
+  const hoopPositions = pileHoopPositionsMm({ enabled: data.hoopsEnabled, pileLength: data.pileLength, start: data.hoopStart, end: data.hoopEnd, spacing: data.hoopSpacing, side: data.hoopStartSide });
   const hoopLengthMm = Math.PI * internalHoopDiameterMm;
   const totalHoopLengthMm = pileRound(hoopLengthMm * hoopPositions.length, 1);
   const totalHoopWeightKg = pileRound((totalHoopLengthMm / 1000) * sharedKgPerMeter(data.hoopDiameter));
@@ -823,6 +832,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const hoopSpacing = Math.max(1, pileCmToMm(pile?.hoopSpacing || 300, 3000));
   const hoopStart = Math.max(0, pileCmToMm(pile?.hoopStart || 0, 0));
   const hoopEnd = Math.max(hoopStart, pileCmToMm(pile?.hoopEnd || pileLengthCm, pileLength));
+  const hoopStartSide = String(pile?.hoopStartSide || 'start') === 'end' ? 'end' : 'start';
   const concreteCover = Math.max(0, pileCmToMm(pile?.concreteCover || 0, 0));
   const internalHoopDiameter = pileInternalHoopDiameterMm({ pileDiameter, concreteCover, longitudinalDiameter });
   const barPattern = String(pile?.barPattern || 'straight');
@@ -889,15 +899,10 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   });
   zoneBoundaries.push(`<line class="pile-zone-boundary" data-se-focus="pile-zone" x1="${sideRight.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${sideRight.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
 
-  const hoopLines = [];
-  if (hoopsEnabled) {
-    const start = Math.min(pileLength, hoopStart);
-    const end = Math.min(pileLength, hoopEnd);
-    for (let xMm = start; xMm <= end + 0.001; xMm += hoopSpacing) {
-      const x = sideLeft + xMm * scale;
-      hoopLines.push(`<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(topY - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(bottomY + 3).toFixed(1)}" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".9"/>`);
-    }
-  }
+  const hoopLines = pileHoopPositionsMm({ enabled: hoopsEnabled, pileLength, start: hoopStart, end: hoopEnd, spacing: hoopSpacing, side: hoopStartSide }).map(xMm => {
+    const x = sideLeft + xMm * scale;
+    return `<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(topY - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(bottomY + 3).toFixed(1)}" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".9"/>`;
+  });
 
   const lBarsSide = (barPattern === 'l' || barPattern === 'alternate')
     ? [0.18, 0.50, 0.82].map(pos => {
@@ -2072,6 +2077,24 @@ class ShapeEditorModal {
 #seModal .se-pile-bar-override-row label{display:grid;gap:1px;font-size:9px;font-weight:900;color:#526070;}
 #seModal .se-pile-bar-override-row .se-input{min-height:22px!important;font-size:11px!important;padding:0 3px!important;border-radius:5px!important;}
 #seModal .se-pile-add-override{min-height:26px!important;font-size:12px;border-radius:6px;}
+#seModal .se-pile-hoop-row td{padding:2px!important;border-radius:5px!important;}
+#seModal .se-pile-hoop-grid{display:grid;grid-template-columns:34px repeat(5,minmax(45px,1fr)) 54px;gap:4px;align-items:end;direction:rtl;}
+#seModal .se-pile-hoop-grid .se-field-shell{grid-template-columns:12px minmax(0,1fr);gap:0 2px;}
+#seModal .se-pile-hoop-grid .se-param-icon{width:12px;height:12px;font-size:7px;}
+#seModal .se-pile-hoop-grid .se-param-label{font-size:9px;line-height:1;}
+#seModal .se-pile-hoop-grid .se-input{min-height:21px!important;font-size:11px!important;border-radius:5px!important;padding:0 3px!important;}
+#seModal .se-pile-hoop-toggle{display:grid;place-items:center;min-height:34px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;}
+#seModal .se-pile-hoop-toggle input{width:18px;height:18px;}
+#seModal .se-derived-chip{display:grid;place-items:center;min-height:21px;border:1px solid #bdd2ea;border-radius:5px;background:#eef6ff;color:#12315a;font-size:11px;font-weight:900;}
+#seModal .se-pile-elements{border:1px solid #d8e2ec;border-radius:7px;background:#fff;padding:7px;display:grid;gap:5px;}
+#seModal .se-pile-elements-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:900;color:#12315a;}
+#seModal .se-pile-elements-head span{font-size:10px;color:#64748b;}
+#seModal .se-pile-element-row{display:grid;grid-template-columns:minmax(76px,1.2fr) 34px 42px 56px 56px;gap:4px;align-items:center;direction:rtl;border:1px solid #edf1f6;border-radius:6px;background:#f8fafc;padding:4px;}
+#seModal .se-pile-element-row strong{font-size:10px;color:#0f2444;line-height:1.15;display:grid;}
+#seModal .se-pile-element-row span{font-size:9px;color:#64748b;font-weight:800;line-height:1.15;}
+#seModal .se-pile-element-value{border-radius:5px;background:#fff;border:1px solid #d8e2ec;padding:3px 4px;text-align:center;font-size:10px!important;color:#0f2444!important;}
+#seModal .se-pile-element-overrides{display:flex;flex-wrap:wrap;gap:4px;}
+#seModal .se-pile-element-overrides span{border:1px solid #bdd2ea;border-radius:999px;background:#eef6ff;color:#12315a;font-size:9px;font-weight:900;padding:2px 6px;}
 
 @media(max-width:980px){#seModal .se-head{grid-template-columns:1fr;gap:8px;min-height:112px;padding:10px 14px;}#seModal .se-brand{justify-content:center;}#seModal .se-head-actions{justify-content:center;}#sePageEdit{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,38vh);}#sePageEdit .se-family-panel{order:1;flex-direction:row;overflow-x:auto;padding:10px;}#sePageEdit .se-family-card{min-width:132px;min-height:74px;}#sePageEdit .se-preview-panel{order:2;padding:10px;}#sePageEdit .se-data-panel{order:3;width:100%;border-top:1px solid #c5cbd4;}#seModal .se-svg-wrap{height:42vh;max-height:42vh;}#seModal .se-foot{height:auto;min-height:82px;}#seFootNormal{flex-wrap:wrap;}#seModal .se-bottom-summary{width:100%;overflow-x:auto;padding-bottom:2px;}#seModal .se-foot-actions{width:100%;}}
 
@@ -3035,6 +3058,7 @@ class ShapeEditorModal {
     if (pile.hoopSpacing == null) pile.hoopSpacing = 200;
     if (pile.hoopStart == null) pile.hoopStart = 0;
     if (pile.hoopEnd == null) pile.hoopEnd = pile.pileLength || 2200;
+    if (!pile.hoopStartSide) pile.hoopStartSide = 'start';
     if (!pile.barPattern) pile.barPattern = 'straight';
     if (pile.lHookLength == null) pile.lHookLength = 25;
     if (!Array.isArray(pile.longitudinalBarOverrides)) pile.longitudinalBarOverrides = [];
@@ -3044,7 +3068,7 @@ class ShapeEditorModal {
       spiralDiameter: ['Ø','קוטר ברזל ספיראלה','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
       hoopsEnabled: ['H','טבעות פנימיות','','פעיל'], hoopDiameter: ['Ø','קוטר ברזל טבעת','מ״מ','14'],
       hoopSpacing: ['@','מרווח טבעות','ס״מ','200'], hoopStart: ['↦','תחילת טבעות','ס״מ','0'], hoopEnd: ['↤','סוף טבעות','ס״מ','2200'],
-      barPattern: ['L','צורת מוטות אורך','','straight'], lHookLength: ['L','אורך רגל L','ס״מ','25'],
+      hoopStartSide: ['⇄','צד התחלה','','מהתחלה'], barPattern: ['L','צורת מוטות אורך','','straight'], lHookLength: ['L','אורך רגל L','ס״מ','25'],
     };
     const field = (key, min = 1) => {
       const m = meta[key] || ['•', key, 'מ״מ', '100'];
@@ -3059,6 +3083,16 @@ class ShapeEditorModal {
       const m = meta[key] || ['•', key, '', ''];
       return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="checkbox" ${pile[key] ? 'checked' : ''} data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" onchange="window._seEditor._setPileField('${key}', this.checked)">` }) + '</td>';
     };
+    const compactField = (key, min = 1) => {
+      const m = meta[key] || ['•', key, 'מ״מ', '100'];
+      return this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], focusKey:m[4], number:m[5], code:m[6], input:`<input class="se-input" type="number" min="${min}" value="${pile[key] ?? 0}" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setPileField('${key}', this.value)">` });
+    };
+    const compactSelect = (key, options) => {
+      const m = meta[key] || ['•', key, '', ''];
+      const html = options.map(([value, label]) => `<option value="${value}" ${String(pile[key]) === String(value) ? 'selected' : ''}>${label}</option>`).join('');
+      return this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<select class="se-input" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" onchange="window._seEditor._setPileField('${key}', this.value)">${html}</select>` });
+    };
+    const hoopRow = () => `<tr class="se-family-row se-pile-hoop-row"><td colspan="5"><div class="se-pile-hoop-grid" data-pile-hoop-row><label class="se-pile-hoop-toggle" title="טבעות פנימיות"><input type="checkbox" ${pile.hoopsEnabled ? 'checked' : ''} data-pile-field="hoopsEnabled" onchange="window._seEditor._setPileField('hoopsEnabled', this.checked)"></label>${compactField('hoopDiameter', 14)}${compactField('hoopSpacing', 1)}${compactField('hoopStart', 0)}${compactField('hoopEnd', 0)}${compactSelect('hoopStartSide', [['start','מהתחלה'], ['end','מהסוף']])}<div class="se-derived-chip" data-pile-derived="internalHoopDiameter" title="קוטר טבעת פנימי מחושב">Ø${internalHoopDiameterCm}</div></div></td></tr>`;
     const pileDiameterMmForDerived = pileCmToMm(pile.pileDiameter || 70, 700);
     const coverMmForDerived = pileCmToMm(pile.concreteCover || 0, 0);
     const internalHoopDiameterCm = pileRound(pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMmForDerived, concreteCover: coverMmForDerived, longitudinalDiameter: pile.longitudinalDiameter || 22 }) / 10, 1);
@@ -3077,11 +3111,10 @@ class ShapeEditorModal {
       <tr class="se-zone-head se-zone-row"><td>שם אזור</td><td>אורך אזור</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>
       ${zoneRows}
       <tr class="se-family-row se-pile-action-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף אזור</button></td></tr>
-      <tr class="se-family-row se-pile-compact-row"><td colspan="5">${this._fieldShell({ icon:'Ø', label:'קוטר טבעת פנימי מחושב', unit:'ס״מ', example:'מחושב לפי קוטר כלונס פחות מוטות', input:`<output class="se-input se-derived-field" data-pile-derived="internalHoopDiameter">${internalHoopDiameterCm}</output>` })}</td></tr>
-      <tr class="se-family-row se-pile-compact-row">${checkboxField('hoopsEnabled')}${field('hoopDiameter', 14)}</tr>
-      <tr class="se-family-row se-pile-compact-row">${field('hoopSpacing', 1)}${field('hoopStart', 0)}</tr>
-      <tr class="se-family-row se-pile-compact-row">${field('hoopEnd', 0)}${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>
-      ${this._renderPileLongitudinalShapeRows(field)}`;
+      ${hoopRow()}
+      <tr class="se-family-row se-pile-compact-row">${selectField('barPattern', [['straight','ישר'], ['l','L'], ['alternate','משולב'], ['manual','ידני']])}</tr>
+      ${this._renderPileLongitudinalShapeRows(field)}
+      ${this._renderPileElementsSummary()}`;
   }
 
   _renderPileLongitudinalShapeRows(field) {
@@ -3117,6 +3150,45 @@ class ShapeEditorModal {
     return `<div class="se-pile-bar-overrides">${rows}<button class="se-add-btn se-pile-add-override" onclick="window._seEditor._addPileBarOverride()">הוסף עריכת מוט</button></div>`;
   }
 
+  _pileElementLabel(part) {
+    const type = String(part?.componentType || '');
+    if (type === 'longitudinal_l_bar') return 'מוטות אורך L';
+    if (type === 'longitudinal_straight_bar') return 'מוטות אורך ישרים';
+    if (type === 'spiral_zone') return `ספירלה ${part.name || ''}`.trim();
+    if (type === 'hoop_ring') return 'טבעות פנימיות';
+    return part?.description || type || 'רכיב';
+  }
+
+  _pileElementsSummaryHtml() {
+    const pile = this.current || {};
+    const calc = PileCageEngine.calculate(pile);
+    const parts = calc.manufacturingBreakdown || [];
+    const rows = parts.map((part) => {
+      const type = svgEscape(part.componentType || 'part');
+      const label = svgEscape(this._pileElementLabel(part));
+      const lengthM = pileRound((Number(part.totalLengthMm || 0)) / 1000, 2).toFixed(2);
+      const weightKg = pileRound(Number(part.weightKg || 0), 2).toFixed(2);
+      const diameter = part.diameterMm ? `Ø${pileRound(Number(part.diameterMm || 0), 1)}` : '-';
+      const qty = part.quantity ?? 1;
+      let details = '';
+      if (part.componentType === 'spiral_zone') details = `@${pileRound((part.pitchMm || 0) / 10, 1)} ס״מ / L ${pileRound((part.zoneLengthMm || 0) / 10, 1)} ס״מ`;
+      if (part.componentType === 'hoop_ring') details = `Ø פנימי ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ס״מ`;
+      return `<div class="se-pile-element-row" data-pile-element="${type}"><strong>${label}<span>${svgEscape(details)}</span></strong><span class="se-pile-element-value">${qty}</span><span class="se-pile-element-value">${diameter}</span><span class="se-pile-element-value">${lengthM} מ׳</span><span class="se-pile-element-value">${weightKg} ק״ג</span></div>`;
+    }).join('');
+    const overrides = normalizePileBarOverrides(pile.longitudinalBarOverrides || [], pile.longitudinalBars || 0).map(row => `<span data-pile-element-override>מוט ${row.barIndex} Ø${row.diameter} ${row.barPattern === 'l' ? 'L' : 'ישר'}</span>`).join('');
+    return `${rows || '<span class="se-pile-bar-note">אין אלמנטים מחושבים</span>'}${overrides ? `<div class="se-pile-element-overrides">${overrides}</div>` : ''}`;
+  }
+
+  _renderPileElementsSummary() {
+    return `<tr class="se-family-row se-pile-elements-row"><td colspan="5"><div class="se-pile-elements" data-pile-elements-summary><div class="se-pile-elements-head">רכיבי יסוד<span>כמות / קוטר / אורך / משקל</span></div><div data-pile-elements-body>${this._pileElementsSummaryHtml()}</div></div></td></tr>`;
+  }
+
+  _refreshPileElementsSummary() {
+    if (!this.current || this.current.family !== 'piles') return;
+    const body = document.querySelector('[data-pile-elements-body]');
+    if (body) body.innerHTML = this._pileElementsSummaryHtml();
+  }
+
   _setPileBarOverrideField(index, key, val) {
     if (!this.current || this.current.family !== 'piles') return;
     if (!Array.isArray(this.current.longitudinalBarOverrides)) this.current.longitudinalBarOverrides = [];
@@ -3125,6 +3197,7 @@ class ShapeEditorModal {
     if (key === 'barPattern') row[key] = String(val || 'straight') === 'l' ? 'l' : 'straight';
     else row[key] = Math.max(key === 'lHookLength' ? 0 : 1, Math.round(Number(val) || 0));
     this.current.longitudinalBarOverrides = normalizePileBarOverrides(this.current.longitudinalBarOverrides, this.current.longitudinalBars || 0);
+    this._refreshPileElementsSummary();
     this._updatePreview();
   }
 
@@ -3155,8 +3228,8 @@ class ShapeEditorModal {
     const pileDiameterMm = pileCmToMm(pile.pileDiameter || 70, 700);
     const coverMm = pileCmToMm(pile.concreteCover || 0, 0);
     const internalHoopDiameterCm = pileRound(pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMm, concreteCover: coverMm, longitudinalDiameter: pile.longitudinalDiameter || 22 }) / 10, 1);
-    out.value = internalHoopDiameterCm;
-    out.textContent = internalHoopDiameterCm;
+    if ('value' in out) out.value = internalHoopDiameterCm;
+    out.textContent = out.classList && out.classList.contains('se-derived-chip') ? `Ø${internalHoopDiameterCm}` : internalHoopDiameterCm;
   }
 
   _renderBarEditor() {
@@ -3249,7 +3322,8 @@ class ShapeEditorModal {
     if (key === 'hoopsEnabled') {
       this.current[key] = val === true || val === 1 || val === 'true' || val === 'on';
       this._refreshPileDerived();
-    } else if (key === 'barPattern' || key === 'spiralType') {
+      this._refreshPileElementsSummary();
+    } else if (key === 'barPattern' || key === 'spiralType' || key === 'hoopStartSide') {
       this.current[key] = String(val || '');
       this._renderPileCageEditor();
     } else {
@@ -3258,6 +3332,7 @@ class ShapeEditorModal {
       this.current[key] = Math.max(min, parsed);
       if (key === 'longitudinalBars') this.current.longitudinalBarOverrides = normalizePileBarOverrides(this.current.longitudinalBarOverrides || [], this.current.longitudinalBars);
       this._refreshPileDerived();
+      this._refreshPileElementsSummary();
     }
     this._updatePreview();
   }
@@ -3269,6 +3344,7 @@ class ShapeEditorModal {
     if (key === 'name') zone[key] = String(val);
     else if (key === 'noWrap') zone[key] = val === true || val === 1 || val === 'true' || val === 'on';
     else zone[key] = Math.max(key === 'length' ? 0 : 1, Number(val) || (key === 'length' ? 0 : 1));
+    this._refreshPileElementsSummary();
     this._updatePreview();
   }
 

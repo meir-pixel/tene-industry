@@ -478,19 +478,71 @@ test('pile cage editor refreshes derived hoops and gates longitudinal shape rows
   assert.equal(block.includes("${field('lHookLength', 0)}</tr>"), false);
   assert.ok(editor.includes('_refreshPileDerived()'));
   assert.ok(editor.includes('data-pile-derived="internalHoopDiameter"'));
-  assert.ok(editor.includes('out.textContent = internalHoopDiameterCm'));
+  assert.ok(editor.includes('out.textContent = out.classList'));
   assert.ok(editor.includes("pattern === 'straight'"));
   assert.ok(editor.includes("pattern === 'alternate'"));
   assert.ok(editor.includes('data-pile-bar-editor'));
   assert.ok(editor.includes('se-pile-compact-row'));
   assert.ok(editor.includes('se-pile-bar-override-row'));
   assert.ok(editor.includes('data-pile-bar-field="diameter"'));
+  assert.ok(editor.includes('se-pile-hoop-grid'));
+  assert.ok(editor.includes('hoopStartSide'));
+  assert.ok(editor.includes('data-pile-elements-summary'));
+  assert.ok(editor.includes('_renderPileElementsSummary()'));
+  assert.ok(editor.includes('_refreshPileElementsSummary()'));
   assert.ok(editor.includes('_addPileBarOverride()'));
   assert.ok(editor.includes('_deletePileBarOverride(index)'));
   assert.doesNotMatch(block, /עריכה פרטנית תוגדר בהמשך/);
   assert.ok(editor.includes("field('lHookLength', 0) + '</div>'"));
   const barPatternBranch = editor.slice(editor.indexOf("key === 'barPattern'"), editor.indexOf("const parsed = key === 'longitudinalBars'"));
   assert.ok(barPatternBranch.includes('this._renderPileCageEditor()'));
+});
+
+test('PileCageEngine derives internal hoop diameter from cage diameter and bar diameter only', () => {
+  const { PileCageEngine } = loadShapeEditorGeometry();
+  const result = PileCageEngine.calculate({
+    family: 'piles',
+    pileDiameter: 50,
+    pileLength: 2200,
+    concreteCover: 18,
+    longitudinalBars: 6,
+    longitudinalDiameter: 46,
+    spiralDiameter: 8,
+    spiralZones: [{ name: 'Zone A', length: 2200, pitch: 20 }],
+    hoopsEnabled: true,
+    hoopDiameter: 14,
+    hoopSpacing: 200,
+    hoopStart: 0,
+    hoopEnd: 2200,
+  });
+
+  assert.equal(result.calculated.internalHoopDiameterMm, 408);
+  assert.equal(result.machineOutput.generic.internalHoopDiameterMm, 408);
+});
+
+test('PileCageEngine counts hoop spacing from the selected side', () => {
+  const { PileCageEngine } = loadShapeEditorGeometry();
+  const base = {
+    family: 'piles',
+    pileDiameter: 70,
+    pileLength: 100,
+    longitudinalBars: 6,
+    longitudinalDiameter: 16,
+    spiralDiameter: 8,
+    spiralZones: [{ name: 'Zone A', length: 100, pitch: 20 }],
+    hoopsEnabled: true,
+    hoopDiameter: 14,
+    hoopSpacing: 30,
+    hoopStart: 0,
+    hoopEnd: 100,
+  };
+  const fromStart = PileCageEngine.calculate({ ...base, hoopStartSide: 'start' });
+  const fromEnd = PileCageEngine.calculate({ ...base, hoopStartSide: 'end' });
+  const startHoops = fromStart.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+  const endHoops = fromEnd.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+
+  assert.deepEqual(startHoops.positionsMm, [0, 300, 600, 900]);
+  assert.deepEqual(endHoops.positionsMm, [100, 400, 700, 1000]);
 });
 test('MeshEngine spacing changes grid count while diameter changes bar thickness', () => {
   const { ShapeEngineRouter } = loadShapeEditorGeometry();

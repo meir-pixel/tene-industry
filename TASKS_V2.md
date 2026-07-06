@@ -1602,6 +1602,36 @@
 
 ---
 
+
+### V2-006AI - Pile Cage Foundation Elements And Hoop Controls
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- module: steel-rebar/shape-editor
+- priority: high
+- scope:
+  - `TASKS_V2.md`
+  - `public/shape-editor.js`
+  - `test/shape-geometry.test.js`
+- input:
+  - Pile cage editor must show the foundation elements that compose the cage.
+  - Internal hoop controls must be compact and edited from one row: enabled, bar diameter, spacing, start, end, and start side.
+  - Internal hoop diameter must be derived from cage diameter and longitudinal bar diameter, without hidden concrete-cover subtraction.
+- output:
+  - Pile cage editor shows a compact element breakdown for longitudinal bars, spiral zones, internal hoops, and per-bar overrides.
+  - Internal hoop controls are consolidated into one compact row with a start-side selector.
+  - Hoop positions are calculated from the selected side and included in manufacturing breakdown.
+- guardrails:
+  - No Orders, Production, Pricing, Warehouse, OCR, Portal, API, or DB changes.
+  - No new shape families.
+  - No full UI redesign.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --test test\shape-geometry.test.js`
+  - `node --test test\pile-cage-engine.test.js`
+
+---
+
 ### V2-011D ג€” Worker Dashboard Inline Production Controls
 
 - status: done
