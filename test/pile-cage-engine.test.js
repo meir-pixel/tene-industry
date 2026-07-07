@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
+const { buildFullShapeSnapshot } = require('../services/shapeSnapshot');
 
 function codes(result) {
   return result.validation.errorCodes;
@@ -135,6 +136,26 @@ test('hoops by spacing calculate hoop count', () => {
   assert.equal(pile.hoops[0].count, 4);
 });
 
+
+test('internal hoops calculate weld spacing from internal diameter', () => {
+  const pile = calculatePileCage({
+    pileDiameterMm: 400,
+    concreteCoverMm: 0,
+    spiralDiameterMm: 8,
+    longitudinalBars: { totalBars: 6, defaultDiameterMm: 16 },
+    hoops: { enabled: true, spacingMode: 'bySpacing', spacingMm: 200, hoopBarDiameterMm: 14 },
+  });
+  const hoop = pile.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+
+  assert.equal(pile.calculated.internalHoopDiameterMm, 352);
+  assert.equal(hoop.hoopDiameterMm, 352);
+  assert.equal(hoop.hoopCutLengthMm, 1105.8);
+  assert.equal(hoop.barCenterSpacingMm, 176);
+  assert.equal(hoop.barClearSpacingMm, 160);
+  assert.equal(pile.views.topView.barCenterSpacingMm, 176);
+  assert.equal(pile.views.topView.barClearSpacingMm, 160);
+});
+
 test('manufacturing breakdown includes all required component types', () => {
   const pile = calculatePileCage({
     longitudinalBars: {
@@ -164,7 +185,7 @@ test('total weight equals component weights', () => {
 test('Shape V2 envelope remains valid for pile cage', () => {
   const pile = calculatePileCage({ shapeId: 'shape-test-1', shapeVersion: 3 });
 
-  assert.equal(pile.contractVersion, 1);
+  assert.equal(pile.contractVersion, 2);
   assert.equal(pile.shapeVersion, 3);
   assert.equal(pile.shapeId, 'shape-test-1');
   assert.equal(pile.shapeType, 'round_pile_cage');
@@ -175,7 +196,8 @@ test('Shape V2 envelope remains valid for pile cage', () => {
   assert.ok(pile.data.hoops);
   assert.ok(pile.calculated.manufacturingBreakdown);
   assert.ok(pile.machineOutput.generic);
-  assert.deepEqual(pile.machineOutput.machineProfiles, {});
+  assert.deepEqual(Object.keys(pile.machineOutput.machineProfiles).sort(), ['MEP', 'PEDAX', 'SCHNELL']);
+  assert.equal(typeof buildFullShapeSnapshot, 'function');
   assert.ok(pile.views.sideView);
   assert.ok(pile.views.topView);
   assert.ok(pile.views.isoView);

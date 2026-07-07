@@ -710,10 +710,33 @@ function pileRound(value, digits = 3) {
 
 function pileInternalHoopDiameterMm(pile) {
   const pileDiameter = Math.max(1, Number(pile?.pileDiameter || 0));
+  const cover = Math.max(0, Number(pile?.concreteCover || 0));
+  const spiralDia = Math.max(0, Number(pile?.spiralDiameter || 0));
   const longDia = Math.max(1, Number(pile?.longitudinalDiameter || 0));
-  return Math.max(1, pileDiameter - longDia * 2);
+  return Math.max(1, pileDiameter - cover * 2 - spiralDia * 2 - longDia * 2);
 }
 
+function pileHoopShapeSides(shape) {
+  const normalized = String(shape || 'round').toLowerCase();
+  if (normalized === 'hex' || normalized === 'hexagon' || normalized === 'משושה') return 6;
+  if (normalized === 'oct' || normalized === 'octagon' || normalized === 'מתומן') return 8;
+  return 0;
+}
+
+function pileHoopCutLengthMm(diameterMm, shape) {
+  const sides = pileHoopShapeSides(shape);
+  if (sides > 2) return sides * diameterMm * Math.sin(Math.PI / sides);
+  return Math.PI * diameterMm;
+}
+
+function pileLongitudinalSpacingMm(diameterMm, barCount, barDiameterMm) {
+  const count = Math.max(0, Math.round(Number(barCount) || 0));
+  const centerToCenterMm = count > 1 ? diameterMm * Math.sin(Math.PI / count) : 0;
+  return {
+    centerToCenterMm: pileRound(centerToCenterMm, 1),
+    clearMm: pileRound(Math.max(0, centerToCenterMm - Number(barDiameterMm || 0)), 1),
+  };
+}
 function pileHoopPositionsMm({ enabled = true, pileLength = 0, start = 0, end = pileLength, spacing = 1, side = 'start' } = {}) {
   if (!enabled) return [];
   const length = Math.max(0, Number(pileLength || 0));
@@ -768,6 +791,7 @@ PileCageEngine.calculate = function(shape = {}) {
     hoopStart: Math.max(0, pileCmToMm(shape.hoopStart || 0, 0)),
     hoopEnd: Math.max(0, pileCmToMm(shape.hoopEnd || shape.pileLength || 2200, pileLengthMm)),
     hoopStartSide: String(shape.hoopStartSide || 'start') === 'end' ? 'end' : 'start',
+    hoopShape: String(shape.hoopShape || 'round'),
     barPattern: String(shape.barPattern || 'straight'),
     lHookLength: Math.max(0, pileCmToMm(shape.lHookLength || 0, 0)),
     longitudinalBarOverrides: [],
@@ -788,10 +812,13 @@ PileCageEngine.calculate = function(shape = {}) {
   const totalLongitudinalWeightKg = pileRound((totalLongitudinalLengthMm / 1000) * sharedKgPerMeter(data.longitudinalDiameter));
   const spiralCenterDiameterMm = Math.max(1, data.pileDiameter - data.concreteCover * 2);
   const internalHoopDiameterMm = pileInternalHoopDiameterMm(data);
+  const hoopShape = String(data.hoopShape || 'round');
+  const hoopCutLengthMm = pileRound(pileHoopCutLengthMm(internalHoopDiameterMm, hoopShape), 1);
+  const barSpacing = pileLongitudinalSpacingMm(internalHoopDiameterMm, data.longitudinalBars, data.longitudinalDiameter);
   const totalSpiralLengthMm = wrapZones.reduce((sum, zone) => sum + pileSpiralLengthMm(spiralCenterDiameterMm, zone.lengthMm, zone.pitchMm), 0);
   const totalSpiralWeightKg = pileRound((totalSpiralLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter));
   const hoopPositions = pileHoopPositionsMm({ enabled: data.hoopsEnabled, pileLength: data.pileLength, start: data.hoopStart, end: data.hoopEnd, spacing: data.hoopSpacing, side: data.hoopStartSide });
-  const hoopLengthMm = Math.PI * internalHoopDiameterMm;
+  const hoopLengthMm = hoopCutLengthMm;
   const totalHoopLengthMm = pileRound(hoopLengthMm * hoopPositions.length, 1);
   const totalHoopWeightKg = pileRound((totalHoopLengthMm / 1000) * sharedKgPerMeter(data.hoopDiameter));
   const totalLengthMm = pileRound(totalLongitudinalLengthMm + totalSpiralLengthMm + totalHoopLengthMm, 1);
@@ -803,7 +830,7 @@ PileCageEngine.calculate = function(shape = {}) {
     const zoneLengthMm = pileSpiralLengthMm(spiralCenterDiameterMm, zone.lengthMm, zone.pitchMm);
     manufacturingBreakdown.push({ componentType: 'spiral_zone', sourceSystem: 'spiral', description: `Spiral zone ${zone.name}`, name: zone.name, zoneIndex: zone.zoneIndex, diameterMm: data.spiralDiameter, pitchMm: zone.pitchMm, quantity: 1, startMm: zone.startMm, zoneLengthMm: zone.lengthMm, totalLengthMm: zoneLengthMm, weightKg: pileRound((zoneLengthMm / 1000) * sharedKgPerMeter(data.spiralDiameter)) });
   });
-  if (data.hoopsEnabled) manufacturingBreakdown.push({ componentType: 'hoop_ring', sourceSystem: 'hoops', description: 'Internal reinforcement hoops', diameterMm: data.hoopDiameter, hoopDiameterMm: internalHoopDiameterMm, quantity: hoopPositions.length, positionsMm: hoopPositions, totalLengthMm: totalHoopLengthMm, weightKg: totalHoopWeightKg });
+  if (data.hoopsEnabled) manufacturingBreakdown.push({ componentType: 'hoop_ring', sourceSystem: 'hoops', description: 'Internal reinforcement hoops', diameterMm: data.hoopDiameter, hoopDiameterMm: internalHoopDiameterMm, hoopCutLengthMm, hoopShape, hoopShapeSides: pileHoopShapeSides(hoopShape), barCenterSpacingMm: barSpacing.centerToCenterMm, barClearSpacingMm: barSpacing.clearMm, quantity: hoopPositions.length, positionsMm: hoopPositions, totalLengthMm: totalHoopLengthMm, weightKg: totalHoopWeightKg });
 
   const productionCards = [{ cardType: 'pile_master', componentType: 'pile_master', title: 'Pile cage 1/1', unitIndex: 1, unitTotal: 1, componentIndex: 0, quantity: 1, totalLengthMm: data.pileLength, diameterMm: data.longitudinalDiameter, scanCodeSuffix: 'P1-MASTER' }]
     .concat(manufacturingBreakdown.map((part, index) => ({ cardType: 'pile_component', componentType: part.componentType, title: part.description, unitIndex: 1, unitTotal: 1, componentIndex: index + 1, quantity: part.quantity || 1, diameterMm: part.diameterMm, totalLengthMm: part.totalLengthMm, weightKg: part.weightKg, source: part, scanCodeSuffix: `P1-C${index + 1}` })));
@@ -811,8 +838,8 @@ PileCageEngine.calculate = function(shape = {}) {
   const validation = validateShapeContractData('piles', data);
   return {
     data,
-    calculated: { totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, weightKg, totalLongitudinalWeightKg, totalSpiralWeightKg, totalHoopWeightKg, spiralCenterDiameterMm, internalHoopDiameterMm, manufacturingBreakdown },
-    machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, spiralCenterDiameterMm, internalHoopDiameterMm, totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, manufacturingBreakdown, productionCards }, machineProfiles: {} },
+    calculated: { totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, weightKg, totalLongitudinalWeightKg, totalSpiralWeightKg, totalHoopWeightKg, spiralCenterDiameterMm, internalHoopDiameterMm, hoopCutLengthMm, barCenterSpacingMm: barSpacing.centerToCenterMm, barClearSpacingMm: barSpacing.clearMm, manufacturingBreakdown },
+    machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: machineZones, spiralCenterDiameterMm, internalHoopDiameterMm, hoopCutLengthMm, barCenterSpacingMm: barSpacing.centerToCenterMm, barClearSpacingMm: barSpacing.clearMm, totalLongitudinalLengthMm, totalSpiralLengthMm, totalHoopLengthMm, totalLengthMm, manufacturingBreakdown, productionCards }, machineProfiles: {} },
     validation,
     manufacturingBreakdown,
     productionCards,
@@ -834,7 +861,9 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const hoopEnd = Math.max(hoopStart, pileCmToMm(pile?.hoopEnd || pileLengthCm, pileLength));
   const hoopStartSide = String(pile?.hoopStartSide || 'start') === 'end' ? 'end' : 'start';
   const concreteCover = Math.max(0, pileCmToMm(pile?.concreteCover || 0, 0));
-  const internalHoopDiameter = pileInternalHoopDiameterMm({ pileDiameter, concreteCover, longitudinalDiameter });
+  const internalHoopDiameter = pileInternalHoopDiameterMm({ pileDiameter, concreteCover, spiralDiameter, longitudinalDiameter });
+  const hoopShape = String(pile?.hoopShape || 'round');
+  const barSpacing = pileLongitudinalSpacingMm(internalHoopDiameter, longitudinalBars, longitudinalDiameter);
   const barPattern = String(pile?.barPattern || 'straight');
   const lHookLength = Math.max(0, pileCmToMm(pile?.lHookLength || 25, 250));
   const zones = Array.isArray(pile?.spiralZones) && pile.spiralZones.length
@@ -927,7 +956,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     : '';
   const zoneSummary = zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}${(z.noWrap === true || z.noWrap === 1 || z.noWrap === 'true') ? ':no-wrap' : ''}`).join(',');
 
-  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-input-unit="cm" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-internal-hoop-diameter="${internalHoopDiameter}" data-bar-pattern="${svgEscape(barPattern)}"><defs><marker id="sePileDimArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 4 L 8 0 L 8 8 Z" fill="${dimColor}"/></marker></defs><g data-view="side" class="pile-side-engineering-view"><text data-se-focus="pile-length" x="${(w / 2).toFixed(1)}" y="${(sideTop - 18).toFixed(1)}" text-anchor="middle" font-size="13" font-family="Heebo,Arial" font-weight="800" fill="#111827">L ${pileLengthCm}</text>${dimLine(sideLeft, sideTop - 12, sideRight, sideTop - 12, 'pile-total-dimension', 'pile-length')}${zoneDimensions.join('')}${zoneBoundaries.join('')}${longitudinalLines}${noWrapZones.join('')}${spiralLoops.join('')}${hoopLines.join('')}${lBarsSide}<line class="pile-diameter-dimension" data-se-focus="pile-diameter" x1="${(sideRight + 12).toFixed(1)}" y1="${topY.toFixed(1)}" x2="${(sideRight + 12).toFixed(1)}" y2="${bottomY.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>${labelBox(sideRight + 24, sideMid, pileDiameterCm, 'pile-diameter-label', -90)}${pitchLabels.join('')}</g><g data-view="top" class="pile-top-engineering-view"><text x="${cx.toFixed(1)}" y="${(cy - r - 26).toFixed(1)}" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#12315a">מבט חזית (חתך)</text>${topHoop}<circle data-se-focus="pile-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.82).toFixed(1)}" fill="none" stroke="${auxColor}" stroke-width="${spiralStroke.toFixed(1)}"/>${topBars}<line class="pile-dimension-line pile-top-diameter" data-se-focus="pile-diameter" x1="${(cx - r).toFixed(1)}" y1="${(cy + r + 16).toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${(cy + r + 16).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">Ø${pileDiameterCm}</text><text data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">d' ${spiralDiameter}</text></g></g>`;
+  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-input-unit="cm" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-internal-hoop-diameter="${internalHoopDiameter}" data-bar-center-spacing="${barSpacing.centerToCenterMm}" data-bar-clear-spacing="${barSpacing.clearMm}" data-bar-pattern="${svgEscape(barPattern)}"><defs><marker id="sePileDimArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 4 L 8 0 L 8 8 Z" fill="${dimColor}"/></marker></defs><g data-view="side" class="pile-side-engineering-view"><text data-se-focus="pile-length" x="${(w / 2).toFixed(1)}" y="${(sideTop - 18).toFixed(1)}" text-anchor="middle" font-size="13" font-family="Heebo,Arial" font-weight="800" fill="#111827">L ${pileLengthCm}</text>${dimLine(sideLeft, sideTop - 12, sideRight, sideTop - 12, 'pile-total-dimension', 'pile-length')}${zoneDimensions.join('')}${zoneBoundaries.join('')}${longitudinalLines}${noWrapZones.join('')}${spiralLoops.join('')}${hoopLines.join('')}${lBarsSide}<line class="pile-diameter-dimension" data-se-focus="pile-diameter" x1="${(sideRight + 12).toFixed(1)}" y1="${topY.toFixed(1)}" x2="${(sideRight + 12).toFixed(1)}" y2="${bottomY.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>${labelBox(sideRight + 24, sideMid, pileDiameterCm, 'pile-diameter-label', -90)}${pitchLabels.join('')}</g><g data-view="top" class="pile-top-engineering-view"><text x="${cx.toFixed(1)}" y="${(cy - r - 26).toFixed(1)}" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#12315a">מבט חזית (חתך)</text>${topHoop}<circle data-se-focus="pile-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.82).toFixed(1)}" fill="none" stroke="${auxColor}" stroke-width="${spiralStroke.toFixed(1)}"/>${topBars}<line class="pile-dimension-line pile-top-diameter" data-se-focus="pile-diameter" x1="${(cx - r).toFixed(1)}" y1="${(cy + r + 16).toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${(cy + r + 16).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">Ø${pileDiameterCm}</text><text data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">d' ${spiralDiameter}</text><text data-se-focus="pile-longitudinal-bars" x="${cx.toFixed(1)}" y="${(cy + r + 45).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">מרכז-מרכז ${barSpacing.centerToCenterMm} מ״מ | נקי ${barSpacing.clearMm} מ״מ</text></g></g>`;
 };
 
 function SpiralEngine() {}
@@ -1087,6 +1116,9 @@ function resolveShapeType(shape) {
   if (family === 'mesh')    return 'mesh_rectangular';
   if (family === 'piles')   return 'round_pile_cage';
   if (family === 'spirals') return 'spiral';
+  const sides = Array.isArray(shape?.sides) ? shape.sides : [];
+  const angles = Array.isArray(shape?.angles) ? shape.angles : [];
+  if (family === 'bars' && sides.length === 1 && angles.length === 0) return 'straight_bar';
   if (shape?.presetId) return String(shape.presetId);
   if (shape?.id) return String(shape.id);
   return 'custom_bar';
@@ -1228,33 +1260,129 @@ function buildSpiralShapeContract(shape) {
   };
 }
 
-function buildShapeDataContractV2(shape) {
-  const family = normalizeShapeFamily(shape);
-  const shapeType = resolveShapeType({ ...shape, family });
-  const familyPayload = family === 'mesh'
-    ? buildMeshShapeContract(shape)
-    : family === 'piles'
-      ? buildPileShapeContract(shape)
-      : family === 'spirals'
-        ? buildSpiralShapeContract(shape)
-        : buildBarsShapeContract(shape);
-  const displayName = shape?.displayName || shape?.presetName || shape?.shapeName || shape?.name || '';
+function finiteShapeNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function roundShapeMetric(value, digits = 3) {
+  const numeric = finiteShapeNumber(value, 0);
+  const factor = 10 ** digits;
+  return Math.round(numeric * factor) / factor;
+}
+
+function normalizeShapeVersionValue(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.max(1, Math.round(numeric)) : 1;
+}
+
+function cleanShapePayload(value) {
+  if (Array.isArray(value)) return value.map(cleanShapePayload);
+  if (!value || typeof value !== 'object') {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    return value;
+  }
+  return Object.entries(value).reduce((payload, [key, entry]) => {
+    if (entry === undefined || key === 'quantity' || key === 'qty') return payload;
+    payload[key] = cleanShapePayload(entry);
+    return payload;
+  }, {});
+}
+
+function normalizeCalculatedPayload(calculated = {}) {
+  const payload = cleanShapePayload(calculated || {});
+  if (Object.prototype.hasOwnProperty.call(payload, 'totalLengthMm')) {
+    payload.totalLengthMm = roundShapeMetric(payload.totalLengthMm);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'weightKg')) {
+    payload.weightKg = roundShapeMetric(payload.weightKg);
+    payload.totalWeightKg = payload.weightKg;
+  } else if (Object.prototype.hasOwnProperty.call(payload, 'totalWeightKg')) {
+    payload.totalWeightKg = roundShapeMetric(payload.totalWeightKg);
+    payload.weightKg = payload.totalWeightKg;
+  }
+  return payload;
+}
+
+function normalizeGenericMachineOutput(generic = {}, calculated = {}, family, shapeType) {
+  const payload = cleanShapePayload({ ...(generic || {}), family, shapeType });
+  if (!Object.prototype.hasOwnProperty.call(payload, 'totalLengthMm') && calculated.totalLengthMm != null) {
+    payload.totalLengthMm = calculated.totalLengthMm;
+  }
+  if (!Object.prototype.hasOwnProperty.call(payload, 'weightKg') && calculated.weightKg != null) {
+    payload.weightKg = calculated.weightKg;
+  }
+  if (!Object.prototype.hasOwnProperty.call(payload, 'totalWeightKg') && calculated.totalWeightKg != null) {
+    payload.totalWeightKg = calculated.totalWeightKg;
+  }
+  payload.units = {
+    length: 'mm',
+    weight: 'kg',
+    angle: 'deg',
+  };
+  return payload;
+}
+
+function normalizeShapeValidation(familyPayload, calculated, approvedAt) {
+  const errors = Array.isArray(familyPayload.validation?.errors) ? [...familyPayload.validation.errors] : [];
+  const warnings = Array.isArray(familyPayload.validation?.warnings) ? [...familyPayload.validation.warnings] : [];
+  if (!(Number(calculated.totalLengthMm) > 0)) errors.push('calculated.totalLengthMm must be greater than 0');
+  if (!(Number(calculated.weightKg) > 0)) warnings.push('calculated.weightKg is missing or zero');
   return {
-    contractVersion: 1,
-    shapeVersion: Number(shape?.shapeVersion || 1),
-    shapeId: resolveShapeId(shape),
+    valid: Boolean(familyPayload.validation?.valid) && errors.length === 0,
+    errors,
+    warnings,
+    timestamp: approvedAt,
+  };
+}
+
+function buildShapeDataContractV2(shape) {
+  const safeShape = shape && typeof shape === 'object' ? shape : {};
+  const family = normalizeShapeFamily(safeShape);
+  const shapeType = resolveShapeType({ ...safeShape, family });
+  const familyPayload = family === 'mesh'
+    ? buildMeshShapeContract(safeShape)
+    : family === 'piles'
+      ? buildPileShapeContract(safeShape)
+      : family === 'spirals'
+        ? buildSpiralShapeContract(safeShape)
+        : buildBarsShapeContract(safeShape);
+  const approvedAt = new Date().toISOString();
+  const displayName = String(safeShape.displayName || safeShape.presetName || safeShape.shapeName || safeShape.name || '');
+  const data = cleanShapePayload(familyPayload.data || {});
+  const calculated = normalizeCalculatedPayload(familyPayload.calculated || {});
+  const generic = normalizeGenericMachineOutput(familyPayload.generic || {}, calculated, family, shapeType);
+  const validation = normalizeShapeValidation(familyPayload, calculated, approvedAt);
+  const machineOutput = {
+    generic,
+    machineProfiles: shapeMachineProfiles(),
+  };
+  const baseSnapshot = {
+    shapeVersion: normalizeShapeVersionValue(safeShape.shapeVersion),
+    shapeId: resolveShapeId(safeShape),
     shapeType,
     family,
     source: 'shape-editor',
-    approvedAt: new Date().toISOString(),
+    approvedAt,
     displayName,
-    data: familyPayload.data,
-    calculated: familyPayload.calculated,
-    machineOutput: {
-      generic: { ...familyPayload.generic, shapeType },
-      machineProfiles: shapeMachineProfiles(),
+    data,
+    calculated,
+    machineOutput,
+    validation,
+    extra: {
+      calculation: {
+        engine: 'shape-editor',
+        contract: 'SHAPE_DATA_CONTRACT_V2',
+        precision: { lengthMm: 1, weightKg: 0.001 },
+      },
     },
-    validation: familyPayload.validation,
+  };
+  const snapshotBuilder = window.IronBendShapeSnapshot?.buildFullShapeSnapshot;
+  if (snapshotBuilder) return snapshotBuilder(baseSnapshot);
+  return {
+    contractVersion: 2,
+    ...baseSnapshot,
+    ...baseSnapshot.extra,
   };
 }
 
@@ -2034,6 +2162,10 @@ class ShapeEditorModal {
 #seModal .se-summary-item small{font-size:10px;color:#647083;font-weight:800;margin-inline-start:3px;}
 #seModal .se-quantity-input{width:54px;border:0;background:transparent;color:#243047;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;line-height:1.1;text-align:center;direction:ltr;padding:0;outline:none;}
 #seModal .se-quantity-input:focus{background:#fff;border:1px solid #cfd6df;border-radius:5px;box-shadow:0 0 0 2px rgba(255,64,71,.12);}
+#seModal .se-straight-bar-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:4px;}
+#seModal .se-straight-bar-row td{padding:8px 10px;}
+#seModal .se-straight-bar-fields .se-field-shell{min-height:66px;}
+@media (max-width:720px){#seModal .se-straight-bar-fields{grid-template-columns:1fr;}}
 #seModal .se-summary-item.primary{border-color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.11);}
 #seModal .se-summary-item.primary strong{color:#df5000;}
 #seModal .se-foot{height:68px;min-height:68px;padding:10px 16px;background:#eef0f3;border-top:1px solid #c5cbd4;}
@@ -2938,6 +3070,12 @@ class ShapeEditorModal {
     if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = String(qty);
     const diaSelect = document.getElementById('seDiameterSelect');
     if (diaSelect && document.activeElement !== diaSelect) diaSelect.value = String(this.current.diameter || 12);
+    const straightLengthInput = document.getElementById('seStraightLengthInput');
+    if (straightLengthInput && document.activeElement !== straightLengthInput) straightLengthInput.value = String(this.current.sides?.[0] || 1000);
+    const straightDiameterInput = document.getElementById('seStraightDiameterInput');
+    if (straightDiameterInput && document.activeElement !== straightDiameterInput) straightDiameterInput.value = String(this.current.diameter || 12);
+    const straightQuantityInput = document.getElementById('seStraightQuantityInput');
+    if (straightQuantityInput && document.activeElement !== straightQuantityInput) straightQuantityInput.value = String(qty);
     set('seBends', bends);
     set('sePanelTotalMm', totalMm.toLocaleString('he-IL'));
     set('sePanelTotalM', (totalMm / 1000).toFixed(2));
@@ -2955,6 +3093,26 @@ class ShapeEditorModal {
     if (!this.current) return;
     this.current.diameter = Number(value) || 12;
     this._updatePreview();
+  }
+
+  _setStraightLength(value) {
+    if (!this.current) return;
+    this.current.sides = [Math.max(1, Number(value) || 1)];
+    this.current.angles = [];
+    this.current.is3d = 0;
+    this.current.azAngles = [0];
+    this.current.elAngles = [0];
+    this.current.family = 'bars';
+    this.current.shapeType = 'straight_bar';
+    this._updatePreview();
+  }
+
+  _setStraightDiameter(value) {
+    this._setDiameter(value);
+  }
+
+  _setStraightQuantity(value) {
+    this._setQuantity(value);
   }
 
   _setFamilyEditorChrome(kind) {
@@ -3091,6 +3249,7 @@ class ShapeEditorModal {
     if (pile.hoopStart == null) pile.hoopStart = 0;
     if (pile.hoopEnd == null) pile.hoopEnd = pile.pileLength || 2200;
     if (!pile.hoopStartSide) pile.hoopStartSide = 'start';
+    if (!pile.hoopShape) pile.hoopShape = 'round';
     if (!pile.barPattern) pile.barPattern = 'straight';
     if (pile.lHookLength == null) pile.lHookLength = 25;
     if (!Array.isArray(pile.longitudinalBarOverrides)) pile.longitudinalBarOverrides = [];
@@ -3100,7 +3259,7 @@ class ShapeEditorModal {
       spiralDiameter: ['Ø','קוטר ברזל ספיראלה','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
       hoopsEnabled: ['H','טבעות פנימיות','','פעיל'], hoopDiameter: ['Ø','קוטר ברזל טבעת','מ״מ','14'],
       hoopSpacing: ['@','מרווח טבעות','ס״מ','200'], hoopStart: ['↦','תחילת טבעות','ס״מ','0'], hoopEnd: ['↤','סוף טבעות','ס״מ','2200'],
-      hoopStartSide: ['⇄','צד התחלה','','מהתחלה'], barPattern: ['L','צורת מוטות אורך','','straight'], lHookLength: ['L','אורך רגל L','ס״מ','25'],
+      hoopStartSide: ['⇄','צד התחלה','','מהתחלה'], hoopShape: ['⬡','צורת טבעת','','עגול'], barPattern: ['L','צורת מוטות אורך','','straight'], lHookLength: ['L','אורך רגל L','ס״מ','25'],
     };
     const field = (key, min = 1) => {
       const m = meta[key] || ['•', key, 'מ״מ', '100'];
@@ -3124,10 +3283,14 @@ class ShapeEditorModal {
       const html = options.map(([value, label]) => `<option value="${value}" ${String(pile[key]) === String(value) ? 'selected' : ''}>${label}</option>`).join('');
       return this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<select class="se-input" data-pile-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" onchange="window._seEditor._setPileField('${key}', this.value)">${html}</select>` });
     };
-    const hoopRow = () => `<tr class="se-family-row se-pile-hoop-row"><td colspan="5"><div class="se-pile-hoop-grid" data-pile-hoop-row><label class="se-pile-hoop-toggle" title="טבעות פנימיות"><input type="checkbox" ${pile.hoopsEnabled ? 'checked' : ''} data-pile-field="hoopsEnabled" onchange="window._seEditor._setPileField('hoopsEnabled', this.checked)"></label>${compactField('hoopDiameter', 14)}${compactField('hoopSpacing', 1)}${compactField('hoopStart', 0)}${compactField('hoopEnd', 0)}${compactSelect('hoopStartSide', [['start','מהתחלה'], ['end','מהסוף']])}<div class="se-derived-chip" data-pile-derived="internalHoopDiameter" title="קוטר טבעת פנימי מחושב">Ø${internalHoopDiameterCm}</div></div></td></tr>`;
+    const hoopRow = () => `<tr class="se-family-row se-pile-hoop-row"><td colspan="5"><div class="se-pile-hoop-grid" data-pile-hoop-row><label class="se-pile-hoop-toggle" title="טבעות פנימיות"><input type="checkbox" ${pile.hoopsEnabled ? 'checked' : ''} data-pile-field="hoopsEnabled" onchange="window._seEditor._setPileField('hoopsEnabled', this.checked)"></label>${compactField('hoopDiameter', 14)}${compactField('hoopSpacing', 1)}${compactField('hoopStart', 0)}${compactField('hoopEnd', 0)}${compactSelect('hoopStartSide', [['start','מהתחלה'], ['end','מהסוף']])}${compactSelect('hoopShape', [['round','עגול'], ['hex','משושה'], ['oct','מתומן']])}<div class="se-derived-chip" data-pile-derived="internalHoopDiameter" title="קוטר טבעת פנימי מחושב">Ø${internalHoopDiameterCm}</div><div class="se-derived-chip" data-pile-derived="barCenterSpacing" title="מרחק אווירי מרכז-מרכז בין מוטות">מ-מ ${barCenterSpacingCm}</div><div class="se-derived-chip" data-pile-derived="barClearSpacing" title="מרחק אווירי נקי בין מוטות">נקי ${barClearSpacingCm}</div></div></td></tr>`;
     const pileDiameterMmForDerived = pileCmToMm(pile.pileDiameter || 70, 700);
     const coverMmForDerived = pileCmToMm(pile.concreteCover || 0, 0);
-    const internalHoopDiameterCm = pileRound(pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMmForDerived, concreteCover: coverMmForDerived, longitudinalDiameter: pile.longitudinalDiameter || 22 }) / 10, 1);
+    const internalHoopDiameterMmForDerived = pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMmForDerived, concreteCover: coverMmForDerived, spiralDiameter: pile.spiralDiameter || 8, longitudinalDiameter: pile.longitudinalDiameter || 22 });
+    const internalHoopDiameterCm = pileRound(internalHoopDiameterMmForDerived / 10, 1);
+    const barSpacingForDerived = pileLongitudinalSpacingMm(internalHoopDiameterMmForDerived, pile.longitudinalBars || 0, pile.longitudinalDiameter || 22);
+    const barCenterSpacingCm = pileRound(barSpacingForDerived.centerToCenterMm / 10, 1);
+    const barClearSpacingCm = pileRound(barSpacingForDerived.clearMm / 10, 1);
     const zoneRows = pile.spiralZones.map((zone, i) => `
       <tr class="se-family-row se-zone-row">
         <td>${this._fieldShell({ icon:'Z', label:'שם אזור', unit:'טקסט', example:'A', input:`<input class="se-input" type="text" value="${svgEscape(zone.name || 'Zone ' + String.fromCharCode(65 + i))}" data-zone-field="name" onfocus="window._seEditor._focusFamilyField('zone')" oninput="window._seEditor._setSpiralZoneField(${i}, 'name', this.value)">` })}</td>
@@ -3219,7 +3382,7 @@ class ShapeEditorModal {
       const qty = part.quantity ?? 1;
       let details = '';
       if (part.componentType === 'spiral_zone') details = `@${pileRound((part.pitchMm || 0) / 10, 1)} ס״מ / L ${pileRound((part.zoneLengthMm || 0) / 10, 1)} ס״מ`;
-      if (part.componentType === 'hoop_ring') details = `Ø פנימי ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ס״מ`;
+      if (part.componentType === 'hoop_ring') details = `? ����� ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ��� | �-� ${pileRound((part.barCenterSpacingMm || 0) / 10, 1)} | ��� ${pileRound((part.barClearSpacingMm || 0) / 10, 1)}`;
       return `<div class="se-pile-element-row" data-pile-element="${type}"><strong>${label}<span>${svgEscape(details)}</span></strong><span class="se-pile-element-value">${qty}</span><span class="se-pile-element-value">${diameter}</span><span class="se-pile-element-value">${lengthM} מ׳</span><span class="se-pile-element-value">${weightKg} ק״ג</span></div>`;
     }).join('');
     const overrides = normalizePileBarOverrides(pile.longitudinalBarOverrides || [], pile.longitudinalBars || 0).map(row => `<span data-pile-element-override>מוט ${row.barIndex} Ø${row.diameter} ${row.barPattern === 'l' ? 'L' : 'ישר'}</span>`).join('');
@@ -3269,14 +3432,30 @@ class ShapeEditorModal {
 
   _refreshPileDerived() {
     if (!this.current || this.current.family !== 'piles') return;
-    const out = document.querySelector('[data-pile-derived="internalHoopDiameter"]');
-    if (!out) return;
+    const diameterOut = document.querySelector('[data-pile-derived="internalHoopDiameter"]');
+    const centerOut = document.querySelector('[data-pile-derived="barCenterSpacing"]');
+    const clearOut = document.querySelector('[data-pile-derived="barClearSpacing"]');
+    if (!diameterOut && !centerOut && !clearOut) return;
     const pile = this.current;
     const pileDiameterMm = pileCmToMm(pile.pileDiameter || 70, 700);
     const coverMm = pileCmToMm(pile.concreteCover || 0, 0);
-    const internalHoopDiameterCm = pileRound(pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMm, concreteCover: coverMm, longitudinalDiameter: pile.longitudinalDiameter || 22 }) / 10, 1);
-    if ('value' in out) out.value = internalHoopDiameterCm;
-    out.textContent = out.classList && out.classList.contains('se-derived-chip') ? `Ø${internalHoopDiameterCm}` : internalHoopDiameterCm;
+    const internalHoopDiameterMm = pileInternalHoopDiameterMm({ pileDiameter: pileDiameterMm, concreteCover: coverMm, spiralDiameter: pile.spiralDiameter || 8, longitudinalDiameter: pile.longitudinalDiameter || 22 });
+    const internalHoopDiameterCm = pileRound(internalHoopDiameterMm / 10, 1);
+    const spacing = pileLongitudinalSpacingMm(internalHoopDiameterMm, pile.longitudinalBars || 0, pile.longitudinalDiameter || 22);
+    const centerCm = pileRound(spacing.centerToCenterMm / 10, 1);
+    const clearCm = pileRound(spacing.clearMm / 10, 1);
+    if (diameterOut) {
+      if ('value' in diameterOut) diameterOut.value = internalHoopDiameterCm;
+      diameterOut.textContent = diameterOut.classList && diameterOut.classList.contains('se-derived-chip') ? `?${internalHoopDiameterCm}` : internalHoopDiameterCm;
+    }
+    if (centerOut) {
+      if ('value' in centerOut) centerOut.value = centerCm;
+      centerOut.textContent = centerOut.classList && centerOut.classList.contains('se-derived-chip') ? `�-� ${centerCm}` : centerCm;
+    }
+    if (clearOut) {
+      if ('value' in clearOut) clearOut.value = clearCm;
+      clearOut.textContent = clearOut.classList && clearOut.classList.contains('se-derived-chip') ? `��� ${clearCm}` : clearCm;
+    }
   }
 
   _renderBarEditor() {
@@ -3287,6 +3466,37 @@ class ShapeEditorModal {
     if (isReal3D && angles?.length > 0 && (!azAngles || azAngles.every(a => Number(a || 0) === 0))) {
       this._init3DAnglesFrom2D(false);
       ({ sides, angles, azAngles, elAngles } = this.current);
+    }
+    const isStraightBar = !isReal3D && Array.isArray(sides) && sides.length === 1 && (!Array.isArray(angles) || angles.length === 0);
+    const addRow = document.querySelector('#seModal .se-add-row');
+    if (addRow) addRow.style.display = isStraightBar ? 'none' : '';
+    if (isStraightBar) {
+      this.current.family = 'bars';
+      this.current.shapeType = 'straight_bar';
+      this.current.sides = [Math.max(1, Number(sides[0]) || 1000)];
+      this.current.angles = [];
+      this.current.diameter = Number(this.current.diameter) || 12;
+      this.current.quantity = Math.max(1, Number(this.current.quantity || this._pendingQuantity || 1) || 1);
+      const thead = document.getElementById('seTableHead');
+      if (thead) {
+        thead.style.display = '';
+        thead.innerHTML = '<tr><th colspan="4">Straight Bar</th></tr>';
+      }
+      const body = document.getElementById('seTableBody');
+      if (body) {
+        body.innerHTML = `
+          <tr class="se-family-row se-straight-bar-row" data-straight-bar-editor>
+            <td colspan="4">
+              <div class="se-straight-bar-fields">
+                ${this._fieldShell({ icon:'L', label:'Length', unit:'mm', example:'1000', focusKey:'bar-side-0', code:'L', input:`<input id="seStraightLengthInput" class="se-input" type="number" min="1" max="20000" value="${this.current.sides[0]}" data-side="0" onfocus="window._seEditor._focusRow(0, false)" oninput="window._seEditor._setStraightLength(this.value)">` })}
+                ${this._fieldShell({ icon:'Ø', label:'Diameter', unit:'mm', example:'12', focusKey:'bar-diameter', code:'D', input:`<input id="seStraightDiameterInput" class="se-input" type="number" min="1" max="40" value="${this.current.diameter}" oninput="window._seEditor._setStraightDiameter(this.value)">` })}
+                ${this._fieldShell({ icon:'N', label:'Quantity', unit:'units', example:'1', focusKey:'bar-quantity', code:'Q', input:`<input id="seStraightQuantityInput" class="se-input" type="number" min="1" step="1" value="${this.current.quantity}" oninput="window._seEditor._setStraightQuantity(this.value)">` })}
+              </div>
+            </td>
+          </tr>`;
+      }
+      this._updateSummaryValues();
+      return;
     }
     const toggle = document.getElementById('seReal3DToggle');
     if (toggle) toggle.checked = isReal3D;
@@ -3370,7 +3580,7 @@ class ShapeEditorModal {
       this.current[key] = val === true || val === 1 || val === 'true' || val === 'on';
       this._refreshPileDerived();
       this._refreshPileElementsSummary();
-    } else if (key === 'barPattern' || key === 'spiralType' || key === 'hoopStartSide') {
+    } else if (key === 'barPattern' || key === 'spiralType' || key === 'hoopStartSide' || key === 'hoopShape') {
       this.current[key] = String(val || '');
       this._renderPileCageEditor();
     } else {
@@ -3965,3 +4175,5 @@ window.seSetView = function(mode) {
     window._seEditor._updatePreview();
   }
 };
+
+

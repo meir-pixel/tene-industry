@@ -1,9 +1,10 @@
 'use strict';
 
 const { rebarKgPerMeter } = require('./weights');
+const { buildFullShapeSnapshot, buildMachineProfilesPlaceholder } = require('../../services/shapeSnapshot');
 
 const DEFAULT_PILE = Object.freeze({
-  contractVersion: 1,
+  contractVersion: 2,
   shapeVersion: 1,
   shapeType: 'round_pile_cage',
   pileDiameterMm: 680,
@@ -58,7 +59,7 @@ function normalizePileInput(input = {}) {
     ...input,
     shapeId: input.shapeId || generatedShapeId(),
     shapeVersion: Math.max(1, Math.round(number(input.shapeVersion, DEFAULT_PILE.shapeVersion, 1))),
-    contractVersion: Math.max(1, Math.round(number(input.contractVersion, DEFAULT_PILE.contractVersion, 1))),
+    contractVersion: Math.max(2, Math.round(number(input.contractVersion, DEFAULT_PILE.contractVersion, 2))),
   };
 
   pile.pileDiameterMm = number(generalInput.pileDiameterMm ?? input.pileDiameterMm ?? input.pileDiameter, DEFAULT_PILE.pileDiameterMm, 1);
@@ -111,6 +112,31 @@ function barCenterDiameterMm(pile) {
   return Math.max(1, cageDiameterMm(pile) - pile.spiralDiameterMm - pile.longitudinalDiameterMm);
 }
 
+function internalHoopDiameterMm(pile) {
+  return Math.max(1, cageDiameterMm(pile) - 2 * pile.spiralDiameterMm - 2 * pile.longitudinalDiameterMm);
+}
+
+function hoopShapeSides(shape) {
+  const normalized = String(shape || 'round').toLowerCase();
+  if (normalized === 'hex' || normalized === 'hexagon' || normalized === 'משושה') return 6;
+  if (normalized === 'oct' || normalized === 'octagon' || normalized === 'מתומן') return 8;
+  return 0;
+}
+
+function hoopCutLengthMm(diameterMm, shape) {
+  const sides = hoopShapeSides(shape);
+  if (sides > 2) return sides * diameterMm * Math.sin(Math.PI / sides);
+  return Math.PI * diameterMm;
+}
+
+function longitudinalBarSpacingMm(diameterMm, barCount, barDiameterMm) {
+  const count = Math.max(0, Math.round(Number(barCount) || 0));
+  const centerToCenterMm = count > 1 ? diameterMm * Math.sin(Math.PI / count) : 0;
+  return {
+    centerToCenterMm: round(centerToCenterMm, 1),
+    clearMm: round(Math.max(0, centerToCenterMm - Number(barDiameterMm || 0)), 1),
+  };
+}
 function patternForIndex(pattern, index) {
   if (!pattern.length) return null;
   const cycle = pattern.reduce((sum, item) => sum + Math.max(1, Math.round(number(item.repeat, 1, 1))), 0);
@@ -187,12 +213,13 @@ function defaultHoopPositions(pile) {
 
 function buildHoops(pile) {
   if (!pile.hoopsEnabled) return [];
-  const hoopDiameterMm = pile.hoopDiameterMm > 0 ? pile.hoopDiameterMm : Math.max(1, cageDiameterMm(pile) - pile.longitudinalDiameterMm);
+  const hoopDiameterMm = pile.hoopDiameterMm > 0 ? pile.hoopDiameterMm : internalHoopDiameterMm(pile);
   const positionsMm = defaultHoopPositions(pile);
   const count = positionsMm.length;
-  const lengthMm = Math.PI * hoopDiameterMm;
+  const lengthMm = hoopCutLengthMm(hoopDiameterMm, pile.hoopShape);
+  const spacing = longitudinalBarSpacingMm(hoopDiameterMm, pile.longitudinalBarCount, pile.longitudinalDiameterMm);
   const weightKg = round((lengthMm * count / 1000) * rebarKgPerMeter(pile.hoopBarDiameterMm), 3);
-  return [{ index: 1, count, hoopCount: count, spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMode === 'bySpacing' ? pile.hoopSpacingMm : null, positionsMm, startFromMm: positionsMm[0] ?? 0, diameterMm: round(hoopDiameterMm, 1), hoopDiameterMm: round(hoopDiameterMm, 1), barDiameterMm: pile.hoopBarDiameterMm, hoopBarDiameterMm: pile.hoopBarDiameterMm, shape: pile.hoopShape, lengthMm: round(lengthMm, 1), hoopCutLengthMm: round(lengthMm, 1), totalLengthMm: round(lengthMm * count, 1), totalHoopLengthMm: round(lengthMm * count, 1), weightKg, totalHoopWeightKg: weightKg }];
+  return [{ index: 1, count, hoopCount: count, spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMode === 'bySpacing' ? pile.hoopSpacingMm : null, positionsMm, startFromMm: positionsMm[0] ?? 0, diameterMm: round(hoopDiameterMm, 1), hoopDiameterMm: round(hoopDiameterMm, 1), barDiameterMm: pile.hoopBarDiameterMm, hoopBarDiameterMm: pile.hoopBarDiameterMm, shape: pile.hoopShape, shapeSides: hoopShapeSides(pile.hoopShape), lengthMm: round(lengthMm, 1), hoopCutLengthMm: round(lengthMm, 1), barCenterSpacingMm: spacing.centerToCenterMm, barClearSpacingMm: spacing.clearMm, totalLengthMm: round(lengthMm * count, 1), totalHoopLengthMm: round(lengthMm * count, 1), weightKg, totalHoopWeightKg: weightKg }];
 }
 
 function validatePileCage(pile, spiralZones, bars = [], hoops = []) {
@@ -254,7 +281,7 @@ function buildManufacturingBreakdown(pile, bars, spiralZones, hoops) {
   return [
     ...groupBarsForProduction(bars),
     ...spiralZones.map(zone => ({ componentType: 'spiral_zone', type: 'spiral_zone', sourceSystem: 'spiral', description: `Spiral zone ${zone.name}`, name: zone.name, zoneIndex: zone.zoneIndex, diameterMm: pile.spiralDiameterMm, pitchMm: zone.pitchMm, lengthMm: zone.totalLengthMm, quantity: 1, startMm: zone.startMm, endMm: zone.endMm, zoneLengthMm: zone.lengthMm, turns: zone.turnsCalculated, totalLengthMm: zone.totalLengthMm, weightKg: zone.weightKg })),
-    ...hoops.map(hoop => ({ componentType: 'hoop_ring', type: 'hoop_ring', sourceSystem: 'hoops', description: 'Internal hoop ring', diameterMm: hoop.barDiameterMm, hoopDiameterMm: hoop.diameterMm, lengthMm: hoop.lengthMm, quantity: hoop.count, spacingMm: hoop.spacingMm, positionsMm: hoop.positionsMm, totalLengthMm: hoop.totalLengthMm, weightKg: hoop.weightKg })),
+    ...hoops.map(hoop => ({ componentType: 'hoop_ring', type: 'hoop_ring', sourceSystem: 'hoops', description: 'Internal hoop ring', diameterMm: hoop.barDiameterMm, hoopDiameterMm: hoop.diameterMm, shape: hoop.shape, shapeSides: hoop.shapeSides, lengthMm: hoop.lengthMm, hoopCutLengthMm: hoop.hoopCutLengthMm, barCenterSpacingMm: hoop.barCenterSpacingMm, barClearSpacingMm: hoop.barClearSpacingMm, quantity: hoop.count, spacingMm: hoop.spacingMm, positionsMm: hoop.positionsMm, totalLengthMm: hoop.totalLengthMm, weightKg: hoop.weightKg })),
   ];
 }
 
@@ -296,6 +323,8 @@ function buildProductionCards(pile, manufacturingBreakdown) {
         quantity: Number(part.quantity) || 1,
         diameterMm: Number(part.diameterMm) || Number(part.barDiameterMm) || pile.longitudinalDiameterMm,
         hoopDiameterMm: part.hoopDiameterMm || null,
+        barCenterSpacingMm: part.barCenterSpacingMm || null,
+        barClearSpacingMm: part.barClearSpacingMm || null,
         pitchMm: part.pitchMm || null,
         totalLengthMm: Number(part.totalLengthMm || part.lengthMm || 0),
         lengthMm: Number(part.lengthMm || part.totalLengthMm || 0),
@@ -321,7 +350,7 @@ function sumBy(items, keySelector, valueSelector) {
 function buildViews(pile, bars, spiralZones, hoops) {
   return {
     sideView: { pileLengthMm: pile.pileLengthMm, activeSpiralLengthMm: activeSpiralLengthMm(pile), startNoSpiralMm: pile.noSpiralStartMm, endNoSpiralMm: pile.noSpiralEndMm, spiralZones: spiralZones.map(zone => ({ zoneIndex: zone.zoneIndex, name: zone.name, startMm: zone.startMm, endMm: zone.endMm, lengthMm: zone.lengthMm, pitchMm: zone.pitchMm, label: `${zone.name} @${zone.pitchMm}` })), hoops: hoops.flatMap(hoop => hoop.positionsMm || []), longitudinalBars: bars.map(bar => ({ barIndex: bar.barIndex, diameterMm: bar.diameterMm, type: bar.type })) },
-    topView: { pileDiameterMm: pile.pileDiameterMm, cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), bars: bars.map(bar => ({ barIndex: bar.barIndex, positionAngleDeg: bar.positionAngleDeg, diameterMm: bar.diameterMm, type: bar.type })), legend: { straight: 'straight longitudinal bar', L: 'L longitudinal bar', mixedDiameters: new Set(bars.map(bar => bar.diameterMm)).size > 1 } },
+    topView: { pileDiameterMm: pile.pileDiameterMm, cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), internalHoopDiameterMm: hoops[0]?.diameterMm ?? internalHoopDiameterMm(pile), barCenterSpacingMm: hoops[0]?.barCenterSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).centerToCenterMm, barClearSpacingMm: hoops[0]?.barClearSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).clearMm, bars: bars.map(bar => ({ barIndex: bar.barIndex, positionAngleDeg: bar.positionAngleDeg, diameterMm: bar.diameterMm, type: bar.type })), legend: { straight: 'straight longitudinal bar', L: 'L longitudinal bar', mixedDiameters: new Set(bars.map(bar => bar.diameterMm)).size > 1 } },
     isoView: { cageDiameterMm: round(cageDiameterMm(pile), 1), pileLengthMm: pile.pileLengthMm, longitudinalBars: bars.length, spiralZones: spiralZones.length, hoops: hoops.reduce((sum, hoop) => sum + hoop.count, 0) },
     selectedBarView: bars.map(bar => ({ barIndex: bar.barIndex, type: bar.type, mainLengthMm: bar.mainLengthMm, bendLengthMm: bar.bendLengthMm, bendHeightMm: bar.bendHeightMm, bendAngleDeg: bar.bendAngleDeg, bendDirection: bar.bendDirection, diameterMm: bar.diameterMm })),
   };
@@ -332,7 +361,7 @@ function buildDataContract(pile, bars, spiralZones, hoops) {
     general: { pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, concreteCoverMm: pile.concreteCoverMm, cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), shapeVersion: pile.shapeVersion, shapeId: pile.shapeId, family: 'piles' },
     longitudinalBars: { totalBars: pile.longitudinalBarCount, defaultDiameterMm: pile.longitudinalDiameterMm, defaultLengthMm: pile.longitudinalDefaultLengthMm, layoutMode: pile.longitudinalLayoutMode, bars },
     spiral: { enabled: pile.spiralEnabled, barDiameterMm: pile.spiralDiameterMm, spiralDiameterMm: round(cageCenterlineDiameterMm(pile), 1), pitchMode: pile.pitchMode, uniformPitchMm: pile.uniformPitchMm, startNoSpiralMm: pile.noSpiralStartMm, endNoSpiralMm: pile.noSpiralEndMm, zones: spiralZones },
-    hoops: { enabled: pile.hoopsEnabled, hoopBarDiameterMm: pile.hoopBarDiameterMm, hoopDiameterMm: hoops[0]?.diameterMm ?? Math.max(1, cageDiameterMm(pile) - pile.longitudinalDiameterMm), spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMm, quantity: pile.hoopQuantity || hoops.reduce((sum, hoop) => sum + hoop.count, 0), firstHoopOffsetMm: pile.firstHoopOffsetMm, lastHoopOffsetMm: pile.lastHoopOffsetMm, shape: pile.hoopShape, rings: hoops },
+    hoops: { enabled: pile.hoopsEnabled, hoopBarDiameterMm: pile.hoopBarDiameterMm, hoopDiameterMm: hoops[0]?.diameterMm ?? internalHoopDiameterMm(pile), spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMm, quantity: pile.hoopQuantity || hoops.reduce((sum, hoop) => sum + hoop.count, 0), firstHoopOffsetMm: pile.firstHoopOffsetMm, lastHoopOffsetMm: pile.lastHoopOffsetMm, shape: pile.hoopShape, barCenterSpacingMm: hoops[0]?.barCenterSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).centerToCenterMm, barClearSpacingMm: hoops[0]?.barClearSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).clearMm, rings: hoops },
   };
 }
 
@@ -345,7 +374,7 @@ function buildCalculated(pile, bars, spiralZones, hoops, manufacturingBreakdown)
   const totalHoopWeightKg = hoops.reduce((sum, hoop) => sum + hoop.weightKg, 0);
   const totalSteelLengthMm = totalLongitudinalLengthMm + totalSpiralLengthMm + totalHoopLengthMm;
   const totalWeightKg = totalLongitudinalWeightKg + totalSpiralWeightKg + totalHoopWeightKg;
-  return { cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), activeSpiralLengthMm: activeSpiralLengthMm(pile), totalStraightBars: bars.filter(bar => bar.type === 'straight').length, totalLBars: bars.filter(bar => bar.type === 'L').length, totalLongitudinalLengthMm: round(totalLongitudinalLengthMm, 1), totalLongitudinalWeightKg: round(totalLongitudinalWeightKg, 3), totalSpiralLengthMm: round(totalSpiralLengthMm, 1), totalSpiralWeightKg: round(totalSpiralWeightKg, 3), totalHoopLengthMm: round(totalHoopLengthMm, 1), totalHoopWeightKg: round(totalHoopWeightKg, 3), totalSteelLengthMm: round(totalSteelLengthMm, 1), totalLengthMm: round(totalSteelLengthMm, 1), totalWeightKg: round(totalWeightKg, 3), weightKg: round(totalWeightKg, 3), weightByComponent: { longitudinalBars: round(totalLongitudinalWeightKg, 3), spiral: round(totalSpiralWeightKg, 3), hoops: round(totalHoopWeightKg, 3) }, weightByDiameter: sumBy(manufacturingBreakdown, part => part.diameterMm, part => part.weightKg), groupedBarSummary: groupBarsForProduction(bars), manufacturingBreakdown };
+  return { cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), activeSpiralLengthMm: activeSpiralLengthMm(pile), totalStraightBars: bars.filter(bar => bar.type === 'straight').length, totalLBars: bars.filter(bar => bar.type === 'L').length, totalLongitudinalLengthMm: round(totalLongitudinalLengthMm, 1), totalLongitudinalWeightKg: round(totalLongitudinalWeightKg, 3), totalSpiralLengthMm: round(totalSpiralLengthMm, 1), totalSpiralWeightKg: round(totalSpiralWeightKg, 3), totalHoopLengthMm: round(totalHoopLengthMm, 1), totalHoopWeightKg: round(totalHoopWeightKg, 3), totalSteelLengthMm: round(totalSteelLengthMm, 1), totalLengthMm: round(totalSteelLengthMm, 1), totalWeightKg: round(totalWeightKg, 3), weightKg: round(totalWeightKg, 3), internalHoopDiameterMm: hoops[0]?.diameterMm ?? internalHoopDiameterMm(pile), hoopCutLengthMm: hoops[0]?.lengthMm ?? 0, barCenterSpacingMm: hoops[0]?.barCenterSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).centerToCenterMm, barClearSpacingMm: hoops[0]?.barClearSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).clearMm, weightByComponent: { longitudinalBars: round(totalLongitudinalWeightKg, 3), spiral: round(totalSpiralWeightKg, 3), hoops: round(totalHoopWeightKg, 3) }, weightByDiameter: sumBy(manufacturingBreakdown, part => part.diameterMm, part => part.weightKg), groupedBarSummary: groupBarsForProduction(bars), manufacturingBreakdown };
 }
 
 function calculatePileCage(input = {}) {
@@ -359,8 +388,8 @@ function calculatePileCage(input = {}) {
   const productionCards = buildProductionCards(pile, manufacturingBreakdown);
   const calculated = buildCalculated(pile, longitudinalBars, spiralZones, hoops, manufacturingBreakdown);
   const views = buildViews(pile, longitudinalBars, spiralZones, hoops);
-  const geometry = { pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, cageDiameterMm: calculated.cageDiameterMm, cageCenterlineDiameterMm: calculated.cageCenterlineDiameterMm, barCenterDiameterMm: round(barCenterDiameterMm(pile), 1), noSpiralStartMm: pile.noSpiralStartMm, noSpiralEndMm: pile.noSpiralEndMm };
-  return { contractVersion: pile.contractVersion, shapeVersion: pile.shapeVersion, shapeId: pile.shapeId, shapeType: 'round_pile_cage', family: 'piles', source: 'steel-rebar/PileCageEngine', productType: 'pile_cage', pitchMode: pile.pitchMode, data, calculated, machineOutput: { generic: { shapeType: 'round_pile_cage', family: 'piles', pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, manufacturingBreakdown, productionCards }, machineProfiles: {} }, validation, manufacturingBreakdown, productionCards, views, geometry, longitudinalBars, spiralZones, hoops };
+  const geometry = { pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, cageDiameterMm: calculated.cageDiameterMm, cageCenterlineDiameterMm: calculated.cageCenterlineDiameterMm, barCenterDiameterMm: round(barCenterDiameterMm(pile), 1), internalHoopDiameterMm: calculated.internalHoopDiameterMm, barCenterSpacingMm: calculated.barCenterSpacingMm, barClearSpacingMm: calculated.barClearSpacingMm, noSpiralStartMm: pile.noSpiralStartMm, noSpiralEndMm: pile.noSpiralEndMm };
+  return buildFullShapeSnapshot({ shapeVersion: pile.shapeVersion, shapeId: pile.shapeId, shapeType: 'round_pile_cage', family: 'piles', source: 'steel-rebar/PileCageEngine', data, calculated, machineOutput: { generic: { shapeType: 'round_pile_cage', family: 'piles', pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, manufacturingBreakdown, productionCards }, machineProfiles: buildMachineProfilesPlaceholder() }, validation, extra: { productType: 'pile_cage', pitchMode: pile.pitchMode, manufacturingBreakdown, productionCards, views, geometry, longitudinalBars, spiralZones, hoops } });
 }
 
 module.exports = { DEFAULT_PILE, calculatePileCage, normalizePileInput, buildLongitudinalBars, buildSpiralZones, defaultHoopPositions, validatePileCage, buildProductionCards };

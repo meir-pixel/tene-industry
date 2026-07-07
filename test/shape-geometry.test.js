@@ -8,6 +8,7 @@ const { normalizeFactorySegments, normalizeFactoryShapeName, spiralCutLengthMm }
 const { distributeSurplusToEndSegments } = require('../services/intakeWorkflow');
 
 function loadShapeEditorGeometry() {
+  const snapshotSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'shapeSnapshot.js'), 'utf8');
   const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const context = {
     window: {},
@@ -19,6 +20,7 @@ function loadShapeEditorGeometry() {
     },
   };
   vm.createContext(context);
+  vm.runInContext(snapshotSource, context);
   vm.runInContext(source, context);
   return context;
 }
@@ -370,6 +372,33 @@ test('shape editor exposes editable order item quantity outside the shape contra
   assert.match(editor, /delete normalized\.qty/);
 });
 
+
+test('shape editor has a simple Straight Bar mode that saves Shape V2 straight_bar', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'bars',
+    sides: [1250],
+    angles: [],
+    diameter: 16,
+    quantity: 7,
+  });
+
+  assert.match(editor, /data-straight-bar-editor/);
+  assert.match(editor, /id="seStraightLengthInput"/);
+  assert.match(editor, /id="seStraightDiameterInput"/);
+  assert.match(editor, /id="seStraightQuantityInput"/);
+  assert.match(editor, /_setStraightLength\(value\)/);
+  assert.equal(contract.contractVersion, 2);
+  assert.equal(contract.family, 'bars');
+  assert.equal(contract.shapeType, 'straight_bar');
+  assert.deepEqual(contract.data.sides, [1250]);
+  assert.deepEqual(contract.data.angles, []);
+  assert.equal(contract.data.diameter, 16);
+  assert.equal(contract.calculated.totalLengthMm, 1250);
+  assert.equal('quantity' in contract.data, false);
+});
+
 test('new order item rows render a visible shape preview from length fallback', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
@@ -483,7 +512,9 @@ test('pile cage editor refreshes derived hoops and gates longitudinal shape rows
   assert.equal(block.includes("${field('lHookLength', 0)}</tr>"), false);
   assert.ok(editor.includes('_refreshPileDerived()'));
   assert.ok(editor.includes('data-pile-derived="internalHoopDiameter"'));
-  assert.ok(editor.includes('out.textContent = out.classList'));
+  assert.ok(editor.includes('diameterOut.textContent = diameterOut.classList'));
+  assert.ok(editor.includes('data-pile-derived="barCenterSpacing"'));
+  assert.ok(editor.includes('data-pile-derived="barClearSpacing"'));
   assert.ok(editor.includes("pattern === 'straight'"));
   assert.ok(editor.includes("pattern === 'alternate'"));
   assert.ok(editor.includes('data-pile-bar-editor'));
@@ -503,15 +534,14 @@ test('pile cage editor refreshes derived hoops and gates longitudinal shape rows
   assert.ok(barPatternBranch.includes('this._renderPileCageEditor()'));
 });
 
-test('PileCageEngine derives internal hoop diameter from cage diameter and bar diameter only', () => {
+test('PileCageEngine derives internal hoop diameter and weld spacing from spiral and longitudinal bars', () => {
   const { PileCageEngine } = loadShapeEditorGeometry();
   const result = PileCageEngine.calculate({
     family: 'piles',
-    pileDiameter: 50,
+    pileDiameter: 40,
     pileLength: 2200,
-    concreteCover: 18,
     longitudinalBars: 6,
-    longitudinalDiameter: 46,
+    longitudinalDiameter: 16,
     spiralDiameter: 8,
     spiralZones: [{ name: 'Zone A', length: 2200, pitch: 20 }],
     hoopsEnabled: true,
@@ -521,8 +551,12 @@ test('PileCageEngine derives internal hoop diameter from cage diameter and bar d
     hoopEnd: 2200,
   });
 
-  assert.equal(result.calculated.internalHoopDiameterMm, 408);
-  assert.equal(result.machineOutput.generic.internalHoopDiameterMm, 408);
+  assert.equal(result.calculated.internalHoopDiameterMm, 352);
+  assert.equal(result.calculated.hoopCutLengthMm, 1105.8);
+  assert.equal(result.calculated.barCenterSpacingMm, 176);
+  assert.equal(result.calculated.barClearSpacingMm, 160);
+  assert.equal(result.machineOutput.generic.internalHoopDiameterMm, 352);
+  assert.equal(result.machineOutput.generic.barCenterSpacingMm, 176);
 });
 
 test('PileCageEngine counts hoop spacing from the selected side', () => {
@@ -592,9 +626,11 @@ test('PileCageEngine treats pile editor dimension fields as centimeters', () => 
   assert.deepEqual(contract.data.longitudinalBarOverrides, [{ barIndex: 3, diameter: 20, barPattern: 'l', lHookLength: 250 }]);
   assert.deepEqual(contract.machineOutput.generic.longitudinalBarOverrides, [{ barIndex: 3, diameter: 20, barPattern: 'l', lHookLength: 250 }]);
   assert.equal(contract.calculated.spiralCenterDiameterMm, 500);
-  assert.equal(contract.calculated.internalHoopDiameterMm, 468);
+  assert.equal(contract.calculated.internalHoopDiameterMm, 452);
   const hoopPart = contract.calculated.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
-  assert.equal(hoopPart.hoopDiameterMm, 468);
+  assert.equal(hoopPart.hoopDiameterMm, 452);
+  assert.equal(hoopPart.barCenterSpacingMm, 226);
+  assert.equal(hoopPart.barClearSpacingMm, 210);
   assert.ok(contract.calculated.totalLengthMm < 1000000);
   assert.ok(contract.calculated.weightKg < 1000);
 });
@@ -717,7 +753,7 @@ test('buildShapeDataContractV2 returns bars envelope without shape-owned quantit
     quantity: 99,
   });
 
-  assert.equal(contract.contractVersion, 1);
+  assert.equal(contract.contractVersion, 2);
   assert.equal(contract.shapeVersion, 1);
   assert.ok(contract.shapeId);
   assert.equal(contract.shapeType, 'u_bar');
@@ -725,16 +761,40 @@ test('buildShapeDataContractV2 returns bars envelope without shape-owned quantit
   assert.equal(contract.source, 'shape-editor');
   assert.deepEqual(contract.data, { sides: [350, 1200, 350], angles: [90, 90], diameter: 12 });
   assert.equal(contract.calculated.totalLengthMm, 1900);
+  assert.equal(contract.calculated.totalWeightKg, contract.calculated.weightKg);
   assert.equal(contract.calculated.bendCount, 2);
   assert.equal(contract.validation.valid, true);
   assert.equal(contract.machineOutput.generic.family, 'bars');
+  assert.equal(contract.machineOutput.generic.weightKg, contract.calculated.weightKg);
+  assert.deepEqual(contract.machineOutput.generic.units, { length: 'mm', weight: 'kg', angle: 'deg' });
   assert.equal(contract.machineOutput.generic.segments.length, 3);
   assert.deepEqual(Object.keys(contract.machineOutput.machineProfiles).sort(), ['MEP', 'PEDAX', 'SCHNELL']);
   assert.equal('quantity' in contract, false);
   assert.equal('quantity' in contract.data, false);
   assert.equal('quantity' in contract.machineOutput.generic, false);
+  assert.equal(contract.calculation.engine, 'shape-editor');
+  assert.equal(contract.calculation.contract, 'SHAPE_DATA_CONTRACT_V2');
 });
 
+test('buildShapeDataContractV2 normalizes unstable editor input', () => {
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'bars',
+    presetId: 'messy_bar',
+    shapeVersion: '2.7',
+    sides: ['100', 'bad'],
+    angles: ['90'],
+    diameter: '10',
+    qty: 3,
+  });
+
+  assert.equal(contract.shapeVersion, 3);
+  assert.deepEqual(contract.data.sides, [100, 0]);
+  assert.equal('qty' in contract.data, false);
+  assert.equal(contract.validation.valid, false);
+  assert.match(contract.validation.errors.join(' | '), /sides\[1\] must be greater than 0/);
+  assert.equal(contract.machineOutput.generic.totalLengthMm, contract.calculated.totalLengthMm);
+});
 
 test('buildShapeDataContractV2 accepts closed bar shapes with a final bend angle', () => {
   const { buildShapeDataContractV2 } = loadShapeEditorGeometry();

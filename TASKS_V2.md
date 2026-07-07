@@ -631,6 +631,29 @@
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
 
+### V2-006AO - Shape V2 Integration Across Orders Production Intake
+
+- status: done
+- owner: codex-shape-editor / codex-orders / codex-intake-ocr / codex-production-cards-printing
+- module: Shape V2 integration
+- priority: critical
+- scope:
+  - `services/orderContracts.js`
+  - `services/orders.js`
+  - `services/intakeWorkflow.js`
+  - `routes/orders.js`
+  - `public/index.html`
+  - `public/shape-editor.js`
+  - `services/productionCards.js`
+  - `test/*.test.js`
+- output:
+  - Orders creation/edit/add-item paths persist full Shape V2 snapshots.
+  - Production cards and display routes prefer Shape V2 snapshots and canonical SVG output.
+  - Intake/OCR approval creates a full Shape V2 snapshot from OCR rows.
+  - Quantity remains item-owned and is not stored as Shape-owned data.
+- verification:
+  - `npm test` passed with 353/353 tests.
+
 ### V2-006P - Pile Cage Editor Visual Systems
 
 - Status: done
@@ -2123,3 +2146,29 @@
 - verification:
   - `node --check public\shape-editor.js`
   - `node --test test\shape-geometry.test.js`
+
+---
+
+### V2-006AP - Pile Cage Hoop Diameter And Weld Spacing
+
+- status: done
+- owner: codex-steel-rebar-shape-editor
+- primary_module: steel-rebar / shape-editor / piles
+- files:
+  - `TASKS_V2.md`
+  - `modules/steel-rebar/pile-cage-engine.js`
+  - `public/shape-editor.js`
+  - `test/pile-cage-engine.test.js`
+  - `test/shape-geometry.test.js`
+- goal:
+  - Calculate internal hoop diameter from pile diameter minus spiral bar and longitudinal bars on both sides.
+  - Expose hoop cut length, longitudinal bar center-to-center spacing, and clear spacing for production/welding.
+  - Keep the pile cage editor focused on existing pile fields without redesigning other modules.
+- guardrails:
+  - No Orders, OCR, Worker, Printing, Pricing, Finance, Warehouse, Portal, DB, or unrelated module changes.
+  - No new shape families and no 3D implementation.
+- verification:
+  - `node --check public\shape-editor.js`
+  - `node --check modules\steel-rebar\pile-cage-engine.js`
+  - `node --test test\shape-geometry.test.js`
+  - `node --test test\pile-cage-engine.test.js`
