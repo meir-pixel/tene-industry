@@ -21,6 +21,14 @@ module.exports = function createCustomersRouter(deps) {
     return String(value || '').replace(/\D/g, '');
   }
 
+  function safeQuery(fallback, fn) {
+    try {
+      return fn() || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
   router.get('/customers', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const q = req.query.q || '';
     const limit = Math.min(Number(req.query.limit) || 50, 200);
@@ -62,6 +70,72 @@ module.exports = function createCustomersRouter(deps) {
       FROM orders WHERE customer_id=?
     `).get(c.id);
     c.stats = stats;
+    const orderSummary = safeQuery({ total: 0, open_count: 0, pending_count: 0, delivery_ready_count: 0, total_weight: 0, billing_weight: 0, order_value: 0 }, () => db.prepare(`
+      SELECT COUNT(*) AS total,
+             COALESCE(SUM(CASE WHEN status NOT IN ('בוטלה','נמסרה','סופקה') THEN 1 ELSE 0 END),0) AS open_count,
+             COALESCE(SUM(CASE WHEN status IN ('ממתינה לאישור','ממתינה לאישור לקוח') THEN 1 ELSE 0 END),0) AS pending_count,
+             COALESCE(SUM(CASE WHEN status IN ('נמסרה','סופקה','מוכנה לאיסוף') THEN 1 ELSE 0 END),0) AS delivery_ready_count,
+             COALESCE(SUM(total_weight),0) AS total_weight,
+             COALESCE(SUM(billing_weight),0) AS billing_weight,
+             COALESCE(SUM(COALESCE(NULLIF(sale_price,0), portal_price, 0)),0) AS order_value
+      FROM orders WHERE customer_id=?
+    `).get(c.id));
+    const unbilled = safeQuery({ count: 0, billing_weight: 0, amount: 0 }, () => db.prepare(`
+      SELECT COUNT(*) AS count,
+             COALESCE(SUM(billing_weight),0) AS billing_weight,
+             COALESCE(SUM(COALESCE(NULLIF(sale_price,0), portal_price, 0)),0) AS amount
+      FROM orders
+      WHERE customer_id=?
+        AND status IN ('נמסרה','סופקה','מוכנה לאיסוף')
+        AND COALESCE(NULLIF(sale_price,0), portal_price, 0) > 0
+    `).get(c.id));
+    const sites = safeQuery([], () => db.prepare(`
+      SELECT cs.id,cs.name,cs.address,cs.city,cs.status,cs.manager_name,cs.manager_phone,
+             COALESCE(cs.budget_amount,0) AS budget_amount,
+             COALESCE(cs.budget_kg,0) AS budget_kg,
+             COALESCE(cs.alert_pct,80) AS alert_pct,
+             COALESCE(cs.block_over_budget,0) AS block_over_budget,
+             COUNT(o.id) AS order_count,
+             COALESCE(SUM(o.billing_weight),0) AS billing_kg,
+             COALESCE(SUM(COALESCE(NULLIF(o.sale_price,0), o.portal_price, 0)),0) AS spend
+      FROM customer_sites cs
+      LEFT JOIN orders o ON o.site_id=cs.id AND o.customer_id=cs.customer_id
+      WHERE cs.customer_id=?
+      GROUP BY cs.id
+      ORDER BY cs.status='active' DESC, cs.name
+    `).all(c.id));
+    const siteTotals = sites.reduce((acc, site) => {
+      acc.count += 1;
+      if (site.status !== 'inactive') acc.active_count += 1;
+      acc.budget_amount += Number(site.budget_amount || 0);
+      acc.budget_kg += Number(site.budget_kg || 0);
+      acc.spend += Number(site.spend || 0);
+      acc.billing_kg += Number(site.billing_kg || 0);
+      return acc;
+    }, { count: 0, active_count: 0, budget_amount: 0, budget_kg: 0, spend: 0, billing_kg: 0 });
+    const activePriceBook = safeQuery(null, () => db.prepare(`
+      SELECT id,code,name,price_type,status,updated_at
+      FROM pricing_price_books
+      WHERE status='active' AND (customer_id=? OR customer_id IS NULL)
+      ORDER BY customer_id IS NOT NULL DESC, updated_at DESC, id DESC
+      LIMIT 1
+    `).get(c.id));
+    c.sites_summary = sites;
+    c.workbench = {
+      orders: orderSummary,
+      unbilled,
+      sites: siteTotals,
+      finance: {
+        open_balance: Number(c.balance || 0),
+        credit_limit: Number(c.credit_limit || 0),
+      },
+      pricing: {
+        mode: c.price_tier === 'customer' ? 'customer' : 'general',
+        discount_pct: Number(c.discount_pct || 0),
+        portal_visibility: c.portal_price_list_visibility || 'none',
+        active_price_book: activePriceBook,
+      },
+    };
     c.profile_change_requests = db.prepare(`
       SELECT r.id,r.customer_id,r.portal_user_id,r.status,r.current_json,r.requested_json,r.notes,r.created_at,r.updated_at,r.reviewed_at,r.reviewed_by,
              pu.name AS portal_user_name, pu.phone AS portal_user_phone

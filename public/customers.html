@@ -1003,6 +1003,11 @@ function fmtWeight(w) {
   return n.toFixed(0) + ' ק"ג';
 }
 
+function fmtMoney(value) {
+  const n = Number(value) || 0;
+  return '₪' + n.toLocaleString('he-IL', { maximumFractionDigits: 0 });
+}
+
 async function approveProfileChange(customerId, requestId) {
   const r = await fetch('/api/customers/' + customerId + '/profile-change-requests/' + requestId + '/approve', { method: 'POST' });
   if (!r.ok) return alert('לא ניתן לאשר את בקשת השינוי');
@@ -1158,7 +1163,8 @@ function renderDetail(c) {
       '</div>' +
     '</div>' +
     '<div class="detail-actions">' +
-      '<button class="btn-action primary" onclick="newOrderFor('+c.id+',\''+esc(c.name)+'\')">➕ הזמנה חדשה</button>' +
+      '<button class="btn-action primary" onclick="newOrderFor('+c.id+')">➕ הזמנה חדשה</button>' +
+      '<button class="btn-action" onclick="quickCreateSite('+c.id+')">🏗 אתר חדש</button>' +
       '<button class="btn-action" onclick="openModal('+c.id+')">✏️ עריכה</button>' +
     '</div>' +
   '</div>';
@@ -1170,6 +1176,8 @@ function renderDetail(c) {
     stat('ממוצע להזמנה',  fmtWeight(initAvg),              '',        '📊') +
     stat('הזמנה אחרונה',  fmtDate(stats.last_order_at),    '',        '🗓') +
   '</div>';
+  html += renderCustomerWorkbench(c);
+  html += renderCustomerSitesSummary(c);
 
   // ── Info grid ──
   html += '<div class="info-grid">';
@@ -1281,6 +1289,51 @@ function renderDetail(c) {
   document.getElementById('detailPanel').innerHTML = html;
 }
 
+function renderCustomerWorkbench(c) {
+  const wb = c.workbench || {};
+  const finance = wb.finance || {};
+  const orders = wb.orders || {};
+  const unbilled = wb.unbilled || {};
+  const sites = wb.sites || {};
+  const pricing = wb.pricing || {};
+  const priceMode = pricing.mode === 'customer' ? 'לקוח' : 'כללי';
+  return '<div class="stats-row">' +
+    stat('פתוח מול לקוח', fmtMoney(finance.open_balance), '', '💳') +
+    stat('מועמד לחיוב', fmtMoney(unbilled.amount), '', '🧾') +
+    stat('אתרים פעילים', sites.active_count || 0, '', '🏗') +
+    stat('מחירון', priceMode, '', '🏷') +
+  '</div>';
+}
+
+function renderCustomerSitesSummary(c) {
+  const sites = c.sites_summary || [];
+  let html = '<div class="orders-section">';
+  html += '<div class="orders-section-head">' +
+    '<h4>🏗 אתרים ופרויקטים (' + sites.length + ')</h4>' +
+    '<button class="btn-action" onclick="quickCreateSite(' + c.id + ')">אתר חדש</button>' +
+  '</div>';
+  if (!sites.length) {
+    html += '<div style="padding:24px;text-align:center;color:var(--text-faint);font-size:13px">אין עדיין אתרים ללקוח. אפשר לפתוח אתר ראשון מכאן.</div>';
+  } else {
+    html += '<div class="orders-table-wrap"><table class="orders-table">' +
+      '<thead><tr><th>אתר</th><th>מנהל</th><th class="col-weight">הוזמן</th><th>כסף</th><th>תקציב</th></tr></thead><tbody>';
+    sites.forEach(site => {
+      const manager = [site.manager_name, site.manager_phone].filter(Boolean).join(' · ');
+      const budget = site.budget_amount ? fmtMoney(site.budget_amount) : '–';
+      html += '<tr>' +
+        '<td><b>' + esc(site.name) + '</b><div style="font-size:12px;color:var(--text-muted)">' + esc([site.city, site.address].filter(Boolean).join(' · ') || site.status || '') + '</div></td>' +
+        '<td>' + esc(manager || '–') + '</td>' +
+        '<td class="col-weight">' + fmtWeight(site.billing_kg) + '</td>' +
+        '<td>' + fmtMoney(site.spend) + '</td>' +
+        '<td>' + budget + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 function stat(label, value, unit, icon) {
   return '<div class="stat-card">' +
     '<div class="stat-label">'+icon+' '+label+'</div>' +
@@ -1294,8 +1347,29 @@ function infoRow(key, val) {
 }
 
 // ── NEW ORDER for customer ──
-function newOrderFor(id, name) {
-  window.location.href = '/index.html?customer_id=' + id + '&customer_name=' + encodeURIComponent(name);
+function newOrderFor(id) {
+  const c = customers.find(x => Number(x.id) === Number(id)) || {};
+  const params = new URLSearchParams({
+    customer_id: String(id),
+    customer_name: c.name || '',
+    source: 'customer-card',
+  });
+  window.location.href = '/index.html?' + params.toString();
+}
+
+async function quickCreateSite(customerId) {
+  const name = prompt('שם אתר / פרויקט');
+  if (!name || !name.trim()) return;
+  const city = prompt('עיר (לא חובה)') || '';
+  const address = prompt('כתובת (לא חובה)') || '';
+  const r = await fetch('/api/customers/' + customerId + '/portal-sites', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name.trim(), city: city.trim(), address: address.trim() }),
+  });
+  if (!r.ok) return alert('לא ניתן לפתוח אתר ללקוח');
+  await loadCustomers(lastCustomerQuery);
+  selectCustomer(customerId);
 }
 
 // ── PORTAL LINK ──
