@@ -105,6 +105,22 @@ test('customer card exposes unbilled delivery-to-billing queue without owning in
   assert.match(page, /\/api\/orders\/' \+ orderId \+ '\/costs\/billing/);
 });
 
+test('customer card shows billing amount on each order row', () => {
+  const route = read('routes/customers.js');
+  const page = read('public/customers.html');
+  assert.match(route, /suggested_amount/);
+  assert.match(route, /billing_status/);
+  assert.match(route, /billing_source/);
+  assert.match(route, /price_book_weight/);
+  assert.match(route, /\\u05e0\\u05e9\\u05dc\\u05d7\\u05d4/);
+  assert.match(page, /function billingAmountLabel/);
+  assert.match(page, /function billingStatusLabel/);
+  assert.match(page, /function billingSourceText/);
+  assert.match(page, /billingAmountLabel\(o\)/);
+  assert.match(page, /billingStatusLabel\(o\)/);
+  assert.match(page, /\\u05e1\\u05db\\u05d5\\u05dd \\u05dc\\u05d7\\u05d9\\u05d5\\u05d1/);
+});
+
 test('customer card keeps orders above billing sites and secondary details', () => {
   const page = read('public/customers.html');
   assert.match(page, /function renderCustomerOrders/);
@@ -129,5 +145,5 @@ test('customer card has quick navigation and order document links', () => {
   assert.match(page, /customerDetailsSection/);
   assert.match(page, /kind=print-a4/);
   assert.match(page, /kind=delivery-certificate/);
-  assert.match(page, /PDF הזמנה/);
+  assert.match(page, /PDF \\u05d4\\u05d6\\u05de\\u05e0\\u05d4/);
 });

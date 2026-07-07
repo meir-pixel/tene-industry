@@ -29,6 +29,17 @@ module.exports = function createCustomersRouter(deps) {
     }
   }
 
+  function roundMoney(value) {
+    const n = Number(value || 0);
+    return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
+  }
+
+  function billingSourceLabel(source) {
+    if (source === 'existing') return 'calculated';
+    if (source === 'price_book_weight') return 'price_book_weight';
+    return 'missing_price';
+  }
+
   router.get('/customers', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const q = req.query.q || '';
     const limit = Math.min(Number(req.query.limit) || 50, 200);
@@ -59,10 +70,48 @@ module.exports = function createCustomersRouter(deps) {
   router.get('/customers/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
     const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers c LEFT JOIN customer_credit cc ON cc.customer_id=c.id WHERE c.id=?`).get(req.params.id);
     if (!c) return res.status(404).json({ error: 'לא נמצא' });
+    const activePriceBook = safeQuery(null, () => db.prepare(`
+      SELECT id,code,name,price_type,status,updated_at
+      FROM pricing_price_books
+      WHERE status='active' AND (customer_id=? OR customer_id IS NULL)
+      ORDER BY customer_id IS NOT NULL DESC, updated_at DESC, id DESC
+      LIMIT 1
+    `).get(c.id));
+    const fallbackKgPrice = activePriceBook ? safeQuery(0, () => {
+      const row = db.prepare(`
+        SELECT price_before_vat
+        FROM pricing_price_items
+        WHERE price_book_id=? AND active=1 AND unit='kg' AND price_before_vat > 0
+        ORDER BY sort_order, id
+        LIMIT 1
+      `).get(activePriceBook.id);
+      return Number(row?.price_before_vat || 0);
+    }) : 0;
+    function enrichBillingAmount(row) {
+      const billingWeight = Number(row.billing_weight || row.total_weight || 0);
+      const existingAmount = Number(row.suggested_amount || row.billed_amount || 0);
+      const fallbackAmount = existingAmount > 0 ? existingAmount : (billingWeight > 0 && fallbackKgPrice > 0 ? billingWeight * fallbackKgPrice : 0);
+      const source = existingAmount > 0 ? 'existing' : (fallbackAmount > 0 ? 'price_book_weight' : 'missing_price');
+      return {
+        ...row,
+        billing_weight: billingWeight,
+        suggested_amount: roundMoney(fallbackAmount),
+        billing_source: billingSourceLabel(source),
+        billing_status: Number(row.billed_amount || 0) > 0 ? '\u05d7\u05d5\u05d9\u05d1' : (fallbackAmount > 0 ? '\u05de\u05d5\u05db\u05df \u05dc\u05d7\u05d9\u05d5\u05d1' : '\u05dc\u05d0 \u05d7\u05d5\u05e9\u05d1'),
+      };
+    }
     c.orders = db.prepare(`
-      SELECT id, order_num, status, created_at, total_weight, delivery_date, priority, channel
-      FROM orders WHERE customer_id=? ORDER BY created_at DESC LIMIT 30
-    `).all(c.id);
+      SELECT o.id,o.order_num,o.status,o.created_at,o.total_weight,o.billing_weight,o.delivery_date,o.priority,o.channel,
+             COALESCE(ob.billed_amount,0) AS billed_amount,
+             ob.billed_date,ob.priority_invoice_ref,
+             COALESCE(oc.revenue, NULLIF(o.sale_price,0), o.portal_price, 0) AS suggested_amount,
+             COALESCE(oc.gross_margin,0) AS gross_margin
+      FROM orders o
+      LEFT JOIN order_costs oc ON oc.order_id=o.id
+      LEFT JOIN order_billing ob ON ob.order_id=o.id
+      WHERE o.customer_id=?
+      ORDER BY o.created_at DESC LIMIT 30
+    `).all(c.id).map(enrichBillingAmount);
     const stats = db.prepare(`
       SELECT COUNT(*) AS order_count,
              COALESCE(SUM(total_weight),0) AS total_weight_sum,
@@ -79,15 +128,6 @@ module.exports = function createCustomersRouter(deps) {
              COALESCE(SUM(billing_weight),0) AS billing_weight,
              COALESCE(SUM(COALESCE(NULLIF(sale_price,0), portal_price, 0)),0) AS order_value
       FROM orders WHERE customer_id=?
-    `).get(c.id));
-    const unbilled = safeQuery({ count: 0, billing_weight: 0, amount: 0 }, () => db.prepare(`
-      SELECT COUNT(*) AS count,
-             COALESCE(SUM(billing_weight),0) AS billing_weight,
-             COALESCE(SUM(COALESCE(NULLIF(sale_price,0), portal_price, 0)),0) AS amount
-      FROM orders
-      WHERE customer_id=?
-        AND status IN ('נמסרה','סופקה','מוכנה לאיסוף')
-        AND COALESCE(NULLIF(sale_price,0), portal_price, 0) > 0
     `).get(c.id));
     const profitability = safeQuery({ today_revenue: 0, today_cost: 0, today_margin: 0, today_margin_pct: null, today_order_count: 0, total_revenue: 0, total_cost: 0, total_margin: 0, total_margin_pct: null }, () => db.prepare(`
       SELECT
@@ -109,20 +149,29 @@ module.exports = function createCustomersRouter(deps) {
       ? (Number(profitability.total_margin || 0) / Number(profitability.total_revenue || 0)) * 100
       : null;
     const unbilledOrders = safeQuery([], () => db.prepare(`
-      SELECT o.id,o.order_num,o.status,o.delivery_date,o.delivery_address,
+      SELECT o.id,o.order_num,o.status,o.delivery_date,o.delivery_address,o.total_weight,
              COALESCE(o.billing_weight,o.total_weight,0) AS billing_weight,
              COALESCE(oc.revenue, NULLIF(o.sale_price,0), o.portal_price, 0) AS suggested_amount,
              COALESCE(oc.total_cost,0) AS total_cost,
-             COALESCE(oc.gross_margin,0) AS gross_margin
+             COALESCE(oc.gross_margin,0) AS gross_margin,
+             COALESCE(ob.billed_amount,0) AS billed_amount
       FROM orders o
       LEFT JOIN order_costs oc ON oc.order_id=o.id
       LEFT JOIN order_billing ob ON ob.order_id=o.id
       WHERE o.customer_id=?
-        AND o.status IN ('נמסרה','סופקה','מוכנה לאיסוף')
+        AND o.status IN ('\u05e0\u05e9\u05dc\u05d7\u05d4','\u05e0\u05de\u05e1\u05e8\u05d4','\u05e1\u05d5\u05e4\u05e7\u05d4','\u05de\u05d5\u05db\u05e0\u05d4 \u05dc\u05d0\u05d9\u05e1\u05d5\u05e3')
         AND ob.order_id IS NULL
       ORDER BY COALESCE(o.delivery_date,o.created_at) DESC, o.id DESC
       LIMIT 20
-    `).all(c.id));
+    `).all(c.id)).map(enrichBillingAmount);
+    const unbilled = unbilledOrders.reduce((acc, row) => {
+      acc.count += 1;
+      acc.billing_weight += Number(row.billing_weight || 0);
+      acc.amount += Number(row.suggested_amount || 0);
+      return acc;
+    }, { count: 0, billing_weight: 0, amount: 0 });
+    unbilled.billing_weight = roundMoney(unbilled.billing_weight);
+    unbilled.amount = roundMoney(unbilled.amount);
     const sites = safeQuery([], () => db.prepare(`
       SELECT cs.id,cs.name,cs.address,cs.city,cs.status,cs.manager_name,cs.manager_phone,
              COALESCE(cs.budget_amount,0) AS budget_amount,
@@ -147,13 +196,6 @@ module.exports = function createCustomersRouter(deps) {
       acc.billing_kg += Number(site.billing_kg || 0);
       return acc;
     }, { count: 0, active_count: 0, budget_amount: 0, budget_kg: 0, spend: 0, billing_kg: 0 });
-    const activePriceBook = safeQuery(null, () => db.prepare(`
-      SELECT id,code,name,price_type,status,updated_at
-      FROM pricing_price_books
-      WHERE status='active' AND (customer_id=? OR customer_id IS NULL)
-      ORDER BY customer_id IS NOT NULL DESC, updated_at DESC, id DESC
-      LIMIT 1
-    `).get(c.id));
     c.sites_summary = sites;
     c.unbilled_orders = unbilledOrders;
     c.workbench = {

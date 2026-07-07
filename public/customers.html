@@ -1084,6 +1084,24 @@ function fmtPct(value) {
   return n.toLocaleString('he-IL', { maximumFractionDigits: 1 }) + '%';
 }
 
+function billingAmountLabel(row) {
+  const amount = Number(row?.billed_amount || row?.suggested_amount || 0);
+  return amount > 0 ? fmtMoney(amount) : '\u05dc\u05d0 \u05d7\u05d5\u05e9\u05d1';
+}
+
+function billingStatusLabel(row) {
+  if (Number(row?.billed_amount || 0) > 0) return '\u05d7\u05d5\u05d9\u05d1';
+  if (row?.billing_status) return row.billing_status;
+  return Number(row?.suggested_amount || 0) > 0 ? '\u05de\u05d5\u05db\u05df \u05dc\u05d7\u05d9\u05d5\u05d1' : '\u05dc\u05d0 \u05d7\u05d5\u05e9\u05d1';
+}
+
+function billingSourceText(row) {
+  if (row?.billing_source === 'price_book_weight') return '\u05de\u05d7\u05d9\u05e8\u05d5\u05df x \u05de\u05e9\u05e7\u05dc';
+  if (row?.billing_source === 'calculated') return '\u05d7\u05d9\u05e9\u05d5\u05d1 \u05e7\u05d9\u05d9\u05dd';
+  if (Number(row?.billed_amount || 0) > 0) return '\u05e0\u05e8\u05e9\u05dd \u05d7\u05d9\u05d5\u05d1';
+  return '';
+}
+
 async function approveProfileChange(customerId, requestId) {
   const r = await fetch('/api/customers/' + customerId + '/profile-change-requests/' + requestId + '/approve', { method: 'POST' });
   if (!r.ok) return alert('לא ניתן לאשר את בקשת השינוי');
@@ -1371,35 +1389,39 @@ function renderCustomerOrders(c, orders) {
   let html = '';
   html += '<div class="orders-section" id="customerOrdersSection">';
   html += '<div class="orders-section-head">' +
-    '<h4>📋 הזמנות (' + orders.length + ')</h4>' +
-    '<a href="/orders.html?customer='+c.id+'" class="btn-action" style="font-size:12px;padding:5px 10px">כל ההזמנות ←</a>' +
+    '<h4>\u05d4\u05d6\u05de\u05e0\u05d5\u05ea (' + orders.length + ')</h4>' +
+    '<a href="/orders.html?customer='+c.id+'" class="btn-action" style="font-size:12px;padding:5px 10px">\u05db\u05dc \u05d4\u05d4\u05d6\u05de\u05e0\u05d5\u05ea</a>' +
   '</div>';
 
   if (!orders.length) {
-    html += '<div style="padding:32px;text-align:center;color:var(--text-faint);font-size:13px">אין הזמנות עדיין</div>';
+    html += '<div style="padding:32px;text-align:center;color:var(--text-faint);font-size:13px">\u05d0\u05d9\u05df \u05d4\u05d6\u05de\u05e0\u05d5\u05ea \u05e2\u05d3\u05d9\u05d9\u05df</div>';
   } else {
     html += '<div class="orders-table-wrap"><table class="orders-table">' +
       '<thead><tr>' +
-        '<th>מספר הזמנה</th>' +
-        '<th>סטטוס</th>' +
-        '<th class="col-priority">עדיפות</th>' +
-        '<th>תאריך מסירה</th>' +
-        '<th class="col-weight">משקל</th>' +
-        '<th>תאריך יצירה</th>' +
-        '<th>מסמכים</th>' +
+        '<th>\u05de\u05e1\u05e4\u05e8 \u05d4\u05d6\u05de\u05e0\u05d4</th>' +
+        '<th>\u05e1\u05d8\u05d8\u05d5\u05e1</th>' +
+        '<th class="col-priority">\u05e2\u05d3\u05d9\u05e4\u05d5\u05ea</th>' +
+        '<th>\u05ea\u05d0\u05e8\u05d9\u05da \u05de\u05e1\u05d9\u05e8\u05d4</th>' +
+        '<th class="col-weight">\u05de\u05e9\u05e7\u05dc</th>' +
+        '<th>\u05e1\u05db\u05d5\u05dd \u05dc\u05d7\u05d9\u05d5\u05d1</th>' +
+        '<th>\u05d7\u05d9\u05d5\u05d1</th>' +
+        '<th>\u05ea\u05d0\u05e8\u05d9\u05da \u05d9\u05e6\u05d9\u05e8\u05d4</th>' +
+        '<th>\u05de\u05e1\u05de\u05db\u05d9\u05dd</th>' +
       '</tr></thead>' +
       '<tbody>';
     orders.forEach(o => {
       html += '<tr>' +
         '<td><a href="/orders.html?id='+o.id+'">'+esc(o.order_num)+'</a></td>' +
         '<td>'+statusBadge(o.status)+'</td>' +
-        '<td class="col-priority">'+esc(o.priority||'רגיל')+'</td>' +
+        '<td class="col-priority">'+esc(o.priority||'\u05e8\u05d2\u05d9\u05dc')+'</td>' +
         '<td>'+fmtDate(o.delivery_date)+'</td>' +
-        '<td class="col-weight">'+(o.total_weight ? fmtWeight(o.total_weight) : '–')+'</td>' +
+        '<td class="col-weight">'+(o.total_weight ? fmtWeight(o.total_weight) : '-')+'</td>' +
+        '<td><strong>'+esc(billingAmountLabel(o))+'</strong><div style="font-size:11px;color:var(--text-muted)">'+esc(billingSourceText(o))+'</div></td>' +
+        '<td>'+esc(billingStatusLabel(o))+'</td>' +
         '<td>'+fmtDate(o.created_at)+'</td>' +
         '<td style="white-space:nowrap">' +
-          '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=print-a4" target="_blank" rel="noopener">PDF הזמנה</a> ' +
-          '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=delivery-certificate" target="_blank" rel="noopener">תעודה</a>' +
+          '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=print-a4" target="_blank" rel="noopener">PDF \u05d4\u05d6\u05de\u05e0\u05d4</a> ' +
+          '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=delivery-certificate" target="_blank" rel="noopener">\u05ea\u05e2\u05d5\u05d3\u05d4</a>' +
         '</td>' +
       '</tr>';
     });
@@ -1435,7 +1457,7 @@ function renderCustomerBillingQueue(c) {
   let html = '<div class="orders-section" id="customerBillingSection">';
   html += '<div class="orders-section-head"><h4>🧾 הזמנות מוכנות לחיוב (' + rows.length + ')</h4></div>';
   if (!rows.length) {
-    html += '<div style="padding:20px;text-align:center;color:var(--text-faint);font-size:13px">אין כרגע הזמנות שנמסרו ועדיין לא נרשם עליהן חיוב.</div>';
+    html += '<div style="padding:20px;text-align:center;color:var(--text-faint);font-size:13px">\u05d0\u05d9\u05df \u05db\u05e8\u05d2\u05e2 \u05d4\u05d6\u05de\u05e0\u05d5\u05ea \u05e9\u05e0\u05e9\u05dc\u05d7\u05d5 \u05d0\u05d5 \u05e0\u05de\u05e1\u05e8\u05d5 \u05d5\u05e2\u05d3\u05d9\u05d9\u05df \u05dc\u05d0 \u05e0\u05e8\u05e9\u05dd \u05e2\u05dc\u05d9\u05d4\u05df \u05d7\u05d9\u05d5\u05d1.</div>';
   } else {
     html += '<div class="orders-table-wrap"><table class="orders-table">' +
       '<thead><tr><th>הזמנה</th><th>תעודת משלוח</th><th class="col-weight">משקל</th><th>סכום לחיוב</th><th>אסמכתא</th><th>פעולה</th></tr></thead><tbody>';
@@ -1445,7 +1467,7 @@ function renderCustomerBillingQueue(c) {
         '<td><a href="/orders.html?id=' + row.id + '">' + esc(row.order_num) + '</a><div style="font-size:12px;color:var(--text-muted)">' + esc(row.status || '') + '</div></td>' +
         '<td><a class="btn-action" href="/order-print.html?id=' + row.id + '&kind=delivery-certificate" target="_blank" rel="noopener">פתח תעודה</a></td>' +
         '<td class="col-weight">' + fmtWeight(row.billing_weight) + '</td>' +
-        '<td><input id="billAmount-' + row.id + '" type="number" min="0" step="0.01" value="' + esc(amount) + '" style="width:110px;padding:7px;border:1px solid var(--border);border-radius:8px" dir="ltr"></td>' +
+        '<td><input id="billAmount-' + row.id + '" type="number" min="0" step="0.01" value="' + esc(amount) + '" style="width:110px;padding:7px;border:1px solid var(--border);border-radius:8px" dir="ltr"><div style="font-size:11px;color:var(--text-muted);margin-top:4px">'+esc(billingSourceText(row))+'</div></td>' +
         '<td><input id="billRef-' + row.id + '" placeholder="מספר Priority" style="width:120px;padding:7px;border:1px solid var(--border);border-radius:8px" dir="ltr"></td>' +
         '<td><button class="btn-action primary" onclick="recordCustomerBilling(' + c.id + ',' + row.id + ')">רשום חיוב</button></td>' +
       '</tr>';
