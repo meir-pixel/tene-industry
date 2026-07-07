@@ -59,3 +59,13 @@ test('customer list bootstraps with initial retry instead of requiring manual re
   assert.match(page, /setTimeout\(\(\) => loadList\(lastCustomerQuery, \{ initial: true \}\), delay\)/);
   assert.match(page, /DOMContentLoaded/);
 });
+
+
+test('pricing screen explains customer price book connection', () => {
+  const pricing = read('public/pricing.html');
+  assert.match(pricing, /customerContextBar/);
+  assert.match(pricing, /function isInitialCustomerBook/);
+  assert.match(pricing, /function prepareCustomerPriceBook/);
+  assert.match(pricing, /customer_id: state\.mode === 'customer' \? \(existing\.customer_id \|\| initialCustomerId \|\| null\) : null/);
+  assert.match(pricing, /state\.editing = Boolean\(initialCustomerId\)/);
+});

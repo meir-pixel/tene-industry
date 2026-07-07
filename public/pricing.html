@@ -459,9 +459,38 @@
       .notes-input { min-height:360px; font-size:14px; }
       .approval-grid { grid-template-columns:1fr; gap:12px; }
     }
+    .customer-context-bar {
+      max-width:1180px;
+      margin:0 auto 12px;
+      border:1px solid rgba(201,98,26,0.28);
+      background:#fff7ed;
+      color:#8a3b00;
+      border-radius:10px;
+      padding:10px 14px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      font-size:14px;
+      font-weight:700;
+    }
+    .customer-context-bar[hidden] { display:none; }
+    .customer-context-bar.connected { border-color:rgba(26,122,66,0.26); background:#f0fdf4; color:#14532d; }
+    .customer-context-bar span { color:inherit; opacity:.82; font-weight:600; }
+    .customer-context-bar button {
+      border:0;
+      border-radius:8px;
+      background:#c9621a;
+      color:#fff;
+      padding:7px 12px;
+      font:inherit;
+      cursor:pointer;
+      margin-inline-start:auto;
+    }
+
     @media print {
       body { background:#fff; }
-      .topbar, .toast, dialog, .row-tools, .category-add-row, .action-col { display:none !important; }
+      .topbar, .customer-context-bar, .toast, dialog, .row-tools, .category-add-row, .action-col { display:none !important; }
       .screen { padding:0; max-width:none; }
       .sheet-shell { display:block; padding:0; overflow:visible; }
       .price-sheet {
@@ -495,6 +524,8 @@
         <button class="btn" id="printDocBtn" type="button">הדפס</button>
       </div>
     </div>
+
+    <div class="customer-context-bar" id="customerContextBar" hidden></div>
 
     <section class="sheet-shell">
       <article class="price-sheet" id="priceSheet">
@@ -865,12 +896,44 @@
         : '<option value="">אין מחירונים</option>';
     }
 
+    function isInitialCustomerBook(book = state.currentBook) {
+      return Boolean(initialCustomerId && book && book.price_type === 'customer' && Number(book.customer_id) === Number(initialCustomerId));
+    }
+
+    function renderCustomerContextBar() {
+      const bar = $('#customerContextBar');
+      if (!bar) return;
+      if (!initialCustomerId) {
+        bar.hidden = true;
+        bar.innerHTML = '';
+        return;
+      }
+      const customerName = initialCustomerName || state.currentBook?.customer_name || $('#customerNameInput')?.value || 'לקוח';
+      const connected = isInitialCustomerBook();
+      bar.hidden = false;
+      bar.className = 'customer-context-bar' + (connected ? ' connected' : ' pending');
+      bar.innerHTML = connected
+        ? '<strong>מחירון מחובר ללקוח:</strong> ' + escapeHtml(customerName) + '<span>כל שמירה כאן מעדכנת את המחירון של הלקוח הזה.</span>'
+        : '<strong>אין עדיין מחירון מחובר ללקוח:</strong> ' + escapeHtml(customerName) + '<span>המסמך מוכן כטיוטת מחירון לקוח. לחץ שמור כדי לחבר אותו ללקוח.</span><button type="button" onclick="prepareCustomerPriceBook()">הכן מחירון ללקוח</button>';
+    }
+
+    function prepareCustomerPriceBook() {
+      if (!initialCustomerId) return;
+      state.currentBook = null;
+      state.items = state.items.length ? state.items : defaultTemplateItems();
+      state.deletedItems = new Set();
+      state.dirty = true;
+      state.editing = true;
+      setMode('customer');
+      renderDocument();
+    }
+
     function renderDocument() {
       const book = state.currentBook;
       const hasBook = Boolean(book);
       const meta = parseDocMeta(book);
       setMode(book?.price_type || state.mode);
-      $('#customerNameInput').value = hasBook ? (book.price_type === 'customer' ? (book.customer_name || book.name || '') : (book.name || 'מחירון כללי')) : '';
+      $('#customerNameInput').value = hasBook ? (book.price_type === 'customer' ? (book.customer_name || book.name || '') : (book.name || 'מחירון כללי')) : (state.mode === 'customer' ? initialCustomerName : '');
       $('#priceDateInput').value = hasBook ? formatDate(book.updated_at) : formatDate();
       $('#customerTaxInput').value = hasBook ? meta.tax : '';
       $('#paymentTermsInput').value = hasBook ? meta.terms : 'לפי כרטיס לקוח';
@@ -884,6 +947,7 @@
       renderBookPicker();
       $('#saveDocBtn').textContent = state.dirty ? 'שמור שינויים' : 'שמור';
       updateEditMode();
+      renderCustomerContextBar();
     }
 
     function renderRows() {
@@ -1031,7 +1095,10 @@
         await loadItems(state.currentBook.id);
       } else {
         state.items = defaultTemplateItems();
-        state.dirty = true;
+        state.deletedItems = new Set();
+        state.dirty = Boolean(initialCustomerId);
+        state.editing = Boolean(initialCustomerId);
+        if (initialCustomerId) setMode('customer');
         if (initialCustomerName && $('#customerNameInput')) $('#customerNameInput').value = initialCustomerName;
         renderDocument();
       }
