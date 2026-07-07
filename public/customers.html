@@ -1263,6 +1263,7 @@ function renderDetail(c) {
     stat('הזמנה אחרונה',  fmtDate(stats.last_order_at),    '',        '🗓') +
   '</div>';
   html += renderCustomerWorkbench(c);
+  html += renderCustomerBillingQueue(c);
   html += renderCustomerSitesSummary(c);
 
   // ── Info grid ──
@@ -1395,6 +1396,61 @@ function renderCustomerWorkbench(c) {
     stat('אתרים פעילים', sites.active_count || 0, '', '🏗') +
     stat('מחירון', priceMode, '', '🏷') +
   '</div>';
+}
+
+function renderCustomerBillingQueue(c) {
+  const rows = c.unbilled_orders || [];
+  let html = '<div class="orders-section">';
+  html += '<div class="orders-section-head"><h4>🧾 הזמנות מוכנות לחיוב (' + rows.length + ')</h4></div>';
+  if (!rows.length) {
+    html += '<div style="padding:20px;text-align:center;color:var(--text-faint);font-size:13px">אין כרגע הזמנות שנמסרו ועדיין לא נרשם עליהן חיוב.</div>';
+  } else {
+    html += '<div class="orders-table-wrap"><table class="orders-table">' +
+      '<thead><tr><th>הזמנה</th><th>תעודת משלוח</th><th class="col-weight">משקל</th><th>סכום לחיוב</th><th>אסמכתא</th><th>פעולה</th></tr></thead><tbody>';
+    rows.forEach(row => {
+      const amount = Number(row.suggested_amount || 0).toFixed(2);
+      html += '<tr data-billing-order="' + row.id + '">' +
+        '<td><a href="/orders.html?id=' + row.id + '">' + esc(row.order_num) + '</a><div style="font-size:12px;color:var(--text-muted)">' + esc(row.status || '') + '</div></td>' +
+        '<td><a class="btn-action" href="/order-print.html?id=' + row.id + '&kind=delivery-certificate" target="_blank" rel="noopener">פתח תעודה</a></td>' +
+        '<td class="col-weight">' + fmtWeight(row.billing_weight) + '</td>' +
+        '<td><input id="billAmount-' + row.id + '" type="number" min="0" step="0.01" value="' + esc(amount) + '" style="width:110px;padding:7px;border:1px solid var(--border);border-radius:8px" dir="ltr"></td>' +
+        '<td><input id="billRef-' + row.id + '" placeholder="מספר Priority" style="width:120px;padding:7px;border:1px solid var(--border);border-radius:8px" dir="ltr"></td>' +
+        '<td><button class="btn-action primary" onclick="recordCustomerBilling(' + c.id + ',' + row.id + ')">רשום חיוב</button></td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+async function recordCustomerBilling(customerId, orderId) {
+  const amountEl = document.getElementById('billAmount-' + orderId);
+  const refEl = document.getElementById('billRef-' + orderId);
+  const billedAmount = Number(amountEl?.value || 0);
+  if (!Number.isFinite(billedAmount) || billedAmount <= 0) {
+    window.showToast ? window.showToast('צריך להזין סכום חיוב תקין', true) : alert('צריך להזין סכום חיוב תקין');
+    return;
+  }
+  const res = await fetch('/api/orders/' + orderId + '/costs/billing', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      billed_amount: billedAmount,
+      billed_date: new Date().toISOString().slice(0, 10),
+      priority_invoice_ref: refEl?.value || '',
+      billing_notes: 'נרשם מכרטיס לקוח',
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const msg = data.error || 'לא ניתן לרשום חיוב';
+    window.showToast ? window.showToast(msg, true) : alert(msg);
+    return;
+  }
+  window.showToast && window.showToast('החיוב נרשם והרווחיות עודכנה ✓');
+  await loadList(lastCustomerQuery);
+  selectCustomer(customerId);
 }
 
 function renderCustomerSitesSummary(c) {

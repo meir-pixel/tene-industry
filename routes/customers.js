@@ -108,6 +108,21 @@ module.exports = function createCustomersRouter(deps) {
     profitability.total_margin_pct = Number(profitability.total_revenue || 0) > 0
       ? (Number(profitability.total_margin || 0) / Number(profitability.total_revenue || 0)) * 100
       : null;
+    const unbilledOrders = safeQuery([], () => db.prepare(`
+      SELECT o.id,o.order_num,o.status,o.delivery_date,o.delivery_address,
+             COALESCE(o.billing_weight,o.total_weight,0) AS billing_weight,
+             COALESCE(oc.revenue, NULLIF(o.sale_price,0), o.portal_price, 0) AS suggested_amount,
+             COALESCE(oc.total_cost,0) AS total_cost,
+             COALESCE(oc.gross_margin,0) AS gross_margin
+      FROM orders o
+      LEFT JOIN order_costs oc ON oc.order_id=o.id
+      LEFT JOIN order_billing ob ON ob.order_id=o.id
+      WHERE o.customer_id=?
+        AND o.status IN ('נמסרה','סופקה','מוכנה לאיסוף')
+        AND ob.order_id IS NULL
+      ORDER BY COALESCE(o.delivery_date,o.created_at) DESC, o.id DESC
+      LIMIT 20
+    `).all(c.id));
     const sites = safeQuery([], () => db.prepare(`
       SELECT cs.id,cs.name,cs.address,cs.city,cs.status,cs.manager_name,cs.manager_phone,
              COALESCE(cs.budget_amount,0) AS budget_amount,
@@ -140,6 +155,7 @@ module.exports = function createCustomersRouter(deps) {
       LIMIT 1
     `).get(c.id));
     c.sites_summary = sites;
+    c.unbilled_orders = unbilledOrders;
     c.workbench = {
       orders: orderSummary,
       unbilled,

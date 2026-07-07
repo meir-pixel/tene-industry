@@ -95,3 +95,17 @@ test('customer price book handoff activates pricing consumers and customer profi
   assert.match(customers, /רווח היום/);
   assert.match(customers, /מרווח היום/);
 });
+
+
+test('customer card exposes unbilled delivery-to-billing queue without owning invoice creation', () => {
+  const route = read('routes/customers.js');
+  const page = read('public/customers.html');
+  assert.match(route, /unbilledOrders/);
+  assert.match(route, /LEFT JOIN order_billing ob ON ob\.order_id=o\.id/);
+  assert.match(route, /ob\.order_id IS NULL/);
+  assert.doesNotMatch(route, /INSERT\s+INTO\s+invoices/i);
+  assert.match(page, /function renderCustomerBillingQueue/);
+  assert.match(page, /kind=delivery-certificate/);
+  assert.match(page, /function recordCustomerBilling/);
+  assert.match(page, /\/api\/orders\/' \+ orderId \+ '\/costs\/billing/);
+});
