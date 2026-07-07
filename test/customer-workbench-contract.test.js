@@ -49,3 +49,13 @@ test('pricing screen can open in customer context from the customer card', () =>
   assert.match(pricing, /Number\(book\.customer_id\) === Number\(initialCustomerId\)/);
   assert.match(pricing, /existing\.customer_id \|\| initialCustomerId/);
 });
+
+
+test('customer list bootstraps with initial retry instead of requiring manual refresh', () => {
+  const page = read('public/customers.html');
+  assert.match(page, /function bootstrapCustomerList/);
+  assert.match(page, /loadList\('', \{ initial: true \}\)/);
+  assert.match(page, /initialListRetryCount < 3/);
+  assert.match(page, /setTimeout\(\(\) => loadList\(lastCustomerQuery, \{ initial: true \}\), delay\)/);
+  assert.match(page, /DOMContentLoaded/);
+});

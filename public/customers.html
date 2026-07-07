@@ -1020,6 +1020,8 @@ let customers  = [];
 let activeId   = null;
 let searchTimer;
 let lastCustomerQuery = '';
+let initialListRetryTimer = null;
+let initialListRetryCount = 0;
 
 // ── STATUS mapping ──
 const STATUS_CLS = {
@@ -1095,8 +1097,9 @@ function renderListLoading(q) {
   if (el) el.innerHTML = '<div class="customer-skeleton"><div class="customer-skeleton-row"></div><div class="customer-skeleton-row"></div><div class="customer-skeleton-row"></div></div>';
 }
 
-async function loadList(q) {
+async function loadList(q, opts = {}) {
   lastCustomerQuery = (q || '').trim();
+  const isInitial = Boolean(opts.initial);
   renderListLoading(lastCustomerQuery);
   try {
     const r  = await fetch('/api/customers?q=' + encodeURIComponent(lastCustomerQuery) + '&limit=100');
@@ -1104,9 +1107,20 @@ async function loadList(q) {
     const rows = await r.json();
     if (!Array.isArray(rows)) throw new Error('customers list response is not an array');
     customers = rows;
+    initialListRetryCount = 0;
+    if (initialListRetryTimer) clearTimeout(initialListRetryTimer);
+    initialListRetryTimer = null;
     document.getElementById('listAlert').innerHTML = '';
     renderList();
   } catch(e) {
+    if (isInitial && !customers.length && initialListRetryCount < 3) {
+      initialListRetryCount += 1;
+      const delay = 350 * initialListRetryCount;
+      initialListRetryTimer = setTimeout(() => loadList(lastCustomerQuery, { initial: true }), delay);
+      document.getElementById('listCount').textContent = 'טוען לקוחות...';
+      document.getElementById('listAlert').innerHTML = '';
+      return;
+    }
     document.getElementById('listCount').textContent = customers.length ? customers.length + ' לקוחות מוצגים' : '';
     document.getElementById('listAlert').innerHTML =
       '<div class="list-alert"><span>לא הצלחנו לטעון לקוחות. אפשר לנסות שוב בלי לעזוב את המסך.</span><button onclick="loadList(document.getElementById(\'searchInput\').value)">נסה שוב</button></div>';
@@ -1150,6 +1164,9 @@ function renderList() {
 }
 
 function onSearch(val) {
+  if (initialListRetryTimer) clearTimeout(initialListRetryTimer);
+  initialListRetryTimer = null;
+  initialListRetryCount = 0;
   clearTimeout(searchTimer);
   renderListLoading((val || '').trim());
   searchTimer = setTimeout(() => loadList(val), 120);
@@ -1810,7 +1827,15 @@ window.addEventListener('resize', () => {
 });
 
 // ── INIT ──
-loadList('');
+function bootstrapCustomerList() {
+  loadList('', { initial: true });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrapCustomerList, { once: true });
+} else {
+  setTimeout(bootstrapCustomerList, 0);
+}
 </script>
 </body>
 </html>
