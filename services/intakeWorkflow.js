@@ -477,9 +477,8 @@ function buildIntakeShapeSnapshot(item = {}, normalized = {}) {
 }
 
 function escapeRegex(value) {
-  return String(value).replace(/[.*+?^\${}()|[\]\\]/g, '\\function isStraightOcrShape(item = {}) {');
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-
 function extractOcrNumberAfter(text, labels) {
   for (const label of labels) {
     const match = text.match(new RegExp(escapeRegex(label) + '\\D{0,20}(\\d+(?:\\.\\d+)?)', 'i'));

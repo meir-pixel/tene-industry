@@ -1,5 +1,7 @@
 'use strict';
 
+const crypto = require('crypto');
+const { rebarKgPerMeter } = require('../constants');
 const {
   ORDER_STATUS,
   normalizeOrderStatus,
@@ -72,6 +74,92 @@ function numberOrNull(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function firstDefined(...values) {
+  return values.find(value => value !== undefined && value !== null);
+}
+
+function parseSegments(value) {
+  const parsed = parseJsonArray(value);
+  return parsed.map(segment => {
+    if (typeof segment === 'number') return { length_mm: numberOrNull(segment), angle_deg: 0 };
+    return {
+      ...segment,
+      length_mm: numberOrNull(segment.length_mm ?? segment.lengthMm ?? segment.length),
+      angle_deg: numberOrNull(segment.angle_deg ?? segment.angleDeg ?? segment.angle) ?? 0,
+    };
+  });
+}
+
+function isSpiralInput(input = {}) {
+  const shapeName = String(input.shapeType || input.shapeName || input.shape_name || '').toLowerCase();
+  return shapeName.includes('spiral') || shapeName.includes('\u05e1\u05e4\u05d9\u05e8\u05dc') || Boolean(input.spiral || input.spiralDiameterMm || input.spiral_diameter_mm || input.spiralTurns || input.spiral_turns);
+}
+
+function buildFullShapeSnapshot(input = {}) {
+  const now = new Date().toISOString();
+  const totalLengthMm = Number(firstDefined(input.totalLengthMm, input.total_length_mm, input.length, 0));
+  const diameter = Number(firstDefined(input.diameter, input.diameterMm, input.barDiameter, input.barDiameterMm, 12));
+  const segments = parseSegments(firstDefined(input.segments, input.sides, []));
+  const weightKg = Number(firstDefined(
+    input.weightKg,
+    input.weight_kg,
+    input.total_weight,
+    input.totalWeight,
+    Number.isFinite(diameter) && Number.isFinite(totalLengthMm) ? rebarKgPerMeter(diameter) * (totalLengthMm / 1000) : 0
+  ));
+  const spiral = input.spiral || (
+    isSpiralInput(input)
+      ? {
+          diameterMm: numberOrNull(input.spiralDiameterMm ?? input.spiral_diameter_mm),
+          turns: numberOrNull(input.spiralTurns ?? input.spiral_turns ?? input.turns),
+        }
+      : null
+  );
+
+  return {
+    contract: 'SHAPE_DATA_CONTRACT_V2',
+    contractVersion: '2.0',
+    shapeVersion: '1.0',
+    shapeId: input.shapeId || input.shape_id || crypto.randomUUID(),
+    shapeType: input.shapeType || (isSpiralInput(input) ? 'spiral' : 'custom'),
+    family: input.family || (isSpiralInput(input) ? 'spirals' : 'rebar'),
+    source: input.source || 'shape-editor',
+    approvedAt: input.approvedAt || now,
+    displayName: input.displayName || input.shapeName || input.shape_name || 'shape',
+    shapeName: input.shapeName || input.shape_name || input.displayName || 'shape',
+
+    data: {
+      segments,
+      diameter,
+      is3d: !!(input.is3d ?? input.is_3d),
+      spiral,
+    },
+
+    calculated: {
+      totalLengthMm: Number.isFinite(totalLengthMm) ? totalLengthMm : 0,
+      weightKg: Number.isFinite(weightKg) ? weightKg : 0,
+    },
+
+    machineOutput: {
+      generic: {
+        bends: [],
+        lengthMm: Number.isFinite(totalLengthMm) ? totalLengthMm : 0,
+      },
+      machineProfiles: {
+        MEP: {},
+        PEDAX: {},
+        SCHNELL: {},
+      },
+    },
+
+    validation: {
+      valid: true,
+      messages: [],
+      timestamp: now,
+    },
+  };
+}
+
 function shapeV2SnapshotCandidate(item = {}) {
   return item.shapeSnapshot
     ?? item.shape_snapshot
@@ -109,6 +197,13 @@ function shapeSegmentsFromContract(snapshot) {
       angle_deg: numberOrNull(segment.bendAfterDeg ?? segment.angle_deg ?? segment.angle) ?? 0,
     }));
   }
+  const dataSegments = Array.isArray(snapshot?.data?.segments) ? snapshot.data.segments : [];
+  if (dataSegments.length) {
+    return dataSegments.map(segment => ({
+      length_mm: numberOrNull(segment.length_mm ?? segment.lengthMm ?? segment.length),
+      angle_deg: numberOrNull(segment.angle_deg ?? segment.angleDeg ?? segment.angle) ?? 0,
+    }));
+  }
   const sides = Array.isArray(snapshot?.data?.sides) ? snapshot.data.sides : [];
   const angles = Array.isArray(snapshot?.data?.angles) ? snapshot.data.angles : [];
   return sides.map((length, index) => ({
@@ -123,9 +218,11 @@ function legacyShapeFieldsFromContract(snapshot) {
   const data = snapshot.data || {};
   const generic = snapshot.machineOutput?.generic || {};
   const diameter = data.diameter ?? data.diameterMm ?? generic.diameter ?? generic.diameterMm ?? data.barDiameter ?? data.barDiameterMm ?? generic.barDiameter ?? generic.barDiameterMm ?? data.longitudinalDiameter ?? data.longitudinalDiameterMm ?? null;
-  const totalLengthMm = numberOrNull(snapshot.calculated?.totalLengthMm ?? generic.totalLengthMm);
+  const totalLengthMm = numberOrNull(snapshot.calculated?.totalLengthMm ?? generic.totalLengthMm ?? generic.lengthMm);
   const spiralDiameterMm = numberOrNull(
-    data.spiralDiameterMm
+    data.spiral?.diameterMm
+      ?? data.spiral?.diameter
+      ?? data.spiralDiameterMm
       ?? data.spiral_diameter_mm
       ?? data.spiralDiameter
       ?? generic.spiralDiameterMm
@@ -133,7 +230,8 @@ function legacyShapeFieldsFromContract(snapshot) {
       ?? generic.spiralDiameter
   );
   const spiralTurns = numberOrNull(
-    data.spiralTurns
+    data.spiral?.turns
+      ?? data.spiralTurns
       ?? data.spiral_turns
       ?? data.turns
       ?? generic.spiralTurns
@@ -203,7 +301,7 @@ function shapeSnapshotJson(item = {}) {
   const candidate = shapeV2SnapshotCandidate(item);
   const contractJson = shapeDataContractV2Json(candidate);
   if (contractJson) return contractJson;
-  return JSON.stringify(buildShapeSnapshot(item));
+  return JSON.stringify(buildFullShapeSnapshot(item));
 }
 
 function canManagerApproveOrder(role) {
@@ -245,6 +343,7 @@ module.exports = {
   SHAPE_V2_REQUIRED_FIELDS,
   createStableOrderId,
   buildOrderItemUid,
+  buildFullShapeSnapshot,
   buildShapeSnapshot,
   isShapeDataContractV2,
   legacyShapeFieldsFromContract,

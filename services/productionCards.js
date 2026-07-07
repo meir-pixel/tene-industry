@@ -235,23 +235,73 @@ function parseJsonObject(value) {
   }
 }
 
+function shapeSnapshotFromItem(item = {}) {
+  return parseJsonObject(item.shape_snapshot_json || item.shapeSnapshot || item.shape_snapshot || item.shapeData || item.shape_data) || {};
+}
+
+function normalizeSnapshotSegments(segments) {
+  if (!Array.isArray(segments)) return [];
+  return segments.map(segment => ({
+    length_mm: Number(segment.length_mm ?? segment.lengthMm ?? segment.length ?? 0),
+    angle_deg: Number(segment.angle_deg ?? segment.angleDeg ?? segment.angle ?? 0),
+  })).filter(segment => Number.isFinite(segment.length_mm) && segment.length_mm > 0);
+}
+
+function snapshotSegments(snapshot = {}) {
+  const generic = snapshot.machineOutput && snapshot.machineOutput.generic ? snapshot.machineOutput.generic : {};
+  const data = snapshot.data || {};
+  const genericSegments = normalizeSnapshotSegments(generic.segments);
+  if (genericSegments.length) return genericSegments;
+  const dataSegments = normalizeSnapshotSegments(data.segments);
+  if (dataSegments.length) return dataSegments;
+  const sides = Array.isArray(data.sides) ? data.sides : [];
+  const angles = Array.isArray(data.angles) ? data.angles : [];
+  return sides.map((length, index) => ({
+    length_mm: Number(length) || 0,
+    angle_deg: Number(angles[index] ?? 0) || 0,
+  })).filter(segment => segment.length_mm > 0);
+}
+
+function shapeSegmentsFromItem(item = {}) {
+  const fromSnapshot = snapshotSegments(shapeSnapshotFromItem(item));
+  return fromSnapshot.length ? fromSnapshot : parseSegments(item.segments);
+}
+
+function shapeDiameterFromItem(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item);
+  const data = snapshot.data || {};
+  const generic = snapshot.machineOutput && snapshot.machineOutput.generic ? snapshot.machineOutput.generic : {};
+  const value = item.diameter ?? item.diameterMm ?? data.diameter ?? data.diameterMm ?? data.barDiameter ?? data.barDiameterMm ?? generic.diameter ?? generic.diameterMm;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+function shapeTotalLengthMmFromItem(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item);
+  const generic = snapshot.machineOutput && snapshot.machineOutput.generic ? snapshot.machineOutput.generic : {};
+  const value = item.total_length_mm ?? item.totalLengthMm ?? snapshot.calculated?.totalLengthMm ?? generic.totalLengthMm ?? generic.lengthMm;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
+}
 function isSpiralName(value) {
   return /spiral|ring|coil|spring|helix|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(String(value || ''));
 }
 
 function spiralParamsFromItem(item = {}) {
-  const snapshot = parseJsonObject(item.shape_snapshot_json || item.shapeSnapshot || item.shape_snapshot || item.shapeData || item.shape_data) || {};
+  const snapshot = shapeSnapshotFromItem(item);
   const data = snapshot.data || {};
   const generic = snapshot.machineOutput && snapshot.machineOutput.generic ? snapshot.machineOutput.generic : {};
   const spiralDiameterMm = Number(
     item.spiral_diameter_mm ?? item.spiralDiameterMm ?? item.spiralDiameter ??
     snapshot.spiralDiameterMm ?? snapshot.spiral_diameter_mm ??
+    data.spiral?.diameterMm ?? data.spiral?.diameter ??
     data.spiralDiameterMm ?? data.spiralDiameter ?? data.spiral_diameter_mm ??
     generic.spiralDiameterMm ?? generic.spiralDiameter ?? 0
   );
   const turns = Number(
     item.spiral_turns ?? item.spiralTurns ?? item.turns ??
     snapshot.spiralTurns ?? snapshot.spiral_turns ??
+    data.spiral?.turns ??
     data.spiralTurns ?? data.turns ?? data.spiral_turns ??
     generic.spiralTurns ?? generic.turns ?? 0
   );
@@ -335,7 +385,7 @@ function spiralShapeSvg(item = {}) {
 
 function itemShapeSvg(item = {}) {
   const spiralSvg = spiralShapeSvg(item);
-  return spiralSvg || shapeSvg(item.segments);
+  return spiralSvg || shapeSvg(shapeSegmentsFromItem(item));
 }
 
 function openUShapeSvg(segments) {
@@ -538,10 +588,10 @@ function shapeSvg(segmentsRaw) {
 function masterCard(allItems, order, printDate, deliveryDate, numPallets) {
   const rows = allItems.map((item, index) => '<tr>' +
     `<td>${index + 1}</td>` +
-    `<td><b>Ø${escapeHtml(item.diameter || '?')}</b></td>` +
+    `<td><b>Ø${escapeHtml(shapeDiameterFromItem(item) || '?')}</b></td>` +
     `<td>${escapeHtml(item.shape_name || '-')}</td>` +
-    `<td class="master-shape-cell">${shapeSvg(item.segments)}</td>` +
-    `<td>${Math.round((item.total_length_mm || 0) / 10)}</td>` +
+    `<td class="master-shape-cell">${itemShapeSvg(item)}</td>` +
+    `<td>${Math.round((shapeTotalLengthMmFromItem(item) || 0) / 10)}</td>` +
     `<td><b>${item.quantity || 1}</b></td>` +
     `<td>${Number(item.total_weight || 0).toFixed(1)}</td>` +
     '<td class="check-cell">□</td>' +
@@ -564,14 +614,16 @@ function masterCard(allItems, order, printDate, deliveryDate, numPallets) {
 function itemCard(item, order, printDate, rebarWeights) {
   const scanSuffix = item.scan_suffix ? `-${String(item.scan_suffix).replace(/[^a-zA-Z0-9_-]/g, '')}` : '';
   const barcode = `${order.order_num || ''}-${String(item.id).padStart(6, '0')}${scanSuffix}`;
-  const segments = parseSegments(item.segments);
+  const segments = shapeSegmentsFromItem(item);
   const visualShapeSvg = item.shape_svg ? String(item.shape_svg) : itemShapeSvg(item);
   const title = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
   const note = printableItemNote(item.note);
-  const kgPerMeter = rebarWeights[Math.round(item.diameter || 0)];
+  const diameter = shapeDiameterFromItem(item);
+  const totalLengthMm = shapeTotalLengthMmFromItem(item);
+  const kgPerMeter = rebarWeights[Math.round(diameter || 0)];
   const weight = item.total_weight && item.total_weight > 0
     ? Number(item.total_weight).toFixed(2)
-    : (kgPerMeter ? (Math.round((item.total_length_mm || 0) / 1000 * kgPerMeter * (item.quantity || 1) * 10) / 10).toFixed(2) : '0.00');
+    : (kgPerMeter ? (Math.round((totalLengthMm || 0) / 1000 * kgPerMeter * (item.quantity || 1) * 10) / 10).toFixed(2) : '0.00');
 
   let dimensions = '';
   for (let i = 0; i < segments.length; i += 1) {
@@ -602,9 +654,9 @@ function itemCard(item, order, printDate, rebarWeights) {
     `<div class="pc-shape-area">${visualShapeSvg}</div>` +
     (dimensions ? `<div class="pc-dims">${dimensions}</div>` : '') +
     '<div class="pc-spec-row">' +
-      `<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>Ø${escapeHtml(item.diameter || '?')}</b></div>` +
+      `<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>Ø${escapeHtml(shapeDiameterFromItem(item) || '?')}</b></div>` +
       '<div class="pc-spec-sep"></div>' +
-      `<div class="pc-spec-cell"><span class="spec-lbl">אורך פיתוח:</span> <b>${Math.round((Number(item.total_length_mm || 0)) / 10)}</b> ס״מ</div>` +
+      `<div class="pc-spec-cell"><span class="spec-lbl">אורך פיתוח:</span> <b>${Math.round((Number(totalLengthMm || 0)) / 10)}</b> ס״מ</div>` +
       (item.struct_element ? `<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> ${escapeHtml(item.struct_element)}</div>` : '') +
     '</div>' +
     (note ? `<div class="pc-note">⚠ ${escapeHtml(note)}</div>` : '') +
@@ -624,4 +676,7 @@ module.exports = {
   masterCard,
   itemCard,
   parseSegments,
+  shapeSegmentsFromItem,
+  shapeDiameterFromItem,
+  shapeTotalLengthMmFromItem,
 };

@@ -333,11 +333,11 @@ module.exports = function createProductionRouter(deps) {
       .run(item.order_id);
 
     // Send params to machine via Modbus
-    const segments = tryParseJSON(item.segments, []);
+    const segments = productionCards.shapeSegmentsFromItem(item);
     const angles   = segments.slice(1).map(s => s.angle_deg || 0);
     modbus.writeParams(machineIdNum, {
-      diameter:       item.diameter,
-      totalLengthMm:  item.total_length_mm,
+      diameter:       productionCards.shapeDiameterFromItem(item) || item.diameter,
+      totalLengthMm:  productionCards.shapeTotalLengthMmFromItem(item) ?? item.total_length_mm,
       productionQty:  item.production_qty || item.quantity,
       angles,
     }).catch(() => {}); // non-blocking

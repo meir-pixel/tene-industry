@@ -186,3 +186,39 @@ test('production print page expands pile cages to master and component cards', (
   assert.equal(new Set(html.match(/HZ-PILE-001-000501-P[12]-(?:MASTER|C[123])/g) || []).size, 8);
   assert.equal((html.match(/class="cards-page"/g) || []).length, 1);
 });
+test('production card renderer prefers Shape V2 snapshot segments over legacy item segments', () => {
+  const item = {
+    shape_name: 'snapshot-bend',
+    diameter: null,
+    total_length_mm: null,
+    segments: JSON.stringify([]),
+    shape_snapshot_json: JSON.stringify({
+      contract: 'SHAPE_DATA_CONTRACT_V2',
+      contractVersion: '2.0',
+      shapeVersion: '1.0',
+      shapeId: 'shape-snapshot-production-test',
+      shapeType: 'custom',
+      family: 'rebar',
+      data: {
+        diameter: 14,
+        segments: [
+          { lengthMm: 700, angleDeg: 90 },
+          { lengthMm: 300, angleDeg: 0 },
+        ],
+      },
+      calculated: { totalLengthMm: 1000, weightKg: 1.21 },
+      machineOutput: { generic: { lengthMm: 1000 }, machineProfiles: {} },
+      validation: { valid: true, messages: [] },
+    }),
+  };
+
+  const svg = cards.itemShapeSvg(item);
+  assert.match(svg, /data-shape-kind="generic-bar"/);
+  assert.doesNotMatch(svg, /viewBox="0 0 220 60"/);
+  assert.equal(cards.shapeDiameterFromItem(item), 14);
+  assert.equal(cards.shapeTotalLengthMmFromItem(item), 1000);
+  assert.deepEqual(cards.shapeSegmentsFromItem(item), [
+    { length_mm: 700, angle_deg: 90 },
+    { length_mm: 300, angle_deg: 0 },
+  ]);
+});
