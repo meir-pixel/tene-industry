@@ -417,6 +417,16 @@ body { font-family:'Heebo',sans-serif; background:#f0f4f8; color:var(--text); mi
   align-items:center;
   gap:7px;
 }
+.customer-jump-nav {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:14px 0 12px;
+}
+.customer-jump-nav .btn-action {
+  background:#fff;
+  min-height:34px;
+}
 .orders-table-wrap { overflow-x:auto; }
 .orders-table {
   width:100%;
@@ -1263,12 +1273,13 @@ function renderDetail(c) {
     stat('הזמנה אחרונה',  fmtDate(stats.last_order_at),    '',        '🗓') +
   '</div>';
   html += renderCustomerWorkbench(c);
+  html += renderCustomerJumpNav(c);
   html += renderCustomerOrders(c, orders);
   html += renderCustomerBillingQueue(c);
   html += renderCustomerSitesSummary(c);
 
   // ── Info grid ──
-  html += '<div class="info-grid">';
+  html += '<div class="info-grid" id="customerDetailsSection">';
 
   // Contact info
   html += '<div class="info-section"><h4>📇 פרטי קשר</h4>';
@@ -1346,9 +1357,19 @@ function renderDetail(c) {
   document.getElementById('detailPanel').innerHTML = html;
 }
 
+function renderCustomerJumpNav(c) {
+  return '<div class="customer-jump-nav" aria-label="ניווט בכרטיס לקוח">' +
+    '<a class="btn-action primary" href="#customerOrdersSection">הזמנות</a>' +
+    '<a class="btn-action" href="#customerBillingSection">חיוב</a>' +
+    '<a class="btn-action" href="#customerSitesSection">אתרים</a>' +
+    '<a class="btn-action" href="#customerDetailsSection">פרטים</a>' +
+    '<button class="btn-action" onclick="openPriceListFor(' + c.id + ')">מחירון</button>' +
+  '</div>';
+}
+
 function renderCustomerOrders(c, orders) {
   let html = '';
-  html += '<div class="orders-section">';
+  html += '<div class="orders-section" id="customerOrdersSection">';
   html += '<div class="orders-section-head">' +
     '<h4>📋 הזמנות (' + orders.length + ')</h4>' +
     '<a href="/orders.html?customer='+c.id+'" class="btn-action" style="font-size:12px;padding:5px 10px">כל ההזמנות ←</a>' +
@@ -1365,6 +1386,7 @@ function renderCustomerOrders(c, orders) {
         '<th>תאריך מסירה</th>' +
         '<th class="col-weight">משקל</th>' +
         '<th>תאריך יצירה</th>' +
+        '<th>מסמכים</th>' +
       '</tr></thead>' +
       '<tbody>';
     orders.forEach(o => {
@@ -1375,6 +1397,10 @@ function renderCustomerOrders(c, orders) {
         '<td>'+fmtDate(o.delivery_date)+'</td>' +
         '<td class="col-weight">'+(o.total_weight ? fmtWeight(o.total_weight) : '–')+'</td>' +
         '<td>'+fmtDate(o.created_at)+'</td>' +
+        '<td style="white-space:nowrap">' +
+          '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=print-a4" target="_blank" rel="noopener">PDF הזמנה</a> ' +
+          '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=delivery-certificate" target="_blank" rel="noopener">תעודה</a>' +
+        '</td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';
@@ -1406,7 +1432,7 @@ function renderCustomerWorkbench(c) {
 
 function renderCustomerBillingQueue(c) {
   const rows = c.unbilled_orders || [];
-  let html = '<div class="orders-section">';
+  let html = '<div class="orders-section" id="customerBillingSection">';
   html += '<div class="orders-section-head"><h4>🧾 הזמנות מוכנות לחיוב (' + rows.length + ')</h4></div>';
   if (!rows.length) {
     html += '<div style="padding:20px;text-align:center;color:var(--text-faint);font-size:13px">אין כרגע הזמנות שנמסרו ועדיין לא נרשם עליהן חיוב.</div>';
@@ -1461,7 +1487,7 @@ async function recordCustomerBilling(customerId, orderId) {
 
 function renderCustomerSitesSummary(c) {
   const sites = c.sites_summary || [];
-  let html = '<div class="orders-section">';
+  let html = '<div class="orders-section" id="customerSitesSection">';
   html += '<div class="orders-section-head">' +
     '<h4>🏗 אתרים ופרויקטים (' + sites.length + ')</h4>' +
     '<button class="btn-action" onclick="openSiteModal(' + c.id + ')">אתר חדש</button>' +

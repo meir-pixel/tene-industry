@@ -118,3 +118,16 @@ test('customer card keeps orders above billing sites and secondary details', () 
   assert.ok(sites > billing);
   assert.ok(info > sites);
 });
+
+
+test('customer card has quick navigation and order document links', () => {
+  const page = read('public/customers.html');
+  assert.match(page, /function renderCustomerJumpNav/);
+  assert.match(page, /customerOrdersSection/);
+  assert.match(page, /customerBillingSection/);
+  assert.match(page, /customerSitesSection/);
+  assert.match(page, /customerDetailsSection/);
+  assert.match(page, /kind=print-a4/);
+  assert.match(page, /kind=delivery-certificate/);
+  assert.match(page, /PDF הזמנה/);
+});
