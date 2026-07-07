@@ -25,3 +25,27 @@ test('customer screen links order creation through order screen with customer co
   assert.match(page, /customer_name: c\.name/);
   assert.match(page, /\/api\/customers\/' \+ customerId \+ '\/portal-sites/);
 });
+
+
+test('customer workbench avoids browser prompts and hands off customer and site context', () => {
+  const page = read('public/customers.html');
+  assert.match(page, /id="siteModalBackdrop"/);
+  assert.match(page, /function openSiteModal/);
+  assert.match(page, /classList\.add\('open'\)/);
+  assert.match(page, /function saveCustomerSite/);
+  assert.doesNotMatch(page, /prompt\(/);
+  assert.match(page, /ironbend:new-order:draft:v1/);
+  assert.match(page, /siteId: site\?\.id/);
+  assert.match(page, /siteName: site\?\.name/);
+  assert.match(page, /params\.set\('site_id'/);
+  assert.match(page, /openPriceListFor/);
+  assert.match(page, /\/pricing\.html\?/);
+});
+
+test('pricing screen can open in customer context from the customer card', () => {
+  const pricing = read('public/pricing.html');
+  assert.match(pricing, /initialCustomerId/);
+  assert.match(pricing, /initialCustomerName/);
+  assert.match(pricing, /Number\(book\.customer_id\) === Number\(initialCustomerId\)/);
+  assert.match(pricing, /existing\.customer_id \|\| initialCustomerId/);
+});

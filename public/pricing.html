@@ -621,13 +621,17 @@
   <div class="toast" id="toast"></div>
 
   <script>
+    const priceParams = new URLSearchParams(window.location.search);
+    const initialCustomerId = Number(priceParams.get('customer_id') || 0) || null;
+    const initialCustomerName = priceParams.get('customer_name') || '';
+
     const state = {
       books: [],
       currentBook: null,
       items: [],
       deletedItems: new Set(),
       importDraft: null,
-      mode: 'general',
+      mode: priceParams.get('type') === 'customer' || initialCustomerId ? 'customer' : 'general',
       dirty: false,
       editing: false,
     };
@@ -1013,16 +1017,22 @@
         api('/api/pricing/price-books?type=customer'),
       ]);
       state.books = [...(customer || []), ...(general || [])];
+      const customerBook = initialCustomerId
+        ? state.books.find(book => book.price_type === 'customer' && Number(book.customer_id) === Number(initialCustomerId) && book.status === 'active')
+          || state.books.find(book => book.price_type === 'customer' && Number(book.customer_id) === Number(initialCustomerId))
+        : null;
       if (selectId) {
         state.currentBook = state.books.find(book => String(book.id) === String(selectId)) || null;
       }
-      if (!state.currentBook && state.books.length) state.currentBook = state.books[0];
+      if (!state.currentBook && customerBook) state.currentBook = customerBook;
+      if (!state.currentBook && !initialCustomerId && state.books.length) state.currentBook = state.books.find(book => book.price_type === state.mode) || state.books[0];
       renderBookPicker();
       if (state.currentBook) {
         await loadItems(state.currentBook.id);
       } else {
         state.items = defaultTemplateItems();
         state.dirty = true;
+        if (initialCustomerName && $('#customerNameInput')) $('#customerNameInput').value = initialCustomerName;
         renderDocument();
       }
     }
@@ -1045,7 +1055,7 @@
         code: existing.code || defaultCode(),
         name: state.mode === 'customer' ? (customerName || existing.name || `מחירון לקוח ${dateCode}`) : (customerName || existing.name || 'מחירון כללי'),
         price_type: state.mode,
-        customer_id: state.mode === 'customer' ? (existing.customer_id || null) : null,
+        customer_id: state.mode === 'customer' ? (existing.customer_id || initialCustomerId || null) : null,
         customer_name: state.mode === 'customer' ? customerName : '',
         currency: state.items.find(item => !item._deleted)?.currency || existing.currency || 'ILS',
         status: existing.status || 'draft',

@@ -874,6 +874,62 @@ body { font-family:'Heebo',sans-serif; background:#f0f4f8; color:var(--text); mi
 
 </div>
 
+<!-- Site / Project Modal -->
+<div class="modal-backdrop" id="siteModalBackdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="siteModalTitle">אתר / פרויקט חדש</h3>
+      <button class="modal-close" onclick="closeSiteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="siteCustomerId">
+      <div class="form-row full">
+        <div class="form-group">
+          <label>שם אתר / פרויקט *</label>
+          <input type="text" id="siteName" placeholder="לדוגמה: כפר עציון - שלב א">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>עיר</label>
+          <input type="text" id="siteCity" placeholder="עיר / אזור">
+        </div>
+        <div class="form-group">
+          <label>כתובת</label>
+          <input type="text" id="siteAddress" placeholder="כתובת אספקה">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>מנהל עבודה</label>
+          <input type="text" id="siteManagerName" placeholder="שם מנהל עבודה">
+        </div>
+        <div class="form-group">
+          <label>טלפון מנהל</label>
+          <input type="tel" id="siteManagerPhone" placeholder="05X-XXXXXXX" dir="ltr">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>תקציב כספי</label>
+          <input type="number" id="siteBudgetAmount" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>תקציב ק״ג</label>
+          <input type="number" id="siteBudgetKg" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+      <div class="form-row full">
+        <label class="check-line"><input type="checkbox" id="siteBlockOverBudget"> חסימה בחריגה מתקציב</label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-cancel" onclick="closeSiteModal()">ביטול</button>
+      <button class="btn-save" onclick="saveCustomerSite()">שמור אתר</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add / Edit Customer Modal -->
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal">
@@ -1164,7 +1220,8 @@ function renderDetail(c) {
     '</div>' +
     '<div class="detail-actions">' +
       '<button class="btn-action primary" onclick="newOrderFor('+c.id+')">➕ הזמנה חדשה</button>' +
-      '<button class="btn-action" onclick="quickCreateSite('+c.id+')">🏗 אתר חדש</button>' +
+      '<button class="btn-action" onclick="openSiteModal('+c.id+')">🏗 אתר חדש</button>' +
+      '<button class="btn-action" onclick="openPriceListFor('+c.id+')">🏷 מחירון</button>' +
       '<button class="btn-action" onclick="openModal('+c.id+')">✏️ עריכה</button>' +
     '</div>' +
   '</div>';
@@ -1222,8 +1279,11 @@ function renderDetail(c) {
   html += '<div class="info-grid">';
   html += '<div class="info-section"><h4>💳 תנאי לקוח</h4>';
   html += infoRow('תנאי תשלום', c.payment_terms);
+  const activePriceBook = c.workbench?.pricing?.active_price_book;
   html += infoRow('תצוגת מחירון בפורטל', priceListVisibilityLabel(c.portal_price_list_visibility));
   html += infoRow('סוג חישוב מחיר', c.price_tier === 'customer' ? 'מחירון לקוח' : 'מחירון כללי');
+  html += infoRow('מחירון מחובר', activePriceBook ? esc(activePriceBook.name || activePriceBook.code || ('#' + activePriceBook.id)) : 'לא מחובר מחירון לקוח פעיל');
+  html += '<button class="btn-action" onclick="openPriceListFor('+c.id+')">פתח / חבר מחירון</button>';
   html += '</div>';
   html += '<div class="info-section"><h4>🖨️ שיקוף לקוח</h4>';
   html += infoRow('מה הלקוח רואה', c.portal_price_list_visibility === 'none' ? 'אין טאב מחירון בפורטל' : 'מחירון נקי להדפסה ללא שם מחירון פנימי');
@@ -1310,13 +1370,13 @@ function renderCustomerSitesSummary(c) {
   let html = '<div class="orders-section">';
   html += '<div class="orders-section-head">' +
     '<h4>🏗 אתרים ופרויקטים (' + sites.length + ')</h4>' +
-    '<button class="btn-action" onclick="quickCreateSite(' + c.id + ')">אתר חדש</button>' +
+    '<button class="btn-action" onclick="openSiteModal(' + c.id + ')">אתר חדש</button>' +
   '</div>';
   if (!sites.length) {
     html += '<div style="padding:24px;text-align:center;color:var(--text-faint);font-size:13px">אין עדיין אתרים ללקוח. אפשר לפתוח אתר ראשון מכאן.</div>';
   } else {
     html += '<div class="orders-table-wrap"><table class="orders-table">' +
-      '<thead><tr><th>אתר</th><th>מנהל</th><th class="col-weight">הוזמן</th><th>כסף</th><th>תקציב</th></tr></thead><tbody>';
+      '<thead><tr><th>אתר</th><th>מנהל</th><th class="col-weight">הוזמן</th><th>כסף</th><th>תקציב</th><th>פעולה</th></tr></thead><tbody>';
     sites.forEach(site => {
       const manager = [site.manager_name, site.manager_phone].filter(Boolean).join(' · ');
       const budget = site.budget_amount ? fmtMoney(site.budget_amount) : '–';
@@ -1326,6 +1386,7 @@ function renderCustomerSitesSummary(c) {
         '<td class="col-weight">' + fmtWeight(site.billing_kg) + '</td>' +
         '<td>' + fmtMoney(site.spend) + '</td>' +
         '<td>' + budget + '</td>' +
+        '<td><button class="btn-action primary" onclick="newOrderFor(' + c.id + ',' + site.id + ')">הזמנה</button></td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';
@@ -1347,29 +1408,93 @@ function infoRow(key, val) {
 }
 
 // ── NEW ORDER for customer ──
-function newOrderFor(id) {
+function newOrderFor(id, siteId = null) {
   const c = customers.find(x => Number(x.id) === Number(id)) || {};
+  const site = (c.sites_summary || []).find(row => Number(row.id) === Number(siteId)) || null;
+  try {
+    localStorage.setItem('ironbend:new-order:draft:v1', JSON.stringify({
+      customer: {
+        id: Number(id),
+        name: c.name || '',
+        phone: c.phone || '',
+        priorityId: c.priority_id || '',
+        contactName: c.contact_name || '',
+        contactPhone: c.contact_phone || '',
+      },
+      delivery: {
+        siteId: site?.id || '',
+        siteName: site?.name || '',
+        address: site?.address || c.address || '',
+        driverNotes: [site?.manager_name, site?.manager_phone].filter(Boolean).join(' | '),
+      },
+      source: site ? 'customer-site-card' : 'customer-card',
+      savedAt: new Date().toISOString(),
+    }));
+  } catch {}
   const params = new URLSearchParams({
     customer_id: String(id),
     customer_name: c.name || '',
-    source: 'customer-card',
+    source: site ? 'customer-site-card' : 'customer-card',
   });
+  if (site) params.set('site_id', String(site.id));
   window.location.href = '/index.html?' + params.toString();
 }
 
-async function quickCreateSite(customerId) {
-  const name = prompt('שם אתר / פרויקט');
-  if (!name || !name.trim()) return;
-  const city = prompt('עיר (לא חובה)') || '';
-  const address = prompt('כתובת (לא חובה)') || '';
+function openPriceListFor(id) {
+  const c = customers.find(x => Number(x.id) === Number(id)) || {};
+  const params = new URLSearchParams({
+    type: 'customer',
+    customer_id: String(id),
+    customer_name: c.name || '',
+  });
+  window.location.href = '/pricing.html?' + params.toString();
+}
+
+function openSiteModal(customerId) {
+  const c = customers.find(x => Number(x.id) === Number(customerId)) || {};
+  document.getElementById('siteCustomerId').value = customerId;
+  document.getElementById('siteModalTitle').textContent = 'אתר / פרויקט חדש' + (c.name ? ' - ' + c.name : '');
+  ['siteName','siteCity','siteAddress','siteManagerName','siteManagerPhone','siteBudgetAmount','siteBudgetKg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const block = document.getElementById('siteBlockOverBudget');
+  if (block) block.checked = false;
+  document.getElementById('siteModalBackdrop').classList.add('open');
+  setTimeout(() => document.getElementById('siteName')?.focus(), 30);
+}
+
+function closeSiteModal() {
+  document.getElementById('siteModalBackdrop').classList.remove('open');
+}
+
+async function saveCustomerSite() {
+  const customerId = Number(document.getElementById('siteCustomerId')?.value || 0);
+  const name = document.getElementById('siteName')?.value.trim();
+  if (!customerId || !name) return alert('צריך להזין שם אתר / פרויקט');
+  const body = {
+    name,
+    city: document.getElementById('siteCity')?.value.trim() || '',
+    address: document.getElementById('siteAddress')?.value.trim() || '',
+    managerName: document.getElementById('siteManagerName')?.value.trim() || '',
+    managerPhone: document.getElementById('siteManagerPhone')?.value.trim() || '',
+    budgetAmount: Number(document.getElementById('siteBudgetAmount')?.value || 0),
+    budgetKg: Number(document.getElementById('siteBudgetKg')?.value || 0),
+    blockOverBudget: Boolean(document.getElementById('siteBlockOverBudget')?.checked),
+  };
   const r = await fetch('/api/customers/' + customerId + '/portal-sites', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name.trim(), city: city.trim(), address: address.trim() }),
+    body: JSON.stringify(body),
   });
   if (!r.ok) return alert('לא ניתן לפתוח אתר ללקוח');
+  closeSiteModal();
   await loadCustomers(lastCustomerQuery);
   selectCustomer(customerId);
+}
+
+function quickCreateSite(customerId) {
+  openSiteModal(customerId);
 }
 
 // ── PORTAL LINK ──
