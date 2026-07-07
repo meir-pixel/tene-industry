@@ -1143,7 +1143,7 @@
         customer_id: state.mode === 'customer' ? (existing.customer_id || initialCustomerId || null) : null,
         customer_name: state.mode === 'customer' ? customerName : '',
         currency: state.items.find(item => !item._deleted)?.currency || existing.currency || source.currency || 'ILS',
-        status: existing.status || 'draft',
+        status: existing.status || (customerPriceBook ? 'active' : 'draft'),
         source_type: existing.source_type || (source.id ? 'customer_copy' : 'manual'),
         source_ref: existing.source_ref || (source.id ? `pricing_price_books:${source.id}` : ''),
         notes: buildNotes(existing.notes || source.notes),

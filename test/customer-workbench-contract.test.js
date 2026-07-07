@@ -11,6 +11,7 @@ test('customer detail exposes modular workbench read model without owning orders
   assert.match(route, /c\.workbench\s*=\s*\{/);
   assert.match(route, /c\.sites_summary\s*=\s*sites/);
   assert.match(route, /active_price_book/);
+  assert.match(route, /profitability/);
   assert.doesNotMatch(route, /INSERT\s+INTO\s+orders/i);
   assert.doesNotMatch(route, /INSERT\s+INTO\s+invoices/i);
 });
@@ -81,4 +82,16 @@ test('pricing customer handoff can return and clones a clean customer price book
   assert.match(pricing, /source_type: existing\.source_type \|\| \(source\.id \? 'customer_copy' : 'manual'\)/);
   assert.match(customers, /requestedCustomerId/);
   assert.match(customers, /selectCustomer\(requestedCustomerId\)/);
+});
+
+
+test('customer price book handoff activates pricing consumers and customer profitability summary', () => {
+  const pricing = read('public/pricing.html');
+  const customers = read('public/customers.html');
+  const route = read('routes/customers.js');
+  assert.match(pricing, /status: existing\.status \|\| \(customerPriceBook \? 'active' : 'draft'\)/);
+  assert.match(route, /today_margin_pct/);
+  assert.match(route, /LEFT JOIN order_costs oc ON oc\.order_id=o\.id/);
+  assert.match(customers, /רווח היום/);
+  assert.match(customers, /מרווח היום/);
 });

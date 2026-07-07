@@ -1068,6 +1068,12 @@ function fmtMoney(value) {
   return '₪' + n.toLocaleString('he-IL', { maximumFractionDigits: 0 });
 }
 
+function fmtPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '–';
+  return n.toLocaleString('he-IL', { maximumFractionDigits: 1 }) + '%';
+}
+
 async function approveProfileChange(customerId, requestId) {
   const r = await fetch('/api/customers/' + customerId + '/profile-change-requests/' + requestId + '/approve', { method: 'POST' });
   if (!r.ok) return alert('לא ניתן לאשר את בקשת השינוי');
@@ -1379,10 +1385,13 @@ function renderCustomerWorkbench(c) {
   const unbilled = wb.unbilled || {};
   const sites = wb.sites || {};
   const pricing = wb.pricing || {};
+  const profitability = wb.profitability || {};
   const priceMode = pricing.mode === 'customer' ? 'לקוח' : 'כללי';
   return '<div class="stats-row">' +
     stat('פתוח מול לקוח', fmtMoney(finance.open_balance), '', '💳') +
     stat('מועמד לחיוב', fmtMoney(unbilled.amount), '', '🧾') +
+    stat('רווח היום', fmtMoney(profitability.today_margin), '', '📈') +
+    stat('מרווח היום', fmtPct(profitability.today_margin_pct), '', '📊') +
     stat('אתרים פעילים', sites.active_count || 0, '', '🏗') +
     stat('מחירון', priceMode, '', '🏷') +
   '</div>';

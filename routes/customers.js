@@ -89,6 +89,25 @@ module.exports = function createCustomersRouter(deps) {
         AND status IN ('נמסרה','סופקה','מוכנה לאיסוף')
         AND COALESCE(NULLIF(sale_price,0), portal_price, 0) > 0
     `).get(c.id));
+    const profitability = safeQuery({ today_revenue: 0, today_cost: 0, today_margin: 0, today_margin_pct: null, today_order_count: 0, total_revenue: 0, total_cost: 0, total_margin: 0, total_margin_pct: null }, () => db.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN date(o.created_at)=date('now','localtime') THEN oc.revenue ELSE 0 END),0) AS today_revenue,
+        COALESCE(SUM(CASE WHEN date(o.created_at)=date('now','localtime') THEN oc.total_cost ELSE 0 END),0) AS today_cost,
+        COALESCE(SUM(CASE WHEN date(o.created_at)=date('now','localtime') THEN oc.gross_margin ELSE 0 END),0) AS today_margin,
+        COALESCE(SUM(CASE WHEN date(o.created_at)=date('now','localtime') THEN 1 ELSE 0 END),0) AS today_order_count,
+        COALESCE(SUM(oc.revenue),0) AS total_revenue,
+        COALESCE(SUM(oc.total_cost),0) AS total_cost,
+        COALESCE(SUM(oc.gross_margin),0) AS total_margin
+      FROM orders o
+      LEFT JOIN order_costs oc ON oc.order_id=o.id
+      WHERE o.customer_id=?
+    `).get(c.id));
+    profitability.today_margin_pct = Number(profitability.today_revenue || 0) > 0
+      ? (Number(profitability.today_margin || 0) / Number(profitability.today_revenue || 0)) * 100
+      : null;
+    profitability.total_margin_pct = Number(profitability.total_revenue || 0) > 0
+      ? (Number(profitability.total_margin || 0) / Number(profitability.total_revenue || 0)) * 100
+      : null;
     const sites = safeQuery([], () => db.prepare(`
       SELECT cs.id,cs.name,cs.address,cs.city,cs.status,cs.manager_name,cs.manager_phone,
              COALESCE(cs.budget_amount,0) AS budget_amount,
@@ -129,6 +148,7 @@ module.exports = function createCustomersRouter(deps) {
         open_balance: Number(c.balance || 0),
         credit_limit: Number(c.credit_limit || 0),
       },
+      profitability,
       pricing: {
         mode: c.price_tier === 'customer' ? 'customer' : 'general',
         discount_pct: Number(c.discount_pct || 0),
