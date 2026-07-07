@@ -1263,6 +1263,7 @@ function renderDetail(c) {
     stat('הזמנה אחרונה',  fmtDate(stats.last_order_at),    '',        '🗓') +
   '</div>';
   html += renderCustomerWorkbench(c);
+  html += renderCustomerOrders(c, orders);
   html += renderCustomerBillingQueue(c);
   html += renderCustomerSitesSummary(c);
 
@@ -1341,7 +1342,12 @@ function renderDetail(c) {
     '<button class="btn-action" onclick="revokePortalLink('+c.id+')">⛔ בטל גישה</button>' +
   '</div>';
 
-  // ── Orders table ──
+
+  document.getElementById('detailPanel').innerHTML = html;
+}
+
+function renderCustomerOrders(c, orders) {
+  let html = '';
   html += '<div class="orders-section">';
   html += '<div class="orders-section-head">' +
     '<h4>📋 הזמנות (' + orders.length + ')</h4>' +
@@ -1374,10 +1380,10 @@ function renderDetail(c) {
     html += '</tbody></table></div>';
   }
 
-  html += '</div>'; // orders-section
-
-  document.getElementById('detailPanel').innerHTML = html;
+  html += '</div>';
+  return html;
 }
+
 
 function renderCustomerWorkbench(c) {
   const wb = c.workbench || {};
