@@ -69,3 +69,16 @@ test('pricing screen explains customer price book connection', () => {
   assert.match(pricing, /customer_id: state\.mode === 'customer' \? \(existing\.customer_id \|\| initialCustomerId \|\| null\) : null/);
   assert.match(pricing, /state\.editing = Boolean\(initialCustomerId\)/);
 });
+
+test('pricing customer handoff can return and clones a clean customer price book', () => {
+  const pricing = read('public/pricing.html');
+  const customers = read('public/customers.html');
+  assert.match(pricing, /id="backToCustomerBtn"/);
+  assert.match(pricing, /\/customers\.html\?customer_id=/);
+  assert.match(pricing, /function customerBookCode/);
+  assert.match(pricing, /cloneSourceBook/);
+  assert.match(pricing, /id: null/);
+  assert.match(pricing, /source_type: existing\.source_type \|\| \(source\.id \? 'customer_copy' : 'manual'\)/);
+  assert.match(customers, /requestedCustomerId/);
+  assert.match(customers, /selectCustomer\(requestedCustomerId\)/);
+});

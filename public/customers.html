@@ -1022,6 +1022,8 @@ let searchTimer;
 let lastCustomerQuery = '';
 let initialListRetryTimer = null;
 let initialListRetryCount = 0;
+const requestedCustomerId = Number(new URLSearchParams(window.location.search).get('customer_id') || 0) || null;
+let requestedCustomerSelected = false;
 
 // ── STATUS mapping ──
 const STATUS_CLS = {
@@ -1112,6 +1114,10 @@ async function loadList(q, opts = {}) {
     initialListRetryTimer = null;
     document.getElementById('listAlert').innerHTML = '';
     renderList();
+    if (requestedCustomerId && !requestedCustomerSelected && customers.some(row => Number(row.id) === requestedCustomerId)) {
+      requestedCustomerSelected = true;
+      selectCustomer(requestedCustomerId);
+    }
   } catch(e) {
     if (isInitial && !customers.length && initialListRetryCount < 3) {
       initialListRetryCount += 1;

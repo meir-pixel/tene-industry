@@ -513,6 +513,7 @@
         <select class="toolbar-select" id="bookPicker" aria-label="בחירת מחירון"></select>
         <button class="btn" id="generalModeBtn" type="button" data-mode="general">מחירון כללי</button>
         <button class="btn" id="customerModeBtn" type="button" data-mode="customer">מחירון לקוח</button>
+        <button class="btn" id="backToCustomerBtn" type="button" hidden>חזרה ללקוח</button>
       </div>
       <div class="toolbar-group">
         <button class="btn primary" id="editDocBtn" type="button">&#1506;&#1512;&#1497;&#1499;&#1492;</button>
@@ -662,6 +663,7 @@
       items: [],
       deletedItems: new Set(),
       importDraft: null,
+      cloneSourceBook: null,
       mode: priceParams.get('type') === 'customer' || initialCustomerId ? 'customer' : 'general',
       dirty: false,
       editing: false,
@@ -746,6 +748,11 @@
 
     function defaultCode() {
       return `PRICE-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}`;
+    }
+
+    function customerBookCode() {
+      const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+      return `CUST-${initialCustomerId || 'NEW'}-${stamp}`;
     }
 
     function defaultNotesText() {
@@ -902,6 +909,8 @@
 
     function renderCustomerContextBar() {
       const bar = $('#customerContextBar');
+      const backButton = $('#backToCustomerBtn');
+      if (backButton) backButton.hidden = !initialCustomerId;
       if (!bar) return;
       if (!initialCustomerId) {
         bar.hidden = true;
@@ -919,8 +928,15 @@
 
     function prepareCustomerPriceBook() {
       if (!initialCustomerId) return;
+      const sourceBook = state.currentBook;
       state.currentBook = null;
-      state.items = state.items.length ? state.items : defaultTemplateItems();
+      state.cloneSourceBook = sourceBook || null;
+      state.items = (state.items.length ? state.items : defaultTemplateItems()).map((item, index) => ({
+        ...item,
+        id: null,
+        _key: `customer-copy-${Date.now()}-${index}`,
+        sku: item.sku || `ROW-${index + 1}`,
+      }));
       state.deletedItems = new Set();
       state.dirty = true;
       state.editing = true;
@@ -1118,17 +1134,19 @@
       const customerName = $('#customerNameInput').value.trim();
       const dateCode = new Date().toISOString().slice(0, 10).replaceAll('-', '');
       const existing = state.currentBook || {};
+      const source = state.cloneSourceBook || {};
+      const customerPriceBook = state.mode === 'customer' && initialCustomerId && !existing.id;
       return {
-        code: existing.code || defaultCode(),
+        code: existing.code || (customerPriceBook ? customerBookCode() : defaultCode()),
         name: state.mode === 'customer' ? (customerName || existing.name || `מחירון לקוח ${dateCode}`) : (customerName || existing.name || 'מחירון כללי'),
         price_type: state.mode,
         customer_id: state.mode === 'customer' ? (existing.customer_id || initialCustomerId || null) : null,
         customer_name: state.mode === 'customer' ? customerName : '',
-        currency: state.items.find(item => !item._deleted)?.currency || existing.currency || 'ILS',
+        currency: state.items.find(item => !item._deleted)?.currency || existing.currency || source.currency || 'ILS',
         status: existing.status || 'draft',
-        source_type: existing.source_type || 'manual',
-        source_ref: existing.source_ref || '',
-        notes: buildNotes(existing.notes),
+        source_type: existing.source_type || (source.id ? 'customer_copy' : 'manual'),
+        source_ref: existing.source_ref || (source.id ? `pricing_price_books:${source.id}` : ''),
+        notes: buildNotes(existing.notes || source.notes),
       };
     }
 
@@ -1165,6 +1183,7 @@
         await api(itemUrl, { method: item.id ? 'PATCH' : 'POST', body: JSON.stringify(body) });
       }
       state.currentBook = book;
+      state.cloneSourceBook = null;
       state.dirty = false;
       state.editing = false;
       toast('המחירון נשמר');
@@ -1303,6 +1322,10 @@
     }
 
     $('#bookPicker').addEventListener('change', event => loadItems(event.target.value).catch(err => toast(err.message)));
+    $('#backToCustomerBtn').addEventListener('click', () => {
+      if (!initialCustomerId) return;
+      window.location.href = `/customers.html?customer_id=${encodeURIComponent(initialCustomerId)}`;
+    });
     $('#editDocBtn').addEventListener('click', () => setEditing(!state.editing));
     $('#generalModeBtn').addEventListener('click', () => { setMode('general'); markDirty(); renderDocument(); });
     $('#customerModeBtn').addEventListener('click', () => { setMode('customer'); markDirty(); renderDocument(); });
