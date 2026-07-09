@@ -1398,6 +1398,108 @@
   @media(max-width:1180px){body[data-page="new"] .main{grid-template-columns:minmax(0,1fr) minmax(280px,340px);grid-template-areas:"head head" "context context" "customer delivery" "intake inventory" "items inventory" "notes review"}.summary-bar,#liveInventoryPanel{position:static;top:auto}}
   @media(max-width:768px){body[data-page="new"] .main{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "context" "items" "inventory" "review" "customer" "delivery" "intake" "notes";padding:12px}.summary-bar{position:static;bottom:auto}.no-bottom-actions{position:fixed;inset-inline:10px;bottom:10px;z-index:130}}
 
+
+  /* NEW_ORDER_EDITOR_FIRST_POLISH */
+  body[data-page="new"] .main{grid-template-areas:"review head inventory" "review context inventory" "review items inventory" "review notes inventory" "review customer inventory" "review delivery inventory" "review intake inventory"!important;}
+  body[data-page="new"] .no-edit-section{display:none!important;}
+  body[data-page="new"] .no-edit-section.is-open{display:block!important;}
+  body[data-page="new"] .no-context-strip{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:0;}
+  body[data-page="new"] .no-context-card{min-height:64px;padding:10px 12px;border-radius:12px;gap:4px;}
+  body[data-page="new"] .no-context-top{align-items:center;}
+  body[data-page="new"] .no-context-value{font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  body[data-page="new"] .no-context-meta{font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  body[data-page="new"] .no-small-btn{min-height:26px;padding:4px 8px;font-size:11px;}
+  body[data-page="new"] #items-section{border-radius:12px;overflow:hidden;}
+  body[data-page="new"] #items-section .section-body{padding:0;}
+  body[data-page="new"] .no-section-head{padding:12px 14px;}
+  body[data-page="new"] .no-section-head p{display:none;}
+  body[data-page="new"] .no-item-toolbar{padding:10px 14px;gap:8px;}
+  body[data-page="new"] .no-tool-btn{min-height:38px;padding:8px 10px;}
+  body[data-page="new"] .no-items-empty{display:grid;gap:8px;place-items:center;text-align:center;padding:18px 14px;border:1px dashed #cbd5e1;border-radius:10px;background:#f8fafc;color:var(--text-dim);font-weight:800;margin:12px 14px;}
+  body[data-page="new"] .no-items-empty strong{color:var(--text);font-size:15px;}
+  body[data-page="new"] .no-internal-stat{display:none!important;}
+  body[data-page="new"] .no-pallet-card,.no-pallet-head,.no-pallet-actions,.no-pallet-meta,.no-add-item-inline,.add-pallet-btn{display:none!important;}
+  body[data-page="new"] .no-item-sub{color:var(--text-dim);}
+  @media(max-width:900px){body[data-page="new"] .main{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"head" "context" "items" "inventory" "review" "notes" "customer" "delivery" "intake"!important;padding:12px!important;}body[data-page="new"] .summary-bar,body[data-page="new"] #liveInventoryPanel{position:static!important;min-height:0!important;}body[data-page="new"] .order-context-strip{grid-template-columns:repeat(2,minmax(0,1fr))!important;}body[data-page="new"] .no-context-card{min-height:58px;padding:9px 10px;}body[data-page="new"] .no-item-toolbar{grid-template-columns:1fr auto auto!important;}body[data-page="new"] .no-item-toolbar .no-tool-btn:nth-child(2),body[data-page="new"] .no-item-toolbar .no-tool-btn:nth-child(3){display:none;}body[data-page="new"] .no-tool-btn{font-size:12px;}body[data-page="new"] #liveInventoryPanel{max-height:none;}}
+  @media(max-width:480px){body[data-page="new"] .order-workspace-head{min-height:0!important;padding:10px 12px!important;gap:8px!important;}body[data-page="new"] .order-workspace-title{font-size:22px!important;}body[data-page="new"] .order-workspace-sub{display:none;}body[data-page="new"] .no-header-kicker{font-size:11px;}body[data-page="new"] .no-header-status{grid-template-columns:1fr;gap:3px;}body[data-page="new"] .no-status-pill{min-height:26px;padding:4px 8px;font-size:12px;}body[data-page="new"] .no-header-actions{display:grid!important;grid-template-columns:1fr 1fr;gap:7px;}body[data-page="new"] .no-header-actions .no-ghost-action{display:none;}body[data-page="new"] .no-primary-action,body[data-page="new"] .no-secondary-action{min-width:0;padding:9px 8px;font-size:13px;}body[data-page="new"] .no-context-strip{gap:7px!important;}body[data-page="new"] .no-context-label{font-size:10px;}body[data-page="new"] .no-context-value{font-size:14px;}body[data-page="new"] .no-context-meta{display:none;}body[data-page="new"] .no-section-head{padding:10px 12px;}body[data-page="new"] .no-section-head h2{font-size:18px;}body[data-page="new"] .no-items-count{font-size:11px;padding:5px 8px;}body[data-page="new"] .no-item-toolbar{grid-template-columns:1fr auto!important;padding:8px 12px;}body[data-page="new"] .no-item-toolbar .no-tool-btn:nth-child(4){min-width:92px;}body[data-page="new"] .no-bottom-actions{position:fixed;inset-inline:10px;bottom:10px;z-index:130;}}
+
+
+  /* NEW_ORDER_PRO_EDITOR_V2 */
+  body[data-page="new"] .main{width:min(100%,1500px)!important;max-width:1500px!important;margin:0 auto!important;padding:16px!important;display:grid!important;direction:ltr!important;grid-template-columns:minmax(0,1fr) minmax(280px,320px)!important;grid-template-areas:"head head" "context context" "setup setup" "editor inspector" "notes inspector"!important;gap:14px!important;align-items:start!important;background:#f3f6fb!important;overflow-x:hidden!important;}
+  body[data-page="new"] .main>*{direction:rtl!important;min-width:0!important;}
+  body[data-page="new"] .progress-bar{display:none!important;}
+  body[data-page="new"] .order-pro-header{grid-area:head!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;min-height:auto!important;padding:12px 14px!important;border:1px solid #dce6f3!important;border-radius:12px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,35,75,.06)!important;}
+  body[data-page="new"] .order-pro-title{display:flex!important;align-items:center!important;gap:10px!important;min-width:0!important;}
+  body[data-page="new"] .order-pro-kicker{font-size:12px!important;color:#64748b!important;font-weight:900!important;white-space:nowrap!important;}
+  body[data-page="new"] .order-pro-title h1{margin:0!important;font-size:24px!important;line-height:1.1!important;color:#0f234b!important;white-space:nowrap!important;}
+  body[data-page="new"] .order-pro-draft{min-height:26px!important;padding:4px 9px!important;border-radius:999px!important;background:#f2f7fc!important;border:1px solid #dce8f4!important;color:#245f8f!important;font-size:12px!important;font-weight:900!important;white-space:nowrap!important;}
+  body[data-page="new"] .order-pro-hidden-status{display:none!important;}
+  body[data-page="new"] .order-pro-actions{display:flex!important;justify-content:flex-end!important;align-items:center!important;gap:8px!important;flex-wrap:nowrap!important;}
+  body[data-page="new"] .order-primary-save,body[data-page="new"] .order-secondary-save,body[data-page="new"] .order-more-action{border-radius:10px!important;border:1px solid #cbd8ea!important;min-height:38px!important;padding:8px 13px!important;font-family:inherit!important;font-weight:900!important;cursor:pointer!important;white-space:nowrap!important;}
+  body[data-page="new"] .order-primary-save{background:#1769e0!important;color:#fff!important;border-color:#1769e0!important;box-shadow:0 10px 20px rgba(23,105,224,.18)!important;}
+  body[data-page="new"] .order-secondary-save,body[data-page="new"] .order-more-action{background:#fff!important;color:#18345f!important;}
+  body[data-page="new"] .order-pro-context{grid-area:context!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important;margin:0!important;}
+  body[data-page="new"] .context-chip{min-height:52px!important;padding:8px 10px!important;border-radius:12px!important;border:1px solid #dce6f3!important;background:#fff!important;box-shadow:0 6px 18px rgba(15,35,75,.045)!important;text-align:right!important;display:grid!important;gap:2px!important;cursor:pointer!important;color:inherit!important;}
+  body[data-page="new"] .context-chip span{font-size:11px!important;color:#64748b!important;font-weight:900!important;}
+  body[data-page="new"] .context-chip strong{font-size:14px!important;color:#0f234b!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+  body[data-page="new"] .context-chip em{font-size:11px!important;color:#2563eb!important;font-style:normal!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+  body[data-page="new"] .order-setup-drawer{grid-area:setup!important;border:1px solid #dce6f3!important;border-radius:12px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,35,75,.06)!important;overflow:hidden!important;}
+  body[data-page="new"] .order-setup-drawer[hidden]{display:none!important;}
+  body[data-page="new"] .drawer-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;padding:10px 14px!important;border-bottom:1px solid #e6edf7!important;background:#fbfdff!important;}
+  body[data-page="new"] .drawer-head h2{margin:0!important;font-size:16px!important;color:#0f234b!important;}
+  body[data-page="new"] .setup-section{margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important;}
+  body[data-page="new"] .setup-section[hidden]{display:none!important;}
+  body[data-page="new"] .setup-section.is-active{display:block!important;}
+  body[data-page="new"] .setup-section>details{display:block!important;}
+  body[data-page="new"] .setup-section>details>summary{display:none!important;}
+  body[data-page="new"] .order-pro-editor{grid-area:editor!important;min-width:0!important;}
+  body[data-page="new"] .order-pro-items{border:1px solid #dce6f3!important;border-radius:14px!important;background:#fff!important;box-shadow:0 10px 28px rgba(15,35,75,.065)!important;overflow:hidden!important;}
+  body[data-page="new"] .items-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;padding:14px 16px!important;border-bottom:1px solid #e6edf7!important;background:#fff!important;}
+  body[data-page="new"] .items-header h2{margin:0!important;font-size:22px!important;color:#0f234b!important;font-weight:950!important;}
+  body[data-page="new"] .items-header p{display:block!important;margin:3px 0 0!important;color:#64748b!important;font-size:12px!important;font-weight:800!important;}
+  body[data-page="new"] .items-commandbar{display:flex!important;align-items:center!important;gap:10px!important;padding:12px 16px!important;border-bottom:1px solid #e6edf7!important;background:#fbfdff!important;}
+  body[data-page="new"] .primary-add-shape{min-height:46px!important;min-width:210px!important;padding:11px 18px!important;border-radius:12px!important;background:#1769e0!important;color:#fff!important;border:1px solid #1769e0!important;font-size:15px!important;font-weight:950!important;box-shadow:0 12px 24px rgba(23,105,224,.20)!important;}
+  body[data-page="new"] .secondary-import-shape{min-height:42px!important;padding:9px 14px!important;border-radius:12px!important;background:#fff!important;color:#245f8f!important;border:1px solid #cbd8ea!important;font-weight:900!important;}
+  body[data-page="new"] #items-section .section-body{padding:0!important;}
+  body[data-page="new"] .order-items-empty{display:grid!important;gap:8px!important;place-items:center!important;text-align:center!important;margin:14px 16px!important;padding:18px!important;border:1px dashed #b8c7dc!important;border-radius:12px!important;background:#f8fbff!important;color:#64748b!important;}
+  body[data-page="new"] .order-items-empty h3{margin:0!important;color:#0f234b!important;font-size:18px!important;}
+  body[data-page="new"] .order-items-empty p{margin:0!important;font-weight:800!important;}
+  body[data-page="new"] .order-items-empty button{min-height:44px!important;padding:10px 18px!important;border:0!important;border-radius:12px!important;background:#1769e0!important;color:#fff!important;font-family:inherit!important;font-weight:950!important;cursor:pointer!important;}
+  body[data-page="new"] .order-items-list,.no-items-list{display:grid!important;gap:10px!important;padding:14px 16px!important;}
+  body[data-page="new"] .order-item-card,.no-item-card{display:grid!important;grid-template-columns:150px minmax(0,1fr) auto!important;gap:14px!important;align-items:stretch!important;margin:0!important;padding:12px!important;border:1px solid #dce6f3!important;border-radius:12px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,35,75,.045)!important;}
+  body[data-page="new"] .item-shape-preview,.no-item-preview{position:relative!important;min-height:112px!important;border:1px solid #e0e8f3!important;border-radius:10px!important;background:#f8fafc!important;display:grid!important;place-items:center!important;cursor:pointer!important;}
+  body[data-page="new"] .item-main,.no-item-main{min-width:0!important;display:grid!important;gap:9px!important;align-content:center!important;}
+  body[data-page="new"] .item-title-row,.no-item-title-row{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:10px!important;}
+  body[data-page="new"] .item-title-row h3,.no-item-title{margin:0!important;font-size:18px!important;color:#0f234b!important;font-weight:950!important;}
+  body[data-page="new"] .no-item-sub{display:none!important;}
+  body[data-page="new"] .item-metrics,.no-item-metrics{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important;}
+  body[data-page="new"] .item-metrics span,.no-metric{display:grid!important;gap:2px!important;padding:8px!important;border-radius:10px!important;background:#f8fafc!important;color:#64748b!important;font-size:11px!important;font-weight:800!important;}
+  body[data-page="new"] .item-metrics strong,.no-metric strong{color:#0f234b!important;font-size:14px!important;font-weight:950!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+  body[data-page="new"] .item-actions,.no-item-actions{display:grid!important;align-content:center!important;gap:7px!important;min-width:76px!important;}
+  body[data-page="new"] .no-card-action{min-height:32px!important;border-radius:9px!important;background:#fff!important;color:#245f8f!important;border:1px solid #cbd8ea!important;font-weight:900!important;}
+  body[data-page="new"] .no-card-action.danger{color:#dc2626!important;border-color:#fecaca!important;}
+  body[data-page="new"] .no-field-mini{font-size:11px!important;color:#64748b!important;font-weight:800!important;}
+  body[data-page="new"] .no-field-mini input{min-height:32px!important;border:1px solid #dce6f3!important;border-radius:8px!important;padding:6px 8px!important;}
+  body[data-page="new"] .order-pro-inspector{grid-area:inspector!important;position:sticky!important;top:16px!important;display:grid!important;gap:12px!important;align-self:start!important;}
+  body[data-page="new"] .summary-bar,body[data-page="new"] #liveInventoryPanel{position:static!important;top:auto!important;min-height:0!important;width:100%!important;padding:12px!important;border:1px solid #dce6f3!important;border-radius:14px!important;background:#fff!important;box-shadow:0 10px 28px rgba(15,35,75,.06)!important;}
+  body[data-page="new"] .summary-bar{display:grid!important;gap:10px!important;}
+  body[data-page="new"] .summary-order{display:none!important;}
+  body[data-page="new"] .summary-stats{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;}
+  body[data-page="new"] .wizard-summary-block{padding:10px!important;border:1px solid #e6edf7!important;border-radius:10px!important;background:#fbfdff!important;}
+  body[data-page="new"] .wizard-summary-line{font-size:12px!important;}
+  body[data-page="new"] .summary-bar>.submit-btn{min-height:40px!important;border-radius:10px!important;background:#1769e0!important;color:#fff!important;border:0!important;font-weight:950!important;}
+  body[data-page="new"] .inspector-card{padding:12px!important;border:1px solid #e6edf7!important;border-radius:12px!important;background:#fff!important;}
+  body[data-page="new"] .inspector-card h3{margin:0 0 6px!important;font-size:16px!important;color:#0f234b!important;}
+  body[data-page="new"] .inspector-card p{margin:0!important;color:#64748b!important;font-weight:800!important;font-size:13px!important;}
+  body[data-page="new"] .inventory-compact-list{display:grid!important;gap:7px!important;}
+  body[data-page="new"] .inventory-compact-row{display:grid!important;grid-template-columns:auto 1fr auto!important;gap:8px!important;align-items:center!important;padding:8px!important;border-radius:10px!important;background:#f8fafc!important;font-size:12px!important;}
+  body[data-page="new"] .inventory-compact-row.shortage{background:#fff7ed!important;color:#c2410c!important;}
+  body[data-page="new"] .notes-section{grid-area:notes!important;}
+  body[data-page="new"] .no-bottom-actions{display:none!important;}
+  body[data-page="new"] .no-internal-stat{display:none!important;}
+  body[data-page="new"] .no-pallet-card,body[data-page="new"] .no-pallet-head,body[data-page="new"] .no-pallet-actions,body[data-page="new"] .no-pallet-meta,body[data-page="new"] .no-add-item-inline,body[data-page="new"] .add-pallet-btn{display:none!important;}
+  @media(max-width:900px){body[data-page="new"] .main{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"head" "context" "setup" "editor" "inspector" "notes"!important;padding:12px!important;}body[data-page="new"] .order-pro-inspector{position:static!important;}body[data-page="new"] .order-pro-header{align-items:stretch!important;}body[data-page="new"] .order-pro-context{grid-template-columns:repeat(2,minmax(0,1fr))!important;}body[data-page="new"] .order-item-card,body[data-page="new"] .no-item-card{grid-template-columns:120px minmax(0,1fr)!important;}body[data-page="new"] .item-actions,body[data-page="new"] .no-item-actions{grid-column:1/-1!important;grid-template-columns:repeat(3,1fr)!important;}.item-metrics,.no-item-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important;}}
+  @media(max-width:480px){body[data-page="new"] .main{padding:10px!important;gap:10px!important;}body[data-page="new"] .order-pro-header{padding:10px!important;display:grid!important;grid-template-columns:1fr!important;gap:8px!important;}body[data-page="new"] .order-pro-title{display:grid!important;gap:3px!important;}body[data-page="new"] .order-pro-kicker{font-size:11px!important;}body[data-page="new"] .order-pro-title h1{font-size:22px!important;}body[data-page="new"] .order-pro-actions{display:grid!important;grid-template-columns:1fr 1fr!important;}.order-more-action{display:none!important;}body[data-page="new"] .order-primary-save,body[data-page="new"] .order-secondary-save{min-height:36px!important;padding:7px 9px!important;font-size:13px!important;}body[data-page="new"] .context-chip{min-height:48px!important;padding:7px 9px!important;}body[data-page="new"] .context-chip strong{font-size:13px!important;}body[data-page="new"] .context-chip em{display:none!important;}body[data-page="new"] .items-header{padding:10px 12px!important;}body[data-page="new"] .items-header h2{font-size:19px!important;}body[data-page="new"] .items-header p{display:none!important;}body[data-page="new"] .items-commandbar{padding:10px 12px!important;display:grid!important;grid-template-columns:1fr!important;}body[data-page="new"] .primary-add-shape{width:100%!important;min-width:0!important;min-height:44px!important;}body[data-page="new"] .secondary-import-shape{display:none!important;}body[data-page="new"] .order-items-empty{margin:10px 12px!important;padding:14px!important;}body[data-page="new"] .order-item-card,body[data-page="new"] .no-item-card{grid-template-columns:1fr!important;padding:10px!important;}body[data-page="new"] .item-shape-preview,body[data-page="new"] .no-item-preview{min-height:96px!important;}body[data-page="new"] .summary-bar>.submit-btn{display:none!important;}}
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -1435,9 +1537,28 @@
   </div>
 
 
-  <div class="order-workspace-head no-header"><div class="no-header-main"><div class="no-header-kicker">&#1496;&#1504;&#1488; &#1514;&#1506;&#1513;&#1497;&#1493;&#1514; &#1489;&#1512;&#1494;&#1500;</div><div class="order-workspace-title">&#1492;&#1494;&#1502;&#1504;&#1492; &#1495;&#1491;&#1513;&#1492;</div><div class="order-workspace-sub">&#1500;&#1511;&#1493;&#1495;, &#1488;&#1505;&#1508;&#1511;&#1492; &#1493;&#1508;&#1512;&#1497;&#1496;&#1497; &#1489;&#1512;&#1494;&#1500; &#1489;&#1502;&#1505;&#1498; &#1488;&#1495;&#1491;</div></div><div class="no-header-status"><span id="draftStateLabel" class="no-status-pill">&#1496;&#1497;&#1493;&#1496;&#1492; &#1500;&#1488; &#1504;&#1513;&#1502;&#1512;&#1492;</span><span id="pricingStatusPill">&#1502;&#1500;&#1488;&#1497; &#1504;&#1489;&#1491;&#1511;</span></div><div class="no-header-actions"><button type="button" class="no-secondary-action" onclick="saveDraftNow()">&#1513;&#1502;&#1493;&#1512; &#1496;&#1497;&#1493;&#1496;&#1492;</button><button type="button" class="submit-btn no-primary-action" onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button><button type="button" class="no-ghost-action" onclick="openIntakeDetails()">&#1506;&#1493;&#1491; &#1508;&#1506;&#1493;&#1500;&#1493;&#1514;</button></div></div>
-  <div class="order-context-strip no-context-strip"><article class="no-context-card" id="noCustomerContextCard"><div class="no-context-top"><div class="no-context-label">&#1500;&#1511;&#1493;&#1495;</div><button type="button" class="no-small-btn" onclick="openCustomerDetails()">&#1506;&#1512;&#1493;&#1498;</button></div><div class="no-context-value" id="noCustomerName">&#1500;&#1488; &#1504;&#1489;&#1495;&#1512;</div><div class="no-context-meta" id="noCustomerPhone">&#1496;&#1500;&#1508;&#1493;&#1503; &#1500;&#1488; &#1492;&#1493;&#1494;&#1503;</div></article><article class="no-context-card" id="noSiteContextCard"><div class="no-context-top"><div class="no-context-label">&#1488;&#1514;&#1512; / &#1508;&#1512;&#1493;&#1497;&#1511;&#1496;</div><button type="button" class="no-small-btn" onclick="openDeliveryDetails()">&#1506;&#1512;&#1493;&#1498;</button></div><div class="no-context-value" id="noSiteName">&#1500;&#1488; &#1504;&#1489;&#1495;&#1512;</div><div class="no-context-meta" id="noSiteMeta">&#1502;&#1505;&#1508;&#1512; &#1488;&#1514;&#1512; &#1497;&#1493;&#1510;&#1490; &#1488;&#1501; &#1511;&#1497;&#1497;&#1501;</div></article><article class="no-context-card" id="noDeliveryContextCard"><div class="no-context-top"><div class="no-context-label">&#1488;&#1505;&#1508;&#1511;&#1492;</div><button type="button" class="no-small-btn" onclick="openDeliveryDetails()">&#1506;&#1512;&#1493;&#1498;</button></div><div class="no-context-value" id="noDeliveryAddress">&#1499;&#1514;&#1493;&#1489;&#1514; &#1500;&#1488; &#1492;&#1493;&#1494;&#1504;&#1492;</div><div class="no-context-meta" id="noDeliveryMeta">&#1514;&#1488;&#1512;&#1497;&#1498; / &#1513;&#1506;&#1492; / &#1506;&#1491;&#1497;&#1508;&#1493;&#1514;</div></article><article class="no-context-card" id="noSourceContextCard"><div class="no-context-top"><div class="no-context-label">&#1502;&#1511;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</div><button type="button" class="no-small-btn" onclick="openIntakeDetails()">&#1508;&#1514;&#1495;</button></div><div class="no-context-value" id="noOrderSource">&#1497;&#1491;&#1504;&#1497;&#1514;</div><div class="no-context-meta" id="noOrderSourceMeta">OCR / PDF &#1500;&#1508;&#1497; &#1492;&#1510;&#1493;&#1512;&#1498;</div></article></div>
-  <div class="section order-import-section" id="order-import-section-anchor">
+  <header class="order-pro-header order-workspace-head no-header">
+    <div class="order-pro-title no-header-main">
+      <span class="order-pro-kicker no-header-kicker">&#1496;&#1504;&#1488; &#1514;&#1506;&#1513;&#1497;&#1493;&#1514; &#1489;&#1512;&#1494;&#1500;</span>
+      <h1 class="order-workspace-title">&#1492;&#1494;&#1502;&#1504;&#1492; &#1495;&#1491;&#1513;&#1492;</h1>
+      <span id="draftStateLabel" class="order-pro-draft no-status-pill">&#1496;&#1497;&#1493;&#1496;&#1492; &#1500;&#1488; &#1504;&#1513;&#1502;&#1512;&#1492;</span>
+      <span id="pricingStatusPill" class="order-pro-hidden-status">&#1502;&#1500;&#1488;&#1497; &#1504;&#1489;&#1491;&#1511;</span>
+    </div>
+    <div class="order-pro-actions no-header-actions">
+      <button type="button" class="order-secondary-save no-secondary-action" onclick="saveDraftNow()">&#1513;&#1502;&#1493;&#1512; &#1496;&#1497;&#1493;&#1496;&#1492;</button>
+      <button type="button" class="submit-btn order-primary-save no-primary-action" onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button>
+      <button type="button" class="order-more-action no-ghost-action" onclick="openSetupDrawer('source')">&#1506;&#1493;&#1491;</button>
+    </div>
+  </header>
+  <section class="order-pro-context order-context-strip no-context-strip" aria-label="&#1508;&#1512;&#1496;&#1497; &#1492;&#1494;&#1502;&#1504;&#1492;">
+    <button type="button" class="context-chip no-context-card" id="noCustomerContextCard" onclick="openSetupDrawer('customer')"><span>&#1500;&#1511;&#1493;&#1495;</span><strong id="noCustomerName">&#1500;&#1488; &#1504;&#1489;&#1495;&#1512;</strong><em id="noCustomerPhone">&#1506;&#1512;&#1493;&#1498;</em></button>
+    <button type="button" class="context-chip no-context-card" id="noSiteContextCard" onclick="openSetupDrawer('delivery')"><span>&#1488;&#1514;&#1512;</span><strong id="noSiteName">&#1500;&#1488; &#1504;&#1489;&#1495;&#1512;</strong><em id="noSiteMeta">&#1506;&#1512;&#1493;&#1498;</em></button>
+    <button type="button" class="context-chip no-context-card" id="noDeliveryContextCard" onclick="openSetupDrawer('delivery')"><span>&#1488;&#1505;&#1508;&#1511;&#1492;</span><strong id="noDeliveryAddress">&#1514;&#1488;&#1512;&#1497;&#1498; / &#1506;&#1491;&#1497;&#1508;&#1493;&#1514;</strong><em id="noDeliveryMeta">&#1506;&#1512;&#1493;&#1498;</em></button>
+    <button type="button" class="context-chip no-context-card" id="noSourceContextCard" onclick="openSetupDrawer('source')"><span>&#1502;&#1511;&#1493;&#1512;</span><strong id="noOrderSource">&#1496;&#1500;&#1508;&#1493;&#1503;</strong><em id="noOrderSourceMeta">OCR / PDF</em></button>
+  </section>
+  <section id="orderSetupDrawer" class="order-setup-drawer" hidden>
+    <div class="drawer-head"><h2 id="setupDrawerTitle">&#1506;&#1512;&#1497;&#1499;&#1514; &#1508;&#1512;&#1496;&#1497; &#1492;&#1494;&#1502;&#1504;&#1492;</h2><button type="button" class="no-small-btn" onclick="closeSetupDrawer()">&#1505;&#1490;&#1493;&#1512;</button></div>
+  <div class="section order-import-section no-edit-section setup-section" id="order-import-section-anchor" data-setup-panel="source" hidden>
     <details class="compact-toggle" id="intakeDetails">
       <summary>
         <div class="compact-summary-main">
@@ -1512,7 +1633,7 @@
   </div>
 
   <!-- SECTION 1: CUSTOMER -->
-  <div class="section" id="customer-section">
+  <div class="section no-edit-section setup-section" id="customer-section" data-setup-panel="customer" hidden>
     <details class="compact-toggle" id="customerDetails">
       <summary>
         <div class="compact-summary-main">
@@ -1567,7 +1688,7 @@
     </details>
   </div>
   <!-- SECTION 2: DELIVERY -->
-  <div class="section delivery-collapsed" id="delivery-section">
+  <div class="section delivery-collapsed no-edit-section setup-section" id="delivery-section" data-setup-panel="delivery" hidden>
     <details class="delivery-toggle" id="deliveryDetails">
       <summary>
         <div class="delivery-summary-main">
@@ -1623,8 +1744,25 @@
       </div>
     </details>
   </div>
+  </section>
+
   <!-- SECTION 3: ITEMS -->
-  <div class="section" id="items-section"><div class="no-section-head"><div><h2>&#1508;&#1512;&#1497;&#1496;&#1497; &#1492;&#1492;&#1494;&#1502;&#1504;&#1492;</h2><p>&#1492;&#1493;&#1505;&#1507; &#1502;&#1493;&#1496;&#1493;&#1514;, &#1512;&#1513;&#1514;&#1493;&#1514; &#1493;&#1499;&#1500;&#1493;&#1504;&#1505;&#1488;&#1493;&#1514; &#1500;&#1492;&#1494;&#1502;&#1504;&#1492;.</p></div><div class="no-items-count"><span id="noItemsCount">0</span> &#1508;&#1512;&#1497;&#1496;&#1497;&#1501; &#1489;&#1505;&#1498; &#1492;&#1499;&#1500;</div></div><div class="no-item-toolbar"><button type="button" class="no-tool-btn" onclick="addBarFromToolbar()">+ &#1492;&#1493;&#1505;&#1507; &#1502;&#1493;&#1496;</button><button type="button" class="no-tool-btn" disabled title="&#1497;&#1497;&#1508;&#1514;&#1495; &#1489;&#1502;&#1513;&#1497;&#1502;&#1514; &#1492;&#1502;&#1513;&#1498;">+ &#1492;&#1493;&#1505;&#1507; &#1512;&#1513;&#1514;</button><button type="button" class="no-tool-btn" disabled title="&#1497;&#1497;&#1508;&#1514;&#1495; &#1489;&#1502;&#1513;&#1497;&#1502;&#1514; &#1492;&#1502;&#1513;&#1498;">+ &#1492;&#1493;&#1505;&#1507; &#1499;&#1500;&#1493;&#1504;&#1505;</button><button type="button" class="no-tool-btn" onclick="openIntakeDetails()">&#1497;&#1497;&#1489;&#1493;&#1488; OCR</button></div><div class="section-body"><div class="pallets-container" id="palletsContainer"></div><button class="add-pallet-btn" onclick="addPallet()">+ &#1492;&#1493;&#1505;&#1507; &#1502;&#1513;&#1496;&#1495; &#1504;&#1493;&#1505;&#1507;</button></div></div>
+  <main class="order-pro-editor">
+    <section class="section order-pro-items" id="items-section">
+      <div class="items-header no-section-head">
+        <div>
+          <h2>&#1508;&#1512;&#1497;&#1496;&#1497; &#1492;&#1492;&#1494;&#1502;&#1504;&#1492;</h2>
+          <p>&#1492;&#1493;&#1505;&#1507; &#1510;&#1493;&#1512;&#1493;&#1514; &#1489;&#1512;&#1494;&#1500; &#1500;&#1492;&#1494;&#1502;&#1504;&#1492;</p>
+        </div>
+        <div class="no-items-count"><span id="noItemsCount">0</span> &#1508;&#1512;&#1497;&#1496;&#1497;&#1501;</div>
+      </div>
+      <div class="items-commandbar no-item-toolbar">
+        <button type="button" class="primary-add-shape no-tool-btn" onclick="addShapeNow('bar')">+ &#1492;&#1493;&#1505;&#1507; &#1510;&#1493;&#1512;&#1492;</button>
+        <button type="button" class="secondary-import-shape no-tool-btn" onclick="openSetupDrawer('source')">&#1497;&#1497;&#1489;&#1493;&#1488; &#1502;&#1511;&#1493;&#1489;&#1509; / OCR</button>
+      </div>
+      <div class="section-body"><div class="pallets-container" id="palletsContainer"></div></div>
+    </section>
+  </main>
 
 
   <!-- Customer item description contract markers kept for tests after card UI migration.
@@ -1712,6 +1850,7 @@
     </details>
   </div>
 
+  <aside class="order-pro-inspector">
   <!-- SUMMARY BAR -->
   <div class="summary-bar" id="summary-section">
     <div class="summary-order">
@@ -1720,10 +1859,7 @@
       <div class="summary-order-time" id="currentDateTime"></div>
     </div>
     <div class="summary-stats">
-      <div class="stat">
-        <div class="stat-label">משטחים</div>
-        <div class="stat-value" id="totalPallets">1</div>
-      </div>
+      <div class="stat no-internal-stat" aria-hidden="true"><div class="stat-label">משטחים</div><div class="stat-value" id="totalPallets">1</div></div>
       <div class="stat">
         <div class="stat-label">פריטים</div>
         <div class="stat-value" id="totalItems">0</div>
@@ -1757,6 +1893,7 @@
 
 
   <aside class="no-panel no-inventory-panel" id="liveInventoryPanel"><div class="no-panel-head"><h3>&#1502;&#1500;&#1488;&#1497; &#1489;&#1494;&#1502;&#1503; &#1488;&#1502;&#1514;</h3><p>&#1489;&#1491;&#1497;&#1511;&#1492; &#1500;&#1508;&#1497; &#1511;&#1493;&#1496;&#1512;&#1497;&#1501; &#1489;&#1492;&#1494;&#1502;&#1504;&#1492;</p></div><div class="no-inventory-list"><div class="no-empty-items">&#1488;&#1497;&#1503; &#1504;&#1514;&#1493;&#1504;&#1497; &#1502;&#1500;&#1488;&#1497; &#1500;&#1492;&#1510;&#1490;&#1492;</div></div></aside>
+  </aside>
   <footer class="no-bottom-actions"><button type="button" class="no-ghost-action" onclick="location.href='/orders.html'">&#1489;&#1496;&#1500;</button><button type="button" class="no-secondary-action" onclick="saveDraftNow()">&#1513;&#1502;&#1493;&#1512; &#1496;&#1497;&#1493;&#1496;&#1492;</button><button type="button" class="submit-btn no-primary-action" onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button></footer>
 </div>
 
@@ -1889,21 +2026,58 @@ function updateDeliverySummary() {
   updateOrderUxPreview();
 }
 
-function openDeliveryDetails() {
-  const details = document.getElementById('deliveryDetails');
+function setupPanelTitle(type) {
+  return ({ customer: 'לקוח', site: 'אתר / פרויקט', delivery: 'אספקה', source: 'מקור / OCR' })[type] || 'פרטי הזמנה';
+}
+
+function openSetupDrawer(type = 'customer') {
+  const drawer = document.getElementById('orderSetupDrawer');
+  if (!drawer) return;
+  const normalized = type === 'site' ? 'delivery' : type;
+  drawer.hidden = false;
+  drawer.dataset.active = normalized;
+  setText('setupDrawerTitle', 'עריכת ' + setupPanelTitle(type));
+  document.querySelectorAll('[data-setup-panel]').forEach(panel => {
+    const active = panel.dataset.setupPanel === normalized;
+    panel.hidden = !active;
+    panel.classList.toggle('is-active', active);
+    panel.classList.toggle('is-open', active);
+    panel.style.setProperty('display', active ? 'block' : 'none', 'important');
+    const details = panel.querySelector('details');
+    if (details) details.open = active;
+  });
+  drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeSetupDrawer() {
+  const drawer = document.getElementById('orderSetupDrawer');
+  if (drawer) drawer.hidden = true;
+  document.querySelectorAll('[data-setup-panel]').forEach(panel => {
+    panel.hidden = true;
+    panel.classList.remove('is-active', 'is-open');
+    panel.style.setProperty('display', 'none', 'important');
+  });
+}
+
+function revealEditSection(sectionId, detailsId) {
+  const map = { 'customer-section': 'customer', 'delivery-section': 'delivery', 'order-import-section-anchor': 'source' };
+  openSetupDrawer(map[sectionId] || 'customer');
+  const details = document.getElementById(detailsId);
   if (details) details.open = true;
+}
+
+function openDeliveryDetails() {
+  openSetupDrawer('delivery');
   updateDeliverySummary();
 }
 
 function openCustomerDetails() {
-  const details = document.getElementById('customerDetails');
-  if (details) details.open = true;
+  openSetupDrawer('customer');
   updateCustomerSummary();
 }
 
 function openIntakeDetails() {
-  const details = document.getElementById('intakeDetails');
-  if (details) details.open = true;
+  openSetupDrawer('source');
 }
 
 function openNotesDetails() {
@@ -2007,8 +2181,33 @@ function saveDraftNow() { try { const draft = captureOrderDraft(); localStorage.
 function setContextCardState(id, ok) { const el = document.getElementById(id); if (!el) return; el.classList.toggle('is-ok', Boolean(ok)); el.classList.toggle('is-warn', !ok); }
 function updateContextStrip(totalWeight = 0) { const customerName = (document.getElementById('customerSearch')?.value || '').trim(); const phone = (document.getElementById('customerPhone')?.value || '').trim(); const site = selectedSiteLabel(); const siteId = (document.getElementById('orderSiteId')?.value || '').trim(); const address = (document.getElementById('deliveryAddress')?.value || '').trim(); const date = (document.getElementById('deliveryDate')?.value || '').trim(); const time = (document.getElementById('deliveryTime')?.value || '').trim(); const priority = (document.getElementById('orderPriority')?.value || '').trim(); const channel = (document.getElementById('orderChannel')?.value || '').trim(); setText('noCustomerName', customerName || 'לא נבחר'); setText('noCustomerPhone', phone || 'טלפון לא הוזן'); setText('noSiteName', site || 'לא נבחר'); setText('noSiteMeta', siteId ? 'מספר אתר ' + siteId : 'אתר / פרויקט'); setText('noDeliveryAddress', address || 'כתובת לא הוזנה'); setText('noDeliveryMeta', [date, time, priority].filter(Boolean).join(' · ') || 'תאריך / שעה / עדיפות'); setText('noOrderSource', channel || 'ידנית'); setText('noOrderSourceMeta', totalWeight > 0 ? 'נוספו פריטים להזמנה' : 'OCR / PDF לפי הצורך'); setContextCardState('noCustomerContextCard', Boolean(customerName)); setContextCardState('noSiteContextCard', site && site !== 'לא נבחר'); setContextCardState('noDeliveryContextCard', Boolean(address && date)); setContextCardState('noSourceContextCard', Boolean(channel)); setText('noItemsCount', pallets.reduce((sum, p) => sum + p.items.length, 0)); const status = document.getElementById('pricingStatusPill'); if (status) status.textContent = canSeePricingPreview() ? 'מלאי ומחיר משוער' : 'מלאי נבדק'; }
 function liveInventoryPhysicalKg(diameter) { const batches = inventoryByDiameter?.[Number(diameter)] || []; return batches.reduce((sum, batch) => sum + Math.max(0, Number(batch.weight_available ?? (Number(batch.weight_received || 0) - Number(batch.weight_used || 0) - Number(batch.weight_scrapped || 0))) || 0), 0); }
-function renderLiveInventoryPanel() { const panel = document.getElementById('liveInventoryPanel'); if (!panel) return; const byDiameter = latestReservationPreview?.by_diameter || {}; const total = latestReservationPreview?.total || null; const diameters = [8,10,12,16,20,25]; const rows = diameters.map(d => { const row = byDiameter[String(d)] || byDiameter[d] || {}; const required = Number(row.required_kg ?? row.requiredKg ?? 0) || 0; const available = Number(row.available_kg ?? row.availableKg ?? liveInventoryPhysicalKg(d)) || 0; const shortage = Number(row.shortage_kg ?? row.shortageKg ?? Math.max(0, required - available)) || 0; const state = shortage > 0 ? 'shortage' : required > 0 ? 'ok' : 'neutral'; const status = shortage > 0 ? 'חסר ' + formatKg(shortage) : required > 0 ? 'תקין' : 'ללא דרישה'; return '<div class="no-inventory-row '+state+'"><strong>Ø'+d+'</strong><span>זמין '+formatKg(available)+'</span><span>נדרש '+formatKg(required)+'</span><em>'+status+'</em></div>'; }).join(''); const totalHtml = total ? '<div class="no-inventory-total"><span>סהכ נדרש: <strong>'+formatKg(total.required_kg||0)+'</strong></span><span>סהכ חסר: <strong>'+formatKg(total.shortage_kg||0)+'</strong></span></div>' : '<div class="no-inventory-total"><span>אין נתוני שמירה להזמנה עדיין</span></div>'; panel.innerHTML = '<div class="no-panel-head"><h3>מלאי בזמן אמת</h3><p>בדיקה לפי קוטרים בהזמנה</p></div><div class="no-inventory-list">'+rows+'</div>'+totalHtml; }
-
+function renderLiveInventoryPanel() {
+  const panel = document.getElementById('liveInventoryPanel');
+  if (!panel) return;
+  const visibleItems = typeof getAllVisibleOrderItems === 'function' ? getAllVisibleOrderItems() : [];
+  if (!visibleItems.length) {
+    panel.innerHTML = '<section class="inspector-card"><h3>מלאי</h3><p>מלאי ייבדק אחרי הוספת פריטים.</p></section>';
+    return;
+  }
+  const byDiameter = latestReservationPreview?.by_diameter || {};
+  const relevantDiameters = Array.from(new Set(visibleItems.map(({ item }) => Number(item.diameter || 0)).filter(Boolean)));
+  const rows = relevantDiameters.map(d => {
+    const row = byDiameter[String(d)] || byDiameter[d] || {};
+    const requiredFromItems = visibleItems
+      .filter(({ item }) => Number(item.diameter || 0) === d)
+      .reduce((sum, { item }) => sum + calcItemWeight(item), 0);
+    const required = Number(row.required_kg ?? row.requiredKg ?? requiredFromItems) || 0;
+    const available = Number(row.available_kg ?? row.availableKg ?? liveInventoryPhysicalKg(d)) || 0;
+    const shortage = Number(row.shortage_kg ?? row.shortageKg ?? Math.max(0, required - available)) || 0;
+    const cls = shortage > 0 ? 'shortage' : 'ok';
+    const status = shortage > 0 ? 'חסר ' + formatKg(shortage) : 'תקין';
+    return '<div class="inventory-compact-row '+cls+'"><strong>Ø'+d+'</strong><span>נדרש '+formatKg(required)+'</span><em>'+status+'</em></div>';
+  }).join('');
+  const hasShortage = rows.includes('shortage');
+  panel.innerHTML = '<section class="inspector-card"><h3>מלאי</h3>' +
+    (hasShortage ? '<p>נמצאו חוסרים להזמנה.</p>' : '<p>מלאי תקין להזמנה.</p>') +
+    '<div class="inventory-compact-list">' + rows + '</div></section>';
+}
 function collectPricePreviewItems() {
   return pallets.flatMap(p => p.items).map(item => {
     const weightKg = calcItemWeight(item);
@@ -2580,26 +2779,43 @@ function removePallet(id) {
   renderPallets();
 }
 
+function ensureDefaultPallet() {
+  if (!Array.isArray(pallets)) pallets = [];
+  if (!pallets.length) {
+    pallets.push({ id: Date.now(), items: [], maxWeight: 500 });
+  }
+  return pallets[0];
+}
+
+function getAllVisibleOrderItems() {
+  return (pallets || []).flatMap(pallet =>
+    (pallet.items || []).map(item => ({ palletId: pallet.id, item }))
+  );
+}
+
+function renderEmptyItemsState() {
+  return '<div class="order-items-empty"><h3>עדיין אין פריטים בהזמנה</h3><p>התחל מהוספת צורת ברזל.</p><button type="button" onclick="addShapeNow(\'bar\')">+ הוסף צורה ראשונה</button></div>';
+}
+
 function renderPallets() {
   const container = document.getElementById('palletsContainer');
-  container.innerHTML = pallets.map((p, idx) => renderPalletHTML(p, idx)).join('');
+  if (!container) return;
+  ensureDefaultPallet();
+  const visibleItems = getAllVisibleOrderItems();
+  if (!visibleItems.length) {
+    container.innerHTML = renderEmptyItemsState();
+  } else {
+    container.innerHTML = '<div class="order-items-list">' + visibleItems.map(({ palletId, item }, index) => renderItemCard(palletId, item, index)).join('') + '</div>';
+  }
   updateSummary();
 }
 
 function renderPalletHTML(p, idx) {
   const items = Array.isArray(p.items) ? p.items : [];
-  const totalWeight = calcPalletWeight(p);
-  const isOver = totalWeight > p.maxWeight;
-  const remaining = Math.max(0, p.maxWeight - totalWeight);
-  return `
-  <section class="pallet-card no-pallet-card" id="pallet-${p.id}">
-    <div class="no-pallet-head"><div><h3>&#1502;&#1513;&#1496;&#1495; ${idx + 1}</h3><p>${items.length} &#1508;&#1512;&#1497;&#1496;&#1497;&#1501;${isOver ? ' · &#1495;&#1493;&#1512;&#1490; &#1502;&#1502;&#1513;&#1511;&#1500;' : ''}</p></div><div class="no-pallet-actions"><div class="no-pallet-meta"><strong class="${isOver ? 'over' : ''}">${totalWeight.toFixed(1)} &#1511;&quot;&#1490;</strong><span>&#1504;&#1493;&#1514;&#1512; ${remaining.toFixed(0)} &#1511;&quot;&#1490;</span></div><select onchange="setMaxWeight(${p.id}, this.value)"><option value="300" ${p.maxWeight==300?'selected':''}>300 &#1511;&quot;&#1490;</option><option value="400" ${p.maxWeight==400?'selected':''}>400 &#1511;&quot;&#1490;</option><option value="500" ${p.maxWeight==500?'selected':''}>500 &#1511;&quot;&#1490;</option><option value="600" ${p.maxWeight==600?'selected':''}>600 &#1511;&quot;&#1490;</option><option value="9999" ${p.maxWeight==9999?'selected':''}>&#1500;&#1500;&#1488; &#1492;&#1490;&#1489;&#1500;&#1492;</option></select>${pallets.length > 1 ? `<button class="delete-btn" onclick="removePallet(${p.id})" title="&#1492;&#1505;&#1512; &#1502;&#1513;&#1496;&#1495;">&#10005;</button>` : ''}</div></div>
-    <div class="no-items-list">${items.length ? items.map((item, itemIndex) => renderItemCard(p.id, item, itemIndex)).join('') : '<div class="no-empty-items">&#1506;&#1491;&#1497;&#1497;&#1503; &#1488;&#1497;&#1503; &#1508;&#1512;&#1497;&#1496;&#1497;&#1501; &#1489;&#1502;&#1513;&#1496;&#1495; &#1492;&#1494;&#1492;</div>'}</div>
-    <button type="button" class="no-add-item-inline" onclick="addItem(${p.id})">+ &#1492;&#1493;&#1505;&#1507; &#1508;&#1512;&#1497;&#1496; &#1500;&#1502;&#1513;&#1496;&#1495;</button>
-  </section>`;
+  if (!items.length) return '';
+  return items.map((item, itemIndex) => renderItemCard(p.id, item, itemIndex)).join('');
 }
-
-// ---- ITEM CARD VIEW ----
+// ---- ITEM CARD VIEW ----// ---- ITEM CARD VIEW ----
 let _shapeTarget = null;
 
 // ── Global 3D toggle for item thumbnails ──────────────────────────
@@ -2691,11 +2907,16 @@ function renderItemCard(palletId, item, itemIndex = 0) {
   const diameter = item.diameter || (isSpiralRow ? 8 : 12), qty = item.qty || item.quantity || 1;
   const title = item.shapeName || item.displayName || (isSpiralRow ? 'ספירלה' : 'מוט ברזל');
   const lengthLabel = perimeter > 0 ? perimeter.toLocaleString('he-IL') + ' מ"מ' : 'לחץ לעריכה';
-  return `<article class="no-item-card" id="item-row-${item.id}"><button type="button" class="no-item-preview shape-preview" onclick="openShapeEditor(${palletId}, '${item.id}')" title="&#1506;&#1512;&#1493;&#1498; &#1510;&#1493;&#1512;&#1492;">${itemPreviewSvg(item, sides, angles)}${item.is3d ? '<span style="position:absolute;top:8px;right:8px;background:#7c3aed;color:white;font-size:10px;font-weight:900;padding:2px 6px;border-radius:6px">3D</span>' : ''}</button><div class="no-item-main"><div class="no-item-title-row"><div><div class="no-item-title">${escapeHtml(title)}</div><div class="no-item-sub">#${itemIndex + 1} · &#1502;&#1513;&#1493;&#1497;&#1498; &#1500;&#1502;&#1513;&#1496;&#1495;</div></div><button type="button" class="no-small-btn" onclick="toggleThumb3D()">${window._itemThumb3D ? '3D' : '2D'}</button></div><div class="no-item-metrics"><div class="no-metric"><span>&#1511;&#1493;&#1496;&#1512;</span><strong>Ø${diameter}</strong></div><div class="no-metric"><span>&#1488;&#1493;&#1512;&#1498;</span><strong>${lengthLabel}</strong></div><div class="no-metric"><span>&#1499;&#1502;&#1493;&#1514;</span><strong>${qty}</strong></div><div class="no-metric"><span>&#1502;&#1513;&#1511;&#1500;</span><strong>${w > 0 ? w.toFixed(2) + ' &#1511;&quot;&#1490;' : '-'}</strong></div></div><div class="no-item-fields"><label class="no-field-mini">&#1499;&#1502;&#1493;&#1514;<input type="text" inputmode="numeric" pattern="[0-9]*" value="${qty}" class="item-qty" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onblur="if(!this.value||+this.value<1)this.value=1;updateItem(${palletId},'${item.id}','qty',+this.value)" onkeydown="if(event.key==='Enter'){this.blur();}"></label><label class="no-field-mini">&#1514;&#1497;&#1488;&#1493;&#1512;<input type="text" value="${escapeAttr(item.note||'')}" placeholder="&#1500;&#1491;&#1493;&#1490;&#1502;&#1492;: &#1511;&#1493;&#1502;&#1492; 2" onchange="updateItem(${palletId},'${item.id}','note',this.value)"></label></div><div class="no-stock-wrap">${renderStockSelect(palletId, item)}</div></div><div class="no-item-actions"><button type="button" class="no-card-action" onclick="openShapeEditor(${palletId}, '${item.id}')">&#1506;&#1512;&#1493;&#1498;</button><button type="button" class="no-card-action" onclick="duplicateItem(${palletId}, '${item.id}')">&#1513;&#1499;&#1508;&#1500;</button><button type="button" class="no-card-action danger" onclick="removeItem(${palletId},'${item.id}')">&#1502;&#1495;&#1511;</button></div></article>`;
+  return `<article class="order-item-card no-item-card" id="item-row-${item.id}"><button type="button" class="item-shape-preview no-item-preview shape-preview" onclick="openShapeEditor(${palletId}, '${item.id}')" title="&#1506;&#1512;&#1493;&#1498; &#1510;&#1493;&#1512;&#1492;">${itemPreviewSvg(item, sides, angles)}${item.is3d ? '<span style="position:absolute;top:8px;right:8px;background:#7c3aed;color:white;font-size:10px;font-weight:900;padding:2px 6px;border-radius:6px">3D</span>' : ''}</button><div class="item-main no-item-main"><div class="item-title-row no-item-title-row"><div><h3 class="no-item-title">${escapeHtml(title)}</h3><div class="no-item-sub">&#1508;&#1512;&#1497;&#1496; #${itemIndex + 1}</div></div><button type="button" class="no-small-btn" onclick="toggleThumb3D()">${window._itemThumb3D ? '3D' : '2D'}</button></div><div class="item-metrics no-item-metrics"><div class="no-metric"><span>&#1511;&#1493;&#1496;&#1512;</span><strong>Ø${diameter}</strong></div><div class="no-metric"><span>&#1488;&#1493;&#1512;&#1498;</span><strong>${lengthLabel}</strong></div><div class="no-metric"><span>&#1499;&#1502;&#1493;&#1514;</span><strong>${qty}</strong></div><div class="no-metric"><span>&#1502;&#1513;&#1511;&#1500;</span><strong>${w > 0 ? w.toFixed(2) + ' &#1511;&quot;&#1490;' : '-'}</strong></div></div><div class="no-item-fields"><label class="no-field-mini">&#1499;&#1502;&#1493;&#1514;<input type="text" inputmode="numeric" pattern="[0-9]*" value="${qty}" class="item-qty" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onblur="if(!this.value||+this.value<1)this.value=1;updateItem(${palletId},'${item.id}','qty',+this.value)" onkeydown="if(event.key==='Enter'){this.blur();}"></label><label class="no-field-mini">&#1514;&#1497;&#1488;&#1493;&#1512;<input type="text" value="${escapeAttr(item.note||'')}" placeholder="&#1500;&#1491;&#1493;&#1490;&#1502;&#1492;: &#1511;&#1493;&#1502;&#1492; 2" onchange="updateItem(${palletId},'${item.id}','note',this.value)"></label></div><div class="no-stock-wrap">${renderStockSelect(palletId, item)}</div></div><div class="item-actions no-item-actions"><button type="button" class="no-card-action" onclick="openShapeEditor(${palletId}, '${item.id}')">&#1506;&#1512;&#1493;&#1498;</button><button type="button" class="no-card-action" onclick="duplicateItem(${palletId}, '${item.id}')">&#1513;&#1499;&#1508;&#1500;</button><button type="button" class="no-card-action danger" onclick="removeItem(${palletId},'${item.id}')">&#1502;&#1495;&#1511;</button></div></article>`;
 }
 function renderItemRow(palletId, item) { return renderItemCard(palletId, item, 0); }
 function duplicateItem(palletId, itemId) { const pallet = pallets.find(p => p.id === palletId); if (!pallet) return; const item = pallet.items.find(i => String(i.id) === String(itemId)); if (!item) return; const clone = JSON.parse(JSON.stringify(item)); clone.id = Date.now(); pallet.items.push(clone); renderPallets(); updateSummary(); if (typeof showToast === 'function') showToast('הפריט שוכפל'); }
-function addBarFromToolbar() { if (!pallets.length) addPallet(); const first = pallets[0]; if (first) addItem(first.id); }
+function addShapeNow(family = 'bar') {
+  const pallet = ensureDefaultPallet();
+  if (!pallet) return;
+  addItem(pallet.id);
+}
+function addBarFromToolbar() { addShapeNow('bar'); }
 
 function openShapeEditor(palletId, itemId) {
   _shapeTarget = { palletId, itemId, isNew: false };
@@ -3503,10 +3724,10 @@ document.getElementById('imgAnalyzeOverlay').addEventListener('click', function(
         var areaMap = [
             ['.order-workspace-head', 'head'],
             ['.order-context-strip', 'context'],
+            ['#items-section', 'items'],
             ['.order-import-section', 'intake'],
             ['#customer-section', 'customer'],
             ['#delivery-section', 'delivery'],
-            ['#items-section', 'items'],
             ['.notes-section', 'notes'],
             ['.summary-bar', 'review'],
             ['#liveInventoryPanel', 'inventory']
@@ -3523,7 +3744,70 @@ document.getElementById('imgAnalyzeOverlay').addEventListener('click', function(
             main.style.setProperty('display', 'grid', 'important');
             main.style.setProperty('direction', 'ltr', 'important');
             main.style.setProperty('overflow-x', 'clip', 'important');
+            if (window.innerWidth <= 900) {
+                main.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
+                main.style.setProperty('grid-template-areas', '"head" "context" "items" "inventory" "review" "notes" "customer" "delivery" "intake"', 'important');
+            } else {
+                main.style.setProperty('grid-template-areas', '"review head inventory" "review context inventory" "review items inventory" "review notes inventory" "review customer inventory" "review delivery inventory" "review intake inventory"', 'important');
+            }
         }
+        document.querySelectorAll('.no-edit-section').forEach(function(section) {
+            if (section.classList.contains('is-open')) {
+                section.style.setProperty('display', 'block', 'important');
+            } else {
+                section.style.setProperty('display', 'none', 'important');
+            }
+        });
+        var isMobile = window.innerWidth <= 480;
+        var header = document.querySelector('.order-workspace-head');
+        if (header) {
+            header.style.setProperty('min-height', isMobile ? '0' : '78px', 'important');
+            header.style.setProperty('padding', isMobile ? '8px 10px' : '14px 16px', 'important');
+            header.style.setProperty('gap', isMobile ? '8px' : '16px', 'important');
+            if (isMobile) {
+                header.style.setProperty('display', 'grid', 'important');
+                header.style.setProperty('grid-template-columns', 'minmax(0, 1fr) auto', 'important');
+                header.style.setProperty('align-items', 'center', 'important');
+            }
+        }
+        var headerSub = document.querySelector('.order-workspace-sub');
+        if (headerSub) headerSub.style.setProperty('display', isMobile ? 'none' : '', 'important');
+        var pricingPill = document.getElementById('pricingStatusPill');
+        if (pricingPill) pricingPill.style.setProperty('display', isMobile ? 'none' : 'inline-flex', 'important');
+        var headerActions = document.querySelector('.order-workspace-actions');
+        if (headerActions) {
+            headerActions.style.setProperty('gap', isMobile ? '6px' : '10px', 'important');
+            if (isMobile) {
+                headerActions.style.setProperty('grid-column', '1 / -1', 'important');
+                headerActions.style.setProperty('display', 'grid', 'important');
+                headerActions.style.setProperty('grid-template-columns', '1fr 1fr', 'important');
+            }
+        }
+        var contextStrip = document.querySelector('.order-context-strip');
+        if (contextStrip) {
+            contextStrip.style.setProperty('gap', isMobile ? '6px' : '10px', 'important');
+            if (isMobile) contextStrip.style.setProperty('grid-template-columns', 'repeat(2, minmax(0, 1fr))', 'important');
+        }
+        document.querySelectorAll('.order-context-card').forEach(function(card) {
+            card.style.setProperty('min-height', isMobile ? '46px' : '72px', 'important');
+            card.style.setProperty('padding', isMobile ? '7px 8px' : '12px', 'important');
+            card.style.setProperty('gap', isMobile ? '5px' : '10px', 'important');
+        });
+        document.querySelectorAll('.no-context-icon').forEach(function(icon) {
+            icon.style.setProperty('width', isMobile ? '24px' : '', 'important');
+            icon.style.setProperty('height', isMobile ? '24px' : '', 'important');
+        });
+        document.querySelectorAll('.no-context-label,.no-context-meta').forEach(function(text) {
+            text.style.setProperty('font-size', isMobile ? '10px' : '', 'important');
+        });
+        document.querySelectorAll('.no-context-value').forEach(function(text) {
+            text.style.setProperty('font-size', isMobile ? '12px' : '', 'important');
+        });
+        document.querySelectorAll('.no-small-btn').forEach(function(button) {
+            button.style.setProperty('min-height', isMobile ? '22px' : '', 'important');
+            button.style.setProperty('padding', isMobile ? '3px 6px' : '', 'important');
+            button.style.setProperty('font-size', isMobile ? '10px' : '', 'important');
+        });
         var drawer = document.getElementById('ib-drawer');
         if (drawer && window.innerWidth >= 1180) {
             drawer.style.setProperty('display', 'none', 'important');
@@ -3540,6 +3824,101 @@ document.getElementById('imgAnalyzeOverlay').addEventListener('click', function(
     window.addEventListener('resize', applyWorkbenchLayout);
     setTimeout(applyWorkbenchLayout, 0);
     setTimeout(applyWorkbenchLayout, 250);
+})();
+</script>
+<script>
+/* NEW_ORDER_PRO_EDITOR_V2_LAYOUT_ENFORCER */
+(function enforceNewOrderProEditorLayout() {
+  function applyProLayout() {
+    if (!document.body || document.body.getAttribute('data-page') !== 'new') return;
+    const main = document.querySelector('.main');
+    if (main) {
+      main.style.setProperty('display', 'grid', 'important');
+      main.style.setProperty('direction', 'ltr', 'important');
+      main.style.setProperty('width', 'min(100%, 1500px)', 'important');
+      main.style.setProperty('max-width', '1500px', 'important');
+      main.style.setProperty('grid-template-columns', window.innerWidth <= 900 ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(280px, 320px)', 'important');
+      main.style.setProperty('grid-template-areas', window.innerWidth <= 900 ? '"head" "context" "setup" "editor" "inspector" "notes"' : '"head head" "context context" "setup setup" "editor inspector" "notes inspector"', 'important');
+      main.style.setProperty('gap', window.innerWidth <= 480 ? '10px' : '14px', 'important');
+      main.style.setProperty('overflow-x', 'hidden', 'important');
+    }
+    const areas = [
+      ['.order-pro-header', 'head'], ['.order-pro-context', 'context'], ['#orderSetupDrawer', 'setup'],
+      ['.order-pro-editor', 'editor'], ['.order-pro-inspector', 'inspector'], ['.notes-section', 'notes']
+    ];
+    areas.forEach(([selector, area]) => {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      el.style.setProperty('grid-column', 'auto', 'important');
+      el.style.setProperty('grid-row', 'auto', 'important');
+      el.style.setProperty('grid-area', area, 'important');
+      el.style.setProperty('direction', 'rtl', 'important');
+      el.style.setProperty('min-width', '0', 'important');
+    });
+    const header = document.querySelector('.order-pro-header');
+    if (header) {
+      header.style.setProperty('display', window.innerWidth <= 480 ? 'grid' : 'flex', 'important');
+      header.style.setProperty('min-height', 'auto', 'important');
+      header.style.setProperty('padding', window.innerWidth <= 480 ? '10px' : '12px 14px', 'important');
+      header.style.setProperty('gap', window.innerWidth <= 480 ? '8px' : '12px', 'important');
+      header.style.setProperty('align-items', window.innerWidth <= 480 ? 'stretch' : 'center', 'important');
+    }
+    const context = document.querySelector('.order-pro-context');
+    if (context) {
+      context.style.setProperty('display', 'grid', 'important');
+      context.style.setProperty('grid-template-columns', window.innerWidth <= 620 ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', 'important');
+      context.style.setProperty('gap', '8px', 'important');
+    }
+    document.querySelectorAll('.summary-bar,#liveInventoryPanel').forEach(el => {
+      el.style.setProperty('grid-area', 'auto', 'important');
+      el.style.setProperty('grid-column', 'auto', 'important');
+      el.style.setProperty('grid-row', 'auto', 'important');
+      el.style.setProperty('position', 'static', 'important');
+      el.style.setProperty('top', 'auto', 'important');
+      el.style.setProperty('width', '100%', 'important');
+      el.style.setProperty('min-height', '0', 'important');
+    });
+    document.querySelectorAll('[data-setup-panel]').forEach(panel => {
+      const active = !panel.hidden && panel.classList.contains('is-active');
+      panel.style.setProperty('display', active ? 'block' : 'none', 'important');
+    });
+    const isNarrow = window.innerWidth <= 900;
+    const headerEl = document.querySelector('.order-pro-header');
+    const contextEl = document.querySelector('.order-pro-context');
+    const setupEl = document.querySelector('#orderSetupDrawer');
+    const editorEl = document.querySelector('.order-pro-editor');
+    const inspector = document.querySelector('.order-pro-inspector');
+    const notesEl = document.querySelector('.notes-section');
+    [headerEl, contextEl, setupEl].forEach(el => {
+      if (!el) return;
+      el.style.setProperty('grid-column', '1 / -1', 'important');
+    });
+    if (editorEl) {
+      editorEl.style.setProperty('grid-column', isNarrow ? '1 / -1' : '1 / 2', 'important');
+      editorEl.style.setProperty('grid-row', isNarrow ? 'auto' : '4', 'important');
+      editorEl.style.setProperty('width', '100%', 'important');
+    }
+    if (inspector) {
+      inspector.style.setProperty('grid-column', isNarrow ? '1 / -1' : '2 / 3', 'important');
+      inspector.style.setProperty('grid-row', isNarrow ? 'auto' : '4 / span 2', 'important');
+      inspector.style.setProperty('position', isNarrow ? 'static' : 'sticky', 'important');
+      inspector.style.setProperty('width', '100%', 'important');
+    }
+    if (notesEl) {
+      notesEl.style.setProperty('grid-column', isNarrow ? '1 / -1' : '1 / 2', 'important');
+      notesEl.style.setProperty('grid-row', isNarrow ? 'auto' : '5', 'important');
+    }
+    document.querySelectorAll('.summary-bar,#liveInventoryPanel').forEach(el => {
+      el.style.setProperty('display', el.classList.contains('summary-bar') ? 'grid' : 'block', 'important');
+    });
+    document.querySelectorAll('.progress-bar,.no-bottom-actions,.add-pallet-btn,.no-pallet-card,.no-pallet-head,.no-pallet-meta,.no-pallet-actions,.no-add-item-inline,.no-internal-stat').forEach(el => el.style.setProperty('display', 'none', 'important'));
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyProLayout); else applyProLayout();
+  window.addEventListener('load', applyProLayout);
+  window.addEventListener('resize', applyProLayout);
+  setTimeout(applyProLayout, 0);
+  setTimeout(applyProLayout, 300);
+  setTimeout(applyProLayout, 700);
 })();
 </script>
 </body>
