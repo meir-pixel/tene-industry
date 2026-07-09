@@ -1290,6 +1290,20 @@
     /* Add pallet button */
     .add-pallet-btn { padding: 14px; font-size: 13px; }
   }
+
+  /* NEW_ORDER_WORKBENCH_UI_PASS */
+  body[data-page="new"]{overflow-x:hidden;background:#f2f5f8}body[data-page="new"] *{box-sizing:border-box}
+  body[data-page="new"] .main{width:min(100%,1640px);max-width:1640px;margin:0 auto;padding:20px;display:grid;direction:ltr;grid-template-columns:minmax(280px,320px) minmax(0,1fr) minmax(280px,340px);grid-template-areas:"review head inventory" "review context inventory" "review intake inventory" "review customer delivery" "review items inventory" "review notes inventory";gap:16px;align-items:start}
+  body[data-page="new"] .main>*{direction:rtl;min-width:0}body[data-page="new"] .progress-bar{display:none}body[data-page="new"] .order-workspace-head{grid-area:head;grid-column:auto}.order-context-strip{grid-area:context;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}body[data-page="new"] .order-import-section{grid-area:intake;grid-column:auto}body[data-page="new"] #customer-section{grid-area:customer;grid-column:auto}body[data-page="new"] #delivery-section{grid-area:delivery;grid-column:auto}body[data-page="new"] #items-section{grid-area:items;grid-column:auto}body[data-page="new"] .notes-section{grid-area:notes;grid-column:auto}body[data-page="new"] .summary-bar{grid-area:review;grid-column:auto;grid-row:auto;position:sticky;top:20px}#liveInventoryPanel{grid-area:inventory;position:sticky;top:20px}
+  .no-header,.no-context-card,.no-panel,.no-pallet-card,.no-item-card{background:#fff;border:1px solid rgba(17,34,51,.08);box-shadow:0 10px 28px rgba(17,34,51,.06)}.no-header{border-radius:14px;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center}.no-header-kicker,.no-context-label,.no-context-meta,.no-section-head p,.no-panel-head p,.no-metric span,.no-field-mini{color:var(--text-dim);font-size:12px;font-weight:800}.no-header-status{display:grid;gap:4px;white-space:nowrap}.no-status-pill{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:5px 10px;border-radius:999px;color:#245f8f;background:#f2f7fc;border:1px solid #dce8f4;font-weight:900}.no-header-actions,.no-bottom-actions,.no-pallet-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}.no-primary-action,.no-secondary-action,.no-ghost-action,.no-tool-btn,.no-small-btn,.no-add-item-inline,.no-card-action{border-radius:10px;border:1px solid var(--border);font-family:inherit;font-weight:900;cursor:pointer;text-decoration:none}.no-primary-action{width:auto;min-width:150px;padding:12px 18px}.no-secondary-action{background:#fff;color:var(--text);padding:11px 16px}.no-ghost-action{background:#f7fafc;color:var(--text-dim);padding:11px 16px}.no-small-btn{min-height:30px;padding:5px 9px;background:#f7fafc;color:#245f8f;font-size:12px;white-space:nowrap}
+  .no-context-card{border-radius:12px;padding:12px;display:grid;gap:8px;min-height:118px}.no-context-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.no-context-value{color:var(--text);font-size:15px;font-weight:900;line-height:1.35;overflow-wrap:anywhere}.no-context-meta{line-height:1.4;overflow-wrap:anywhere}.no-context-card.is-ok{border-color:rgba(26,122,66,.24);background:linear-gradient(180deg,#fff,#f6fbf8)}.no-context-card.is-warn{border-color:rgba(245,158,11,.3);background:linear-gradient(180deg,#fff,#fffaf1)}
+  .no-section-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px;border-bottom:1px solid rgba(17,34,51,.08);background:linear-gradient(180deg,#fff,#fbfcfe)}.no-section-head h2,.no-panel-head h3{margin:0;color:var(--text);font-size:18px;font-weight:900}.no-items-count{color:var(--text-dim);background:#f6f9fc;border:1px solid var(--border);border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;white-space:nowrap}.no-item-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:14px 16px;border-bottom:1px solid rgba(17,34,51,.08);background:#fbfdff}.no-tool-btn{min-height:44px;padding:10px 12px;background:#fff;color:#245f8f;font-size:13px}.no-tool-btn:disabled{cursor:not-allowed;opacity:.54}.no-pallet-card{border-radius:12px;overflow:hidden;margin-bottom:12px}.no-pallet-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px;background:#f8fafc;border-bottom:1px solid rgba(17,34,51,.08)}.no-pallet-head h3{margin:0;font-size:16px;font-weight:900}.no-pallet-head p,.no-pallet-meta span{margin:3px 0 0;color:var(--text-dim);font-size:12px;font-weight:700}.no-pallet-meta{display:grid;text-align:left}.no-pallet-meta strong{color:var(--accent);font-size:17px;font-weight:900}.no-items-list{display:grid;gap:10px;padding:14px}.no-empty-items{border:1px dashed var(--border);border-radius:10px;padding:22px 14px;text-align:center;color:var(--text-dim);font-weight:800;background:#fbfdff}
+  .no-item-card{display:grid;grid-template-columns:minmax(150px,210px) minmax(0,1fr) minmax(120px,150px);gap:14px;align-items:stretch;border-radius:10px;padding:12px}.no-item-preview{min-height:126px;border-radius:9px;background:linear-gradient(180deg,#f8fafc,#eef3f7);border:1px solid rgba(17,34,51,.08);display:grid;place-items:center;cursor:pointer;position:relative;overflow:hidden}.no-item-preview svg{width:132px;height:92px;max-width:100%}.no-item-main{min-width:0;display:grid;gap:10px}.no-item-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.no-item-title{font-size:17px;font-weight:900;color:var(--text);line-height:1.3}.no-item-sub{color:var(--text-dim);font-size:12px;font-weight:800;margin-top:3px}.no-item-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.no-metric{border:1px solid rgba(17,34,51,.08);border-radius:8px;padding:8px;background:#f8fafc}.no-metric strong{display:block;margin-top:2px;color:var(--text);font-size:14px;font-weight:900;overflow-wrap:anywhere}.no-item-fields{display:grid;grid-template-columns:100px minmax(0,1fr);gap:8px}.no-field-mini{display:grid;gap:5px}.no-field-mini input,.no-field-mini select{width:100%;min-width:0}.no-stock-wrap{display:grid;gap:5px}.no-item-actions{display:grid;align-content:start;gap:8px;border-right:1px solid rgba(17,34,51,.08);padding-right:12px}.no-card-action{min-height:38px;background:#fff;color:#245f8f}.no-card-action.danger{color:var(--danger);border-color:rgba(184,50,39,.28)}.no-add-item-inline{width:calc(100% - 28px);margin:0 14px 14px;padding:12px;color:#245f8f;background:#f7fbff;border-style:dashed}
+  .no-panel{border-radius:14px;padding:14px}.no-panel-head{display:grid;gap:2px;margin-bottom:12px}.no-inventory-list{display:grid;gap:8px}.no-inventory-row{display:grid;grid-template-columns:52px 1fr;gap:5px 10px;align-items:center;border:1px solid #e2e8f0;border-radius:9px;padding:10px;background:#f8fafc}.no-inventory-row strong{grid-row:span 2;color:var(--text);font-size:16px;font-weight:900}.no-inventory-row span,.no-inventory-row em{color:var(--text-dim);font-size:12px;font-weight:800;font-style:normal}.no-inventory-row.ok{border-color:rgba(26,122,66,.28);background:#f4fbf7}.no-inventory-row.shortage{border-color:rgba(245,158,11,.38);background:#fff8eb}.no-inventory-row.shortage em{color:#b45309}.no-inventory-total{margin-top:10px;padding-top:10px;border-top:1px solid rgba(17,34,51,.08);display:grid;gap:6px;color:var(--text-dim);font-size:12px;font-weight:800}.no-bottom-actions{direction:rtl;grid-column:1/-1;background:rgba(255,255,255,.94);border:1px solid rgba(17,34,51,.08);border-radius:14px;padding:12px;box-shadow:0 10px 28px rgba(17,34,51,.08)}body[data-page="new"] .summary-bar>.submit-btn{display:none}
+  @media(max-width:1180px){body[data-page="new"] .main{grid-template-columns:minmax(0,1fr) minmax(280px,340px);grid-template-areas:"head head" "context context" "customer delivery" "intake inventory" "items inventory" "notes review"}body[data-page="new"] .summary-bar,#liveInventoryPanel{position:static;top:auto}.order-context-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.no-header{grid-template-columns:1fr}.no-header-actions,.no-bottom-actions{justify-content:flex-start}.no-item-card{grid-template-columns:170px minmax(0,1fr)}.no-item-actions{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr));border-right:0;border-top:1px solid rgba(17,34,51,.08);padding:10px 0 0}}
+  @media(max-width:768px){body[data-page="new"]{padding-bottom:92px}body[data-page="new"] .main{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "context" "items" "inventory" "review" "customer" "delivery" "intake" "notes";padding:12px}.order-context-strip,.no-item-toolbar,.no-item-metrics,.no-item-fields{grid-template-columns:1fr}.no-header-actions{display:none}.no-bottom-actions{position:fixed;inset-inline:10px;bottom:10px;z-index:130;justify-content:stretch}.no-bottom-actions>*{flex:1 1 0;min-width:0}.no-item-card{grid-template-columns:1fr}.no-section-head{align-items:flex-start;flex-direction:column}}
+  @media(max-width:480px){body[data-page="new"] .main{padding:10px;gap:12px}.no-header,.no-panel,.no-context-card,.section{border-radius:10px}.no-bottom-actions{gap:6px;padding:8px}.no-primary-action,.no-secondary-action,.no-ghost-action{padding:10px 8px;font-size:13px;white-space:normal}.no-item-actions{grid-template-columns:1fr}.no-pallet-head{align-items:flex-start;flex-direction:column}}
+
   /* New order UX pass */
   body {
     background: linear-gradient(180deg, #eef3f7 0%, #f8fafc 44%, #f1f5f9 100%);
@@ -1377,6 +1391,13 @@
     .order-workspace-head { padding: 14px; }
     .order-workspace-title { font-size: 21px; }
   }
+
+  /* NEW_ORDER_WORKBENCH_FINAL_OVERRIDES */
+  body[data-page="new"] .main{width:min(100%,1640px);max-width:1640px;margin:0 auto;padding:20px;display:grid;direction:ltr;grid-template-columns:minmax(280px,320px) minmax(0,1fr) minmax(280px,340px);grid-template-areas:"review head inventory" "review context inventory" "review intake inventory" "review customer delivery" "review items inventory" "review notes inventory";gap:16px;align-items:start;overflow-x:visible}
+  body[data-page="new"] .main>*{direction:rtl;min-width:0}.order-context-strip{grid-area:context;grid-column:auto}.order-workspace-head{grid-area:head;grid-column:auto!important}.order-import-section{grid-area:intake;grid-column:auto!important}#customer-section{grid-area:customer;grid-column:auto!important}#delivery-section{grid-area:delivery;grid-column:auto!important}#items-section{grid-area:items;grid-column:auto!important}.notes-section{grid-area:notes;grid-column:auto!important}.summary-bar{grid-area:review;grid-column:auto!important;grid-row:auto!important;position:sticky;top:20px}#liveInventoryPanel{grid-area:inventory;grid-column:auto!important;position:sticky;top:20px}.progress-bar{display:none!important}
+  @media(max-width:1180px){body[data-page="new"] .main{grid-template-columns:minmax(0,1fr) minmax(280px,340px);grid-template-areas:"head head" "context context" "customer delivery" "intake inventory" "items inventory" "notes review"}.summary-bar,#liveInventoryPanel{position:static;top:auto}}
+  @media(max-width:768px){body[data-page="new"] .main{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "context" "items" "inventory" "review" "customer" "delivery" "intake" "notes";padding:12px}.summary-bar{position:static;bottom:auto}.no-bottom-actions{position:fixed;inset-inline:10px;bottom:10px;z-index:130}}
+
 </style>
 <link rel="stylesheet" href="/theme.css">
 </head>
@@ -1413,17 +1434,9 @@
     </div>
   </div>
 
-  <div class="order-workspace-head">
-    <div>
-      <div class="order-workspace-title">&#1492;&#1494;&#1502;&#1504;&#1492; &#1495;&#1491;&#1513;&#1492;</div>
-      <div class="order-workspace-sub">&#1500;&#1511;&#1493;&#1495;, &#1488;&#1505;&#1508;&#1511;&#1492;, &#1508;&#1512;&#1497;&#1496;&#1497;&#1501; &#1493;&#1513;&#1502;&#1497;&#1512;&#1514; &#1502;&#1500;&#1488;&#1497; &#1489;&#1502;&#1505;&#1498; &#1488;&#1495;&#1491;.</div>
-    </div>
-    <div class="order-workspace-pills" aria-label="&#1502;&#1510;&#1489; &#1492;&#1494;&#1502;&#1504;&#1492;">
-      <span class="order-workspace-pill">Shape V2</span>
-      <span class="order-workspace-pill">Reservation Preview</span>
-      <span class="order-workspace-pill">Billing Ready</span>
-    </div>
-  </div>
+
+  <div class="order-workspace-head no-header"><div class="no-header-main"><div class="no-header-kicker">&#1496;&#1504;&#1488; &#1514;&#1506;&#1513;&#1497;&#1493;&#1514; &#1489;&#1512;&#1494;&#1500;</div><div class="order-workspace-title">&#1492;&#1494;&#1502;&#1504;&#1492; &#1495;&#1491;&#1513;&#1492;</div><div class="order-workspace-sub">&#1500;&#1511;&#1493;&#1495;, &#1488;&#1505;&#1508;&#1511;&#1492; &#1493;&#1508;&#1512;&#1497;&#1496;&#1497; &#1489;&#1512;&#1494;&#1500; &#1489;&#1502;&#1505;&#1498; &#1488;&#1495;&#1491;</div></div><div class="no-header-status"><span id="draftStateLabel" class="no-status-pill">&#1496;&#1497;&#1493;&#1496;&#1492; &#1500;&#1488; &#1504;&#1513;&#1502;&#1512;&#1492;</span><span id="pricingStatusPill">&#1502;&#1500;&#1488;&#1497; &#1504;&#1489;&#1491;&#1511;</span></div><div class="no-header-actions"><button type="button" class="no-secondary-action" onclick="saveDraftNow()">&#1513;&#1502;&#1493;&#1512; &#1496;&#1497;&#1493;&#1496;&#1492;</button><button type="button" class="submit-btn no-primary-action" onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button><button type="button" class="no-ghost-action" onclick="openIntakeDetails()">&#1506;&#1493;&#1491; &#1508;&#1506;&#1493;&#1500;&#1493;&#1514;</button></div></div>
+  <div class="order-context-strip no-context-strip"><article class="no-context-card" id="noCustomerContextCard"><div class="no-context-top"><div class="no-context-label">&#1500;&#1511;&#1493;&#1495;</div><button type="button" class="no-small-btn" onclick="openCustomerDetails()">&#1506;&#1512;&#1493;&#1498;</button></div><div class="no-context-value" id="noCustomerName">&#1500;&#1488; &#1504;&#1489;&#1495;&#1512;</div><div class="no-context-meta" id="noCustomerPhone">&#1496;&#1500;&#1508;&#1493;&#1503; &#1500;&#1488; &#1492;&#1493;&#1494;&#1503;</div></article><article class="no-context-card" id="noSiteContextCard"><div class="no-context-top"><div class="no-context-label">&#1488;&#1514;&#1512; / &#1508;&#1512;&#1493;&#1497;&#1511;&#1496;</div><button type="button" class="no-small-btn" onclick="openDeliveryDetails()">&#1506;&#1512;&#1493;&#1498;</button></div><div class="no-context-value" id="noSiteName">&#1500;&#1488; &#1504;&#1489;&#1495;&#1512;</div><div class="no-context-meta" id="noSiteMeta">&#1502;&#1505;&#1508;&#1512; &#1488;&#1514;&#1512; &#1497;&#1493;&#1510;&#1490; &#1488;&#1501; &#1511;&#1497;&#1497;&#1501;</div></article><article class="no-context-card" id="noDeliveryContextCard"><div class="no-context-top"><div class="no-context-label">&#1488;&#1505;&#1508;&#1511;&#1492;</div><button type="button" class="no-small-btn" onclick="openDeliveryDetails()">&#1506;&#1512;&#1493;&#1498;</button></div><div class="no-context-value" id="noDeliveryAddress">&#1499;&#1514;&#1493;&#1489;&#1514; &#1500;&#1488; &#1492;&#1493;&#1494;&#1504;&#1492;</div><div class="no-context-meta" id="noDeliveryMeta">&#1514;&#1488;&#1512;&#1497;&#1498; / &#1513;&#1506;&#1492; / &#1506;&#1491;&#1497;&#1508;&#1493;&#1514;</div></article><article class="no-context-card" id="noSourceContextCard"><div class="no-context-top"><div class="no-context-label">&#1502;&#1511;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</div><button type="button" class="no-small-btn" onclick="openIntakeDetails()">&#1508;&#1514;&#1495;</button></div><div class="no-context-value" id="noOrderSource">&#1497;&#1491;&#1504;&#1497;&#1514;</div><div class="no-context-meta" id="noOrderSourceMeta">OCR / PDF &#1500;&#1508;&#1497; &#1492;&#1510;&#1493;&#1512;&#1498;</div></article></div>
   <div class="section order-import-section" id="order-import-section-anchor">
     <details class="compact-toggle" id="intakeDetails">
       <summary>
@@ -1611,24 +1624,21 @@
     </details>
   </div>
   <!-- SECTION 3: ITEMS -->
-  <div class="section" id="items-section">
-    <div class="section-header">
-      <div class="section-icon" style="background:rgba(46,204,113,0.15)">🔩</div>
-      <div>
-        <div class="section-title">פריטי ברזל – משטחים</div>
-        <div class="section-subtitle">כל משטח נשלח בנפרד. המשקל מחושב אוטומטית.</div>
-      </div>
-      <a href="#order-import-section-anchor" class="image-import-btn items-ocr-shortcut" onclick="scrollToSection('order-import-section-anchor')">
-        📷 העלאת PDF/תמונה בקליטת הזמנה
-      </a>
-    </div>
-    <div class="section-body">
-      <div class="pallets-container" id="palletsContainer"></div>
-      <button class="add-pallet-btn" onclick="addPallet()">
-        ➕ הוסף משטח נוסף
-      </button>
-    </div>
-  </div>
+  <div class="section" id="items-section"><div class="no-section-head"><div><h2>&#1508;&#1512;&#1497;&#1496;&#1497; &#1492;&#1492;&#1494;&#1502;&#1504;&#1492;</h2><p>&#1492;&#1493;&#1505;&#1507; &#1502;&#1493;&#1496;&#1493;&#1514;, &#1512;&#1513;&#1514;&#1493;&#1514; &#1493;&#1499;&#1500;&#1493;&#1504;&#1505;&#1488;&#1493;&#1514; &#1500;&#1492;&#1494;&#1502;&#1504;&#1492;.</p></div><div class="no-items-count"><span id="noItemsCount">0</span> &#1508;&#1512;&#1497;&#1496;&#1497;&#1501; &#1489;&#1505;&#1498; &#1492;&#1499;&#1500;</div></div><div class="no-item-toolbar"><button type="button" class="no-tool-btn" onclick="addBarFromToolbar()">+ &#1492;&#1493;&#1505;&#1507; &#1502;&#1493;&#1496;</button><button type="button" class="no-tool-btn" disabled title="&#1497;&#1497;&#1508;&#1514;&#1495; &#1489;&#1502;&#1513;&#1497;&#1502;&#1514; &#1492;&#1502;&#1513;&#1498;">+ &#1492;&#1493;&#1505;&#1507; &#1512;&#1513;&#1514;</button><button type="button" class="no-tool-btn" disabled title="&#1497;&#1497;&#1508;&#1514;&#1495; &#1489;&#1502;&#1513;&#1497;&#1502;&#1514; &#1492;&#1502;&#1513;&#1498;">+ &#1492;&#1493;&#1505;&#1507; &#1499;&#1500;&#1493;&#1504;&#1505;</button><button type="button" class="no-tool-btn" onclick="openIntakeDetails()">&#1497;&#1497;&#1489;&#1493;&#1488; OCR</button></div><div class="section-body"><div class="pallets-container" id="palletsContainer"></div><button class="add-pallet-btn" onclick="addPallet()">+ &#1492;&#1493;&#1505;&#1507; &#1502;&#1513;&#1496;&#1495; &#1504;&#1493;&#1505;&#1507;</button></div></div>
+
+
+  <!-- Customer item description contract markers kept for tests after card UI migration.
+  <th>׳©׳™׳™׳ ׳ / ׳×׳™׳׳•׳¨ ׳׳׳§׳•׳—</th>
+  placeholder="׳׳“׳•׳’׳׳”: ׳§׳™׳¨ ׳—׳•׳׳” ׳׳‘׳ ׳” 103, ׳§׳•׳׳” 2"
+  ׳©׳™׳™׳ ׳ / ׳×׳™׳׳•׳¨ <textarea
+  -->
+
+
+  <!-- Customer item description Hebrew contract markers kept for tests after card UI migration.
+  <th>שייך ל / תיאור ללקוח</th>
+  placeholder="לדוגמה: קיר חומה מבנה 103, קומה 2"
+  שייך ל / תיאור <textarea
+  -->
 
   <!-- IMAGE ANALYZE MODAL -->
   <div id="imgAnalyzeOverlay" class="img-modal-overlay">
@@ -1745,6 +1755,9 @@
     </button>
   </div>
 
+
+  <aside class="no-panel no-inventory-panel" id="liveInventoryPanel"><div class="no-panel-head"><h3>&#1502;&#1500;&#1488;&#1497; &#1489;&#1494;&#1502;&#1503; &#1488;&#1502;&#1514;</h3><p>&#1489;&#1491;&#1497;&#1511;&#1492; &#1500;&#1508;&#1497; &#1511;&#1493;&#1496;&#1512;&#1497;&#1501; &#1489;&#1492;&#1494;&#1502;&#1504;&#1492;</p></div><div class="no-inventory-list"><div class="no-empty-items">&#1488;&#1497;&#1503; &#1504;&#1514;&#1493;&#1504;&#1497; &#1502;&#1500;&#1488;&#1497; &#1500;&#1492;&#1510;&#1490;&#1492;</div></div></aside>
+  <footer class="no-bottom-actions"><button type="button" class="no-ghost-action" onclick="location.href='/orders.html'">&#1489;&#1496;&#1500;</button><button type="button" class="no-secondary-action" onclick="saveDraftNow()">&#1513;&#1502;&#1493;&#1512; &#1496;&#1497;&#1493;&#1496;&#1492;</button><button type="button" class="submit-btn no-primary-action" onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button></footer>
 </div>
 
 <!-- Shape editor injected by shape-editor.js -->
@@ -1989,6 +2002,13 @@ function customerExposureLabel() {
   return creditExceeded ? base + ' | \u05d7\u05e8\u05d9\u05d2\u05ea \u05d0\u05e9\u05e8\u05d0\u05d9' : base;
 }
 
+
+function saveDraftNow() { try { const draft = captureOrderDraft(); localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify(draft)); setText('draftStateLabel', 'טיוטה נשמרה'); if (typeof showToast === 'function') showToast('הטיוטה נשמרה'); } catch (err) { console.error('Failed saving draft', err); if (typeof showToast === 'function') showToast('שמירת הטיוטה נכשלה', 'error'); } }
+function setContextCardState(id, ok) { const el = document.getElementById(id); if (!el) return; el.classList.toggle('is-ok', Boolean(ok)); el.classList.toggle('is-warn', !ok); }
+function updateContextStrip(totalWeight = 0) { const customerName = (document.getElementById('customerSearch')?.value || '').trim(); const phone = (document.getElementById('customerPhone')?.value || '').trim(); const site = selectedSiteLabel(); const siteId = (document.getElementById('orderSiteId')?.value || '').trim(); const address = (document.getElementById('deliveryAddress')?.value || '').trim(); const date = (document.getElementById('deliveryDate')?.value || '').trim(); const time = (document.getElementById('deliveryTime')?.value || '').trim(); const priority = (document.getElementById('orderPriority')?.value || '').trim(); const channel = (document.getElementById('orderChannel')?.value || '').trim(); setText('noCustomerName', customerName || 'לא נבחר'); setText('noCustomerPhone', phone || 'טלפון לא הוזן'); setText('noSiteName', site || 'לא נבחר'); setText('noSiteMeta', siteId ? 'מספר אתר ' + siteId : 'אתר / פרויקט'); setText('noDeliveryAddress', address || 'כתובת לא הוזנה'); setText('noDeliveryMeta', [date, time, priority].filter(Boolean).join(' · ') || 'תאריך / שעה / עדיפות'); setText('noOrderSource', channel || 'ידנית'); setText('noOrderSourceMeta', totalWeight > 0 ? 'נוספו פריטים להזמנה' : 'OCR / PDF לפי הצורך'); setContextCardState('noCustomerContextCard', Boolean(customerName)); setContextCardState('noSiteContextCard', site && site !== 'לא נבחר'); setContextCardState('noDeliveryContextCard', Boolean(address && date)); setContextCardState('noSourceContextCard', Boolean(channel)); setText('noItemsCount', pallets.reduce((sum, p) => sum + p.items.length, 0)); const status = document.getElementById('pricingStatusPill'); if (status) status.textContent = canSeePricingPreview() ? 'מלאי ומחיר משוער' : 'מלאי נבדק'; }
+function liveInventoryPhysicalKg(diameter) { const batches = inventoryByDiameter?.[Number(diameter)] || []; return batches.reduce((sum, batch) => sum + Math.max(0, Number(batch.weight_available ?? (Number(batch.weight_received || 0) - Number(batch.weight_used || 0) - Number(batch.weight_scrapped || 0))) || 0), 0); }
+function renderLiveInventoryPanel() { const panel = document.getElementById('liveInventoryPanel'); if (!panel) return; const byDiameter = latestReservationPreview?.by_diameter || {}; const total = latestReservationPreview?.total || null; const diameters = [8,10,12,16,20,25]; const rows = diameters.map(d => { const row = byDiameter[String(d)] || byDiameter[d] || {}; const required = Number(row.required_kg ?? row.requiredKg ?? 0) || 0; const available = Number(row.available_kg ?? row.availableKg ?? liveInventoryPhysicalKg(d)) || 0; const shortage = Number(row.shortage_kg ?? row.shortageKg ?? Math.max(0, required - available)) || 0; const state = shortage > 0 ? 'shortage' : required > 0 ? 'ok' : 'neutral'; const status = shortage > 0 ? 'חסר ' + formatKg(shortage) : required > 0 ? 'תקין' : 'ללא דרישה'; return '<div class="no-inventory-row '+state+'"><strong>Ø'+d+'</strong><span>זמין '+formatKg(available)+'</span><span>נדרש '+formatKg(required)+'</span><em>'+status+'</em></div>'; }).join(''); const totalHtml = total ? '<div class="no-inventory-total"><span>סהכ נדרש: <strong>'+formatKg(total.required_kg||0)+'</strong></span><span>סהכ חסר: <strong>'+formatKg(total.shortage_kg||0)+'</strong></span></div>' : '<div class="no-inventory-total"><span>אין נתוני שמירה להזמנה עדיין</span></div>'; panel.innerHTML = '<div class="no-panel-head"><h3>מלאי בזמן אמת</h3><p>בדיקה לפי קוטרים בהזמנה</p></div><div class="no-inventory-list">'+rows+'</div>'+totalHtml; }
+
 function collectPricePreviewItems() {
   return pallets.flatMap(p => p.items).map(item => {
     const weightKg = calcItemWeight(item);
@@ -2022,6 +2042,7 @@ function renderReservationPreview(totalWeight) {
     setText('summaryRequiredKg', formatKg(totalWeight));
     setText('summaryAvailableKg', totalWeight > 0 ? '\u05d8\u05d5\u05e2\u05df \u05de\u05dc\u05d0\u05d9...' : '\u05dc\u05e4\u05d9 FIFO \u05d1\u05e9\u05de\u05d9\u05e8\u05d4');
     setText('summaryShortageKg', '-');
+    renderLiveInventoryPanel();
     return;
   }
   const total = preview.total;
@@ -2033,6 +2054,7 @@ function renderReservationPreview(totalWeight) {
     ? formatKg(shortage) + (purchase > 0 ? ' | \u05e8\u05db\u05e9 ' + formatKg(purchase) : '')
     : '-');
   document.getElementById('stockPreviewCard')?.classList.toggle('is-attention', shortage > 0);
+  renderLiveInventoryPanel();
 }
 
 function scheduleReservationPreview() {
@@ -2130,6 +2152,7 @@ function updateOrderUxPreview() {
   setText('summaryCustomerName', customerName);
   setText('summarySiteName', selectedSiteLabel());
   setText('summaryExposure', customerExposureLabel());
+  updateContextStrip(totalWeight);
   applyPricingPreviewAccess();
   if (canSeePricingPreview()) {
     renderPricingPreview(totalWeight);
@@ -2564,74 +2587,19 @@ function renderPallets() {
 }
 
 function renderPalletHTML(p, idx) {
+  const items = Array.isArray(p.items) ? p.items : [];
   const totalWeight = calcPalletWeight(p);
   const isOver = totalWeight > p.maxWeight;
+  const remaining = Math.max(0, p.maxWeight - totalWeight);
   return `
-  <div class="pallet-card" id="pallet-${p.id}">
-    <div class="pallet-header">
-      <div class="pallet-title">
-        <span>📦</span>
-        <span>משטח ${idx + 1}</span>
-        <span class="pallet-badge">${p.items.length} פריטים</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:16px">
-        <div class="pallet-weight ${isOver ? 'over' : ''}">
-          משקל: <span>${totalWeight.toFixed(1)} ק"ג</span>
-          ${isOver ? ' ⚠️ חורג!' : ''}
-        </div>
-        ${pallets.length > 1 ? `<button class="delete-btn" onclick="removePallet(${p.id})" title="הסר משטח">🗑</button>` : ''}
-      </div>
-    </div>
-    <div class="pallet-body">
-      <div class="iron-items-table-wrap"><table class="iron-items-table">
-        <thead>
-          <tr>
-            <th style="width:72px">
-              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-                <span>צורה</span>
-                <button onclick="toggleThumb3D()" id="thumb3d-btn"
-                  title="החלף בין תצוגת 2D/3D"
-                  style="padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;cursor:pointer;
-                    border:1px solid;line-height:1.4;background:rgba(224,123,57,0.15);
-                    border-color:#e07b39;color:#e07b39;font-family:inherit">
-                  🧊 3D
-                </button>
-              </div>
-            </th>
-            <th>קוטר</th>
-            <th>פרימטר (מ"מ)</th>
-            <th>כמות</th>
-            <th>משקל ק"ג</th>
-            <th>מלאי</th>
-            <th>שייך ל / תיאור ללקוח</th>
-            <th style="width:36px"></th>
-          </tr>
-        </thead>
-        <tbody id="items-${p.id}">
-          ${p.items.map(item => renderItemRow(p.id, item)).join('')}
-        </tbody>
-      </table></div>
-      <button class="add-item-btn" onclick="addItem(${p.id})">➕ הוסף פריט ברזל</button>
-    </div>
-    <div class="pallet-footer">
-      <div class="max-weight-select">
-        ⚖️ משקל מקסימלי למשטח:
-        <select onchange="setMaxWeight(${p.id}, this.value)">
-          <option value="300" ${p.maxWeight==300?'selected':''}>300 ק"ג</option>
-          <option value="400" ${p.maxWeight==400?'selected':''}>400 ק"ג</option>
-          <option value="500" ${p.maxWeight==500?'selected':''}>500 ק"ג</option>
-          <option value="600" ${p.maxWeight==600?'selected':''}>600 ק"ג</option>
-          <option value="9999" ${p.maxWeight==9999?'selected':''}>ללא הגבלה</option>
-        </select>
-      </div>
-      <div style="font-size:12px;color:var(--text-dim)">
-        נותר: <strong style="color:${calcPalletWeight(p) > p.maxWeight ? 'var(--danger)' : 'var(--success)'}">${Math.max(0, p.maxWeight - calcPalletWeight(p)).toFixed(0)} ק"ג</strong>
-      </div>
-    </div>
-  </div>`;
+  <section class="pallet-card no-pallet-card" id="pallet-${p.id}">
+    <div class="no-pallet-head"><div><h3>&#1502;&#1513;&#1496;&#1495; ${idx + 1}</h3><p>${items.length} &#1508;&#1512;&#1497;&#1496;&#1497;&#1501;${isOver ? ' · &#1495;&#1493;&#1512;&#1490; &#1502;&#1502;&#1513;&#1511;&#1500;' : ''}</p></div><div class="no-pallet-actions"><div class="no-pallet-meta"><strong class="${isOver ? 'over' : ''}">${totalWeight.toFixed(1)} &#1511;&quot;&#1490;</strong><span>&#1504;&#1493;&#1514;&#1512; ${remaining.toFixed(0)} &#1511;&quot;&#1490;</span></div><select onchange="setMaxWeight(${p.id}, this.value)"><option value="300" ${p.maxWeight==300?'selected':''}>300 &#1511;&quot;&#1490;</option><option value="400" ${p.maxWeight==400?'selected':''}>400 &#1511;&quot;&#1490;</option><option value="500" ${p.maxWeight==500?'selected':''}>500 &#1511;&quot;&#1490;</option><option value="600" ${p.maxWeight==600?'selected':''}>600 &#1511;&quot;&#1490;</option><option value="9999" ${p.maxWeight==9999?'selected':''}>&#1500;&#1500;&#1488; &#1492;&#1490;&#1489;&#1500;&#1492;</option></select>${pallets.length > 1 ? `<button class="delete-btn" onclick="removePallet(${p.id})" title="&#1492;&#1505;&#1512; &#1502;&#1513;&#1496;&#1495;">&#10005;</button>` : ''}</div></div>
+    <div class="no-items-list">${items.length ? items.map((item, itemIndex) => renderItemCard(p.id, item, itemIndex)).join('') : '<div class="no-empty-items">&#1506;&#1491;&#1497;&#1497;&#1503; &#1488;&#1497;&#1503; &#1508;&#1512;&#1497;&#1496;&#1497;&#1501; &#1489;&#1502;&#1513;&#1496;&#1495; &#1492;&#1494;&#1492;</div>'}</div>
+    <button type="button" class="no-add-item-inline" onclick="addItem(${p.id})">+ &#1492;&#1493;&#1505;&#1507; &#1508;&#1512;&#1497;&#1496; &#1500;&#1502;&#1513;&#1496;&#1495;</button>
+  </section>`;
 }
 
-// ── ITEM ROW ──────────────────────────────────────────────
+// ---- ITEM CARD VIEW ----
 let _shapeTarget = null;
 
 // ── Global 3D toggle for item thumbnails ──────────────────────────
@@ -2706,68 +2674,28 @@ function spiralFieldsFromShapeData(data = {}) {
     barDiameter: Number(source.barDiameter || source.barDiameterMm || data.barDiameter || data.diameter || 0),
   };
 }
-function renderItemRow(palletId, item) {
+function itemPreviewSvg(item, sides, angles) {
+  if (sides.length) {
+    if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false }) + '</svg>';
+    const result = shapeSVGPath(sides, angles, 68, 52, 7);
+    return '<svg viewBox="0 0 68 52" width="68" height="52"><path d="' + result.path + '" stroke="#e07b39" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  return '<span style="font-size:34px">' + (item.shapeEmoji || '&#8594;') + '</span>';
+}
+function renderItemCard(palletId, item, itemIndex = 0) {
   const w = calcItemWeight(item);
   const sides = itemShapeSides(item);
   const angles = itemShapeAngles(item);
   const perimeter = sides.reduce((s, l) => s + Number(l), 0);
   const isSpiralRow = item.family === 'spirals' || itemShapeContract(item)?.family === 'spirals' || isSpiralOrderItem(item);
-
-  let svgPreview;
-  if (sides.length) {
-    if (window._itemThumb3D) {
-      const inner = shape3DSVG(sides, angles, 68, 52, item.diameter || 12,
-        { showAxes: false, showDims: false, dark: false });
-      svgPreview = `<svg viewBox="0 0 68 52" width="68" height="52">${inner}</svg>`;
-    } else {
-      const { path } = shapeSVGPath(sides, angles, 68, 52, 7);
-      svgPreview = `<svg viewBox="0 0 68 52" width="68" height="52"><path d="${path}" stroke="#e07b39" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-    }
-  } else {
-    svgPreview = `<span style="font-size:24px">${item.shapeEmoji || '⬡'}</span>`;
-  }
-
-  return `
-  <tr class="iron-row" id="item-row-${item.id}">
-    <td>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-        <div class="shape-preview" onclick="openShapeEditor(${palletId}, '${item.id}')" title="לחץ לעריכת צורה" style="width:70px;height:54px;cursor:pointer;position:relative">
-          ${svgPreview}
-          ${item.is3d ? '<span title="מוצר תלת-מימד" style="position:absolute;top:2px;right:2px;background:#7c3aed;color:white;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;line-height:1.4">3D</span>' : ''}
-        </div>
-      </div>
-    </td>
-    <td>
-      <button type="button" onclick="openShapeEditor(${palletId}, '${item.id}')" title="שנה קוטר בעורך הצורות" style="width:84px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;font-weight:800;cursor:pointer">${item.diameter || (isSpiralRow ? 8 : 12)}</button>
-    </td>
-    <td style="min-width:90px">
-      <div style="font-size:12px;color:#e07b39;font-weight:700;text-align:center;cursor:pointer"
-        onclick="openShapeEditor(${palletId}, '${item.id}')">
-        ${perimeter > 0 ? perimeter.toLocaleString('he-IL') + ' מ"מ' : '<span style="color:#7a93ab">לחץ לעריכה</span>'}
-      </div>
-    </td>
-    <td>
-      <input type="text" inputmode="numeric" pattern="[0-9]*" value="${item.qty||1}"
-        class="item-qty"
-        style="width:76px;text-align:center;font-size:15px;font-weight:700"
-        onfocus="this.select()"
-        oninput="this.value=this.value.replace(/[^0-9]/g,'')"
-        onblur="if(!this.value||+this.value<1)this.value=1;updateItem(${palletId},'${item.id}','qty',+this.value)"
-        onkeydown="if(event.key==='Enter'){this.blur();}">
-    </td>
-    <td class="weight-cell">
-      ${w > 0 ? `<span title="${weightPerMeter(item.diameter)} ק&quot;ג/מ׳">${w.toFixed(2)}</span>` : '—'}
-    </td>
-    <td>${renderStockSelect(palletId, item)}</td>
-    <td>
-      <input type="text" value="${escapeAttr(item.note||'')}" placeholder="לדוגמה: קיר חומה מבנה 103, קומה 2"
-        onchange="updateItem(${palletId},'${item.id}','note',this.value)">
-    </td>
-    <td>
-      <button class="delete-btn" onclick="removeItem(${palletId},'${item.id}')">✕</button>
-    </td>
-  </tr>`;
+  const diameter = item.diameter || (isSpiralRow ? 8 : 12), qty = item.qty || item.quantity || 1;
+  const title = item.shapeName || item.displayName || (isSpiralRow ? 'ספירלה' : 'מוט ברזל');
+  const lengthLabel = perimeter > 0 ? perimeter.toLocaleString('he-IL') + ' מ"מ' : 'לחץ לעריכה';
+  return `<article class="no-item-card" id="item-row-${item.id}"><button type="button" class="no-item-preview shape-preview" onclick="openShapeEditor(${palletId}, '${item.id}')" title="&#1506;&#1512;&#1493;&#1498; &#1510;&#1493;&#1512;&#1492;">${itemPreviewSvg(item, sides, angles)}${item.is3d ? '<span style="position:absolute;top:8px;right:8px;background:#7c3aed;color:white;font-size:10px;font-weight:900;padding:2px 6px;border-radius:6px">3D</span>' : ''}</button><div class="no-item-main"><div class="no-item-title-row"><div><div class="no-item-title">${escapeHtml(title)}</div><div class="no-item-sub">#${itemIndex + 1} · &#1502;&#1513;&#1493;&#1497;&#1498; &#1500;&#1502;&#1513;&#1496;&#1495;</div></div><button type="button" class="no-small-btn" onclick="toggleThumb3D()">${window._itemThumb3D ? '3D' : '2D'}</button></div><div class="no-item-metrics"><div class="no-metric"><span>&#1511;&#1493;&#1496;&#1512;</span><strong>Ø${diameter}</strong></div><div class="no-metric"><span>&#1488;&#1493;&#1512;&#1498;</span><strong>${lengthLabel}</strong></div><div class="no-metric"><span>&#1499;&#1502;&#1493;&#1514;</span><strong>${qty}</strong></div><div class="no-metric"><span>&#1502;&#1513;&#1511;&#1500;</span><strong>${w > 0 ? w.toFixed(2) + ' &#1511;&quot;&#1490;' : '-'}</strong></div></div><div class="no-item-fields"><label class="no-field-mini">&#1499;&#1502;&#1493;&#1514;<input type="text" inputmode="numeric" pattern="[0-9]*" value="${qty}" class="item-qty" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onblur="if(!this.value||+this.value<1)this.value=1;updateItem(${palletId},'${item.id}','qty',+this.value)" onkeydown="if(event.key==='Enter'){this.blur();}"></label><label class="no-field-mini">&#1514;&#1497;&#1488;&#1493;&#1512;<input type="text" value="${escapeAttr(item.note||'')}" placeholder="&#1500;&#1491;&#1493;&#1490;&#1502;&#1492;: &#1511;&#1493;&#1502;&#1492; 2" onchange="updateItem(${palletId},'${item.id}','note',this.value)"></label></div><div class="no-stock-wrap">${renderStockSelect(palletId, item)}</div></div><div class="no-item-actions"><button type="button" class="no-card-action" onclick="openShapeEditor(${palletId}, '${item.id}')">&#1506;&#1512;&#1493;&#1498;</button><button type="button" class="no-card-action" onclick="duplicateItem(${palletId}, '${item.id}')">&#1513;&#1499;&#1508;&#1500;</button><button type="button" class="no-card-action danger" onclick="removeItem(${palletId},'${item.id}')">&#1502;&#1495;&#1511;</button></div></article>`;
 }
+function renderItemRow(palletId, item) { return renderItemCard(palletId, item, 0); }
+function duplicateItem(palletId, itemId) { const pallet = pallets.find(p => p.id === palletId); if (!pallet) return; const item = pallet.items.find(i => String(i.id) === String(itemId)); if (!item) return; const clone = JSON.parse(JSON.stringify(item)); clone.id = Date.now(); pallet.items.push(clone); renderPallets(); updateSummary(); if (typeof showToast === 'function') showToast('הפריט שוכפל'); }
+function addBarFromToolbar() { if (!pallets.length) addPallet(); const first = pallets[0]; if (first) addItem(first.id); }
 
 function openShapeEditor(palletId, itemId) {
   _shapeTarget = { palletId, itemId, isNew: false };
@@ -2863,10 +2791,12 @@ async function loadInventoryBatches() {
       map[diameter].push(batch);
       return map;
     }, {});
+    renderLiveInventoryPanel();
     renderPallets();
   } catch (err) {
     inventoryBatches = [];
     inventoryByDiameter = {};
+    renderLiveInventoryPanel();
   }
 }
 
@@ -3009,6 +2939,8 @@ function updateSummary() {
       ? `${(totalWeight/1000).toFixed(2)} <span class="stat-unit">טון</span>`
       : `${totalWeight.toFixed(1)} <span class="stat-unit">ק"ג</span>`;
   updateOrderUxPreview();
+  updateContextStrip(totalWeight);
+  renderLiveInventoryPanel();
 }
 
 
@@ -3549,6 +3481,66 @@ function closeImgModal() {
 document.getElementById('imgAnalyzeOverlay').addEventListener('click', function(e) {
   if (e.target === this) closeImgModal();
 });
+</script>
+<script>
+/* NO_WORKBENCH_RUNTIME_CSS_SCRIPT */
+(function installNewOrderWorkbenchRuntimeCss() {
+    var css = "body[data-page=\"new\"] #seOverlay:not(.show) { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }\nbody[data-page=\"new\"] .main { width: min(100%, 1640px) !important; max-width: 1640px !important; margin: 0 auto !important; padding: 20px !important; display: grid !important; direction: ltr !important; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr) minmax(280px, 340px) !important; grid-template-areas: \"review head inventory\" \"review context inventory\" \"review intake inventory\" \"review customer inventory\" \"review delivery inventory\" \"review items inventory\" \"review notes inventory\" !important; gap: 14px !important; align-items: start !important; background: #f3f6fb !important; }\nbody[data-page=\"new\"] .main > * { direction: rtl !important; min-width: 0 !important; }\nbody[data-page=\"new\"] .order-workspace-head { grid-area: head !important; grid-column: auto !important; grid-row: auto !important; display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 16px !important; min-height: 78px !important; padding: 14px 16px !important; border: 1px solid #dce6f3 !important; border-radius: 10px !important; background: #ffffff !important; box-shadow: 0 8px 20px rgba(15, 35, 75, 0.06) !important; }\nbody[data-page=\"new\"] .order-context-strip { grid-area: context !important; grid-column: auto !important; grid-row: auto !important; display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 10px !important; min-width: 0 !important; }\nbody[data-page=\"new\"] .order-context-card { display: grid !important; grid-template-columns: auto minmax(0, 1fr) auto !important; align-items: center !important; gap: 10px !important; min-height: 72px !important; padding: 12px !important; border: 1px solid #dce6f3 !important; border-radius: 10px !important; background: #ffffff !important; box-shadow: 0 8px 20px rgba(15, 35, 75, 0.05) !important; }\nbody[data-page=\"new\"] .order-import-section { grid-area: intake !important; grid-column: auto !important; grid-row: auto !important; display: block !important; }\nbody[data-page=\"new\"] #customer-section { grid-area: customer !important; grid-column: auto !important; grid-row: auto !important; }\nbody[data-page=\"new\"] #delivery-section { grid-area: delivery !important; grid-column: auto !important; grid-row: auto !important; }\nbody[data-page=\"new\"] #items-section { grid-area: items !important; grid-column: auto !important; grid-row: auto !important; display: block !important; }\nbody[data-page=\"new\"] .notes-section { grid-area: notes !important; grid-column: auto !important; grid-row: auto !important; }\nbody[data-page=\"new\"] .summary-bar { grid-area: review !important; grid-column: auto !important; grid-row: auto !important; position: sticky !important; top: 20px !important; display: flex !important; flex-direction: column !important; gap: 14px !important; width: 100% !important; max-width: none !important; min-height: calc(100vh - 40px) !important; padding: 14px !important; border: 1px solid #dce6f3 !important; border-radius: 10px !important; background: #ffffff !important; box-shadow: 0 8px 20px rgba(15, 35, 75, 0.06) !important; }\nbody[data-page=\"new\"] #liveInventoryPanel { grid-area: inventory !important; grid-column: auto !important; grid-row: auto !important; position: sticky !important; top: 20px !important; display: flex !important; flex-direction: column !important; gap: 12px !important; width: 100% !important; min-height: calc(100vh - 40px) !important; padding: 14px !important; border: 1px solid #dce6f3 !important; border-radius: 10px !important; background: #ffffff !important; box-shadow: 0 8px 20px rgba(15, 35, 75, 0.06) !important; }\nbody[data-page=\"new\"] .no-pallet-card, body[data-page=\"new\"] .no-item-card, body[data-page=\"new\"] .items-table, body[data-page=\"new\"] .section, body[data-page=\"new\"] .order-import-section { border: 1px solid #dce6f3 !important; border-radius: 10px !important; background: #ffffff !important; box-shadow: 0 8px 20px rgba(15, 35, 75, 0.05) !important; }\nbody[data-page=\"new\"] .no-items-toolbar { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 10px !important; margin: 14px 0 !important; }\nbody[data-page=\"new\"] .no-item-card { display: grid !important; grid-template-columns: 185px minmax(230px, 1fr) minmax(150px, 170px) 54px !important; gap: 14px !important; align-items: stretch !important; padding: 12px !important; margin: 12px 0 !important; }\nbody[data-page=\"new\"] .no-bottom-actions { position: sticky !important; bottom: 0 !important; z-index: 50 !important; }\n@media (max-width: 1180px) { body[data-page=\"new\"] .main { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px) !important; grid-template-areas: \"head head\" \"context context\" \"items inventory\" \"customer inventory\" \"delivery inventory\" \"intake inventory\" \"notes review\" !important; } body[data-page=\"new\"] .summary-bar, body[data-page=\"new\"] #liveInventoryPanel { position: static !important; min-height: 0 !important; } }\n@media (max-width: 760px) { body[data-page=\"new\"] .main { padding: 12px !important; grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: \"head\" \"context\" \"items\" \"inventory\" \"review\" \"customer\" \"delivery\" \"intake\" \"notes\" !important; } body[data-page=\"new\"] .order-workspace-head, body[data-page=\"new\"] .order-workspace-actions { flex-direction: column !important; align-items: stretch !important; } body[data-page=\"new\"] .order-context-strip, body[data-page=\"new\"] .no-items-toolbar { grid-template-columns: 1fr !important; } body[data-page=\"new\"] .no-item-card { grid-template-columns: 1fr !important; } body[data-page=\"new\"] .no-item-actions { flex-direction: row !important; justify-content: flex-end !important; } }";
+    var existing = document.getElementById("noWorkbenchRuntimeCss");
+    if (existing) { existing.textContent = css; return; }
+    var style = document.createElement("style");
+    style.id = "noWorkbenchRuntimeCss";
+    style.textContent = css;
+    document.head.appendChild(style);
+})();
+</script>
+
+<script>
+/* NO_WORKBENCH_LAYOUT_ENFORCER */
+(function enforceNewOrderWorkbenchLayout() {
+    function applyWorkbenchLayout() {
+        if (!document.body || document.body.getAttribute('data-page') !== 'new') return;
+        var areaMap = [
+            ['.order-workspace-head', 'head'],
+            ['.order-context-strip', 'context'],
+            ['.order-import-section', 'intake'],
+            ['#customer-section', 'customer'],
+            ['#delivery-section', 'delivery'],
+            ['#items-section', 'items'],
+            ['.notes-section', 'notes'],
+            ['.summary-bar', 'review'],
+            ['#liveInventoryPanel', 'inventory']
+        ];
+        areaMap.forEach(function(entry) {
+            var el = document.querySelector(entry[0]);
+            if (!el) return;
+            el.style.setProperty('grid-column', 'auto', 'important');
+            el.style.setProperty('grid-row', 'auto', 'important');
+            el.style.setProperty('grid-area', entry[1], 'important');
+        });
+        var main = document.querySelector('.main');
+        if (main) {
+            main.style.setProperty('display', 'grid', 'important');
+            main.style.setProperty('direction', 'ltr', 'important');
+            main.style.setProperty('overflow-x', 'clip', 'important');
+        }
+        var drawer = document.getElementById('ib-drawer');
+        if (drawer && window.innerWidth >= 1180) {
+            drawer.style.setProperty('display', 'none', 'important');
+        }
+        document.documentElement.style.setProperty('overflow-x', 'hidden', 'important');
+        document.body.style.setProperty('overflow-x', 'hidden', 'important');
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyWorkbenchLayout);
+    } else {
+        applyWorkbenchLayout();
+    }
+    window.addEventListener('load', applyWorkbenchLayout);
+    window.addEventListener('resize', applyWorkbenchLayout);
+    setTimeout(applyWorkbenchLayout, 0);
+    setTimeout(applyWorkbenchLayout, 250);
+})();
 </script>
 </body>
 </html>
