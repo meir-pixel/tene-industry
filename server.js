@@ -136,6 +136,9 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/shapeSnapshot.js', (_req, res) => {
+  res.type('application/javascript').sendFile(path.join(__dirname, 'services', 'shapeSnapshot.js'));
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 const {

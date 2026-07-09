@@ -8,6 +8,7 @@ function required(name, value) {
 module.exports = function createCustomersRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
+  const pricer = deps.pricer || null;
 
   function normalizePortalPriceListVisibility(value) {
     return ['none', 'general', 'customer'].includes(value) ? value : 'none';
@@ -36,6 +37,7 @@ module.exports = function createCustomersRouter(deps) {
 
   function billingSourceLabel(source) {
     if (source === 'existing') return 'calculated';
+    if (source === 'price_book_items') return 'price_book_items';
     if (source === 'price_book_weight') return 'price_book_weight';
     return 'missing_price';
   }
@@ -81,17 +83,35 @@ module.exports = function createCustomersRouter(deps) {
       const row = db.prepare(`
         SELECT price_before_vat
         FROM pricing_price_items
-        WHERE price_book_id=? AND active=1 AND unit='kg' AND price_before_vat > 0
-        ORDER BY sort_order, id
+        WHERE price_book_id=? AND active=1 AND price_before_vat > 0
+        ORDER BY CASE WHEN unit='kg' THEN 0 ELSE 1 END, sort_order, id
         LIMIT 1
       `).get(activePriceBook.id);
       return Number(row?.price_before_vat || 0);
     }) : 0;
+    function orderItemsForPricing(orderId) {
+      return safeQuery([], () => db.prepare(`
+        SELECT id,order_id,shape_snapshot_json,shape_name,diameter,segments,total_length_mm,quantity,weight_per_unit,total_weight,price_category,struct_element
+        FROM items
+        WHERE order_id=?
+        ORDER BY id
+      `).all(orderId));
+    }
+    function priceOrderFromItems(row) {
+      if (!pricer) return { amount: 0, source: 'missing_price' };
+      const items = orderItemsForPricing(row.id);
+      if (!items.length) return { amount: 0, source: 'missing_price' };
+      const result = safeQuery(null, () => pricer.calcOrderPriceForCustomer(items, c));
+      const amount = Number(result?.billingPrice || result?.totalPrice || 0);
+      if (amount > 0) return { amount, source: 'price_book_items' };
+      return { amount: 0, source: 'missing_price' };
+    }
     function enrichBillingAmount(row) {
       const billingWeight = Number(row.billing_weight || row.total_weight || 0);
       const existingAmount = Number(row.suggested_amount || row.billed_amount || 0);
-      const fallbackAmount = existingAmount > 0 ? existingAmount : (billingWeight > 0 && fallbackKgPrice > 0 ? billingWeight * fallbackKgPrice : 0);
-      const source = existingAmount > 0 ? 'existing' : (fallbackAmount > 0 ? 'price_book_weight' : 'missing_price');
+      const priced = existingAmount > 0 ? { amount: existingAmount, source: 'existing' } : priceOrderFromItems(row);
+      const fallbackAmount = priced.amount > 0 ? priced.amount : (billingWeight > 0 && fallbackKgPrice > 0 ? billingWeight * fallbackKgPrice : 0);
+      const source = priced.amount > 0 ? priced.source : (fallbackAmount > 0 ? 'price_book_weight' : 'missing_price');
       return {
         ...row,
         billing_weight: billingWeight,

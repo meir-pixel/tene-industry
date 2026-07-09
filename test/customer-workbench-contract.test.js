@@ -111,11 +111,16 @@ test('customer card shows billing amount on each order row', () => {
   assert.match(route, /suggested_amount/);
   assert.match(route, /billing_status/);
   assert.match(route, /billing_source/);
+  assert.match(route, /price_book_items/);
   assert.match(route, /price_book_weight/);
+  assert.match(route, /calcOrderPriceForCustomer/);
+  assert.match(route, /const pricer = deps\.pricer \|\| null/);
+  assert.match(read('server.js'), /createCustomersRouter\(\{[\s\S]*pricer,/);
   assert.match(route, /\\u05e0\\u05e9\\u05dc\\u05d7\\u05d4/);
   assert.match(page, /function billingAmountLabel/);
   assert.match(page, /function billingStatusLabel/);
   assert.match(page, /function billingSourceText/);
+  assert.match(page, /price_book_items/);
   assert.match(page, /billingAmountLabel\(o\)/);
   assert.match(page, /billingStatusLabel\(o\)/);
   assert.match(page, /\\u05e1\\u05db\\u05d5\\u05dd \\u05dc\\u05d7\\u05d9\\u05d5\\u05d1/);

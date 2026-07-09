@@ -1096,6 +1096,7 @@ function billingStatusLabel(row) {
 }
 
 function billingSourceText(row) {
+  if (row?.billing_source === 'price_book_items') return '\u05de\u05d7\u05d9\u05e8\u05d5\u05df \u05dc\u05e4\u05d9 \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd';
   if (row?.billing_source === 'price_book_weight') return '\u05de\u05d7\u05d9\u05e8\u05d5\u05df x \u05de\u05e9\u05e7\u05dc';
   if (row?.billing_source === 'calculated') return '\u05d7\u05d9\u05e9\u05d5\u05d1 \u05e7\u05d9\u05d9\u05dd';
   if (Number(row?.billed_amount || 0) > 0) return '\u05e0\u05e8\u05e9\u05dd \u05d7\u05d9\u05d5\u05d1';
