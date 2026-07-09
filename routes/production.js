@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const createProductionMachinesRouter = require('./productionMachines');
 const productionCards = require('../services/productionCards');
+const { consumeReservationsForProduction } = require('../services/inventoryReservation');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/production missing dependency: ${name}`);
@@ -166,6 +167,14 @@ module.exports = function createProductionRouter(deps) {
     return null;
   }
 
+  function consumeProductionReservations(item, actualWeightKg) {
+    if (!item?.order_id || !item?.id) return { consumed: 0 };
+    return consumeReservationsForProduction(db, {
+      order_id: item.order_id,
+      item_ids: [item.id],
+      actual_weight_kg: actualWeightKg,
+    });
+  }
 
   router.get('/workers', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
     res.json(db.prepare('SELECT * FROM workers WHERE active=1 ORDER BY name').all());
@@ -217,8 +226,9 @@ module.exports = function createProductionRouter(deps) {
     db.prepare(`UPDATE items SET status=?${status===ITEM_STATUS.IN_PRODUCTION&&!item.started_at?',started_at=?':''}${status===ITEM_STATUS.DONE?',completed_at=?':''} WHERE id=?`)
       .run(...Object.values(updates), req.params.id);
     const orderStatus = syncOrderStatusAfterItemStatus(item, status);
+    const consumedReservations = status === ITEM_STATUS.DONE ? consumeProductionReservations(item) : { consumed: 0 };
     wsBroadcast('item_status', { id: Number(req.params.id), status });
-    res.json({ ok: true, order_status: orderStatus });
+    res.json({ ok: true, order_status: orderStatus, consumedReservations });
   });
 
   router.patch('/worker-card/:id', (req, res) => {
@@ -274,6 +284,7 @@ module.exports = function createProductionRouter(deps) {
         WHERE i.id=?
       `).get(req.params.id);
       syncOrderStatusAfterItemStatus(savedItem, nextItemStatus);
+      if (nextItemStatus === ITEM_STATUS.DONE) consumeProductionReservations(savedItem, actual_weight_kg);
       wsBroadcast('item_status', { id: Number(req.params.id), status: nextItemStatus });
     }
     if (produced_qty !== undefined) wsBroadcast('item_progress', { id: Number(req.params.id), produced_qty: Number(produced_qty) });
@@ -319,7 +330,10 @@ module.exports = function createProductionRouter(deps) {
         .run(machineIdNum, workerId, machine.current_item_id, machine.current_order_num, 'close_prev', liveCounter, actualWaste);
 
       const prevPallet = prevItem ? db.prepare('SELECT order_id FROM pallets WHERE id=?').get(prevItem.pallet_id) : null;
-      if (prevPallet) checkOrderComplete(prevPallet.order_id);
+      if (prevPallet) {
+        consumeProductionReservations({ ...prevItem, order_id: prevPallet.order_id });
+        checkOrderComplete(prevPallet.order_id);
+      }
     }
 
     // Start new item
@@ -369,7 +383,10 @@ module.exports = function createProductionRouter(deps) {
       .run(machineIdNum, workerId, machine.current_item_id, machine.current_order_num, 'end_of_day', liveCounter, actualWaste);
 
     const prevPallet = prevItem ? db.prepare('SELECT order_id FROM pallets WHERE id=?').get(prevItem.pallet_id) : null;
-    if (prevPallet) checkOrderComplete(prevPallet.order_id);
+    if (prevPallet) {
+      consumeProductionReservations({ ...prevItem, order_id: prevPallet.order_id });
+      checkOrderComplete(prevPallet.order_id);
+    }
 
     wsBroadcast('end_of_day', { machineId: machineIdNum });
     res.json({ success: true, producedQty: liveCounter, actualWaste });
@@ -396,8 +413,9 @@ module.exports = function createProductionRouter(deps) {
     db.prepare(`UPDATE items SET status=?${status===ITEM_STATUS.IN_PRODUCTION&&!item.started_at?',started_at=?':''}${status===ITEM_STATUS.DONE?',completed_at=?':''} WHERE id=?`)
       .run(...Object.values(updates), req.params.id);
     const orderStatus = syncOrderStatusAfterItemStatus(item, status);
+    const consumedReservations = status === ITEM_STATUS.DONE ? consumeProductionReservations(item) : { consumed: 0 };
     wsBroadcast('item_status', { id: Number(req.params.id), status });
-    res.json({ ok: true, order_status: orderStatus });
+    res.json({ ok: true, order_status: orderStatus, consumedReservations });
   });
 
   router.patch('/items/:id', requireAnyRole(['production', 'kiosk', 'warehouse', 'manager', 'admin']), (req, res) => {
@@ -496,9 +514,12 @@ module.exports = function createProductionRouter(deps) {
       WHERE i.id=?
     `).get(req.params.id) : null;
     const orderStatus = savedItem ? syncOrderStatusAfterItemStatus(savedItem, nextItemStatus) : null;
+    const consumedReservations = savedItem && nextItemStatus === ITEM_STATUS.DONE
+      ? consumeProductionReservations(savedItem, actual_weight_kg)
+      : { consumed: 0 };
     if (nextItemStatus) wsBroadcast('item_status', { id: Number(req.params.id), status: nextItemStatus });
     if (produced_qty !== undefined) wsBroadcast('item_progress', { id: Number(req.params.id), produced_qty: Number(produced_qty) });
-    res.json({ ok: true, order_status: orderStatus, status: nextItemStatus });
+    res.json({ ok: true, order_status: orderStatus, status: nextItemStatus, consumedReservations });
   });
 
   // ── PRODUCTION QUEUE ──────────────────────────────────────────────

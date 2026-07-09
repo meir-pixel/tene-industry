@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { isTechnicalRecognitionNote } = require('../services/intakeWorkflow');
 const productionCards = require('../services/productionCards');
+const { itemShapeMetrics } = require('../services/shapeSnapshot');
 
 const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
 
@@ -20,6 +21,25 @@ function isSixOrTwelveMeterStraight(lengthMm) {
   return Math.abs(mm - 6000) <= 5 || Math.abs(mm - 12000) <= 5;
 }
 
+function deliveryItemMetrics(item, industry = null) {
+  const metrics = itemShapeMetrics(item || {});
+  const totalLengthMm = metrics.totalLengthMm || Number(item && item.total_length_mm) || 0;
+  const snapshotWeight = metrics.totalWeightKg || 0;
+  if (snapshotWeight > 0) return { totalLengthMm, totalWeightKg: snapshotWeight };
+
+  const legacyWeight = Number(item && item.total_weight) || 0;
+  if (legacyWeight > 0) return { totalLengthMm, totalWeightKg: legacyWeight };
+
+  const kgm = industry && typeof industry.kgPerMeter === 'function'
+    ? industry.kgPerMeter(Math.round(Number(item && item.diameter) || 0))
+    : 0;
+  const quantity = Number(item && item.quantity) || 1;
+  const calculatedWeight = kgm && totalLengthMm
+    ? Math.round((totalLengthMm / 1000) * kgm * quantity * 10) / 10
+    : 0;
+  return { totalLengthMm, totalWeightKg: calculatedWeight };
+}
+
 function deliverySectionKey(item, segs) {
   const text = [item.shape_name, item.shape_id, item.struct_element, item.note]
     .filter(Boolean)
@@ -35,7 +55,7 @@ function deliverySectionKey(item, segs) {
   const angles = Array.isArray(segs) ? segs.map(seg => Number(seg.angle_deg)).filter(Number.isFinite) : [];
   const bent = Array.isArray(segs) && segs.length > 1 && angles.some(angle => Math.abs(angle) > 0.001 && angle < 175);
   if (bent) return 'bent_rebar';
-  return isSixOrTwelveMeterStraight(item.total_length_mm) ? 'straight_stock' : 'straight_cut';
+  return isSixOrTwelveMeterStraight(deliveryItemMetrics(item).totalLengthMm || item.total_length_mm) ? 'straight_stock' : 'straight_cut';
 }
 
 function buildDeliveryWorkSummary(allItems, parseSegs, calcItemWeight) {
@@ -98,12 +118,7 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
   const parseSegs = raw => { try { return JSON.parse(raw) || []; } catch { return []; } };
   const isBent = item => deliverySectionKey(item, parseSegs(item.segments)) === 'bent_rebar';
 
-  const calcItemWeight = it => {
-    if (it.total_weight && it.total_weight > 0) return Number(it.total_weight);
-    const kgm = industry.kgPerMeter(Math.round(it.diameter));
-    if (!kgm) return 0;
-    return Math.round((Number(it.total_length_mm || 0) / 1000) * kgm * (it.quantity || 1) * 10) / 10;
-  };
+  const calcItemWeight = it => Math.round((deliveryItemMetrics(it, industry).totalWeightKg || 0) * 10) / 10;
 
   const workSummary = buildDeliveryWorkSummary(allItems, parseSegs, calcItemWeight);
   const wTotal = allItems.reduce((sum, item) => sum + calcItemWeight(item), 0);
@@ -127,11 +142,12 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
   let rows = '';
   allItems.forEach((item, idx) => {
     const segs   = parseSegs(item.segments);
+    const itemMetrics = deliveryItemMetrics(item, industry);
     const bent   = isBent(item);
     const posNum = idx + 1;
     const diam   = item.diameter || '–';
-    const type   = bent ? 'מכופף' : (isSixOrTwelveMeterStraight(item.total_length_mm) ? 'ברזל ישר 6/12' : 'ישר חתוך');
-    const lenCm  = item.total_length_mm ? Math.round(item.total_length_mm / 10) : '–';
+    const type   = bent ? 'מכופף' : (isSixOrTwelveMeterStraight(itemMetrics.totalLengthMm) ? 'ברזל ישר 6/12' : 'ישר חתוך');
+    const lenCm  = itemMetrics.totalLengthMm ? Math.round(itemMetrics.totalLengthMm / 10) : '–';
     const qty    = item.quantity || 1;
     const wt     = fmt1(calcItemWeight(item));
     const notes  = [item.struct_element, item.struct_floor, item.sheet_num, printableItemNote(item.note)].filter(Boolean).join(' · ') || '–';

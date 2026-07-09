@@ -1,8 +1,39 @@
 const router = require('express').Router();
+const { itemShapeMetrics } = require('../services/shapeSnapshot');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/quality missing dependency: ${name}`);
   return value;
+}
+
+function enrichQualityCheck(row = {}) {
+  const metrics = itemShapeMetrics({
+    quantity: row.item_quantity,
+    shape_snapshot_json: row.shape_snapshot_json,
+    total_length_mm: row.item_total_length_mm,
+    weight_per_unit: row.item_weight_per_unit,
+    total_weight: row.item_total_weight,
+  });
+  return {
+    ...row,
+    order_id: row.order_id || row.item_order_id || null,
+    order_num: row.order_num || row.item_order_num || null,
+    item_shape_name: row.item_shape_name || null,
+    item_diameter: row.item_diameter || null,
+    shape_v2_total_length_mm: metrics.totalLengthMm || null,
+    shape_v2_unit_weight_kg: metrics.unitWeightKg || null,
+    shape_v2_total_weight_kg: metrics.totalWeightKg || null,
+  };
+}
+
+function qualityItemContext(db, itemId) {
+  if (!itemId) return null;
+  return db.prepare(`
+    SELECT i.id,i.order_id,i.shape_snapshot_json,i.shape_name,i.diameter,i.total_length_mm,i.quantity,i.weight_per_unit,i.total_weight,o.order_num
+    FROM items i
+    LEFT JOIN orders o ON o.id=i.order_id
+    WHERE i.id=?
+  `).get(itemId) || null;
 }
 
 module.exports = function createQualityRouter(deps) {
@@ -10,19 +41,37 @@ module.exports = function createQualityRouter(deps) {
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   router.get('/quality', requireAnyRole(['quality', 'production', 'office', 'manager', 'admin']), (req, res) => {
     const { order_id, item_id, result, limit=100 } = req.query;
-    let sql = 'SELECT q.*,u.display_name as inspector_name FROM quality_checks q LEFT JOIN users u ON q.inspector_id=u.id WHERE 1=1';
+    let sql = `SELECT q.*,u.display_name as inspector_name,
+             i.order_id as item_order_id,i.shape_snapshot_json,i.shape_name as item_shape_name,
+             i.diameter as item_diameter,i.total_length_mm as item_total_length_mm,
+             i.quantity as item_quantity,i.weight_per_unit as item_weight_per_unit,i.total_weight as item_total_weight,
+             o.order_num as item_order_num
+      FROM quality_checks q
+      LEFT JOIN users u ON q.inspector_id=u.id
+      LEFT JOIN items i ON i.id=q.item_id
+      LEFT JOIN orders o ON o.id=i.order_id
+      WHERE 1=1`;
     const params = [];
     if (order_id) { sql+=' AND q.order_id=?'; params.push(order_id); }
     if (item_id)  { sql+=' AND q.item_id=?';  params.push(item_id); }
     if (result)   { sql+=' AND q.result=?';   params.push(result); }
     sql+=' ORDER BY q.checked_at DESC LIMIT ?'; params.push(Number(limit));
-    res.json(db.prepare(sql).all(...params));
+    res.json(db.prepare(sql).all(...params).map(enrichQualityCheck));
   });
   router.post('/quality', requireAnyRole(['quality', 'manager', 'admin']), (req, res) => {
     const f = req.body;
-    if (!f.item_id) return res.status(400).json({ error: 'item_id חובה' });
+    if (!f.item_id) return res.status(400).json({ error: 'item_id is required' });
+    const itemContext = qualityItemContext(db, f.item_id);
+    const metrics = itemShapeMetrics(itemContext || {});
+    const orderId = f.order_id || itemContext?.order_id || null;
+    const orderNum = f.order_num || itemContext?.order_num || null;
+    const normalizedNotes = [
+      f.notes || '',
+      metrics.totalLengthMm ? `Shape V2 length: ${metrics.totalLengthMm}mm` : '',
+      metrics.totalWeightKg ? `Shape V2 weight: ${Math.round(metrics.totalWeightKg * 1000) / 1000}kg` : '',
+    ].filter(Boolean).join(' | ');
     const r = db.prepare('INSERT INTO quality_checks (item_id,order_id,order_num,inspector_id,check_type,sample_qty,pass_qty,fail_qty,deviation_mm,deviation_deg,result,action_taken,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(f.item_id,f.order_id||null,f.order_num||null,f.inspector_id||null,f.check_type||'length',f.sample_qty||1,f.pass_qty||0,f.fail_qty||0,f.deviation_mm||0,f.deviation_deg||0,f.result||'pass',f.action_taken||null,f.notes||null);
+      .run(f.item_id,orderId,orderNum,f.inspector_id||null,f.check_type||'length',f.sample_qty||1,f.pass_qty||0,f.fail_qty||0,f.deviation_mm||0,f.deviation_deg||0,f.result||'pass',f.action_taken||null,normalizedNotes||null);
     db.prepare('UPDATE items SET qc_status=? WHERE id=?').run(f.result==='pass'?'עבר':'נכשל',f.item_id);
     res.json({ id: r.lastInsertRowid });
   });
@@ -32,6 +81,11 @@ module.exports = function createQualityRouter(deps) {
       passed:  db.prepare("SELECT COUNT(*) as c FROM quality_checks WHERE result='pass'").get().c,
       failed:  db.prepare("SELECT COUNT(*) as c FROM quality_checks WHERE result='fail'").get().c,
       byType:  db.prepare('SELECT check_type,COUNT(*) as c,AVG(deviation_mm) as avg_dev FROM quality_checks GROUP BY check_type').all(),
+      affectedWeightKg: db.prepare(`
+        SELECT i.* FROM quality_checks q
+        JOIN items i ON i.id=q.item_id
+        WHERE q.result!='pass'
+      `).all().reduce((sum, item) => sum + (itemShapeMetrics(item).totalWeightKg || 0), 0),
     });
   });
 

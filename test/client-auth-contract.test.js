@@ -370,8 +370,11 @@ test('customer portal order detail projection hides internal production fields',
   for (const field of internalFields) {
     assert.doesNotMatch(detailBlock, new RegExp('\\b' + field + '\\b'), field);
   }
-  assert.match(detailBlock, /SELECT id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight/);
+  assert.match(detailBlock, /SELECT id,shape_snapshot_json,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight/);
+  assert.match(detailBlock, /portalPublicItem/);
   assert.doesNotMatch(customerPage, /item\.production_qty|item\.produced_qty|item\.machine/);
+  assert.match(customerPage, /shapeSnapshot:i\.shapeSnapshot \|\| null/);
+  assert.match(customerPage, /portalItemShapeMetrics/);
 });
 
 test('existing customer portal order submission still creates customer confirmation flow', () => {

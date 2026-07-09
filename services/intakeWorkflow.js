@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { buildFullShapeSnapshot, buildMachineProfilesPlaceholder } = require('./shapeSnapshot');
 const { rebarKgPerMeter } = require('../constants');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 
@@ -395,14 +396,6 @@ function intakeShapeType(item = {}, sides = [], spiral = null) {
   return 'bent_bar';
 }
 
-function machineProfilesPlaceholder() {
-  return {
-    MEP: { status: 'not_implemented', profileVersion: null, payload: null },
-    PEDAX: { status: 'not_implemented', profileVersion: null, payload: null },
-    SCHNELL: { status: 'not_implemented', profileVersion: null, payload: null },
-  };
-}
-
 function shapeSnapshotId(item = {}, shapeType = 'bar') {
   return firstTextValue(item.shapeId, item.shape_id)
     || crypto.createHash('sha1').update(JSON.stringify({
@@ -455,8 +448,7 @@ function buildIntakeShapeSnapshot(item = {}, normalized = {}) {
         totalLengthMm,
         bendCount: angles.length,
       };
-  return {
-    contractVersion: 2,
+  return buildFullShapeSnapshot({
     shapeVersion: 1,
     shapeId,
     shapeType,
@@ -466,14 +458,14 @@ function buildIntakeShapeSnapshot(item = {}, normalized = {}) {
     displayName,
     data,
     calculated: { totalLengthMm, weightKg, bendCount: angles.length },
-    machineOutput: { generic, machineProfiles: machineProfilesPlaceholder() },
+    machineOutput: { generic, machineProfiles: buildMachineProfilesPlaceholder() },
     validation: {
       valid: true,
       errors: [],
       warnings: reviewNotes.map(note => note.message).filter(Boolean),
       timestamp: now,
     },
-  };
+  });
 }
 
 function escapeRegex(value) {

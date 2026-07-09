@@ -1,5 +1,7 @@
 'use strict';
 
+const { itemShapeMetrics } = require('./shapeSnapshot');
+
 function createPricer(db) {
   if (!db) throw new Error('services/pricer missing dependency: db');
 
@@ -192,10 +194,14 @@ function createPricer(db) {
     };
   }
 
+  function itemPricingWeightKg(item = {}) {
+    return itemShapeMetrics(item).totalWeightKg || 0;
+  }
+
   function calcItemPrice(item, { tier = 'general', customerId = null, discountPct = 0 } = {}) {
     const ppu = getPricePerKg(item.diameter, { tier, customerId, discountPct });
     if (ppu === null) return null;
-    return Number((item.totalWeight * ppu).toFixed(2));
+    return Number((itemPricingWeightKg(item) * ppu).toFixed(2));
   }
 
   function calcOrderPrice(items, { tier = 'general', customerId = null, discountPct = 0, wastePct = 3 } = {}) {
@@ -206,7 +212,7 @@ function createPricer(db) {
     const breakdown = (items || []).map(item => {
       const resolved = resolveDiameterPrice(item.diameter, { tier, customerId, discountPct });
       const ppu = resolved.pricePerKg;
-      const weight = Number(item.totalWeight || 0);
+      const weight = itemPricingWeightKg(item);
       const price = ppu === null ? 0 : weight * ppu;
       totalWeight += weight;
       totalPrice += price;
@@ -265,6 +271,7 @@ function createPricer(db) {
     getBaseListPrice,
     getAllPriceRows,
     listPortalPriceList,
+    itemPricingWeightKg,
   };
 }
 

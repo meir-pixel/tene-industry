@@ -881,6 +881,8 @@ test('quality API routes are split out of the server monolith without maintenanc
   assert.ok(!route.includes('requireRole'));
   assert.ok(route.includes('INSERT INTO quality_checks'));
   assert.ok(route.includes('UPDATE items SET qc_status'));
+  assert.match(route, /itemShapeMetrics/);
+  assert.match(route, /shape_v2_total_weight_kg/);
 
   for (const routeSnippet of [
     "router.get('/quality'",
@@ -1139,7 +1141,15 @@ test('dashboard reports KPI and export routes are split out of the server monoli
   assert.ok(route.includes("router.get('/export/inventory'"));
   assert.match(route, /function toCSV/);
   assert.match(route, /statusContracts[.]ITEM_STATUS[.]DONE/);
-  assert.match(route, /ai[.]analyzeWastePatterns/);
+  assert.match(route, /itemShapeMetrics/);
+  assert.match(route, /function orderCreatedWeightByDate/);
+  assert.match(route, /function wasteSummaryByDiameter/);
+  assert.match(route, /function periodWasteRows/);
+  assert.match(route, /function machineEfficiencyByPeriod/);
+  assert.match(route, /function reportDataQuality/);
+  assert.match(route, /shape_v2_item_count/);
+  assert.doesNotMatch(route, /SUM\(i[.]total_weight\)/);
+  assert.doesNotMatch(route, /ai[.]analyzeWastePatterns/);
   assert.match(server, /createReportsRouter/);
   assert.ok(server.includes("app.use('/api', requireModule('reports'), createReportsRouter"));
   for (const forbiddenSnippet of [

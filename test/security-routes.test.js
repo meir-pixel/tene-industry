@@ -152,7 +152,7 @@ function spiralShapeV2Envelope() {
         turns: 50,
         totalLengthMm: 47124,
       },
-      machineProfiles: {},
+      machineProfiles: { MEP: { status: 'not_implemented', profileVersion: null, payload: null }, PEDAX: { status: 'not_implemented', profileVersion: null, payload: null }, SCHNELL: { status: 'not_implemented', profileVersion: null, payload: null } },
     },
     validation: { valid: true, warnings: [], errors: [] },
   };
@@ -417,6 +417,38 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(updated.stable_order_id, 'ORDER-CONTRACT-APPROVE');
   });
 
+  await t.test('order cancellation releases all active inventory reservations', async () => {
+    const customerId = seedCustomer();
+    const orderId = seedInternalOrder(customerId, 'ORDER-CANCEL-RESERVATIONS');
+    const otherOrderId = seedInternalOrder(customerId, 'ORDER-CANCEL-RESERVATIONS-OTHER');
+
+    const insertReservation = db.prepare(`
+      INSERT INTO inventory_reservations (order_id, item_id, diameter, material_type, reserved_kg, status)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    insertReservation.run(orderId, null, 12, 'coil', 100, 'active');
+    insertReservation.run(orderId, null, 12, 'coil', 75, 'active');
+    insertReservation.run(orderId, null, 12, 'coil', 25, 'released');
+    insertReservation.run(otherOrderId, null, 12, 'coil', 50, 'active');
+
+    const response = await request(`/api/orders/${orderId}/status`, {
+      method: 'PATCH',
+      headers: authHeaders(manager),
+      body: JSON.stringify({ status: statusContracts.ORDER_STATUS.CANCELLED }),
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.deepEqual(result.releasedReservations, { order_id: orderId, released: 2 });
+
+    const rows = db.prepare('SELECT order_id,status FROM inventory_reservations WHERE order_id IN (?, ?) ORDER BY id').all(orderId, otherOrderId);
+    assert.deepEqual(rows, [
+      { order_id: orderId, status: 'released' },
+      { order_id: orderId, status: 'released' },
+      { order_id: orderId, status: 'released' },
+      { order_id: otherOrderId, status: 'active' },
+    ]);
+  });
+
   await t.test('order item contract stores quantity on item and preserves shape snapshot', async () => {
     const customerId = seedCustomer();
     const orderId = seedInternalOrder(customerId, 'ORDER-CONTRACT-ITEM');
@@ -450,12 +482,22 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
       total_length_mm: 1500,
       segments: [{ length_mm: 1500, angle_deg: 0 }],
     });
+    db.prepare(`
+      INSERT INTO inventory_reservations (order_id, item_id, diameter, material_type, reserved_kg, status)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(orderId, created.itemId, 12, 'coil', 42, 'active');
+
     const updateResponse = await request(`/api/orders/${orderId}/items/${created.itemId}`, { method: 'PATCH', headers: authHeaders(manager), body: updateBody });
     assert.equal(updateResponse.status, 200);
+    const updateResult = await updateResponse.json();
+    assert.equal(updateResult.releasedReservations.released, 1);
+    assert.equal(updateResult.inventoryReservations.inserted, 1);
     const updated = db.prepare('SELECT quantity,shape_name,shape_snapshot_json FROM items WHERE id=?').get(created.itemId);
     assert.equal(updated.quantity, 7);
     assert.equal(updated.shape_name, 'contract-updated');
     assert.equal(updated.shape_snapshot_json, item.shape_snapshot_json);
+    const reservationStatuses = db.prepare('SELECT status FROM inventory_reservations WHERE item_id=? ORDER BY id').all(created.itemId).map(row => row.status);
+    assert.deepEqual(reservationStatuses, ['released', 'active']);
   });
 
   await t.test('orders persist full Shape V2 envelope and compatibility fields from order payload', async () => {
@@ -484,6 +526,40 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
       assert.ok(Object.hasOwn(snapshot, field), `missing ${field}`);
     }
     assert.deepEqual(snapshot, envelope);
+    const reservation = db.prepare('SELECT order_id,item_id,diameter,material_type,reserved_kg,status FROM inventory_reservations WHERE order_id=? AND item_id=?').get(created.orderId, item.id);
+    assert.deepEqual(reservation, {
+      order_id: created.orderId,
+      item_id: item.id,
+      diameter: 12,
+      material_type: 'coil',
+      reserved_kg: 6.76,
+      status: 'active',
+    });
+    assert.equal(created.inventoryReservations.inserted, 1);
+    assert.equal(created.inventoryReservations.reservedKg, 6.76);
+  });
+
+  await t.test('order item delete releases existing inventory reservation', async () => {
+    const envelope = shapeV2Envelope();
+    const createResponse = await request('/api/orders', {
+      method: 'POST',
+      headers: authHeaders(manager),
+      body: JSON.stringify({
+        customer: { name: 'Delete Reservation Customer', phone: '0500000098' },
+        order: { orderNum: 'ORDER-DELETE-RESERVATION', channel: 'office', totalWeight: 0, priority: 'regular' },
+        pallets: [{ items: [{ shapeSnapshot: envelope, qty: 2, note: 'delete reservation item' }] }],
+      }),
+    });
+    assert.equal(createResponse.status, 200);
+    const created = await createResponse.json();
+    const item = db.prepare('SELECT * FROM items WHERE order_id=?').get(created.orderId);
+    const deleteResponse = await request(`/api/orders/${created.orderId}/items/${item.id}`, { method: 'DELETE', headers: authHeaders(manager) });
+    assert.equal(deleteResponse.status, 200);
+    const deleteResult = await deleteResponse.json();
+    assert.equal(deleteResult.releasedReservations.released, 1);
+    const reservation = db.prepare('SELECT item_id,status FROM inventory_reservations WHERE order_id=?').get(created.orderId);
+    assert.equal(reservation.item_id, null);
+    assert.equal(reservation.status, 'released');
   });
 
   await t.test('order item add persists full Shape V2 envelope unchanged', async () => {
@@ -509,6 +585,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
       assert.ok(Object.hasOwn(snapshot, field), `missing ${field}`);
     }
     assert.deepEqual(snapshot, envelope);
+
   });
 
   await t.test('order import preview allows office but rejects production', async () => {
@@ -926,18 +1003,24 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     db.prepare('UPDATE orders SET total_weight=? WHERE id=?').run(9999, orderId);
     const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,?,?)')
       .run(orderId, 1, 25).lastInsertRowid;
+    const reportShape = shapeV2Envelope();
+    reportShape.family = 'bars';
+    reportShape.calculated.totalLengthMm = 1000;
+    reportShape.calculated.weightKg = 0.888;
+    reportShape.machineOutput.generic.totalLengthMm = 1000;
+    reportShape.machineOutput.generic.weightKg = 0.888;
     db.prepare(`
-      INSERT INTO items (pallet_id,shape_id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,status,completed_at,machine)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    `).run(palletId, 's1', 'straight', 12, 1000, 3, 0.888, 25, statusContracts.ITEM_STATUS.DONE, new Date().toISOString(), 'A');
+      INSERT INTO items (pallet_id,shape_id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,status,completed_at,machine,shape_snapshot_json)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(palletId, 's1', 'straight', 12, 1000, 3, 0.888, 25, statusContracts.ITEM_STATUS.DONE, new Date().toISOString(), 'A', JSON.stringify(reportShape));
 
     const dashboardResponse = await request('/api/dashboard', { headers: authHeaders(production) });
     assert.equal(dashboardResponse.status, 200);
     const dashboard = await dashboardResponse.json();
-    assert.equal(dashboard.producedWeightToday, 25);
+    assert.equal(dashboard.producedWeightToday, 2.664);
     assert.equal(dashboard.producedTonsToday, 0);
-    assert.ok(dashboard.totalWeightToday >= 9999);
-    assert.notEqual(dashboard.producedWeightToday, dashboard.totalWeightToday);
+    assert.ok(dashboard.totalWeightToday >= 2.664);
+    assert.ok(dashboard.totalWeightToday < 9999);
 
     const dashboardContracts = Object.values(dataContracts.WIDGET_CONTRACTS)
       .filter(contract => contract.source.api === '/api/dashboard');
@@ -952,7 +1035,15 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
 
     assert.equal((await request('/api/reports/summary')).status, 401);
     assert.equal((await request('/api/reports/summary', { headers: authHeaders(production) })).status, 403);
-    assert.equal((await request('/api/reports/summary', { headers: authHeaders(finance) })).status, 200);
+    assert.equal((await request('/api/reports/summary?from=bad-date', { headers: authHeaders(finance) })).status, 400);
+    const today = new Date().toISOString().split('T')[0];
+    const summaryResponse = await request(`/api/reports/summary?from=${today}&to=${today}`, { headers: authHeaders(finance) });
+    assert.equal(summaryResponse.status, 200);
+    const summary = await summaryResponse.json();
+    assert.ok(summary.dataQuality.shape_v2_item_count >= 1);
+    assert.ok(summary.dataQuality.shape_v2_coverage_pct > 0);
+    assert.ok(summary.machineEfficiency.some(row => row.machine === 'A' && row.total_weight_kg >= 2.664));
+    assert.ok(Array.isArray(summary.waste));
 
     assert.equal((await request('/api/waste/summary')).status, 401);
     assert.equal((await request('/api/waste/summary', { headers: authHeaders(production) })).status, 200);

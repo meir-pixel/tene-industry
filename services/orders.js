@@ -32,6 +32,7 @@ const {
   selectedRawMaterialId,
 } = require('./inventory');
 const { createStableOrderId, buildOrderItemUid, shapeSnapshotJson, isShapeDataContractV2, withShapeContractLegacyFields } = require('./orderContracts');
+const { reserveMaterialForOrder } = require('./inventoryReservation');
 
 function createOrderFactory(db, { generateOrderNum, industry, settingsService = null }) {
   if (!db) throw new Error('services/orders missing dependency: db');
@@ -119,6 +120,7 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
 
     const orderId = orderResult.lastInsertRowid;
     const inventoryShortages = [];
+    const reservationItems = [];
 
     (pallets || []).forEach((pallet, idx) => {
       const pr = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight,total_weight) VALUES (?,?,?,?)')
@@ -196,6 +198,16 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
             itemNote, reviewStatus, reviewNotesJson, structElement, structFloor, sheetNum, machine,
             item.is_3d ? 1 : 0);
         db.prepare('UPDATE items SET item_uid=? WHERE id=?').run(buildOrderItemUid(orderId, itemResult.lastInsertRowid), itemResult.lastInsertRowid);
+        reservationItems.push({
+          id: itemResult.lastInsertRowid,
+          item_id: itemResult.lastInsertRowid,
+          diameter: item.diameter,
+          material_type: item.material_type || item.materialType || 'coil',
+          total_weight: totalWeight,
+          quantity: item.qty || 1,
+          weight_per_unit: weightPerUnit,
+          shape_snapshot_json: shapeSnapshot,
+        });
 
         const allocation = allocateOrderItemStock(db, {
           orderId,
@@ -221,6 +233,11 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
       });
     });
 
+    const inventoryReservations = reserveMaterialForOrder(db, {
+      order_id: orderId,
+      items: reservationItems,
+    });
+
     const procurementRequests = openProcurementForStockShortages(db, {
       orderId,
       orderNum,
@@ -228,7 +245,7 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
       createdBy: order.createdBy || 'order-create',
     });
 
-    return { success: true, orderNum, orderId, inventoryShortages: procurementRequests };
+    return { success: true, orderNum, orderId, inventoryShortages: procurementRequests, inventoryReservations };
   }
 
   return {

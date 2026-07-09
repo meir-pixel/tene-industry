@@ -12,6 +12,7 @@ const {
   sourceIdentityFromRequest,
 } = require('../services/importSourceIdentity');
 const { ORDER_STATUS } = require('../status-contracts');
+const { releaseAllReservationsForOrder, releaseReservationsForItems, reserveMaterialForOrder } = require('../services/inventoryReservation');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -291,6 +292,9 @@ module.exports = function createOrdersRouter(deps) {
     db.prepare(
       'UPDATE orders SET status=?, stable_order_id=COALESCE(stable_order_id, order_num), approved_by=CASE WHEN ? THEN ? ELSE approved_by END, approved_at=CASE WHEN ? THEN ? ELSE approved_at END WHERE id=?'
     ).run(requestedStatus, transition.isApproval ? 1 : 0, req.userId || userId || null, transition.isApproval ? 1 : 0, approvedAt, order.id);
+    const releasedReservations = requestedStatus === ORDER_STATUS.CANCELLED
+      ? releaseAllReservationsForOrder(db, { order_id: order.id })
+      : { order_id: order.id, released: 0 };
     auditLog('order', order.id, order.order_num, 'status_change', 'status', old, requestedStatus, null, req.userId || userId || null, req.auth?.display_name || userName || null);
     if (transition.isApproval) {
       auditLog('order', order.id, order.order_num, 'manager_approval', 'approved_by', null, req.userId || userId || null, null, req.userId || userId || null, req.auth?.display_name || userName || null);
@@ -300,7 +304,7 @@ module.exports = function createOrdersRouter(deps) {
       const c = db.prepare('SELECT phone FROM customers WHERE id=?').get(order.customer_id);
       if (c?.phone) intake.notifyOrderStatus(c.phone, order.order_num, requestedStatus).catch(() => {});
     }
-    res.json({ success: true });
+    res.json({ success: true, releasedReservations });
   });
 
   router.post('/orders/:orderId/items', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
@@ -355,21 +359,39 @@ module.exports = function createOrdersRouter(deps) {
       total_length_mm: item.total_length_mm,
       segments: item.segments,
     });
-    db.prepare(`
-      UPDATE items
-      SET shape_name=?, diameter=?, quantity=?, production_qty=?, total_length_mm=?,
-          segments=?, spiral_diameter_mm=?, spiral_turns=?, weight_per_unit=?, total_weight=?,
-          item_uid=COALESCE(item_uid, ?), shape_snapshot_json=COALESCE(shape_snapshot_json, ?),
-          note=?, struct_element=?, struct_floor=?, sheet_num=?, review_status='pending', reviewed_by=NULL, reviewed_at=NULL
-      WHERE id=?
-    `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, buildOrderItemUid(req.params.orderId, item.id), buildOrderItemShapeSnapshotJson(req.body, { shapeId: req.body.shapeId || req.body.shape_id || item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null, note, structElement, structFloor, sheetNum }), note, structElement || null, structFloor || null, sheetNum || null, item.id);
-
-    const orderTotal = recalcOrderWeights(req.params.orderId);
+    const nextShapeSnapshot = buildOrderItemShapeSnapshotJson(req.body, { shapeId: req.body.shapeId || req.body.shape_id || item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null, note, structElement, structFloor, sheetNum });
+    const updateResult = db.transaction(() => {
+      const releasedReservations = releaseReservationsForItems(db, { item_ids: [item.id] });
+      db.prepare(`
+        UPDATE items
+        SET shape_name=?, diameter=?, quantity=?, production_qty=?, total_length_mm=?,
+            segments=?, spiral_diameter_mm=?, spiral_turns=?, weight_per_unit=?, total_weight=?,
+            item_uid=COALESCE(item_uid, ?), shape_snapshot_json=COALESCE(shape_snapshot_json, ?),
+            note=?, struct_element=?, struct_floor=?, sheet_num=?, review_status='pending', reviewed_by=NULL, reviewed_at=NULL
+        WHERE id=?
+      `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, buildOrderItemUid(req.params.orderId, item.id), nextShapeSnapshot, note, structElement || null, structFloor || null, sheetNum || null, item.id);
+      const inventoryReservations = reserveMaterialForOrder(db, {
+        order_id: Number(req.params.orderId),
+        items: [{
+          id: item.id,
+          item_id: item.id,
+          diameter,
+          material_type: item.material_type || item.materialType || 'coil',
+          total_weight: totalWeight,
+          quantity,
+          weight_per_unit: weightPerUnit,
+          shape_snapshot_json: nextShapeSnapshot,
+        }],
+      });
+      const orderTotal = recalcOrderWeights(req.params.orderId);
+      return { releasedReservations, inventoryReservations, orderTotal };
+    })();
+    const { releasedReservations, inventoryReservations, orderTotal } = updateResult;
 
 
     auditLog('item', item.id, item.order_num, 'item_update', 'shape_payload', before, JSON.stringify(req.body), note || null, req.auth?.sub || null, req.auth?.display_name || null);
     wsBroadcast('order_item_updated', { orderId: Number(req.params.orderId), itemId: Number(item.id), orderNum: item.order_num });
-    res.json({ success: true, itemId: Number(item.id), total_weight: totalWeight, order_total_weight: orderTotal });
+    res.json({ success: true, itemId: Number(item.id), total_weight: totalWeight, order_total_weight: orderTotal, releasedReservations, inventoryReservations });
   });
 
   router.delete('/orders/:orderId/items/:itemId', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
@@ -393,17 +415,23 @@ module.exports = function createOrdersRouter(deps) {
       total_length_mm: item.total_length_mm,
       segments: item.segments,
     });
-    db.prepare('DELETE FROM items WHERE id=?').run(item.id);
-    db.prepare(`
-      DELETE FROM pallets
-      WHERE order_id=?
-        AND NOT EXISTS (SELECT 1 FROM items WHERE items.pallet_id=pallets.id)
-    `).run(req.params.orderId);
-    const orderTotal = recalcOrderWeights(req.params.orderId);
+    const deleteResult = db.transaction(() => {
+      const releasedReservations = releaseReservationsForItems(db, { item_ids: [item.id] });
+      db.prepare("UPDATE inventory_reservations SET item_id=NULL, updated_at=CURRENT_TIMESTAMP WHERE item_id=? AND status='released'").run(item.id);
+      db.prepare('DELETE FROM items WHERE id=?').run(item.id);
+      db.prepare(`
+        DELETE FROM pallets
+        WHERE order_id=?
+          AND NOT EXISTS (SELECT 1 FROM items WHERE items.pallet_id=pallets.id)
+      `).run(req.params.orderId);
+      const orderTotal = recalcOrderWeights(req.params.orderId);
+      return { releasedReservations, orderTotal };
+    })();
+    const { releasedReservations, orderTotal } = deleteResult;
 
     auditLog('item', item.id, item.order_num, 'item_delete', 'shape_payload', before, null, item.note || null, req.auth?.sub || null, req.auth?.display_name || null);
     wsBroadcast('order_item_deleted', { orderId: Number(req.params.orderId), itemId: Number(item.id), orderNum: item.order_num });
-    res.json({ success: true, itemId: Number(item.id), order_total_weight: orderTotal });
+    res.json({ success: true, itemId: Number(item.id), order_total_weight: orderTotal, releasedReservations });
   });
   router.patch('/orders/:orderId/items/:itemId/review', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const status = String(req.body?.status || 'approved').trim();

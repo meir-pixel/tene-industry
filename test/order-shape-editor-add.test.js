@@ -14,12 +14,16 @@ test('orders manual add uses the shared shape editor, not the legacy manual form
   assert.doesNotMatch(html, /openManualItemAdd/);
   assert.doesNotMatch(html, /itemEditOverlay/);
   assert.doesNotMatch(html, /saveItemEdit/);
+  assert.doesNotMatch(html, /prompt\('/);
+  assert.match(html, /function openOrderShapeEditorForAdd\(event, orderId\) \{[\s\S]*editor\.open\(\{[\s\S]*quantity: 1,[\s\S]*?\n  \}\);[\s\S]*?\n\}/);
 });
 
 test('orders item shape edits go through the shared shape editor', () => {
   const html = orders();
-  assert.match(html, /function openItemEdit\(event, orderId, itemId\) \{[\s\S]*ensureOrderShapeEditor\(\)[\s\S]*editor\.open\(orderShapeDataFromItem\(item\)\);[\s\S]*?\n\}/);
+  assert.match(html, /function openItemEdit\(event, orderId, itemId\) \{[\s\S]*ensureOrderShapeEditor\(\)[\s\S]*editor\.open\(\{ \.\.\.orderShapeDataFromItem\(item\), quantity: Number\(item\.quantity\) \|\| 1 \}\);[\s\S]*?\n\}/);
   assert.match(html, /async function shapeSelectedFromOrder\(data\) \{[\s\S]*method: isNewItem \? 'POST' : 'PATCH'[\s\S]*openDetail\(ctx\.orderId\)/);
+  assert.match(html, /orderItemQuantity = Math\.max\(1, Number\(data\?\.orderItemQuantity/);
+  assert.match(html, /shapeSnapshot: data && data\.contractVersion === 2 \? data : null/);
 });
 
 test('orders missing intake source add flow offers a manual shape editor fallback', () => {

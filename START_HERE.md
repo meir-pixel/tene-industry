@@ -6,6 +6,13 @@
 
 ---
 
+## עדכון אחרון - 2026-07-06
+
+- Shape V2 הושלם על מסלול Orders/Production/Intake: יצירת הזמנה, עריכת פריט, הדפסות ייצור ו-Intake/OCR approval שומרים ומשתמשים ב-Shape V2 snapshot מלא, כאשר כמות נשארת ברמת item ולא בתוך החוזה הגיאומטרי.
+- Intake/OCR approval מייצר עכשיו snapshot מלא מתוך שורות OCR, כולל sides/angles, calculated totals, machineOutput generic ו-machineProfiles placeholders.
+- בוצע ניקוי dead code ראשון: נמחקו שלושה mockups ללא שימוש runtime מתוך `docs/mockups/`, ו-`DEAD_CODE_AUDIT.md` עודכן עם baseline נקי והמשך ניקוי מומלץ.
+- בדיקת baseline אחרונה: `npm test` ירוק עם 353/353 tests.
+
 ## 1. מה זה הפרויקט (במשפט)
 
 מערכת מודולרית לניהול מפעל ותעשייה, שנמכרת **לפי מודולים ללקוחות שונים**.

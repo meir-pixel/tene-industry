@@ -1,17 +1,17 @@
-﻿# Dead Code Audit - IronBend / Tene Industry
+# Dead Code Audit - IronBend / Tene Industry
 
-Date: 2026-07-05
+Date: 2026-07-06
 Scope: documentation-only audit for reducing unused files and open cleanup risk.
 
 ## Executive Summary
 
 Do not delete runtime code yet. The repo is mostly wired through explicit registries and tests, so a safe cleanup must start with documentation/mockup artifacts and deprecated entry screens, not routes or shared services.
 
-Current blocking issue before any deletion campaign:
+Current cleanup baseline:
 
-- `public/shape-editor.js` is modified but not committed.
-- Full `npm test` is already failing because of that open mesh/shape-editor change.
-- Resolve or quarantine that change before using test results as cleanup proof.
+- Full `npm test` was clean after the Shape V2 merge baseline.
+- `public/shape-editor.js` is clean in git status.
+- The first approved non-runtime mockup deletion batch was completed on 2026-07-06.
 
 ## Method Used
 
@@ -93,23 +93,21 @@ Do not delete:
 - `public/shape-renderer.js`
 - `public/rebar-weights.js`
 
-## Cleanup Candidates - Safe First Pass
+## Completed Cleanup
 
-These are candidates for a future deletion/archive commit, not deleted in this audit.
+### 2026-07-06 - Mockups With No Runtime Use
 
-### A. Mockups With No Runtime Use
+Deleted the first approved documentation/mockup batch after confirming these files had no runtime references:
 
-These are standalone mockup artifacts under `docs/mockups/`. They are not loaded by the app runtime.
-
-Recommended action: move to `docs/archive/mockups/` or delete after visual decisions are confirmed.
-
-| File | Evidence | Recommendation |
+| File | Evidence | Action |
 |---|---|---|
-| `docs/mockups/login-preview.html` | no runtime refs found | archive/delete candidate |
-| `docs/mockups/order-items-field.html` | no runtime refs found | archive/delete candidate |
-| `docs/mockups/order-tracking.html` | no runtime refs found | archive/delete candidate |
+| `docs/mockups/login-preview.html` | no runtime refs found | deleted |
+| `docs/mockups/order-items-field.html` | no runtime refs found | deleted |
+| `docs/mockups/order-tracking.html` | no runtime refs found | deleted |
 
-### B. Mockups Still Referenced By Tasks/Docs
+## Cleanup Candidates
+
+### A. Mockups Still Referenced By Tasks/Docs
 
 These are not runtime files, but they are referenced by tasks or specs. Delete only after the related feature is stable and approved.
 
@@ -120,15 +118,15 @@ These are not runtime files, but they are referenced by tasks or specs. Delete o
 | `docs/mockups/shape-editor-engineering-workspace.html` | referenced from `TASKS_V2.md` | keep until Shape editor replacement is accepted |
 | `docs/mockups/order-detail.html` | filename collides with runtime CSS/class names; manual check needed | do not delete automatically |
 
-### C. Unloaded Client Guard
+### B. Access Guard - Keep For Now
 
 | File | Evidence | Recommendation |
 |---|---|---|
-| `public/access-guard.js` | no `<script src="/access-guard.js">` runtime usage found; only spec references | decide: wire into screens or delete after permission model decision |
+| `public/access-guard.js` | no `<script src="/access-guard.js">` runtime usage found; only spec references | keep for now; revisit when the active permission model is wired into screens |
 
-This file looks like planned access-control UI infrastructure, not live runtime. It should not remain half-owned forever.
+This file is planned access-control UI infrastructure, not live runtime. Keep it for now so the permission-model decision can be made intentionally instead of deleting a planned guard prematurely.
 
-### D. Deprecated / Frozen Public Screens
+### C. Deprecated / Frozen Public Screens
 
 These are not safe to delete immediately because they are still documented, tested, or deep-linkable.
 
@@ -139,7 +137,7 @@ These are not safe to delete immediately because they are still documented, test
 | `public/worker.html` | documented as tiny/partial worker entry | verify whether it intentionally redirects/wraps `worker-visual.html` |
 | `public/docs.html` | internal documentation surface linked from admin | keep unless replaced by docs module/admin view |
 
-### E. Tracked Non-Code Artifact
+### D. Tracked Non-Code Artifact
 
 | File | Evidence | Recommendation |
 |---|---|---|
@@ -160,34 +158,20 @@ Do not remove these during a dead-code pass even if they look old:
 
 ## Recommended Cleanup Order
 
-1. Resolve `public/shape-editor.js` dirty state.
-2. Run full `npm test` and get a clean baseline.
-3. Archive/delete first-pass mockups with no runtime refs:
-   - `docs/mockups/login-preview.html`
-   - `docs/mockups/order-items-field.html`
-   - `docs/mockups/order-tracking.html`
-4. Decide `public/access-guard.js`: wire it or remove it.
-5. Decide deprecated portal surfaces:
+1. Decide `public/access-guard.js`: wire it or remove it.
+2. Decide deprecated portal surfaces:
    - `public/portal.html`
    - `public/supplier.html`
    - `public/worker.html`
-6. Move `_order_import.xls` to a fixture/archive location or remove it.
-7. After each small batch: run tests, commit with explicit paths, push.
+3. Move `_order_import.xls` to a fixture/archive location or remove it.
+4. After each small batch: run tests, commit with explicit paths, push.
 
-## Suggested First Deletion Batch After Approval
+## Suggested Next Cleanup Batch
 
-Only after the dirty `shape-editor.js` is resolved:
-
-```text
-docs/mockups/login-preview.html
-docs/mockups/order-items-field.html
-docs/mockups/order-tracking.html
-```
-
-This batch is low risk because these files have no runtime references and are documentation/mockup artifacts only.
+No additional file deletion is recommended without a product decision. The next cleanup decision should be `public/access-guard.js`: either wire it into the permission model or delete it after confirming it is no longer planned.
 
 ## Remaining Risk
 
 - Static Express serving means public files may be opened by old bookmarks even when not linked.
 - Some docs intentionally preserve architectural history; deleting docs/mockups may reduce context for future agents.
-- Current test baseline is not clean because of the uncommitted `public/shape-editor.js` change.
+- Keep each future cleanup batch small and test-backed.

@@ -9,6 +9,12 @@ const {
   isValidOrderTransition,
   allowedOrderTransitions,
 } = require('../status-contracts');
+const {
+  SHAPE_V2_REQUIRED_FIELDS,
+  parseJsonObject,
+  isShapeDataContractV2,
+  shapeDataContractV2Json,
+} = require('./shapeSnapshot');
 
 const ORDER_CONTRACT = Object.freeze({
   version: 1,
@@ -24,17 +30,6 @@ const ORDER_ITEM_CONTRACT = Object.freeze({
   shapeSnapshotField: 'shape_snapshot_json',
 });
 
-const SHAPE_V2_REQUIRED_FIELDS = Object.freeze([
-  'contractVersion',
-  'shapeVersion',
-  'shapeId',
-  'shapeType',
-  'family',
-  'data',
-  'calculated',
-  'machineOutput',
-  'validation',
-]);
 
 function createStableOrderId(orderNum) {
   const value = String(orderNum || '').trim();
@@ -54,18 +49,6 @@ function parseJsonArray(value) {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
-  }
-}
-
-function parseJsonObject(value) {
-  if (!value) return null;
-  if (typeof value === 'object' && !Array.isArray(value)) return value;
-  if (typeof value !== 'string') return null;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
   }
 }
 
@@ -169,18 +152,6 @@ function shapeV2SnapshotCandidate(item = {}) {
     ?? item.shape_contract
     ?? item.shape_snapshot_json
     ?? null;
-}
-
-function isShapeDataContractV2(value) {
-  const snapshot = parseJsonObject(value);
-  if (!snapshot) return false;
-  return SHAPE_V2_REQUIRED_FIELDS.every(field => Object.prototype.hasOwnProperty.call(snapshot, field));
-}
-
-function shapeDataContractV2Json(value) {
-  if (typeof value === 'string' && isShapeDataContractV2(value)) return value;
-  const snapshot = parseJsonObject(value);
-  return isShapeDataContractV2(snapshot) ? JSON.stringify(snapshot) : null;
 }
 
 function shapeDataContractV2FromItem(item = {}) {

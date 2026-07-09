@@ -204,15 +204,25 @@ test('production enforces order item ownership boundaries', async (t) => {
 
   await t.test('full produced quantity completes released item and order', async () => {
     const approved = seedOrderWithItem('PB-FULL-UNIT-PROGRESS', statusContracts.ORDER_STATUS.IN_PRODUCTION, statusContracts.ITEM_STATUS.IN_PRODUCTION);
+    db.prepare(`
+      INSERT INTO inventory_reservations (order_id,item_id,diameter,material_type,reserved_kg,status)
+      VALUES (?,?,?,?,?,?)
+    `).run(approved.orderId, approved.itemId, 12, 'coil', 12.5, 'active');
+
     const response = await request(`/api/items/${approved.itemId}`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify({ produced_qty: 5 }),
+      body: JSON.stringify({ produced_qty: 5, actual_weight_kg: 11.75 }),
     });
     assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.consumedReservations.consumed, 1);
     const item = db.prepare('SELECT produced_qty,status FROM items WHERE id=?').get(approved.itemId);
     assert.equal(item.produced_qty, 5);
     assert.equal(item.status, statusContracts.ITEM_STATUS.DONE);
+    const reservation = db.prepare('SELECT status,reserved_kg FROM inventory_reservations WHERE item_id=?').get(approved.itemId);
+    assert.equal(reservation.status, 'consumed');
+    assert.equal(reservation.reserved_kg, 11.75);
     const order = db.prepare('SELECT status FROM orders WHERE id=?').get(approved.orderId);
     assert.equal(order.status, statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP);
   });

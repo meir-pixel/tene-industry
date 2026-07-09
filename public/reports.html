@@ -232,11 +232,9 @@ window.addEventListener('DOMContentLoaded', () => {
 async function loadAll() {
   const from = document.getElementById('fromDate').value;
   const to   = document.getElementById('toDate').value;
-  const safe = (p, fb) => p.then(r => r.ok ? r.json() : fb).catch(() => fb);
-  const [summary, efficiency] = await Promise.all([
-    safe(fetch(`/api/reports/summary?from=${from}&to=${to}`), { orders:[], byStatus:[], waste:[], topCustomers:[], period:{} }),
-    safe(fetch('/api/ai/machine-efficiency?days=30'), []),
-  ]);
+  const summary = await fetch(`/api/reports/summary?from=${from}&to=${to}`)
+    .then(r => r.ok ? r.json() : { orders:[], byStatus:[], waste:[], machineEfficiency:[], topCustomers:[], period:{}, dataQuality:{} })
+    .catch(() => ({ orders:[], byStatus:[], waste:[], machineEfficiency:[], topCustomers:[], period:{}, dataQuality:{} }));
   reportData = summary;
   renderKPIs(summary);
   loadMarginTable();
@@ -245,7 +243,7 @@ async function loadAll() {
   renderWeightChart(summary.orders || []);
   renderStatusChart(summary.byStatus || []);
   renderWasteChart(summary.waste || []);
-  renderMachineEfficiency(efficiency || []);
+  renderMachineEfficiency(summary.machineEfficiency || []);
   renderWasteTable(summary.waste || []);
   renderCustomersTable(summary.topCustomers || []);
 }

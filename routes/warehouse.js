@@ -1,8 +1,65 @@
 const router = require('express').Router();
+const { itemShapeMetrics } = require('../services/shapeSnapshot');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/warehouse missing dependency: ${name}`);
   return value;
+}
+
+function positiveNumberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function itemIdsList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(id => Number(id))
+    .filter(id => Number.isInteger(id) && id > 0);
+}
+
+function placeholders(count) {
+  return Array(count).fill('?').join(',');
+}
+
+function packageMetricsFromItems(db, itemIds) {
+  const ids = itemIdsList(itemIds);
+  if (!ids.length) return { itemIds: [], quantity: 0, weight: 0, diameter: null };
+
+  const rows = db.prepare(`SELECT * FROM items WHERE id IN (${placeholders(ids.length)})`).all(...ids);
+  const diameterSet = new Set();
+  const totals = rows.reduce((acc, item) => {
+    const metrics = itemShapeMetrics(item);
+    const quantity = positiveNumberOrNull(metrics.quantity) || positiveNumberOrNull(item.quantity) || 0;
+    const weight = positiveNumberOrNull(metrics.totalWeightKg) || positiveNumberOrNull(item.total_weight) || 0;
+    const diameter = positiveNumberOrNull(item.diameter);
+    if (diameter) diameterSet.add(String(diameter));
+    acc.quantity += quantity;
+    acc.weight += weight;
+    return acc;
+  }, { quantity: 0, weight: 0 });
+
+  return {
+    itemIds: ids,
+    quantity: totals.quantity,
+    weight: Math.round(totals.weight * 1000) / 1000,
+    diameter: diameterSet.size === 1 ? Array.from(diameterSet)[0] : null,
+  };
+}
+
+function deliveryNoteWeightFromPayload({ packagesJson = [], itemsJson = [] } = {}) {
+  const packageWeight = Array.isArray(packagesJson)
+    ? packagesJson.reduce((sum, pkg) => sum + (positiveNumberOrNull(pkg && pkg.weight) || 0), 0)
+    : 0;
+  if (packageWeight > 0) return Math.round(packageWeight * 1000) / 1000;
+
+  const itemWeight = Array.isArray(itemsJson)
+    ? itemsJson.reduce((sum, item) => {
+        const metrics = itemShapeMetrics(item || {});
+        return sum + (positiveNumberOrNull(metrics.totalWeightKg) || positiveNumberOrNull(item && item.total_weight) || 0);
+      }, 0)
+    : 0;
+  return Math.round(itemWeight * 1000) / 1000;
 }
 
 module.exports = function createWarehouseRouter(deps) {
@@ -27,17 +84,22 @@ module.exports = function createWarehouseRouter(deps) {
 
   router.post('/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
     const { order_id, order_num, item_ids, quantity, weight, diameter, zone, packed_by } = req.body;
+    const itemMetrics = packageMetricsFromItems(db, item_ids);
+    const packageItemIds = itemMetrics.itemIds;
+    const packageQuantity = itemMetrics.quantity || positiveNumberOrNull(quantity) || 0;
+    const packageWeight = itemMetrics.weight || positiveNumberOrNull(weight) || 0;
+    const packageDiameter = itemMetrics.diameter || diameter || null;
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const seq = (db.prepare('SELECT COUNT(*)+1 as n FROM packages WHERE package_code LIKE ?').get('PKG-' + dateStr + '%').n || 1);
     const package_code = `PKG-${dateStr}-${String(seq).padStart(3, '0')}`;
-    const qr_data = JSON.stringify({ code: package_code, order_num, diameter });
+    const qr_data = JSON.stringify({ code: package_code, order_num, diameter: packageDiameter, weight: packageWeight });
     const r = db.prepare(`INSERT INTO packages (package_code,qr_data,order_id,order_num,item_ids,quantity,weight,diameter,zone,packed_by) VALUES (?,?,?,?,?,?,?,?,?,?)`)
-      .run(package_code, qr_data, order_id || null, order_num || null, JSON.stringify(item_ids || []), quantity || 0, weight || 0, diameter || null, zone || null, packed_by || null);
-    if (item_ids && item_ids.length) {
+      .run(package_code, qr_data, order_id || null, order_num || null, JSON.stringify(packageItemIds), packageQuantity, packageWeight, packageDiameter, zone || null, packed_by || null);
+    if (packageItemIds.length) {
       const upd = db.prepare('UPDATE items SET package_id=?, zone=? WHERE id=?');
-      for (const iid of item_ids) upd.run(r.lastInsertRowid, zone || null, iid);
+      for (const iid of packageItemIds) upd.run(r.lastInsertRowid, zone || null, iid);
     }
-    res.json({ id: r.lastInsertRowid, package_code });
+    res.json({ id: r.lastInsertRowid, package_code, weight: packageWeight });
   });
 
   router.patch('/packages/:id/ship', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
@@ -59,10 +121,14 @@ module.exports = function createWarehouseRouter(deps) {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const seq = (db.prepare('SELECT COUNT(*)+1 as n FROM delivery_notes WHERE note_num LIKE ?').get('DN-' + dateStr + '%').n || 1);
     const note_num = `DN-${dateStr}-${String(seq).padStart(3, '0')}`;
+    const deliveryWeight = deliveryNoteWeightFromPayload({
+      packagesJson: packages_json,
+      itemsJson: items_json,
+    }) || positiveNumberOrNull(total_weight) || 0;
     const r = db.prepare(`INSERT INTO delivery_notes (note_num,order_id,order_num,delivery_id,customer_id,packages_json,items_json,total_weight,driver_id) VALUES (?,?,?,?,?,?,?,?,?)`)
       .run(note_num, order_id || null, order_num || null, delivery_id || null, customer_id || null,
-        JSON.stringify(packages_json || []), JSON.stringify(items_json || []), total_weight || 0, driver_id || null);
-    res.json({ id: r.lastInsertRowid, note_num });
+        JSON.stringify(packages_json || []), JSON.stringify(items_json || []), deliveryWeight || 0, driver_id || null);
+    res.json({ id: r.lastInsertRowid, note_num, total_weight: deliveryWeight || 0 });
   });
 
   return router;

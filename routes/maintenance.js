@@ -1,8 +1,41 @@
 const router = require('express').Router();
+const { itemShapeMetrics } = require('../services/shapeSnapshot');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/maintenance missing dependency: ${name}`);
   return value;
+}
+
+function productionLoadByMachine(db) {
+  const rows = db.prepare(`
+    SELECT machine,machine_id,shape_snapshot_json,total_length_mm,quantity,weight_per_unit,total_weight,status
+    FROM items
+    WHERE (machine IS NOT NULL OR machine_id IS NOT NULL)
+      AND COALESCE(status,'') NOT IN ('\u05d1\u05d5\u05e6\u05e2','\u05e1\u05d5\u05e4\u05e7','done','supplied')
+  `).all();
+  return rows.reduce((map, item) => {
+    const keys = [item.machine, item.machine_id].map(value => String(value || '').trim()).filter(Boolean);
+    if (!keys.length) return map;
+    const metrics = itemShapeMetrics(item);
+    for (const key of keys) {
+      const current = map.get(key) || { current_item_count: 0, current_weight_kg: 0 };
+      current.current_item_count += 1;
+      current.current_weight_kg += metrics.totalWeightKg || 0;
+      map.set(key, current);
+    }
+    return map;
+  }, new Map());
+}
+
+function attachMachineLoad(rows, loadMap) {
+  return rows.map(row => {
+    const load = loadMap.get(String(row.id || '')) || loadMap.get(String(row.label || '')) || loadMap.get(String(row.name || '')) || {};
+    return {
+      ...row,
+      current_item_count: load.current_item_count || 0,
+      current_weight_kg: Math.round((load.current_weight_kg || 0) * 1000) / 1000,
+    };
+  });
 }
 
 module.exports = function createMaintenanceRouter(deps) {
@@ -42,11 +75,14 @@ module.exports = function createMaintenanceRouter(deps) {
     res.json({ success: true });
   });
   router.get('/maintenance/stats', requireAnyRole(['maintenance', 'production', 'office', 'manager', 'admin']), (req, res) => {
+    const loadMap = productionLoadByMachine(db);
+    const byMachine = db.prepare('SELECT mc.id,mc.label,mc.name,COUNT(*) as events,SUM(m.downtime_min) as total_down FROM maintenance_logs m LEFT JOIN machines mc ON m.machine_id=mc.id GROUP BY m.machine_id ORDER BY total_down DESC').all();
     res.json({
-      open:        db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE status!='סגורה'").get().c,
+      open:        db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE status!='\u05e1\u05d2\u05d5\u05e8\u05d4'").get().c,
       breakdowns:  db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE log_type='breakdown'").get().c,
       avgDowntime: db.prepare('SELECT ROUND(AVG(downtime_min),0) as avg FROM maintenance_logs WHERE downtime_min>0').get().avg||0,
-      byMachine:   db.prepare('SELECT mc.label,mc.name,COUNT(*) as events,SUM(m.downtime_min) as total_down FROM maintenance_logs m LEFT JOIN machines mc ON m.machine_id=mc.id GROUP BY m.machine_id ORDER BY total_down DESC').all(),
+      activeProductionLoad: attachMachineLoad(db.prepare('SELECT id,label,name FROM machines').all(), loadMap),
+      byMachine:   attachMachineLoad(byMachine, loadMap),
     });
   });
 

@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { itemShapeMetrics } = require('../services/shapeSnapshot');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/finance missing dependency: ${name}`);
@@ -15,13 +16,20 @@ router.get('/orders/:id/margin', requireAnyRole(['finance', 'manager', 'admin'])
   const order = db.prepare(`SELECT o.*, c.price_tier, c.discount_pct FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
   if (!order) return res.status(404).json({ error: 'not found' });
 
-  // Cost of steel: use steel_price_history (latest per diameter) × weight per diameter
-  const itemsByDiam = db.prepare(`
-    SELECT i.diameter, SUM(i.total_weight) as total_weight
+  // Cost of steel: use steel_price_history (latest per diameter) x Shape V2/legacy weight per diameter
+  const items = db.prepare(`
+    SELECT i.*
     FROM items i JOIN pallets p ON i.pallet_id=p.id
     WHERE p.order_id=?
-    GROUP BY i.diameter
   `).all(req.params.id);
+  const byDiameter = new Map();
+  for (const item of items) {
+    const diameter = Number(item.diameter || 0);
+    if (!diameter) continue;
+    const weight = itemShapeMetrics(item).totalWeightKg || 0;
+    byDiameter.set(diameter, (byDiameter.get(diameter) || 0) + weight);
+  }
+  const itemsByDiam = Array.from(byDiameter.entries()).map(([diameter, total_weight]) => ({ diameter, total_weight }));
 
   let cost_material = 0;
   const missingPurchasePriceDiameters = [];

@@ -412,6 +412,7 @@
   <div id="detailContent"><div class="loader">טוען...</div></div>
 </div>
 
+<script src="/shapeSnapshot.js?v=1"></script>
 <script src="/shape-editor.js?v=56"></script>
 <script>
 // ──────────────────────────────────────────────────────
@@ -1412,17 +1413,48 @@ function portalCustomerItemDescription(item) {
   return [item.struct_element, item.note].map(value => String(value || '').trim()).filter(Boolean).filter((value, index, list) => list.indexOf(value) === index).join(' · ');
 }
 
+function portalParsedShapeSnapshot(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function portalItemShapeMetrics(item = {}) {
+  const helper = window.IronBendShapeSnapshot;
+  if (helper && typeof helper.itemShapeMetrics === 'function') {
+    return helper.itemShapeMetrics({ ...item, shapeSnapshot: item.shapeSnapshot || item.shape_snapshot_json });
+  }
+  const qty = Math.max(1, Number(item.quantity ?? item.qty ?? 1) || 1);
+  const totalLengthMm = Number(item.total_length_mm || 0) || (item.sides || []).reduce((sum, side) => sum + (Number(side) || 0), 0);
+  const totalWeightKg = Number(item.total_weight || 0) || null;
+  return { totalLengthMm, totalWeightKg, quantity: qty };
+}
+
 function portalOrderItemViewModel(item) {
-  const shapeName = item.shape_name || item.shapeName || 'ישר';
+  const shapeSnapshot = portalParsedShapeSnapshot(item.shapeSnapshot || item.shape_snapshot_json);
+  const shapeData = shapeSnapshot?.data || {};
+  const shapeName = item.shape_name || item.shapeName || shapeSnapshot?.displayName || '\u05d9\u05e9\u05e8';
   const seg = parseOrderItemSegments(item.segments);
+  const metrics = portalItemShapeMetrics({ ...item, shapeSnapshot });
+  const sides = Array.isArray(shapeData.sides) && shapeData.sides.length ? shapeData.sides.map(Number).filter(v => v > 0) : seg.sides;
+  const angles = Array.isArray(shapeData.angles) && shapeData.angles.length ? shapeData.angles.map(Number).filter(v => !Number.isNaN(v)) : seg.angles;
   const customerDescription = portalCustomerItemDescription(item);
   return {
     ...item,
+    shapeSnapshot,
     shapeName,
-    sides: seg.sides,
-    angles: seg.angles,
+    sides,
+    angles,
     qty: Number(item.quantity || 0),
-    diameter: Number(item.diameter || 0),
+    diameter: Number(item.diameter || shapeData.diameter || 0),
+    total_length_mm: metrics.totalLengthMm || item.total_length_mm,
+    total_weight: metrics.totalWeightKg || item.total_weight,
+    weight_per_unit: metrics.unitWeightKg || item.weight_per_unit,
     customerDescription,
   };
 }
@@ -1433,7 +1465,7 @@ function renderDetail(order) {
   const isPendingApproval = order.status === 'ממתינה לאישור לקוח';
   const currentIdx = STATUS_TIMELINE.findIndex(s => order.status?.includes(s.key.split(' ')[0]));
   const totalQty = allItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const totalWeight = Number(order.billing_weight || order.total_weight || allItems.reduce((sum, item) => sum + Number(item.total_weight || 0), 0));
+  const totalWeight = Number(order.billing_weight || order.total_weight || allItems.reduce((sum, item) => sum + Number(portalItemShapeMetrics(item).totalWeightKg || item.total_weight || 0), 0));
 
   const timelineHtml = STATUS_TIMELINE.map((s,i) => {
     const cls = i < currentIdx ? 'done' : i === currentIdx ? 'active' : '';
@@ -1443,12 +1475,13 @@ function renderDetail(order) {
   const itemsHtml = allItems.map((rawItem, idx) => {
     const item = portalOrderItemViewModel(rawItem);
     const pct = Number.isFinite(Number(item.progressPct)) ? Math.max(0, Math.min(100, Math.round(Number(item.progressPct)))) : null;
-    const lengthLabel = item.total_length_mm ? formatMm(item.total_length_mm) : (item.sides.length ? item.sides.map(formatMm).join(' / ') : '-');
+    const itemMetrics = portalItemShapeMetrics(item);
+    const lengthLabel = itemMetrics.totalLengthMm ? formatMm(itemMetrics.totalLengthMm) : (item.sides.length ? item.sides.map(formatMm).join(' / ') : '-');
     const segmentsLabel = item.sides.length ? item.sides.map((side, i) => {
       const angle = item.angles[i];
       return `${formatMm(side)}${angle ? ` @ ${angle}°` : ''}`;
     }).join(' · ') : '';
-    const weightLabel = item.total_weight ? `${Number(item.total_weight).toFixed(1)} ק"ג` : '-';
+    const weightLabel = itemMetrics.totalWeightKg ? `${Number(itemMetrics.totalWeightKg).toFixed(1)} \u05e7\"\u05d2` : '-';
     return `
     <div class="item-detail-row">
       <div class="item-detail-preview">${shapePreviewSvg(item)}</div>
@@ -1725,6 +1758,7 @@ function portalShapeSelected(data) {
   item.azAngles = Array.isArray(data.azAngles) ? data.azAngles.map(v => Number(v) || 0) : [];
   item.elAngles = Array.isArray(data.elAngles) ? data.elAngles.map(v => Number(v) || 0) : [];
   item.is3d = Number(data.is3d || 0);
+  item.shapeSnapshot = data && Number(data.contractVersion) === 2 ? data : null;
   portalShapeTargetId = null;
   renderItems();
   toast('הצורה עודכנה בפריט');
@@ -1803,7 +1837,7 @@ function escapeHtml(value) {
 // Quote
 // ──────────────────────────────────────────────────────
 async function calcQuote() {
-  const items = orderItems.map(i=>({ diameter:i.diameter, sides:i.sides, angles:i.angles, qty:i.qty }));
+  const items = orderItems.map(i=>({ diameter:i.diameter, sides:i.sides, angles:i.angles, qty:i.qty, shapeSnapshot:i.shapeSnapshot || null }));
   const data = await fetch('/api/c/quote',{
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ token:TOKEN, items })
@@ -1852,7 +1886,7 @@ async function submitOrder() {
 
   const body = {
     token:       TOKEN,
-    items:       orderItems.map(i=>({ shapeId:i.shapeId, shapeName:i.shapeName, diameter:i.diameter, sides:i.sides, angles:i.angles, azAngles:i.azAngles, elAngles:i.elAngles, is3d:i.is3d, qty:i.qty, note:i.note })),
+    items:       orderItems.map(i=>({ shapeId:i.shapeId, shapeName:i.shapeName, diameter:i.diameter, sides:i.sides, angles:i.angles, azAngles:i.azAngles, elAngles:i.elAngles, is3d:i.is3d, qty:i.qty, note:i.note, shapeSnapshot:i.shapeSnapshot || null })),
     deliveryDate: document.getElementById('delivDate').value,
     deliveryTime: document.getElementById('delivTime').value,
     deliveryAddress: document.getElementById('delivAddr').value + ' ' + document.getElementById('delivMode').value,
@@ -1900,4 +1934,3 @@ function toast(msg, err=false) {
 </script>
 </body>
 </html>
-

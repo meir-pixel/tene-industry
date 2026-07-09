@@ -16,6 +16,7 @@
 <script src="/safe-dom.js" defer></script>
 <script src="/nav.js" defer></script>
 <script src="/shape-renderer.js" defer></script>
+<script src="/shapeSnapshot.js?v=1"></script>
 <script src="/shape-editor.js?v=56"></script>
 <style>
 :root{
@@ -1139,17 +1140,23 @@ function openOrderShapeEditorForAdd(event, orderId) {
   event?.stopPropagation?.();
   const editor = ensureOrderShapeEditor();
   if (!editor || !orderId) return;
-  const quantityText = prompt('\u05db\u05de\u05d5\u05ea \u05dc\u05e4\u05e8\u05d9\u05d8 \u05d4\u05d7\u05d3\u05e9', '1');
-  if (quantityText === null) return;
-  const quantity = Number(quantityText);
-  if (!Number.isFinite(quantity) || quantity <= 0) {
-    alert('\u05db\u05de\u05d5\u05ea \u05dc\u05d0 \u05ea\u05e7\u05d9\u05e0\u05d4');
-    return;
-  }
-  pendingShapeEdit = { mode: 'add', orderId: Number(orderId), itemId: null, quantity, note: '\u05e0\u05d5\u05e1\u05e3 \u05d9\u05d3\u05e0\u05d9\u05ea \u05d1\u05e2\u05d5\u05e8\u05da \u05d4\u05e6\u05d5\u05e8\u05d5\u05ea' };
-  editor.open({ sides: [1000], angles: [], shapeName: '\u05d9\u05e9\u05e8', presetName: '\u05d9\u05e9\u05e8', diameter: 12, is3d: 0 });
+  pendingShapeEdit = {
+    mode: 'add',
+    orderId: Number(orderId),
+    itemId: null,
+    quantity: 1,
+    note: '\u05e0\u05d5\u05e1\u05e3 \u05d9\u05d3\u05e0\u05d9\u05ea \u05d1\u05e2\u05d5\u05e8\u05da \u05d4\u05e6\u05d5\u05e8\u05d5\u05ea',
+  };
+  editor.open({
+    sides: [1000],
+    angles: [],
+    shapeName: '\u05d9\u05e9\u05e8',
+    presetName: '\u05d9\u05e9\u05e8',
+    diameter: 12,
+    is3d: 0,
+    quantity: 1,
+  });
 }
-
 async function shapeSelectedFromOrder(data) {
   if (!pendingShapeEdit) return;
   const ctx = pendingShapeEdit;
@@ -1159,15 +1166,17 @@ async function shapeSelectedFromOrder(data) {
   const totalLength = isSpiral
     ? (Number(data?.total_length_mm) || 0)
     : segments.reduce((sum, segment) => sum + Number(segment.length_mm || 0), 0);
+  const orderItemQuantity = Math.max(1, Number(data?.orderItemQuantity || ctx.quantity || 1) || 1);
   const payload = {
     shape_name: String(data?.shapeName || data?.presetName || '\u05d9\u05e9\u05e8').trim(),
     diameter: Number(data?.diameter) || 12,
-    quantity: Number(ctx.quantity) || 1,
+    quantity: orderItemQuantity,
     total_length_mm: totalLength,
     spiral_diameter_mm: isSpiral ? (Number(data?.spiralDiameter) || null) : null,
     spiral_turns: isSpiral ? (Number(data?.turns) || null) : null,
     segments,
     note: ctx.note || '',
+    shapeSnapshot: data && data.contractVersion === 2 ? data : null,
   };
   const isNewItem = ctx.mode === 'add';
   const url = isNewItem ? `/api/orders/${ctx.orderId}/items` : `/api/orders/${ctx.orderId}/items/${ctx.itemId}`;
@@ -1183,7 +1192,6 @@ async function shapeSelectedFromOrder(data) {
   }
   await openDetail(ctx.orderId);
 }
-
 function openItemEdit(event, orderId, itemId) {
   event?.stopPropagation?.();
   const item = findDetailItem(orderId, itemId);
@@ -1204,7 +1212,7 @@ function openItemEdit(event, orderId, itemId) {
     quantity: Number(item.quantity) || 1,
     note: item.note || '',
   };
-  editor.open(orderShapeDataFromItem(item));
+  editor.open({ ...orderShapeDataFromItem(item), quantity: Number(item.quantity) || 1 });
 }
 
 function parsedOcrSegments(item) {

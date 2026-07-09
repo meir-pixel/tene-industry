@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { itemShapeMetrics } = require('../services/shapeSnapshot');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/financeCosts missing dependency: ${name}`);
@@ -21,10 +22,11 @@ function detectPriceCategory(item) {
   if (item.price_category && item.price_category !== 'auto') return item.price_category;
 
   const segs = (() => { try { return JSON.parse(item.segments || '[]'); } catch(e) { return []; } })();
+  const snapshotMetrics = itemShapeMetrics(item);
   const isStraight = segs.length <= 1;
 
   if (isStraight) {
-    const lenMm = item.total_length_mm || 0;
+    const lenMm = snapshotMetrics.totalLengthMm || item.total_length_mm || 0;
     const isStandard = STANDARD_LENGTHS_MM.some(l => Math.abs(lenMm - l) < 10);
     return isStandard ? 'straight_standard' : 'straight_cut';
   }
@@ -41,6 +43,14 @@ function getLatestSteelPrice() {
   return row ? row.price_per_ton : 3800;
 }
 
+function itemFinanceMetrics(item, industry) {
+  const metrics = itemShapeMetrics(item);
+  const totalLengthMm = metrics.totalLengthMm || Number(item.total_length_mm || 0) || 0;
+  const totalWeightKg = metrics.totalWeightKg
+    || (industry.weightPerUnit({ diameter: item.diameter, total_length_mm: totalLengthMm }) * (item.quantity || 1));
+  return { totalLengthMm, totalWeightKg };
+}
+
 function calculateOrderCost(orderId) {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
   if (!order) return null;
@@ -52,14 +62,9 @@ function calculateOrderCost(orderId) {
   const pricePerTon = getLatestSteelPrice();
   const hasSteelHistory = !!db.prepare('SELECT 1 FROM steel_price_history LIMIT 1').get();
 
-  // Total weight
-  let totalWeightKg = order.total_weight || 0;
-  if (totalWeightKg === 0 && allItems.length > 0) {
-    totalWeightKg = allItems.reduce((s, it) => {
-      if (it.total_weight > 0) return s + it.total_weight;
-      return s + (industry.weightPerUnit({ diameter: it.diameter, total_length_mm: it.total_length_mm || 0 }) * (it.quantity || 1));
-    }, 0);
-  }
+  // Total weight: prefer Shape V2 calculated values, then legacy item/order fields.
+  const itemsWeightKg = allItems.reduce((sum, item) => sum + itemFinanceMetrics(item, industry).totalWeightKg, 0);
+  let totalWeightKg = itemsWeightKg > 0 ? itemsWeightKg : (order.total_weight || 0);
 
   const material_cost = (totalWeightKg / 1000) * pricePerTon;
 
@@ -138,8 +143,7 @@ function calculateOrderCost(orderId) {
       let bookRevenue = 0;
       if (allItems.length > 0) {
         allItems.forEach(it => {
-          const w = it.total_weight > 0 ? it.total_weight
-            : (industry.weightPerUnit({ diameter: it.diameter, total_length_mm: it.total_length_mm || 0 }) * (it.quantity || 1));
+          const w = itemFinanceMetrics(it, industry).totalWeightKg;
           const cat = detectPriceCategory(it);
 
           if (cat === 'per_unit') {

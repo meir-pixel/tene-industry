@@ -1,4 +1,350 @@
 const router = require('express').Router();
+const { itemShapeMetrics, isShapeDataContractV2 } = require('../services/shapeSnapshot');
+
+function roundMetric(value, digits = 3) {
+  const numeric = Number(value) || 0;
+  const factor = 10 ** digits;
+  return Math.round(numeric * factor) / factor;
+}
+
+function reportItemRows(db, whereSql = '1=1', params = []) {
+  return db.prepare(`
+    SELECT i.*,
+           o.id as report_order_id,
+           o.order_num as report_order_num,
+           o.created_at as report_order_created_at,
+           o.customer_id as report_customer_id,
+           c.name as report_customer_name
+    FROM items i
+    LEFT JOIN pallets p ON p.id = i.pallet_id
+    LEFT JOIN orders o ON o.id = COALESCE(i.order_id, p.order_id)
+    LEFT JOIN customers c ON c.id = o.customer_id
+    WHERE ${whereSql}
+  `).all(...params);
+}
+
+function itemReportMetrics(item) {
+  const metrics = itemShapeMetrics(item);
+  return {
+    quantity: metrics.quantity || 1,
+    totalLengthMm: Number(metrics.totalLengthMm) || 0,
+    totalWeightKg: Number(metrics.totalWeightKg) || 0,
+  };
+}
+
+function sumShapeWeight(rows) {
+  return roundMetric(rows.reduce((sum, row) => sum + itemReportMetrics(row).totalWeightKg, 0));
+}
+
+
+function reportSnapshotValue(item = {}) {
+  return item.shapeSnapshot
+    ?? item.shape_snapshot
+    ?? item.shapeData
+    ?? item.shape_data
+    ?? item.shapeContract
+    ?? item.shape_contract
+    ?? item.shape_snapshot_json
+    ?? null;
+}
+
+function itemHasShapeV2(item) {
+  return isShapeDataContractV2(reportSnapshotValue(item));
+}
+
+function reportPeriod(query = {}, defaultDays = 30) {
+  const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+  const today = new Date().toISOString().split('T')[0];
+  const fallbackFrom = new Date(Date.now() - defaultDays * 86400000).toISOString().split('T')[0];
+  const fromDate = query.from || fallbackFrom;
+  const toDate = query.to || today;
+  if (!isoDay.test(fromDate) || !isoDay.test(toDate)) return { error: 'invalid_date_range' };
+  if (fromDate > toDate) return { error: 'invalid_date_order' };
+  return { fromDate, toDate };
+}
+
+function reportDataQuality(db, fromDate, toDate) {
+  const rows = reportItemRows(db, 'DATE(o.created_at) BETWEEN ? AND ?', [fromDate, toDate]);
+  const shapeV2Items = rows.filter(itemHasShapeV2).length;
+  const itemsWithWeight = rows.filter(row => itemReportMetrics(row).totalWeightKg > 0).length;
+  return {
+    item_count: rows.length,
+    shape_v2_item_count: shapeV2Items,
+    items_with_weight: itemsWithWeight,
+    shape_v2_coverage_pct: rows.length ? roundMetric((shapeV2Items / rows.length) * 100, 1) : 0,
+    weight_coverage_pct: rows.length ? roundMetric((itemsWithWeight / rows.length) * 100, 1) : 0,
+  };
+}
+
+function periodWasteRows(db, fromDate, toDate, doneStatus) {
+  const rows = reportItemRows(db, 'DATE(i.completed_at) BETWEEN ? AND ? AND i.status = ?', [fromDate, toDate, doneStatus]);
+  const groups = new Map();
+  for (const row of rows) {
+    const key = [row.machine || '', row.diameter || '', row.shape_name || ''].join('|');
+    const current = groups.get(key) || {
+      machine: row.machine || '',
+      diameter: row.diameter || '',
+      shape_name: row.shape_name || '',
+      total_waste: 0,
+      total_ordered: 0,
+      total_length_mm: 0,
+      total_weight_kg: 0,
+      item_count: 0,
+      shape_v2_item_count: 0,
+    };
+    const metrics = itemReportMetrics(row);
+    current.total_waste += Number(row.actual_waste) || 0;
+    current.total_ordered += Number(row.quantity) || metrics.quantity || 1;
+    current.total_length_mm += metrics.totalLengthMm;
+    current.total_weight_kg += metrics.totalWeightKg;
+    current.item_count += 1;
+    if (itemHasShapeV2(row)) current.shape_v2_item_count += 1;
+    groups.set(key, current);
+  }
+  return [...groups.values()]
+    .map(row => ({
+      machine: row.machine,
+      diameter: row.diameter,
+      shape_name: row.shape_name,
+      total_waste: roundMetric(row.total_waste),
+      total_ordered: roundMetric(row.total_ordered),
+      waste_pct: row.total_length_mm > 0
+        ? roundMetric((row.total_waste / row.total_length_mm) * 100, 1)
+        : (row.total_ordered > 0 ? roundMetric((row.total_waste / row.total_ordered) * 100, 1) : 0),
+      item_count: row.item_count,
+      total_weight_kg: roundMetric(row.total_weight_kg),
+      shape_v2_item_count: row.shape_v2_item_count,
+    }))
+    .sort((a, b) => b.waste_pct - a.waste_pct);
+}
+
+function machineEfficiencyByPeriod(db, fromDate, toDate, doneStatus) {
+  const rows = reportItemRows(db, 'DATE(i.completed_at) BETWEEN ? AND ? AND i.status = ?', [fromDate, toDate, doneStatus]);
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row.machine || 'unassigned';
+    const current = groups.get(key) || {
+      machine: key,
+      completed_items: 0,
+      total_units: 0,
+      total_weight_kg: 0,
+      total_waste: 0,
+      total_length_mm: 0,
+      shape_v2_item_count: 0,
+    };
+    const metrics = itemReportMetrics(row);
+    current.completed_items += 1;
+    current.total_units += Number(row.produced_qty || row.quantity) || metrics.quantity || 1;
+    current.total_weight_kg += metrics.totalWeightKg;
+    current.total_waste += Number(row.actual_waste) || 0;
+    current.total_length_mm += metrics.totalLengthMm;
+    if (itemHasShapeV2(row)) current.shape_v2_item_count += 1;
+    groups.set(key, current);
+  }
+  return [...groups.values()]
+    .map(row => ({
+      machine: row.machine,
+      completed_items: row.completed_items,
+      total_units: roundMetric(row.total_units),
+      total_weight_kg: roundMetric(row.total_weight_kg),
+      waste_pct: row.total_length_mm > 0 ? roundMetric((row.total_waste / row.total_length_mm) * 100, 1) : 0,
+      avg_cycle_min: null,
+      shape_v2_item_count: row.shape_v2_item_count,
+    }))
+    .sort((a, b) => b.total_weight_kg - a.total_weight_kg);
+}
+
+function orderWeightsById(db, orderIds) {
+  const ids = [...new Set(orderIds.map(id => Number(id)).filter(Number.isFinite))];
+  if (!ids.length) return new Map();
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = reportItemRows(db, `o.id IN (${placeholders})`, ids);
+  const weights = new Map(ids.map(id => [id, { itemCount: 0, totalWeightKg: 0 }]));
+  for (const row of rows) {
+    if (!row.report_order_id) continue;
+    const current = weights.get(row.report_order_id) || { itemCount: 0, totalWeightKg: 0 };
+    current.itemCount += 1;
+    current.totalWeightKg += itemReportMetrics(row).totalWeightKg;
+    weights.set(row.report_order_id, current);
+  }
+  return weights;
+}
+
+function orderCreatedWeightByDate(db, fromDate, toDate) {
+  const orderRows = db.prepare(`
+    SELECT DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(total_weight), 0) as legacy_weight
+    FROM orders
+    WHERE DATE(created_at) BETWEEN ? AND ?
+    GROUP BY DATE(created_at)
+    ORDER BY date
+  `).all(fromDate, toDate);
+  const itemRows = reportItemRows(db, 'DATE(o.created_at) BETWEEN ? AND ?', [fromDate, toDate]);
+  const byDate = new Map(orderRows.map(row => [row.date, {
+    date: row.date,
+    count: row.count || 0,
+    weight: 0,
+    itemCount: 0,
+    legacyWeight: Number(row.legacy_weight) || 0,
+  }]));
+  for (const item of itemRows) {
+    const date = String(item.report_order_created_at || '').slice(0, 10);
+    if (!date) continue;
+    const current = byDate.get(date) || { date, count: 0, weight: 0, itemCount: 0, legacyWeight: 0 };
+    current.weight += itemReportMetrics(item).totalWeightKg;
+    current.itemCount += 1;
+    byDate.set(date, current);
+  }
+  return [...byDate.values()]
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .map(row => ({
+      date: row.date,
+      count: row.count,
+      weight: roundMetric(row.itemCount > 0 ? row.weight : row.legacyWeight),
+      shape_v2_item_count: row.itemCount,
+    }));
+}
+
+function shapeWeightForOrdersCreatedBetween(db, fromDate, toDate) {
+  const rows = orderCreatedWeightByDate(db, fromDate, toDate);
+  return roundMetric(rows.reduce((sum, row) => sum + (Number(row.weight) || 0), 0));
+}
+
+function topCustomersByShapeWeight(db, fromDate, toDate, limit = 10) {
+  const legacyRows = db.prepare(`
+    SELECT c.id as customer_id, c.name, COUNT(o.id) as order_count,
+           COALESCE(SUM(o.billing_weight), SUM(o.total_weight), 0) as legacy_weight
+    FROM orders o
+    LEFT JOIN customers c ON o.customer_id = c.id
+    WHERE DATE(o.created_at) BETWEEN ? AND ?
+    GROUP BY o.customer_id, c.name
+  `).all(fromDate, toDate);
+  const groups = new Map(legacyRows.map(row => [row.customer_id || `name:${row.name || ''}`, {
+    customer_id: row.customer_id,
+    name: row.name || '',
+    order_count: row.order_count || 0,
+    total_weight: 0,
+    legacy_weight: Number(row.legacy_weight) || 0,
+    shape_v2_item_count: 0,
+  }]));
+  const itemRows = reportItemRows(db, 'DATE(o.created_at) BETWEEN ? AND ?', [fromDate, toDate]);
+  for (const item of itemRows) {
+    const key = item.report_customer_id || `name:${item.report_customer_name || ''}`;
+    const current = groups.get(key) || {
+      customer_id: item.report_customer_id,
+      name: item.report_customer_name || '',
+      order_count: 0,
+      total_weight: 0,
+      legacy_weight: 0,
+      shape_v2_item_count: 0,
+    };
+    current.total_weight += itemReportMetrics(item).totalWeightKg;
+    current.shape_v2_item_count += 1;
+    groups.set(key, current);
+  }
+  return [...groups.values()]
+    .map(row => ({
+      name: row.name,
+      order_count: row.order_count,
+      total_weight: roundMetric(row.shape_v2_item_count > 0 ? row.total_weight : row.legacy_weight),
+      shape_v2_item_count: row.shape_v2_item_count,
+    }))
+    .sort((a, b) => b.total_weight - a.total_weight)
+    .slice(0, limit);
+}
+
+function wasteSummaryByDiameter(db, fromDate, toDate) {
+  const rows = reportItemRows(db, 'DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste > 0', [fromDate, toDate]);
+  const groups = new Map();
+  for (const row of rows) {
+    const diameter = row.diameter || '';
+    const current = groups.get(diameter) || {
+      diameter,
+      items_produced: 0,
+      net_weight: 0,
+      actual_waste_g: 0,
+      total_length_mm: 0,
+      shape_v2_item_count: 0,
+    };
+    const metrics = itemReportMetrics(row);
+    current.items_produced += Number(row.quantity) || metrics.quantity || 1;
+    current.net_weight += metrics.totalWeightKg;
+    current.actual_waste_g += Number(row.actual_waste) || 0;
+    current.total_length_mm += metrics.totalLengthMm;
+    current.shape_v2_item_count += 1;
+    groups.set(diameter, current);
+  }
+  return [...groups.values()]
+    .sort((a, b) => Number(a.diameter) - Number(b.diameter))
+    .map(row => ({
+      diameter: row.diameter,
+      items_produced: row.items_produced,
+      net_weight: roundMetric(row.net_weight),
+      actual_waste_g: roundMetric(row.actual_waste_g),
+      waste_pct: row.total_length_mm > 0 ? roundMetric((row.actual_waste_g / row.total_length_mm) * 100, 2) : 0,
+      shape_v2_item_count: row.shape_v2_item_count,
+    }));
+}
+
+function topWasteRows(db, fromDate, toDate) {
+  return reportItemRows(db, 'DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste > 0', [fromDate, toDate])
+    .map(row => ({
+      order_num: row.report_order_num,
+      diameter: row.diameter,
+      actual_waste: row.actual_waste,
+      weight: roundMetric(itemReportMetrics(row).totalWeightKg),
+      shape_name: row.shape_name,
+    }))
+    .sort((a, b) => (Number(b.actual_waste) || 0) - (Number(a.actual_waste) || 0))
+    .slice(0, 20);
+}
+
+function monthlyCustomerKpi(db, fromDate, limit = 5) {
+  const revenueRows = db.prepare(`
+    SELECT c.id as customer_id, c.name, COUNT(o.id) as orders,
+           COALESCE(SUM(CASE WHEN o.sale_price > 0 THEN o.sale_price ELSE 0 END), 0) as revenue,
+           COALESCE(SUM(o.total_weight), 0) as legacy_weight
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.id
+    WHERE DATE(o.created_at) >= ?
+    GROUP BY c.id, c.name
+  `).all(fromDate);
+  const groups = new Map(revenueRows.map(row => [row.customer_id, {
+    customer_id: row.customer_id,
+    name: row.name,
+    orders: row.orders || 0,
+    revenue: Number(row.revenue) || 0,
+    total_weight_kg: 0,
+    legacy_weight: Number(row.legacy_weight) || 0,
+    shape_v2_item_count: 0,
+  }]));
+  const itemRows = reportItemRows(db, 'DATE(o.created_at) >= ?', [fromDate]);
+  for (const item of itemRows) {
+    const key = item.report_customer_id;
+    if (!key) continue;
+    const current = groups.get(key) || {
+      customer_id: key,
+      name: item.report_customer_name || '',
+      orders: 0,
+      revenue: 0,
+      total_weight_kg: 0,
+      legacy_weight: 0,
+      shape_v2_item_count: 0,
+    };
+    current.total_weight_kg += itemReportMetrics(item).totalWeightKg;
+    current.shape_v2_item_count += 1;
+    groups.set(key, current);
+  }
+  return [...groups.values()]
+    .map(row => ({
+      name: row.name,
+      orders: row.orders,
+      total_weight_kg: roundMetric(row.shape_v2_item_count > 0 ? row.total_weight_kg : row.legacy_weight),
+      revenue: roundMetric(row.revenue, 2),
+      shape_v2_item_count: row.shape_v2_item_count,
+    }))
+    .sort((a, b) => b.total_weight_kg - a.total_weight_kg)
+    .slice(0, limit);
+}
 
 function required(name, value) {
   if (!value) throw new Error(`routes/reports missing dependency: ${name}`);
@@ -10,7 +356,6 @@ module.exports = function createReportsRouter(deps) {
   const requireRole = required('requireRole', deps.requireRole);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const statusContracts = required('statusContracts', deps.statusContracts);
-  const ai = required('ai', deps.ai);
 
   router.get('/dashboard', requireRole('viewer'), (req, res) => {
     const today = new Date().toISOString().split('T')[0];
@@ -22,13 +367,13 @@ module.exports = function createReportsRouter(deps) {
       FROM items WHERE DATE(completed_at)=? AND status=?
     `).get(today, doneItemStatus);
 
-    const productionToday = db.prepare(`
-      SELECT COUNT(*) as completedItems,
-             COALESCE(SUM(total_weight),0) as producedWeightToday,
-             COALESCE(SUM(total_weight),0)/1000 as producedTonsToday
-      FROM items
-      WHERE DATE(completed_at)=? AND status=?
-    `).get(today, doneItemStatus);
+    const completedItemsToday = db.prepare('SELECT * FROM items WHERE DATE(completed_at)=? AND status=?').all(today, doneItemStatus);
+    const producedWeightToday = sumShapeWeight(completedItemsToday);
+    const productionToday = {
+      completedItems: completedItemsToday.length,
+      producedWeightToday,
+      producedTonsToday: producedWeightToday / 1000,
+    };
 
     const wasteByMachine = db.prepare(`
       SELECT i.machine, SUM(i.actual_waste) as waste, SUM(i.quantity) as qty
@@ -43,7 +388,7 @@ module.exports = function createReportsRouter(deps) {
       inProduction:     db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.IN_PRODUCTION).c,
       pending:          db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.PENDING_APPROVAL).c,
       urgentOpen:       db.prepare("SELECT COUNT(*) as c FROM orders WHERE priority='דחוף' AND status NOT IN (?,?)").get(statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED, statusContracts.ORDER_STATUS.CANCELLED).c,
-      totalWeightToday: db.prepare("SELECT SUM(total_weight) as w FROM orders WHERE DATE(created_at)=?").get(today).w || 0,
+      totalWeightToday: shapeWeightForOrdersCreatedBetween(db, today, today),
       producedWeightToday: productionToday.producedWeightToday || 0,
       producedTonsToday: Math.round((productionToday.producedTonsToday || 0) * 10) / 10,
       itemsInProduction:db.prepare("SELECT COUNT(*) as c FROM items WHERE status=?").get(statusContracts.ITEM_STATUS.IN_PRODUCTION).c,
@@ -58,58 +403,42 @@ module.exports = function createReportsRouter(deps) {
 
 
   router.get('/reports/summary', requireAnyRole(['office', 'finance', 'manager', 'admin']), (req, res) => {
-    const { from, to } = req.query;
-    const fromDate = from || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-    const toDate   = to   || new Date().toISOString().split('T')[0];
+    const period = reportPeriod(req.query);
+    if (period.error) return res.status(400).json({ error: period.error });
+    const { fromDate, toDate } = period;
+    const doneItemStatus = statusContracts.ITEM_STATUS.DONE;
 
     res.json({
       period: { from: fromDate, to: toDate },
-      orders: db.prepare(`
-        SELECT DATE(created_at) as date, COUNT(*) as count, SUM(total_weight) as weight
-        FROM orders WHERE DATE(created_at) BETWEEN ? AND ?
-        GROUP BY DATE(created_at) ORDER BY date
-      `).all(fromDate, toDate),
+      dataQuality: reportDataQuality(db, fromDate, toDate),
+      orders: orderCreatedWeightByDate(db, fromDate, toDate),
       byStatus: db.prepare(`
         SELECT status, COUNT(*) as count FROM orders
         WHERE DATE(created_at) BETWEEN ? AND ? GROUP BY status
       `).all(fromDate, toDate),
-      waste: ai.analyzeWastePatterns(),
-      machineEfficiency: ai.getMachineEfficiency(30),
-      topCustomers: db.prepare(`
-        SELECT c.name, COUNT(o.id) as order_count, SUM(o.billing_weight) as total_weight
-        FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
-        WHERE DATE(o.created_at) BETWEEN ? AND ?
-        GROUP BY o.customer_id ORDER BY total_weight DESC LIMIT 10
-      `).all(fromDate, toDate),
+      waste: periodWasteRows(db, fromDate, toDate, doneItemStatus),
+      machineEfficiency: machineEfficiencyByPeriod(db, fromDate, toDate, doneItemStatus),
+      topCustomers: topCustomersByShapeWeight(db, fromDate, toDate),
     });
   });
 
 
   router.get('/reports/waste', requireAnyRole(['production', 'office', 'finance', 'manager', 'admin']), (req, res) => {
-    const { from, to } = req.query;
-    const rows = db.prepare(`
-      SELECT i.machine, i.diameter, i.shape_name,
-             SUM(i.actual_waste) as total_waste, SUM(i.quantity) as total_ordered,
-             ROUND(100.0 * SUM(i.actual_waste) / MAX(SUM(i.quantity),1), 1) as waste_pct,
-             COUNT(*) as item_count
-      FROM items i
-      WHERE i.status='הושלם'
-        ${from ? "AND DATE(i.completed_at) >= '" + from + "'" : ''}
-        ${to   ? "AND DATE(i.completed_at) <= '" + to + "'"   : ''}
-      GROUP BY i.machine, i.diameter, i.shape_name
-      ORDER BY waste_pct DESC
-    `).all();
-    res.json(rows);
+    const period = reportPeriod(req.query);
+    if (period.error) return res.status(400).json({ error: period.error });
+    const { fromDate, toDate } = period;
+    res.json(periodWasteRows(db, fromDate, toDate, statusContracts.ITEM_STATUS.DONE));
   });
 
   router.get('/waste/summary', requireAnyRole(['production', 'office', 'finance', 'manager', 'admin']), (req, res) => {
-    const { from, to } = req.query;
-    const fromDate = from || new Date(Date.now()-30*86400000).toISOString().split('T')[0];
-    const toDate   = to   || new Date().toISOString().split('T')[0];
+    const period = reportPeriod(req.query);
+    if (period.error) return res.status(400).json({ error: period.error });
+    const { fromDate, toDate } = period;
     res.json({
-      period: { from:fromDate, to:toDate },
-      byDiameter: db.prepare('SELECT i.diameter,SUM(i.quantity) as items_produced,SUM(i.total_weight) as net_weight,SUM(i.actual_waste) as actual_waste_g,ROUND(AVG(CAST(i.actual_waste AS REAL)/NULLIF(i.total_length_mm,0)*100),2) as waste_pct FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 GROUP BY i.diameter ORDER BY i.diameter').all(fromDate,toDate),
-      topWaste: db.prepare('SELECT o.order_num,i.diameter,i.actual_waste,i.total_weight AS weight,i.shape_name FROM items i JOIN pallets p ON i.pallet_id=p.id JOIN orders o ON p.order_id=o.id WHERE DATE(o.created_at) BETWEEN ? AND ? AND i.actual_waste>0 ORDER BY i.actual_waste DESC LIMIT 20').all(fromDate,toDate),
+      period: { from: fromDate, to: toDate },
+      dataQuality: reportDataQuality(db, fromDate, toDate),
+      byDiameter: wasteSummaryByDiameter(db, fromDate, toDate),
+      topWaste: topWasteRows(db, fromDate, toDate),
       rawMaterial: db.prepare('SELECT diameter,SUM(weight_scrapped) as total_scrapped,SUM(weight_received) as total_received,ROUND(100.0*SUM(weight_scrapped)/NULLIF(SUM(weight_received),0),1) as scrap_pct FROM raw_material GROUP BY diameter ORDER BY diameter').all(),
     });
   });
@@ -124,37 +453,40 @@ module.exports = function createReportsRouter(deps) {
     const cur = db.prepare(`
       SELECT
         COUNT(DISTINCT o.id) as order_count,
-        COALESCE(SUM(o.total_weight),0) as total_weight_kg,
+        0 as total_weight_kg,
         COALESCE(SUM(CASE WHEN o.sale_price>0 THEN o.sale_price ELSE 0 END),0) as revenue,
         COALESCE(SUM(CASE WHEN o.cost_material>0 THEN o.cost_material ELSE 0 END),0) as cost_material,
         COALESCE(SUM(CASE WHEN o.cost_labor>0 THEN o.cost_labor ELSE 0 END),0) as cost_labor,
-        SUM(CASE WHEN o.status='הושלם' OR o.status='סופק' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN o.status='בייצור' THEN 1 ELSE 0 END) as in_production,
-        SUM(CASE WHEN o.status='ממתינה לאישור' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN o.priority='דחוף' AND o.status NOT IN ('הושלם','סופק') THEN 1 ELSE 0 END) as urgent_open
+        SUM(CASE WHEN o.status=? OR o.status=? THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN o.status=? THEN 1 ELSE 0 END) as in_production,
+        SUM(CASE WHEN o.status=? THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN o.priority=? AND o.status NOT IN (?,?) THEN 1 ELSE 0 END) as urgent_open
       FROM orders o
       WHERE DATE(o.created_at) >= ?
-    `).get(monthStart);
+    `).get(
+      statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP,
+      statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED,
+      statusContracts.ORDER_STATUS.IN_PRODUCTION,
+      statusContracts.ORDER_STATUS.PENDING_APPROVAL,
+      '\u05d3\u05d7\u05d5\u05e3',
+      statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP,
+      statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED,
+      monthStart
+    );
 
     const prev = db.prepare(`
       SELECT
         COUNT(DISTINCT o.id) as order_count,
-        COALESCE(SUM(o.total_weight),0) as total_weight_kg,
+        0 as total_weight_kg,
         COALESCE(SUM(CASE WHEN o.sale_price>0 THEN o.sale_price ELSE 0 END),0) as revenue
       FROM orders o
       WHERE DATE(o.created_at) BETWEEN ? AND ?
     `).get(prevMonthStart, prevMonthEnd);
 
-    const topCustomers = db.prepare(`
-      SELECT c.name, COUNT(o.id) as orders, COALESCE(SUM(o.total_weight),0) as total_weight_kg,
-        COALESCE(SUM(CASE WHEN o.sale_price>0 THEN o.sale_price ELSE 0 END),0) as revenue
-      FROM orders o
-      JOIN customers c ON o.customer_id = c.id
-      WHERE DATE(o.created_at) >= ?
-      GROUP BY c.id, c.name
-      ORDER BY total_weight_kg DESC
-      LIMIT 5
-    `).all(monthStart);
+    cur.total_weight_kg = shapeWeightForOrdersCreatedBetween(db, monthStart, new Date().toISOString().slice(0, 10));
+    prev.total_weight_kg = shapeWeightForOrdersCreatedBetween(db, prevMonthStart, prevMonthEnd);
+
+    const topCustomers = monthlyCustomerKpi(db, monthStart);
 
     const tonsMonth = (cur.total_weight_kg || 0) / 1000;
     const revenue   = cur.revenue || 0;
@@ -165,7 +497,8 @@ module.exports = function createReportsRouter(deps) {
       month: now.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }),
       current: { ...cur, tons: Math.round(tonsMonth * 10) / 10, revenue, cost, margin },
       prev: { ...prev, tons: Math.round((prev.total_weight_kg||0) / 100) / 10 },
-      topCustomers
+      topCustomers,
+      dataQuality: reportDataQuality(db, monthStart, new Date().toISOString().slice(0, 10))
     });
   });
 
@@ -183,11 +516,17 @@ module.exports = function createReportsRouter(deps) {
 
   router.get('/export/orders', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const rows = db.prepare(`
-      SELECT o.order_num, c.name as customer, o.delivery_date, o.status, o.total_weight,
+      SELECT o.id, o.order_num, c.name as customer, o.delivery_date, o.status, o.total_weight,
              o.priority, o.channel, o.created_at
       FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
       ORDER BY o.created_at DESC LIMIT 5000
     `).all();
+    const weights = orderWeightsById(db, rows.map(row => row.id));
+    for (const row of rows) {
+      const shapeWeight = weights.get(row.id);
+      if (shapeWeight && shapeWeight.itemCount > 0) row.total_weight = roundMetric(shapeWeight.totalWeightKg);
+      delete row.id;
+    }
     const cols = [
       { key:'order_num',    label:'מספר הזמנה' },
       { key:'customer',     label:'לקוח' },

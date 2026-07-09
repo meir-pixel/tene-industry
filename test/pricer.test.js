@@ -94,3 +94,35 @@ test('order quote marks missing selected new price-book rows instead of returnin
     db.close();
   }
 });
+
+
+test('order quote prices Shape V2 calculated weight before legacy totals', () => {
+  const { db, pricer } = setup();
+  try {
+    const result = pricer.calcOrderPriceForCustomer(
+      [{
+        diameter: 8,
+        quantity: 3,
+        totalWeight: 999,
+        shapeSnapshot: {
+          contractVersion: 2,
+          shapeVersion: 1,
+          shapeId: 'shape-price-v2',
+          shapeType: 'u_bar',
+          family: 'bars',
+          data: { sides: [1000, 500, 1000], angles: [90, 90], diameter: 8 },
+          calculated: { totalLengthMm: 2500, weightKg: 1.25 },
+          machineOutput: { generic: { totalLengthMm: 2500, weightKg: 1.25 }, machineProfiles: {} },
+          validation: { valid: true, errors: [], warnings: [] },
+        },
+      }],
+      { id: 7, price_tier: 'customer', discount_pct: 0 },
+      { wastePct: 0 },
+    );
+    assert.equal(result.totalWeight, 3.75);
+    assert.equal(result.totalPrice, 15);
+    assert.equal(result.breakdown[0].weight, 3.75);
+  } finally {
+    db.close();
+  }
+});
