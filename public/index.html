@@ -571,40 +571,6 @@
   }
   .add-item-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(224,123,57,0.05); }
 
-  .quick-add-panel {
-    display: grid;
-    grid-template-columns: minmax(170px, 1.1fr) repeat(3, minmax(110px, .7fr)) auto;
-    gap: 10px;
-    align-items: end;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px;
-    margin-bottom: 12px;
-  }
-  .quick-add-title {
-    display: grid;
-    gap: 2px;
-    color: var(--text);
-    font-weight: 900;
-  }
-  .quick-add-title span {
-    color: var(--text-dim);
-    font-size: 12px;
-    font-weight: 600;
-  }
-  .quick-add-btn {
-    border: 0;
-    border-radius: 8px;
-    background: var(--accent);
-    color: #fff;
-    cursor: pointer;
-    font-family: inherit;
-    font-weight: 900;
-    padding: 10px 14px;
-    white-space: nowrap;
-  }
-  .quick-add-btn:hover { background: var(--accent-light); }
   .wizard-summary-block {
     display: grid;
     gap: 8px;
@@ -1246,9 +1212,6 @@
     .order-import-section { grid-template-columns: 1fr; }
     .order-import-section .section-header { border-bottom: 1px solid var(--border); }
     .customer-quick-row { grid-template-columns: 1fr; }
-    .quick-add-panel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .quick-add-title { grid-column: 1 / -1; }
-    .quick-add-btn { grid-column: 1 / -1; }
     .summary-bar {
       grid-row: auto;
       position: static;
@@ -1296,9 +1259,6 @@
     .summary-bar { position: sticky; bottom: 0; top: auto; z-index: 90; box-shadow: 0 -12px 34px rgba(17,34,51,.16); }
     .section-body { padding: 14px; }
     .section-header { padding: 14px 16px; }
-    .quick-add-panel { grid-template-columns: 1fr; }
-    .quick-add-title,
-    .quick-add-btn { grid-column: auto; }
     .submit-btn { padding: 14px 24px; font-size: 15px; }
   }
 
@@ -1329,6 +1289,93 @@
     .submit-btn { width: 100%; text-align: center; justify-content: center; font-size: 16px; padding: 16px; }
     /* Add pallet button */
     .add-pallet-btn { padding: 14px; font-size: 13px; }
+  }
+  /* New order UX pass */
+  body {
+    background: linear-gradient(180deg, #eef3f7 0%, #f8fafc 44%, #f1f5f9 100%);
+  }
+  .main {
+    grid-template-columns: minmax(0, 1fr) minmax(330px, 0.7fr) 300px;
+    gap: 16px;
+  }
+  .order-workspace-head {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+    background: #fff;
+    border: 1px solid rgba(17,34,51,.08);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: 0 10px 28px rgba(17,34,51,.06);
+  }
+  .order-workspace-title {
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--text);
+    line-height: 1.15;
+  }
+  .order-workspace-sub {
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .order-workspace-pills {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .order-workspace-pill {
+    border: 1px solid rgba(36,95,143,.14);
+    background: #f7fbff;
+    color: #245f8f;
+    border-radius: 999px;
+    padding: 7px 11px;
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .progress-bar,
+  .section,
+  .summary-bar {
+    box-shadow: 0 10px 28px rgba(17,34,51,.06);
+  }
+  .section {
+    background: #fff;
+    border-color: rgba(17,34,51,.08);
+  }
+  .section-header {
+    padding: 14px 16px;
+    border-bottom-color: rgba(17,34,51,.08);
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  }
+  .summary-bar {
+    width: 100%;
+    padding: 12px;
+    gap: 10px;
+    background: rgba(255,255,255,.96);
+    border-color: rgba(17,34,51,.09);
+    box-shadow: 0 18px 42px rgba(17,34,51,.10);
+    backdrop-filter: blur(8px);
+  }
+  .wizard-summary-block,
+  .stat {
+    border-radius: 8px;
+    border-color: rgba(17,34,51,.08);
+  }
+  .stat {
+    background: #f8fafc;
+  }
+  @media (max-width: 1100px) {
+    .order-workspace-head { grid-column: 1 / -1; grid-template-columns: 1fr; }
+    .order-workspace-pills { justify-content: flex-start; }
+  }
+  @media (max-width: 768px) {
+    .order-workspace-head { padding: 14px; }
+    .order-workspace-title { font-size: 21px; }
   }
 </style>
 <link rel="stylesheet" href="/theme.css">
@@ -1366,6 +1413,17 @@
     </div>
   </div>
 
+  <div class="order-workspace-head">
+    <div>
+      <div class="order-workspace-title">&#1492;&#1494;&#1502;&#1504;&#1492; &#1495;&#1491;&#1513;&#1492;</div>
+      <div class="order-workspace-sub">&#1500;&#1511;&#1493;&#1495;, &#1488;&#1505;&#1508;&#1511;&#1492;, &#1508;&#1512;&#1497;&#1496;&#1497;&#1501; &#1493;&#1513;&#1502;&#1497;&#1512;&#1514; &#1502;&#1500;&#1488;&#1497; &#1489;&#1502;&#1505;&#1498; &#1488;&#1495;&#1491;.</div>
+    </div>
+    <div class="order-workspace-pills" aria-label="&#1502;&#1510;&#1489; &#1492;&#1494;&#1502;&#1504;&#1492;">
+      <span class="order-workspace-pill">Shape V2</span>
+      <span class="order-workspace-pill">Reservation Preview</span>
+      <span class="order-workspace-pill">Billing Ready</span>
+    </div>
+  </div>
   <div class="section order-import-section" id="order-import-section-anchor">
     <details class="compact-toggle" id="intakeDetails">
       <summary>
@@ -1565,25 +1623,6 @@
       </a>
     </div>
     <div class="section-body">
-      <div class="quick-add-panel" aria-label="&#1492;&#1493;&#1505;&#1508;&#1492; &#1502;&#1492;&#1497;&#1512;&#1492; &#1513;&#1500; &#1502;&#1493;&#1496; &#1497;&#1513;&#1512;">
-        <div class="quick-add-title">
-          &#1502;&#1493;&#1496; &#1497;&#1513;&#1512; &#1502;&#1492;&#1497;&#1512;
-          <span>&#1488;&#1493;&#1512;&#1498;, &#1511;&#1493;&#1496;&#1512; &#1493;&#1499;&#1502;&#1493;&#1514; - &#1504;&#1513;&#1502;&#1512; &#1499;-Shape V2</span>
-        </div>
-        <div class="field">
-          <label>&#1488;&#1493;&#1512;&#1498; &#1489;&#1502;&quot;&#1502;</label>
-          <input type="number" id="quickBarLength" min="1" step="10" placeholder="6000">
-        </div>
-        <div class="field">
-          <label>&#1511;&#1493;&#1496;&#1512;</label>
-          <input type="number" id="quickBarDiameter" min="4" step="1" value="12">
-        </div>
-        <div class="field">
-          <label>&#1499;&#1502;&#1493;&#1514;</label>
-          <input type="number" id="quickBarQty" min="1" step="1" value="1">
-        </div>
-        <button type="button" class="quick-add-btn" onclick="quickAddStraightBar()">&#1492;&#1493;&#1505;&#1507; &#1502;&#1493;&#1496;</button>
-      </div>
       <div class="pallets-container" id="palletsContainer"></div>
       <button class="add-pallet-btn" onclick="addPallet()">
         ➕ הוסף משטח נוסף
@@ -1781,7 +1820,7 @@ function init() {
 
   // Shape editor
   shapeEditor = new ShapeEditorModal(shapeSelected);
-  updateOcrDocumentRouteUi();
+  if (typeof updateOcrDocumentRouteUi === 'function') updateOcrDocumentRouteUi();
 
   // Pre-fill customer from URL params (e.g. coming from customers.html)
   if (urlParams.get('customer_name')) {
@@ -2882,37 +2921,6 @@ function buildStraightBarSnapshot({ length, diameter, qty }) {
   };
   if (snapshotBuilder) return snapshotBuilder(base);
   return { contractVersion: 2, shapeVersion: 1, approvedAt: new Date().toISOString(), ...base };
-}
-
-function quickAddStraightBar() {
-  const length = Number(document.getElementById('quickBarLength')?.value || 0);
-  const diameter = Number(document.getElementById('quickBarDiameter')?.value || 0);
-  const qty = Math.max(1, Number(document.getElementById('quickBarQty')?.value || 1) || 1);
-  if (!Number.isFinite(length) || length <= 0) { alert('\u05e0\u05d0 \u05dc\u05d4\u05d6\u05d9\u05df \u05d0\u05d5\u05e8\u05da \u05de\u05d5\u05d8 \u05d1\u05de\u05de'); return; }
-  if (!Number.isFinite(diameter) || diameter <= 0) { alert('\u05e0\u05d0 \u05dc\u05d4\u05d6\u05d9\u05df \u05e7\u05d5\u05d8\u05e8 \u05de\u05d5\u05d8'); return; }
-  if (!pallets.length) addPallet();
-  const pallet = pallets[0];
-  const snapshot = buildStraightBarSnapshot({ length, diameter, qty });
-  pallet.items.push({
-    id: Date.now(),
-    shapeId: 'straight_bar',
-    shapeEmoji: '-',
-    shapeName: '\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8',
-    family: 'bars',
-    shapeSnapshot: snapshot,
-    shapeSides: [length],
-    shapeAngles: [],
-    diameter,
-    length,
-    qty,
-    note: '',
-    raw_material_id: 'auto',
-  });
-  const lengthInput = document.getElementById('quickBarLength');
-  const qtyInput = document.getElementById('quickBarQty');
-  if (lengthInput) { lengthInput.value = ''; lengthInput.focus(); }
-  if (qtyInput) qtyInput.value = '1';
-  renderPallets();
 }
 
 function appendParsedItems(items = []) {
