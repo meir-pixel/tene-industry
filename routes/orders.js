@@ -12,7 +12,13 @@ const {
   sourceIdentityFromRequest,
 } = require('../services/importSourceIdentity');
 const { ORDER_STATUS } = require('../status-contracts');
-const { releaseAllReservationsForOrder, releaseReservationsForItems, reserveMaterialForOrder } = require('../services/inventoryReservation');
+const {
+  calculateMaterialStockPosition,
+  releaseAllReservationsForOrder,
+  releaseReservationsForItems,
+  reserveMaterialForOrder,
+} = require('../services/inventoryReservation');
+const { createPricer } = require('../services/pricer');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -68,6 +74,50 @@ module.exports = function createOrdersRouter(deps) {
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
   const auditLog = required('auditLog', deps.auditLog);
   const productionCards = deps.productionCards || require('../services/productionCards');
+  const pricer = deps.pricer || createPricer(db);
+
+  function normalizePreviewItem(item = {}, index = 0) {
+    const shapeSnapshot = parseJsonObject(item.shape_snapshot_json) || parseJsonObject(item.shapeSnapshot) || null;
+    return {
+      order_item_temp_id: item.order_item_temp_id ?? item.temp_id ?? item.id ?? index,
+      diameter: Number(item.diameter),
+      quantity: Math.max(1, Number(item.quantity ?? item.qty ?? 1) || 1),
+      totalWeight: Number(item.total_weight_kg ?? item.totalWeightKg ?? item.totalWeight ?? item.total_weight ?? 0) || 0,
+      shapeSnapshot,
+      shape_snapshot_json: shapeSnapshot ? JSON.stringify(shapeSnapshot) : null,
+    };
+  }
+
+  function pricePreviewCustomer(customerId) {
+    const id = Number(customerId || 0);
+    if (!id) return null;
+    return db.prepare('SELECT * FROM customers WHERE id=?').get(id) || null;
+  }
+
+  function roundKg(value) {
+    const numeric = Number(value || 0);
+    return Number(numeric.toFixed(3));
+  }
+
+  function normalizeReservationPreviewItem(item = {}) {
+    return {
+      diameter: Number(item.diameter),
+      material_type: String(item.material_type || item.materialType || 'coil').trim() || 'coil',
+      required_kg: Number(item.required_kg ?? item.total_weight_kg ?? item.totalWeightKg ?? item.totalWeight ?? item.total_weight ?? 0) || 0,
+    };
+  }
+
+  function emptyReservationPreviewTotal() {
+    return {
+      required_kg: 0,
+      physical_kg: 0,
+      reserved_kg: 0,
+      available_kg: 0,
+      shortage_kg: 0,
+      incoming_kg: 0,
+      recommended_purchase_kg: 0,
+    };
+  }
 
   function cleanItemPayload(body, existingItem = {}) {
     body = withShapeContractLegacyFields(body || {});
@@ -138,6 +188,113 @@ module.exports = function createOrdersRouter(deps) {
     const result = db.prepare('INSERT INTO pallets (order_id,pallet_num,max_weight,total_weight) VALUES (?,?,?,0)').run(orderId, next, 500);
     return { id: result.lastInsertRowid, order_id: Number(orderId), pallet_num: next };
   }
+
+  router.post('/orders/reservation-preview', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    try {
+      const items = Array.isArray(req.body?.items) ? req.body.items.map(normalizeReservationPreviewItem) : [];
+      const requiredByDiameter = new Map();
+
+      for (const item of items) {
+        if (!Number.isFinite(item.diameter) || item.diameter <= 0 || item.required_kg <= 0) continue;
+        const key = String(item.diameter);
+        const current = requiredByDiameter.get(key) || { diameter: item.diameter, material_type: item.material_type, required_kg: 0 };
+        current.required_kg += item.required_kg;
+        requiredByDiameter.set(key, current);
+      }
+
+      const byDiameter = {};
+      const total = emptyReservationPreviewTotal();
+
+      for (const [key, required] of requiredByDiameter.entries()) {
+        const position = calculateMaterialStockPosition(db, {
+          diameter: required.diameter,
+          material_type: required.material_type,
+        });
+        const requiredKg = roundKg(required.required_kg);
+        const availableKg = roundKg(position.availableKg);
+        const incomingKg = roundKg(position.incomingKg);
+        const shortageKg = roundKg(Math.max(0, requiredKg - availableKg));
+        const recommendedPurchaseKg = roundKg(Math.max(0, shortageKg - incomingKg));
+
+        const row = {
+          required_kg: requiredKg,
+          physical_kg: roundKg(position.physicalStockKg),
+          reserved_kg: roundKg(position.reservedKg),
+          available_kg: availableKg,
+          shortage_kg: shortageKg,
+          incoming_kg: incomingKg,
+          recommended_purchase_kg: recommendedPurchaseKg,
+        };
+        byDiameter[key] = row;
+        for (const field of Object.keys(total)) total[field] = roundKg(total[field] + row[field]);
+      }
+
+      res.json({ by_diameter: byDiameter, total });
+    } catch (err) {
+      console.error('reservation preview failed:', err);
+      res.status(err.statusCode || 500).json({ error: 'reservation_preview_failed', message: err.message });
+    }
+  });
+
+  router.post('/orders/price-preview', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    try {
+      const customerId = Number(req.body?.customer_id || 0) || null;
+      const items = Array.isArray(req.body?.items) ? req.body.items.map(normalizePreviewItem) : [];
+      if (!items.length) {
+        return res.json({ lines: [], totals: { subtotal: 0, vat: 0, total: 0 }, missing_prices: [] });
+      }
+
+      const customer = pricePreviewCustomer(customerId);
+      const pricingOptions = customer
+        ? {
+            tier: customer.price_tier === 'customer' ? 'customer' : 'general',
+            customerId: customer.id,
+            discountPct: customer.discount_pct || 0,
+          }
+        : { tier: 'general', customerId: null, discountPct: 0 };
+
+      const lines = items.map((item, index) => {
+        const resolved = pricer.resolveDiameterPrice(item.diameter, pricingOptions);
+        const unitPrice = resolved.pricePerKg === null ? null : Number(resolved.pricePerKg);
+        const lineTotal = unitPrice === null ? 0 : Number((item.totalWeight * unitPrice).toFixed(2));
+        return {
+          order_item_temp_id: item.order_item_temp_id ?? index,
+          diameter: item.diameter,
+          total_weight_kg: Number(item.totalWeight.toFixed(3)),
+          quantity: item.quantity,
+          unit_price: unitPrice === null ? null : Number(unitPrice.toFixed(3)),
+          line_total: lineTotal,
+          source_price_book: resolved.priceBookCode || resolved.pricingLabel || resolved.pricingSource || null,
+          pricing_source: resolved.pricingSource || null,
+          pricing_label: resolved.pricingLabel || null,
+          requires_price_list_update: Boolean(resolved.requiresPriceListUpdate),
+        };
+      });
+
+      const missingPrices = lines
+        .filter(line => line.requires_price_list_update || line.unit_price === null)
+        .map(line => ({
+          order_item_temp_id: line.order_item_temp_id,
+          diameter: line.diameter,
+          reason: 'missing_diameter',
+          source_price_book: line.source_price_book,
+        }));
+      const subtotal = Number(lines.reduce((sum, line) => sum + Number(line.line_total || 0), 0).toFixed(2));
+      const vatRate = 0.18;
+      const vat = Number((subtotal * vatRate).toFixed(2));
+      const total = Number((subtotal + vat).toFixed(2));
+
+      res.json({
+        lines,
+        totals: { subtotal, vat, total },
+        missing_prices: missingPrices,
+      });
+    } catch (err) {
+      console.error('price preview failed:', err);
+      res.status(500).json({ error: 'price_preview_failed', message: err.message });
+    }
+  });
+
   router.get('/orders', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
     const { status, date, priority } = req.query;
     const page = listPage(req.query, { limit: 100, max: 500 });
@@ -534,3 +691,4 @@ module.exports.manifest = {
     { event: 'machine_assign' },
   ],
 };
+

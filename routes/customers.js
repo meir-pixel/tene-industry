@@ -1,4 +1,8 @@
 const router = require('express').Router();
+const {
+  getCustomerAccountSummary,
+  createInvoiceDraftFromBillableOrders,
+} = require('../services/customerBilling');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/customers missing dependency: ${name}`);
@@ -67,6 +71,32 @@ module.exports = function createCustomersRouter(deps) {
     res.json(rows);
   });
 
+  router.get('/customers/:id/summary', requireAnyRole(['office', 'sales', 'finance', 'manager', 'admin']), (req, res, next) => {
+    try {
+      res.json(getCustomerAccountSummary(db, { customer_id: req.params.id }));
+    } catch (err) {
+      if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
+      return next(err);
+    }
+  });
+
+  router.post('/customers/:id/invoices/draft', requireAnyRole(['finance', 'manager', 'admin']), (req, res, next) => {
+    try {
+      const draft = createInvoiceDraftFromBillableOrders(db, {
+        customer_id: req.params.id,
+        order_ids: req.body?.order_ids,
+      });
+      res.status(201).json(draft);
+    } catch (err) {
+      if (err.statusCode) {
+        return res.status(err.statusCode).json({
+          error: err.message,
+          rejectedOrderIds: err.rejectedOrderIds || [],
+        });
+      }
+      return next(err);
+    }
+  });
   // BUG-26: no portal_token in admin customer detail — use dedicated /token endpoint
   const CUSTOMER_ADMIN_COLS = 'c.id,c.name,c.phone,c.email,c.address,c.tax_id,c.payment_terms,c.portal_price_list_visibility,c.portal_can_manage_users,c.portal_can_create_sites,c.portal_can_set_budgets,c.portal_can_expose_prices,c.contact_name,c.contact_phone,c.priority_id,c.notes,c.price_tier,c.discount_pct,c.portal_profile_locked_at,COALESCE(cc.open_debt,0) AS balance,COALESCE(cc.credit_limit,0) AS credit_limit,c.created_at';
   router.get('/customers/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {

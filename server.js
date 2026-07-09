@@ -69,6 +69,7 @@ const createIntakeReviewRouter = require('./routes/intakeReview');
 const createAlertsRouter = require('./routes/alerts');
 const createCompaniesRouter = require('./routes/companies');
 const createPriorityRouter = require('./routes/priority');
+const createPriorityExportRouter = require('./routes/priorityExport');
 const createAiRouter = require('./routes/ai');
 const createSearchRouter = require('./routes/search');
 const createBvbsRouter = require('./routes/bvbs');
@@ -262,7 +263,7 @@ const allRouteFactories = [
   createSearchRouter, createIntakeChannelsRouter, createIntakeReviewRouter, createIntakeTrainingRouter,
   createInventoryVisionRouter, createOrderDocumentsRouter, createOrderDeliveryCertificateRouter,
   createOrderPrintA4Router, createProductionMetricsRouter, createProductionShiftsRouter,
-  createCatalogRouter, createPriorityRouter, createBrandingRouter, createLicenseRouter,
+  createCatalogRouter, createPriorityRouter, createPriorityExportRouter, createBrandingRouter, createLicenseRouter,
   createAccessRouter,
 ];
 const routeManifests = allRouteFactories.map(f => f.manifest).filter(Boolean);
@@ -308,6 +309,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/portal.js', factory: createPortalRouter },
     { file: 'routes/portalAdmin.js', factory: createPortalAdminRouter },
     { file: 'routes/priority.js', factory: createPriorityRouter },
+    { file: 'routes/priorityExport.js', factory: createPriorityExportRouter },
     { file: 'routes/procurement.js', factory: createProcurementRouter },
     { file: 'routes/production.js', factory: createProductionRouter },
     { file: 'routes/productionCards.js', factory: createProductionCardsRouter },
@@ -440,6 +442,7 @@ app.use('/api', requireModule('orders'), createOrdersRouter({
   wsBroadcast,
   auditLog,
   productionCards,
+  pricer,
 }));
 
 app.use('/api', requireModule('production'), createProductionCardsRouter({
@@ -465,6 +468,12 @@ app.use('/api', requireModule('finance'), createFinanceInvoicesRouter({
   db,
   requireAnyRole,
   wsBroadcast,
+}));
+
+app.use('/api', requireModule('finance'), createPriorityExportRouter({
+  db,
+  requireAnyRole,
+  PRIORITY_ENABLED,
 }));
 
 app.use('/api', requireModule('finance'), createFinanceCostsRouter({

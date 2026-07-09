@@ -155,6 +155,22 @@ function runCoreMigrations(db) {
     );
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS export_log (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      destination   TEXT DEFAULT 'generic',
+      entity_type   TEXT,
+      entity_id     INTEGER,
+      export_format TEXT,
+      payload_json  TEXT,
+      status        TEXT,
+      external_ref  TEXT,
+      error_message TEXT,
+      exported_by   INTEGER,
+      exported_at   DATETIME,
+      created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
   ensureVehicleCompatibility(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS customer_sites (

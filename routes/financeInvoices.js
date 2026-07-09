@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { linkInvoiceToOrders } = require('../services/customerBilling');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/financeInvoices missing dependency: ${name}`);
@@ -41,6 +42,23 @@ module.exports = function createFinanceInvoicesRouter(deps) {
     res.json({ id: r.lastInsertRowid, invoice_num, total });
   });
 
+  router.post('/invoices/:id/link-orders', requireAnyRole(['finance', 'manager', 'admin']), (req, res, next) => {
+    try {
+      const result = linkInvoiceToOrders(db, {
+        invoice_id: req.params.id,
+        order_ids: req.body?.order_ids,
+      });
+      res.json(result);
+    } catch (err) {
+      if (err.statusCode) {
+        return res.status(err.statusCode).json({
+          error: err.message,
+          rejectedOrderIds: err.rejectedOrderIds || [],
+        });
+      }
+      return next(err);
+    }
+  });
   router.patch('/invoices/:id/pay', requireAnyRole(['finance', 'manager', 'admin']), (req, res) => { // BUG-36: cannot pay cancelled invoice
     const { paid_amount, payment_method, payment_ref } = req.body;
     const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(req.params.id);
