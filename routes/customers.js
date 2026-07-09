@@ -73,14 +73,18 @@ module.exports = function createCustomersRouter(deps) {
     const c = db.prepare(`SELECT ${CUSTOMER_ADMIN_COLS} FROM customers c LEFT JOIN customer_credit cc ON cc.customer_id=c.id WHERE c.id=?`).get(req.params.id);
     if (!c) return res.status(404).json({ error: 'לא נמצא' });
     const activePriceBook = safeQuery(null, () => db.prepare(`
-      SELECT id,code,name,price_type,status,updated_at
-      FROM pricing_price_books
-      WHERE status='active'
-        AND (customer_id=? OR customer_id IS NULL)
-      ORDER BY customer_id IS NOT NULL DESC,
-               price_type=CASE WHEN ?='customer' THEN 'customer' ELSE 'general' END DESC,
-               price_type='general' DESC,
-               updated_at DESC, id DESC
+      SELECT b.id,b.code,b.name,b.price_type,b.status,b.updated_at
+      FROM pricing_price_books b
+      WHERE (b.customer_id=? OR b.customer_id IS NULL)
+        AND EXISTS (
+          SELECT 1 FROM pricing_price_items i
+          WHERE i.price_book_id=b.id AND i.active=1 AND i.price_before_vat > 0
+        )
+      ORDER BY b.status='active' DESC,
+               b.customer_id IS NOT NULL DESC,
+               b.price_type=CASE WHEN ?='customer' THEN 'customer' ELSE 'general' END DESC,
+               b.price_type='general' DESC,
+               b.updated_at DESC, b.id DESC
       LIMIT 1
     `).get(c.id, c.price_tier === 'customer' ? 'customer' : 'general'));
     const activePriceItems = activePriceBook ? safeQuery([], () => db.prepare(`
@@ -112,11 +116,12 @@ module.exports = function createCustomersRouter(deps) {
     const fallbackKgPrice = priceForDiameter(0);
     function orderItemsForPricing(orderId) {
       return safeQuery([], () => db.prepare(`
-        SELECT id,order_id,shape_snapshot_json,shape_name,diameter,segments,total_length_mm,quantity,weight_per_unit,total_weight,price_category,struct_element
-        FROM items
-        WHERE order_id=?
-        ORDER BY id
-      `).all(orderId));
+        SELECT i.id,i.order_id,i.shape_snapshot_json,i.shape_name,i.diameter,i.segments,i.total_length_mm,i.quantity,i.weight_per_unit,i.total_weight,i.price_category,i.struct_element
+        FROM items i
+        LEFT JOIN pallets p ON p.id=i.pallet_id
+        WHERE i.order_id=? OR p.order_id=?
+        ORDER BY i.id
+      `).all(orderId, orderId));
     }
     function itemPricingWeight(item) {
       const direct = Number(item.total_weight || 0);
@@ -158,11 +163,17 @@ module.exports = function createCustomersRouter(deps) {
       const priced = existingAmount > 0 ? { amount: existingAmount, source: 'existing' } : priceOrderFromItems(row);
       const fallbackAmount = priced.amount > 0 ? priced.amount : (billingWeight > 0 && fallbackKgPrice > 0 ? billingWeight * fallbackKgPrice : 0);
       const source = priced.amount > 0 ? priced.source : (fallbackAmount > 0 ? 'price_book_weight' : 'missing_price');
+      const missingReason = !activePriceBook ? 'no_price_book'
+        : !activePriceItems.length ? 'no_price_items'
+        : !(billingWeight > 0) ? 'no_weight'
+        : 'missing_matching_price';
       return {
         ...row,
         billing_weight: billingWeight,
         suggested_amount: roundMoney(fallbackAmount),
         billing_source: billingSourceLabel(source),
+        billing_reason: fallbackAmount > 0 ? '' : missingReason,
+        price_book_status: activePriceBook?.status || null,
         billing_status: Number(row.billed_amount || 0) > 0 ? '\u05d7\u05d5\u05d9\u05d1' : (fallbackAmount > 0 ? '\u05de\u05d5\u05db\u05df \u05dc\u05d7\u05d9\u05d5\u05d1' : '\u05dc\u05d0 \u05d7\u05d5\u05e9\u05d1'),
       };
     }

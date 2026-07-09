@@ -135,6 +135,18 @@ test('customer card prices orders from active price book diameter ranges', () =>
   assert.match(route, /billingWeight \/ itemWeight/);
 });
 
+test('customer billing uses pallet items and explains missing pricing instead of silent zero', () => {
+  const route = read('routes/customers.js');
+  const page = read('public/customers.html');
+  assert.match(route, /LEFT JOIN pallets p ON p\.id=i\.pallet_id/);
+  assert.match(route, /i\.order_id=\? OR p\.order_id=\?/);
+  assert.match(route, /EXISTS \([\s\S]*pricing_price_items/);
+  assert.match(route, /billing_reason/);
+  assert.match(route, /no_price_book/);
+  assert.match(page, /function billingReasonText/);
+  assert.match(page, /billingReasonText\(row\)/);
+});
+
 test('customer card keeps orders above billing sites and secondary details', () => {
   const page = read('public/customers.html');
   assert.match(page, /function renderCustomerOrders/);
