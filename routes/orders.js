@@ -236,7 +236,7 @@ module.exports = function createOrdersRouter(deps) {
     }
   });
 
-  router.post('/orders/price-preview', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+  router.post('/orders/price-preview', requireAnyRole(['finance', 'sales', 'manager', 'admin']), (req, res) => {
     try {
       const customerId = Number(req.body?.customer_id || 0) || null;
       const items = Array.isArray(req.body?.items) ? req.body.items.map(normalizePreviewItem) : [];

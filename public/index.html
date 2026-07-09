@@ -612,7 +612,10 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px;
+    box-shadow: 0 1px 0 rgba(17,34,51,.03);
   }
+  .wizard-summary-block.is-hidden { display: none; }
+  .wizard-summary-block.is-attention { border-color: rgba(168,107,0,.26); background: #fffaf0; }
   .wizard-summary-title {
     font-size: 12px;
     font-weight: 900;
@@ -1736,6 +1739,8 @@ let orderCounter = 1;
 let shapeEditor = null;
 let selectedCustomerSites = [];
 const ORDER_DRAFT_KEY = 'ironbend:new-order:draft:v1';
+const ORDER_DRAFT_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+const PRICING_PREVIEW_ROLES = new Set(['finance', 'sales', 'manager', 'admin']);
 let selectedCustomerAccountSummary = null;
 let latestPricePreview = null;
 let pricePreviewTimer = null;
@@ -1766,16 +1771,19 @@ function init() {
   updateCustomerSummary();
   updateNotesSummary();
 
+  const urlParams = new URLSearchParams(window.location.search);
+
   // First pallet
   addPallet();
-  restoreOrderDraft();
+  if (shouldRestoreOrderDraft(urlParams)) restoreOrderDraft();
+  else discardExpiredOrderDraft();
+  applyPricingPreviewAccess();
 
   // Shape editor
   shapeEditor = new ShapeEditorModal(shapeSelected);
   updateOcrDocumentRouteUi();
 
   // Pre-fill customer from URL params (e.g. coming from customers.html)
-  const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('customer_name')) {
     document.getElementById('customerSearch').value = urlParams.get('customer_name');
   }
@@ -1866,6 +1874,50 @@ function updateCustomerSummary() {
   updateOrderUxPreview();
 }
 
+function currentRole() {
+  return String(window.IronBendAuth?.currentUser?.().role || '').trim().toLowerCase();
+}
+
+function canSeePricingPreview() {
+  return PRICING_PREVIEW_ROLES.has(currentRole());
+}
+
+function applyPricingPreviewAccess() {
+  const card = document.getElementById('pricingPreviewCard');
+  if (!card) return;
+  const allowed = canSeePricingPreview();
+  card.classList.toggle('is-hidden', !allowed);
+  card.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+  if (!allowed) {
+    latestPricePreview = null;
+    clearTimeout(pricePreviewTimer);
+  }
+}
+
+function draftAgeMs(draft = {}) {
+  const savedAt = new Date(draft.savedAt || 0).getTime();
+  return Number.isFinite(savedAt) && savedAt > 0 ? Date.now() - savedAt : Infinity;
+}
+
+function readOrderDraft() {
+  try { return JSON.parse(localStorage.getItem(ORDER_DRAFT_KEY) || 'null'); } catch { return null; }
+}
+
+function shouldRestoreOrderDraft(urlParams = new URLSearchParams(window.location.search)) {
+  const explicitRestore = ['1', 'true', 'yes'].includes(String(urlParams.get('restore_draft') || '').toLowerCase());
+  const returnToOrder = ['1', 'true', 'yes'].includes(String(urlParams.get('return_to_order') || '').toLowerCase());
+  const source = String(urlParams.get('source') || '');
+  const customerHandoff = source === 'customer-card' || source === 'customer-site-card';
+  if (!explicitRestore && !returnToOrder && !customerHandoff) return false;
+  const draft = readOrderDraft();
+  return Boolean(draft && draftAgeMs(draft) <= ORDER_DRAFT_MAX_AGE_MS);
+}
+
+function discardExpiredOrderDraft() {
+  const draft = readOrderDraft();
+  if (draft && draftAgeMs(draft) > ORDER_DRAFT_MAX_AGE_MS) clearOrderDraft();
+}
+
 function formatKg(value) {
   const numeric = Number(value) || 0;
   return numeric >= 1000 ? (numeric / 1000).toFixed(2) + ' \u05d8\u05d5\u05df' : numeric.toFixed(1) + ' \u05e7\u05d2';
@@ -1941,6 +1993,7 @@ function renderReservationPreview(totalWeight) {
   setText('summaryShortageKg', shortage > 0
     ? formatKg(shortage) + (purchase > 0 ? ' | \u05e8\u05db\u05e9 ' + formatKg(purchase) : '')
     : '-');
+  document.getElementById('stockPreviewCard')?.classList.toggle('is-attention', shortage > 0);
 }
 
 function scheduleReservationPreview() {
@@ -1977,6 +2030,8 @@ async function loadReservationPreview() {
 }
 
 function renderPricingPreview(totalWeight) {
+  applyPricingPreviewAccess();
+  if (!canSeePricingPreview()) return;
   const preview = latestPricePreview;
   if (!preview || !Array.isArray(preview.lines) || !preview.lines.length) {
     setText('summaryPricePerKg', totalWeight > 0 ? '\u05d8\u05d5\u05e2\u05df \u05de\u05d7\u05d9\u05e8...' : '\u05d8\u05e8\u05dd \u05d7\u05d5\u05d1\u05e8 \u05de\u05d7\u05d9\u05e8\u05d5\u05df');
@@ -1996,11 +2051,13 @@ function renderPricingPreview(totalWeight) {
 }
 
 function schedulePricePreview() {
+  if (!canSeePricingPreview()) return;
   clearTimeout(pricePreviewTimer);
   pricePreviewTimer = setTimeout(loadPricePreview, 260);
 }
 
 async function loadPricePreview() {
+  if (!canSeePricingPreview()) return;
   const items = collectPricePreviewItems();
   if (!items.length) {
     latestPricePreview = null;
@@ -2034,8 +2091,11 @@ function updateOrderUxPreview() {
   setText('summaryCustomerName', customerName);
   setText('summarySiteName', selectedSiteLabel());
   setText('summaryExposure', customerExposureLabel());
-  renderPricingPreview(totalWeight);
-  schedulePricePreview();
+  applyPricingPreviewAccess();
+  if (canSeePricingPreview()) {
+    renderPricingPreview(totalWeight);
+    schedulePricePreview();
+  }
   renderReservationPreview(totalWeight);
   scheduleReservationPreview();
 }
@@ -2326,9 +2386,11 @@ function saveOrderDraftForCustomerHandoff() {
 }
 
 function restoreOrderDraft() {
-  let draft = null;
-  try { draft = JSON.parse(localStorage.getItem(ORDER_DRAFT_KEY) || 'null'); } catch { draft = null; }
-  if (!draft) return false;
+  const draft = readOrderDraft();
+  if (!draft || draftAgeMs(draft) > ORDER_DRAFT_MAX_AGE_MS) {
+    if (draft) clearOrderDraft();
+    return false;
+  }
   const c = draft.customer || {};
   const d = draft.delivery || {};
   window._selectedCustomerId = c.id || null;
