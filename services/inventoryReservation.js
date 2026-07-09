@@ -343,9 +343,22 @@ function calculateMaterialStockPosition(db, input = {}) {
   };
 }
 
+function calculatePurchaseRecommendations(db, { diameter, material_type } = {}) {
+  const position = calculateMaterialStockPosition(db, { diameter, material_type });
+  return {
+    physicalStockKg: position.physicalStockKg,
+    reservedKg: position.reservedKg,
+    availableKg: position.availableKg,
+    incomingKg: position.incomingKg,
+    shortageKg: position.shortageKg,
+    recommendedPurchaseKg: position.recommendedPurchaseKg,
+  };
+}
+
 module.exports = {
   DEFAULT_ACTIVE_RESERVATION_STATUSES,
   calculateMaterialStockPosition,
+  calculatePurchaseRecommendations,
   reserveMaterialForOrder,
   releaseReservationsForItems,
   releaseAllReservationsForOrder,

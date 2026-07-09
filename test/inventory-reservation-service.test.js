@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { calculateMaterialStockPosition, reserveMaterialForOrder, releaseReservationsForItems, releaseAllReservationsForOrder, consumeReservationsForProduction } = require('../services/inventoryReservation');
+const { calculateMaterialStockPosition, calculatePurchaseRecommendations, reserveMaterialForOrder, releaseReservationsForItems, releaseAllReservationsForOrder, consumeReservationsForProduction } = require('../services/inventoryReservation');
 
 function createDb() {
   const db = new Database(':memory:');
@@ -66,6 +66,52 @@ test('calculateMaterialStockPosition reads active reservations from inventory_re
   assert.equal(position.reservedKg, 250);
   assert.equal(position.availableKg, 625);
   assert.equal(position.shortageKg, 0);
+
+  db.close();
+});
+test('calculatePurchaseRecommendations returns procurement stock recommendation', () => {
+  const db = createDb();
+
+  db.prepare(`
+    INSERT INTO raw_material (diameter, material_type, weight_received, weight_used, weight_scrapped, active)
+    VALUES (12, 'coil', 500, 0, 0, 1)
+  `).run();
+
+  db.prepare(`
+    INSERT INTO inventory_reservations (order_id, item_id, diameter, material_type, reserved_kg, status)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(151, 41, 12, 'coil', 800, 'active');
+
+  db.prepare(`
+    INSERT INTO inventory_reservations (order_id, item_id, diameter, material_type, reserved_kg, status)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(152, 42, 12, 'coil', 200, 'released');
+
+  db.prepare(`
+    INSERT INTO purchase_orders (diameter, material_type, quantity_ton, received_weight, status, received_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(12, 'coil', 0.2, 50, 'ordered', null);
+
+  db.prepare(`
+    INSERT INTO purchase_orders (diameter, material_type, quantity_ton, received_weight, status, received_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(12, 'coil', 0.4, 0, 'cancelled', null);
+
+  db.prepare(`
+    INSERT INTO purchase_orders (diameter, material_type, quantity_ton, received_weight, status, received_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(12, 'coil', 0.5, 0, 'ordered', '2026-07-01');
+
+  const recommendation = calculatePurchaseRecommendations(db, { diameter: 12, material_type: 'coil' });
+
+  assert.deepEqual(recommendation, {
+    physicalStockKg: 500,
+    reservedKg: 800,
+    availableKg: -300,
+    incomingKg: 150,
+    shortageKg: 300,
+    recommendedPurchaseKg: 150,
+  });
 
   db.close();
 });

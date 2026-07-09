@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { calculatePurchaseRecommendations } = require('../services/inventoryReservation');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/procurement missing dependency: ${name}`);
@@ -50,6 +51,17 @@ module.exports = function createProcurementRouter(deps) {
     res.json({ id: r.lastInsertRowid });
   });
 
+  router.get('/procurement/recommendations', requireAnyRole(['warehouse', 'office', 'finance', 'manager', 'admin']), (req, res) => {
+    try {
+      const recommendation = calculatePurchaseRecommendations(db, {
+        diameter: req.query.diameter,
+        material_type: req.query.material_type,
+      });
+      res.json(recommendation);
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ error: error.message || 'failed to calculate procurement recommendations' });
+    }
+  });
   router.get('/purchase-orders', requireAnyRole(['warehouse', 'office', 'finance', 'manager', 'admin']), (req, res) => {
     res.json(db.prepare(`
       SELECT po.*, s.name as supplier_name
