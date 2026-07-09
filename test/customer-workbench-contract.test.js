@@ -126,6 +126,15 @@ test('customer card shows billing amount on each order row', () => {
   assert.match(page, /\\u05e1\\u05db\\u05d5\\u05dd \\u05dc\\u05d7\\u05d9\\u05d5\\u05d1/);
 });
 
+test('customer card prices orders from active price book diameter ranges', () => {
+  const route = read('routes/customers.js');
+  assert.match(route, /function priceItemMatchesDiameter/);
+  assert.match(route, /\\u2013/);
+  assert.match(route, /function priceOrderFromActiveBookItems/);
+  assert.match(route, /priceForDiameter\(item\.diameter\)/);
+  assert.match(route, /billingWeight \/ itemWeight/);
+});
+
 test('customer card keeps orders above billing sites and secondary details', () => {
   const page = read('public/customers.html');
   assert.match(page, /function renderCustomerOrders/);

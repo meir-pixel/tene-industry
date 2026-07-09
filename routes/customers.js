@@ -75,20 +75,41 @@ module.exports = function createCustomersRouter(deps) {
     const activePriceBook = safeQuery(null, () => db.prepare(`
       SELECT id,code,name,price_type,status,updated_at
       FROM pricing_price_books
-      WHERE status='active' AND (customer_id=? OR customer_id IS NULL)
-      ORDER BY customer_id IS NOT NULL DESC, updated_at DESC, id DESC
+      WHERE status='active'
+        AND (customer_id=? OR customer_id IS NULL)
+      ORDER BY customer_id IS NOT NULL DESC,
+               price_type=CASE WHEN ?='customer' THEN 'customer' ELSE 'general' END DESC,
+               price_type='general' DESC,
+               updated_at DESC, id DESC
       LIMIT 1
-    `).get(c.id));
-    const fallbackKgPrice = activePriceBook ? safeQuery(0, () => {
-      const row = db.prepare(`
-        SELECT price_before_vat
-        FROM pricing_price_items
-        WHERE price_book_id=? AND active=1 AND price_before_vat > 0
-        ORDER BY CASE WHEN unit='kg' THEN 0 ELSE 1 END, sort_order, id
-        LIMIT 1
-      `).get(activePriceBook.id);
-      return Number(row?.price_before_vat || 0);
-    }) : 0;
+    `).get(c.id, c.price_tier === 'customer' ? 'customer' : 'general'));
+    const activePriceItems = activePriceBook ? safeQuery([], () => db.prepare(`
+      SELECT sku,description,diameter,price_before_vat,unit,category
+      FROM pricing_price_items
+      WHERE price_book_id=? AND active=1 AND price_before_vat > 0
+      ORDER BY sort_order, id
+    `).all(activePriceBook.id)) : [];
+    function isKgPriceItem(item) {
+      const unit = String(item?.unit || '').toLowerCase();
+      return unit === 'kg' || unit.includes('\u05e7') || unit.includes('\u05e7\u05d2');
+    }
+    function priceItemMatchesDiameter(item, diameter) {
+      const d = Number(diameter || 0);
+      if (!(d > 0)) return false;
+      if (Number(item.diameter || 0) === d) return true;
+      const text = String((item.description || '') + ' ' + (item.sku || ''));
+      const range = text.match(/(\d+)\s*[-\u2013]\s*(\d+)/);
+      if (range) return d >= Number(range[1]) && d <= Number(range[2]);
+      return false;
+    }
+    function priceForDiameter(diameter) {
+      const exact = activePriceItems.find(item => isKgPriceItem(item) && priceItemMatchesDiameter(item, diameter));
+      if (exact) return Number(exact.price_before_vat || 0);
+      const materialItems = activePriceItems.filter(item => isKgPriceItem(item) && Number(item.price_before_vat || 0) > 0);
+      if (materialItems.length) return Math.min(...materialItems.map(item => Number(item.price_before_vat || 0)));
+      return 0;
+    }
+    const fallbackKgPrice = priceForDiameter(0);
     function orderItemsForPricing(orderId) {
       return safeQuery([], () => db.prepare(`
         SELECT id,order_id,shape_snapshot_json,shape_name,diameter,segments,total_length_mm,quantity,weight_per_unit,total_weight,price_category,struct_element
@@ -97,10 +118,35 @@ module.exports = function createCustomersRouter(deps) {
         ORDER BY id
       `).all(orderId));
     }
+    function itemPricingWeight(item) {
+      const direct = Number(item.total_weight || 0);
+      if (direct > 0) return direct;
+      return Number(item.weight_per_unit || 0) * Number(item.quantity || 1);
+    }
+    function priceOrderFromActiveBookItems(row, items) {
+      if (!activePriceItems.length || !items.length) return { amount: 0, source: 'missing_price' };
+      let itemWeight = 0;
+      let amount = 0;
+      for (const item of items) {
+        const weight = itemPricingWeight(item);
+        const unitPrice = priceForDiameter(item.diameter);
+        if (weight > 0 && unitPrice > 0) {
+          itemWeight += weight;
+          amount += weight * unitPrice;
+        }
+      }
+      const billingWeight = Number(row.billing_weight || row.total_weight || 0);
+      if (amount > 0 && billingWeight > itemWeight && itemWeight > 0) {
+        amount *= billingWeight / itemWeight;
+      }
+      return amount > 0 ? { amount, source: 'price_book_items' } : { amount: 0, source: 'missing_price' };
+    }
     function priceOrderFromItems(row) {
-      if (!pricer) return { amount: 0, source: 'missing_price' };
       const items = orderItemsForPricing(row.id);
       if (!items.length) return { amount: 0, source: 'missing_price' };
+      const fromBook = priceOrderFromActiveBookItems(row, items);
+      if (fromBook.amount > 0) return fromBook;
+      if (!pricer) return { amount: 0, source: 'missing_price' };
       const result = safeQuery(null, () => pricer.calcOrderPriceForCustomer(items, c));
       const amount = Number(result?.billingPrice || result?.totalPrice || 0);
       if (amount > 0) return { amount, source: 'price_book_items' };
