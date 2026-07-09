@@ -549,6 +549,20 @@ function ensureCoreSchema(db) {
       FOREIGN KEY (raw_material_id) REFERENCES raw_material(id)
     );
 
+    CREATE TABLE IF NOT EXISTS inventory_reservations (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id        INTEGER NOT NULL,
+      item_id         INTEGER,
+      diameter        INTEGER NOT NULL,
+      material_type   TEXT DEFAULT 'coil',
+      reserved_kg     REAL DEFAULT 0,
+      status          TEXT DEFAULT 'active',
+      created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (order_id) REFERENCES orders(id),
+      FOREIGN KEY (item_id) REFERENCES items(id)
+    );
+
     -- ── AUDIT LOG ──────────────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS audit_log (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
