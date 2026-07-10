@@ -317,7 +317,8 @@ test('customer portal exposes finance dashboard with explicit money permissions'
   assert.match(portalRoute, /router\.get\('\/c\/finance\/payments-due'/);
   assert.match(portalRoute, /router\.get\('\/c\/orders\/history'/);
   assert.match(portalRoute, /canViewCustomerFinance/);
-  assert.match(portalRoute, /delete order\.portal_price|rows\.map\(\(\{ portal_price/);
+  assert.match(portalRoute, /projectOrdersForPortal\(rows, s\)/);
+  assert.match(portalRoute, /customerPortalProjection/);
   assert.doesNotMatch(portalRoute, /canCreateSites && !s\.caps\.canManageUsers && !s\.caps\.canApprove/);
   assert.match(customerPage, /id="customerFinanceDashboard"/);
   assert.match(customerPage, /function loadCustomerFinanceDashboard/);
@@ -353,7 +354,7 @@ test('customer portal confirmation cannot approve production', () => {
 test('customer portal order detail projection hides internal production fields', () => {
   const portalRoute = read('routes/portal.js');
   const customerPage = read('public/customer.html');
-  const detailBlock = portalRoute.match(/router\.get\('\/c\/orders\/:orderId'[\s\S]*?res\.json\(order\);/)?.[0] || '';
+  const detailBlock = portalRoute.match(/router\.get\('\/c\/orders\/:orderId'[\s\S]*?res\.json\(projected\);/)?.[0] || '';
   const internalFields = [
     'machine',
     'machine_id',
@@ -370,8 +371,9 @@ test('customer portal order detail projection hides internal production fields',
   for (const field of internalFields) {
     assert.doesNotMatch(detailBlock, new RegExp('\\b' + field + '\\b'), field);
   }
-  assert.match(detailBlock, /SELECT id,shape_snapshot_json,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight/);
+  assert.match(detailBlock, /SELECT id,item_uid,shape_snapshot_json,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight/);
   assert.match(detailBlock, /portalPublicItem/);
+  assert.match(detailBlock, /projectPortalOrderDetail/);
   assert.doesNotMatch(customerPage, /item\.production_qty|item\.produced_qty|item\.machine/);
   assert.match(customerPage, /shapeSnapshot:i\.shapeSnapshot \|\| null/);
   assert.match(customerPage, /portalItemShapeMetrics/);

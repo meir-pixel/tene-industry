@@ -3,6 +3,7 @@ const { createPortalAccessService } = require('../services/portalAccess');
 const { buildOrderItemUid, shapeSnapshotJson } = require('../services/orderContracts');
 const { buildFullShapeSnapshot, itemShapeMetrics } = require('../services/shapeSnapshot');
 const { ORDER_STATUS } = require('../status-contracts');
+const { projectPortalCustomer, projectPortalOrder, projectPortalOrderDetail } = require('../services/customerPortalProjection');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/portal missing dependency: ${name}`);
@@ -37,7 +38,10 @@ module.exports = function createPortalRouter(deps) {
     return {
       sides,
       angles,
-      segments: JSON.stringify(sides.map((length, index) => ({ length_mm: length, angle_deg: angles[index] ?? 0 }))),
+      segments: JSON.stringify(sides.map((length, index) => ({
+        length_mm: length,
+        angle_deg: index < sides.length - 1 && angles[index] !== undefined ? angles[index] : null,
+      }))),
       totalLengthMm: sides.reduce((sum, length) => sum + length, 0),
     };
   }
@@ -164,6 +168,18 @@ module.exports = function createPortalRouter(deps) {
     if (value === undefined || value === null) return fallback ? 1 : 0;
     if (value === true || value === 1 || value === '1' || value === 'true' || value === 'on') return 1;
     return 0;
+  }
+
+  function portalProjectionCtx(s) {
+    return { caps: s?.caps || {}, customer: s?.customer || null, portalUser: s?.user || null };
+  }
+
+  function projectOrdersForPortal(orders = [], s) {
+    return (orders || []).map(order => projectPortalOrder(order, portalProjectionCtx(s)));
+  }
+
+  function projectCustomerForPortal(customer, s, extra = {}) {
+    return projectPortalCustomer(customer, { ...portalProjectionCtx(s), ...extra });
   }
 
   function portalAuthorizedSiteIds(s, rawSiteIds = []) {
@@ -544,25 +560,15 @@ module.exports = function createPortalRouter(deps) {
         )
       ORDER BY o.created_at DESC LIMIT 20
     `).all(c.id, s.user ? 1 : 0, s.user?.id || 0, s.user?.default_site_id || 0);
-    if (!s.caps.seePrice) orders = orders.map(({ portal_price, ...o }) => o); // מזמין (שטח) לא רואה מחיר
+    const pendingProfileChangeRequest = db.prepare(`
+      SELECT id,status,requested_json,created_at,updated_at
+      FROM customer_profile_change_requests
+      WHERE customer_id=? AND status='pending'
+      ORDER BY updated_at DESC, created_at DESC LIMIT 1
+    `).get(c.id) || null;
+    const projectedOrders = projectOrdersForPortal(orders, s);
     res.json({
-      customer: {
-        id: c.id,
-        name: c.name,
-        phone: c.phone,
-        email: c.email,
-        address: c.address,
-        tax_id: c.tax_id,
-        payment_terms: c.payment_terms,
-        portal_price_list_visibility: c.portal_price_list_visibility,
-        portal_profile_locked_at: c.portal_profile_locked_at,
-        pending_profile_change_request: db.prepare(`
-          SELECT id,status,requested_json,created_at,updated_at
-          FROM customer_profile_change_requests
-          WHERE customer_id=? AND status='pending'
-          ORDER BY updated_at DESC, created_at DESC LIMIT 1
-        `).get(c.id) || null
-      },
+      customer: projectCustomerForPortal(c, s, { pendingProfileChangeRequest }),
       role: s.role,
       caps: s.caps,
       portalUser: publicPortalUser(s.user, s.portal),
@@ -572,7 +578,9 @@ module.exports = function createPortalRouter(deps) {
       token: s.upgradedToken,
       link: s.upgradedLink,
       expiresAt: s.upgradedExpiresAt,
-      orders
+      actionRequired: projectedOrders.filter(order => order.customerStatus === 'awaiting_customer_approval' || order.customerStatus === 'needs_info'),
+      activeOrdersSummary: projectedOrders.slice(0, 5),
+      orders: projectedOrders
     }); // BUG-40: ללא price_tier/discount_pct
   });
 
@@ -835,10 +843,8 @@ module.exports = function createPortalRouter(deps) {
       ORDER BY o.created_at DESC
       LIMIT 100
     `).all(...access.params);
-    const orders = s.caps.seePrice || s.caps.canViewBudget || s.caps.canViewInvoices
-      ? rows
-      : rows.map(({ portal_price, ...row }) => row);
-    res.json({ orders, caps: s.caps });
+    res.json({ orders: projectOrdersForPortal(rows, s), caps: s.caps });
+
   });
 
   // Shapes (public)
@@ -1008,12 +1014,11 @@ module.exports = function createPortalRouter(deps) {
       totalWeight += weight;
       totalPrice += weight * ppu;
       const segments = metrics.segments;
-      const machine = industry.assignResource(item.diameter);
       const shapeSnapshot = portalShapeSnapshotJson(item, metrics);
-      const itemRow = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,note,machine)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(palletId, orderId, shapeSnapshot, item.shapeId||'s1', item.shapeName||'ישר', item.diameter, segments, totalLengthMm,
-             metrics.quantity, Math.ceil(metrics.quantity*(1+wastePct/100)), metrics.unitWeightKg, weight, item.note||'', machine);
+      const itemRow = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,segments,total_length_mm,quantity,weight_per_unit,total_weight,note)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(palletId, orderId, shapeSnapshot, item.shapeId||'s1', item.shapeName||'\u05d9\u05e9\u05e8', item.diameter, segments, totalLengthMm,
+             metrics.quantity, metrics.unitWeightKg, weight, item.note||'');
       db.prepare('UPDATE items SET item_uid=? WHERE id=?').run(buildOrderItemUid(orderId, itemRow.lastInsertRowid), itemRow.lastInsertRowid);
       const itemCustomerDescription = String(item.note || '').trim();
       itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} - ${Math.round(totalLengthMm/10)}ס"מ${itemCustomerDescription ? ' - ' + itemCustomerDescription : ''}`);
@@ -1080,7 +1085,8 @@ module.exports = function createPortalRouter(deps) {
     if (notifyPhone) {
       intake.sendWhatsApp(notifyPhone, `📋 הזמנה ${order.order_num} אושרה ע"י הלקוח – ממתינה לבדיקה ואישור פנימי.`).catch(()=>{});
     }
-    res.json({ success: true, status: ORDER_STATUS.PENDING_APPROVAL, productionApproved: false });
+    const projected = projectPortalOrder({ ...order, status: ORDER_STATUS.PENDING_APPROVAL }, portalProjectionCtx(s));
+    res.json({ success: true, status: projected.status, customerStatus: projected.customerStatus, customerStatusLabel: projected.customerStatusLabel, productionApproved: false });
   });
 
   function approvalPage(title, msg, success) {
@@ -1117,12 +1123,13 @@ module.exports = function createPortalRouter(deps) {
       WHERE o.id=? AND ${access.where}
     `).get(req.params.orderId, ...access.params);
     if (!order) return res.status(404).send('לא נמצא');
+    const safePrintOrder = projectPortalOrder(order, portalProjectionCtx(s));
     const pallets = db.prepare("SELECT id,pallet_num,'' AS notes FROM pallets WHERE order_id=?").all(order.id);
     const rows = [];
     pallets.forEach(pallet => {
       const items = db.prepare(`
         SELECT id,shape_snapshot_json,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,
-               segments,struct_element,struct_floor,sheet_num,status,note
+               segments,struct_element,struct_floor,sheet_num,note
         FROM items WHERE pallet_id=?
       `).all(pallet.id);
       items.forEach(item => rows.push({ pallet, item: portalPublicItem(item) }));
@@ -1165,7 +1172,7 @@ module.exports = function createPortalRouter(deps) {
       <div class="grid">
         <div class="box"><b>לקוח</b><br>${orderPrintEsc(s.customer.name || '')}<br>${orderPrintEsc(s.customer.tax_id ? 'ח.פ ' + s.customer.tax_id : '')}</div>
         <div class="box"><b>אתר / אספקה</b><br>${orderPrintEsc(order.site_name || 'ללא אתר')}<br>${orderPrintEsc([order.delivery_date,order.delivery_time,order.delivery_address].filter(Boolean).join(' / '))}</div>
-        <div class="box"><b>סטטוס</b><br>${orderPrintEsc(order.status || '')}</div>
+        <div class="box"><b>סטטוס</b><br>${orderPrintEsc(safePrintOrder.status || '')}</div>
         <div class="box"><b>משקל</b><br>${orderPrintEsc(Number(order.billing_weight || order.total_weight || 0).toFixed(1))} ק"ג</div>
       </div>
       <table><thead><tr><th>#</th><th>צורה</th><th>קוטר</th><th>אורך מ"מ</th><th>כמות</th><th>משקל ק"ג</th><th>שייך ל / תיאור</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">אין פריטים להצגה</td></tr>'}</tbody></table>
@@ -1193,18 +1200,18 @@ module.exports = function createPortalRouter(deps) {
         )
     `).get(req.params.orderId, c.id, s.user ? 1 : 0, s.user?.id || 0, s.user?.default_site_id || 0);
     if (!order) return res.status(404).json({ error: 'לא נמצא' });
-    if (!s.caps.seePrice) delete order.portal_price; // מזמין לא רואה מחיר
-    order.role = s.role; order.caps = s.caps;
     const pallets = db.prepare("SELECT id,pallet_num,'' AS notes FROM pallets WHERE order_id=?").all(order.id);
     pallets.forEach(p => {
       p.items = db.prepare(`
-        SELECT id,shape_snapshot_json,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,
-               segments,struct_element,struct_floor,sheet_num,status,note
+        SELECT id,item_uid,shape_snapshot_json,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,
+               segments,struct_element,struct_floor,sheet_num,note
         FROM items WHERE pallet_id=?
       `).all(p.id).map(portalPublicItem);
     });
-    order.pallets = pallets;
-    res.json(order);
+    const projected = projectPortalOrderDetail(order, pallets, [], portalProjectionCtx(s));
+    projected.role = s.role;
+    projected.caps = s.caps;
+    res.json(projected);
   });
 
   // ── AI PREDICTION ─────────────────────────────────────────────────
