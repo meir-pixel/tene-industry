@@ -3469,7 +3469,9 @@ class ShapeEditorModal {
     }
     const isStraightBar = !isReal3D && Array.isArray(sides) && sides.length === 1 && (!Array.isArray(angles) || angles.length === 0);
     const addRow = document.querySelector('#seModal .se-add-row');
-    if (addRow) addRow.style.display = isStraightBar ? 'none' : '';
+    const addButton = document.getElementById('seAddSide');
+    if (addRow) addRow.style.display = '';
+    if (addButton) addButton.textContent = isStraightBar ? '+ \u05d4\u05d5\u05e1\u05e3 \u05e6\u05dc\u05e2 / \u05db\u05d9\u05e4\u05d5\u05e3' : '+ \u05d4\u05d5\u05e1\u05e3 \u05e6\u05dc\u05e2';
     if (isStraightBar) {
       this.current.family = 'bars';
       this.current.shapeType = 'straight_bar';
@@ -3724,6 +3726,7 @@ class ShapeEditorModal {
 
   _addSide() {
     if (!this.current) return;
+    if (this.current.shapeType === 'straight_bar') this.current.shapeType = 'custom_bar';
     this.current.sides.push(300);
     if (this.current.sides.length > 1) this.current.angles.push(90);
     // 3D arrays — new segment defaults to a 90-degree bend, matching the 2D side editor.
