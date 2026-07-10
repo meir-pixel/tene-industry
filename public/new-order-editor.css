@@ -78,3 +78,9 @@ body[data-page="new"] .notes-section{grid-column:1 / 2!important;grid-row:4!impo
 @media(max-width:900px){body[data-page="new"] .order-min-header,body[data-page="new"] .order-min-context,body[data-page="new"] .order-min-editor,body[data-page="new"] .order-min-inspector,body[data-page="new"] .notes-section{grid-column:auto!important;grid-row:auto!important;width:100%!important}}
 
 body[data-page="new"] #seOverlay:not(.show){display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+
+body[data-page="new"] #seModal .se-table thead tr:has(th[colspan]){grid-template-columns:minmax(0,1fr)!important}
+body[data-page="new"] #seModal .se-table th[colspan]{grid-column:1/-1!important;width:100%!important;text-align:center!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+body[data-page="new"] #seModal .se-table tr.se-straight-bar-row{grid-template-columns:minmax(0,1fr)!important;width:100%!important}
+body[data-page="new"] #seModal .se-table tr.se-straight-bar-row>td{grid-column:1/-1!important;width:100%!important;display:block!important;overflow:visible!important}
+body[data-page="new"] #seModal .se-straight-bar-fields{grid-template-columns:repeat(3,minmax(86px,1fr))!important;width:100%!important;min-width:0!important}
