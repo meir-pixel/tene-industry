@@ -107,7 +107,7 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.match(html, /pc-print-qr-code/);
   assert.match(html, /worker-visual\.html\?scan=1&card=/);
   assert.match(html, /"shape_svg":/);
-  assert.match(html, /item\.shape_svg \|\| buildShapeSVG\(segs\)/);
+  assert.match(html, /shapeSvgForCard\(item, segs\)/);
   assert.match(html, /qrFallbackUrl/);
   assert.match(html, /api\.qrserver\.com\/v1\/create-qr-code/);
   assert.match(html, /data-qr-target/);
@@ -202,7 +202,7 @@ test('production card renderer prefers Shape V2 snapshot segments over legacy it
       data: {
         diameter: 14,
         segments: [
-          { lengthMm: 700, angleDeg: 90 },
+          { lengthMm: 700, bendAfterDeg: 90 },
           { lengthMm: 300, angleDeg: 0 },
         ],
       },
@@ -221,4 +221,155 @@ test('production card renderer prefers Shape V2 snapshot segments over legacy it
     { length_mm: 700, angle_deg: 90 },
     { length_mm: 300, angle_deg: 0 },
   ]);
+});
+
+
+test('production cards print visible 90 degree bend labels for U shapes', () => {
+  const item = {
+    id: 801,
+    shape_name: 'U 90',
+    diameter: 12,
+    quantity: 1,
+    total_length_mm: 1000,
+    total_weight: 0.89,
+    segments: JSON.stringify([
+      { length_mm: 200, angle_deg: 90 },
+      { length_mm: 600, angle_deg: 90 },
+      { length_mm: 200, angle_deg: null },
+    ]),
+  };
+  const html = cards.itemCard(item, { order_num: 'HZ-ANGLE-90', customer_name: 'Angle Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
+  assert.equal((html.match(/90\u00b0/g) || []).length >= 2, true);
+  assert.match(html, /data-angle-label="1"/);
+  assert.match(html, /class="dim-ang">90\u00b0<\/span>/);
+});
+
+test('production cards print 45 and 135 degree bend labels', () => {
+  const item = {
+    id: 802,
+    shape_name: 'angled bend',
+    diameter: 12,
+    quantity: 1,
+    total_length_mm: 1000,
+    total_weight: 0.89,
+    segments: JSON.stringify([
+      { length_mm: 200, angle_deg: 45 },
+      { length_mm: 600, angle_deg: 135 },
+      { length_mm: 200, angle_deg: null },
+    ]),
+  };
+  const html = cards.itemCard(item, { order_num: 'HZ-ANGLE-45', customer_name: 'Angle Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
+  assert.match(html, /45\u00b0/);
+  assert.match(html, /135\u00b0/);
+  assert.doesNotMatch(html, /180\u00b0/);
+});
+
+test('production cards do not print bogus bend angles for straight bars', () => {
+  const item = {
+    id: 803,
+    shape_name: 'straight bar',
+    diameter: 12,
+    quantity: 1,
+    total_length_mm: 1000,
+    total_weight: 0.89,
+    segments: JSON.stringify([{ length_mm: 1000, angle_deg: null }]),
+  };
+  const html = cards.itemCard(item, { order_num: 'HZ-STRAIGHT', customer_name: 'Straight Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
+  assert.match(html, /100/);
+  assert.doesNotMatch(html, />0\u00b0</);
+  assert.doesNotMatch(html, /180\u00b0/);
+  assert.doesNotMatch(html, /class="dim-ang"/);
+});
+
+test('production cards prefer Shape V2 snapshot angles over legacy segments', () => {
+  const item = {
+    id: 804,
+    shape_name: 'snapshot wins',
+    diameter: 12,
+    quantity: 1,
+    total_length_mm: 1000,
+    total_weight: 0.89,
+    segments: JSON.stringify([
+      { length_mm: 300, angle_deg: 0 },
+      { length_mm: 300, angle_deg: 0 },
+      { length_mm: 300, angle_deg: null },
+    ]),
+    shape_snapshot_json: JSON.stringify({
+      contractVersion: '2.0',
+      shapeVersion: '1.0',
+      family: 'bars',
+      data: {
+        diameter: 12,
+        sides: [200, 600, 200],
+        angles: [90, 90],
+      },
+      machineOutput: { generic: { segments: [
+        { lengthMm: 200, bendAfterDeg: 90 },
+        { lengthMm: 600, bendAfterDeg: 90 },
+        { lengthMm: 200, bendAfterDeg: null },
+      ] } },
+      calculated: { totalLengthMm: 1000 },
+      validation: { valid: true },
+    }),
+  };
+  assert.deepEqual(cards.shapeSegmentsFromItem(item), [
+    { length_mm: 200, angle_deg: 90 },
+    { length_mm: 600, angle_deg: 90 },
+    { length_mm: 200, angle_deg: null },
+  ]);
+  const html = cards.itemCard(item, { order_num: 'HZ-SNAPSHOT', customer_name: 'Snapshot Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
+  assert.equal((html.match(/90\u00b0/g) || []).length >= 2, true);
+  assert.doesNotMatch(html, />0\u00b0</);
+});
+
+test('production cards suppress legacy zero-degree bend labels', () => {
+  const item = {
+    id: 806,
+    shape_name: 'legacy zero bend',
+    diameter: 12,
+    quantity: 1,
+    total_length_mm: 1300,
+    total_weight: 1.15,
+    segments: JSON.stringify([
+      { length_mm: 1000, angle_deg: 0 },
+      { length_mm: 300, angle_deg: null },
+    ]),
+  };
+  const html = cards.itemCard(item, { order_num: 'HZ-ZERO', customer_name: 'Zero Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
+  assert.doesNotMatch(html, />0\u00b0</);
+  assert.doesNotMatch(html, /class="dim-ang">0/);
+});
+test('production cards rebuild old shape_svg when valid segments have bend labels', () => {
+  const item = {
+    id: 805,
+    shape_name: 'old svg',
+    diameter: 12,
+    quantity: 1,
+    total_length_mm: 1000,
+    total_weight: 0.89,
+    shape_svg: '<svg data-old="1"><text>0°</text><line x1="0" y1="0" x2="10" y2="0"/></svg>',
+    segments: JSON.stringify([
+      { length_mm: 200, angle_deg: 90 },
+      { length_mm: 600, angle_deg: 90 },
+      { length_mm: 200, angle_deg: null },
+    ]),
+  };
+  const html = cards.itemCard(item, { order_num: 'HZ-OLD-SVG', customer_name: 'Old Svg Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
+  assert.match(html, /90\u00b0/);
+  assert.doesNotMatch(html, /data-old="1"/);
+  assert.doesNotMatch(html, />0\u00b0</);
+
+  const printHtml = printPage.renderPrintCardsPage({
+    order: { id: 805, order_num: 'HZ-OLD-SVG', customer_name: 'Old Svg Customer', status: 'approved' },
+    pallets: [{ pallet_num: 1, items: [item] }],
+    allItems: [{ ...item, _palletNum: 1, card_weights: [] }],
+    printDate: '10-07-2026',
+    delivDate: '11-07-2026',
+    cards,
+    industry,
+    tryParseJSON,
+  });
+  assert.match(printHtml, /90\u00b0/);
+  assert.doesNotMatch(printHtml, />0\u00b0</);
+  assert.match(printHtml, /shapeSvgForCard/);
 });

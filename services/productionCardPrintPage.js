@@ -426,8 +426,8 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   total_length_mm:it.total_length_mm || 0,
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
-  segments:       tryParseJSON(it.segments, []),
-  shape_svg:      it.shape_svg || cards.itemShapeSvg(it),
+  segments:       cards.shapeSegmentsFromItem(it),
+  shape_svg:      cards.shapeSegmentsFromItem(it).length ? '' : (it.shape_svg || ''),
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   pallet_num:     it._palletNum  || 1,
@@ -577,6 +577,26 @@ function isRightAngleValue(value) {
   return Math.abs(Number(value) - 90) < 0.001;
 }
 
+function normalizeAngleValue(value) {
+  if (value === null || value === undefined || value === '') return null;
+  var n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function isPrintableBendAngle(angle) {
+  var n = normalizeAngleValue(angle);
+  if (n === null) return false;
+  if (Math.abs(n) < 0.001) return false;
+  if (Math.abs(n - 180) < 0.001) return false;
+  return true;
+}
+
+function angleText(angle) {
+  var n = normalizeAngleValue(angle);
+  if (n === null) return '';
+  return (Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : n.toFixed(1).replace(/\.0$/, '')) + '°';
+}
+
 function isOpenUShapeClient(segments) {
   if (!segments || segments.length !== 3) return false;
   var lengths = segments.map(function(s){ return +(s.length_mm || 0); });
@@ -684,14 +704,29 @@ function unitVector(from, to) {
   return [dx / len, dy / len];
 }
 
-function rightAngleMarkerSvg(previous, corner, next) {
+function angleLabelSvg(text, x, y, color) {
+  return '<text data-angle-label="1" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="900" fill="' + (color || '#c9621a') + '" stroke="white" stroke-width="3" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
+}
+
+function angleLabelPosition(corner, center, distance) {
+  var vx = center ? corner[0] - center[0] : 1;
+  var vy = center ? corner[1] - center[1] : -1;
+  var len = Math.sqrt(vx * vx + vy * vy) || 1;
+  vx /= len;
+  vy /= len;
+  return [corner[0] + vx * (distance || 22), corner[1] + vy * (distance || 22)];
+}
+
+function rightAngleMarkerSvg(previous, corner, next, center) {
   var a = unitVector(corner, previous);
   var b = unitVector(corner, next);
   var d = 9;
   var p1 = pointAt(corner, a, d);
   var p2 = [p1[0] + b[0] * d, p1[1] + b[1] * d];
   var p3 = pointAt(corner, b, d);
-  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>';
+  var label = angleLabelPosition(corner, center, 22);
+  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>' +
+    angleLabelSvg('90°', label[0], label[1]);
 }
 
 function dimensionLabelSvg(text, x, y, width = 38) {
@@ -717,21 +752,15 @@ function sideDimensionSvg(start, end, value, center, distance = 18) {
 }
 
 function angleMarkerSvg(previous, corner, next, angle, center) {
-  if (isRightAngle(angle)) return rightAngleMarkerSvg(previous, corner, next);
+  if (!isPrintableBendAngle(angle)) return '';
+  if (isRightAngleValue(angle)) return rightAngleMarkerSvg(previous, corner, next, center);
   var a = unitVector(corner, previous);
   var b = unitVector(corner, next);
   var p1 = pointAt(corner, a, 13);
   var p2 = pointAt(corner, b, 13);
-  var vx = corner[0] - center[0];
-  var vy = corner[1] - center[1];
-  var len = Math.sqrt(vx * vx + vy * vy) || 1;
-  vx /= len;
-  vy /= len;
-  var lx = corner[0] + vx * 20;
-  var ly = corner[1] + vy * 20;
-  var text = String(Math.round(Number(angle) || 0)) + '°';
+  var label = angleLabelPosition(corner, center, 22);
   return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' Q ' + corner[0].toFixed(1) + ',' + corner[1].toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + '" fill="none" stroke="#c9621a" stroke-width="1.4" stroke-linecap="round"/>' +
-    dimensionLabelSvg(text, lx, ly, 30).replace('fill="#1a2332"', 'fill="#c9621a"');
+    angleLabelSvg(angleText(angle), label[0], label[1]);
 }
 
 function buildStraightShapeSVG(segment) {
@@ -751,17 +780,17 @@ function buildOpenUShapeSVG(segments) {
   var rightLeg = +(segments[2].length_mm || 0);
   var W = 220, H = 100, left = 42, right = 178, top = 24, bottom = 78;
   var midY = (top + bottom) / 2, midX = (left + right) / 2;
-  var pd = 'M ' + left + ',' + bottom + ' L ' + left + ',' + top + ' L ' + right + ',' + top + ' L ' + right + ',' + bottom;
+  var pd = 'M ' + left + ',' + top + ' L ' + left + ',' + bottom + ' L ' + right + ',' + bottom + ' L ' + right + ',' + top;
   var s = '<path d="' + pd + '" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
   s += '<path d="' + pd + '" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
-  s += sideDimensionSvg([left, bottom], [left, top], leftLeg, [midX, midY], 22);
-  s += sideDimensionSvg([left, top], [right, top], bridge, [midX, midY], 20);
-  s += sideDimensionSvg([right, top], [right, bottom], rightLeg, [midX, midY], 22);
+  s += sideDimensionSvg([left, top], [left, bottom], leftLeg, [midX, midY], 22);
+  s += sideDimensionSvg([left, bottom], [right, bottom], bridge, [midX, midY], 20);
+  s += sideDimensionSvg([right, bottom], [right, top], rightLeg, [midX, midY], 22);
   [
-    [[left, bottom], [left, top], [right, top]],
-    [[left, top], [right, top], [right, bottom]],
+    [[left, top], [left, bottom], [right, bottom]],
+    [[left, bottom], [right, bottom], [right, top]],
   ].forEach(function(points) {
-    s += rightAngleMarkerSvg(points[0], points[1], points[2]);
+    s += rightAngleMarkerSvg(points[0], points[1], points[2], [midX, midY]);
   });
   return '<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:100px;overflow:visible">' + s + '</svg>';
 }
@@ -799,7 +828,7 @@ function buildClosedStirrupSVG(parts) {
     [[right, y], [right, bottom], [x, bottom]],
     [[right, bottom], [x, bottom], [x, y]],
   ].forEach(function(points) {
-    s += rightAngleMarkerSvg(points[0], points[1], points[2]);
+    s += rightAngleMarkerSvg(points[0], points[1], points[2], [midX, midY]);
   });
   return '<svg data-shape-kind="closed-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + s + '</svg>';
 }
@@ -836,7 +865,7 @@ function buildShapeSVG(segments) {
     }
     for (var i=1; i<mpts.length-1; i++) {
       var a=angs[i-1];
-      if (a!=null && a!==180) {
+      if (isPrintableBendAngle(a)) {
         s += angleMarkerSvg(mpts[i - 1], mpts[i], mpts[i + 1], a, center);
       }
     }
@@ -847,6 +876,21 @@ function buildShapeSVG(segments) {
 }
 
 // ── Build one item card ───────────────────────────────────────────
+function shapeSvgHasAngleLabels(svg) {
+  return /data-angle-label|\u00b0|&deg;/.test(String(svg || ''));
+}
+
+function hasPrintableBends(segments) {
+  return Array.isArray(segments) && segments.length > 1 && segments.slice(0, -1).some(function(segment) { return isPrintableBendAngle(segment.angle_deg); });
+}
+
+function shapeSvgForCard(item, segments) {
+  var cleanSegments = Array.isArray(segments) ? segments : [];
+  var generated = buildShapeSVG(cleanSegments);
+  if (cleanSegments.length) return generated;
+  return item.shape_svg || generated;
+}
+
 function buildCard(item, subQty, totalCards, cardIdx) {
   var cardNum = totalCards > 1 ? (cardIdx+1) + '/' + totalCards : '';
   var itemId = Number(item.parent_item_id || item.id);
@@ -864,10 +908,11 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   for (var i=0; i<segs.length; i++) {
     var lbl = String.fromCharCode(0x05D0+i);
     dimHtml += '<span class="dim-seg">'+lbl+': <b>'+displayLengthCm(segs[i].length_mm)+'</b> ס״מ</span>';
-    if (i < segs.length-1 && segs[i].angle_deg && segs[i].angle_deg !== 180)
-      dimHtml += '<span class="dim-ang">'+segs[i].angle_deg+'&deg;</span>';
+    if (i < segs.length-1 && isPrintableBendAngle(segs[i].angle_deg))
+      dimHtml += '<span class="dim-ang">'+angleText(segs[i].angle_deg)+'</span>';
   }
 
+  var shapeSvg = shapeSvgForCard(item, segs);
   var printRef = SHORT_REF || CUSTOMER || ORDER_NUM;
   var printLengthCm = Math.round((Number(item.total_length_mm || 0)) / 10);
   var allowSplit = !item.virtual_card;
@@ -880,7 +925,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-print-main">';
   h += '<div class="pc-print-head"><b>ITEM '+item.id+badge+'</b><b>Ø '+item.diameter+'</b></div>';
   h += '<div class="pc-print-ref">'+printRef+'</div>';
-  h += '<div class="pc-print-shape">'+(item.shape_svg || buildShapeSVG(segs))+'</div>';
+  h += '<div class="pc-print-shape">'+shapeSvg+'</div>';
   h += '<div class="pc-print-bottom"><span>L = '+printLengthCm+' cm</span><span>PCS '+subQty+'</span><span>'+wProp+' kg</span></div>';
   h += '</div>';
   h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div><div class="pc-print-status">SCAN STATUS</div></div>';
@@ -911,7 +956,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div><label>סטייה</label><div id="card-weight-dev-'+uid+'" class="pc-weight-chip'+deviationClass(savedDeviation)+'">'+fmtPct(savedDeviation)+'</div></div>';
   h += '<button onclick="saveCardWeight('+itemId+','+(cardIdx+1)+','+totalCards+','+subQty+',&quot;'+uid+'&quot;,event)">שמור משקל</button>';
   h += '</div>';
-  h += '<div class="pc-shape-area">'+(item.shape_svg || buildShapeSVG(segs))+'</div>';
+  h += '<div class="pc-shape-area">'+shapeSvg+'</div>';
   if (dimHtml) h += '<div class="pc-dims">'+dimHtml+'</div>';
   h += '<div class="pc-spec-row">';
   h += '<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>\xd8'+item.diameter+'</b></div>';
