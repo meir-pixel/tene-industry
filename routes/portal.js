@@ -1,9 +1,10 @@
 const router = require('express').Router();
 const { createPortalAccessService } = require('../services/portalAccess');
-const { buildOrderItemUid, shapeSnapshotJson } = require('../services/orderContracts');
-const { buildFullShapeSnapshot, itemShapeMetrics } = require('../services/shapeSnapshot');
+const { buildOrderItemUid } = require('../services/orderContracts');
+const { itemShapeMetrics } = require('../services/shapeSnapshot');
 const { ORDER_STATUS } = require('../status-contracts');
 const { projectPortalCustomer, projectPortalOrder, projectPortalOrderDetail } = require('../services/customerPortalProjection');
+const { portalShapeDraftToOrderItem } = require('../services/customerPortalShapeDraft');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/portal missing dependency: ${name}`);
@@ -32,66 +33,6 @@ module.exports = function createPortalRouter(deps) {
     return host ? `${proto}://${host}` : '';
   }
 
-  function portalItemSegments(item = {}) {
-    const sides = Array.isArray(item.sides) ? item.sides.map(Number).filter(v => Number.isFinite(v) && v > 0) : [];
-    const angles = Array.isArray(item.angles) ? item.angles.map(Number).filter(v => Number.isFinite(v)) : [];
-    return {
-      sides,
-      angles,
-      segments: JSON.stringify(sides.map((length, index) => ({
-        length_mm: length,
-        angle_deg: index < sides.length - 1 && angles[index] !== undefined ? angles[index] : null,
-      }))),
-      totalLengthMm: sides.reduce((sum, length) => sum + length, 0),
-    };
-  }
-
-  function portalItemMetrics(item = {}) {
-    const quantity = Math.max(1, Number(item.qty ?? item.quantity ?? 1) || 1);
-    const snapshotMetrics = itemShapeMetrics({ ...item, quantity, shapeSnapshot: item.shapeSnapshot || item.shape_snapshot_json });
-    const fallback = portalItemSegments(item);
-    const totalLengthMm = snapshotMetrics.totalLengthMm || fallback.totalLengthMm;
-    const unitWeightKg = snapshotMetrics.unitWeightKg
-      || industry.weightPerUnit({ diameter: item.diameter, total_length_mm: totalLengthMm });
-    const totalWeightKg = snapshotMetrics.totalWeightKg || unitWeightKg * quantity;
-    return { ...fallback, quantity, totalLengthMm, unitWeightKg, totalWeightKg };
-  }
-
-  function portalFallbackShapeSnapshot(item = {}, metrics = portalItemMetrics(item)) {
-    const data = {
-      diameter: Number(item.diameter || 0),
-      sides: metrics.sides,
-      angles: metrics.angles,
-      azAngles: Array.isArray(item.azAngles) ? item.azAngles.map(Number).filter(Number.isFinite) : [],
-      elAngles: Array.isArray(item.elAngles) ? item.elAngles.map(Number).filter(Number.isFinite) : [],
-      is3d: Number(item.is3d || 0),
-      totalLengthMm: metrics.totalLengthMm,
-    };
-    return buildFullShapeSnapshot({
-      shapeVersion: 1,
-      shapeId: item.shapeId || 'portal-custom-bar',
-      shapeType: data.is3d ? 'custom_bar_3d' : 'custom_bar',
-      family: 'bars',
-      source: 'customer-portal',
-      displayName: item.shapeName || item.shape_name || '\u05d9\u05e9\u05e8',
-      data,
-      calculated: {
-        totalLengthMm: metrics.totalLengthMm,
-        weightKg: metrics.unitWeightKg,
-        totalWeightKg: metrics.totalWeightKg,
-        bendCount: metrics.angles.filter(angle => Math.abs(angle) > 0.001).length,
-      },
-      validation: { valid: true, warnings: [], errors: [] },
-    });
-  }
-
-  function portalShapeSnapshotJson(item = {}, metrics = portalItemMetrics(item)) {
-    if (item.shapeSnapshot || item.shape_snapshot_json) {
-      return shapeSnapshotJson({ shapeSnapshot: item.shapeSnapshot || item.shape_snapshot_json });
-    }
-    return shapeSnapshotJson({ shapeSnapshot: portalFallbackShapeSnapshot(item, metrics) });
-  }
-
   function portalPublicItem(item = {}) {
     const metrics = itemShapeMetrics(item);
     return {
@@ -103,6 +44,20 @@ module.exports = function createPortalRouter(deps) {
     };
   }
 
+  function portalDraftErrorResponse(res, err) {
+    const status = Number(err.statusCode || err.status || 400);
+    return res.status(status >= 400 && status < 600 ? status : 400).json({
+      error: err.message || 'Invalid shape item',
+      code: err.code || 'invalid_shape_draft',
+    });
+  }
+
+  function normalizePortalOrderItems(items = [], ctx = {}) {
+    return (items || []).map((item, index) => portalShapeDraftToOrderItem(item, {
+      ...ctx,
+      itemIndex: index + 1,
+    }));
+  }
   const {
     normalizePortalPhone,
     resolveCustomer,
@@ -943,10 +898,18 @@ module.exports = function createPortalRouter(deps) {
     if (!s.caps.seePrice) return res.json({ priceHidden: true }); // מזמין לא רואה הצעת מחיר
     const c = s.customer;
 
-    const priceItems = (items || []).map(item => {
-      const metrics = portalItemMetrics(item);
-      return { diameter: item.diameter, totalWeight: metrics.totalWeightKg, shapeSnapshot: item.shapeSnapshot || null };
-    });
+    let portalItems;
+    try {
+      portalItems = normalizePortalOrderItems(items || [], { canCreateOrders: true });
+    } catch (err) {
+      return portalDraftErrorResponse(res, err);
+    }
+
+    const priceItems = portalItems.map(item => ({
+      diameter: item.diameter,
+      totalWeight: item.totalWeight,
+      shapeSnapshot: item.shapeSnapshot,
+    }));
 
     const result = pricer.calcOrderPriceForCustomer(priceItems, c);
     res.json(result);
@@ -958,7 +921,15 @@ module.exports = function createPortalRouter(deps) {
     const s = session(token);
     if (!s) return res.status(401).json({ error: 'נדרש זיהוי' });
     const c = s.customer;
+    if (!s.caps.canOrder) return res.status(403).json({ error: 'Portal user cannot create orders' });
     if (!items?.length) return res.status(400).json({ error: 'חסרים פריטים' });
+
+    let portalItems;
+    try {
+      portalItems = normalizePortalOrderItems(items, { canCreateOrders: s.caps.canOrder });
+    } catch (err) {
+      return portalDraftErrorResponse(res, err);
+    }
 
     const resolvedSite = resolveAuthorizedSite(c.id, s.user, siteId);
     if (!resolvedSite.ok) return res.status(resolvedSite.status).json({ error: resolvedSite.error });
@@ -966,7 +937,7 @@ module.exports = function createPortalRouter(deps) {
 
     // Calculate price via pricer service
     const wastePct = settingsService.getNum('WASTE_PCT_DEFAULT', 3);
-    const priceChecks = (items || []).map(item => pricer.resolveDiameterPrice(item.diameter, {
+    const priceChecks = portalItems.map(item => pricer.resolveDiameterPrice(item.diameter, {
       tier: c.price_tier === 'customer' ? 'customer' : 'general',
       customerId: c.id,
       discountPct: c.discount_pct || 0,
@@ -1001,10 +972,9 @@ module.exports = function createPortalRouter(deps) {
     const palletId = palletRow.lastInsertRowid;
 
     const itemLines = [];
-    items.forEach(item => {
-      const metrics = portalItemMetrics(item);
-      const totalLengthMm = metrics.totalLengthMm;
-      const weight = metrics.totalWeightKg;
+    portalItems.forEach(item => {
+      const totalLengthMm = item.totalLengthMm;
+      const weight = item.totalWeight;
       const priceDecision = pricer.resolveDiameterPrice(item.diameter, {
         tier: c.price_tier === 'customer' ? 'customer' : 'general',
         customerId: c.id,
@@ -1013,17 +983,14 @@ module.exports = function createPortalRouter(deps) {
       const ppu = priceDecision.pricePerKg;
       totalWeight += weight;
       totalPrice += weight * ppu;
-      const segments = metrics.segments;
-      const shapeSnapshot = portalShapeSnapshotJson(item, metrics);
-      const itemRow = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,segments,total_length_mm,quantity,weight_per_unit,total_weight,note)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(palletId, orderId, shapeSnapshot, item.shapeId||'s1', item.shapeName||'\u05d9\u05e9\u05e8', item.diameter, segments, totalLengthMm,
-             metrics.quantity, metrics.unitWeightKg, weight, item.note||'');
+      const itemRow = db.prepare(`INSERT INTO items (pallet_id,order_id,shape_snapshot_json,shape_id,shape_name,diameter,segments,total_length_mm,quantity,weight_per_unit,total_weight,note,struct_element)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(palletId, orderId, item.shapeSnapshotJson, item.shapeId, item.shapeName, item.diameter, item.segments, totalLengthMm,
+             item.quantity, item.weightPerUnit, weight, item.note || '', item.elementName || '');
       db.prepare('UPDATE items SET item_uid=? WHERE id=?').run(buildOrderItemUid(orderId, itemRow.lastInsertRowid), itemRow.lastInsertRowid);
       const itemCustomerDescription = String(item.note || '').trim();
-      itemLines.push(`• ${item.qty||1}× Ø${item.diameter} ${item.shapeName||'ישר'} - ${Math.round(totalLengthMm/10)}ס"מ${itemCustomerDescription ? ' - ' + itemCustomerDescription : ''}`);
+      itemLines.push(`${item.quantity || 1} x D${item.diameter} ${item.elementName || item.shapeName || 'shape'} - ${Math.round(totalLengthMm / 10)} cm${itemCustomerDescription ? ' - ' + itemCustomerDescription : ''}`);
     });
-
     const billingWeight = totalWeight * (1 + wastePct/100);
     const portalPrice   = totalPrice  * (1 + wastePct/100);
     db.prepare('UPDATE orders SET total_weight=?,billing_weight=?,portal_price=? WHERE id=?')
@@ -1240,3 +1207,4 @@ module.exports.manifest = {
     { event: 'portal_guarantee_uploaded' },
   ],
 };
+
