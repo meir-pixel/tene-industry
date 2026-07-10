@@ -10,7 +10,24 @@
   function setTextSafe(id, value) { const el = document.getElementById(id); if (el) el.textContent = value == null ? '' : String(value); }
   function shortDate(value) { const d = new Date(String(value || '') + 'T00:00:00'); return Number.isNaN(d.getTime()) ? String(value || '') : d.toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit' }); }
   function normalizePanel(type) { return ['customer','site','delivery','source'].includes(type) ? type : ''; }
+  function numeric(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
+  function formatMm(value) { const n = numeric(value, 0); return n > 0 ? n.toLocaleString('he-IL', { maximumFractionDigits: 0 }) + ' \u05de\u0022\u05de' : '-'; }
+  function formatMeters(value) { const n = numeric(value, 0); return n > 0 ? (n / 1000).toLocaleString('he-IL', { maximumFractionDigits: 2 }) + ' \u05de\u05f3' : '-'; }
+  function jsArg(value) { const n = Number(value); return Number.isFinite(n) && String(value).trim() !== '' ? String(n) : JSON.stringify(String(value)); }
 
+  function setupOrderLinesTable() {
+    const container = document.getElementById('palletsContainer');
+    if (!container) return;
+    container.classList.add('order-lines-body');
+    if (container.closest('.order-lines-table')) return;
+    const table = document.createElement('div');
+    table.className = 'order-lines-table';
+    const head = document.createElement('div');
+    head.className = 'order-lines-head';
+    head.innerHTML = '<span>\u05de\u05e1\u05f3</span><span>\u05d0\u05dc\u05de\u05e0\u05d8</span><span>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</span><span>\u05e7\u05d5\u05d8\u05e8</span><span>\u05db\u05de\u05d5\u05ea</span><span>\u05d0\u05d5\u05e8\u05da</span><span>\u05e1\u05d4\u05f4\u05db \u05d0\u05d5\u05e8\u05da</span><span>\u05de\u05e9\u05e7\u05dc</span><span></span>';
+    container.parentNode.insertBefore(table, container);
+    table.append(head, container);
+  }
   function setupDom() {
     const main = document.querySelector('body[data-page="new"] .main');
     if (main) main.classList.add('order-min-page');
@@ -151,53 +168,52 @@
   }
 
   function minRenderEmptyItemsState() {
-    return '<div class="order-items-empty"><strong>עדיין אין פריטים בהזמנה</strong><span>התחל מהוספת צורת ברזל.</span></div>';
+    return '<div class="order-lines-empty">\u05e2\u05d3\u05d9\u05d9\u05df \u05d0\u05d9\u05df \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd \u05d1\u05d4\u05d6\u05de\u05e0\u05d4. \u05dc\u05d7\u05e5 \u05e2\u05dc + \u05d4\u05d5\u05e1\u05e3 \u05e6\u05d5\u05e8\u05d4 \u05db\u05d3\u05d9 \u05dc\u05d4\u05ea\u05d7\u05d9\u05dc.</div>';
   }
 
-  function minRenderItemCard(palletId, item, itemIndex = 0) {
-    const weight = typeof window.calcItemWeight === 'function' ? window.calcItemWeight(item) : 0;
-    const sides = typeof window.itemShapeSides === 'function' ? window.itemShapeSides(item) : [];
-    const angles = typeof window.itemShapeAngles === 'function' ? window.itemShapeAngles(item) : [];
-    const contract = typeof window.itemShapeContract === 'function' ? window.itemShapeContract(item) : null;
-    const isSpiral = (typeof window.isSpiralOrderItem === 'function' && window.isSpiralOrderItem(item)) || contract?.family === 'spirals';
-    const diameter = Number(item.diameter || (isSpiral ? 8 : 12));
-    const qty = Math.max(1, Number(item.qty || item.quantity || 1) || 1);
-    const title = item.shapeName || item.displayName || (isSpiral ? 'ספירלה' : 'מוט ברזל');
-    const perimeter = sides.reduce((sum, length) => sum + Number(length || 0), 0);
-    const lengthLabel = perimeter > 0 ? perimeter.toLocaleString('he-IL') + ' מ"מ' : 'לחץ לעריכה';
-    const preview = typeof window.itemPreviewSvg === 'function' ? window.itemPreviewSvg(item, sides, angles) : '';
-    const stock = typeof window.renderStockSelect === 'function' ? window.renderStockSelect(palletId, item) : '';
-    const id = String(item.id);
-    const duplicate = typeof window.duplicateItem === 'function' ? `<button type="button" class="no-card-action" onclick="duplicateItem(${palletId}, '${escapeHtml(id)}')">שכפל</button>` : '';
-    return `<article class="order-item-card no-item-card" id="item-row-${escapeHtml(id)}">
-      <button type="button" class="item-shape-preview no-item-preview shape-preview" onclick="openShapeEditor(${palletId}, '${escapeHtml(id)}')" title="ערוך צורה">${preview}</button>
-      <div class="item-main no-item-main">
-        <div class="item-title-row no-item-title-row"><div><h3 class="no-item-title">${escapeHtml(title)}</h3></div></div>
-        <div class="item-metrics no-item-metrics">
-          <div class="no-metric"><span>קוטר</span><strong>Ø${diameter}</strong></div>
-          <div class="no-metric"><span>אורך</span><strong>${escapeHtml(lengthLabel)}</strong></div>
-          <div class="no-metric"><span>כמות</span><strong>${qty}</strong></div>
-          <div class="no-metric"><span>משקל</span><strong>${escapeHtml(formatKg(weight))}</strong></div>
-        </div>
-        <div class="no-item-fields">
-          <label class="no-field-mini">כמות<input type="text" inputmode="numeric" pattern="[0-9]*" value="${qty}" class="item-qty" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onblur="if(!this.value||+this.value<1)this.value=1;updateItem(${palletId},'${escapeHtml(id)}','qty',+this.value)" onkeydown="if(event.key==='Enter'){this.blur();}"></label>
-          <label class="no-field-mini">תיאור<input type="text" value="${escapeHtml(item.note || '')}" placeholder="לדוגמה: קומה 2" onchange="updateItem(${palletId},'${escapeHtml(id)}','note',this.value)"></label>
-        </div>
-        <div class="no-stock-wrap">${stock}</div>
-      </div>
-      <div class="item-actions no-item-actions"><button type="button" class="no-card-action" onclick="openShapeEditor(${palletId}, '${escapeHtml(id)}')">ערוך</button>${duplicate}<button type="button" class="no-card-action danger" onclick="removeItem(${palletId},'${escapeHtml(id)}')">מחק</button></div>
-    </article>`;
+  function lineContract(item = {}) { return typeof window.itemShapeContract === 'function' ? window.itemShapeContract(item) : null; }
+  function lineData(item = {}) { const contract = lineContract(item); const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null; return contract?.data || snapshot?.data || snapshot || {}; }
+  function lineSides(item = {}) { if (typeof window.itemShapeSides === 'function') return window.itemShapeSides(item); const data = lineData(item); if (Array.isArray(item.shapeSides)) return item.shapeSides.map(Number).filter(v => Number.isFinite(v) && v > 0); if (Array.isArray(data.sides)) return data.sides.map(Number).filter(v => Number.isFinite(v) && v > 0); const length = numeric(item.length || item.totalLengthMm || data.lengthMm || data.totalLengthMm, 0); return length > 0 ? [length] : []; }
+  function lineAngles(item = {}) { if (typeof window.itemShapeAngles === 'function') return window.itemShapeAngles(item); const data = lineData(item); return Array.isArray(data.angles) ? data.angles.map(Number).filter(Number.isFinite) : []; }
+  function lineQty(item = {}) { return Math.max(1, numeric(item.qty ?? item.quantity ?? lineData(item).quantity, 1)); }
+  function lineDiameter(item = {}) { const data = lineData(item); return numeric(item.diameter ?? item.barDiameter ?? data.diameter ?? data.barDiameter ?? 12, 12); }
+  function isLineSpiral(item = {}) { const contract = lineContract(item); return item.family === 'spirals' || contract?.family === 'spirals' || (typeof window.isSpiralOrderItem === 'function' && window.isSpiralOrderItem(item)); }
+  function getSpiralFields(item = {}) { if (typeof window.spiralFieldsFromShapeData === 'function') return window.spiralFieldsFromShapeData(item); const data = lineData(item); return { spiralDiameterMm: numeric(item.spiral_diameter_mm || item.spiralDiameterMm || data.spiralDiameterMm || data.diameterMm, 0), spiralTurns: numeric(item.spiral_turns || item.spiralTurns || data.spiralTurns || data.turns, 0), spiralHeightMm: numeric(item.spiral_height_mm || item.spiralHeightMm || data.spiralHeightMm || data.heightMm, 0) }; }
+  function getLineUnitLengthMm(item = {}) { const data = lineData(item); const calculated = lineContract(item)?.calculated || item.shapeSnapshot?.calculated || {}; if (isLineSpiral(item)) { const spiral = getSpiralFields(item); if (typeof window.spiralLengthMm === 'function' && spiral.spiralDiameterMm > 0 && spiral.spiralTurns > 0) return window.spiralLengthMm(spiral.spiralDiameterMm, spiral.spiralTurns); } const sides = lineSides(item); const sideTotal = sides.reduce((sum, length) => sum + numeric(length, 0), 0); if (sideTotal > 0) return sideTotal; return numeric(item.length ?? item.totalLengthMm ?? data.lengthMm ?? data.totalLengthMm ?? calculated.unitLengthMm ?? calculated.totalLengthMm, 0); }
+  function formatLineLength(item = {}) { return formatMm(getLineUnitLengthMm(item)); }
+  function formatLineTotalLength(item = {}) { return formatMeters(getLineUnitLengthMm(item) * lineQty(item)); }
+  function formatLineWeight(item = {}) { const weight = typeof window.calcItemWeight === 'function' ? window.calcItemWeight(item) : 0; return formatKg(weight); }
+  function formatLineShapeDims(item = {}) { const data = lineData(item); if (isLineSpiral(item)) { const spiral = getSpiralFields(item); const parts = []; if (spiral.spiralDiameterMm > 0) parts.push('\u00d8' + spiral.spiralDiameterMm.toLocaleString('he-IL')); if (spiral.spiralHeightMm > 0) parts.push('H=' + spiral.spiralHeightMm.toLocaleString('he-IL')); if (spiral.spiralTurns > 0) parts.push(spiral.spiralTurns.toLocaleString('he-IL') + ' \u05db\u05e8\u05d9\u05db\u05d5\u05ea'); return parts.join(' \u00b7 ') || '\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4'; } const family = lineContract(item)?.family || item.family || ''; const width = numeric(data.widthMm || data.width || item.widthMm || item.width, 0); const height = numeric(data.heightMm || data.height || item.heightMm || item.height, 0); if ((family === 'mesh' || family === 'meshes') && width > 0 && height > 0) return '\u05e8\u05e9\u05ea ' + (width / 1000).toLocaleString('he-IL', { maximumFractionDigits: 2 }) + '\u00d7' + (height / 1000).toLocaleString('he-IL', { maximumFractionDigits: 2 }); const sides = lineSides(item); if (sides.length) { const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return sides.slice(0, 4).map((length, index) => labels[index] + '=' + numeric(length, 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })).join(' \u00b7 '); } return '\u05e6\u05d5\u05e8\u05d4'; }
+  function renderLineShapeSketch(item = {}) { const sides = lineSides(item); const angles = lineAngles(item); if (typeof window.itemPreviewSvg === 'function') { const svg = window.itemPreviewSvg(item, sides, angles); if (svg) return svg; } const label = sides.length ? 'A=' + numeric(sides[0], 0).toLocaleString('he-IL', { maximumFractionDigits: 0 }) : '\u05e6\u05d5\u05e8\u05d4'; return '<svg viewBox="0 0 112 34" width="112" height="34" aria-hidden="true"><line x1="12" y1="15" x2="100" y2="15" stroke="#35546f" stroke-width="4" stroke-linecap="round"/><text x="56" y="30" text-anchor="middle" font-size="10" fill="#64748b">' + escapeHtml(label) + '</text></svg>'; }
+  function lineTitle(item = {}) { if (item.shapeName || item.displayName) return item.shapeName || item.displayName; if (isLineSpiral(item)) return '\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4'; const family = lineContract(item)?.family || item.family || ''; if (family === 'mesh' || family === 'meshes') return '\u05e8\u05e9\u05ea'; return '\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8'; }
+
+  function updateLineQuantity(palletId, itemId, input) {
+    if (input && !input.isConnected) return;
+    const next = Math.max(1, numeric(input?.value, 1));
+    if (input) input.value = String(next);
+    const pallet = (window.pallets || []).find((entry) => String(entry.id) === String(palletId));
+    const item = (pallet?.items || []).find((entry) => String(entry.id) === String(itemId));
+    if (item && numeric(item.qty, 1) === next) return;
+    if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'qty', next);
   }
 
+  function renderCompactOrderLine(palletId, item, itemIndex = 0) {
+    const id = String(item.id); const palletArg = jsArg(palletId); const itemArg = jsArg(id); const qty = lineQty(item); const diameter = lineDiameter(item); const title = lineTitle(item); const note = String(item.note || '').trim(); const dims = formatLineShapeDims(item); const length = formatLineLength(item); const totalLength = formatLineTotalLength(item); const weight = formatLineWeight(item); const openCall = 'openShapeEditor(' + palletArg + ',' + itemArg + ')'; const updateQtyCall = 'updateLineQuantity(' + palletArg + ',' + itemArg + ',this)';
+    return `<article class="order-line-row" id="item-row-${escapeHtml(id)}" data-item-id="${escapeHtml(id)}"><div class="line-index">${itemIndex + 1}</div><button type="button" class="line-name" onclick="${openCall}" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(note || dims)}</small></button><button type="button" class="line-shape" onclick="${openCall}" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4"><span class="line-shape-sketch">${renderLineShapeSketch(item)}</span><span class="line-shape-dims">${escapeHtml(dims)}</span></button><div class="line-diameter">\u00d8${escapeHtml(diameter.toLocaleString('he-IL', { maximumFractionDigits: 0 }))}</div><input class="line-qty" type="number" min="1" step="1" value="${escapeHtml(qty)}" inputmode="numeric" aria-label="\u05db\u05de\u05d5\u05ea" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onchange="${updateQtyCall}" onblur="${updateQtyCall}" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"><div class="line-length desktop-only-cell">${escapeHtml(length)}</div><div class="line-total-length desktop-only-cell">${escapeHtml(totalLength)}</div><div class="line-weight">${escapeHtml(weight)}</div><button type="button" class="line-delete" onclick="removeItem(${palletArg},${itemArg})" title="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8" aria-label="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8">&times;</button><div class="line-mobile-meta"><span>\u00d8${escapeHtml(diameter.toLocaleString('he-IL', { maximumFractionDigits: 0 }))}</span><span>${escapeHtml(length)}</span><span>${escapeHtml(totalLength)}</span><span>${escapeHtml(weight)}</span></div></article>`;
+  }
+
+  function minRenderItemCard(palletId, item, itemIndex = 0) { return renderCompactOrderLine(palletId, item, itemIndex); }
   function minRenderPallets() {
+    setupOrderLinesTable();
     const container = document.getElementById('palletsContainer');
     if (!container) return;
     minEnsureDefaultPallet();
     const rows = minGetAllVisibleOrderItems();
-    container.innerHTML = rows.length ? '<div class="order-items-list">' + rows.map(({ palletId, item }, index) => minRenderItemCard(palletId, item, index)).join('') + '</div>' : minRenderEmptyItemsState();
+    container.innerHTML = rows.length ? rows.map(({ palletId, item }, index) => renderCompactOrderLine(palletId, item, index)).join('') : minRenderEmptyItemsState();
+    setTextSafe('itemsCountPill', rows.length + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd');
+    setTextSafe('noItemsCount', rows.length);
     if (typeof window.updateSummary === 'function') window.updateSummary();
   }
-
   function minRenderOrderSummary() { if (typeof window.updateSummary === 'function') window.updateSummary(); }
   function minHasItems() {
     return (pallets || []).some(pallet => (pallet.items || []).length > 0);
@@ -221,7 +237,7 @@
     });
     const rows = panel.querySelectorAll('.inventory-compact-row');
     if (!rows.length) {
-      panel.innerHTML = '<section class="inspector-card"><h3>????</h3><p>???? ????? ???? ????? ??????.</p></section>';
+      panel.innerHTML = '<section class="inspector-card"><h3>\u05de\u05dc\u05d0\u05d9</h3><p>\u05de\u05dc\u05d0\u05d9 \u05d9\u05d9\u05d1\u05d3\u05e7 \u05d0\u05d7\u05e8\u05d9 \u05d4\u05d5\u05e1\u05e4\u05ea \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd.</p></section>';
     }
   }
 
@@ -231,7 +247,7 @@
     if (!card) return;
     const total = (document.getElementById('summaryPriceTotal')?.textContent || '').trim();
     const perKg = (document.getElementById('summaryPricePerKg')?.textContent || '').trim();
-    const useful = minHasItems() && total && total !== '-' && !perKg.includes('???');
+    const useful = minHasItems() && total && total !== '-' && !/\?{3,}/.test(perKg);
     card.classList.toggle('is-hidden', !useful);
     if (useful) card.style.removeProperty('display');
     else card.style.setProperty('display', 'none', 'important');
@@ -292,6 +308,13 @@
     window.getAllVisibleOrderItems = minGetAllVisibleOrderItems;
     window.renderPallets = minRenderPallets;
     window.renderEmptyItemsState = minRenderEmptyItemsState;
+    window.renderCompactOrderLine = renderCompactOrderLine;
+    window.formatLineShapeDims = formatLineShapeDims;
+    window.formatLineLength = formatLineLength;
+    window.formatLineTotalLength = formatLineTotalLength;
+    window.formatLineWeight = formatLineWeight;
+    window.renderLineShapeSketch = renderLineShapeSketch;
+    window.updateLineQuantity = updateLineQuantity;
     window.renderItemCard = minRenderItemCard;
     window.renderDefaultInspector = minRenderDefaultInspector;
     window.renderInventorySummary = minRenderInventorySummary;
@@ -312,3 +335,4 @@
   setTimeout(() => { setupDom(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); }, 250);
   setTimeout(() => { setupDom(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); }, 800);
 })();
+
