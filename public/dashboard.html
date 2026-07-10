@@ -1,1250 +1,153 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>דשבורד – IronBend</title>
+<title>דשבורד יומי - IronBend</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#e07b39">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="IronBend">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<style>
-:root {
-  --steel:#f0f4f8; --steel-mid:#ffffff; --steel-light:#e8edf4; --steel-card:#ffffff;
-  --iron:#d0dcea; --accent:#c9621a; --accent-light:#e07b39; --accent-dim:rgba(201,98,26,0.10);
-  --success:#1a7a42; --success-dim:rgba(26,122,66,0.10);
-  --danger:#b83227;  --danger-dim:rgba(184,50,39,0.10);
-  --warning:#a86b00; --warning-dim:rgba(168,107,0,0.10);
-  --info:#1560a8;    --info-dim:rgba(21,96,168,0.10);
-  --text:#1a2533; --text-dim:#526070; --text-muted:#8fa0b0;
-  --border:rgba(0,0,0,0.09); --border-bright:rgba(0,0,0,0.15);
-  --card:rgba(0,0,0,0.02); --radius:14px; --radius-sm:8px;
-}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);min-height:100vh;}
-
-/* NAV */
-.topnav{background:var(--steel-mid);border-bottom:1px solid var(--border);padding:0 20px;
-  height:56px;display:flex;align-items:center;justify-content:space-between;
-  position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.08);}
-.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;}
-.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent-light));
-  border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
-.top-nav-links{display:flex;gap:2px;}
-.nav-link{padding:7px 13px;border-radius:7px;text-decoration:none;color:var(--text-dim);
-  font-size:13px;font-weight:600;transition:all 0.2s;white-space:nowrap;}
-.nav-link:hover{background:rgba(0,0,0,0.04);color:var(--text);}
-.nav-link.active{background:var(--accent-dim);color:var(--accent);}
-.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);display:inline-block;transition:background 0.3s;flex-shrink:0;}
-.ws-dot.connected{background:var(--success);}
-
-/* DAY BAR */
-.day-bar{background:linear-gradient(90deg,rgba(224,123,57,0.12) 0%,rgba(26,38,55,0) 60%);
-  border-bottom:1px solid var(--border);padding:9px 20px;
-  display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
-.day-bar-date{font-weight:800;font-size:14px;color:var(--accent);}
-.day-bar-sub{font-size:12px;color:var(--text-dim);}
-.day-bar-sep{width:1px;height:16px;background:var(--border);}
-.shift-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
-  background:var(--info-dim);color:var(--info);}
-.urgent-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
-  background:var(--danger-dim);color:var(--danger);display:none;}
-.urgent-badge.show{display:inline-block;}
-
-/* PAGE */
-.page{max-width:1400px;margin:0 auto;padding:18px 16px;display:flex;flex-direction:column;gap:16px;}
-
-/* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;}
-.kpi-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);
-  padding:15px 16px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden;
-  transition:border-color 0.2s;}
-.kpi-card:hover{border-color:var(--border-bright);}
-.kpi-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--text-muted);opacity:0.3;}
-.kpi-card.c-accent::after{background:var(--accent);}
-.kpi-card.c-success::after{background:var(--success);}
-.kpi-card.c-warning::after{background:var(--warning);}
-.kpi-card.c-danger::after{background:var(--danger);}
-.kpi-card.c-info::after{background:var(--info);}
-.kpi-top{display:flex;justify-content:space-between;align-items:flex-start;}
-.kpi-icon{font-size:18px;line-height:1;}
-.kpi-trend{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;}
-.trend-up{background:var(--success-dim);color:var(--success);}
-.trend-down{background:var(--danger-dim);color:var(--danger);}
-.kpi-label{font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-top:6px;}
-.kpi-value{font-size:32px;font-weight:900;line-height:1.1;}
-.kpi-sub{font-size:11px;color:var(--text-dim);margin-top:1px;}
-.kpi-bar{height:3px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden;}
-.kpi-bar-fill{height:100%;border-radius:2px;transition:width 0.6s;}
-.c-accent .kpi-bar-fill{background:var(--accent);}
-.c-success .kpi-bar-fill{background:var(--success);}
-.c-warning .kpi-bar-fill{background:var(--warning);}
-.c-danger .kpi-bar-fill{background:var(--danger);}
-.c-info .kpi-bar-fill{background:var(--info);}
-.v-accent{color:var(--accent);} .v-success{color:var(--success);}
-.v-warning{color:var(--warning);} .v-danger{color:var(--danger);}
-.v-info{color:var(--info);}
-
-/* MAIN GRID */
-.main-grid{display:grid;grid-template-columns:1fr 300px;gap:14px;align-items:start;}
-
-/* SECTION TITLE */
-.section-title{font-size:13px;font-weight:800;color:var(--text-dim);text-transform:uppercase;
-  letter-spacing:0.6px;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
-.section-title .count-pill{background:var(--accent-dim);color:var(--accent);font-size:11px;
-  font-weight:800;padding:1px 8px;border-radius:10px;}
-
-/* MACHINES */
-.machines-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
-.machine-card{background:var(--steel-card);border:1.5px solid var(--border);
-  border-radius:var(--radius);padding:16px;position:relative;overflow:hidden;
-  transition:border-color 0.3s,box-shadow 0.3s;}
-.machine-card.online {border-color:rgba(39,174,96,0.3);box-shadow:0 0 0 0 rgba(39,174,96,0);}
-.machine-card.running{border-color:rgba(224,123,57,0.45);animation:card-pulse 2s infinite;}
-.machine-card.error  {border-color:rgba(231,76,60,0.5);}
-@keyframes card-pulse{0%,100%{box-shadow:0 0 0 0 rgba(224,123,57,0.1)}50%{box-shadow:0 0 12px 2px rgba(224,123,57,0.15)}}
-.machine-stripe{position:absolute;top:0;right:0;width:3px;height:100%;background:var(--text-muted);}
-.machine-card.online  .machine-stripe{background:var(--success);}
-.machine-card.running .machine-stripe{background:var(--accent);}
-.machine-card.error   .machine-stripe{background:var(--danger);}
-
-.m-row1{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
-.m-name{font-weight:800;font-size:15px;}
-.m-range{font-size:10px;color:var(--text-dim);margin-top:2px;}
-.m-status-badge{padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;
-  background:rgba(0,0,0,0.04);color:var(--text-dim);}
-.m-status-badge.running{background:var(--accent-dim);color:var(--accent);}
-.m-status-badge.online {background:var(--success-dim);color:var(--success);}
-.m-status-badge.error  {background:var(--danger-dim);color:var(--danger);}
-
-.m-body{display:flex;align-items:center;gap:14px;}
-.m-ring-wrap{flex-shrink:0;}
-.m-ring-wrap svg{display:block;}
-.m-ring-bg{fill:none;stroke:rgba(0,0,0,0.04);stroke-width:5;}
-.m-ring-fg{fill:none;stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset 0.7s;}
-.m-ring-fg.running{stroke:var(--accent);}
-.m-ring-fg.online {stroke:var(--success);}
-.m-ring-fg.error  {stroke:var(--danger);}
-.m-ring-fg.idle   {stroke:var(--text-muted);}
-.m-ring-text{font-size:11px;font-weight:900;fill:var(--text);text-anchor:middle;dominant-baseline:middle;}
-
-.m-info{flex:1;min-width:0;}
-.m-counter{font-size:38px;font-weight:900;line-height:1;color:var(--accent);}
-.m-counter-label{font-size:10px;color:var(--text-dim);font-weight:600;}
-.m-job{background:rgba(0,0,0,0.02);border:1px solid var(--border);border-radius:7px;
-  padding:8px 10px;margin-top:10px;font-size:12px;}
-.m-job-label{font-size:9px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px;}
-.m-job-value{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.m-dia-row{display:flex;gap:8px;margin-top:8px;}
-.m-chip{padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;
-  background:rgba(0,0,0,0.03);color:var(--text-dim);border:1px solid var(--border);}
-.m-lastseen{font-size:10px;color:var(--text-muted);margin-top:6px;}
-
-/* ALERTS PANEL */
-.alerts-panel{background:var(--steel-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
-.alerts-header{padding:13px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-.alerts-list{max-height:340px;overflow-y:auto;}
-.alerts-list::-webkit-scrollbar{width:4px;}
-.alerts-list::-webkit-scrollbar-track{background:transparent;}
-.alerts-list::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:2px;}
-.alert-item{padding:11px 14px;border-bottom:1px solid rgba(0,0,0,0.02);
-  display:flex;gap:9px;align-items:flex-start;transition:background 0.15s;}
-.alert-item:hover{background:rgba(0,0,0,0.02);}
-.alert-item:last-child{border-bottom:none;}
-.alert-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px;}
-.alert-dot.critical{background:var(--danger);}
-.alert-dot.warning {background:var(--warning);}
-.alert-dot.info    {background:var(--info);}
-.alert-text{font-size:12px;font-weight:600;flex:1;line-height:1.4;}
-.alert-time{font-size:10px;color:var(--text-muted);white-space:nowrap;}
-.alert-resolve{background:none;border:1px solid var(--border);border-radius:4px;
-  color:var(--text-muted);font-size:10px;padding:2px 6px;cursor:pointer;
-  font-family:'Heebo',sans-serif;transition:all 0.15s;flex-shrink:0;}
-.alert-resolve:hover{border-color:var(--success);color:var(--success);}
-.no-alerts{padding:24px 14px;text-align:center;color:var(--text-muted);font-size:13px;}
-
-/* QUICK STATS (below alerts) */
-.quick-stats{background:var(--steel-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
-.qs-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;
-  border-bottom:1px solid rgba(0,0,0,0.02);}
-.qs-row:last-child{border-bottom:none;}
-.qs-label{font-size:12px;color:var(--text-dim);}
-.qs-val{font-size:13px;font-weight:700;}
-
-/* BOTTOM GRID */
-.bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-
-/* TABLE CARD */
-.table-card{background:var(--steel-mid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
-.table-header{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-table{width:100%;border-collapse:collapse;}
-th{text-align:right;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;
-  letter-spacing:0.5px;padding:9px 12px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.02);}
-td{padding:10px 12px;font-size:12px;border-bottom:1px solid rgba(0,0,0,0.02);}
-tr:last-child td{border-bottom:none;}
-tr:hover td{background:rgba(0,0,0,0.02);}
-.order-num{color:var(--accent);font-weight:800;}
-.weight-val{color:var(--accent);font-weight:700;}
-.status-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
-.s-wait{background:rgba(122,147,171,0.12);color:var(--text-dim);}
-.s-prod{background:var(--accent-dim);color:var(--accent);}
-.s-done{background:var(--success-dim);color:var(--success);}
-.s-ship{background:var(--info-dim);color:var(--info);}
-.s-pend{background:var(--warning-dim);color:var(--warning);}
-.urgent-flag{display:inline-block;width:6px;height:6px;border-radius:50%;
-  background:var(--danger);margin-left:5px;vertical-align:middle;}
-
-/* DELIVERY LIST */
-.delivery-list{padding:0;}
-.delivery-item{padding:11px 14px;border-bottom:1px solid rgba(0,0,0,0.02);
-  display:flex;align-items:center;gap:10px;cursor:pointer;transition:background 0.15s;}
-.delivery-item:hover{background:rgba(0,0,0,0.02);}
-.delivery-item:last-child{border-bottom:none;}
-.delivery-icon{font-size:18px;flex-shrink:0;}
-.delivery-info{flex:1;min-width:0;}
-.delivery-name{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.delivery-sub{font-size:11px;color:var(--text-dim);margin-top:1px;}
-.delivery-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;}
-.d-enroute{background:var(--info-dim);color:var(--info);}
-.d-done{background:var(--success-dim);color:var(--success);}
-
-/* BTN */
-.btn-sm{padding:4px 11px;border-radius:6px;border:1px solid var(--border);background:var(--card);
-  color:var(--text-dim);font-family:'Heebo',sans-serif;font-size:11px;font-weight:600;
-  cursor:pointer;transition:all 0.2s;text-decoration:none;white-space:nowrap;display:inline-block;}
-.btn-sm:hover{border-color:var(--accent);color:var(--accent);}
-
-/* EMPTY STATE */
-.empty-state{padding:28px 16px;text-align:center;color:var(--text-muted);font-size:13px;}
-
-/* OVERDUE */
-.overdue{color:var(--danger)!important;font-weight:700;}
-.due-today{color:var(--warning)!important;font-weight:700;}
-.due-soon{color:var(--accent)!important;}
-
-/* MOBILE */
-@media(max-width:900px){
-  .kpi-grid{grid-template-columns:repeat(3,1fr);}
-  .main-grid{grid-template-columns:1fr;}
-  .machines-grid{grid-template-columns:1fr 1fr;}
-  .bottom-grid{grid-template-columns:1fr;}
-}
-@media(max-width:600px){
-  .kpi-grid{grid-template-columns:repeat(2,1fr);}
-  .machines-grid{grid-template-columns:1fr;}
-  .kpi-value{font-size:26px;}
-  .page{padding:12px 10px;gap:12px;}
-  .day-bar{padding:8px 14px;gap:12px;}
-}
-.role-tab{
-  padding:6px 16px;border:1.5px solid transparent;border-radius:22px;background:none;cursor:pointer;
-  font-family:'Heebo',sans-serif;font-size:12.5px;font-weight:700;color:#526070;
-  transition:all .18s;white-space:nowrap;flex-shrink:0;
-  box-shadow:none;
-}
-.role-tab:hover{
-  background:rgba(0,0,0,0.04);color:#1a2533;
-  box-shadow:0 1px 4px rgba(0,0,0,0.07);
-}
-.role-tab.active{
-  background:linear-gradient(135deg,rgba(201,98,26,0.13) 0%,rgba(224,123,57,0.07) 100%);
-  color:#c9621a;
-  border-color:rgba(201,98,26,0.30);
-  box-shadow:0 2px 8px rgba(201,98,26,0.15), inset 0 1px 0 rgba(255,255,255,0.6);
-}
-.role-section{transition:opacity .2s;}
-.role-section.hidden{display:none;}
-
-/* PIPELINE */
-.pipeline-row{display:flex;align-items:center;gap:10px;}
-.pipeline-label{font-size:12px;color:var(--text-dim);min-width:130px;flex-shrink:0;}
-.pipeline-bar-wrap{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
-.pipeline-bar{height:100%;border-radius:4px;transition:width .5s;width:0%;}
-.pipeline-val{font-size:13px;font-weight:800;min-width:28px;text-align:left;}
-
-/* SHIFT STATS */
-.shift-stat-cell{padding:12px 16px;border-left:1px solid var(--border);text-align:center;}
-.shift-stat-cell:last-child{border-left:none;}
-.shift-stat-val{font-size:26px;font-weight:900;line-height:1.1;}
-.shift-stat-lbl{font-size:10px;color:var(--text-dim);font-weight:600;margin-top:2px;}
-
-/* STOP ITEM */
-.stop-item{padding:10px 14px;border-bottom:1px solid rgba(0,0,0,0.03);display:flex;gap:8px;align-items:flex-start;}
-.stop-item:last-child{border-bottom:none;}
-.stop-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);flex-shrink:0;margin-top:4px;}
-.stop-info{flex:1;}
-.stop-title{font-size:12px;font-weight:700;}
-.stop-sub{font-size:11px;color:var(--text-dim);}
-
-/* EXEC label chip */
-.exec-badge{background:rgba(21,96,168,0.08);color:var(--info);font-size:10px;font-weight:700;
-  padding:1px 7px;border-radius:10px;margin-right:4px;}
-</style>
 <link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/dashboard.css">
 </head>
 <body data-page="dashboard">
 <script src="/safe-dom.js"></script>
 <script src="/data-contracts-client.js"></script>
 <script src="/nav.js"></script>
 
-<nav class="topnav">
-  <div class="logo">
-    <div class="logo-icon">🔩</div>
-    <span>IronBend</span>
-  </div>
-  <div class="top-nav-links">
-    <a href="/holdings.html"     class="nav-link">🏢 אחזקות</a>
-    <a href="/dashboard.html"    class="nav-link active">📊 דשבורד</a>
-    <a href="/orders.html"       class="nav-link">📋 הזמנות</a>
-    <a href="/index.html"        class="nav-link">➕ חדשה</a>
-    <a href="/inventory.html"    class="nav-link">📦 מלאי</a>
-    <a href="/projects.html"     class="nav-link">🏗️ פרויקטים</a>
-    <a href="/machine.html"      class="nav-link">🔧 מכונה</a>
-    <a href="/maintenance.html"  class="nav-link">🛠️ תחזוקה</a>
-    <a href="/quality.html"      class="nav-link">🔍 איכות</a>
-    <a href="/reports.html"      class="nav-link">📈 דוחות</a>
-    <a href="/driver.html"       class="nav-link">🚚 נהג</a>
-    <a href="/admin.html"        class="nav-link">⚙️ ניהול</a>
-  </div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <span class="ws-dot" id="wsDot"></span>
-    <span style="font-size:12px;color:var(--text-dim)" id="navTime"></span>
-  </div>
-</nav>
+<main class="dashboard-page" aria-labelledby="dashboardTitle">
+  <header class="daily-header">
+    <div class="daily-title">
+      <h1 id="dashboardTitle">מרכז שליטה יומי</h1>
+      <span id="dayHeaderText">טוען יום ומשמרת...</span>
+    </div>
+    <div class="daily-status">
+      <span class="status-pill" id="headerClock">--:--</span>
+      <span class="status-pill" id="shiftBadge">משמרת</span>
+      <span class="status-pill is-ok" id="overallStatusBadge">בודק מצב</span>
+    </div>
+  </header>
 
-<div class="day-bar">
-  <span class="day-bar-date" id="dayBarDate"></span>
-  <div class="day-bar-sep"></div>
-  <span class="day-bar-sub" id="dayBarShift"></span>
-  <div class="day-bar-sep"></div>
-  <span class="shift-badge" id="shiftBadge">משמרת בוקר</span>
-  <span class="urgent-badge" id="urgentBadge">⚠️ <span id="urgentCount">0</span> הזמנות דחופות</span>
-  <div style="margin-right:auto;display:flex;gap:6px;align-items:center">
-    <a href="/warroom.html"     style="padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;text-decoration:none;background:rgba(184,50,39,0.10);color:#b83227;border:1px solid rgba(184,50,39,0.20)" id="warRoomBadge">🚨 War Room</a>
-    <a href="/warehouse.html"   style="padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;text-decoration:none;background:rgba(21,96,168,0.09);color:#1560a8;border:1px solid rgba(21,96,168,0.15)">📦 מחסן</a>
-    <a href="/procurement.html" style="padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;text-decoration:none;background:rgba(26,122,66,0.09);color:#1a7a42;border:1px solid rgba(26,122,66,0.15)">🛒 רכש</a>
-  </div>
-</div>
-
-<!-- ROLE SELECTOR -->
-<div style="background:#ffffff;border-bottom:1px solid rgba(0,0,0,0.07);padding:0 16px;display:flex;align-items:center;gap:6px;height:46px;overflow-x:auto;box-shadow:0 2px 6px rgba(0,0,0,0.04);">
-  <span style="font-size:11px;color:#8fa0b0;font-weight:700;flex-shrink:0;letter-spacing:.4px;text-transform:uppercase">דשבורד:</span>
-  <button class="role-tab" id="rtab-exec"       onclick="setRole('exec')">       👔 הנהלה</button>
-  <button class="role-tab" id="rtab-production" onclick="setRole('production')"> ⚙️ מנהל ייצור</button>
-  <button class="role-tab" id="rtab-plant"      onclick="setRole('plant')">      🏗️ מנהל מפעל</button>
-  <div style="width:1px;height:20px;background:rgba(0,0,0,0.09);margin:0 4px;flex-shrink:0"></div>
-  <a href="/admin.html" style="padding:5px 14px;border-radius:20px;text-decoration:none;font-size:12px;font-weight:600;color:#526070;transition:all .18s;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:5px;"
-     onmouseover="this.style.background='rgba(0,0,0,0.05)';this.style.color='#1a2533'"
-     onmouseout="this.style.background='';this.style.color='#526070'">
-    ⚙️ ניהול מערכת →
-  </a>
-</div>
-
-<div class="page">
-
-  <!-- KPI ROW -->
-  <div class="kpi-grid role-section" data-roles="all,exec,plant,production">
-    <div class="kpi-card c-accent">
-      <div class="kpi-top"><span class="kpi-icon">📦</span><span class="kpi-trend" id="kpiOrdersTrend" style="display:none"></span></div>
-      <div class="kpi-label">הזמנות היום</div>
-      <div class="kpi-value v-accent" id="kpiOrdersToday">—</div>
+  <section class="kpi-strip" aria-label="מדדי יום">
+    <article class="kpi-tile">
+      <div class="kpi-label">צפי יציאה היום</div>
+      <div class="kpi-value" id="kpiOrdersToday">—</div>
+      <div class="kpi-sub" id="todayDeliveryWeight">טוען...</div>
+    </article>
+    <article class="kpi-tile is-good">
+      <div class="kpi-label">יוצר בפועל</div>
+      <div class="kpi-value" id="kpiTonsToday">—</div>
       <div class="kpi-sub" id="kpiWeightToday">טוען...</div>
-    </div>
-    <div class="kpi-card c-warning">
-      <div class="kpi-top"><span class="kpi-icon">⚙️</span></div>
-      <div class="kpi-label">בייצור כעת</div>
-      <div class="kpi-value v-warning" id="kpiInProd">—</div>
-      <div class="kpi-sub" id="kpiItemsProd">פריטים</div>
-    </div>
-    <div class="kpi-card c-success">
-      <div class="kpi-top"><span class="kpi-icon">✅</span></div>
-      <div class="kpi-label">הושלמו היום</div>
-      <div class="kpi-value v-success" id="kpiDone">—</div>
-      <div class="kpi-sub" id="kpiItemsDone">פריטים</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiDoneBar" style="width:0%"></div></div>
-    </div>
-    <div class="kpi-card c-danger">
-      <div class="kpi-top"><span class="kpi-icon">🔴</span></div>
-      <div class="kpi-label">הזמנות דחופות</div>
-      <div class="kpi-value v-danger" id="kpiUrgent">—</div>
-      <div class="kpi-sub">פתוחות</div>
-    </div>
-    <div class="kpi-card c-info">
-      <div class="kpi-top"><span class="kpi-icon">📉</span></div>
-      <div class="kpi-label">פחת היום</div>
-      <div class="kpi-value v-info" id="kpiWaste">—</div>
-      <div class="kpi-sub">אחוז פחת ממוצע</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiWasteBar" style="width:0%;background:var(--info)"></div></div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-top"><span class="kpi-icon">⏳</span></div>
+    </article>
+    <article class="kpi-tile is-warn">
       <div class="kpi-label">ממתינות לאישור</div>
       <div class="kpi-value" id="kpiPending">—</div>
-      <div class="kpi-sub">הזמנות חדשות</div>
-    </div>
-    <div class="kpi-card c-success">
-      <div class="kpi-top"><span class="kpi-icon">🏋️</span></div>
-      <div class="kpi-label">טון היום</div>
-      <div class="kpi-value v-success" id="kpiTonsToday">—</div>
-      <div class="kpi-sub">טון יוצר היום</div>
-    </div>
-  </div>
+      <div class="kpi-sub">דורשות החלטה</div>
+    </article>
+    <article class="kpi-tile is-danger">
+      <div class="kpi-label">חסרות מלאי</div>
+      <div class="kpi-value" id="stockShortageKpi">—</div>
+      <div class="kpi-sub">קטרים רלוונטיים</div>
+    </article>
+    <article class="kpi-tile">
+      <div class="kpi-label">לאספקה היום</div>
+      <div class="kpi-value" id="deliveriesTodayKpi">—</div>
+      <div class="kpi-sub" id="deliveriesTodaySub">הזמנות</div>
+    </article>
+  </section>
 
-  <!-- MAIN GRID: machines + sidebar -->
-  <div class="main-grid role-section" data-roles="all,plant,production">
-
-    <div>
-      <div class="section-title">🔧 מכונות <span class="count-pill" id="machinesOnlineCount">0/4</span></div>
-      <div class="machines-grid" id="machinesGrid">
-        <div style="color:var(--text-dim);font-size:13px;padding:20px;grid-column:1/-1">טוען...</div>
-      </div>
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:12px;">
-
-      <!-- ALERTS -->
-      <div class="alerts-panel">
-        <div class="alerts-header">
-          <div class="section-title" style="margin:0">🔔 התראות <span class="count-pill" id="alertCountPill">0</span></div>
-          <button class="btn-sm" onclick="resolveAllAlerts()">נקה הכל</button>
+  <div class="command-layout">
+    <section class="main-column">
+      <section class="panel daily-production-plan" id="dailyProductionPlan">
+        <div class="section-head">
+          <div>
+            <h2>תוכנית ייצור היום</h2>
+            <p id="productionPlanSubtitle">יעד מול ביצוע בפועל</p>
+          </div>
+          <span class="pace-badge is-muted" id="productionPaceBadge">טוען</span>
         </div>
-        <div class="alerts-list" id="alertsList">
-          <div class="no-alerts">אין התראות פעילות ✓</div>
+        <div class="production-progress-main">
+          <strong id="productionActualTons">0</strong>
+          <span>/</span>
+          <strong id="productionTargetTons">—</strong>
+          <small>טון</small>
         </div>
-      </div>
+        <div class="daily-progress-track"><div class="daily-progress-fill" id="productionProgressFill"></div></div>
+        <div class="production-progress-meta">
+          <div class="meta-chip"><span>אחוז ביצוע</span><strong id="productionPercent">—</strong></div>
+          <div class="meta-chip"><span>פער להיום</span><strong id="productionRemainingTons">—</strong></div>
+          <div class="meta-chip"><span>קצב</span><strong id="productionPaceText">אין נתון משמרת</strong></div>
+        </div>
+      </section>
 
-      <!-- QUICK STATS -->
-      <div class="quick-stats">
-        <div class="section-title" style="margin-bottom:8px">📊 סיכום יומי</div>
-        <div class="qs-row">
-          <span class="qs-label">משקל ייצור היום</span>
-          <span class="qs-val v-accent" id="qsWeight">—</span>
+      <section class="panel">
+        <div class="section-head">
+          <div><h2>דורש טיפול עכשיו</h2><p>חריגות שמונעות יציאה או ייצור</p></div>
+          <span class="count-pill" id="actionCountPill">0</span>
         </div>
-        <div class="qs-row">
-          <span class="qs-label">פחת מכונה A</span>
-          <span class="qs-val" id="qsWasteA">—</span>
-        </div>
-        <div class="qs-row">
-          <span class="qs-label">פחת מכונה B</span>
-          <span class="qs-val" id="qsWasteB">—</span>
-        </div>
-        <div class="qs-row">
-          <span class="qs-label">פחת מכונה C</span>
-          <span class="qs-val" id="qsWasteC">—</span>
-        </div>
-        <div class="qs-row">
-          <span class="qs-label">פחת מכונה D</span>
-          <span class="qs-val" id="qsWasteD">—</span>
-        </div>
-      </div>
+        <div class="action-list" id="actionCenterList"><div class="muted-state">טוען פעולות נדרשות...</div></div>
+      </section>
 
-    </div>
-  </div>
-
-  <!-- ════════════════════════════════════════════════════════════
-       EXEC DASHBOARD — הנהלה בלבד
-       ════════════════════════════════════════════════════════════ -->
-  <div class="role-section" data-roles="exec" id="execSection">
-
-    <!-- Financial KPIs -->
-    <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px" id="execKpiRow">
-      <div class="kpi-card c-success">
-        <div class="kpi-top"><span class="kpi-icon">💰</span><span class="kpi-trend trend-up" id="execRevTrend" style="display:none"></span></div>
-        <div class="kpi-label">הכנסה חודשית</div>
-        <div class="kpi-value v-success" id="execRevenue">—</div>
-        <div class="kpi-sub" id="execRevSub">טוען...</div>
-      </div>
-      <div class="kpi-card c-accent">
-        <div class="kpi-top"><span class="kpi-icon">📊</span></div>
-        <div class="kpi-label">מרווח רווח</div>
-        <div class="kpi-value v-accent" id="execMargin">—</div>
-        <div class="kpi-sub">הכנסה פחות עלות</div>
-        <div class="kpi-bar"><div class="kpi-bar-fill" id="execMarginBar" style="width:0%"></div></div>
-      </div>
-      <div class="kpi-card c-info">
-        <div class="kpi-top"><span class="kpi-icon">🏋️</span></div>
-        <div class="kpi-label">טון חודשי</div>
-        <div class="kpi-value v-info" id="execTons">—</div>
-        <div class="kpi-sub" id="execTonsSub">יצור חודש זה</div>
-      </div>
-      <div class="kpi-card c-warning">
-        <div class="kpi-top"><span class="kpi-icon">📋</span></div>
-        <div class="kpi-label">הזמנות חודש</div>
-        <div class="kpi-value v-warning" id="execOrders">—</div>
-        <div class="kpi-sub" id="execOrdersSub">הושלמו / סה"כ</div>
-      </div>
-      <div class="kpi-card c-danger">
-        <div class="kpi-top"><span class="kpi-icon">🔴</span></div>
-        <div class="kpi-label">דחופות פתוחות</div>
-        <div class="kpi-value v-danger" id="execUrgent">—</div>
-        <div class="kpi-sub">דורשות טיפול</div>
-      </div>
-    </div>
-
-    <!-- Exec Bottom Grid -->
-    <div class="bottom-grid">
-
-      <!-- TOP CUSTOMERS -->
-      <div class="table-card">
-        <div class="table-header">
-          <div class="section-title" style="margin:0">👥 לקוחות מובילים <span style="font-size:10px;color:var(--text-muted);font-weight:400">חודש זה</span></div>
+      <section class="panel">
+        <div class="section-head">
+          <div><h2>אספקות היום</h2><p>הזמנות שאמורות לצאת היום</p></div>
+          <span class="count-pill" id="todayDeliveriesCount">0</span>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>#</th><th>לקוח</th><th>הזמנות</th><th>משקל (טון)</th><th>הכנסה</th></tr>
-            </thead>
-            <tbody id="execTopCustomers">
-              <tr><td colspan="5" class="empty-state">טוען...</td></tr>
-            </tbody>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>הזמנה</th><th>לקוח</th><th>אתר</th><th>משקל</th><th>סטטוס</th></tr></thead>
+            <tbody id="todayDeliveriesBody"><tr><td colspan="5" class="muted-state">טוען...</td></tr></tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <!-- ORDER PIPELINE -->
-      <div class="table-card">
-        <div class="table-header">
-          <div class="section-title" style="margin:0">🔄 פייפליין הזמנות</div>
+      <section class="panel">
+        <div class="section-head">
+          <div><h2>תור ייצור קומפקטי</h2><p>מה מוכן, מה חסר ומה כבר בעבודה</p></div>
+          <span class="count-pill" id="prodQueueCount">0</span>
         </div>
-        <div style="padding:16px;display:flex;flex-direction:column;gap:12px" id="execPipeline">
-          <div class="pipeline-row">
-            <div class="pipeline-label">⏳ ממתינות לאישור</div>
-            <div class="pipeline-bar-wrap"><div class="pipeline-bar" id="pbar-pending" style="background:var(--warning)"></div></div>
-            <div class="pipeline-val" id="pval-pending">—</div>
-          </div>
-          <div class="pipeline-row">
-            <div class="pipeline-label">⚙️ בייצור</div>
-            <div class="pipeline-bar-wrap"><div class="pipeline-bar" id="pbar-prod" style="background:var(--accent)"></div></div>
-            <div class="pipeline-val" id="pval-prod">—</div>
-          </div>
-          <div class="pipeline-row">
-            <div class="pipeline-label">✅ הושלמו החודש</div>
-            <div class="pipeline-bar-wrap"><div class="pipeline-bar" id="pbar-done" style="background:var(--success)"></div></div>
-            <div class="pipeline-val" id="pval-done">—</div>
-          </div>
-        </div>
-        <!-- Monthly comparison -->
-        <div style="padding:0 16px 16px">
-          <div class="section-title" style="margin-bottom:8px">📅 השוואה לחודש קודם</div>
-          <div class="qs-row">
-            <span class="qs-label">הזמנות</span>
-            <span class="qs-val" id="execCmpOrders">—</span>
-          </div>
-          <div class="qs-row">
-            <span class="qs-label">טונאז'</span>
-            <span class="qs-val" id="execCmpTons">—</span>
-          </div>
-          <div class="qs-row">
-            <span class="qs-label">הכנסה</span>
-            <span class="qs-val" id="execCmpRev">—</span>
-          </div>
-        </div>
-      </div>
+        <div class="table-scroll" id="prodQueueBody"><div class="muted-state">טוען תור ייצור...</div></div>
+      </section>
+    </section>
 
-    </div>
+    <aside class="side-column">
+      <section class="panel">
+        <div class="section-head"><div><h2>חוסרי מלאי</h2><p>רק קטרים שמופיעים בתור או חורגים בתחזית</p></div></div>
+        <div class="panel-body" id="stockShortagesPanel"><div class="muted-state">מלאי ייבדק מול הזמנות פתוחות</div></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head"><div><h2>כרטיסיות ייצור</h2><p>סיכום קטן, לא מסך מלא</p></div></div>
+        <div class="panel-body" id="productionCardsSummary"><div class="muted-state">טוען...</div></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head"><div><h2>מכונות</h2><p>סטטוס תומך בלבד</p></div></div>
+        <div class="panel-body">
+          <div class="machine-strip" id="machinesCompactStrip"></div>
+          <div class="compact-row with-space"><span>מחוברות</span><strong id="machinesOnlineCount">0/0</strong></div>
+          <a class="action-link" href="/machine.html">פתח מסך מכונות</a>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head"><div><h2>סיכום תפעולי</h2><p>מדדים משניים</p></div></div>
+        <div class="panel-body compact-list">
+          <div class="compact-row"><span>בייצור כעת</span><strong id="kpiInProd">—</strong></div>
+          <div class="compact-row"><span>פריטים שהושלמו</span><strong id="kpiDone">—</strong></div>
+          <div class="compact-row"><span>דחופות פתוחות</span><strong id="kpiUrgent">—</strong></div>
+          <div class="compact-row"><span>פחת היום</span><strong id="kpiWaste">—</strong></div>
+          <div class="compact-row"><span>משקל ייצור היום</span><strong id="qsWeight">—</strong></div>
+        </div>
+      </section>
+    </aside>
   </div>
 
-  <!-- ════════════════════════════════════════════════════════════
-       PRODUCTION MANAGER DASHBOARD — מנהל ייצור
-       ════════════════════════════════════════════════════════════ -->
-  <div class="role-section" data-roles="production" id="productionSection">
-
-    <!-- Shift status bar -->
-    <div class="table-card" style="margin-bottom:14px">
-      <div class="table-header">
-        <div class="section-title" style="margin:0">🕐 מצב משמרת נוכחית</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span id="prodShiftName" style="font-size:12px;font-weight:700;color:var(--accent)"></span>
-          <span id="prodTodayTons" style="font-size:12px;color:var(--text-dim)"></span>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--border)" id="prodShiftGrid">
-        <div class="shift-stat-cell">
-          <div class="shift-stat-val" id="psActiveShifts">—</div>
-          <div class="shift-stat-lbl">משמרות פעילות</div>
-        </div>
-        <div class="shift-stat-cell">
-          <div class="shift-stat-val" id="psItemsInProd">—</div>
-          <div class="shift-stat-lbl">פריטים בייצור</div>
-        </div>
-        <div class="shift-stat-cell">
-          <div class="shift-stat-val v-success" id="psTodayTons">—</div>
-          <div class="shift-stat-lbl">טון יוצר היום</div>
-        </div>
-        <div class="shift-stat-cell" id="psStopCell">
-          <div class="shift-stat-val v-danger" id="psActiveStops">0</div>
-          <div class="shift-stat-lbl">מכונות עצורות</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Production items table -->
-    <div class="bottom-grid">
-      <div class="table-card">
-        <div class="table-header">
-          <div class="section-title" style="margin:0">⚙️ פריטים בעבודה כעת</div>
-          <a href="/machine.html" class="btn-sm">→ מסך מכונה</a>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>מכונה</th><th>הזמנה</th><th>לקוח</th><th>⌀</th><th>כמות</th><th>סטטוס</th></tr>
-            </thead>
-            <tbody id="prodItemsTable">
-              <tr><td colspan="6" class="empty-state">טוען...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Active stops -->
-      <div class="table-card">
-        <div class="table-header">
-          <div class="section-title" style="margin:0">🛑 עצירות פעילות</div>
-          <a href="/machine.html" class="btn-sm">→ דיווח</a>
-        </div>
-        <div id="prodStopsList">
-          <div class="no-alerts" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">✅ אין עצירות כרגע</div>
-        </div>
-        <!-- Active shifts -->
-        <div style="border-top:1px solid var(--border);padding:12px 14px">
-          <div class="section-title" style="margin-bottom:8px">👷 משמרות פעילות</div>
-          <div id="prodActiveShifts" style="font-size:12px;color:var(--text-dim)">טוען...</div>
-        </div>
-      </div>
-    </div>
+  <div class="hidden-contracts" aria-hidden="true">
+    <span id="kpiItemsProd"></span><span id="kpiItemsDone"></span><span id="kpiDoneBar"></span><span id="kpiWasteBar"></span><span id="ordersTableBody"></span><span id="alertCountPill"></span><span id="urgentCount"></span>
   </div>
-
-  <!-- BOTTOM GRID: production queue + recent orders -->
-  <div class="bottom-grid role-section" data-roles="all,plant,production">
-
-    <!-- PRODUCTION QUEUE -->
-    <div class="table-card">
-      <div class="table-header">
-        <div class="section-title" style="margin:0">⚙️ תור ייצור <span class="count-pill" id="prodQueueCount">0</span></div>
-        <a href="/orders.html?status=בייצור" class="btn-sm">הכל</a>
-      </div>
-      <div id="prodQueueBody">
-        <div class="empty-state">אין הזמנות בייצור</div>
-      </div>
-    </div>
-
-    <!-- RECENT ORDERS -->
-    <div class="table-card">
-      <div class="table-header">
-        <div class="section-title" style="margin:0">📋 הזמנות אחרונות</div>
-        <a href="/orders.html" class="btn-sm">הכל</a>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>מספר</th><th>לקוח</th><th>אספקה</th><th>משקל</th><th>סטטוס</th>
-            </tr>
-          </thead>
-          <tbody id="ordersTableBody">
-            <tr><td colspan="5" class="empty-state">טוען...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>
-
-</div>
-
-<script>
-const WS_URL = () => window.IronBendAuth?.webSocketUrl?.('/') || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
-let ws, dashData = null, alertsData = [], _wsDelay = 1000;
-const TODAY = new Date().toISOString().split('T')[0];
-
-function applyDataContractBadges() {
-  if (window.IronBendDataContracts) {
-    window.IronBendDataContracts.applyDataContracts(document);
-  }
-}
-
-// ── WebSocket ────────────────────────────────────────────────────────
-function connectWS() {
-  ws = new WebSocket(WS_URL());
-  ws.onopen  = () => { document.getElementById('wsDot').classList.add('connected'); _wsDelay = 1000; };
-  ws.onerror = () => ws.close();
-  ws.onclose = () => { document.getElementById('wsDot').classList.remove('connected'); _wsDelay = Math.min(_wsDelay * 2, 30000); setTimeout(connectWS, _wsDelay); };
-  ws.onmessage = e => {
-    try {
-      const { type, data } = JSON.parse(e.data);
-      if (type === 'machines_state') renderMachines(data);
-      if (type === 'machine_update') updateMachineTile(data);
-      if (type === 'alert') { fetchAlerts(); }
-      if (['new_order','order_status','order_complete'].includes(type)) fetchDashboard();
-    } catch {}
-  };
-}
-
-// ── Clock & Day Bar ──────────────────────────────────────────────────
-function updateTime() {
-  const now = new Date();
-  document.getElementById('navTime').textContent = now.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
-  document.getElementById('dayBarDate').textContent = now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});
-
-  const h = now.getHours();
-  let shift, shiftLabel;
-  if      (h >= 6  && h < 14) { shift = 'morning'; shiftLabel = 'משמרת בוקר 06:00–14:00'; }
-  else if (h >= 14 && h < 22) { shift = 'afternoon'; shiftLabel = 'משמרת אחר צהריים 14:00–22:00'; }
-  else                          { shift = 'night'; shiftLabel = 'משמרת לילה 22:00–06:00'; }
-
-  const badges = { morning: 'משמרת בוקר', afternoon: 'משמרת אצ', night: 'משמרת לילה' };
-  document.getElementById('shiftBadge').textContent = badges[shift];
-  document.getElementById('dayBarShift').textContent = shiftLabel;
-}
-
-// ── Fetch dashboard ──────────────────────────────────────────────────
-async function fetchDashboard() {
-  try {
-    const [dashboardRes, queueRes] = await Promise.all([
-      fetch('/api/dashboard'),
-      fetch('/api/production-queue')
-    ]);
-    dashData = await dashboardRes.json();
-    const productionQueue = await queueRes.json().catch(() => ({ items: [] }));
-    renderKPIs(dashData);
-    renderMachines(dashData.machines);
-    renderOrdersTable(dashData.recentOrders);
-    renderProdQueue(productionQueue.items || []);
-    renderWasteByMachine(dashData.wasteByMachine);
-  } catch { /* offline – SW cache */ }
-}
-
-async function fetchAlerts() {
-  try {
-    const r = await fetch('/api/alerts');
-    alertsData = await r.json();
-    renderAlerts(alertsData);
-  } catch {}
-}
-
-// ── KPIs ─────────────────────────────────────────────────────────────
-function renderKPIs(d) {
-  const producedWeightToday = Number(d.producedWeightToday || 0);
-  const producedTonsToday = Number(d.producedTonsToday || 0);
-  const completedItemsToday = Number(d.itemsDone ?? d.completedToday ?? 0);
-
-  document.getElementById('kpiOrdersToday').textContent = d.ordersToday;
-  document.getElementById('kpiWeightToday').textContent = producedWeightToday.toFixed(0) + ' ק"ג יוצרו';
-  document.getElementById('kpiInProd').textContent      = d.inProduction;
-  document.getElementById('kpiItemsProd').textContent   = (d.itemsInProduction||0) + ' פריטים';
-  document.getElementById('kpiDone').textContent        = completedItemsToday;
-  document.getElementById('kpiItemsDone').textContent   = completedItemsToday + ' פריטים';
-  document.getElementById('kpiUrgent').textContent      = d.urgentOpen || 0;
-  document.getElementById('kpiWaste').textContent       = (d.wasteAvgPct||0) + '%';
-  document.getElementById('kpiPending').textContent     = d.pending;
-
-  // Progress bars
-  const productionTotal = completedItemsToday + Number(d.itemsInProduction || 0);
-  const completionPct = productionTotal > 0 ? Math.min(100, (completedItemsToday / productionTotal) * 100) : 0;
-  document.getElementById('kpiDoneBar').style.width = completionPct + '%';
-  const wastePct = Math.min(100, (d.wasteAvgPct || 0) * 5); // scale: 20% waste = full bar
-  document.getElementById('kpiWasteBar').style.width = wastePct + '%';
-
-  // Urgent badge in day bar
-  const urgentBadge = document.getElementById('urgentBadge');
-  if (d.urgentOpen > 0) {
-    urgentBadge.classList.add('show');
-    document.getElementById('urgentCount').textContent = d.urgentOpen;
-  } else {
-    urgentBadge.classList.remove('show');
-  }
-
-  document.getElementById('qsWeight').textContent = producedWeightToday.toFixed(0) + ' ק"ג';
-  document.getElementById('kpiTonsToday').textContent = producedTonsToday + ' ט';
-
-  // Keep the dashboard internally consistent: produced kg and tons come from
-  // the same completed-items source returned by /api/dashboard.
-}
-
-async function fetchTonsToday() {
-  try {
-    const d = await fetch('/api/kpi/tons-today').then(r=>r.json());
-    document.getElementById('kpiTonsToday').textContent = (d.tons || 0) + ' ט';
-  } catch {}
-}
-
-async function fetchInventoryForecast() {
-  try {
-    const data = await fetch('/api/inventory/forecast').then(r=>r.json());
-    const alerts = data.filter(f => f.alert !== 'ok');
-    if (alerts.length === 0) return;
-    const alertsList = document.getElementById('alertsList');
-    alerts.forEach(f => {
-      const existing = document.getElementById('inv-alert-' + f.diameter);
-      if (existing) return;
-      const div = document.createElement('div');
-      div.id = 'inv-alert-' + f.diameter;
-      div.className = 'alert-item alert-' + (f.alert === 'critical' ? 'danger' : 'warning');
-      div.innerHTML = `<span class="alert-icon">${f.alert === 'critical' ? '🚨' : '⚠️'}</span>
-        <div class="alert-body"><div class="alert-msg">מלאי נמוך ⌀${f.diameter}: ${f.on_hand_kg} ק"ג (${f.days_left} ימים)</div>
-        <div class="alert-time">צריכה יומית: ${f.avg_daily_kg} ק"ג</div></div>`;
-      const noAlerts = alertsList.querySelector('.no-alerts');
-      if (noAlerts) noAlerts.remove();
-      alertsList.insertBefore(div, alertsList.firstChild);
-    });
-    // Update count
-    const count = alertsList.querySelectorAll('.alert-item').length;
-    const pill = document.getElementById('alertCountPill');
-    if (pill) pill.textContent = count;
-  } catch {}
-}
-
-function renderWasteByMachine(wasteByMachine) {
-  const byMachine = {};
-  (wasteByMachine||[]).forEach(r => { byMachine[r.machine] = r; });
-  ['A','B','C','D'].forEach(m => {
-    const el = document.getElementById('qsWaste' + m);
-    if (!el) return;
-    const r = byMachine[`מכונה ${m}`] || byMachine[m];
-    if (r && r.qty > 0) {
-      const pct = ((r.waste / r.qty) * 100).toFixed(1);
-      el.textContent = pct + '%';
-      el.style.color = pct > 10 ? 'var(--danger)' : pct > 5 ? 'var(--warning)' : 'var(--success)';
-    } else {
-      el.textContent = '—';
-      el.style.color = '';
-    }
-  });
-}
-
-// ── Machines ─────────────────────────────────────────────────────────
-function machineStateClass(m) {
-  if (m.status === 'בייצור') return 'running';
-  if (m.status === 'תקלה' || m.status === 'שגיאת תקשורת') return 'error';
-  if (m.connected || m.status === 'פנוי') return 'online';
-  return 'idle';
-}
-
-function buildProgressRing(cls, counter, label) {
-  const R = 26, C = 2 * Math.PI * R;
-  // Show a slow animated fill for "running", otherwise static based on counter
-  const pct = cls === 'running' ? 0.75 : cls === 'online' ? 0.4 : 0.15;
-  const dash = C * pct;
-  const offset = C - dash;
-  return `<svg width="64" height="64" viewBox="0 0 64 64" class="m-ring-wrap">
-    <circle class="m-ring-bg" cx="32" cy="32" r="${R}"/>
-    <circle class="m-ring-fg ${cls}" cx="32" cy="32" r="${R}"
-      stroke-dasharray="${C}" stroke-dashoffset="${offset}"
-      transform="rotate(-90 32 32)"/>
-    <text class="m-ring-text" x="32" y="32" font-size="11" font-weight="900"
-      fill="${cls==='running'?'#e07b39':cls==='online'?'#27ae60':cls==='error'?'#e74c3c':'#4a6278'}">${counter}</text>
-    <text x="32" y="45" text-anchor="middle" font-size="8" fill="#4a6278" font-family="Heebo,sans-serif">${label}</text>
-  </svg>`;
-}
-
-function renderMachines(machines) {
-  if (!machines?.length) {
-    document.getElementById('machinesGrid').innerHTML = '<div style="color:var(--text-dim);padding:20px;grid-column:1/-1">אין מכונות</div>';
-    return;
-  }
-  let online = 0;
-  document.getElementById('machinesGrid').innerHTML = machines.map(m => {
-    const cls = machineStateClass(m);
-    if (cls !== 'idle') online++;
-    const ring = buildProgressRing(cls, m.counter ?? 0, 'יח\'');
-    const badgeCls = cls === 'running' ? 'running' : cls === 'error' ? 'error' : cls === 'online' ? 'online' : '';
-    const lastSeenStr = m.last_seen ? new Date(m.last_seen).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}) : null;
-    return `<div class="machine-card ${cls}" id="machine-${m.id}">
-      <div class="machine-stripe"></div>
-      <div class="m-row1">
-        <div>
-          <div class="m-name">${m.name}</div>
-          <div class="m-range">Ø${m.min_diameter}–${m.max_diameter} מ"מ</div>
-        </div>
-        <span class="m-status-badge ${badgeCls}">${m.status ?? 'לא מחובר'}</span>
-      </div>
-      <div class="m-body">
-        ${ring}
-        <div class="m-info">
-          <div class="m-counter">${m.counter ?? 0}</div>
-          <div class="m-counter-label">יחידות היום</div>
-          ${m.current_order_num
-            ? `<div class="m-job"><div class="m-job-label">הזמנה פעילה</div><div class="m-job-value">${m.current_order_num}</div></div>`
-            : `<div class="m-job" style="color:var(--text-muted);font-size:11px">אין עבודה פעילה</div>`
-          }
-        </div>
-      </div>
-      ${lastSeenStr ? `<div class="m-lastseen">עדכון אחרון: ${lastSeenStr}</div>` : ''}
-    </div>`;
-  }).join('');
-  document.getElementById('machinesOnlineCount').textContent = `${online}/${machines.length}`;
-}
-
-function updateMachineTile(data) {
-  const el = document.getElementById(`machine-${data.id}`);
-  if (!el) { fetchDashboard(); return; }
-  const cls = machineStateClass(data);
-  el.className = `machine-card ${cls}`;
-  const cEl = el.querySelector('.m-counter');
-  const bEl = el.querySelector('.m-status-badge');
-  if (cEl) cEl.textContent = data.counter ?? 0;
-  if (bEl) {
-    bEl.textContent = data.status;
-    bEl.className = `m-status-badge ${cls === 'running' ? 'running' : cls === 'error' ? 'error' : cls === 'online' ? 'online' : ''}`;
-  }
-}
-
-// ── Alerts ────────────────────────────────────────────────────────────
-function renderAlerts(alerts) {
-  const pill = document.getElementById('alertCountPill');
-  pill.textContent = alerts.length;
-  pill.style.background = alerts.length > 0 ? 'var(--danger-dim)' : 'var(--accent-dim)';
-  pill.style.color = alerts.length > 0 ? 'var(--danger)' : 'var(--accent)';
-
-  if (!alerts.length) {
-    document.getElementById('alertsList').innerHTML = '<div class="no-alerts">אין התראות פעילות ✓</div>';
-    return;
-  }
-  document.getElementById('alertsList').innerHTML = alerts.map(a => {
-    const dotCls = a.level === 'critical' ? 'critical' : a.level === 'warning' ? 'warning' : 'info';
-    const timeStr = new Date(a.created_at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
-    return `<div class="alert-item">
-      <div class="alert-dot ${dotCls}"></div>
-      <div class="alert-text">${escHtml(a.message)}</div>
-      <span class="alert-time">${timeStr}</span>
-      <button class="alert-resolve" onclick="resolveAlert(${a.id},this)">✓</button>
-    </div>`;
-  }).join('');
-}
-
-async function resolveAlert(id, btn) {
-  btn.disabled = true;
-  try {
-    await fetch(`/api/alerts/${id}/resolve`, { method: 'PATCH' });
-    await fetchAlerts();
-  } catch { btn.disabled = false; }
-}
-
-async function resolveAllAlerts() {
-  const unresolvedIds = alertsData.map(a => a.id);
-  await Promise.all(unresolvedIds.map(id => fetch(`/api/alerts/${id}/resolve`, { method: 'PATCH' })));
-  await fetchAlerts();
-}
-
-// ── Production Queue ──────────────────────────────────────────────────
-function renderProdQueue(items) {
-  const queueItems = items || [];
-  document.getElementById('prodQueueCount').textContent = queueItems.length;
-  if (!queueItems.length) {
-    document.getElementById('prodQueueBody').innerHTML = '<div class="empty-state">אין הזמנות בתור ייצור</div>';
-    return;
-  }
-  document.getElementById('prodQueueBody').innerHTML = `<table style="width:100%">
-    <thead><tr><th>מספר</th><th>לקוח</th><th>אספקה</th><th>פריט</th><th>סטטוס</th></tr></thead>
-    <tbody>${queueItems.map(item => {
-      const daysLeft = daysUntilDelivery(item.delivery_date);
-      const dateCls  = daysLeft !== null ? (daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : daysLeft <= 2 ? 'due-soon' : '') : '';
-      const urgentHtml = item.priority === 'דחוף' ? '<span class="urgent-flag"></span>' : '';
-      return `<tr onclick="location.href='/orders.html?id=${item.order_id}'" style="cursor:pointer">
-        <td><span class="order-num">${escHtml(item.order_num)}</span>${urgentHtml}</td>
-        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.customer_name||'—')}</td>
-        <td class="${dateCls}">${formatDeliveryDate(item.delivery_date, daysLeft)}</td>
-        <td>${escHtml(item.shape_name || item.diameter || '—')}</td>
-        <td><span class="status-badge ${statusBadgeClass(item.status)}">${escHtml(item.status)}</span></td>
-      </tr>`;
-    }).join('')}</tbody>
-  </table>`;
-}
-
-// ── Recent Orders ─────────────────────────────────────────────────────
-function renderOrdersTable(orders) {
-  if (!orders?.length) {
-    document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="5" class="empty-state">אין הזמנות</td></tr>';
-    return;
-  }
-  document.getElementById('ordersTableBody').innerHTML = orders.map(o => {
-    const daysLeft = daysUntilDelivery(o.delivery_date);
-    const dateCls  = daysLeft !== null ? (daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : daysLeft <= 2 ? 'due-soon' : '') : '';
-    const urgentHtml = o.priority === 'דחוף' ? '<span class="urgent-flag"></span>' : '';
-    return `<tr onclick="location.href='/orders.html?id=${o.id}'" style="cursor:pointer">
-      <td><span class="order-num">${o.order_num}</span>${urgentHtml}</td>
-      <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.customer_name||'—'}</td>
-      <td class="${dateCls}">${formatDeliveryDate(o.delivery_date, daysLeft)}</td>
-      <td><span class="weight-val">${(o.total_weight||0).toFixed(0)}</span> ק"ג</td>
-      <td><span class="status-badge ${statusBadgeClass(o.status)}">${o.status}</span></td>
-    </tr>`;
-  }).join('');
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────
-function statusBadgeClass(status) {
-  if (!status) return 's-wait';
-  if (status.includes('הושלם') || status.includes('סופק')) return 's-done';
-  if (status === 'בייצור') return 's-prod';
-  if (status.includes('דרך') || status.includes('נהג')) return 's-ship';
-  if (status === 'ממתינה לאישור') return 's-pend';
-  return 's-wait';
-}
-
-function daysUntilDelivery(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  const today = new Date(); today.setHours(0,0,0,0);
-  return Math.round((d - today) / 86400000);
-}
-
-function formatDeliveryDate(dateStr, daysLeft) {
-  if (!dateStr) return '—';
-  if (daysLeft === null) return dateStr;
-  const parts = dateStr.split('-');
-  const short = `${parts[2]}/${parts[1]}`;
-  if (daysLeft < 0) return `${short} (איחור ${Math.abs(daysLeft)}י')`;
-  if (daysLeft === 0) return `${short} (היום!)`;
-  if (daysLeft === 1) return `${short} (מחר)`;
-  return short;
-}
-
-function escHtml(s) {
-  return window.IronBendSafe
-    ? window.IronBendSafe.escapeHtml(s)
-    : String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-}
-
-// ── EXEC DASHBOARD ───────────────────────────────────────────────
-async function fetchExecDashboard() {
-  try {
-    const d = await fetch('/api/kpi/monthly').then(r => r.json());
-    const c = d.current;
-
-    // Revenue
-    const revFmt = c.revenue > 0
-      ? '₪' + (c.revenue >= 1000000 ? (c.revenue/1000000).toFixed(2)+'M' : c.revenue >= 1000 ? Math.round(c.revenue/1000)+'K' : c.revenue)
-      : '—';
-    document.getElementById('execRevenue').textContent = revFmt;
-    document.getElementById('execRevSub').textContent = d.month;
-
-    // Margin
-    if (c.margin !== null && c.margin !== undefined) {
-      document.getElementById('execMargin').textContent = c.margin + '%';
-      document.getElementById('execMarginBar').style.width = Math.max(0, Math.min(100, c.margin)) + '%';
-      document.getElementById('execMarginBar').style.background =
-        c.margin >= 20 ? 'var(--success)' : c.margin >= 10 ? 'var(--warning)' : 'var(--danger)';
-    } else {
-      document.getElementById('execMargin').textContent = 'ללא נתון';
-    }
-
-    // Tons
-    document.getElementById('execTons').textContent = (c.tons||0) + ' ט';
-    const prevTons = d.prev.tons || 0;
-    const tonsDiff = prevTons > 0 ? Math.round(((c.tons - prevTons) / prevTons) * 100) : null;
-    document.getElementById('execTonsSub').textContent = tonsDiff !== null
-      ? (tonsDiff >= 0 ? '▲' : '▼') + ' ' + Math.abs(tonsDiff) + '% מחודש קודם'
-      : 'יצור חודש זה';
-
-    // Orders
-    document.getElementById('execOrders').textContent = c.order_count;
-    document.getElementById('execOrdersSub').textContent = (c.completed||0) + ' הושלמו / ' + c.order_count + ' סה"כ';
-    document.getElementById('execUrgent').textContent = c.urgent_open || 0;
-
-    // Pipeline bars
-    const maxPipe = Math.max(1, (c.pending||0) + (c.in_production||0) + (c.completed||0));
-    [
-      [c.pending||0,      'pbar-pending', 'pval-pending'],
-      [c.in_production||0,'pbar-prod',    'pval-prod'],
-      [c.completed||0,    'pbar-done',    'pval-done'],
-    ].forEach(([val, barId, valId]) => {
-      document.getElementById(barId).style.width = Math.round((val / maxPipe) * 100) + '%';
-      document.getElementById(valId).textContent = val;
-    });
-
-    // Comparison
-    const prevOrders = d.prev.order_count || 0;
-    const prevRev    = d.prev.revenue || 0;
-    document.getElementById('execCmpOrders').innerHTML = _cmpHtml(c.order_count, prevOrders, '');
-    document.getElementById('execCmpTons').innerHTML   = _cmpHtml(c.tons||0, prevTons, ' ט');
-    document.getElementById('execCmpRev').innerHTML    = _cmpHtml(c.revenue||0, prevRev, '', true);
-
-    // Top customers
-    const tbody = document.getElementById('execTopCustomers');
-    if (!d.topCustomers?.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">אין נתונים</td></tr>';
-    } else {
-      tbody.innerHTML = d.topCustomers.map((cu, i) => {
-        const tons = Math.round((cu.total_weight_kg||0)/100)/10;
-        const rev  = cu.revenue > 0 ? '₪' + Math.round(cu.revenue).toLocaleString('he-IL') : '—';
-        return '<tr>' +
-          '<td style="color:var(--text-muted);font-weight:700">' + (i+1) + '</td>' +
-          '<td style="font-weight:700">' + escHtml(cu.name) + '</td>' +
-          '<td>' + cu.orders + '</td>' +
-          '<td class="weight-val">' + tons + '</td>' +
-          '<td style="color:var(--success);font-weight:700">' + rev + '</td>' +
-        '</tr>';
-      }).join('');
-    }
-  } catch(e) { console.warn('exec dashboard error', e); }
-}
-
-function _cmpHtml(cur, prev, unit, isMoney) {
-  if (!prev) return '<span style="color:var(--text-dim)">—</span>';
-  const diff = cur - prev;
-  const pct  = Math.round((diff / prev) * 100);
-  const sign  = diff >= 0 ? '▲' : '▼';
-  const color = diff >= 0 ? 'var(--success)' : 'var(--danger)';
-  const curFmt = isMoney && cur >= 1000 ? '₪' + Math.round(cur/1000) + 'K' : cur + unit;
-  return curFmt + ' <span style="color:' + color + ';font-size:10px;font-weight:700">' + sign + Math.abs(pct) + '%</span>';
-}
-
-// ── PRODUCTION DASHBOARD ─────────────────────────────────────────
-async function fetchProductionDashboard() {
-  try {
-    const d = await fetch('/api/kpi/shift-summary').then(r => r.json());
-
-    const shiftNames = { morning: 'בוקר', afternoon: 'אחר צהריים', night: 'לילה' };
-    document.getElementById('prodShiftName').textContent = 'משמרת ' + (shiftNames[d.shiftType] || '');
-    document.getElementById('prodTodayTons').textContent = (d.todayTons||0) + ' ט יוצר היום';
-
-    document.getElementById('psActiveShifts').textContent  = (d.activeShifts||[]).length;
-    document.getElementById('psItemsInProd').textContent   = (d.itemsInProd||[]).length;
-    document.getElementById('psTodayTons').textContent     = (d.todayTons||0) + ' ט';
-    document.getElementById('psActiveStops').textContent   = (d.activeStops||[]).length;
-
-    const stopCell = document.getElementById('psStopCell');
-    stopCell.style.background = (d.activeStops||[]).length > 0 ? 'var(--danger-dim)' : '';
-
-    // Items table
-    const tbody = document.getElementById('prodItemsTable');
-    if (!(d.itemsInProd||[]).length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">אין פריטים בייצור</td></tr>';
-    } else {
-      tbody.innerHTML = d.itemsInProd.map(it => {
-        const progress = it.quantity > 0 ? Math.round(((it.produced_qty||0) / it.quantity) * 100) : 0;
-        const bar = '<div style="height:4px;background:var(--border);border-radius:2px;margin-top:3px;width:50px;display:inline-block">' +
-          '<div style="height:100%;width:' + progress + '%;background:' + (it.status==='בייצור'?'var(--accent)':'var(--text-muted)') + ';border-radius:2px"></div></div>';
-        return '<tr>' +
-          '<td style="font-weight:700">' + escHtml(it.machine_name||'—') + '</td>' +
-          '<td><span class="order-num">' + escHtml(it.order_num||'—') + '</span></td>' +
-          '<td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(it.customer_name||'—') + '</td>' +
-          '<td>⌀' + (it.diameter||'—') + '</td>' +
-          '<td>' + (it.produced_qty||0) + '/' + it.quantity + ' ' + bar + '</td>' +
-          '<td><span class="status-badge ' + (it.status==='בייצור'?'s-prod':'s-wait') + '">' + escHtml(it.status) + '</span></td>' +
-          '</tr>';
-      }).join('');
-    }
-
-    // Active stops
-    const stopsList = document.getElementById('prodStopsList');
-    if (!(d.activeStops||[]).length) {
-      stopsList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">✅ אין עצירות כרגע</div>';
-    } else {
-      stopsList.innerHTML = d.activeStops.map(s => {
-        const dur = Math.round((Date.now() - new Date(s.started_at).getTime()) / 60000);
-        return '<div class="stop-item">' +
-          '<div class="stop-dot"></div>' +
-          '<div class="stop-info">' +
-            '<div class="stop-title">' + escHtml(s.machine_name||'מכונה') + ' — ' + escHtml(s.reason_label||s.reason_code||'עצירה') + '</div>' +
-            '<div class="stop-sub">מזה ' + dur + ' דקות' + (s.notes ? ' · ' + escHtml(s.notes) : '') + '</div>' +
-          '</div></div>';
-      }).join('');
-    }
-
-    // Active shifts
-    const shiftsDiv = document.getElementById('prodActiveShifts');
-    if (!(d.activeShifts||[]).length) {
-      shiftsDiv.textContent = 'אין משמרות פעילות';
-    } else {
-      shiftsDiv.innerHTML = d.activeShifts.map(s => {
-        const since = new Date(s.started_at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
-        return '<div style="padding:4px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">' +
-          '<span>' + escHtml(s.machine_name||'מכונה') + ' — ' + escHtml(s.operator_name||'מפעיל') + '</span>' +
-          '<span style="color:var(--text-muted)">מ-' + since + '</span>' +
-          '</div>';
-      }).join('');
-    }
-  } catch(e) { console.warn('prod dashboard error', e); }
-}
-
-// ── ROLE TABS ──────────────────────────────────────────────────
-let _execLoaded = false, _prodLoaded = false;
-
-function setRole(role) {
-  document.querySelectorAll('.role-tab').forEach(b => b.classList.remove('active'));
-  const btn = document.getElementById('rtab-' + role);
-  if (btn) btn.classList.add('active');
-  document.querySelectorAll('.role-section').forEach(sec => {
-    const roles = (sec.dataset.roles || 'all').split(',');
-    sec.classList.toggle('hidden', !roles.includes(role));
-  });
-  localStorage.setItem('ib_dashboard_role', role);
-
-  // Lazy-load role-specific data
-  if (role === 'exec' && !_execLoaded) {
-    _execLoaded = true;
-    fetchExecDashboard();
-  }
-  if ((role === 'production') && !_prodLoaded) {
-    _prodLoaded = true;
-    fetchProductionDashboard();
-  }
-}
-
-// Restore saved role (default: exec — admin is at /admin.html)
-(function() {
-  const saved = localStorage.getItem('ib_dashboard_role') || 'exec';
-  // migrate old 'all' default
-  setRole(saved === 'all' ? 'exec' : saved);
-})();
-
-applyDataContractBadges();
-connectWS();
-fetchDashboard();
-fetchAlerts();
-fetchInventoryForecast();
-setInterval(fetchDashboard, 15000);
-setInterval(fetchAlerts, 30000);
-setInterval(fetchInventoryForecast, 120000);
-setInterval(updateTime, 1000);
-// Refresh role dashboards periodically
-setInterval(() => { if (_execLoaded) fetchExecDashboard(); }, 60000);
-setInterval(() => { if (_prodLoaded) fetchProductionDashboard(); }, 20000);
-updateTime();
-
-// War Room badge: show open incident count
-(async function fetchWarRoomBadge() {
-  try {
-    const incidents = await fetch('/api/incidents').then(r=>r.json()).catch(()=>[]);
-    const open = incidents.filter(i => i.status !== 'סגור').length;
-    const el = document.getElementById('warRoomBadge');
-    if (!el) return;
-    if (open > 0) {
-      el.textContent = `🚨 War Room (${open})`;
-      el.style.animation = 'pulse 2s infinite';
-      if (!document.getElementById('wr-pulse-style')) {
-        const s = document.createElement('style');
-        s.id = 'wr-pulse-style';
-        s.textContent = '@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}';
-        document.head.appendChild(s);
-      }
-    } else {
-      el.textContent = '🚨 War Room';
-      el.style.animation = '';
-    }
-  } catch(e){}
-})();
-setInterval(async () => {
-  try {
-    const incidents = await fetch('/api/incidents').then(r=>r.json()).catch(()=>[]);
-    const open = incidents.filter(i=>i.status!=='סגור').length;
-    const el = document.getElementById('warRoomBadge');
-    if (el) el.textContent = open > 0 ? `🚨 War Room (${open})` : '🚨 War Room';
-  } catch(e){}
-}, 30000);
-</script>
-<script src="/help.js"></script>
+</main>
+<script src="/dashboard.js"></script>
 </body>
 </html>
-
-
-
-
-
-

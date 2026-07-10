@@ -497,7 +497,7 @@ test('shared navigation hides modules excluded by license entitlements', () => {
 });
 
 test('dashboard production queue uses production queue API source', () => {
-  const dashboard = read('public/dashboard.html');
+  const dashboard = read('public/dashboard.html') + read('public/dashboard.js');
 
   assert.match(dashboard, /\/api\/production-queue/);
   assert.doesNotMatch(dashboard, /renderProdQueue\(dashData\.recentOrders\)/);
@@ -505,7 +505,7 @@ test('dashboard production queue uses production queue API source', () => {
 });
 
 test('dashboard production KPIs use completed production weight, not order-created weight', () => {
-  const dashboard = read('public/dashboard.html');
+  const dashboard = read('public/dashboard.html') + read('public/dashboard.js');
 
   assert.match(dashboard, /producedWeightToday/);
   assert.match(dashboard, /producedTonsToday/);
@@ -516,7 +516,7 @@ test('dashboard production KPIs use completed production weight, not order-creat
 });
 
 test('dashboard business widgets have data identity contracts', () => {
-  const dashboard = read('public/dashboard.html');
+  const dashboard = read('public/dashboard.html') + read('public/dashboard.js');
   const contracts = require(path.join(root, 'public', 'data-contracts-client.js')).WIDGET_CONTRACTS;
   const requiredElements = [
     'kpiOrdersToday',
@@ -1569,7 +1569,10 @@ test('server hardens production auth and websocket upgrades', () => {
   assert.match(authClient, /searchParams\.set\('token', token\)/);
 
   for (const file of wsClients) {
-    assert.match(read(file), /IronBendAuth\?\.webSocketUrl/, file);
+    const source = file === 'public/dashboard.html'
+      ? read(file) + read('public/dashboard.js')
+      : read(file);
+    assert.match(source, /IronBendAuth\?\.webSocketUrl/, file);
   }
 });
 
