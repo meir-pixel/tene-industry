@@ -381,7 +381,7 @@ function fixtureSpiralItem(overrides = {}) {
     shape_name: 'ספיראלה',
     diameter: 8,
     quantity: 13,
-    total_length_mm: 392700,
+    total_length_mm: 39270,
     total_weight: 201.65,
     shape_snapshot_json: JSON.stringify({
       contractVersion: 'SHAPE_DATA_CONTRACT_V2',
@@ -394,25 +394,30 @@ function fixtureSpiralItem(overrides = {}) {
         turns: 50,
       },
       calculated: {
-        totalLengthMm: 392700,
+        totalLengthMm: 39270,
       },
     }),
-    segments: JSON.stringify([{ length_mm: 392700, angle_deg: null }]),
+    segments: JSON.stringify([{ length_mm: 39270, angle_deg: null }]),
     shape_svg: '<svg><line data-old-straight="1"></line></svg>',
     ...overrides,
   };
 }
 
-test('production cards render spiral item with dedicated preview instead of straight fallback', () => {
+test('production cards render spiral item as top-view preview instead of straight or side wave fallback', () => {
   const item = fixtureSpiralItem();
   const html = cards.itemCard(item, { order_num: 'HZ-2026-025', customer_name: 'Spiral Customer' }, '12-07-2026', industry.REBAR_WEIGHTS || {});
 
   assert.match(html, /data-shape-kind="spiral"/);
-  assert.match(html, /pc-spiral-svg/);
+  assert.match(html, /pc-spiral-top-svg/);
   assert.match(html, /data-spiral-diameter-mm="250"/);
   assert.match(html, /data-spiral-turns="50"/);
   assert.match(html, /250/);
   assert.match(html, /50/);
+  assert.match(html, /(?:&#216;|Ø)8|data-rebar-diameter-mm="8"/);
+  assert.match(html, /3927/);
+  assert.doesNotMatch(html, /39270\s*ס/);
+  assert.doesNotMatch(html, /pc-spiral-svg/);
+  assert.doesNotMatch(html, /arr-s|arr-sl/);
   assert.doesNotMatch(html, /data-old-straight/);
   assert.doesNotMatch(html, /data-shape-kind="straight-bar"/);
 });
@@ -431,10 +436,13 @@ test('production print page serializes fresh spiral SVG instead of stale straigh
   });
 
   assert.match(html, /data-shape-kind=\"spiral\"/);
-  assert.match(html, /pc-spiral-svg/);
+  assert.match(html, /pc-spiral-top-svg/);
   assert.match(html, /data-spiral-diameter-mm=\"250\"/);
   assert.match(html, /data-spiral-turns=\"50\"/);
   assert.match(html, /shape_dims_html/);
+  assert.match(html, /3927/);
+  assert.doesNotMatch(html, /39270\s*ס/);
+  assert.doesNotMatch(html, /pc-spiral-svg/);
   assert.doesNotMatch(html, /data-old-straight/);
 });
 
@@ -463,12 +471,12 @@ test('regular straight bar still renders with straight preview', () => {
     shape_name: 'straight bar',
     diameter: 8,
     quantity: 13,
-    total_length_mm: 392700,
+    total_length_mm: 39270,
     total_weight: 201.65,
-    segments: JSON.stringify([{ length_mm: 392700, angle_deg: null }]),
+    segments: JSON.stringify([{ length_mm: 39270, angle_deg: null }]),
   };
   const html = cards.itemCard(item, { order_num: 'HZ-STRAIGHT-CHECK', customer_name: 'Straight Customer' }, '12-07-2026', industry.REBAR_WEIGHTS || {});
 
   assert.match(html, /data-shape-kind="straight-bar"/);
-  assert.doesNotMatch(html, /pc-spiral-svg/);
+  assert.doesNotMatch(html, /pc-spiral-top-svg/);
 });

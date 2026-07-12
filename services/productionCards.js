@@ -408,54 +408,53 @@ function spiralShapeSvg(item = {}, snapshot = shapeSnapshotFromItem(item)) {
   const metrics = spiralMetricsFromItem(item, snapshot);
   const spiralDiameterLabel = metrics.spiralDiameterMm !== null ? String(Math.round(metrics.spiralDiameterMm)) : '?';
   const turnsLabel = metrics.turns !== null ? String(Number.isInteger(metrics.turns) ? metrics.turns : metrics.turns.toFixed(1)) : '?';
-  const turnsNumber = metrics.turns !== null ? metrics.turns : 0;
-  const isRing = turnsNumber > 0 && turnsNumber <= 1.5;
-  const width = 240;
-  const height = 118;
+  const rebarDiameterLabel = metrics.rebarDiameter !== null ? String(Number.isInteger(metrics.rebarDiameter) ? metrics.rebarDiameter : metrics.rebarDiameter.toFixed(1)) : '?';
+  const width = 220;
+  const height = 140;
+  const cx = 110;
+  const cy = 62;
+  const outerR = 38;
+  const midR = 28;
+  const innerR = 17;
+  const dimLeft = cx - outerR;
+  const dimRight = cx + outerR;
+  const labelDiameter = '&#216;' + escapeHtml(spiralDiameterLabel);
+  const labelRebar = '&#216;' + escapeHtml(rebarDiameterLabel);
+
+  function topViewShell(extraAttrs = '') {
+    let svg = '<desc>' + escapeHtml('\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4') + ' ' + escapeHtml('\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea') + '</desc>';
+    svg += '<text x="' + cx + '" y="13" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">' + escapeHtml('\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4') + '</text>';
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + outerR + '" fill="none" stroke="#1a2332" stroke-width="4"/>';
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + outerR + '" fill="none" stroke="#3a5070" stroke-width="1.4"/>';
+    svg += '<path d="M ' + (cx + outerR) + ' ' + cy +
+      ' C ' + (cx + outerR) + ' ' + (cy - 29) + ', ' + (cx - midR) + ' ' + (cy - 31) + ', ' + (cx - midR) + ' ' + cy +
+      ' C ' + (cx - midR) + ' ' + (cy + 22) + ', ' + (cx + innerR) + ' ' + (cy + 20) + ', ' + (cx + innerR) + ' ' + cy +
+      ' C ' + (cx + innerR) + ' ' + (cy - 11) + ', ' + (cx - 5) + ' ' + (cy - 10) + ', ' + (cx - 5) + ' ' + cy + '"' +
+      ' fill="none" stroke="#3a5070" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+    svg += '<line x1="' + dimLeft + '" y1="' + cy + '" x2="' + dimRight + '" y2="' + cy + '" stroke="#c9621a" stroke-width="1.8"/>';
+    svg += '<line x1="' + dimLeft + '" y1="' + (cy - 8) + '" x2="' + dimLeft + '" y2="' + (cy + 8) + '" stroke="#c9621a" stroke-width="1.4"/>';
+    svg += '<line x1="' + dimRight + '" y1="' + (cy - 8) + '" x2="' + dimRight + '" y2="' + (cy + 8) + '" stroke="#c9621a" stroke-width="1.4"/>';
+    svg += '<rect x="' + (cx - 30) + '" y="' + (cy - 18) + '" width="60" height="15" rx="4" fill="white" fill-opacity="0.96" stroke="#f2c199" stroke-width="0.8"/>';
+    svg += '<text x="' + cx + '" y="' + (cy - 7) + '" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">' + labelDiameter + ' ' + escapeHtml('\u05de"\u05de') + '</text>';
+    svg += '<g data-spiral-visual-labels="1" font-family="Heebo,Arial">';
+    svg += '<rect x="24" y="103" width="58" height="24" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.1"/>';
+    svg += '<text x="53" y="113" text-anchor="middle" font-size="7" font-weight="900" fill="#9a4b10">' + escapeHtml('\u05e7\u05d5\u05d8\u05e8') + '</text>';
+    svg += '<text x="53" y="124" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">' + labelDiameter + '</text>';
+    svg += '<rect x="89" y="103" width="58" height="24" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.1"/>';
+    svg += '<text x="118" y="113" text-anchor="middle" font-size="7" font-weight="900" fill="#9a4b10">' + escapeHtml('\u05db\u05e8\u05d9\u05db\u05d5\u05ea') + '</text>';
+    svg += '<text x="118" y="124" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">' + escapeHtml(turnsLabel) + '</text>';
+    svg += '<rect x="154" y="103" width="42" height="24" rx="5" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>';
+    svg += '<text x="175" y="113" text-anchor="middle" font-size="7" font-weight="900" fill="#64748b">' + escapeHtml('\u05d1\u05e8\u05d6\u05dc') + '</text>';
+    svg += '<text x="175" y="124" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">' + labelRebar + '</text>';
+    svg += '</g>';
+    return '<svg class="pc-shape-svg pc-spiral-top-svg" data-spiral-label-alt="spiral diameter" data-shape-kind="spiral" data-spiral-diameter-mm="' + escapeHtml(spiralDiameterLabel) + '" data-spiral-turns="' + escapeHtml(turnsLabel) + '" data-rebar-diameter-mm="' + escapeHtml(rebarDiameterLabel) + '"' + extraAttrs + ' data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:124px;overflow:visible">' + svg + '</svg>';
+  }
 
   if (metrics.spiralDiameterMm === null || metrics.turns === null) {
-    let svg = '<ellipse cx="120" cy="54" rx="54" ry="32" fill="none" stroke="#1a2332" stroke-width="4"/>';
-    svg += '<ellipse cx="120" cy="54" rx="34" ry="20" fill="none" stroke="#3a5070" stroke-width="1.6"/>';
-    svg += '<text x="120" y="18" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">' + escapeHtml('\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4') + '</text>';
-    svg += '<text x="120" y="103" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#c9621a">' + escapeHtml('\u05e0\u05ea\u05d5\u05e0\u05d9 \u05e7\u05d5\u05d8\u05e8/\u05db\u05e8\u05d9\u05db\u05d5\u05ea \u05d7\u05e1\u05e8\u05d9\u05dd') + '</text>';
-    return '<svg class="pc-shape-svg pc-spiral-svg" data-spiral-label-alt="קוטר ספיראלה" data-shape-kind="spiral" data-spiral-incomplete="1" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + svg + '</svg>';
+    return topViewShell(' data-spiral-incomplete="1"');
   }
 
-  if (isRing) {
-    const cx = 120, cy = 54, r = 36;
-    let svg = '<defs><marker id="arr-r" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker><marker id="arr-rl" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker></defs>';
-    svg += '<text x="' + cx + '" y="13" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">' + escapeHtml('\u05d8\u05d1\u05e2\u05ea') + '</text>';
-    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#1a2332" stroke-width="4"/>';
-    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#3a5070" stroke-width="1.5"/>';
-    svg += '<line x1="' + (cx - r) + '" y1="' + cy + '" x2="' + (cx + r) + '" y2="' + cy + '" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-rl)" marker-end="url(#arr-r)"/>';
-    svg += '<text x="' + cx + '" y="' + (cy - 5) + '" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">Ø ' + escapeHtml(spiralDiameterLabel) + ' ' + escapeHtml('\u05de"\u05de') + '</text>';
-    svg += '<g data-spiral-visual-labels="1" font-family="Heebo,Arial"><rect x="34" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/><text x="73" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">Ø ' + escapeHtml(spiralDiameterLabel) + ' ' + escapeHtml('\u05de"\u05de') + '</text><rect x="128" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/><text x="167" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">' + escapeHtml(turnsLabel) + ' ' + escapeHtml('\u05db\u05e8\u05d9\u05db\u05d5\u05ea') + '</text></g>';
-    return '<svg class="pc-shape-svg pc-spiral-svg" data-spiral-label-alt="קוטר ספיראלה" data-shape-kind="ring" data-spiral-diameter-mm="' + escapeHtml(spiralDiameterLabel) + '" data-spiral-turns="' + escapeHtml(turnsLabel) + '" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + svg + '</svg>';
-  }
-
-  const startX = 28, endX = 212, centerY = 52, amp = 22;
-  const visualTurns = Math.max(5, Math.min(14, Math.round(turnsNumber / 8) || 8));
-  const step = (endX - startX) / visualTurns;
-  let d = 'M ' + startX + ' ' + centerY;
-  for (let i = 0; i < visualTurns; i += 1) {
-    const x0 = startX + i * step;
-    const x1 = x0 + step / 2;
-    const x2 = x0 + step;
-    d += ' C ' + (x0 + step * 0.22).toFixed(1) + ' ' + (centerY - amp).toFixed(1) + ', ' + (x1 - step * 0.22).toFixed(1) + ' ' + (centerY - amp).toFixed(1) + ', ' + x1.toFixed(1) + ' ' + centerY;
-    d += ' C ' + (x1 + step * 0.22).toFixed(1) + ' ' + (centerY + amp).toFixed(1) + ', ' + (x2 - step * 0.22).toFixed(1) + ' ' + (centerY + amp).toFixed(1) + ', ' + x2.toFixed(1) + ' ' + centerY;
-  }
-  const dimX = endX + 10;
-  let svg = '<defs><marker id="arr-s" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker><marker id="arr-sl" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker></defs>';
-  svg += '<path d="' + d + '" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>';
-  svg += '<path d="' + d + '" fill="none" stroke="#3a5070" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
-  svg += '<line x1="' + startX + '" y1="' + centerY + '" x2="' + endX + '" y2="' + centerY + '" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="5 4"/>';
-  svg += '<line x1="' + dimX + '" y1="' + (centerY - amp).toFixed(1) + '" x2="' + dimX + '" y2="' + (centerY + amp).toFixed(1) + '" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-sl)" marker-end="url(#arr-s)"/>';
-  svg += '<line x1="' + endX + '" y1="' + (centerY - amp).toFixed(1) + '" x2="' + (dimX + 4) + '" y2="' + (centerY - amp).toFixed(1) + '" stroke="#c9621a" stroke-width="1"/>';
-  svg += '<line x1="' + endX + '" y1="' + (centerY + amp).toFixed(1) + '" x2="' + (dimX + 4) + '" y2="' + (centerY + amp).toFixed(1) + '" stroke="#c9621a" stroke-width="1"/>';
-  svg += '<text x="' + (dimX + 6) + '" y="' + (centerY + 4) + '" text-anchor="start" font-size="8" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">Ø' + escapeHtml(spiralDiameterLabel) + '</text>';
-  svg += '<text x="120" y="12" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">' + escapeHtml('\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4') + '</text>';
-  svg += '<g data-spiral-visual-labels="1" font-family="Heebo,Arial"><rect x="34" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/><text x="73" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">' + escapeHtml('\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05dc\u05d4') + '</text><text x="73" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">' + escapeHtml(spiralDiameterLabel) + ' ' + escapeHtml('\u05de"\u05de') + '</text><rect x="128" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/><text x="167" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">' + escapeHtml('\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea') + '</text><text x="167" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">' + escapeHtml(turnsLabel) + '</text></g>';
-  return '<svg class="pc-shape-svg pc-spiral-svg" data-spiral-label-alt="קוטר ספיראלה" data-shape-kind="spiral" data-spiral-diameter-mm="' + escapeHtml(spiralDiameterLabel) + '" data-spiral-turns="' + escapeHtml(turnsLabel) + '" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + svg + '</svg>';
+  return topViewShell();
 }
 
 function itemShapeSvg(item = {}) {
