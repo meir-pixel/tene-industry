@@ -87,7 +87,7 @@ function projectPortalItem(item = {}, ctx = {}) {
   const weightKg = numberOrNull(item.weightKg ?? item.total_weight);
   const unitWeightKg = numberOrNull(item.unitWeightKg ?? item.weight_per_unit);
   const shapeSnapshot = item.shapeSnapshot || item.shape_snapshot_json || null;
-  const elementName = firstText(item.elementName, item.struct_element, item.note, item.shape_name, item.shapeName, 'פריט');
+  const elementName = firstText(item.struct_element, item.elementName, item.element_name, item.element);
   return {
     id: item.id,
     itemNum: item.itemNum || item.item_uid || item.id || null,

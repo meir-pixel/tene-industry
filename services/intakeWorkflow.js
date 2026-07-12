@@ -117,6 +117,24 @@ function importCell(row, aliases) {
   return '';
 }
 
+const STRUCT_ELEMENT_ALIASES = [
+  'מיקום',
+  'שם אלמנט',
+  'שם האלמנט',
+  'אלמנט',
+  'מיקום אלמנט',
+  'שייך ל',
+  'struct_element',
+  'structElement',
+  'elementName',
+  'element_name',
+  'element',
+  'location',
+  'mark',
+  'item_label',
+  'itemLabel',
+];
+
 function parseDelimitedRows(buffer) {
   const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
   const delimiter = text.split(/\r?\n/, 1)[0].includes('\t') ? '\t' : ',';
@@ -169,6 +187,7 @@ function buildOrderImportPreview(buffer, { orderExists = () => false, sourceIden
     const qty = Number(importCell(row, ['qty', 'quantity', 'כמות']));
     const shape = String(importCell(row, ['shape', 'shape_name', 'צורה']) || 'straight').trim();
     const notes = String(importCell(row, ['notes', 'note', 'הערות']) || '').trim();
+    const structElement = String(importCell(row, STRUCT_ELEMENT_ALIASES) || '').trim();
     const rowErrors = [];
     if (!customerName) rowErrors.push('customer is required');
     if (!(diameter > 0)) rowErrors.push('diameter is required');
@@ -203,6 +222,8 @@ function buildOrderImportPreview(buffer, { orderExists = () => false, sourceIden
       shapeId: shape,
       shapeName: shape,
       note: notes,
+      structElement,
+      struct_element: structElement,
       reviewNotes: itemReviewNotes,
       review_notes: itemReviewNotes,
     });
@@ -297,7 +318,25 @@ function firstTextValue(...values) {
 }
 
 function intakeItemElementName(item = {}) {
-  return firstTextValue(item.structElement, item.struct_element, item.element_name, item.elementName, item.element, item.member_name, item.memberName);
+  return firstTextValue(
+    item.structElement,
+    item.struct_element,
+    item.element_name,
+    item.elementName,
+    item.element,
+    item.location,
+    item.mark,
+    item.item_label,
+    item.itemLabel,
+    item.member_name,
+    item.memberName,
+    item['מיקום'],
+    item['שם אלמנט'],
+    item['שם האלמנט'],
+    item['אלמנט'],
+    item['מיקום אלמנט'],
+    item['שייך ל']
+  );
 }
 
 function intakeItemNote(item = {}) {

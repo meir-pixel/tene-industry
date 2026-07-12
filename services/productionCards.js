@@ -15,6 +15,60 @@ function printableItemNote(note) {
   return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
 }
 
+function itemStructElement(item = {}) {
+  return String(item.struct_element || item.structElement || item.element_name || item.elementName || item.element || '').trim();
+}
+
+function numericLineValue(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function explicitOrderLineNo(item = {}) {
+  return numericLineValue(item.orderLineNo ?? item.order_line_no ?? item.line_no ?? item.lineNo ?? item.position);
+}
+
+function attachOrderLineNumbers(items = []) {
+  if (!Array.isArray(items)) return [];
+  const groups = new Map();
+  for (const item of items) {
+    const key = String(item.order_id || item.orderId || '__single_order');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  for (const groupItems of groups.values()) {
+    const total = groupItems.length;
+    const ordered = [...groupItems].sort((a, b) => {
+      const aExplicit = explicitOrderLineNo(a);
+      const bExplicit = explicitOrderLineNo(b);
+      if (aExplicit !== null || bExplicit !== null) return (aExplicit ?? Number.MAX_SAFE_INTEGER) - (bExplicit ?? Number.MAX_SAFE_INTEGER);
+      const aCreated = Date.parse(a.created_at || a.createdAt || '') || 0;
+      const bCreated = Date.parse(b.created_at || b.createdAt || '') || 0;
+      if (aCreated !== bCreated) return aCreated - bCreated;
+      return Number(a.id || 0) - Number(b.id || 0);
+    });
+    ordered.forEach((item, index) => {
+      item.orderLineNo = explicitOrderLineNo(item) || index + 1;
+      item.orderTotalLines = total;
+    });
+  }
+  return items;
+}
+
+function itemOrderLineLabel(item = {}) {
+  const lineNo = numericLineValue(item.orderLineNo ?? item.order_line_no ?? item.line_no ?? item.lineNo ?? item.position);
+  const total = numericLineValue(item.orderTotalLines ?? item.order_total_lines ?? item.totalLines);
+  if (lineNo && total) return `פריט ${lineNo}/${total}`;
+  if (lineNo) return `פריט ${lineNo}`;
+  return 'פריט';
+}
+
+function itemHumanTitle(item = {}) {
+  const element = itemStructElement(item);
+  const lineLabel = itemOrderLineLabel(item);
+  return element ? `${lineLabel} — ${element}` : lineLabel;
+}
+
 function parseSegments(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value;
@@ -660,8 +714,10 @@ function itemCard(item, order, printDate, rebarWeights) {
   const barcode = `${order.order_num || ''}-${String(item.id).padStart(6, '0')}${scanSuffix}`;
   const segments = shapeSegmentsFromItem(item);
   const visualShapeSvg = shapeSvgForProductionCard(item, segments);
-  const title = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
+  const title = itemHumanTitle(item);
+  const shapeSubtitle = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
   const note = printableItemNote(item.note);
+  const structElement = itemStructElement(item);
   const diameter = shapeDiameterFromItem(item);
   const totalLengthMm = shapeTotalLengthMmFromItem(item);
   const kgPerMeter = rebarWeights[Math.round(diameter || 0)];
@@ -680,7 +736,7 @@ function itemCard(item, order, printDate, rebarWeights) {
 
   return '<div class="prod-card">' +
     '<div class="pc-head">' +
-      `<div><div class="pc-title">${escapeHtml(title)}</div><div class="pc-date">${escapeHtml(printDate)}</div></div>` +
+      `<div><div class="pc-title">${escapeHtml(title)}</div><div class="pc-date">${escapeHtml(shapeSubtitle)} · ${escapeHtml(printDate)}</div></div>` +
       `<div class="pc-top-barcode"><div class="bc-font-top">${escapeHtml(barcode)}</div><div class="bc-label">${escapeHtml(barcode)}</div></div>` +
     '</div>' +
     '<div class="pc-order-row">' +
@@ -701,7 +757,7 @@ function itemCard(item, order, printDate, rebarWeights) {
       `<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>Ø${escapeHtml(shapeDiameterFromItem(item) || '?')}</b></div>` +
       '<div class="pc-spec-sep"></div>' +
       `<div class="pc-spec-cell"><span class="spec-lbl">אורך פיתוח:</span> <b>${Math.round((Number(totalLengthMm || 0)) / 10)}</b> ס״מ</div>` +
-      (item.struct_element ? `<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> ${escapeHtml(item.struct_element)}</div>` : '') +
+      (structElement ? `<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> ${escapeHtml(structElement)}</div>` : '') +
     '</div>' +
     (note ? `<div class="pc-note">⚠ ${escapeHtml(note)}</div>` : '') +
     '<div class="pc-footer">' +
@@ -719,6 +775,9 @@ module.exports = {
   spiralShapeSvg,
   masterCard,
   itemCard,
+  attachOrderLineNumbers,
+  itemHumanTitle,
+  itemOrderLineLabel,
   parseSegments,
   shapeSegmentsFromItem,
   shapeDiameterFromItem,

@@ -242,9 +242,27 @@
     return undefined;
   }
 
+  const STRUCT_ELEMENT_ALIASES = [
+    'מיקום',
+    'שם אלמנט',
+    'שם האלמנט',
+    'אלמנט',
+    'מיקום אלמנט',
+    'שייך ל',
+    'struct_element',
+    'structElement',
+    'elementName',
+    'element_name',
+    'element',
+    'location',
+    'mark',
+    'item_label',
+    'itemLabel',
+  ];
+
   function normalizeIntakeRow(row = {}) {
     return {
-      elementName: String(row.elementName || row.element_name || row.structElement || row.struct_element || row['שם אלמנט'] || row['אלמנט'] || '').trim(),
+      elementName: String(rowValue(row, STRUCT_ELEMENT_ALIASES)).trim(),
       shape: String(row.shape || row.shapeName || row['צורה'] || 'מוט ישר').trim() || 'מוט ישר',
       diameter: numeric(row.diameter ?? row['קוטר'] ?? row.barDiameter ?? row.barDiameterMm, 0),
       quantity: numeric(row.quantity ?? row.qty ?? row['כמות'], 0),
@@ -300,7 +318,7 @@
       const raw = {};
       headers.forEach((header, index) => { raw[header] = cells[index] || ''; });
       return normalizeIntakeRow({
-        elementName: rowValue(raw, ['שם אלמנט', 'אלמנט', 'elementName', 'element_name', 'struct_element', 'structElement']),
+        elementName: rowValue(raw, STRUCT_ELEMENT_ALIASES),
         shape: rowValue(raw, ['צורה', 'shape', 'shapeName', 'shape_name']),
         diameter: rowValue(raw, ['קוטר', 'diameter', 'barDiameter', 'barDiameterMm']),
         quantity: rowValue(raw, ['כמות', 'quantity', 'qty']),

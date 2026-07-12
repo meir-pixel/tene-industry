@@ -62,6 +62,20 @@ test('customer portal item projection does not expose production-only fields', (
   assert.equal(item.total_weight, 18.2);
 });
 
+test('customer portal does not use note as element name fallback', () => {
+  const item = projectPortalItem({
+    id: 6,
+    shape_name: 'straight',
+    diameter: 12,
+    quantity: 1,
+    note: 'להתקשר לפני אספקה',
+  });
+
+  assert.equal(item.elementName, '');
+  assert.equal(item.struct_element, null);
+  assert.equal(item.note, 'להתקשר לפני אספקה');
+});
+
 test('customer portal order detail returns safe pallets/items and no raw internal status', () => {
   const detail = projectPortalOrderDetail(
     { id: 7, order_num: 'HZ-7', status: ORDER_STATUS.APPROVED_WAITING_PRODUCTION, portal_price: 999 },
