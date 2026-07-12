@@ -944,13 +944,23 @@ test('production card renders open U bars as a readable U shape, not a flattened
   ]));
 
   assert.match(svg, /data-shape-kind="open-u"/);
-  assert.match(svg, /M 42,78 L 42,24 L 178,24 L 178,78/);
+  const pathMatch = svg.match(/<path d="M ([^"]+)"/);
+  assert.ok(pathMatch, 'expected a drawn open U path');
+  const points = pathMatch[1].split(' L ').map(pair => pair.split(',').map(Number));
+  assert.equal(points.length, 4, 'expected open U to have two legs and one bridge');
+  const uniqueY = new Set(points.map(point => point[1]));
+  assert.ok(uniqueY.size > 1, 'expected open U to have real vertical span');
+  assert.ok(Math.abs(points[1][1] - points[0][1]) > 20, 'expected first leg to remain visible');
+  assert.ok(Math.abs(points[3][1] - points[2][1]) > 20, 'expected second leg to remain visible');
+  assert.equal(points[1][1], points[2][1], 'expected the bridge to be horizontal');
+  assert.ok(points[1][1] > points[0][1], 'expected the long bridge to render as the bottom base');
   assert.match(svg, />190</);
   assert.match(svg, />20</);
   assert.match(svg, /stroke="#a8b0ba"/);
   assert.match(svg, /<line x1="42\.0" y1="51\.0" x2="20\.0" y2="51\.0"/);
-  assert.match(svg, /<line x1="110\.0" y1="24\.0" x2="110\.0" y2="4\.0"/);
+  assert.match(svg, /<line x1="110\.0" y1="78\.0" x2="110\.0" y2="98\.0"/);
   assert.match(svg, /<line x1="178\.0" y1="51\.0" x2="200\.0" y2="51\.0"/);
+  assert.match(svg, /90/);
   assert.doesNotMatch(svg, /90&#176;/);
   assert.doesNotMatch(svg, /<circle/);
 });
