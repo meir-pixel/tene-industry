@@ -347,7 +347,7 @@ test('production cards rebuild old shape_svg when valid segments have bend label
     quantity: 1,
     total_length_mm: 1000,
     total_weight: 0.89,
-    shape_svg: '<svg data-old="1"><text>0�</text><line x1="0" y1="0" x2="10" y2="0"/></svg>',
+    shape_svg: '<svg data-old="1"><text>0�</text><line x1="0" y1="0" x2="10" y2="0"/></svg>',
     segments: JSON.stringify([
       { length_mm: 200, angle_deg: 90 },
       { length_mm: 600, angle_deg: 90 },
@@ -372,4 +372,103 @@ test('production cards rebuild old shape_svg when valid segments have bend label
   assert.match(printHtml, /90\u00b0/);
   assert.doesNotMatch(printHtml, />0\u00b0</);
   assert.match(printHtml, /shapeSvgForCard/);
+});
+
+
+function fixtureSpiralItem(overrides = {}) {
+  return {
+    id: 152,
+    shape_name: 'ספיראלה',
+    diameter: 8,
+    quantity: 13,
+    total_length_mm: 392700,
+    total_weight: 201.65,
+    shape_snapshot_json: JSON.stringify({
+      contractVersion: 'SHAPE_DATA_CONTRACT_V2',
+      family: 'spirals',
+      shapeType: 'spiral',
+      validation: { valid: true },
+      data: {
+        rebarDiameter: 8,
+        spiralDiameterMm: 250,
+        turns: 50,
+      },
+      calculated: {
+        totalLengthMm: 392700,
+      },
+    }),
+    segments: JSON.stringify([{ length_mm: 392700, angle_deg: null }]),
+    shape_svg: '<svg><line data-old-straight="1"></line></svg>',
+    ...overrides,
+  };
+}
+
+test('production cards render spiral item with dedicated preview instead of straight fallback', () => {
+  const item = fixtureSpiralItem();
+  const html = cards.itemCard(item, { order_num: 'HZ-2026-025', customer_name: 'Spiral Customer' }, '12-07-2026', industry.REBAR_WEIGHTS || {});
+
+  assert.match(html, /data-shape-kind="spiral"/);
+  assert.match(html, /pc-spiral-svg/);
+  assert.match(html, /data-spiral-diameter-mm="250"/);
+  assert.match(html, /data-spiral-turns="50"/);
+  assert.match(html, /250/);
+  assert.match(html, /50/);
+  assert.doesNotMatch(html, /data-old-straight/);
+  assert.doesNotMatch(html, /data-shape-kind="straight-bar"/);
+});
+
+test('production print page serializes fresh spiral SVG instead of stale straight shape_svg', () => {
+  const item = fixtureSpiralItem();
+  const html = printPage.renderPrintCardsPage({
+    order: { id: 152, order_num: 'HZ-2026-025', customer_name: 'Spiral Customer', status: 'approved' },
+    pallets: [{ pallet_num: 1, items: [item] }],
+    allItems: [{ ...item, _palletNum: 1, card_weights: [] }],
+    printDate: '12-07-2026',
+    delivDate: '13-07-2026',
+    cards,
+    industry,
+    tryParseJSON,
+  });
+
+  assert.match(html, /data-shape-kind=\"spiral\"/);
+  assert.match(html, /pc-spiral-svg/);
+  assert.match(html, /data-spiral-diameter-mm=\"250\"/);
+  assert.match(html, /data-spiral-turns=\"50\"/);
+  assert.match(html, /shape_dims_html/);
+  assert.doesNotMatch(html, /data-old-straight/);
+});
+
+test('production cards keep incomplete spiral as spiral instead of straight bar', () => {
+  const item = fixtureSpiralItem({
+    shape_snapshot_json: JSON.stringify({
+      contractVersion: 'SHAPE_DATA_CONTRACT_V2',
+      family: 'spirals',
+      shapeType: 'spiral',
+      data: { rebarDiameter: 8 },
+      validation: { valid: false },
+    }),
+    spiral_diameter_mm: null,
+    spiral_turns: null,
+  });
+  const html = cards.itemCard(item, { order_num: 'HZ-SPIRAL-MISSING', customer_name: 'Spiral Customer' }, '12-07-2026', industry.REBAR_WEIGHTS || {});
+
+  assert.match(html, /data-shape-kind="spiral"/);
+  assert.match(html, /data-spiral-incomplete="1"/);
+  assert.doesNotMatch(html, /data-shape-kind="straight-bar"/);
+});
+
+test('regular straight bar still renders with straight preview', () => {
+  const item = {
+    id: 153,
+    shape_name: 'straight bar',
+    diameter: 8,
+    quantity: 13,
+    total_length_mm: 392700,
+    total_weight: 201.65,
+    segments: JSON.stringify([{ length_mm: 392700, angle_deg: null }]),
+  };
+  const html = cards.itemCard(item, { order_num: 'HZ-STRAIGHT-CHECK', customer_name: 'Straight Customer' }, '12-07-2026', industry.REBAR_WEIGHTS || {});
+
+  assert.match(html, /data-shape-kind="straight-bar"/);
+  assert.doesNotMatch(html, /pc-spiral-svg/);
 });

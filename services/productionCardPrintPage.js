@@ -426,8 +426,14 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   total_length_mm:it.total_length_mm || 0,
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
-  segments:       cards.shapeSegmentsFromItem(it),
-  shape_svg:      cards.shapeSegmentsFromItem(it).length ? '' : (it.shape_svg || ''),
+  spiral_diameter_mm: it.spiral_diameter_mm || it.spiralDiameterMm || null,
+  spiral_turns:   it.spiral_turns || it.spiralTurns || null,
+  shape_snapshot_json: it.shape_snapshot_json || it.shapeSnapshot || '',
+  family:         it.family || '',
+  shapeType:      it.shapeType || it.shape_type || '',
+  shape_dims_html: cards.isSpiralItem && cards.isSpiralItem(it) && cards.spiralDimensionsHtml ? cards.spiralDimensionsHtml(it) : '',
+  segments:       cards.isSpiralItem && cards.isSpiralItem(it) ? [] : cards.shapeSegmentsFromItem(it),
+  shape_svg:      cards.isSpiralItem && cards.isSpiralItem(it) ? cards.spiralShapeSvg(it) : (cards.shapeSegmentsFromItem(it).length ? '' : (it.shape_svg || '')),
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   pallet_num:     it._palletNum  || 1,
@@ -904,12 +910,14 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var title   = item.virtual_card ? item.shape_name : (item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף');
   var badge   = cardNum ? '<span class="split-badge">'+cardNum+'</span>' : '';
 
-  var dimHtml = '';
-  for (var i=0; i<segs.length; i++) {
-    var lbl = String.fromCharCode(0x05D0+i);
-    dimHtml += '<span class="dim-seg">'+lbl+': <b>'+displayLengthCm(segs[i].length_mm)+'</b> ס״מ</span>';
-    if (i < segs.length-1 && isPrintableBendAngle(segs[i].angle_deg))
-      dimHtml += '<span class="dim-ang">'+angleText(segs[i].angle_deg)+'</span>';
+  var dimHtml = item.shape_dims_html || '';
+  if (!dimHtml) {
+    for (var i=0; i<segs.length; i++) {
+      var lbl = String.fromCharCode(0x05D0+i);
+      dimHtml += '<span class="dim-seg">'+lbl+': <b>'+displayLengthCm(segs[i].length_mm)+'</b> ס״מ</span>';
+      if (i < segs.length-1 && isPrintableBendAngle(segs[i].angle_deg))
+        dimHtml += '<span class="dim-ang">'+angleText(segs[i].angle_deg)+'</span>';
+    }
   }
 
   var shapeSvg = shapeSvgForCard(item, segs);
