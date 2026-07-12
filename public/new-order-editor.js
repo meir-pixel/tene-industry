@@ -51,13 +51,14 @@
     document.querySelectorAll('.secondary-import-shape, [data-open-intake]').forEach(importBtn => {
       importBtn.classList.add('secondary-import');
       importBtn.setAttribute('type', 'button');
-      importBtn.dataset.openIntake = '1';
+      importBtn.dataset.quickImport = '1';
       importBtn.onclick = event => {
         event.preventDefault();
         event.stopPropagation();
-        openIntakePanel('manual');
+        openQuickOrderImport();
       };
     });
+    ensureQuickOrderImportInput();
     const inspector = document.querySelector('.order-pro-inspector');
     if (inspector) {
       inspector.classList.add('order-min-inspector');
@@ -173,125 +174,72 @@
 
   let intakeDraftRows = [];
 
-  function buildOrderIntakePanel() {
-    const panel = document.createElement('section');
-    panel.id = 'orderIntakePanel';
-    panel.className = 'order-intake-panel';
-    panel.hidden = true;
-    panel.addEventListener('click', event => {
-      if (event.target === panel) closeIntakePanel();
+  function showQuickImportMessage(message) {
+    if (typeof window.showToast === 'function' && document.getElementById('ib-toast')) {
+      window.showToast(message);
+      return;
+    }
+    let toast = document.getElementById('_toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = '_toast';
+      toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;max-width:min(520px,calc(100vw - 24px));padding:11px 18px;border-radius:10px;background:#1f2937;color:#fff;font-family:Heebo,Arial,sans-serif;font-weight:800;font-size:14px;direction:rtl;text-align:center;box-shadow:0 12px 30px rgba(15,23,42,.22);transition:opacity .25s;opacity:0';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 3800);
+  }
+
+  function ensureQuickOrderImportInput() {
+    let input = document.getElementById('quickOrderImportInput');
+    if (input) return input;
+    input = document.createElement('input');
+    input.id = 'quickOrderImportInput';
+    input.type = 'file';
+    input.hidden = true;
+    input.accept = 'image/*,.pdf,.csv,.txt';
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (file) handleQuickOrderImportFile(file, input);
+      else input.value = '';
     });
-    panel.innerHTML = `
-      <div class="order-intake-sheet" role="dialog" aria-modal="true" aria-labelledby="orderIntakeTitle">
-        <div class="order-intake-head">
-          <div>
-            <h2 id="orderIntakeTitle">קליטת הזמנה</h2>
-            <p>ייבוא מקובץ, CSV או הוספה ידנית לטבלת הפריטים.</p>
-          </div>
-          <button type="button" class="order-intake-close" onclick="closeIntakePanel()" aria-label="סגור">&times;</button>
-        </div>
+    document.body.appendChild(input);
+    return input;
+  }
 
-        <div class="order-intake-tabs" role="tablist" aria-label="סוג קליטה">
-          <button type="button" data-intake-tab="file" onclick="setIntakeMode('file')">תמונה / PDF</button>
-          <button type="button" data-intake-tab="csv" onclick="setIntakeMode('csv')">Excel / CSV</button>
-          <button type="button" data-intake-tab="manual" onclick="setIntakeMode('manual')">טופס ידני</button>
-        </div>
+  function openQuickOrderImport() {
+    const input = ensureQuickOrderImportInput();
+    input.value = '';
+    input.click();
+  }
 
-        <div class="order-intake-body">
-          <div class="order-intake-view" data-intake-view="file">
-            <div class="order-intake-grid">
-              <label>תמונה / PDF
-                <input id="orderIntakeFile" type="file" accept="image/*,.pdf">
-              </label>
-              <label>צילום מהטלפון
-                <input id="orderIntakeCamera" type="file" accept="image/*" capture="environment">
-              </label>
-            </div>
-            <div class="order-intake-actions">
-              <button type="button" class="order-intake-primary" onclick="identifyIntakeFile()">זהה פריטים</button>
-            </div>
-            <p class="order-intake-hint" id="orderIntakeFileStatus">אם OCR אינו מוגדר, אפשר להשתמש בטופס ידני או CSV.</p>
-          </div>
+  function isQuickCsvFile(file) {
+    const name = String(file?.name || '').toLowerCase();
+    const type = String(file?.type || '').toLowerCase();
+    return name.endsWith('.csv') || name.endsWith('.txt') || type.includes('csv') || type.includes('text/plain');
+  }
 
-          <div class="order-intake-view" data-intake-view="csv">
-            <label>CSV / TXT
-              <input id="orderIntakeCsv" type="file" accept=".csv,.txt">
-            </label>
-            <div class="order-intake-actions">
-              <button type="button" class="order-intake-primary" onclick="readIntakeCsv()">קרא טבלה</button>
-            </div>
-            <p class="order-intake-hint">כותרות נתמכות: שם אלמנט, צורה, קוטר, כמות, אורך או elementName, shape, diameter, quantity, length.</p>
-          </div>
-
-          <div class="order-intake-view" data-intake-view="manual">
-            <div class="order-intake-grid">
-              <label>שם אלמנט
-                <input id="manualIntakeElement" type="text" placeholder="קורה 1">
-              </label>
-              <label>קוטר
-                <input id="manualIntakeDiameter" type="number" min="1" step="1" value="12">
-              </label>
-              <label>כמות
-                <input id="manualIntakeQuantity" type="number" min="1" step="1" value="1">
-              </label>
-              <label>אורך במ״מ
-                <input id="manualIntakeLength" type="number" min="1" step="1" placeholder="1200">
-              </label>
-              <label class="order-intake-span">הערה
-                <input id="manualIntakeNote" type="text" placeholder="אופציונלי">
-              </label>
-            </div>
-            <div class="order-intake-actions">
-              <button type="button" class="order-intake-primary" onclick="addManualIntakePreviewRow()">הוסף שורה ל-preview</button>
-            </div>
-          </div>
-
-          <div class="order-intake-preview-wrap">
-            <div class="order-intake-preview-head">
-              <h3>Preview</h3>
-              <button type="button" onclick="clearIntakePreview()">נקה</button>
-            </div>
-            <div id="intakePreview" class="order-intake-preview"></div>
-            <div class="order-intake-actions">
-              <button type="button" class="order-intake-primary" onclick="addIntakeRowsToOrder()">הוסף להזמנה</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    return panel;
+  function handleQuickOrderImportFile(file, input) {
+    if (!file) return;
+    if (isQuickCsvFile(file)) {
+      importQuickCsvFile(file, input);
+      return;
+    }
+    importQuickOcrFile(file, input);
   }
 
   function openIntakePanel(mode = 'manual') {
-    let panel = document.getElementById('orderIntakePanel');
-    if (!panel) {
-      panel = buildOrderIntakePanel();
-      document.body.appendChild(panel);
-    }
-    panel.hidden = false;
-    panel.dataset.mode = mode || 'manual';
-    setIntakeMode(mode || 'manual');
-    renderIntakePreview();
-    const firstInput = panel.querySelector('input, button, select, textarea');
-    if (firstInput) firstInput.focus();
+    openQuickOrderImport();
   }
 
   function closeIntakePanel() {
-    const panel = document.getElementById('orderIntakePanel');
-    if (panel) panel.hidden = true;
+    return undefined;
   }
 
   function setIntakeMode(mode = 'manual') {
-    const panel = document.getElementById('orderIntakePanel');
-    if (!panel) return;
-    const next = ['file', 'csv', 'manual'].includes(mode) ? mode : 'manual';
-    panel.dataset.mode = next;
-    panel.querySelectorAll('[data-intake-tab]').forEach(btn => {
-      btn.classList.toggle('is-active', btn.dataset.intakeTab === next);
-    });
-    panel.querySelectorAll('[data-intake-view]').forEach(view => {
-      view.hidden = view.dataset.intakeView !== next;
-    });
+    return undefined;
   }
 
   function normalizeIntakeRow(row = {}) {
@@ -312,28 +260,6 @@
     if (!(normalized.quantity > 0)) missing.push('חסרה כמות');
     if (!(normalized.length > 0)) missing.push('חסר אורך');
     return { ok: missing.length === 0, message: missing.join(', ') || 'תקין', row: normalized };
-  }
-
-  function addManualIntakePreviewRow() {
-    const row = normalizeIntakeRow({
-      elementName: document.getElementById('manualIntakeElement')?.value,
-      diameter: document.getElementById('manualIntakeDiameter')?.value,
-      quantity: document.getElementById('manualIntakeQuantity')?.value,
-      length: document.getElementById('manualIntakeLength')?.value,
-      note: document.getElementById('manualIntakeNote')?.value,
-    });
-    intakeDraftRows.push(row);
-    renderIntakePreview();
-    ['manualIntakeElement', 'manualIntakeLength', 'manualIntakeNote'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
-    document.getElementById('manualIntakeElement')?.focus();
-  }
-
-  function clearIntakePreview() {
-    intakeDraftRows = [];
-    renderIntakePreview();
   }
 
   function parseDelimitedLine(line = '', delimiter = ',') {
@@ -384,84 +310,64 @@
     });
   }
 
-  function readIntakeCsv() {
-    const input = document.getElementById('orderIntakeCsv');
-    const file = input?.files?.[0];
-    if (!file) {
-      renderIntakeMessage('בחר קובץ CSV/TXT קודם.');
-      return;
-    }
+  function importQuickCsvFile(file, input) {
     const reader = new FileReader();
     reader.onload = () => {
-      intakeDraftRows = parseIntakeCsvText(reader.result || '');
-      renderIntakePreview();
+      const rows = parseIntakeCsvText(reader.result || '');
+      const added = addIntakeRowsToOrder(rows, { silentInvalid: true });
+      if (added > 0) showQuickImportMessage(`${added} שורות נוספו להזמנה`);
+      else showQuickImportMessage('CSV בסיסי יטופל בשלב הבא. אפשר להוסיף צורה ידנית.');
+      if (input) input.value = '';
     };
-    reader.onerror = () => renderIntakeMessage('לא ניתן לקרוא את הקובץ.');
+    reader.onerror = () => {
+      showQuickImportMessage('לא ניתן לקרוא את הקובץ. אפשר להשתמש ב+ הוסף צורה.');
+      if (input) input.value = '';
+    };
     reader.readAsText(file, 'utf-8');
   }
 
-  async function identifyIntakeFile() {
-    const status = document.getElementById('orderIntakeFileStatus');
-    const file = document.getElementById('orderIntakeFile')?.files?.[0] || document.getElementById('orderIntakeCamera')?.files?.[0];
-    if (!file) {
-      if (status) status.textContent = 'בחר תמונה או PDF קודם.';
+  async function importQuickOcrFile(file, input) {
+    const documentType = document.getElementById('ocrDocumentType')?.value || 'order';
+    if (typeof window.routeNonOrderOcrDocument === 'function' && window.routeNonOrderOcrDocument(documentType)) {
+      if (input) input.value = '';
       return;
     }
-    const fd = new FormData();
-    fd.append('image', file);
-    fd.append('save_to_intake', 'true');
-    fd.append('document_type_hint', 'order');
-    if (status) status.textContent = 'מנסה לזהות פריטים...';
     try {
+      if (typeof window.ensureOcrSession === 'function') {
+        const hasSession = await window.ensureOcrSession();
+        if (!hasSession) throw new Error('OCR_AUTH_REQUIRED');
+      }
+      const fd = new FormData();
+      fd.append('image', file);
+      fd.append('save_to_intake', 'true');
+      fd.append('document_type_hint', documentType);
       const fetcher = window.IronBendAuth?.fetch ? window.IronBendAuth.fetch.bind(window.IronBendAuth) : fetch;
       const response = await fetcher('/api/analyze-image?save_to_intake=true', { method: 'POST', body: fd });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'OCR לא זמין בשלב זה');
+      if (!response.ok) throw new Error(data.code || data.error || 'OCR_FAILED');
       const items = data?.parsed?.items || data?.items || [];
       if (Array.isArray(items) && items.length) {
-        intakeDraftRows = items.map(item => normalizeIntakeRow(item));
-        renderIntakePreview();
-        if (status) status.textContent = 'זוהו פריטים. בדוק את ה-preview לפני הוספה.';
-      } else {
-        if (status) status.textContent = 'נוצרה פנייה במרכז הקליטה, אבל לא נמצאו שורות להוספה אוטומטית.';
+        const added = addIntakeRowsToOrder(items.map(item => normalizeIntakeRow(item)), { silentInvalid: true });
+        showQuickImportMessage(added > 0 ? `${added} שורות נוספו להזמנה` : 'OCR הסתיים, אבל לא נמצאו שורות תקינות להוספה.');
+        return;
       }
+      const intakeId = data.intakeId || data.intake_id || data.id || null;
+      if (intakeId && typeof window.intakeReviewUrl === 'function') {
+        window.location.href = window.intakeReviewUrl(intakeId);
+        return;
+      }
+      showQuickImportMessage('OCR הסתיים, אבל לא נמצאו שורות להוספה.');
     } catch (err) {
-      if (status) status.textContent = 'זיהוי OCR עדיין לא מחובר או לא זמין. אפשר להשתמש בטופס ידני או CSV.';
+      const rawMessage = String(err?.message || err || '');
+      const message = /quota|billing|OPENAI|Document recognition failed/i.test(rawMessage)
+        ? 'OCR לא זמין כרגע. אפשר להשתמש ב+ הוסף צורה.'
+        : typeof window.ocrErrorMessage === 'function'
+          ? window.ocrErrorMessage(err)
+          : 'OCR לא זמין כרגע. אפשר להשתמש ב+ הוסף צורה.';
+      showQuickImportMessage(message || 'OCR לא זמין כרגע. אפשר להשתמש ב+ הוסף צורה.');
+    } finally {
+      if (input) input.value = '';
     }
-  }
-
-  function renderIntakeMessage(message) {
-    const preview = document.getElementById('intakePreview');
-    if (preview) preview.innerHTML = '<div class="order-intake-empty">' + escapeHtml(message) + '</div>';
-  }
-
-  function renderIntakePreview() {
-    const preview = document.getElementById('intakePreview');
-    if (!preview) return;
-    if (!intakeDraftRows.length) {
-      renderIntakeMessage('אין שורות ב-preview עדיין.');
-      return;
-    }
-    preview.innerHTML = `
-      <div class="order-intake-preview-table">
-        <div class="order-intake-preview-row order-intake-preview-row-head">
-          <span>מס׳</span><span>שם אלמנט</span><span>צורה / מידות</span><span>קוטר</span><span>כמות</span><span>אורך</span><span>סטטוס</span>
-        </div>
-        ${intakeDraftRows.map((row, index) => {
-          const result = validateIntakeRow(row);
-          const statusClass = result.ok ? 'is-ok' : 'is-error';
-          return `<div class="order-intake-preview-row ${statusClass}">
-            <span>${index + 1}</span>
-            <span>${escapeHtml(result.row.elementName || '-')}</span>
-            <span>${escapeHtml(result.row.shape || 'מוט ישר')} · A=${escapeHtml(result.row.length || '-')}</span>
-            <span>${result.row.diameter > 0 ? 'Ø' + escapeHtml(result.row.diameter) : '-'}</span>
-            <span>${result.row.quantity > 0 ? escapeHtml(result.row.quantity) : '-'}</span>
-            <span>${result.row.length > 0 ? escapeHtml(result.row.length) + ' מ״מ' : '-'}</span>
-            <span>${escapeHtml(result.message)}</span>
-          </div>`;
-        }).join('')}
-      </div>
-    `;
   }
 
   function buildIntakeStraightSnapshot({ length, diameter, quantity }) {
@@ -509,24 +415,23 @@
     };
   }
 
-  function addIntakeRowsToOrder(rows = intakeDraftRows) {
+  function addIntakeRowsToOrder(rows = intakeDraftRows, options = {}) {
     const checkedRows = (Array.isArray(rows) ? rows : []).map(validateIntakeRow);
     const validRows = checkedRows.filter(result => result.ok).map(result => result.row);
     const invalidRows = checkedRows.filter(result => !result.ok).map(result => result.row);
     if (!validRows.length) {
-      renderIntakePreview();
-      renderIntakeMessage('אין שורות תקינות להוספה. בדוק קוטר, כמות ואורך.');
-      return;
+      if (!options.silentInvalid) showQuickImportMessage('אין שורות תקינות להוספה. בדוק קוטר, כמות ואורך.');
+      return 0;
     }
     const pallet = minEnsureDefaultPallet();
     validRows.forEach(row => pallet.items.push(createOrderItemFromIntakeRow(row)));
     renderPallets();
     if (typeof window.updateSummary === 'function') window.updateSummary();
     intakeDraftRows = invalidRows;
-    renderIntakePreview();
-    if (invalidRows.length) setIntakeMode('manual');
-    else closeIntakePanel();
-    if (typeof window.showToast === 'function') window.showToast('השורות התקינות נוספו להזמנה');
+    if (!options.silentInvalid) {
+      if (typeof window.showToast === 'function') window.showToast('השורות התקינות נוספו להזמנה');
+    }
+    return validRows.length;
   }
 
   function minGetAllVisibleOrderItems() {
@@ -709,11 +614,8 @@
     window.renderOrderSummary = minRenderOrderSummary;
     window.openIntakePanel = openIntakePanel;
     window.closeIntakePanel = closeIntakePanel;
-    window.setIntakeMode = setIntakeMode;
-    window.identifyIntakeFile = identifyIntakeFile;
-    window.readIntakeCsv = readIntakeCsv;
-    window.addManualIntakePreviewRow = addManualIntakePreviewRow;
-    window.clearIntakePreview = clearIntakePreview;
+    window.openQuickOrderImport = openQuickOrderImport;
+    window.handleQuickOrderImportFile = handleQuickOrderImportFile;
     window.addIntakeRowsToOrder = addIntakeRowsToOrder;
     window.createOrderItemFromIntakeRow = createOrderItemFromIntakeRow;
     window.validateIntakeRow = validateIntakeRow;
@@ -732,4 +634,5 @@
   setTimeout(() => { setupDom(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); }, 250);
   setTimeout(() => { setupDom(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); }, 800);
 })();
+
 
