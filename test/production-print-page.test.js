@@ -375,6 +375,97 @@ test('production cards rebuild old shape_svg when valid segments have bend label
 });
 
 
+
+test('production cards use per-order item labels and keep database id only in scan barcode', () => {
+  const order = { id: 144, order_num: 'HZ-LINE-001', customer_name: 'Line Customer', status: 'approved' };
+  const items = cards.attachOrderLineNumbers([
+    {
+      id: 144,
+      order_id: 144,
+      shape_name: 'straight bar',
+      diameter: 12,
+      quantity: 4,
+      total_length_mm: 1000,
+      total_weight: 3.56,
+      segments: JSON.stringify([{ length_mm: 1000, angle_deg: null }]),
+      struct_element: 'קורה A',
+    },
+    {
+      id: 145,
+      order_id: 144,
+      shape_name: 'L 90',
+      diameter: 12,
+      quantity: 2,
+      total_length_mm: 1300,
+      total_weight: 2.1,
+      segments: JSON.stringify([{ length_mm: 1000, angle_deg: 90 }, { length_mm: 300, angle_deg: null }]),
+      struct_element: 'עמוד B',
+    },
+  ]);
+
+  assert.equal(cards.orderLineLabel(items[0]), '1/2');
+  assert.equal(cards.orderLineLabel(items[1]), '2/2');
+
+  const html = cards.itemCard(items[0], order, '12-07-2026', industry.REBAR_WEIGHTS || {});
+  assert.match(html, /פריט 1\/2/);
+  assert.match(html, /אלמנט:<\/span> קורה A/);
+  assert.match(html, /HZ-LINE-001-000144/);
+  assert.doesNotMatch(html, /ITEM 144/);
+  assert.doesNotMatch(html, /פריט 144/);
+});
+
+test('production print page serializes per-order item labels and does not render global item ids as titles', () => {
+  const order = { id: 200, order_num: 'HZ-LINE-PRINT', customer_name: 'Line Print Customer', status: 'approved' };
+  const allItems = [
+    {
+      id: 244,
+      order_id: 200,
+      shape_name: 'straight bar',
+      diameter: 10,
+      quantity: 3,
+      total_length_mm: 1200,
+      total_weight: 2.22,
+      segments: JSON.stringify([{ length_mm: 1200, angle_deg: null }]),
+      struct_element: 'רצפה 2',
+      _palletNum: 1,
+      card_weights: [],
+    },
+    {
+      id: 245,
+      order_id: 200,
+      shape_name: 'U 90',
+      diameter: 10,
+      quantity: 1,
+      total_length_mm: 1000,
+      total_weight: 0.62,
+      segments: JSON.stringify([{ length_mm: 200, angle_deg: 90 }, { length_mm: 600, angle_deg: 90 }, { length_mm: 200, angle_deg: null }]),
+      struct_element: 'קורה C',
+      _palletNum: 1,
+      card_weights: [],
+    },
+  ];
+
+  const html = printPage.renderPrintCardsPage({
+    order,
+    pallets: [{ pallet_num: 1, items: allItems }],
+    allItems,
+    printDate: '12-07-2026',
+    delivDate: '13-07-2026',
+    cards,
+    industry,
+    tryParseJSON,
+  });
+
+  assert.match(html, /פריט 1\/2/);
+  assert.match(html, /פריט 2\/2/);
+  assert.match(html, /\u05d0\u05dc\u05de\u05e0\u05d8:<\/span> \u05e8\u05e6\u05e4\u05d4 2/);
+  assert.match(html, /HZ-LINE-PRINT-000244/);
+  assert.match(html, /"orderLineNo":1/);
+  assert.match(html, /"orderTotalLines":2/);
+  assert.doesNotMatch(html, /ITEM 244/);
+  assert.doesNotMatch(html, /ITEM 245/);
+});
+
 function fixtureSpiralItem(overrides = {}) {
   return {
     id: 152,

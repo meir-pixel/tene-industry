@@ -347,6 +347,50 @@ function shapeTotalLengthMmFromItem(item = {}) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
 }
+
+function attachOrderLineNumbers(items = []) {
+  const groups = new Map();
+  for (const item of items || []) {
+    const orderKey = item.order_id || item.orderNum || item.order_num || 'unknown';
+    if (!groups.has(orderKey)) groups.set(orderKey, []);
+    groups.get(orderKey).push(item);
+  }
+
+  const result = [];
+  for (const orderItems of groups.values()) {
+    const sorted = orderItems.slice().sort((a, b) => {
+      const aLine = Number(a.order_line_no || a.line_no || a.position || 0);
+      const bLine = Number(b.order_line_no || b.line_no || b.position || 0);
+      if (aLine && bLine && aLine !== bLine) return aLine - bLine;
+      const aCreated = String(a.created_at || '');
+      const bCreated = String(b.created_at || '');
+      if (aCreated && bCreated && aCreated !== bCreated) return aCreated.localeCompare(bCreated);
+      return Number(a.id || 0) - Number(b.id || 0);
+    });
+    const total = sorted.length;
+    sorted.forEach((item, index) => {
+      result.push({
+        ...item,
+        orderLineNo: Number(item.order_line_no || item.line_no || item.position || 0) || index + 1,
+        orderTotalLines: total,
+      });
+    });
+  }
+  return result;
+}
+
+function orderLineLabel(item = {}) {
+  const line = Number(item.orderLineNo || item.order_line_no || item.line_no || item.position || 0);
+  const total = Number(item.orderTotalLines || item.order_total_lines || 0);
+  if (line > 0 && total > 0) return `${line}/${total}`;
+  if (line > 0) return String(line);
+  return '';
+}
+
+function orderLineTitle(item = {}) {
+  const label = orderLineLabel(item);
+  return label ? `פריט ${label}` : 'פריט';
+}
 function isSpiralName(value) {
   return /spiral|ring|coil|spring|helix|\u05e1\u05e4\u05d9\u05e8|\u05d8\u05d1\u05e2\u05ea|\u05e1\u05dc\u05d9\u05dc|\u05dc\u05d5\u05dc\u05d0\u05d4|\u05e7\u05e4\u05d9\u05e5|׳¡׳₪׳™׳¨|׳¡׳₪׳™׳¨׳׳”|׳˜׳‘׳¢׳×|׳¡׳׳™׳|׳׳•׳׳׳”|׳§׳₪׳™׳¥/i.test(String(value || ''));
 }
@@ -692,7 +736,9 @@ function itemCard(item, order, printDate, rebarWeights) {
   const spiralItem = isSpiralItem(item, snapshot);
   const segments = spiralItem ? [] : shapeSegmentsFromItem(item);
   const visualShapeSvg = shapeSvgForProductionCard(item, segments);
-  const title = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
+  const title = orderLineTitle(item);
+  const elementName = item.struct_element || item.elementName || item.element_name || item.element || '';
+  const shapeSubtitle = [printDate, item.shape_name].filter(Boolean).join(' · ');
   const note = printableItemNote(item.note);
   const diameter = shapeDiameterFromItem(item);
   const totalLengthMm = shapeTotalLengthMmFromItem(item);
@@ -716,7 +762,7 @@ function itemCard(item, order, printDate, rebarWeights) {
 
   return '<div class="prod-card">' +
     '<div class="pc-head">' +
-      `<div><div class="pc-title">${escapeHtml(title)}</div><div class="pc-date">${escapeHtml(printDate)}</div></div>` +
+      `<div><div class="pc-title">${escapeHtml(title)}</div><div class="pc-date">${escapeHtml(shapeSubtitle)}</div></div>` +
       `<div class="pc-top-barcode"><div class="bc-font-top">${escapeHtml(barcode)}</div><div class="bc-label">${escapeHtml(barcode)}</div></div>` +
     '</div>' +
     '<div class="pc-order-row">' +
@@ -737,7 +783,7 @@ function itemCard(item, order, printDate, rebarWeights) {
       `<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>Ø${escapeHtml(shapeDiameterFromItem(item) || '?')}</b></div>` +
       '<div class="pc-spec-sep"></div>' +
       `<div class="pc-spec-cell"><span class="spec-lbl">אורך פיתוח:</span> <b>${Math.round((Number(totalLengthMm || 0)) / 10)}</b> ס״מ</div>` +
-      (item.struct_element ? `<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> ${escapeHtml(item.struct_element)}</div>` : '') +
+      (elementName ? `<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">אלמנט:</span> ${escapeHtml(elementName)}</div>` : '') +
     '</div>' +
     (note ? `<div class="pc-note">⚠ ${escapeHtml(note)}</div>` : '') +
     '<div class="pc-footer">' +
@@ -760,6 +806,9 @@ module.exports = {
   shapeSegmentsFromItem,
   isSpiralItem,
   spiralMetricsFromItem,
+  attachOrderLineNumbers,
+  orderLineLabel,
+  orderLineTitle,
   shapeDiameterFromItem,
   shapeTotalLengthMmFromItem,
   isPrintableBendAngle,
