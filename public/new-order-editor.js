@@ -175,8 +175,21 @@
   let intakeDraftRows = [];
 
   function showQuickImportMessage(message) {
-    if (typeof window.showToast === 'function') window.showToast(message);
-    else console.info(message);
+    if (typeof window.showToast === 'function' && document.getElementById('ib-toast')) {
+      window.showToast(message);
+      return;
+    }
+    let toast = document.getElementById('_toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = '_toast';
+      toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;max-width:min(520px,calc(100vw - 24px));padding:11px 18px;border-radius:10px;background:#1f2937;color:#fff;font-family:Heebo,Arial,sans-serif;font-weight:800;font-size:14px;direction:rtl;text-align:center;box-shadow:0 12px 30px rgba(15,23,42,.22);transition:opacity .25s;opacity:0';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 3800);
   }
 
   function ensureQuickOrderImportInput() {
@@ -214,12 +227,7 @@
       importQuickCsvFile(file, input);
       return;
     }
-    if (typeof window.analyzeOrderImage === 'function') {
-      window.analyzeOrderImage(input);
-      return;
-    }
-    showQuickImportMessage('OCR לא זמין כרגע. אפשר להשתמש ב+ הוסף צורה.');
-    if (input) input.value = '';
+    importQuickOcrFile(file, input);
   }
 
   function openIntakePanel(mode = 'manual') {
@@ -316,6 +324,50 @@
       if (input) input.value = '';
     };
     reader.readAsText(file, 'utf-8');
+  }
+
+  async function importQuickOcrFile(file, input) {
+    const documentType = document.getElementById('ocrDocumentType')?.value || 'order';
+    if (typeof window.routeNonOrderOcrDocument === 'function' && window.routeNonOrderOcrDocument(documentType)) {
+      if (input) input.value = '';
+      return;
+    }
+    try {
+      if (typeof window.ensureOcrSession === 'function') {
+        const hasSession = await window.ensureOcrSession();
+        if (!hasSession) throw new Error('OCR_AUTH_REQUIRED');
+      }
+      const fd = new FormData();
+      fd.append('image', file);
+      fd.append('save_to_intake', 'true');
+      fd.append('document_type_hint', documentType);
+      const fetcher = window.IronBendAuth?.fetch ? window.IronBendAuth.fetch.bind(window.IronBendAuth) : fetch;
+      const response = await fetcher('/api/analyze-image?save_to_intake=true', { method: 'POST', body: fd });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.code || data.error || 'OCR_FAILED');
+      const items = data?.parsed?.items || data?.items || [];
+      if (Array.isArray(items) && items.length) {
+        const added = addIntakeRowsToOrder(items.map(item => normalizeIntakeRow(item)), { silentInvalid: true });
+        showQuickImportMessage(added > 0 ? `${added} שורות נוספו להזמנה` : 'OCR הסתיים, אבל לא נמצאו שורות תקינות להוספה.');
+        return;
+      }
+      const intakeId = data.intakeId || data.intake_id || data.id || null;
+      if (intakeId && typeof window.intakeReviewUrl === 'function') {
+        window.location.href = window.intakeReviewUrl(intakeId);
+        return;
+      }
+      showQuickImportMessage('OCR הסתיים, אבל לא נמצאו שורות להוספה.');
+    } catch (err) {
+      const rawMessage = String(err?.message || err || '');
+      const message = /quota|billing|OPENAI|Document recognition failed/i.test(rawMessage)
+        ? 'OCR לא זמין כרגע. אפשר להשתמש ב+ הוסף צורה.'
+        : typeof window.ocrErrorMessage === 'function'
+          ? window.ocrErrorMessage(err)
+          : 'OCR לא זמין כרגע. אפשר להשתמש ב+ הוסף צורה.';
+      showQuickImportMessage(message || 'OCR לא זמין כרגע. אפשר להשתמש ב+ הוסף צורה.');
+    } finally {
+      if (input) input.value = '';
+    }
   }
 
   function buildIntakeStraightSnapshot({ length, diameter, quantity }) {
