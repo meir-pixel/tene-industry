@@ -24,7 +24,7 @@
     table.className = 'order-lines-table';
     const head = document.createElement('div');
     head.className = 'order-lines-head';
-    head.innerHTML = '<span>\u05de\u05e1\u05f3</span><span>\u05d0\u05dc\u05de\u05e0\u05d8</span><span>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</span><span>\u05e7\u05d5\u05d8\u05e8</span><span>\u05db\u05de\u05d5\u05ea</span><span>\u05d0\u05d5\u05e8\u05da</span><span>\u05e1\u05d4\u05f4\u05db \u05d0\u05d5\u05e8\u05da</span><span>\u05de\u05e9\u05e7\u05dc</span><span></span>';
+    head.innerHTML = '<span>\u05de\u05e1\u05f3</span><span>\u05d0\u05dc\u05de\u05e0\u05d8</span><span>\u05e9\u05dd</span><span>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</span><span>\u05e7\u05d5\u05d8\u05e8</span><span>\u05db\u05de\u05d5\u05ea</span><span>\u05d0\u05d5\u05e8\u05da</span><span>\u05e1\u05d4\u05f4\u05db \u05d0\u05d5\u05e8\u05da</span><span>\u05de\u05e9\u05e7\u05dc</span><span></span>';
     container.parentNode.insertBefore(table, container);
     table.append(head, container);
   }
@@ -48,8 +48,16 @@
       const h = items.querySelector('.items-header h2'); if (h) h.textContent = 'פרטי ההזמנה';
       const p = items.querySelector('.items-header p'); if (p) p.textContent = 'צורות, כמויות ומשקל';
     }
-    const importBtn = document.querySelector('.secondary-import-shape');
-    if (importBtn) { importBtn.classList.add('secondary-import'); importBtn.onclick = () => minToggleInspectorPanel('source'); }
+    document.querySelectorAll('.secondary-import-shape, [data-open-intake]').forEach(importBtn => {
+      importBtn.classList.add('secondary-import');
+      importBtn.setAttribute('type', 'button');
+      importBtn.dataset.openIntake = '1';
+      importBtn.onclick = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openIntakePanel('manual');
+      };
+    });
     const inspector = document.querySelector('.order-pro-inspector');
     if (inspector) {
       inspector.classList.add('order-min-inspector');
@@ -163,8 +171,368 @@
     window.addItem(pallet.id);
   }
 
+  let intakeDraftRows = [];
+
+  function buildOrderIntakePanel() {
+    const panel = document.createElement('section');
+    panel.id = 'orderIntakePanel';
+    panel.className = 'order-intake-panel';
+    panel.hidden = true;
+    panel.addEventListener('click', event => {
+      if (event.target === panel) closeIntakePanel();
+    });
+    panel.innerHTML = `
+      <div class="order-intake-sheet" role="dialog" aria-modal="true" aria-labelledby="orderIntakeTitle">
+        <div class="order-intake-head">
+          <div>
+            <h2 id="orderIntakeTitle">קליטת הזמנה</h2>
+            <p>ייבוא מקובץ, CSV או הוספה ידנית לטבלת הפריטים.</p>
+          </div>
+          <button type="button" class="order-intake-close" onclick="closeIntakePanel()" aria-label="סגור">&times;</button>
+        </div>
+
+        <div class="order-intake-tabs" role="tablist" aria-label="סוג קליטה">
+          <button type="button" data-intake-tab="file" onclick="setIntakeMode('file')">תמונה / PDF</button>
+          <button type="button" data-intake-tab="csv" onclick="setIntakeMode('csv')">Excel / CSV</button>
+          <button type="button" data-intake-tab="manual" onclick="setIntakeMode('manual')">טופס ידני</button>
+        </div>
+
+        <div class="order-intake-body">
+          <div class="order-intake-view" data-intake-view="file">
+            <div class="order-intake-grid">
+              <label>תמונה / PDF
+                <input id="orderIntakeFile" type="file" accept="image/*,.pdf">
+              </label>
+              <label>צילום מהטלפון
+                <input id="orderIntakeCamera" type="file" accept="image/*" capture="environment">
+              </label>
+            </div>
+            <div class="order-intake-actions">
+              <button type="button" class="order-intake-primary" onclick="identifyIntakeFile()">זהה פריטים</button>
+            </div>
+            <p class="order-intake-hint" id="orderIntakeFileStatus">אם OCR אינו מוגדר, אפשר להשתמש בטופס ידני או CSV.</p>
+          </div>
+
+          <div class="order-intake-view" data-intake-view="csv">
+            <label>CSV / TXT
+              <input id="orderIntakeCsv" type="file" accept=".csv,.txt">
+            </label>
+            <div class="order-intake-actions">
+              <button type="button" class="order-intake-primary" onclick="readIntakeCsv()">קרא טבלה</button>
+            </div>
+            <p class="order-intake-hint">כותרות נתמכות: שם אלמנט, צורה, קוטר, כמות, אורך או elementName, shape, diameter, quantity, length.</p>
+          </div>
+
+          <div class="order-intake-view" data-intake-view="manual">
+            <div class="order-intake-grid">
+              <label>שם אלמנט
+                <input id="manualIntakeElement" type="text" placeholder="קורה 1">
+              </label>
+              <label>קוטר
+                <input id="manualIntakeDiameter" type="number" min="1" step="1" value="12">
+              </label>
+              <label>כמות
+                <input id="manualIntakeQuantity" type="number" min="1" step="1" value="1">
+              </label>
+              <label>אורך במ״מ
+                <input id="manualIntakeLength" type="number" min="1" step="1" placeholder="1200">
+              </label>
+              <label class="order-intake-span">הערה
+                <input id="manualIntakeNote" type="text" placeholder="אופציונלי">
+              </label>
+            </div>
+            <div class="order-intake-actions">
+              <button type="button" class="order-intake-primary" onclick="addManualIntakePreviewRow()">הוסף שורה ל-preview</button>
+            </div>
+          </div>
+
+          <div class="order-intake-preview-wrap">
+            <div class="order-intake-preview-head">
+              <h3>Preview</h3>
+              <button type="button" onclick="clearIntakePreview()">נקה</button>
+            </div>
+            <div id="intakePreview" class="order-intake-preview"></div>
+            <div class="order-intake-actions">
+              <button type="button" class="order-intake-primary" onclick="addIntakeRowsToOrder()">הוסף להזמנה</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    return panel;
+  }
+
+  function openIntakePanel(mode = 'manual') {
+    let panel = document.getElementById('orderIntakePanel');
+    if (!panel) {
+      panel = buildOrderIntakePanel();
+      document.body.appendChild(panel);
+    }
+    panel.hidden = false;
+    panel.dataset.mode = mode || 'manual';
+    setIntakeMode(mode || 'manual');
+    renderIntakePreview();
+    const firstInput = panel.querySelector('input, button, select, textarea');
+    if (firstInput) firstInput.focus();
+  }
+
+  function closeIntakePanel() {
+    const panel = document.getElementById('orderIntakePanel');
+    if (panel) panel.hidden = true;
+  }
+
+  function setIntakeMode(mode = 'manual') {
+    const panel = document.getElementById('orderIntakePanel');
+    if (!panel) return;
+    const next = ['file', 'csv', 'manual'].includes(mode) ? mode : 'manual';
+    panel.dataset.mode = next;
+    panel.querySelectorAll('[data-intake-tab]').forEach(btn => {
+      btn.classList.toggle('is-active', btn.dataset.intakeTab === next);
+    });
+    panel.querySelectorAll('[data-intake-view]').forEach(view => {
+      view.hidden = view.dataset.intakeView !== next;
+    });
+  }
+
+  function normalizeIntakeRow(row = {}) {
+    return {
+      elementName: String(row.elementName || row.element_name || row.structElement || row.struct_element || row['שם אלמנט'] || row['אלמנט'] || '').trim(),
+      shape: String(row.shape || row.shapeName || row['צורה'] || 'מוט ישר').trim() || 'מוט ישר',
+      diameter: numeric(row.diameter ?? row['קוטר'] ?? row.barDiameter ?? row.barDiameterMm, 0),
+      quantity: numeric(row.quantity ?? row.qty ?? row['כמות'], 0),
+      length: numeric(row.length ?? row.lengthMm ?? row['אורך'] ?? row['אורך בממ'] ?? row['אורך במ״מ'], 0),
+      note: String(row.note || row.notes || row['הערה'] || '').trim(),
+    };
+  }
+
+  function validateIntakeRow(row = {}) {
+    const normalized = normalizeIntakeRow(row);
+    const missing = [];
+    if (!(normalized.diameter > 0)) missing.push('חסר קוטר');
+    if (!(normalized.quantity > 0)) missing.push('חסרה כמות');
+    if (!(normalized.length > 0)) missing.push('חסר אורך');
+    return { ok: missing.length === 0, message: missing.join(', ') || 'תקין', row: normalized };
+  }
+
+  function addManualIntakePreviewRow() {
+    const row = normalizeIntakeRow({
+      elementName: document.getElementById('manualIntakeElement')?.value,
+      diameter: document.getElementById('manualIntakeDiameter')?.value,
+      quantity: document.getElementById('manualIntakeQuantity')?.value,
+      length: document.getElementById('manualIntakeLength')?.value,
+      note: document.getElementById('manualIntakeNote')?.value,
+    });
+    intakeDraftRows.push(row);
+    renderIntakePreview();
+    ['manualIntakeElement', 'manualIntakeLength', 'manualIntakeNote'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('manualIntakeElement')?.focus();
+  }
+
+  function clearIntakePreview() {
+    intakeDraftRows = [];
+    renderIntakePreview();
+  }
+
+  function parseDelimitedLine(line = '', delimiter = ',') {
+    const out = [];
+    let current = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (ch === '"' && line[i + 1] === '"') { current += '"'; i += 1; continue; }
+      if (ch === '"') { quoted = !quoted; continue; }
+      if (ch === delimiter && !quoted) { out.push(current.trim()); current = ''; continue; }
+      current += ch;
+    }
+    out.push(current.trim());
+    return out;
+  }
+
+  function detectDelimiter(line = '') {
+    if (line.includes('\t')) return '\t';
+    if (line.includes(';')) return ';';
+    return ',';
+  }
+
+  function rowValue(row, names) {
+    for (const name of names) {
+      if (row[name] !== undefined && row[name] !== null && String(row[name]).trim() !== '') return row[name];
+    }
+    return '';
+  }
+
+  function parseIntakeCsvText(text = '') {
+    const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (!lines.length) return [];
+    const delimiter = detectDelimiter(lines[0]);
+    const headers = parseDelimitedLine(lines[0], delimiter).map(h => h.trim());
+    return lines.slice(1).map(line => {
+      const cells = parseDelimitedLine(line, delimiter);
+      const raw = {};
+      headers.forEach((header, index) => { raw[header] = cells[index] || ''; });
+      return normalizeIntakeRow({
+        elementName: rowValue(raw, ['שם אלמנט', 'אלמנט', 'elementName', 'element_name', 'struct_element', 'structElement']),
+        shape: rowValue(raw, ['צורה', 'shape', 'shapeName', 'shape_name']),
+        diameter: rowValue(raw, ['קוטר', 'diameter', 'barDiameter', 'barDiameterMm']),
+        quantity: rowValue(raw, ['כמות', 'quantity', 'qty']),
+        length: rowValue(raw, ['אורך', 'אורך בממ', 'אורך במ״מ', 'length', 'lengthMm']),
+        note: rowValue(raw, ['הערה', 'note', 'notes']),
+      });
+    });
+  }
+
+  function readIntakeCsv() {
+    const input = document.getElementById('orderIntakeCsv');
+    const file = input?.files?.[0];
+    if (!file) {
+      renderIntakeMessage('בחר קובץ CSV/TXT קודם.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      intakeDraftRows = parseIntakeCsvText(reader.result || '');
+      renderIntakePreview();
+    };
+    reader.onerror = () => renderIntakeMessage('לא ניתן לקרוא את הקובץ.');
+    reader.readAsText(file, 'utf-8');
+  }
+
+  async function identifyIntakeFile() {
+    const status = document.getElementById('orderIntakeFileStatus');
+    const file = document.getElementById('orderIntakeFile')?.files?.[0] || document.getElementById('orderIntakeCamera')?.files?.[0];
+    if (!file) {
+      if (status) status.textContent = 'בחר תמונה או PDF קודם.';
+      return;
+    }
+    const fd = new FormData();
+    fd.append('image', file);
+    fd.append('save_to_intake', 'true');
+    fd.append('document_type_hint', 'order');
+    if (status) status.textContent = 'מנסה לזהות פריטים...';
+    try {
+      const fetcher = window.IronBendAuth?.fetch ? window.IronBendAuth.fetch.bind(window.IronBendAuth) : fetch;
+      const response = await fetcher('/api/analyze-image?save_to_intake=true', { method: 'POST', body: fd });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'OCR לא זמין בשלב זה');
+      const items = data?.parsed?.items || data?.items || [];
+      if (Array.isArray(items) && items.length) {
+        intakeDraftRows = items.map(item => normalizeIntakeRow(item));
+        renderIntakePreview();
+        if (status) status.textContent = 'זוהו פריטים. בדוק את ה-preview לפני הוספה.';
+      } else {
+        if (status) status.textContent = 'נוצרה פנייה במרכז הקליטה, אבל לא נמצאו שורות להוספה אוטומטית.';
+      }
+    } catch (err) {
+      if (status) status.textContent = 'זיהוי OCR עדיין לא מחובר או לא זמין. אפשר להשתמש בטופס ידני או CSV.';
+    }
+  }
+
+  function renderIntakeMessage(message) {
+    const preview = document.getElementById('intakePreview');
+    if (preview) preview.innerHTML = '<div class="order-intake-empty">' + escapeHtml(message) + '</div>';
+  }
+
+  function renderIntakePreview() {
+    const preview = document.getElementById('intakePreview');
+    if (!preview) return;
+    if (!intakeDraftRows.length) {
+      renderIntakeMessage('אין שורות ב-preview עדיין.');
+      return;
+    }
+    preview.innerHTML = `
+      <div class="order-intake-preview-table">
+        <div class="order-intake-preview-row order-intake-preview-row-head">
+          <span>מס׳</span><span>שם אלמנט</span><span>צורה / מידות</span><span>קוטר</span><span>כמות</span><span>אורך</span><span>סטטוס</span>
+        </div>
+        ${intakeDraftRows.map((row, index) => {
+          const result = validateIntakeRow(row);
+          const statusClass = result.ok ? 'is-ok' : 'is-error';
+          return `<div class="order-intake-preview-row ${statusClass}">
+            <span>${index + 1}</span>
+            <span>${escapeHtml(result.row.elementName || '-')}</span>
+            <span>${escapeHtml(result.row.shape || 'מוט ישר')} · A=${escapeHtml(result.row.length || '-')}</span>
+            <span>${result.row.diameter > 0 ? 'Ø' + escapeHtml(result.row.diameter) : '-'}</span>
+            <span>${result.row.quantity > 0 ? escapeHtml(result.row.quantity) : '-'}</span>
+            <span>${result.row.length > 0 ? escapeHtml(result.row.length) + ' מ״מ' : '-'}</span>
+            <span>${escapeHtml(result.message)}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function buildIntakeStraightSnapshot({ length, diameter, quantity }) {
+    if (typeof window.buildStraightBarSnapshot === 'function') return window.buildStraightBarSnapshot({ length, diameter, qty: quantity });
+    const unitWeight = window.IronBendRebar?.itemWeightKg ? window.IronBendRebar.itemWeightKg({ diameter, qty: 1, sides: [length], length }) : 0;
+    const base = {
+      shapeId: 'straight_bar',
+      shapeType: 'straight_bar',
+      family: 'bars',
+      source: 'new_order_intake_panel',
+      displayName: 'מוט ישר',
+      data: { sides: [length], angles: [], diameter, lengthMm: length, totalLengthMm: length, quantity },
+      calculated: { unitLengthMm: length, totalLengthMm: length * quantity, unitWeightKg: unitWeight, weightKg: unitWeight, totalWeightKg: unitWeight * quantity },
+      machineOutput: { generic: { family: 'bars', shapeType: 'straight_bar', sides: [length], angles: [], diameter, totalLengthMm: length }, machineProfiles: {} },
+      validation: { valid: length > 0 && diameter > 0 && quantity > 0, errors: [], warnings: [] },
+    };
+    return window.IronBendShapeSnapshot?.buildFullShapeSnapshot ? window.IronBendShapeSnapshot.buildFullShapeSnapshot(base) : { contractVersion: 2, shapeVersion: 1, approvedAt: new Date().toISOString(), ...base };
+  }
+
+  function createOrderItemFromIntakeRow(row = {}) {
+    const result = validateIntakeRow(row);
+    const item = result.row;
+    const quantity = Math.max(1, numeric(item.quantity, 1));
+    const length = numeric(item.length, 0);
+    const diameter = numeric(item.diameter, 12);
+    const elementName = item.elementName || '';
+    return {
+      id: Date.now() + Math.floor(Math.random() * 100000),
+      shapeId: 'straight_bar',
+      shapeEmoji: '━',
+      shapeName: item.shape || 'מוט ישר',
+      family: 'bars',
+      shapeSides: [length],
+      shapeAngles: [],
+      diameter,
+      length,
+      qty: quantity,
+      quantity,
+      note: item.note || '',
+      raw_material_id: 'auto',
+      structElement: elementName,
+      struct_element: elementName,
+      elementName,
+      shapeSnapshot: buildIntakeStraightSnapshot({ length, diameter, quantity }),
+    };
+  }
+
+  function addIntakeRowsToOrder(rows = intakeDraftRows) {
+    const checkedRows = (Array.isArray(rows) ? rows : []).map(validateIntakeRow);
+    const validRows = checkedRows.filter(result => result.ok).map(result => result.row);
+    const invalidRows = checkedRows.filter(result => !result.ok).map(result => result.row);
+    if (!validRows.length) {
+      renderIntakePreview();
+      renderIntakeMessage('אין שורות תקינות להוספה. בדוק קוטר, כמות ואורך.');
+      return;
+    }
+    const pallet = minEnsureDefaultPallet();
+    validRows.forEach(row => pallet.items.push(createOrderItemFromIntakeRow(row)));
+    renderPallets();
+    if (typeof window.updateSummary === 'function') window.updateSummary();
+    intakeDraftRows = invalidRows;
+    renderIntakePreview();
+    if (invalidRows.length) setIntakeMode('manual');
+    else closeIntakePanel();
+    if (typeof window.showToast === 'function') window.showToast('השורות התקינות נוספו להזמנה');
+  }
+
   function minGetAllVisibleOrderItems() {
-    return (pallets || []).flatMap(pallet => (pallet.items || []).map(item => ({ palletId: pallet.id, item })));
+    const rows = (pallets || []).flatMap(pallet => (pallet.items || []).map(item => ({ palletId: pallet.id, item })));
+    const total = rows.length;
+    return rows.map((row, index) => ({ ...row, orderLineNo: index + 1, orderTotalLines: total }));
   }
 
   function minRenderEmptyItemsState() {
@@ -197,19 +565,36 @@
     if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'qty', next);
   }
 
-  function renderCompactOrderLine(palletId, item, itemIndex = 0) {
-    const id = String(item.id); const palletArg = jsArg(palletId); const itemArg = jsArg(id); const qty = lineQty(item); const diameter = lineDiameter(item); const title = lineTitle(item); const note = String(item.note || '').trim(); const dims = formatLineShapeDims(item); const length = formatLineLength(item); const totalLength = formatLineTotalLength(item); const weight = formatLineWeight(item); const openCall = 'openShapeEditor(' + palletArg + ',' + itemArg + ')'; const updateQtyCall = 'updateLineQuantity(' + palletArg + ',' + itemArg + ',this)';
-    return `<article class="order-line-row" id="item-row-${escapeHtml(id)}" data-item-id="${escapeHtml(id)}"><div class="line-index">${itemIndex + 1}</div><button type="button" class="line-name" onclick="${openCall}" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(note || dims)}</small></button><button type="button" class="line-shape" onclick="${openCall}" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4"><span class="line-shape-sketch">${renderLineShapeSketch(item)}</span><span class="line-shape-dims">${escapeHtml(dims)}</span></button><div class="line-diameter">\u00d8${escapeHtml(diameter.toLocaleString('he-IL', { maximumFractionDigits: 0 }))}</div><input class="line-qty" type="number" min="1" step="1" value="${escapeHtml(qty)}" inputmode="numeric" aria-label="\u05db\u05de\u05d5\u05ea" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onchange="${updateQtyCall}" onblur="${updateQtyCall}" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"><div class="line-length desktop-only-cell">${escapeHtml(length)}</div><div class="line-total-length desktop-only-cell">${escapeHtml(totalLength)}</div><div class="line-weight">${escapeHtml(weight)}</div><button type="button" class="line-delete" onclick="removeItem(${palletArg},${itemArg})" title="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8" aria-label="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8">&times;</button><div class="line-mobile-meta"><span>\u00d8${escapeHtml(diameter.toLocaleString('he-IL', { maximumFractionDigits: 0 }))}</span><span>${escapeHtml(length)}</span><span>${escapeHtml(totalLength)}</span><span>${escapeHtml(weight)}</span></div></article>`;
+  function lineElementName(item = {}) {
+    return String(item.structElement || item.struct_element || item.elementName || item.element_name || item.element || item.memberName || item.member_name || '').trim();
   }
 
-  function minRenderItemCard(palletId, item, itemIndex = 0) { return renderCompactOrderLine(palletId, item, itemIndex); }
+  function updateLineElementName(palletId, itemId, input) {
+    if (input && !input.isConnected) return;
+    const next = String(input?.value || '').trim();
+    const pallet = (window.pallets || []).find(entry => String(entry.id) === String(palletId));
+    const item = (pallet?.items || []).find(entry => String(entry.id) === String(itemId));
+    if (item) {
+      item.structElement = next;
+      item.struct_element = next;
+      item.elementName = next;
+    }
+    if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'structElement', next);
+  }
+
+  function renderCompactOrderLine(palletId, item, itemIndex = 0, orderTotalLines = 1) {
+    const id = String(item.id); const palletArg = jsArg(palletId); const itemArg = jsArg(id); const qty = lineQty(item); const diameter = lineDiameter(item); const title = lineTitle(item); const note = String(item.note || '').trim(); const dims = formatLineShapeDims(item); const length = formatLineLength(item); const totalLength = formatLineTotalLength(item); const weight = formatLineWeight(item); const elementName = lineElementName(item); const openCall = 'openShapeEditor(' + palletArg + ',' + itemArg + ')'; const updateQtyCall = 'updateLineQuantity(' + palletArg + ',' + itemArg + ',this)'; const updateElementCall = 'updateLineElementName(' + palletArg + ',' + itemArg + ',this)'; const lineLabel = orderTotalLines > 0 ? (itemIndex + 1) + '/' + orderTotalLines : String(itemIndex + 1);
+    return `<article class="order-line-row" id="item-row-${escapeHtml(id)}" data-item-id="${escapeHtml(id)}"><div class="line-index">${escapeHtml(lineLabel)}</div><input class="line-element" type="text" value="${escapeHtml(elementName)}" placeholder="\u05e7\u05d5\u05e8\u05d4 / \u05e7\u05d5\u05de\u05d4 / \u05e6\u05d9\u05e8" aria-label="\u05d0\u05dc\u05de\u05e0\u05d8" onchange="${updateElementCall}" onblur="${updateElementCall}"><button type="button" class="line-name" onclick="${openCall}" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(note || dims)}</small></button><button type="button" class="line-shape" onclick="${openCall}" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4"><span class="line-shape-sketch">${renderLineShapeSketch(item)}</span><span class="line-shape-dims">${escapeHtml(dims)}</span></button><div class="line-diameter">\u00d8${escapeHtml(diameter.toLocaleString('he-IL', { maximumFractionDigits: 0 }))}</div><input class="line-qty" type="number" min="1" step="1" value="${escapeHtml(qty)}" inputmode="numeric" aria-label="\u05db\u05de\u05d5\u05ea" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onchange="${updateQtyCall}" onblur="${updateQtyCall}" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"><div class="line-length desktop-only-cell">${escapeHtml(length)}</div><div class="line-total-length desktop-only-cell">${escapeHtml(totalLength)}</div><div class="line-weight">${escapeHtml(weight)}</div><button type="button" class="line-delete" onclick="removeItem(${palletArg},${itemArg})" title="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8" aria-label="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8">&times;</button><div class="line-mobile-meta"><span>${escapeHtml(elementName || '\u05dc\u05dc\u05d0 \u05d0\u05dc\u05de\u05e0\u05d8')}</span><span>\u00d8${escapeHtml(diameter.toLocaleString('he-IL', { maximumFractionDigits: 0 }))}</span><span>${escapeHtml(totalLength)}</span><span>${escapeHtml(weight)}</span></div></article>`;
+  }
+
+  function minRenderItemCard(palletId, item, itemIndex = 0) { const total = minGetAllVisibleOrderItems().length || 1; return renderCompactOrderLine(palletId, item, itemIndex, total); }
   function minRenderPallets() {
     setupOrderLinesTable();
     const container = document.getElementById('palletsContainer');
     if (!container) return;
     minEnsureDefaultPallet();
     const rows = minGetAllVisibleOrderItems();
-    container.innerHTML = rows.length ? rows.map(({ palletId, item }, index) => renderCompactOrderLine(palletId, item, index)).join('') : minRenderEmptyItemsState();
+    container.innerHTML = rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState();
     setTextSafe('itemsCountPill', rows.length + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd');
     setTextSafe('noItemsCount', rows.length);
     if (typeof window.updateSummary === 'function') window.updateSummary();
@@ -275,7 +660,7 @@
     setTextSafe('noItemsCount', count);
   }
 
-  function bindEscClose() { document.addEventListener('keydown', event => { if (event.key === 'Escape') minCloseInspectorPanel(); }); }
+  function bindEscClose() { document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeIntakePanel(); minCloseInspectorPanel(); } }); }
   function bindOutsideClick() {
     document.addEventListener('click', event => {
       const inspector = document.getElementById('orderInspector');
@@ -315,11 +700,23 @@
     window.formatLineWeight = formatLineWeight;
     window.renderLineShapeSketch = renderLineShapeSketch;
     window.updateLineQuantity = updateLineQuantity;
+    window.lineElementName = lineElementName;
+    window.updateLineElementName = updateLineElementName;
     window.renderItemCard = minRenderItemCard;
     window.renderDefaultInspector = minRenderDefaultInspector;
     window.renderInventorySummary = minRenderInventorySummary;
     window.renderPricingSummary = minRenderPricingSummary;
     window.renderOrderSummary = minRenderOrderSummary;
+    window.openIntakePanel = openIntakePanel;
+    window.closeIntakePanel = closeIntakePanel;
+    window.setIntakeMode = setIntakeMode;
+    window.identifyIntakeFile = identifyIntakeFile;
+    window.readIntakeCsv = readIntakeCsv;
+    window.addManualIntakePreviewRow = addManualIntakePreviewRow;
+    window.clearIntakePreview = clearIntakePreview;
+    window.addIntakeRowsToOrder = addIntakeRowsToOrder;
+    window.createOrderItemFromIntakeRow = createOrderItemFromIntakeRow;
+    window.validateIntakeRow = validateIntakeRow;
   }
 
   function boot() {
