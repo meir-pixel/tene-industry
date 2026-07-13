@@ -245,16 +245,17 @@ function angleLabelPosition(corner, center, distance = 22) {
   return [corner[0] + vx * distance, corner[1] + vy * distance];
 }
 
-function rightAngleMarkerSvg(previous, corner, next, center) {
+function rightAngleMarkerSvg(previous, corner, next, center, showLabel = true) {
   const a = unitVector(corner, previous);
   const b = unitVector(corner, next);
   const d = 9;
   const p1 = pointAt(corner, a, d);
   const p2 = [p1[0] + b[0] * d, p1[1] + b[1] * d];
   const p3 = pointAt(corner, b, d);
+  const marker = '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>';
+  if (!showLabel) return marker;
   const label = angleLabelPosition(corner, center, 22);
-  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>' +
-    angleLabelSvg('90°', label[0], label[1]);
+  return marker + angleLabelSvg('90°', label[0], label[1]);
 }
 
 function dimensionLabelSvg(text, x, y, width = 38) {
@@ -579,7 +580,7 @@ function closedStirrupSvg(parts) {
     [[right, y], [right, bottom], [x, bottom]],
     [[right, bottom], [x, bottom], [x, y]],
   ].forEach(([previous, corner, next]) => {
-    svg += rightAngleMarkerSvg(previous, corner, next, [midX, midY]);
+    svg += rightAngleMarkerSvg(previous, corner, next, [midX, midY], false);
   });
 
   return `<svg data-shape-kind="closed-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
