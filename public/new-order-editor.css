@@ -135,9 +135,9 @@ body[data-page="new"] .line-index{color:var(--text-dim,#64748b)!important;font-s
 body[data-page="new"] .line-name,body[data-page="new"] .line-shape{border:0!important;background:transparent!important;padding:0!important;text-align:right!important;cursor:pointer!important;color:var(--text,#0f234b)!important;min-width:0!important;font-family:inherit!important}
 body[data-page="new"] .line-name strong{display:block!important;font-size:14px!important;line-height:1.15!important;font-weight:950!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 body[data-page="new"] .line-name small{display:block!important;margin-top:2px!important;font-size:11px!important;color:var(--text-dim,#64748b)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-body[data-page="new"] .line-shape{display:grid!important;grid-template-columns:100px minmax(0,1fr)!important;gap:6px!important;align-items:center!important}
-body[data-page="new"] .line-shape-sketch{width:100px!important;height:34px!important;display:grid!important;place-items:center!important;overflow:hidden!important}
-body[data-page="new"] .line-shape-sketch svg,body[data-page="new"] .line-shape svg{max-width:100%!important;max-height:34px!important}
+body[data-page="new"] .line-shape{display:grid!important;grid-template-columns:130px minmax(0,1fr)!important;gap:6px!important;align-items:start!important}
+body[data-page="new"] .line-shape-sketch{width:130px!important;height:72px!important;display:grid!important;place-items:center!important;overflow:visible!important}
+body[data-page="new"] .line-shape-sketch svg,body[data-page="new"] .line-shape svg{max-width:100%!important;max-height:72px!important}
 body[data-page="new"] .line-shape-sketch span{font-size:18px!important;line-height:1!important}
 body[data-page="new"] .line-shape-dims{font-size:11px!important;color:var(--text-dim,#64748b)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 body[data-page="new"] .line-diameter,body[data-page="new"] .line-length,body[data-page="new"] .line-total-length,body[data-page="new"] .line-weight{font-size:13px!important;font-weight:900!important;color:var(--text,#0f234b)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}

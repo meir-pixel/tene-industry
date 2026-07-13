@@ -2894,8 +2894,23 @@ function spiralFieldsFromShapeData(data = {}) {
 function itemPreviewSvg(item, sides, angles) {
   if (sides.length) {
     if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false }) + '</svg>';
-    const result = shapeSVGPath(sides, angles, 68, 52, 7);
-    return '<svg viewBox="0 0 68 52" width="68" height="52"><path d="' + result.path + '" stroke="#e07b39" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const W = 130, H = 72, pad = 22;
+    const result = shapeSVGPath(sides, angles, W, H, pad);
+    const pts = result.pts || [];
+    const labels = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const mx = (pts[i][0] + pts[i+1][0]) / 2;
+      const my = (pts[i][1] + pts[i+1][1]) / 2;
+      const dx = pts[i+1][0] - pts[i][0], dy = pts[i+1][1] - pts[i][1];
+      const len = Math.sqrt(dx*dx + dy*dy) || 1;
+      const nx = -dy/len * 9, ny = dx/len * 9;
+      const cx = W/2, cy = H/2;
+      const ox = mx + ((mx + nx - cx) * nx + (my + ny - cy) * ny >= 0 ? nx : -nx);
+      const oy = my + ((mx + nx - cx) * nx + (my + ny - cy) * ny >= 0 ? ny : -ny);
+      const lbl = String.fromCharCode(0x05D0 + i) + '=' + Math.round(sides[i]/10);
+      labels.push('<text x="' + ox.toFixed(1) + '" y="' + oy.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a3a5c" stroke="white" stroke-width="2.5" paint-order="stroke fill">' + lbl + '</text>');
+    }
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="overflow:visible"><path d="' + result.path + '" stroke="#c9621a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' + labels.join('') + '</svg>';
   }
   return '<span style="font-size:34px">' + (item.shapeEmoji || '&#8594;') + '</span>';
 }
