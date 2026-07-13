@@ -534,11 +534,11 @@ function angledOpenStirrupParts(segments) {
 
 function closedStirrupSvg(parts) {
   const width = 240;
-  const height = 120;
+  const height = 140;
   const horizontal = Math.max(parts.top || 0, parts.bottom || 0, 1);
   const vertical = Math.max(parts.left || 0, parts.right || 0, 1);
   const maxBoxW = 126;
-  const maxBoxH = 82;
+  const maxBoxH = 90;
   const rawRatio = horizontal / vertical;
   const boxW = rawRatio >= 1
     ? maxBoxW
