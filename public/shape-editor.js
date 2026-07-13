@@ -2142,12 +2142,12 @@ class ShapeEditorModal {
 #seModal .se-table td{background:#fff;border:1px solid #d8dde5;border-radius:6px!important;padding:3px;min-width:0;overflow:hidden;}
 #seModal .se-table td.se-empty-cell{background:transparent;border:0!important;padding:0;box-shadow:none;display:flex;align-items:center;justify-content:center;}
 #seModal .se-no-bend{font-size:13px;color:#aab8c8;font-weight:900;line-height:1;}
-#seModal .se-field-shell{display:grid;grid-template-columns:14px minmax(0,1fr);grid-template-areas:'icon label' 'icon input' 'unit input';gap:1px 3px;align-items:center;min-width:0;}
+#seModal .se-field-shell{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:'label label' 'input unit';gap:1px 3px;align-items:center;min-width:0;}
 #seModal .se-param-icon{grid-area:icon;width:14px;height:14px;border-radius:50%;background:#eef3f8;color:#2f394b;display:grid;place-items:center;font-size:8px;font-weight:900;}
 #seModal .se-param-label{grid-area:label;color:#243047;font-size:10px;font-weight:900;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #seModal .se-field-shell .se-input{grid-area:input;width:100%!important;max-width:none!important;min-height:24px;font-size:12px;font-weight:900;text-align:center;background:#f8fafc;border:1px solid #cbd4df;border-radius:6px;direction:ltr;padding:1px 3px;}
 #seModal .se-field-shell .se-input:focus{border-color:#ff4047;box-shadow:0 0 0 2px rgba(255,64,71,.12);background:#fff;}
-#seModal .se-param-unit{grid-area:unit;color:#657386;font-size:8px;font-weight:900;text-align:center;}
+#seModal .se-param-unit{grid-area:unit;color:#657386;font-size:8px;font-weight:900;text-align:center;min-width:18px;}
 #seModal .se-param-example{display:none;}
 #seModal .se-family-label{font-size:12px;color:#243047;}
 #seModal .se-table.se-table-2d tr{grid-template-columns:28px minmax(116px,1fr) minmax(72px,.58fr) 22px;gap:5px;align-items:center;}
@@ -3044,9 +3044,7 @@ class ShapeEditorModal {
     const focusAttrs = focusKey
       ? ` data-se-param="${focusKey}" onmouseenter="window._seEditor?._setFieldFocus('${focusKey}')" onmouseleave="window._seEditor?._clearFieldFocus('${focusKey}')" onfocusin="window._seEditor?._setFieldFocus('${focusKey}')" onfocusout="window._seEditor?._clearFieldFocus('${focusKey}')"`
       : '';
-    const num = number ? `<span class="se-param-number">${number}</span>` : '';
-    const codeText = code ? `<span class="se-param-code">${code}</span>` : '';
-    return `<div class="se-field-shell"${focusAttrs}>${num}<span class="se-param-icon">${icon}</span><span class="se-param-label">${label}</span>${codeText}${input}<span class="se-param-unit">${unit}</span><span class="se-param-example">${example}</span></div>`;
+    return `<div class="se-field-shell"${focusAttrs}><span class="se-param-label">${label}</span>${input}<span class="se-param-unit">${unit}</span><span class="se-param-example">${example}</span></div>`;
   }
 
   _setFieldFocus(key) {
