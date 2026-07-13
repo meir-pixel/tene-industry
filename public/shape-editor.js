@@ -3207,7 +3207,7 @@ class ShapeEditorModal {
     if (summary) summary.style.display = isBars ? '' : 'none';
     if (title) title.textContent = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : 'מידות צלעות וזוויות';
     const diaItem = document.getElementById('seDiameterItem');
-    if (diaItem) diaItem.style.display = isBars ? '' : 'none';
+    if (diaItem) diaItem.style.display = 'none';
   }
 
   _renderMeshEditor() {

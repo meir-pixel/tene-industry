@@ -2893,7 +2893,7 @@ function spiralFieldsFromShapeData(data = {}) {
 function itemPreviewSvg(item, sides, angles) {
   if (sides.length) {
     if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false }) + '</svg>';
-    const W = 130, H = 72, pad = 22;
+    const W = 130, H = 42, pad = 16;
     const result = shapeSVGPath(sides, angles, W, H, pad);
     const pts = result.pts || [];
     const labels = [];

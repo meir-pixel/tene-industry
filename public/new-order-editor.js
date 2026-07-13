@@ -965,7 +965,7 @@
 
   function minRenderAddRow(nextNum) {
     const palletId = (window.pallets && window.pallets[0]) ? window.pallets[0].id : 0;
-    return '<div class="order-line-add-row"><button type="button" class="line-add-btn" onclick="window.addEmptyRow(' + palletId + ')" title="\u05d4\u05d5\u05e1\u05e3 \u05e9\u05d5\u05e8\u05d4">+</button></div>';
+    return '<div class="order-line-add-row"><button type="button" class="line-add-btn" onclick="window.addEmptyRow(' + palletId + ')" title="\u05d4\u05d5\u05e1\u05e3 \u05e9\u05d5\u05e8\u05d4">+ \u05d4\u05d5\u05e1\u05e3</button></div>';
   }
 
   function lineContract(item = {}) { return typeof window.itemShapeContract === 'function' ? window.itemShapeContract(item) : null; }
