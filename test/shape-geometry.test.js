@@ -408,7 +408,7 @@ test('new order item rows render a visible shape preview from length fallback', 
   assert.match(index, /item\.length \?\? item\.totalLengthMm \?\? item\.total_length_mm/);
   assert.match(index, /const sides = itemShapeSides\(item\);/);
   assert.match(index, /const sides = itemShapeSides\(item \|\| \{\}\);/);
-  assert.match(index, /shapeSVGPath\(sides, angles, 68, 52, 7\)/);
+  assert.match(index, /const W = 130, H = 42, pad = 16/);
 });
 
 test('manual add item opens the shape editor before creating an empty order row', () => {
@@ -419,7 +419,7 @@ test('manual add item opens the shape editor before creating an empty order row'
   assert.ok(addItemBlock, 'expected addItem body');
   assert.ok(shapeSelectedBlock, 'expected shapeSelected body');
   assert.match(addItemBlock[0], /pendingItem/);
-  assert.match(addItemBlock[0], /shapeEditor\.open\(\{ quantity: pendingItem\.qty \}\)/);
+  assert.match(addItemBlock[0], /shapeEditor\.open\(\{ quantity: pendingItem\.qty, diameter: pendingItem\.diameter \}\)/);
   assert.doesNotMatch(addItemBlock[0], /pallet\.items\.push/);
   assert.match(shapeSelectedBlock[0], /pallet\.items\.push\(item\)/);
   assert.match(shapeSelectedBlock[0], /data\.orderItemQuantity/);

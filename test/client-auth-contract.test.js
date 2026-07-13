@@ -129,7 +129,7 @@ test('production card split renders only production cards without a master card'
   assert.match(productionCardsRoute, /grid-auto-rows:74\.25mm/);
   assert.match(productionCardsRoute, /height:74\.25mm!important/);
   assert.match(productionCardsRoute, /pc-print-face/);
-  assert.match(productionCardsRoute, /grid-template-columns:78mm 27mm/);
+  assert.match(productionCardsRoute, /grid-template-columns:minmax\(0,1fr\) 27mm/);
   assert.match(productionCardsRoute, /pc-print-qr-code/);
 });
 

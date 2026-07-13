@@ -103,7 +103,8 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.match(html, /@page\{size:A4 portrait;margin:0!important;\}/);
   assert.match(html, /grid-template-columns:repeat\(2, 105mm\)/);
   assert.match(html, /grid-auto-rows:74\.25mm/);
-  assert.match(html, /grid-template-columns:78mm 27mm/);
+  assert.match(html, /grid-template-columns:minmax\(0,1fr\) 27mm/);
+  assert.match(html, /pc-print-face\{[^}]*width:100%;height:100%/);
   assert.match(html, /pc-print-qr-code/);
   assert.match(html, /worker-visual\.html\?scan=1&card=/);
   assert.match(html, /"shape_svg":/);
@@ -241,7 +242,7 @@ test('production cards print visible 90 degree bend labels for U shapes', () => 
   const html = cards.itemCard(item, { order_num: 'HZ-ANGLE-90', customer_name: 'Angle Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
   assert.equal((html.match(/90\u00b0/g) || []).length >= 2, true);
   assert.match(html, /data-angle-label="1"/);
-  assert.match(html, /class="dim-ang">90\u00b0<\/span>/);
+  assert.match(html, /data-angle-label[^>]*>90\u00b0<\/text>/);
 });
 
 test('production cards print 45 and 135 degree bend labels', () => {
@@ -347,7 +348,7 @@ test('production cards rebuild old shape_svg when valid segments have bend label
     quantity: 1,
     total_length_mm: 1000,
     total_weight: 0.89,
-    shape_svg: '<svg data-old="1"><text>0°</text><line x1="0" y1="0" x2="10" y2="0"/></svg>',
+    shape_svg: '<svg data-old="1"><text>0ï¿½</text><line x1="0" y1="0" x2="10" y2="0"/></svg>',
     segments: JSON.stringify([
       { length_mm: 200, angle_deg: 90 },
       { length_mm: 600, angle_deg: 90 },
