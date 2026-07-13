@@ -958,7 +958,11 @@
   }
 
   function minRenderEmptyItemsState() {
-    return '<div class="order-lines-empty">\u05e2\u05d3\u05d9\u05d9\u05df \u05d0\u05d9\u05df \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd \u05d1\u05d4\u05d6\u05de\u05e0\u05d4. \u05dc\u05d7\u05e5 \u05e2\u05dc + \u05d4\u05d5\u05e1\u05e3 \u05e6\u05d5\u05e8\u05d4 \u05db\u05d3\u05d9 \u05dc\u05d4\u05ea\u05d7\u05d9\u05dc.</div>';
+    return '<div class="order-lines-empty">\u05e2\u05d3\u05d9\u05d9\u05df \u05d0\u05d9\u05df \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd. \u05dc\u05d7\u05e5 + \u05dc\u05d4\u05d5\u05e1\u05e4\u05ea \u05e9\u05d5\u05e8\u05d4 \u05e8\u05d0\u05e9\u05d5\u05e0\u05d4.</div>';
+  }
+
+  function minRenderAddRow(nextNum) {
+    return '<div class="order-line-add-row" onclick="addShapeNow(\'bar\')" title="\u05d4\u05d5\u05e1\u05e3 \u05e9\u05d5\u05e8\u05d4 \u05d7\u05d3\u05e9\u05d4"><div class="line-add-num">' + nextNum + '</div><div class="line-add-label">+ \u05d4\u05d5\u05e1\u05e3 \u05e9\u05d5\u05e8\u05d4</div></div>';
   }
 
   function lineContract(item = {}) { return typeof window.itemShapeContract === 'function' ? window.itemShapeContract(item) : null; }
@@ -1028,7 +1032,8 @@
     if (!container) return;
     minEnsureDefaultPallet();
     const rows = minGetAllVisibleOrderItems();
-    container.innerHTML = rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState();
+    const nextNum = rows.length + 1;
+    container.innerHTML = (rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState()) + minRenderAddRow(nextNum);
     setTextSafe('itemsCountPill', rows.length + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd');
     setTextSafe('noItemsCount', rows.length);
     if (typeof window.updateSummary === 'function') window.updateSummary();
