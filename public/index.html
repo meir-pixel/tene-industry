@@ -2988,13 +2988,13 @@ function shapeSelected(data) {
   item.is3d       = data.is3d ? 1 : 0;
   item.azAngles   = item.is3d ? (data.azAngles || []) : null;
   item.elAngles   = item.is3d ? (data.elAngles || []) : null;
-  item.diameter   = isSpiral ? (spiral.barDiameter || item.diameter || 8) : (data.diameter || item.diameter || 12);
+  item.diameter   = isSpiral ? (spiral.barDiameter || item.diameter || 8) : (item.diameter || data.diameter || 12);
   item.spiral_diameter_mm = isSpiral ? (spiral.spiralDiameterMm || null) : null;
   item.spiral_turns = isSpiral ? (spiral.spiralTurns || null) : null;
   item.length      = isSpiral
     ? (data.calculated?.totalLengthMm || data.total_length_mm || spiralLengthMm(spiral.spiralDiameterMm, spiral.spiralTurns))
     : (Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0));
-  item.qty         = Math.max(1, Number(data.orderItemQuantity || item.qty || 1) || 1);
+  item.qty         = item.qty || Math.max(1, Number(data.orderItemQuantity || 1) || 1);
   _shapeTarget = null;
   renderPallets();
 }
