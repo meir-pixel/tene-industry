@@ -180,7 +180,8 @@ function renderA4CardPages(cardHtmlList) {
   return pages.join('');
 }
 
-const cardItems = expandPileCageProductionItems(allItems, tryParseJSON);
+const numberedItems = cards.attachOrderLineNumbers ? cards.attachOrderLineNumbers(allItems) : allItems;
+const cardItems = expandPileCageProductionItems(numberedItems, tryParseJSON);
 const serverCardsHtml = renderA4CardPages(cardItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))));
 
 
@@ -430,6 +431,8 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   shape_svg:      cards.shapeSegmentsFromItem(it).length ? '' : (it.shape_svg || ''),
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
+  orderLineNo:    it.orderLineNo || it.order_line_no || it.line_no || it.lineNo || it.position || null,
+  orderTotalLines:it.orderTotalLines || it.order_total_lines || null,
   pallet_num:     it._palletNum  || 1,
   material_grade: it.material_grade || 'B500B',
   actual_weight_kg:+(it.actual_weight_kg || 0),
@@ -531,6 +534,20 @@ function deviationClass(pct) {
 function fmtPct(pct) {
   if (pct == null || !Number.isFinite(Number(pct))) return '-';
   return (Number(pct) > 0 ? '+' : '') + Number(pct).toFixed(1) + '%';
+}
+
+function itemOrderLineLabel(item) {
+  var lineNo = Number(item.orderLineNo || item.order_line_no || item.line_no || item.lineNo || item.position || 0);
+  var total = Number(item.orderTotalLines || item.order_total_lines || 0);
+  if (lineNo > 0 && total > 0) return 'פריט ' + lineNo + '/' + total;
+  if (lineNo > 0) return 'פריט ' + lineNo;
+  return 'פריט';
+}
+
+function itemHumanTitle(item) {
+  var element = String(item.struct_element || item.structElement || item.element_name || item.elementName || item.element || '').trim();
+  var lineLabel = itemOrderLineLabel(item);
+  return element ? lineLabel + ' — ' + element : lineLabel;
 }
 
 var cardSplits = {};
@@ -901,7 +918,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var workerUrl = '/worker-visual.html?scan=1&card=' + encodeURIComponent(barData);
   var segs    = item.segments || [];
   var wProp   = item.quantity > 0 ? (item.total_weight * subQty / item.quantity).toFixed(2) : '0.00';
-  var title   = item.virtual_card ? item.shape_name : (item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף');
+  var title   = item.virtual_card ? item.shape_name : itemHumanTitle(item);
+  var shapeSubtitle = item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף';
   var badge   = cardNum ? '<span class="split-badge">'+cardNum+'</span>' : '';
 
   var dimHtml = '';
@@ -923,7 +941,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += splitTools;
   h += '<div class="pc-print-face">';
   h += '<div class="pc-print-main">';
-  h += '<div class="pc-print-head"><b>ITEM '+item.id+badge+'</b><b>Ø '+item.diameter+'</b></div>';
+  h += '<div class="pc-print-head"><b>'+escapeHtml(itemHumanTitle(item))+badge+'</b><b>Ø '+escapeHtml(item.diameter)+'</b></div>';
   h += '<div class="pc-print-ref">'+printRef+'</div>';
   h += '<div class="pc-print-shape">'+shapeSvg+'</div>';
   h += '<div class="pc-print-bottom"><span>L = '+printLengthCm+' cm</span><span>PCS '+subQty+'</span><span>'+wProp+' kg</span></div>';
@@ -931,7 +949,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div><div class="pc-print-status">SCAN STATUS</div></div>';
   h += '</div>';
   h += '<div class="pc-head">';
-  h += '<div><div class="pc-title">'+badge+title+'</div><div class="pc-date">'+PRINT_DATE+'</div></div>';
+  h += '<div><div class="pc-title">'+badge+escapeHtml(title)+'</div><div class="pc-date">'+escapeHtml(shapeSubtitle)+' · '+PRINT_DATE+'</div></div>';
   h += '<div class="pc-top-barcode"><div class="bc-font-top">'+barData+'</div><div class="bc-label">'+barData+'</div></div>';
   h += '</div>';
   h += '<div class="pc-order-row">';
@@ -945,7 +963,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-wq-sep"></div>';
   h += '<div class="pc-wq-cell"><span class="wq-lbl">כמות:</span> <span class="wq-val">'+subQty+'</span> יח</div>';
   h += '<div class="pc-wq-sep"></div>';
-  h += '<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">'+CUSTOMER+'</span></div>';
+  h += '<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">'+escapeHtml(CUSTOMER)+'</span></div>';
   h += '</div>';
   var savedWeight = cardWeightFor(item, totalCards, cardIdx);
   var savedActual = savedWeight ? Number(savedWeight.actual_weight_kg || 0) : 0;
@@ -964,9 +982,9 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-spec-cell"><span class="spec-lbl">כיתה:</span> <b>'+(item.material_grade||'B500B')+'</b></div>';
   h += '<div class="pc-spec-sep"></div>';
   h += '<div class="pc-spec-cell"><span class="spec-lbl">אורך:</span> <b>'+Math.round((Number(item.total_length_mm || 0)) / 10)+'</b> ס״מ</div>';
-  if (item.struct_element) h += '<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> '+item.struct_element+'</div>';
+  if (item.struct_element) h += '<div class="pc-spec-sep"></div><div class="pc-spec-cell"><span class="spec-lbl">איבר:</span> '+escapeHtml(item.struct_element)+'</div>';
   h += '</div>';
-  if (item.note) h += '<div class="pc-note">⚠ '+item.note+'</div>';
+  if (item.note) h += '<div class="pc-note">⚠ '+escapeHtml(item.note)+'</div>';
   h += '<div class="pc-footer">';
   h += '<div class="bc-font-footer">'+barData+'</div>';
   h += '<div class="pc-brand">SYNTA<br><span class="pc-brand-num">'+item.pallet_num+'</span></div>';

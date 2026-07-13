@@ -3,6 +3,7 @@ const test = require('node:test');
 
 const {
   buildIntakeOrderPayload,
+  buildOrderImportPreview,
   buildStructuredReviewNotes,
   cleanRecognizedCustomerName,
   isTechnicalRecognitionNote,
@@ -301,6 +302,40 @@ test('buildIntakeOrderPayload maps OCR element name and description to order ite
   assert.equal(item.structElement, 'Wall element 103');
   assert.equal(item.struct_element, 'Wall element 103');
   assert.equal(item.note, 'starter bars for wall');
+});
+
+test('buildIntakeOrderPayload maps location aliases to struct element, not note', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    items: [{
+      diameter: 12,
+      length: 1000,
+      quantity: 1,
+      shape_name: 'straight',
+      location: 'Beam A7',
+      note: 'call before delivery',
+    }],
+  }, { calcWeightPerUnit: () => 1 });
+
+  const item = payload.pallets[0].items[0];
+  assert.equal(item.struct_element, 'Beam A7');
+  assert.equal(item.structElement, 'Beam A7');
+  assert.equal(item.note, 'call before delivery');
+});
+
+test('spreadsheet import maps Hebrew and English element columns to struct_element', () => {
+  const hebrew = Buffer.from('customer_name,מיקום,diameter,quantity,length\nCustomer A,תקרה קומה 3,12,10,1200\n', 'utf8');
+  const english = Buffer.from('customer_name,location,diameter,quantity,length\nCustomer B,Beam A7,16,4,2500\n', 'utf8');
+
+  const hebrewPreview = buildOrderImportPreview(hebrew);
+  const englishPreview = buildOrderImportPreview(english);
+
+  const hebrewItem = hebrewPreview.orders[0].payload.pallets[0].items[0];
+  const englishItem = englishPreview.orders[0].payload.pallets[0].items[0];
+  assert.equal(hebrewItem.struct_element, 'תקרה קומה 3');
+  assert.equal(hebrewItem.note, '');
+  assert.equal(englishItem.struct_element, 'Beam A7');
+  assert.equal(englishItem.note, '');
 });
 
 test('buildIntakeOrderPayload carries item review notes into draft order payload', () => {

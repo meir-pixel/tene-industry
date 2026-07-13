@@ -4,7 +4,9 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ordersPath = path.join(__dirname, '..', 'public', 'orders.html');
+const newOrderEditorPath = path.join(__dirname, '..', 'public', 'new-order-editor.js');
 const orders = () => fs.readFileSync(ordersPath, 'utf8');
+const newOrderEditor = () => fs.readFileSync(newOrderEditorPath, 'utf8');
 
 test('orders manual add uses the shared shape editor, not the legacy manual form', () => {
   const html = orders();
@@ -37,4 +39,14 @@ test('orders items can be deleted from the order detail screen', () => {
   assert.match(html, /deleteOrderItem\(event, \$\{o\.id\}, \$\{item\.id\}\)/);
   assert.match(html, /fetch\(`\/api\/orders\/\$\{orderId\}\/items\/\$\{itemId\}`,[\s\S]*method: 'DELETE'/);
   assert.match(html, /confirm\('/);
+});
+
+test('new order CSV import maps location aliases to struct element state', () => {
+  const js = newOrderEditor();
+  assert.match(js, /STRUCT_ELEMENT_ALIASES/);
+  for (const alias of ['מיקום', 'שם אלמנט', 'שם האלמנט', 'אלמנט', 'location', 'mark', 'item_label', 'itemLabel']) {
+    assert.match(js, new RegExp(alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.match(js, /structElement: elementName/);
+  assert.match(js, /struct_element: elementName/);
 });
