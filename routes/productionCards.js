@@ -43,7 +43,11 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
     p.items = db.prepare('SELECT * FROM items WHERE pallet_id=? ORDER BY id').all(p.id);
     p.items.forEach(item => {
       item._palletNum = p.pallet_num;
-      const segments = normalizeFactorySegments(item.shape_name, tryParseJSON(item.segments, []));
+      const snapshot = tryParseJSON(item.shape_snapshot_json, null);
+      const snapshotSegments = snapshot && typeof snapshot === 'object' ? cards.shapeSegmentsFromItem(item) : [];
+      const segments = snapshotSegments.length
+        ? snapshotSegments
+        : normalizeFactorySegments(item.shape_name, tryParseJSON(item.segments, []));
       item.shape_name = normalizeFactoryShapeName(item.shape_name, segments);
       item.segments = JSON.stringify(segments);
     });
