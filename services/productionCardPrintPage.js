@@ -305,7 +305,8 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 }
 
 @media print{
-  html,body{width:210mm;margin:0!important;padding:0!important;background:#fff;direction:ltr!important;}
+  html{direction:ltr!important;overflow:hidden!important;margin:0!important;padding:0!important;}
+  body{width:210mm!important;margin:0!important;padding:0!important;background:#fff!important;direction:ltr!important;position:absolute!important;left:0!important;top:0!important;}
   .screen-only{display:none!important;}
   body.preview-locked .cards-pages{display:none!important;}
   body.preview-locked .print-blocked-page{display:flex!important;width:210mm;height:297mm;align-items:center;justify-content:center;text-align:center;font-family:'Heebo',Arial,sans-serif;font-size:18px;font-weight:900;color:#1a2332;padding:20mm;}
