@@ -168,9 +168,9 @@ body[data-page="new"] .line-element:focus{outline:none!important;border-color:#4
 /* צורה ומידות */
 body[data-page="new"] .line-shape{border:0!important;background:transparent!important;padding:3px!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;font-family:inherit!important;width:100%!important;height:100%!important}
 body[data-page="new"] .line-shape:hover{background:rgba(74,144,217,.07)!important}
-body[data-page="new"] .line-shape-sketch{width:124px!important;height:38px!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:visible!important}
+body[data-page="new"] .line-shape-sketch{width:100%!important;height:38px!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
 body[data-page="new"] .line-shape-sketch svg,
-body[data-page="new"] .line-shape svg{max-width:100%!important;max-height:38px!important}
+body[data-page="new"] .line-shape svg{width:auto!important;height:36px!important;max-width:100%!important;display:block!important}
 
 /* Placeholder — כפתור ברור */
 body[data-page="new"] .line-shape-empty{display:inline-flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:4px!important;height:30px!important;padding:0 10px!important;border:1.5px dashed #6baed6!important;border-radius:7px!important;color:#3a7fc1!important;font-size:12px!important;font-weight:900!important;background:#f0f7ff!important;white-space:nowrap!important}

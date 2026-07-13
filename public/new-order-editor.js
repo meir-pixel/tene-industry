@@ -964,7 +964,7 @@
   function minRenderEmptyItemsState() { return ''; }
 
   function minRenderAddRow(nextNum) {
-    const palletId = (window.pallets && window.pallets[0]) ? window.pallets[0].id : 0;
+    const palletId = (pallets && pallets[0]) ? pallets[0].id : 0;
     return '<div class="order-line-add-row"><button type="button" class="line-add-btn" onclick="window.addEmptyRow(' + palletId + ')" title="\u05d4\u05d5\u05e1\u05e3 \u05e9\u05d5\u05e8\u05d4">+ \u05d4\u05d5\u05e1\u05e3</button></div>';
   }
 
@@ -998,7 +998,7 @@
     if (input && !input.isConnected) return;
     const next = Math.max(1, numeric(input?.value, 1));
     if (input) input.value = String(next);
-    const pallet = (window.pallets || []).find((entry) => String(entry.id) === String(palletId));
+    const pallet = (pallets || []).find((entry) => String(entry.id) === String(palletId));
     const item = (pallet?.items || []).find((entry) => String(entry.id) === String(itemId));
     if (item && numeric(item.qty, 1) === next) return;
     if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'qty', next);
@@ -1007,7 +1007,7 @@
 
   function updateLineDiameter(palletId, itemId, select) {
     const next = Number(select?.value) || 12;
-    const pallet = (window.pallets || []).find((entry) => String(entry.id) === String(palletId));
+    const pallet = (pallets || []).find((entry) => String(entry.id) === String(palletId));
     const item = (pallet?.items || []).find((entry) => String(entry.id) === String(itemId));
     if (!item) return;
     if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'diameter', next);
@@ -1021,7 +1021,7 @@
   function updateLineElementName(palletId, itemId, input) {
     if (input && !input.isConnected) return;
     const next = String(input?.value || '').trim();
-    const pallet = (window.pallets || []).find(entry => String(entry.id) === String(palletId));
+    const pallet = (pallets || []).find(entry => String(entry.id) === String(palletId));
     const item = (pallet?.items || []).find(entry => String(entry.id) === String(itemId));
     if (item) {
       item.structElement = next;
