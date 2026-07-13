@@ -1124,6 +1124,45 @@ function resolveShapeType(shape) {
   return 'custom_bar';
 }
 
+function normalizeShapeEditorInput(input = {}) {
+  if (!input || typeof input !== 'object') return input;
+  const normalized = { ...input };
+  const family = normalizeShapeFamily(normalized);
+  const sides = Array.isArray(normalized.sides)
+    ? normalized.sides.map(v => Number(v)).filter(v => Number.isFinite(v) && v > 0)
+    : [];
+  const angles = Array.isArray(normalized.angles)
+    ? normalized.angles.map(v => Number(v)).filter(Number.isFinite)
+    : [];
+  const nameText = String([
+    normalized.presetId,
+    normalized.shapeId,
+    normalized.shapeType,
+    normalized.presetName,
+    normalized.shapeName,
+    normalized.name,
+    normalized.type,
+  ].filter(Boolean).join(' ')).trim().toLowerCase();
+  const straightByName = /straight[_\s-]*bar|straight\s+bar|מוט\s*ישר/.test(nameText);
+  const straightByShape = family === 'bars' && sides.length === 1;
+
+  if (straightByName || straightByShape) {
+    const existingHebrewName = /מוט\s*ישר/.test(String(normalized.presetName || normalized.shapeName || normalized.name || ''));
+    normalized.family = 'bars';
+    normalized.shapeType = 'straight_bar';
+    normalized.presetId = normalized.presetId || normalized.shapeId || 'straight_bar';
+    normalized.presetName = existingHebrewName ? (normalized.presetName || normalized.shapeName || normalized.name) : 'מוט ישר';
+    normalized.sides = [sides[0] || Number(normalized.lengthMm || normalized.length || 1000) || 1000];
+    normalized.angles = [];
+    normalized.is3d = 0;
+    normalized.azAngles = [0];
+    normalized.elAngles = [0];
+    normalized.diameter = Number(normalized.diameter || normalized.barDiameter || normalized.barDiameterMm || 12) || 12;
+  }
+
+  return normalized;
+}
+
 function resolveShapeId(shape) {
   return String(shape?.shapeId || shape?.approvedShapeId || shapeContractGuid());
 }
@@ -1734,6 +1773,14 @@ class ShapeEditorModal {
 #seModal .se-table th,
 #seModal .se-table td{
   min-width:0;
+}
+#seModal .se-table th[colspan],
+#seModal .se-table td[colspan]{
+  grid-column:1 / -1!important;
+  width:100%;
+  min-width:0;
+  display:block;
+  box-sizing:border-box;
 }
 #seModal .se-table th{
   background:transparent;
@@ -4145,6 +4192,7 @@ class ShapeEditorModal {
   }
 
   open(existingData) {
+    existingData = normalizeShapeEditorInput(existingData || {});
     window._seEditor = this;
     // Sync orbit controls and cursor to current view mode on open
     const orbitCtrl = document.getElementById('se3DOrbitCtrl');
