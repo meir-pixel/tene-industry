@@ -726,14 +726,6 @@ function itemCard(item, order, printDate, rebarWeights) {
     ? Number(item.total_weight).toFixed(2)
     : (kgPerMeter ? (Math.round((totalLengthMm || 0) / 1000 * kgPerMeter * (item.quantity || 1) * 10) / 10).toFixed(2) : '0.00');
 
-  let dimensions = '';
-  for (let i = 0; i < segments.length; i += 1) {
-    const label = String.fromCharCode(0x05D0 + i);
-    dimensions += `<span class="dim-seg">${label}: <b>${escapeHtml(displayLengthCm(segments[i].length_mm || 0))}</b> ס״מ</span>`;
-    if (i < segments.length - 1 && isPrintableBendAngle(segments[i].angle_deg)) {
-      dimensions += `<span class="dim-ang">${escapeHtml(angleText(segments[i].angle_deg))}</span>`;
-    }
-  }
 
   return '<div class="prod-card">' +
     '<div class="pc-head">' +
@@ -753,7 +745,6 @@ function itemCard(item, order, printDate, rebarWeights) {
       `<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">${escapeHtml(order.customer_name || '')}</span></div>` +
     '</div>' +
     `<div class="pc-shape-area">${visualShapeSvg}</div>` +
-    (dimensions ? `<div class="pc-dims">${dimensions}</div>` : '') +
     '<div class="pc-spec-row">' +
       `<div class="pc-spec-cell"><span class="spec-lbl">קוטר:</span> <b>Ø${escapeHtml(shapeDiameterFromItem(item) || '?')}</b></div>` +
       '<div class="pc-spec-sep"></div>' +
