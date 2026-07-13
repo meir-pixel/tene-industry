@@ -3040,9 +3040,17 @@ async function loadInventoryBatches() {
 function addItem(palletId) {
   const pallet = pallets.find(p => p.id === palletId);
   if (!pallet) return;
-  const pendingItem = { id: Date.now(), shapeId: null, shapeEmoji: '?', shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' };
+  const pendingItem = { id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' };
   _shapeTarget = { palletId, itemId: pendingItem.id, isNew: true, pendingItem };
-  shapeEditor.open({ quantity: pendingItem.qty });
+  shapeEditor.open({ quantity: pendingItem.qty, diameter: pendingItem.diameter });
+}
+
+function addEmptyRow(palletId) {
+  const pallet = pallets.find(p => p.id === palletId);
+  if (!pallet) return;
+  const item = { id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' };
+  pallet.items.push(item);
+  renderPallets();
 }
 
 function buildStraightBarSnapshot({ length, diameter, qty }) {

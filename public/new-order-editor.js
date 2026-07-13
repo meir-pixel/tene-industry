@@ -173,7 +173,11 @@
   function minEnsureDefaultPallet() {
     if (!Array.isArray(pallets)) pallets = [];
     if (!pallets.length) pallets.push({ id: Date.now(), maxWeight: 500, items: [] });
-    return pallets[0];
+    const pallet = pallets[0];
+    if (pallet && !pallet.items.length) {
+      pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' });
+    }
+    return pallet;
   }
 
   function minAddShapeNow(family = 'bar') {
@@ -957,12 +961,11 @@
     return rows.map((row, index) => ({ ...row, orderLineNo: index + 1, orderTotalLines: total }));
   }
 
-  function minRenderEmptyItemsState() {
-    return '<div class="order-lines-empty">\u05e2\u05d3\u05d9\u05d9\u05df \u05d0\u05d9\u05df \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd. \u05dc\u05d7\u05e5 + \u05dc\u05d4\u05d5\u05e1\u05e4\u05ea \u05e9\u05d5\u05e8\u05d4 \u05e8\u05d0\u05e9\u05d5\u05e0\u05d4.</div>';
-  }
+  function minRenderEmptyItemsState() { return ''; }
 
   function minRenderAddRow(nextNum) {
-    return '<div class="order-line-add-row"><button type="button" class="line-add-btn" onclick="addShapeNow(\'bar\')" title="\u05d4\u05d5\u05e1\u05e3 \u05e9\u05d5\u05e8\u05d4 \u05d7\u05d3\u05e9\u05d4">+</button></div>';
+    const palletId = (window.pallets && window.pallets[0]) ? window.pallets[0].id : 0;
+    return '<div class="order-line-add-row"><button type="button" class="line-add-btn" onclick="window.addEmptyRow(' + palletId + ')" title="\u05d4\u05d5\u05e1\u05e3 \u05e9\u05d5\u05e8\u05d4">+</button></div>';
   }
 
   function lineContract(item = {}) { return typeof window.itemShapeContract === 'function' ? window.itemShapeContract(item) : null; }
@@ -978,7 +981,17 @@
   function formatLineTotalLength(item = {}) { return formatMeters(getLineUnitLengthMm(item) * lineQty(item)); }
   function formatLineWeight(item = {}) { const weight = typeof window.calcItemWeight === 'function' ? window.calcItemWeight(item) : 0; return formatKg(weight); }
   function formatLineShapeDims(item = {}) { const data = lineData(item); if (isLineSpiral(item)) { const spiral = getSpiralFields(item); const parts = []; if (spiral.spiralDiameterMm > 0) parts.push('\u00d8' + spiral.spiralDiameterMm.toLocaleString('he-IL')); if (spiral.spiralHeightMm > 0) parts.push('H=' + spiral.spiralHeightMm.toLocaleString('he-IL')); if (spiral.spiralTurns > 0) parts.push(spiral.spiralTurns.toLocaleString('he-IL') + ' \u05db\u05e8\u05d9\u05db\u05d5\u05ea'); return parts.join(' \u00b7 ') || '\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4'; } const family = lineContract(item)?.family || item.family || ''; const width = numeric(data.widthMm || data.width || item.widthMm || item.width, 0); const height = numeric(data.heightMm || data.height || item.heightMm || item.height, 0); if ((family === 'mesh' || family === 'meshes') && width > 0 && height > 0) return '\u05e8\u05e9\u05ea ' + (width / 1000).toLocaleString('he-IL', { maximumFractionDigits: 2 }) + '\u00d7' + (height / 1000).toLocaleString('he-IL', { maximumFractionDigits: 2 }); const sides = lineSides(item); if (sides.length) { const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return sides.slice(0, 4).map((length, index) => labels[index] + '=' + numeric(length, 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })).join(' \u00b7 '); } return '\u05e6\u05d5\u05e8\u05d4'; }
-  function renderLineShapeSketch(item = {}) { const sides = lineSides(item); const angles = lineAngles(item); if (typeof window.itemPreviewSvg === 'function') { const svg = window.itemPreviewSvg(item, sides, angles); if (svg) return svg; } const label = sides.length ? 'A=' + numeric(sides[0], 0).toLocaleString('he-IL', { maximumFractionDigits: 0 }) : '\u05e6\u05d5\u05e8\u05d4'; return '<svg viewBox="0 0 112 34" width="112" height="34" aria-hidden="true"><line x1="12" y1="15" x2="100" y2="15" stroke="#35546f" stroke-width="4" stroke-linecap="round"/><text x="56" y="30" text-anchor="middle" font-size="10" fill="#64748b">' + escapeHtml(label) + '</text></svg>'; }
+  function renderLineShapeSketch(item = {}) {
+    const sides = lineSides(item);
+    const angles = lineAngles(item);
+    if (sides.length || item.shapeId) {
+      if (typeof window.itemPreviewSvg === 'function') {
+        const svg = window.itemPreviewSvg(item, sides, angles);
+        if (svg) return svg;
+      }
+    }
+    return '<div class="line-shape-empty"><span>+</span><small>\u05d1\u05d7\u05e8 \u05e6\u05d5\u05e8\u05d4</small></div>';
+  }
   function lineTitle(item = {}) { if (item.shapeName || item.displayName) return item.shapeName || item.displayName; if (isLineSpiral(item)) return '\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4'; const family = lineContract(item)?.family || item.family || ''; if (family === 'mesh' || family === 'meshes') return '\u05e8\u05e9\u05ea'; return '\u05de\u05d5\u05d8 \u05d9\u05e9\u05e8'; }
 
   function updateLineQuantity(palletId, itemId, input) {
