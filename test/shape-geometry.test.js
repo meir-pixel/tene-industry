@@ -192,7 +192,9 @@ test('shape editor approved reference UI keeps Hebrew workspace chrome', () => {
   assert.match(editor, /data-edit-family="mesh"/);
   assert.match(editor, /data-edit-family="piles"/);
   assert.match(editor, /class="se-field-shell"/);
-  assert.match(editor, /class="se-param-icon"/);
+  assert.doesNotMatch(editor, /<span class="se-param-icon"/);
+  assert.doesNotMatch(editor, /<span class="se-param-code"/);
+  assert.doesNotMatch(editor, /<span class="se-param-number"/);
   assert.match(editor, /id="seTotalWeight"/);
   assert.match(editor, /id="seQuantityInput"/);
   assert.match(editor, /_focusFamilyField/);
