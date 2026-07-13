@@ -323,7 +323,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
     justify-content:start;
   }
   .cards-grid{break-before:auto;page-break-before:auto;height:297mm!important;width:210mm!important;}
-  .prod-card{border:0.25mm solid #1a2332!important;border-radius:0!important;overflow:hidden!important;}
+  .prod-card{border:0.25mm solid #1a2332!important;border-radius:0!important;overflow:hidden!important;box-sizing:border-box!important;width:105mm!important;height:74.25mm!important;}
   .pc-screen-tools{display:none!important;}
   .prod-card>:not(.pc-print-face){display:none!important;}
   .pc-print-face{display:grid!important;grid-template-columns:78mm 27mm;width:105mm;height:74.25mm;background:#fff;direction:ltr;}
