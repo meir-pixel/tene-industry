@@ -2,6 +2,15 @@
   if (window.NewOrderEditor && window.NewOrderEditor.installed) return;
 
   const TITLES = { customer: 'לקוח', site: 'אתר', delivery: 'אספקה', source: 'מקור / OCR' };
+  const NEW_ORDER_DRAFTS_KEY = 'ironbend:new-order:drafts:v2';
+  const LEGACY_ORDER_DRAFT_KEY = 'ironbend:new-order:draft:v1';
+  const DRAFT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+  const DRAFT_AUTOSAVE_MS = 2000;
+  const MAX_LOCAL_DRAFTS = 20;
+  let currentDraftId = null;
+  let draftAutosaveTimer = null;
+  let draftStatusTimer = null;
+  let isRestoringDraft = false;
 
   function escapeHtml(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -74,6 +83,7 @@
     document.getElementById('orderSetupDrawer')?.classList.add('order-legacy-setup-store');
     document.querySelector('.summary-bar > .submit-btn')?.remove();
     document.querySelector('.no-bottom-actions')?.remove();
+    ensureDraftsUi();
   }
 
   function wireContextChip(id, panel) {
@@ -190,6 +200,401 @@
     toast.style.opacity = '1';
     clearTimeout(toast._timer);
     toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 3800);
+  }
+
+  function readJsonStorage(key, fallback = null) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
+  }
+
+  function writeJsonStorage(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  function draftTime(value) {
+    const time = new Date(value || 0).getTime();
+    return Number.isFinite(time) && time > 0 ? time : 0;
+  }
+
+  function createDraftId() {
+    return 'draft_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function getCurrentDraftOwner() {
+    const user = window.IronBendAuth?.currentUser?.() || window.IronBendAuth?.user || null;
+    const owner = user?.id || user?.sub || user?.username || user?.name || user?.role || '';
+    return owner ? String(owner) : '';
+  }
+
+  function getDraftStore() {
+    const raw = readJsonStorage(NEW_ORDER_DRAFTS_KEY, {});
+    const store = {
+      version: 2,
+      activeDraftId: raw?.activeDraftId || '',
+      drafts: Array.isArray(raw?.drafts) ? raw.drafts : [],
+    };
+    const now = Date.now();
+    store.drafts = store.drafts
+      .filter(draft => draft && draft.status !== 'deleted')
+      .filter(draft => draft.status === 'submittedOffline' || now - draftTime(draft.updatedAt || draft.createdAt) <= DRAFT_TTL_MS)
+      .sort((a, b) => draftTime(b.updatedAt || b.createdAt) - draftTime(a.updatedAt || a.createdAt))
+      .slice(0, MAX_LOCAL_DRAFTS);
+
+    const legacy = readJsonStorage(LEGACY_ORDER_DRAFT_KEY, null);
+    const legacySavedAt = legacy?.savedAt || '';
+    const hasLegacyEquivalent = store.drafts.some(draft =>
+      draft.legacyKey === LEGACY_ORDER_DRAFT_KEY ||
+      (legacySavedAt && draft.payload?.savedAt === legacySavedAt)
+    );
+    if (legacy && isMeaningfulOrderDraft(legacy) && !hasLegacyEquivalent) {
+      const legacyId = 'legacy_' + (draftTime(legacy.savedAt) || Date.now());
+      store.drafts.unshift(buildDraftRecord(legacy, {
+        draftId: legacyId,
+        createdAt: legacy.savedAt || new Date().toISOString(),
+        updatedAt: legacy.savedAt || new Date().toISOString(),
+        legacyKey: LEGACY_ORDER_DRAFT_KEY,
+      }));
+    }
+    return store;
+  }
+
+  function saveDraftStore(store) {
+    const normalized = {
+      version: 2,
+      activeDraftId: store?.activeDraftId || '',
+      drafts: (Array.isArray(store?.drafts) ? store.drafts : [])
+        .filter(draft => draft && draft.status !== 'deleted')
+        .sort((a, b) => draftTime(b.updatedAt || b.createdAt) - draftTime(a.updatedAt || a.createdAt))
+        .slice(0, MAX_LOCAL_DRAFTS),
+    };
+    writeJsonStorage(NEW_ORDER_DRAFTS_KEY, normalized);
+    return normalized;
+  }
+
+  function visibleDrafts() {
+    return getDraftStore().drafts.filter(draft => draft.status === 'active');
+  }
+
+  function draftItemCount(payload = {}) {
+    return (payload.pallets || []).reduce((sum, pallet) => sum + ((pallet.items || []).length), 0);
+  }
+
+  function draftEstimatedWeight(payload = {}) {
+    let total = 0;
+    (payload.pallets || []).forEach(pallet => (pallet.items || []).forEach(item => {
+      if (typeof window.calcItemWeight === 'function') {
+        try { total += Number(window.calcItemWeight(item)) || 0; } catch {}
+      } else {
+        total += Number(item.totalWeight || item.total_weight || item.weight || 0) || 0;
+      }
+    }));
+    return total;
+  }
+
+  function isMeaningfulOrderDraft(draft = {}) {
+    const customer = draft.customer || {};
+    const delivery = draft.delivery || {};
+    const hasItems = draftItemCount(draft) > 0;
+    return Boolean(
+      String(customer.name || customer.phone || customer.id || '').trim() ||
+      String(delivery.siteName || delivery.siteId || delivery.address || '').trim() ||
+      String(draft.notes || delivery.driverNotes || '').trim() ||
+      hasItems
+    );
+  }
+
+  function buildDraftSummary(payload = {}) {
+    const customer = payload.customer || {};
+    const delivery = payload.delivery || {};
+    const itemsCount = draftItemCount(payload);
+    const estimatedWeightKg = draftEstimatedWeight(payload);
+    return {
+      customerName: String(customer.name || '').trim(),
+      siteName: String(delivery.siteName || delivery.address || '').trim(),
+      deliveryDate: String(delivery.date || '').trim(),
+      itemsCount,
+      estimatedWeightKg,
+    };
+  }
+
+  function buildDraftTitle(summary = {}) {
+    const parts = [
+      summary.customerName || 'ללא לקוח',
+      summary.siteName || '',
+      summary.itemsCount ? summary.itemsCount + ' פריטים' : '',
+    ].filter(Boolean);
+    return parts.join(' / ') || 'טיוטת הזמנה';
+  }
+
+  function buildDraftRecord(payload = {}, meta = {}) {
+    const now = new Date().toISOString();
+    const summary = buildDraftSummary(payload);
+    return {
+      draftId: meta.draftId || createDraftId(),
+      title: buildDraftTitle(summary),
+      createdAt: meta.createdAt || now,
+      updatedAt: meta.updatedAt || now,
+      draftOwner: meta.draftOwner ?? getCurrentDraftOwner(),
+      summary,
+      payload,
+      status: meta.status || 'active',
+      legacyKey: meta.legacyKey || '',
+    };
+  }
+
+  function setDraftStatus(text) {
+    const label = document.getElementById('draftStateLabel');
+    if (label) label.textContent = text;
+    const mini = document.getElementById('orderDraftAutosaveState');
+    if (mini) mini.textContent = text;
+  }
+
+  function updateDraftsButton() {
+    const count = visibleDrafts().length;
+    const countEl = document.getElementById('orderDraftsCount');
+    if (countEl) {
+      countEl.textContent = String(count);
+      countEl.hidden = count <= 0;
+    }
+    const btn = document.getElementById('orderDraftsButton');
+    if (btn) btn.setAttribute('aria-label', count ? 'טיוטות: ' + count : 'טיוטות');
+  }
+
+  function relativeDraftTime(value) {
+    const diff = Math.max(0, Date.now() - draftTime(value));
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'עודכן עכשיו';
+    if (minutes < 60) return 'עודכן לפני ' + minutes + ' דק׳';
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return 'עודכן לפני ' + hours + ' שע׳';
+    const days = Math.floor(hours / 24);
+    return 'עודכן לפני ' + days + ' ימים';
+  }
+
+  function ensureDraftsUi() {
+    const header = document.querySelector('body[data-page="new"] .order-min-header, body[data-page="new"] .order-pro-header');
+    if (!header || document.getElementById('orderDraftsButton')) return;
+    header.classList.add('order-drafts-anchor');
+    const actions = header.querySelector('.order-min-actions, .order-pro-actions') || header;
+    const wrap = document.createElement('div');
+    wrap.className = 'order-drafts-ui';
+    wrap.innerHTML = `
+      <button type="button" id="orderDraftsButton" class="order-drafts-button" aria-expanded="false">
+        <span>טיוטות</span><b id="orderDraftsCount" hidden>0</b>
+      </button>
+      <span id="orderDraftAutosaveState" class="order-drafts-save-state">טיוטה לא נשמרה</span>
+      <div id="orderDraftsPopover" class="order-drafts-popover" hidden></div>
+    `;
+    actions.prepend(wrap);
+    document.getElementById('orderDraftsButton')?.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const popover = document.getElementById('orderDraftsPopover');
+      if (popover && !popover.hidden) closeDraftsPopover();
+      else openDraftsPopover();
+    });
+    ensureDraftRestoreBanner();
+    updateDraftsButton();
+  }
+
+  function ensureDraftRestoreBanner() {
+    const main = document.querySelector('body[data-page="new"] .main');
+    const existing = document.getElementById('orderDraftRestoreBanner');
+    if (existing) return existing;
+    if (!main) return null;
+    const banner = document.createElement('section');
+    banner.id = 'orderDraftRestoreBanner';
+    banner.className = 'order-drafts-banner';
+    banner.hidden = true;
+    banner.innerHTML = `
+      <span>נמצאו טיוטות שלא נשמרו</span>
+      <button type="button" data-draft-action="continue-last">המשך האחרונה</button>
+      <button type="button" data-draft-action="open-list">פתח רשימה</button>
+      <button type="button" data-draft-action="dismiss">התעלם</button>
+    `;
+    const context = main.querySelector('.order-min-context, .order-pro-context');
+    if (context) main.insertBefore(banner, context.nextSibling);
+    else main.prepend(banner);
+    banner.addEventListener('click', event => {
+      const action = event.target.closest('[data-draft-action]')?.dataset.draftAction;
+      if (!action) return;
+      if (action === 'continue-last') continueDraft(visibleDrafts()[0]?.draftId);
+      if (action === 'open-list') openDraftsPopover();
+      if (action === 'dismiss') hideDraftRestoreBanner();
+    });
+    return banner;
+  }
+
+  function showDraftRestoreBanner() {
+    ensureDraftsUi();
+    const banner = ensureDraftRestoreBanner();
+    if (!banner) return;
+    banner.hidden = visibleDrafts().length === 0;
+  }
+
+  function hideDraftRestoreBanner() {
+    const banner = document.getElementById('orderDraftRestoreBanner');
+    if (banner) banner.hidden = true;
+  }
+
+  function renderDraftsPopover() {
+    const popover = document.getElementById('orderDraftsPopover');
+    if (!popover) return;
+    const drafts = visibleDrafts();
+    if (!drafts.length) {
+      popover.innerHTML = '<div class="order-drafts-empty">אין טיוטות שמורות.</div>';
+      return;
+    }
+    popover.innerHTML = `
+      <div class="order-drafts-head">
+        <strong>טיוטות הזמנה</strong>
+        <button type="button" class="order-drafts-close" onclick="closeDraftsPopover()">×</button>
+      </div>
+      <div class="order-drafts-list">
+        ${drafts.map(draft => {
+          const s = draft.summary || {};
+          const meta = [
+            s.siteName || 'ללא אתר',
+            s.deliveryDate ? shortDate(s.deliveryDate) : '',
+            (s.itemsCount || 0) + ' פריטים',
+            formatKg(s.estimatedWeightKg || 0),
+          ].filter(Boolean).join(' · ');
+          return `
+            <article class="order-draft-row" data-draft-id="${escapeHtml(draft.draftId)}">
+              <div class="order-draft-main">
+                <strong>${escapeHtml(s.customerName || 'ללא לקוח')}</strong>
+                <span>${escapeHtml(meta)}</span>
+                <small>${escapeHtml(relativeDraftTime(draft.updatedAt))}</small>
+              </div>
+              <div class="order-draft-actions">
+                <button type="button" onclick="continueDraft('${escapeHtml(draft.draftId)}')">המשך</button>
+                <button type="button" class="danger" onclick="deleteDraft('${escapeHtml(draft.draftId)}')">מחק</button>
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function openDraftsPopover() {
+    ensureDraftsUi();
+    renderDraftsPopover();
+    const popover = document.getElementById('orderDraftsPopover');
+    const btn = document.getElementById('orderDraftsButton');
+    if (popover) popover.hidden = false;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeDraftsPopover() {
+    const popover = document.getElementById('orderDraftsPopover');
+    const btn = document.getElementById('orderDraftsButton');
+    if (popover) popover.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+
+  function restoreDraftPayload(payload = {}) {
+    isRestoringDraft = true;
+    try {
+      localStorage.setItem(LEGACY_ORDER_DRAFT_KEY, JSON.stringify(payload));
+      if (typeof window.restoreOrderDraft === 'function') window.restoreOrderDraft();
+      else if (Array.isArray(payload.pallets)) { pallets = payload.pallets; minRenderPallets(); }
+    } finally {
+      setTimeout(() => { isRestoringDraft = false; }, 600);
+    }
+  }
+
+  function continueDraft(draftId) {
+    const store = getDraftStore();
+    const draft = store.drafts.find(row => row.draftId === draftId);
+    if (!draft) return;
+    currentDraftId = draft.draftId;
+    store.activeDraftId = draft.draftId;
+    saveDraftStore(store);
+    restoreDraftPayload(draft.payload || {});
+    hideDraftRestoreBanner();
+    closeDraftsPopover();
+    setDraftStatus('טיוטה שוחזרה');
+    updateDraftsButton();
+  }
+
+  function deleteDraft(draftId) {
+    if (!draftId) return;
+    if (!confirm('למחוק את הטיוטה?')) return;
+    const store = getDraftStore();
+    store.drafts = store.drafts.filter(draft => draft.draftId !== draftId);
+    if (store.activeDraftId === draftId) store.activeDraftId = '';
+    if (currentDraftId === draftId) currentDraftId = null;
+    saveDraftStore(store);
+    updateDraftsButton();
+    renderDraftsPopover();
+    if (!visibleDrafts().length) hideDraftRestoreBanner();
+  }
+
+  function deleteAllSubmittedOrExpiredDrafts() {
+    const store = getDraftStore();
+    const now = Date.now();
+    store.drafts = store.drafts.filter(draft => {
+      if (draft.status === 'submitted' || draft.status === 'deleted') return false;
+      return now - draftTime(draft.updatedAt || draft.createdAt) <= DRAFT_TTL_MS;
+    });
+    saveDraftStore(store);
+    updateDraftsButton();
+  }
+
+  function removeActiveDraft({ submittedOffline = false } = {}) {
+    if (!currentDraftId) return;
+    const store = getDraftStore();
+    if (submittedOffline) {
+      store.drafts = store.drafts.map(draft => draft.draftId === currentDraftId ? { ...draft, status: 'submittedOffline', updatedAt: new Date().toISOString() } : draft);
+    } else {
+      store.drafts = store.drafts.filter(draft => draft.draftId !== currentDraftId);
+    }
+    if (store.activeDraftId === currentDraftId) store.activeDraftId = '';
+    currentDraftId = null;
+    saveDraftStore(store);
+    try { localStorage.removeItem(LEGACY_ORDER_DRAFT_KEY); } catch {}
+    updateDraftsButton();
+  }
+
+  function captureCurrentDraftRecord() {
+    if (typeof window.captureOrderDraft !== 'function') return null;
+    const payload = window.captureOrderDraft();
+    if (!isMeaningfulOrderDraft(payload)) return null;
+    return buildDraftRecord(payload, { draftId: currentDraftId || createDraftId() });
+  }
+
+  function saveActiveDraftNow(options = {}) {
+    if (isRestoringDraft) return null;
+    const record = captureCurrentDraftRecord();
+    if (!record) {
+      if (!options.silent) setDraftStatus('אין טיוטה לשמירה');
+      return null;
+    }
+    const store = getDraftStore();
+    const existing = currentDraftId ? store.drafts.find(draft => draft.draftId === currentDraftId) : null;
+    record.draftId = existing?.draftId || currentDraftId || record.draftId;
+    record.createdAt = existing?.createdAt || record.createdAt;
+    record.legacyKey = existing?.legacyKey || '';
+    currentDraftId = record.draftId;
+    store.activeDraftId = record.draftId;
+    store.drafts = [record, ...store.drafts.filter(draft => draft.draftId !== record.draftId && draft.legacyKey !== LEGACY_ORDER_DRAFT_KEY)];
+    saveDraftStore(store);
+    try { localStorage.setItem(LEGACY_ORDER_DRAFT_KEY, JSON.stringify(record.payload)); } catch {}
+    setDraftStatus(options.silent ? 'נשמר לפני רגע' : 'טיוטה נשמרה');
+    clearTimeout(draftStatusTimer);
+    draftStatusTimer = setTimeout(() => setDraftStatus('נשמר לפני רגע'), 1200);
+    updateDraftsButton();
+    hideDraftRestoreBanner();
+    return record;
+  }
+
+  function scheduleDraftAutosave() {
+    if (isRestoringDraft) return;
+    clearTimeout(draftAutosaveTimer);
+    const pending = typeof window.captureOrderDraft === 'function' ? window.captureOrderDraft() : null;
+    if (!pending || !isMeaningfulOrderDraft(pending)) return;
+    setDraftStatus('שומר...');
+    draftAutosaveTimer = setTimeout(() => saveActiveDraftNow({ silent: true }), DRAFT_AUTOSAVE_MS);
   }
 
   function ensureQuickOrderImportInput() {
@@ -486,6 +891,7 @@
     const item = (pallet?.items || []).find((entry) => String(entry.id) === String(itemId));
     if (item && numeric(item.qty, 1) === next) return;
     if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'qty', next);
+    scheduleDraftAutosave();
   }
 
   function lineElementName(item = {}) {
@@ -503,6 +909,7 @@
       item.elementName = next;
     }
     if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'structElement', next);
+    scheduleDraftAutosave();
   }
 
   function renderCompactOrderLine(palletId, item, itemIndex = 0, orderTotalLines = 1) {
@@ -521,6 +928,7 @@
     setTextSafe('itemsCountPill', rows.length + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd');
     setTextSafe('noItemsCount', rows.length);
     if (typeof window.updateSummary === 'function') window.updateSummary();
+    scheduleDraftAutosave();
   }
   function minRenderOrderSummary() { if (typeof window.updateSummary === 'function') window.updateSummary(); }
   function minHasItems() {
@@ -583,9 +991,79 @@
     setTextSafe('noItemsCount', count);
   }
 
-  function bindEscClose() { document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeIntakePanel(); minCloseInspectorPanel(); } }); }
+  function bindDraftAutosaveTriggers() {
+    const ids = [
+      'customerSearch',
+      'customerPhone',
+      'customerPriorityId',
+      'contactName',
+      'contactPhone',
+      'orderSiteId',
+      'deliverySiteName',
+      'deliveryAddress',
+      'deliveryDate',
+      'deliveryTime',
+      'orderPriority',
+      'driverNotes',
+      'generalNotes',
+      'orderChannel',
+    ];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.draftAutosaveBound === '1') return;
+      el.dataset.draftAutosaveBound = '1';
+      el.addEventListener('input', scheduleDraftAutosave);
+      el.addEventListener('change', scheduleDraftAutosave);
+    });
+  }
+
+  function wrapDraftAwareGlobals() {
+    if (window.NewOrderEditorDrafts?.wrapped) return;
+    const originalSaveDraftNow = window.saveDraftNow;
+    window.saveDraftNow = function saveDraftNowV2() {
+      const record = saveActiveDraftNow({ silent: false });
+      if (!record && typeof originalSaveDraftNow === 'function') return originalSaveDraftNow();
+      if (record && typeof showQuickImportMessage === 'function') showQuickImportMessage('הטיוטה נשמרה');
+      return record;
+    };
+
+    const originalClearOrderDraft = window.clearOrderDraft;
+    window.clearOrderDraft = function clearOrderDraftV2() {
+      if (typeof originalClearOrderDraft === 'function') originalClearOrderDraft();
+      removeActiveDraft();
+    };
+
+    const originalSubmitOrder = window.submitOrder;
+    if (typeof originalSubmitOrder === 'function') {
+      window.submitOrder = async function submitOrderDraftAware(...args) {
+        const result = await originalSubmitOrder.apply(this, args);
+        const successOverlay = document.getElementById('successOverlay');
+        if (successOverlay?.classList.contains('show')) {
+          const offline = /ממתין|סנכרון|offline/i.test(document.getElementById('successOrderNum')?.textContent || '');
+          removeActiveDraft({ submittedOffline: offline });
+        }
+        return result;
+      };
+    }
+
+    const originalNewOrder = window.newOrder;
+    if (typeof originalNewOrder === 'function') {
+      window.newOrder = function newOrderDraftAware(...args) {
+        currentDraftId = null;
+        closeDraftsPopover();
+        hideDraftRestoreBanner();
+        return originalNewOrder.apply(this, args);
+      };
+    }
+
+    window.NewOrderEditorDrafts = { ...(window.NewOrderEditorDrafts || {}), wrapped: true };
+  }
+
+  function bindEscClose() { document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeIntakePanel(); minCloseInspectorPanel(); closeDraftsPopover(); } }); }
   function bindOutsideClick() {
     document.addEventListener('click', event => {
+      const popover = document.getElementById('orderDraftsPopover');
+      if (popover && !popover.hidden && !event.target.closest('.order-drafts-ui')) closeDraftsPopover();
       const inspector = document.getElementById('orderInspector');
       if (!inspector?.dataset.activePanel) return;
       if (event.target.closest('#orderInspector') || event.target.closest('.context-chip')) return;
@@ -637,20 +1115,37 @@
     window.addIntakeRowsToOrder = addIntakeRowsToOrder;
     window.createOrderItemFromIntakeRow = createOrderItemFromIntakeRow;
     window.validateIntakeRow = validateIntakeRow;
+    window.getDraftStore = getDraftStore;
+    window.saveDraftStore = saveDraftStore;
+    window.createDraftId = createDraftId;
+    window.captureCurrentDraftRecord = captureCurrentDraftRecord;
+    window.scheduleDraftAutosave = scheduleDraftAutosave;
+    window.saveActiveDraftNow = saveActiveDraftNow;
+    window.renderDraftsPopover = renderDraftsPopover;
+    window.openDraftsPopover = openDraftsPopover;
+    window.closeDraftsPopover = closeDraftsPopover;
+    window.continueDraft = continueDraft;
+    window.deleteDraft = deleteDraft;
+    window.deleteAllSubmittedOrExpiredDrafts = deleteAllSubmittedOrExpiredDrafts;
+    window.showDraftRestoreBanner = showDraftRestoreBanner;
+    window.hideDraftRestoreBanner = hideDraftRestoreBanner;
+    window.isMeaningfulOrderDraft = isMeaningfulOrderDraft;
   }
 
   function boot() {
     if (document.body?.getAttribute('data-page') !== 'new') return;
-    setupDom(); exposeGlobals(); bindEscClose(); bindOutsideClick(); applyMinimalLayout();
+    setupDom(); exposeGlobals(); wrapDraftAwareGlobals(); bindEscClose(); bindOutsideClick(); bindDraftAutosaveTriggers(); applyMinimalLayout();
+    deleteAllSubmittedOrExpiredDrafts();
     minUpdateContextStrip(); minRenderDefaultInspector(); minRenderPallets();
+    if (visibleDrafts().length) showDraftRestoreBanner();
     window.NewOrderEditor = { installed: true, applyMinimalLayout, renderInspector: minRenderInspector };
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
-  window.addEventListener('load', () => { setupDom(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); });
+  window.addEventListener('load', () => { setupDom(); bindDraftAutosaveTriggers(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); updateDraftsButton(); if (visibleDrafts().length && !currentDraftId) showDraftRestoreBanner(); });
   window.addEventListener('resize', applyMinimalLayout);
-  setTimeout(() => { setupDom(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); }, 250);
-  setTimeout(() => { setupDom(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); }, 800);
+  setTimeout(() => { setupDom(); bindDraftAutosaveTriggers(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); updateDraftsButton(); if (visibleDrafts().length && !currentDraftId) showDraftRestoreBanner(); }, 250);
+  setTimeout(() => { setupDom(); bindDraftAutosaveTriggers(); applyMinimalLayout(); minUpdateContextStrip(); minRenderPricingSummary(); minRenderInventorySummary(); updateDraftsButton(); if (visibleDrafts().length && !currentDraftId) showDraftRestoreBanner(); }, 800);
 })();
 
 
