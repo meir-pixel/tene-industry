@@ -2947,7 +2947,8 @@ function openShapeEditor(palletId, itemId) {
     elAngles: item.elAngles || null,
     is3d: item.is3d || 0,
     quantity: item.qty || 1,
-  } : { quantity: item?.qty || 1 });
+    diameter: item.diameter || 12,
+  } : { quantity: item?.qty || 1, diameter: item?.diameter || 12 });
 }
 
 function shapeSelected(data) {
