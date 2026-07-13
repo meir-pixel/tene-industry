@@ -1,5 +1,6 @@
 const SUPPORTED_DIAMETERS = new Set([6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 32, 36, 40]);
 const PARSER_VERSION = 'steel-document-parser-v1';
+const { getShapeTemplateByCode, normalizeShapeCode } = require('./shapeCatalog');
 
 function toNumber(value) {
   if (value === null || value === undefined) return null;
@@ -140,6 +141,131 @@ function wordsInBand(words, band) {
 
 function rowText(words) {
   return words.slice().sort((a, b) => a.x0 - b.x0).map(word => word.text).join(' ');
+}
+
+function firstText(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+  }
+  return '';
+}
+
+function shapeCodeFromText(value) {
+  const text = String(value || '').normalize('NFKC').trim();
+  if (!text) return null;
+  if (/^\d{2,4}$/.test(text)) return text;
+  const explicit = text.match(/(?:external\s*)?shape(?:\s*code)?\D{0,12}(\d{2,4})|(?:מס'?|מספר)?\s*צורה\D{0,12}(\d{2,4})|קוד\s*צורה\D{0,12}(\d{2,4})/i);
+  if (explicit) return explicit[1] || explicit[2] || explicit[3] || null;
+  const known = normalizeShapeCode(text);
+  return known || null;
+}
+
+function extractExternalShapeCode(row = {}) {
+  const direct = firstText(
+    row.externalShapeCode,
+    row.external_shape_code,
+    row.shapeCode,
+    row.shape_code,
+    row.shapeCodeRaw,
+    row.shape_code_raw,
+    row.cells?.shapeCode?.raw,
+    row.cells?.shapeCode?.value,
+    row.cells?.shape_code?.raw,
+    row.cells?.shape_code?.value
+  );
+  const directCode = shapeCodeFromText(direct);
+  if (directCode) return directCode;
+
+  const shapeText = firstText(
+    row.cells?.shape?.raw,
+    row.cells?.shape?.value,
+    row.shape_description,
+    row.shapeDescription,
+    row.text
+  );
+  const textCode = shapeCodeFromText(shapeText);
+  if (textCode) return textCode;
+
+  if (Array.isArray(row.words)) {
+    const allText = row.words.map(word => word.text).join(' ');
+    return shapeCodeFromText(allText);
+  }
+  return null;
+}
+
+function buildCatalogReviewNote(field, code, message, value, row, index = null) {
+  return {
+    scope: 'item',
+    field,
+    code,
+    severity: code === 'missing_required_fields' ? 'error' : 'review',
+    message,
+    value: value ?? null,
+    source: 'shape_catalog_mapping',
+    source_page: row?.page || null,
+    source_bbox: row?.bbox || null,
+    item_index: index,
+  };
+}
+
+function hasRequiredSteelFields(item = {}) {
+  return Number(item.diameter) > 0
+    && Number(item.quantity ?? item.qty) > 0
+    && Number(item.total_length_mm ?? item.length_mm ?? item.length ?? item.total_length_cm) > 0;
+}
+
+function applyShapeCatalogMapping(item = {}, row = {}, index = null) {
+  const externalShapeCode = extractExternalShapeCode(item) || extractExternalShapeCode(row);
+  const reviewNotes = Array.isArray(item.review_notes) ? [...item.review_notes] : [];
+  if (!externalShapeCode) {
+    return {
+      ...item,
+      status: item.status || 'ready_for_review',
+      review_notes: reviewNotes,
+    };
+  }
+
+  const template = getShapeTemplateByCode(externalShapeCode);
+  const base = {
+    ...item,
+    externalShapeCode,
+    external_shape_code: externalShapeCode,
+    review_notes: reviewNotes,
+  };
+
+  if (!template) {
+    base.shapeType = 'unknown';
+    base.shape_type = 'unknown';
+    base.shapeLabel = null;
+    base.shape_label = null;
+    base.status = 'requires_shape_edit';
+    base.review_status = 'needs_review';
+    base.review_notes.push(buildCatalogReviewNote('shape', 'unsupported_external_shape_code', 'External shape code is not in the canonical shape catalog; row requires Shape Editor review.', externalShapeCode, row, index));
+    return base;
+  }
+
+  base.shapeType = template.shapeType;
+  base.shape_type = template.shapeType;
+  base.shapeLabel = template.label;
+  base.shape_label = template.label;
+
+  if (!hasRequiredSteelFields(base)) {
+    base.status = 'missing_required_fields';
+    base.review_status = 'needs_review';
+    base.review_notes.push(buildCatalogReviewNote('shape', 'missing_required_fields', 'External shape code was mapped, but diameter, quantity, or length is missing.', externalShapeCode, row, index));
+    return base;
+  }
+
+  if (template.shapeType === 'straight_bar') {
+    base.status = 'recognized';
+    base.review_status = base.review_notes.length ? 'needs_review' : 'parsed';
+    return base;
+  }
+
+  base.status = 'requires_shape_edit';
+  base.review_status = 'needs_review';
+  base.review_notes.push(buildCatalogReviewNote('shape', 'requires_shape_editor', 'External shape code is known, but this phase does not build a trusted shapeDraft for it automatically.', externalShapeCode, row, index));
+  return base;
 }
 
 function isDataRowItemToken(token) {
@@ -308,7 +434,7 @@ function parseTassaRow(row, index) {
   };
   const confidence = Math.min(...Object.values(fieldConfidence));
 
-  return {
+  const parsedItem = {
     original_row_number: itemNumber ? String(itemNumber) : String(index + 1),
     item_number: itemNumber ? String(itemNumber) : null,
     element_name: wordsInBand(row.words, TASSA_COLUMNS.element_name).map(word => word.text).join(' ') || null,
@@ -347,6 +473,8 @@ function parseTassaRow(row, index) {
     review_status: confidence >= 0.9 && !reviewNotes.length ? 'parsed' : 'needs_review',
     review_notes: reviewNotes.map(note => ({ ...note, item_index: index })),
   };
+
+  return applyShapeCatalogMapping(parsedItem, row, index);
 }
 
 function parseTassaEasybar(tokens, input = {}) {
@@ -407,8 +535,10 @@ function parseSteelDocument(input = {}) {
 
 module.exports = {
   PARSER_VERSION,
+  applyShapeCatalogMapping,
   detectDocumentType,
   detectParsingProfile,
+  extractExternalShapeCode,
   normalizeTokens,
   parseSteelDocument,
   reconstructTassaRows,

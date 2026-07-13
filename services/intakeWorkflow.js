@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { buildFullShapeSnapshot, buildMachineProfilesPlaceholder } = require('./shapeSnapshot');
+const { getShapeTemplateByCode } = require('./shapeCatalog');
 const { rebarKgPerMeter } = require('../constants');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 
@@ -343,8 +344,44 @@ function intakeItemNote(item = {}) {
   return firstTextValue(item.notes, item.note, item.shape_description, item.shapeDescription);
 }
 
+function externalShapeCodeFromItem(item = {}) {
+  return firstTextValue(item.externalShapeCode, item.external_shape_code, item.shapeCode, item.shape_code);
+}
+
+function itemRequiresShapeCatalogReview(item = {}) {
+  const status = String(item.status || item.review_status || '').trim();
+  if (status === 'requires_shape_edit' || status === 'missing_required_fields') return true;
+  const shapeType = String(item.shapeType || item.shape_type || '').trim();
+  if (shapeType === 'unknown') return true;
+
+  const externalShapeCode = externalShapeCodeFromItem(item);
+  if (!externalShapeCode) return false;
+  const template = getShapeTemplateByCode(externalShapeCode);
+  if (!template) return true;
+  return template.shapeType !== 'straight_bar';
+}
+
+function addCatalogReviewNote(reviewNotes, item = {}) {
+  if (!itemRequiresShapeCatalogReview(item)) return reviewNotes;
+  const externalShapeCode = externalShapeCodeFromItem(item) || null;
+  const template = externalShapeCode ? getShapeTemplateByCode(externalShapeCode) : null;
+  const code = template ? 'requires_shape_editor' : 'unsupported_external_shape_code';
+  pushReviewNote(reviewNotes, {
+    scope: 'item',
+    field: 'shape',
+    severity: 'review',
+    code,
+    message: template
+      ? 'Known external shape code requires Shape Editor confirmation before approval.'
+      : 'Shape is unknown or not mapped to the canonical shape catalog.',
+    value: externalShapeCode || item.shapeType || item.shape_type || null,
+    source: 'shape_catalog_mapping',
+  });
+  return reviewNotes;
+}
+
 function normalizeIntakeItem(item = {}) {
-  const reviewNotes = normalizeReviewNotes(item.review_notes || item.reviewNotes);
+  const reviewNotes = addCatalogReviewNote(normalizeReviewNotes(item.review_notes || item.reviewNotes), item);
   const structElement = intakeItemElementName(item);
   const note = intakeItemNote(item);
   const spiral = normalizeOcrSpiralItem(item);
@@ -366,10 +403,15 @@ function normalizeIntakeItem(item = {}) {
       note,
       structElement,
       struct_element: structElement,
+      externalShapeCode: externalShapeCodeFromItem(item) || null,
+      external_shape_code: externalShapeCodeFromItem(item) || null,
+      shapeType: item.shapeType || item.shape_type || null,
+      shapeLabel: item.shapeLabel || item.shape_label || null,
+      status: item.status || item.review_status || null,
       reviewNotes,
       review_notes: reviewNotes,
     };
-    normalized.shapeSnapshot = buildIntakeShapeSnapshot(item, normalized);
+    normalized.shapeSnapshot = itemRequiresShapeCatalogReview(item) ? null : buildIntakeShapeSnapshot(item, normalized);
     return normalized;
   }
   const sourceSegments = Array.isArray(item.segments) ? item.segments : [];
@@ -398,10 +440,15 @@ function normalizeIntakeItem(item = {}) {
     note,
     structElement,
     struct_element: structElement,
+    externalShapeCode: externalShapeCodeFromItem(item) || null,
+    external_shape_code: externalShapeCodeFromItem(item) || null,
+    shapeType: item.shapeType || item.shape_type || null,
+    shapeLabel: item.shapeLabel || item.shape_label || null,
+    status: item.status || item.review_status || null,
     reviewNotes,
     review_notes: reviewNotes,
   };
-  normalized.shapeSnapshot = buildIntakeShapeSnapshot(item, normalized);
+  normalized.shapeSnapshot = itemRequiresShapeCatalogReview(item) ? null : buildIntakeShapeSnapshot(item, normalized);
   return normalized;
 }
 
@@ -449,6 +496,7 @@ function shapeSnapshotId(item = {}, shapeType = 'bar') {
 }
 
 function buildIntakeShapeSnapshot(item = {}, normalized = {}) {
+  if (itemRequiresShapeCatalogReview({ ...item, ...normalized })) return null;
   const now = new Date().toISOString();
   const spiral = normalizeOcrSpiralItem({ ...item, ...normalized });
   const sides = Array.isArray(normalized.sides) ? normalized.sides.map(Number).filter(value => Number.isFinite(value) && value > 0) : [];
