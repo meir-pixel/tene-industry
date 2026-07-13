@@ -468,6 +468,7 @@ module.exports = function createOrdersRouter(deps) {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.orderId);
     if (!order) return res.status(404).json({ error: 'order not found' });
     if (order.locked) return res.status(403).json({ error: 'הזמנה נעולה' });
+    if (hasOrderLeftFactory(order)) return res.status(409).json({ error: 'לא ניתן להוסיף פריט אחרי שההזמנה יצאה מהמפעל' });
 
     try {
       const item = cleanItemPayload(req.body, { shape_name: '', diameter: 12, quantity: 1, total_length_mm: 0, segments: '[]' });
@@ -494,13 +495,17 @@ module.exports = function createOrdersRouter(deps) {
   });
   router.patch('/orders/:orderId/items/:itemId', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const item = db.prepare(`
-      SELECT i.*, p.order_id, o.order_num
+      SELECT i.*, p.order_id, o.order_num, o.locked, o.status AS order_status
       FROM items i
       JOIN pallets p ON p.id = i.pallet_id
       JOIN orders o ON o.id = p.order_id
       WHERE i.id=? AND p.order_id=?
     `).get(req.params.itemId, req.params.orderId);
     if (!item) return res.status(404).json({ error: 'item not found' });
+    if (item.locked) return res.status(403).json({ error: 'order is locked' });
+    if (hasOrderLeftFactory({ status: item.order_status })) {
+      return res.status(409).json({ error: 'לא ניתן לערוך פריט אחרי שההזמנה יצאה מהמפעל' });
+    }
 
     let cleanItem;
     try {
@@ -553,7 +558,7 @@ module.exports = function createOrdersRouter(deps) {
 
   router.delete('/orders/:orderId/items/:itemId', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const item = db.prepare(`
-      SELECT i.*, p.order_id, o.order_num, o.locked
+      SELECT i.*, p.order_id, o.order_num, o.locked, o.status AS order_status
       FROM items i
       JOIN pallets p ON p.id = i.pallet_id
       JOIN orders o ON o.id = p.order_id
@@ -561,8 +566,8 @@ module.exports = function createOrdersRouter(deps) {
     `).get(req.params.itemId, req.params.orderId);
     if (!item) return res.status(404).json({ error: 'item not found' });
     if (item.locked) return res.status(403).json({ error: 'order is locked' });
-    if (Number(item.produced_qty || 0) > 0) {
-      return res.status(409).json({ error: 'cannot delete item after production started' });
+    if (hasOrderLeftFactory({ status: item.order_status })) {
+      return res.status(409).json({ error: 'לא ניתן למחוק פריט אחרי שההזמנה יצאה מהמפעל' });
     }
 
     const before = JSON.stringify({
@@ -628,27 +633,27 @@ module.exports = function createOrdersRouter(deps) {
     res.json({ success: true });
   });
 
-  function canDeleteOrder(order, role) {
-    if (role === 'manager' || role === 'admin') return true;
-    if (role !== 'office') return false;
+  function hasOrderLeftFactory(order) {
     const status = normalizeOrderStatus(order.status);
     return [
-      ORDER_STATUS.PENDING_APPROVAL,
-      ORDER_STATUS.CUSTOMER_PENDING_APPROVAL,
-      ORDER_STATUS.CANCELLED,
+      ORDER_STATUS.ON_THE_WAY,
+      ORDER_STATUS.SENT,
+      ORDER_STATUS.DELIVERY_PROBLEM,
+      ORDER_STATUS.DELIVERED_CONFIRMED,
     ].includes(status);
+  }
+
+  function canDeleteOrder(order, role) {
+    if (!['office', 'manager', 'admin'].includes(role)) return false;
+    return !hasOrderLeftFactory(order);
   }
 
   router.delete('/orders/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
     if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
     if (order.locked) return res.status(403).json({ error: 'לא ניתן למחוק הזמנה נעולה' });
-    const started = db.prepare(
-      'SELECT COUNT(*) as c FROM items WHERE pallet_id IN (SELECT id FROM pallets WHERE order_id=?) AND produced_qty > 0'
-    ).get(order.id);
-    if (started.c > 0) return res.status(409).json({ error: 'לא ניתן למחוק הזמנה שהתחיל בה ייצור' });
     if (!canDeleteOrder(order, req.userRole)) {
-      return res.status(403).json({ error: 'רק מנהל יכול למחוק הזמנה שכבר אושרה או התקדמה לייצור' });
+      return res.status(403).json({ error: 'לא ניתן למחוק הזמנה אחרי שיצאה מהמפעל' });
     }
 
     const before = JSON.stringify({ order_num: order.order_num, status: order.status });
