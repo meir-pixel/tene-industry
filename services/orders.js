@@ -13,8 +13,8 @@ function validateShapeGeometry(segments) {
     if (typeof seg.angle_deg !== 'number') {
       return { valid: false, error: `קטע ${i + 1}: זווית חייבת להיות מספר` };
     }
-    if (seg.angle_deg < 0 || seg.angle_deg > 180) {
-      return { valid: false, error: `קטע ${i + 1}: זווית ${seg.angle_deg}° חייבת להיות בין 0° ל-180°` };
+    if (seg.angle_deg < 0 || seg.angle_deg > 360) {
+      return { valid: false, error: `קטע ${i + 1}: זווית ${seg.angle_deg}° חייבת להיות בין 0° ל-360°` };
     }
   }
   if (segments.length > 30) {
