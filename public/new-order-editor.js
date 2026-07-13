@@ -290,6 +290,28 @@
     return total;
   }
 
+  function draftItems(payload = {}) {
+    return (payload.pallets || []).flatMap(pallet => Array.isArray(pallet?.items) ? pallet.items : []);
+  }
+
+  function firstNonEmpty(values = []) {
+    return values.map(value => String(value || '').trim()).find(Boolean) || '';
+  }
+
+  function firstUnique(values = [], limit = 2) {
+    const seen = new Set();
+    return values
+      .map(value => String(value || '').trim())
+      .filter(Boolean)
+      .filter(value => {
+        const key = value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, limit);
+  }
+
   function isMeaningfulOrderDraft(draft = {}) {
     const customer = draft.customer || {};
     const delivery = draft.delivery || {};
@@ -305,21 +327,38 @@
   function buildDraftSummary(payload = {}) {
     const customer = payload.customer || {};
     const delivery = payload.delivery || {};
+    const items = draftItems(payload);
     const itemsCount = draftItemCount(payload);
     const estimatedWeightKg = draftEstimatedWeight(payload);
+    const siteOrAddress = firstNonEmpty([delivery.siteName, delivery.address]) || 'ללא אתר';
+    const elementNames = firstUnique(items.map(item => firstNonEmpty([
+      item?.structElement,
+      item?.struct_element,
+      item?.elementName,
+      item?.element_name,
+      item?.element,
+    ])));
+    const shapeNames = firstUnique(items.map(item => firstNonEmpty([
+      item?.shapeName,
+      item?.shape_name,
+      item?.name,
+    ])));
     return {
       customerName: String(customer.name || '').trim(),
-      siteName: String(delivery.siteName || delivery.address || '').trim(),
+      siteName: String(delivery.siteName || '').trim(),
+      siteOrAddress,
       deliveryDate: String(delivery.date || '').trim(),
       itemsCount,
       estimatedWeightKg,
+      elementNames,
+      shapeNames,
     };
   }
 
   function buildDraftTitle(summary = {}) {
     const parts = [
-      summary.customerName || 'ללא לקוח',
-      summary.siteName || '',
+      summary.customerName || 'טיוטה ללא לקוח',
+      summary.siteOrAddress || summary.siteName || '',
       summary.itemsCount ? summary.itemsCount + ' פריטים' : '',
     ].filter(Boolean);
     return parts.join(' / ') || 'טיוטת הזמנה';
@@ -370,6 +409,57 @@
     return 'עודכן לפני ' + days + ' ימים';
   }
 
+  function draftNameLine(summary = {}) {
+    const names = Array.isArray(summary.elementNames) && summary.elementNames.length
+      ? summary.elementNames
+      : (Array.isArray(summary.shapeNames) ? summary.shapeNames : []);
+    return names.filter(Boolean).slice(0, 2).join(', ');
+  }
+
+  function draftDisplaySummary(draft = {}) {
+    return {
+      ...buildDraftSummary(draft.payload || {}),
+      ...(draft.summary || {}),
+    };
+  }
+
+  function draftPrimaryLine(summary = {}) {
+    return [
+      summary.customerName || 'טיוטה ללא לקוח',
+      summary.siteOrAddress || summary.siteName || 'ללא אתר',
+    ].filter(Boolean).join(' / ');
+  }
+
+  function draftMetaLine(summary = {}) {
+    return [
+      summary.deliveryDate ? shortDate(summary.deliveryDate) : '',
+      (summary.itemsCount || 0) + ' פריטים',
+      formatKg(summary.estimatedWeightKg || 0),
+    ].filter(Boolean).join(' · ');
+  }
+
+  function updateDraftRestoreBannerContent() {
+    const banner = document.getElementById('orderDraftRestoreBanner');
+    if (!banner) return;
+    const draft = visibleDrafts()[0];
+    const summary = draft ? draftDisplaySummary(draft) : {};
+    const relative = draft ? relativeDraftTime(draft.updatedAt) : '';
+    const nameLine = draftNameLine(summary);
+    const detail = draft ? [
+      draftPrimaryLine(summary),
+      draftMetaLine(summary),
+      relative,
+    ].filter(Boolean).join(' · ') : 'נמצאו טיוטות שלא נשמרו';
+    const info = banner.querySelector('.order-drafts-banner-info');
+    if (info) {
+      info.innerHTML = `
+        <strong>נמצאה טיוטה</strong>
+        <span>${escapeHtml(detail)}</span>
+        ${nameLine ? `<small>${escapeHtml(nameLine)}</small>` : ''}
+      `;
+    }
+  }
+
   function ensureDraftsUi() {
     const header = document.querySelector('body[data-page="new"] .order-min-header, body[data-page="new"] .order-pro-header');
     if (!header || document.getElementById('orderDraftsButton')) return;
@@ -406,10 +496,15 @@
     banner.className = 'order-drafts-banner';
     banner.hidden = true;
     banner.innerHTML = `
-      <span>נמצאו טיוטות שלא נשמרו</span>
-      <button type="button" data-draft-action="continue-last">המשך האחרונה</button>
-      <button type="button" data-draft-action="open-list">פתח רשימה</button>
-      <button type="button" data-draft-action="dismiss">התעלם</button>
+      <div class="order-drafts-banner-info">
+        <strong>נמצאה טיוטה</strong>
+        <span>נמצאו טיוטות שלא נשמרו</span>
+      </div>
+      <div class="order-drafts-banner-actions">
+        <button type="button" data-draft-action="continue-last">המשך האחרונה</button>
+        <button type="button" data-draft-action="open-list">פתח רשימה</button>
+        <button type="button" data-draft-action="dismiss">התעלם</button>
+      </div>
     `;
     const context = main.querySelector('.order-min-context, .order-pro-context');
     if (context) main.insertBefore(banner, context.nextSibling);
@@ -417,6 +512,8 @@
     banner.addEventListener('click', event => {
       const action = event.target.closest('[data-draft-action]')?.dataset.draftAction;
       if (!action) return;
+      event.preventDefault();
+      event.stopPropagation();
       if (action === 'continue-last') continueDraft(visibleDrafts()[0]?.draftId);
       if (action === 'open-list') openDraftsPopover();
       if (action === 'dismiss') hideDraftRestoreBanner();
@@ -429,6 +526,7 @@
     const banner = ensureDraftRestoreBanner();
     if (!banner) return;
     banner.hidden = visibleDrafts().length === 0;
+    updateDraftRestoreBannerContent();
   }
 
   function hideDraftRestoreBanner() {
@@ -451,18 +549,14 @@
       </div>
       <div class="order-drafts-list">
         ${drafts.map(draft => {
-          const s = draft.summary || {};
-          const meta = [
-            s.siteName || 'ללא אתר',
-            s.deliveryDate ? shortDate(s.deliveryDate) : '',
-            (s.itemsCount || 0) + ' פריטים',
-            formatKg(s.estimatedWeightKg || 0),
-          ].filter(Boolean).join(' · ');
+          const s = draftDisplaySummary(draft);
+          const nameLine = draftNameLine(s);
           return `
             <article class="order-draft-row" data-draft-id="${escapeHtml(draft.draftId)}">
               <div class="order-draft-main">
-                <strong>${escapeHtml(s.customerName || 'ללא לקוח')}</strong>
-                <span>${escapeHtml(meta)}</span>
+                <strong>${escapeHtml(draftPrimaryLine(s))}</strong>
+                <span>${escapeHtml(draftMetaLine(s))}</span>
+                ${nameLine ? `<em>${escapeHtml(nameLine)}</em>` : ''}
                 <small>${escapeHtml(relativeDraftTime(draft.updatedAt))}</small>
               </div>
               <div class="order-draft-actions">
