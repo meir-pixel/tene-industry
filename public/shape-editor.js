@@ -1437,7 +1437,7 @@ class ShapeEditorModal {
     overlay.innerHTML = `
 <style>
 #seOverlay {
-  position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:500;
+  position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:2000;
   display:flex;align-items:center;justify-content:center;
   opacity:0;pointer-events:none;transition:opacity 0.2s;backdrop-filter:blur(4px);
 }

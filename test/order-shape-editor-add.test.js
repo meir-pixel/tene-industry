@@ -10,7 +10,7 @@ const newOrderEditor = () => fs.readFileSync(newOrderEditorPath, 'utf8');
 
 test('orders manual add uses the shared shape editor, not the legacy manual form', () => {
   const html = orders();
-  assert.match(html, /src="\/shape-editor\.js\?v=56"/);
+  assert.match(html, /src="\/shape-editor\.js\?v=57"/);
   assert.match(html, /new ShapeEditorModal\(shapeSelectedFromOrder\)/);
   assert.match(html, /function openAddManualItem\(event\) \{[\s\S]*openOrderShapeEditorForAdd\(event, orderId\);[\s\S]*?\n\}/);
   assert.doesNotMatch(html, /openManualItemAdd/);
