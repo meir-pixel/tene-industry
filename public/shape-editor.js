@@ -1530,7 +1530,17 @@ class ShapeEditorModal {
 #seModal .se-stat-value{font-size:22px;font-weight:900;color:#e07b39;}
 #seModal .se-stat-unit{font-size:12px;color:#7a93ab;font-weight:400;}
 #seModal .se-table-wrap{flex:1;overflow-y:auto;}
-#seModal .se-table{width:100%;border-collapse:collapse;}
+#seModal .se-table{width:100%;min-width:0!important;border-collapse:collapse;}
+#seModal .se-table,
+#seModal .se-table thead,
+#seModal .se-table tbody,
+#seModal .se-table tr,
+#seModal .se-table th,
+#seModal .se-table td{
+  box-sizing:border-box!important;
+  min-width:0!important;
+  max-width:100%!important;
+}
 #seModal .se-table th{
   text-align:right;font-size:10px;font-weight:700;color:#7a93ab;text-transform:uppercase;
   letter-spacing:0.5px;padding:8px 10px;border-bottom:1px solid #e2e8ef;
@@ -2057,6 +2067,7 @@ class ShapeEditorModal {
 #seModal .se-family-row td{background:#fff;border-top:1px solid #d8dde5;border-bottom:1px solid #d8dde5;}
 #seModal .se-family-row td:first-child{border-right:1px solid #d8dde5;border-radius:0 8px 8px 0;}
 #seModal .se-family-row td:last-child{border-left:1px solid #d8dde5;border-radius:8px 0 0 8px;}
+#seModal .se-family-row>td[colspan]{grid-column:1/-1!important;width:100%;min-width:0;display:block;}
 #seModal .se-family-label{font-size:11px;font-weight:900;color:#526070;line-height:1.25;align-self:stretch;display:flex;align-items:center;}
 #seModal .se-family-editor-table tr{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,1fr)!important;}
 #seModal .se-family-editor-table .se-zone-row{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) 30px!important;}
@@ -2137,8 +2148,8 @@ class ShapeEditorModal {
 #seModal .se-panel-summary{display:none!important;}
 #seModal .se-table-wrap{padding:6px 10px 8px;background:#eef0f3;overflow-x:hidden;}
 #seModal .se-table th{font-size:10px;color:#5f6878;text-transform:none;letter-spacing:0;font-weight:900;padding:4px 5px;}
-#seModal .se-table tr{grid-template-columns:28px minmax(104px,1fr) minmax(70px,.62fr) 22px;gap:5px;align-items:center;}
-#seModal .se-table.se-table-3d tr{grid-template-columns:28px minmax(112px,1fr) minmax(82px,.72fr) minmax(74px,.66fr) 22px;gap:5px;align-items:center;}
+#seModal .se-table tr{grid-template-columns:28px minmax(0,1fr) minmax(0,.62fr) 22px;gap:5px;align-items:center;}
+#seModal .se-table.se-table-3d tr{grid-template-columns:28px minmax(0,1fr) minmax(0,.72fr) minmax(0,.66fr) 22px;gap:5px;align-items:center;}
 #seModal .se-table td{background:#fff;border:1px solid #d8dde5;border-radius:6px!important;padding:3px;min-width:0;overflow:hidden;}
 #seModal .se-table td.se-empty-cell{background:transparent;border:0!important;padding:0;box-shadow:none;display:flex;align-items:center;justify-content:center;}
 #seModal .se-no-bend{font-size:13px;color:#aab8c8;font-weight:900;line-height:1;}
@@ -2150,7 +2161,7 @@ class ShapeEditorModal {
 #seModal .se-param-unit{grid-area:unit;color:#657386;font-size:8px;font-weight:900;text-align:center;min-width:18px;}
 #seModal .se-param-example{display:none;}
 #seModal .se-family-label{font-size:12px;color:#243047;}
-#seModal .se-table.se-table-2d tr{grid-template-columns:28px minmax(116px,1fr) minmax(72px,.58fr) 22px;gap:5px;align-items:center;}
+#seModal .se-table.se-table-2d tr{grid-template-columns:28px minmax(0,1fr) minmax(0,.58fr) 22px;gap:5px;align-items:center;}
 #seModal .se-family-editor-table tr{grid-template-columns:minmax(0,1fr)!important;gap:8px;}
 #seModal .se-family-editor-table .se-zone-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(72px,.75fr) 30px!important;}
 #seModal .se-family-editor-table .se-family-row td{display:block;}
@@ -4143,7 +4154,10 @@ class ShapeEditorModal {
   }
 
   open(existingData) {
+    if (!this._el || !document.body.contains(this._el)) this._ensureDom();
     window._seEditor = this;
+    this._hideSaveBar?.();
+    this._el.classList.remove('show');
     // Sync orbit controls and cursor to current view mode on open
     const orbitCtrl = document.getElementById('se3DOrbitCtrl');
     const svgWrap   = document.getElementById('seSvgWrap');
@@ -4194,6 +4208,7 @@ class ShapeEditorModal {
 
   close() {
     if (window._seResetDrag) window._seResetDrag();
+    this._hideSaveBar?.();
     this._el.classList.remove('show');
     document.body.classList.remove('se-open');
   }
