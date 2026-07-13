@@ -50,3 +50,16 @@ test('new order CSV import maps location aliases to struct element state', () =>
   assert.match(js, /structElement: elementName/);
   assert.match(js, /struct_element: elementName/);
 });
+
+test('new order local multi-drafts stay client-side and expose compact draft actions', () => {
+  const js = newOrderEditor();
+  assert.match(js, /NEW_ORDER_DRAFTS_KEY = 'ironbend:new-order:drafts:v2'/);
+  assert.match(js, /function scheduleDraftAutosave\(\)/);
+  assert.match(js, /function continueDraft\(draftId\)/);
+  assert.match(js, /function deleteDraft\(draftId\)/);
+  assert.match(js, /function showDraftRestoreBanner\(\)/);
+  assert.match(js, /MAX_LOCAL_DRAFTS = 20/);
+  assert.match(js, /DRAFT_TTL_MS = 14 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(js, /writeJsonStorage\(NEW_ORDER_DRAFTS_KEY/);
+  assert.doesNotMatch(js, /\/api\/order-drafts|\/api\/drafts|order_drafts|draft_orders/);
+});
