@@ -305,12 +305,12 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 }
 
 @media print{
-  html,body{width:210mm;margin:0!important;background:#fff;padding:0;}
+  html,body{width:210mm;margin:0!important;padding:0!important;background:#fff;direction:ltr!important;}
   .screen-only{display:none!important;}
   body.preview-locked .cards-pages{display:none!important;}
   body.preview-locked .print-blocked-page{display:flex!important;width:210mm;height:297mm;align-items:center;justify-content:center;text-align:center;font-family:'Heebo',Arial,sans-serif;font-size:18px;font-weight:900;color:#1a2332;padding:20mm;}
-  .cards-pages{display:block!important;margin:0!important;padding:0!important;}
-  .cards-page{width:210mm!important;height:297mm!important;margin:0!important;overflow:hidden!important;box-shadow:none!important;break-after:page;page-break-after:always;}
+  .cards-pages{display:block!important;margin:0!important;padding:0!important;direction:ltr!important;width:210mm!important;}
+  .cards-page{width:210mm!important;height:297mm!important;margin:0!important;padding:0!important;overflow:hidden!important;box-shadow:none!important;break-after:page;page-break-after:always;position:relative!important;left:0!important;}
   .cards-page:last-child{break-after:auto;page-break-after:auto;}
   .cards-grid{
     display:grid!important;
