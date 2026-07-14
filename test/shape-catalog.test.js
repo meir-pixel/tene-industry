@@ -15,6 +15,7 @@ test('shape catalog maps initial external shape codes', () => {
   assert.equal(getShapeTemplateByCode('100').shapeType, 'straight_bar');
   assert.equal(getShapeTemplateByCode('103').shapeType, 'closed_stirrup');
   assert.equal(getShapeTemplateByCode('225').shapeType, 'rounded_end_bar');
+  assert.equal(getShapeTemplateByCode('103').internalShapeCode, 'closed_stirrup_rect_hook');
 });
 
 test('shape catalog resolves Hebrew aliases for closed stirrup', () => {
@@ -64,6 +65,14 @@ test('shape catalog has no duplicate external shape codes', () => {
 
 test('shape catalog exposes supported canonical shape types', () => {
   assert.equal(isSupportedShapeType('straight_bar'), true);
+  assert.equal(isSupportedShapeType('open_u_bar'), true);
   assert.equal(isSupportedShapeType('mesh_rectangular'), true);
   assert.equal(isSupportedShapeType('missing_shape'), false);
+});
+
+test('shape catalog validation returns internal template identity', () => {
+  const result = validateShapeTemplateInput('closed_stirrup', { width: 300, height: 600 });
+  assert.equal(result.valid, true);
+  assert.equal(result.internalShapeCode, 'closed_stirrup_rect_hook');
+  assert.equal(result.templateUid, 'tpl_system_tassa_103');
 });

@@ -6,6 +6,7 @@ const SHAPE_TYPES = Object.freeze({
   CLOSED_STIRRUP: 'closed_stirrup',
   ROUNDED_END_BAR: 'rounded_end_bar',
   OVERLAP_BAR: 'overlap_bar',
+  OPEN_U_BAR: 'open_u_bar',
   SPIRAL_BAR: 'spiral_bar',
   MESH_RECTANGULAR: 'mesh_rectangular',
   ROUND_PILE_CAGE: 'round_pile_cage',
@@ -16,6 +17,8 @@ const SHAPE_CATALOG = Object.freeze([
   Object.freeze({
     externalShapeCode: '100',
     shapeType: SHAPE_TYPES.STRAIGHT_BAR,
+    internalShapeCode: 'straight_bar',
+    templateUid: 'tpl_system_straight_bar_100',
     family: 'bars',
     label: 'מוט ישר',
     aliases: Object.freeze(['100', "מס' צורה 100", 'shape 100']),
@@ -26,6 +29,8 @@ const SHAPE_CATALOG = Object.freeze([
   Object.freeze({
     externalShapeCode: '103',
     shapeType: SHAPE_TYPES.CLOSED_STIRRUP,
+    internalShapeCode: 'closed_stirrup_rect_hook',
+    templateUid: 'tpl_system_tassa_103',
     family: 'bars',
     label: 'חישוק מלבני',
     aliases: Object.freeze(['103', 'חישוק', 'סטיראפ', "מס' צורה 103"]),
@@ -38,6 +43,8 @@ const SHAPE_CATALOG = Object.freeze([
   Object.freeze({
     externalShapeCode: '225',
     shapeType: SHAPE_TYPES.ROUNDED_END_BAR,
+    internalShapeCode: 'rounded_end_bar',
+    templateUid: 'tpl_system_rounded_end_225',
     family: 'bars',
     label: 'קצה מעוגל',
     aliases: Object.freeze(['225', 'מעוגל', 'קצה מעוגל', "מס' צורה 225"]),
@@ -133,6 +140,8 @@ function validateShapeTemplateInput(shapeType, input = {}) {
   return {
     valid: missingParameters.length === 0,
     shapeType: template.shapeType,
+    internalShapeCode: template.internalShapeCode,
+    templateUid: template.templateUid,
     externalShapeCode: template.externalShapeCode,
     missingParameters,
     errors: missingParameters.map(name => `${name} is required`),
