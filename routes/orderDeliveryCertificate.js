@@ -122,7 +122,11 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
 
   const workSummary = buildDeliveryWorkSummary(allItems, parseSegs, calcItemWeight);
   const wTotal = allItems.reduce((sum, item) => sum + calcItemWeight(item), 0);
+  // 3% waste addition — same factor as orders.billing_weight (routes/orders.js)
+  const wWaste = wTotal * 0.03;
+  const wBilling = wTotal * 1.03;
   const fmt1 = v => Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+  const fmt2 = v => Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
   const fmtTon = v => (Number(v || 0) / 1000).toFixed(2);
 
   // Position range label
@@ -268,9 +272,17 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
     <div class="summary-box" data-summary-contract="steel-cutting-bending">
       <div class="summary-title">&#1505;&#1497;&#1499;&#1493;&#1501; &#1505;&#1506;&#1497;&#1508;&#1497; &#1506;&#1489;&#1493;&#1491;&#1492; &#1500;&#1502;&#1513;&#1500;&#1493;&#1495;</div>
       ${workSummaryRowsHtml}
+      <div class="sum-row">
+        <span class="sum-lbl">סה"כ משקל תיאורטי:</span>
+        <span class="sum-val">${fmt2(wTotal)} ק"ג</span>
+      </div>
+      <div class="sum-row" style="color:#c0392b;">
+        <span class="sum-lbl" style="color:#c0392b;">תוספת 3% פערי משקלים:</span>
+        <span class="sum-val" style="color:#c0392b;font-weight:900;">${fmt2(wWaste)} ק"ג</span>
+      </div>
       <div class="sum-row sum-total">
-        <span class="sum-lbl"><b>&#1505;&#1492;&#1524;&#1499; &#1502;&#1513;&#1511;&#1500; &#1513;&#1505;&#1493;&#1508;&#1511;:</b></span>
-        <span class="sum-val"><b>${fmt1(wTotal)} &#1511;&#1524;&#1490; (&#1499;-${fmtTon(wTotal)} &#1496;&#1493;&#1503;)</b></span>
+        <span class="sum-lbl"><b>סה"כ משקל לחיוב:</b></span>
+        <span class="sum-val"><b>${fmt2(wBilling)} ק"ג</b></span>
       </div>
     </div>
   </div>
@@ -293,10 +305,22 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
     <tbody>${rows}</tbody>
     <tfoot>
       <tr>
-        <td colspan="5" style="text-align:right;">משקל כולל סופי ומאושר לעסקה</td>
-        <td class="total-val">${fmt1(wTotal)}</td>
+        <td colspan="5" style="text-align:right;background:#eef3f8;color:#1a2332;">סה"כ משקל תיאורטי:</td>
+        <td class="total-val" style="background:#eef3f8;color:#1a2332;">${fmt2(wTotal)}</td>
+        <td style="background:#eef3f8;"></td>
+        <td style="background:#eef3f8;color:#1a2332;">סה"כ כללי קומפלט · ${allItems.length} פריטים</td>
+      </tr>
+      <tr>
+        <td colspan="5" style="text-align:right;background:#fff;color:#c0392b;">תוספת 3% פערי משקלים:</td>
+        <td class="total-val" style="background:#fff;color:#c0392b;">${fmt2(wWaste)}</td>
+        <td style="background:#fff;"></td>
+        <td style="background:#fff;"></td>
+      </tr>
+      <tr>
+        <td colspan="5" style="text-align:right;">סה"כ משקל לחיוב:</td>
+        <td class="total-val">${fmt2(wBilling)}</td>
         <td></td>
-        <td>סה"כ כללי קומפלט · ${allItems.length} פריטים</td>
+        <td></td>
       </tr>
     </tfoot>
   </table>
