@@ -968,7 +968,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += splitTools;
   h += '<div class="pc-print-face">';
   h += '<div class="pc-print-main">';
-  var headMeta = [ORDER_NUM, CUSTOMER].filter(Boolean).join(' · ');
+  var orderShort = (ORDER_NUM.match(/\d/g) || []).join('').slice(-3);
+  var headMeta = [orderShort ? '#' + orderShort : '', CUSTOMER].filter(Boolean).join(' · ');
   h += '<div class="pc-print-head"><b style="white-space:nowrap">'+escapeHtml(itemOrderLineLabel(item))+badge+'</b><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:9px;font-weight:700;opacity:0.85;letter-spacing:0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(headMeta)+'</span><b style="white-space:nowrap">Ø '+escapeHtml(item.diameter)+'</b></span></div>';
   h += '<div class="pc-print-ref">'+printRef+'</div>';
   h += '<div class="pc-print-shape">'+shapeSvg+'</div>';
