@@ -244,13 +244,23 @@ function angleLabelSvg(text, x, y, color = '#c9621a') {
   return '<text data-angle-label="1" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="900" fill="' + color + '" stroke="white" stroke-width="3" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
 }
 
-function angleLabelPosition(corner, center, distance = 22) {
-  let vx = center ? corner[0] - center[0] : 1;
-  let vy = center ? corner[1] - center[1] : -1;
-  const len = Math.sqrt(vx * vx + vy * vy) || 1;
+function angleLabelPosition(previous, corner, next, distance = 22) {
+  // Place the label along the external bisector of the corner so it never
+  // lands on either arm segment or on the side-dimension labels
+  // (centroid-based placement collapses on Z/zigzag shapes).
+  const a = unitVector(corner, previous);
+  const b = unitVector(corner, next);
+  let vx = a[0] + b[0];
+  let vy = a[1] + b[1];
+  let len = Math.sqrt(vx * vx + vy * vy);
+  if (len < 0.001) {
+    vx = -a[1];
+    vy = a[0];
+    len = 1;
+  }
   vx /= len;
   vy /= len;
-  return [corner[0] + vx * distance, corner[1] + vy * distance];
+  return [corner[0] - vx * distance, corner[1] - vy * distance];
 }
 
 function rightAngleMarkerSvg(previous, corner, next, center, showLabel = true) {
@@ -262,7 +272,7 @@ function rightAngleMarkerSvg(previous, corner, next, center, showLabel = true) {
   const p3 = pointAt(corner, b, d);
   const marker = '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>';
   if (!showLabel) return marker;
-  const label = angleLabelPosition(corner, center, 22);
+  const label = angleLabelPosition(previous, corner, next, 22);
   return marker + angleLabelSvg('90°', label[0], label[1]);
 }
 
@@ -295,7 +305,7 @@ function angleMarkerSvg(previous, corner, next, angle, center) {
   const b = unitVector(corner, next);
   const p1 = pointAt(corner, a, 13);
   const p2 = pointAt(corner, b, 13);
-  const label = angleLabelPosition(corner, center, 22);
+  const label = angleLabelPosition(previous, corner, next, 22);
   return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' Q ' + corner[0].toFixed(1) + ',' + corner[1].toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + '" fill="none" stroke="#c9621a" stroke-width="1.4" stroke-linecap="round"/>' +
     angleLabelSvg(angleText(angle), label[0], label[1]);
 }
