@@ -3734,7 +3734,9 @@ class ShapeEditorModal {
 
   _setAngle(i, val) {
     if (!this.current) return;
-    const a = Math.min(360, Math.max(-360, Number(val) || 90));
+    const raw = Math.min(360, Math.max(-360, Number(val) || 90));
+    // Negative input is the same bend on the full turn: -30 is stored as 330.
+    const a = ((raw % 360) + 360) % 360;
     this.current.angles[i] = a;
     // ── Sync to azAngles (so 3D view stays consistent) ─────────────────
     // azAngles[i+1] = 180 - angles[i] so a default 90-degree bend displays as +90.
@@ -3758,7 +3760,8 @@ class ShapeEditorModal {
     const ang2d = 180 - az;
     if (i - 1 >= 0 && i - 1 < this.current.angles.length) {
       if (ang2d >= -360 && ang2d <= 360) {
-        this.current.angles[i - 1] = ang2d;
+        // Store on the full 0-360 turn (same convention as _setAngle): -30 ≡ 330.
+        this.current.angles[i - 1] = ((ang2d % 360) + 360) % 360;
       }
       // If outside range (e.g. "שמאל" +90 → ang2d=270), keep existing 2D angle
       // but flag the shape as 3D so the machine operator knows to check.

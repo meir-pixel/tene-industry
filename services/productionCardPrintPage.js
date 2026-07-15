@@ -429,7 +429,7 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
   segments:       cards.shapeSegmentsFromItem(it),
-  shape_svg:      cards.shapeSegmentsFromItem(it).length ? '' : (it.shape_svg || ''),
+  shape_svg:      cards.shapeSegmentsFromItem(it).length ? '' : ((it.virtual_card ? '' : cards.spiralShapeSvg(it)) || it.shape_svg || ''),
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   orderLineNo:    it.orderLineNo || it.order_line_no || it.line_no || it.lineNo || it.position || null,
@@ -601,8 +601,16 @@ function normalizeAngleValue(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Bend direction is encoded on a full 0-360 turn: -30 and 330 are the same
+// physical bend, so displayed values are normalized into [0,360).
+function displayBendAngleDeg(value) {
+  var n = normalizeAngleValue(value);
+  if (n === null) return null;
+  return ((n % 360) + 360) % 360;
+}
+
 function isPrintableBendAngle(angle) {
-  var n = normalizeAngleValue(angle);
+  var n = displayBendAngleDeg(angle);
   if (n === null) return false;
   if (Math.abs(n) < 0.001) return false;
   if (Math.abs(n - 180) < 0.001) return false;
@@ -610,7 +618,7 @@ function isPrintableBendAngle(angle) {
 }
 
 function angleText(angle) {
-  var n = normalizeAngleValue(angle);
+  var n = displayBendAngleDeg(angle);
   if (n === null) return '';
   return (Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : n.toFixed(1).replace(/\.0$/, '')) + '°';
 }

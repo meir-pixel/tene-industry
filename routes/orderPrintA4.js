@@ -343,8 +343,12 @@ function buildDimsHtml(segments) {
   for (var i=0; i<segments.length; i++) {
     var lbl = String.fromCharCode(0x05D0+i); // א,ב,ג...
     html += '<div class="seg-dim"><span class="seg-lbl">'+lbl+':</span> '+segments[i].length_mm+'</div>';
-    if (i < segments.length-1 && segments[i].angle_deg != null && segments[i].angle_deg !== 180) {
-      html += '<div class="seg-ang">∠ '+segments[i].angle_deg+'°</div>';
+    if (i < segments.length-1 && segments[i].angle_deg != null) {
+      // Bend direction is encoded on a full 0-360 turn: -30 displays as 330.
+      var normAng = ((Number(segments[i].angle_deg) % 360) + 360) % 360;
+      if (Number.isFinite(normAng) && normAng !== 180 && normAng !== 0) {
+        html += '<div class="seg-ang">∠ '+normAng+'°</div>';
+      }
     }
   }
   return html;
