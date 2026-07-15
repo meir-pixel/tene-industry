@@ -565,6 +565,12 @@ function closedStirrupSvg(parts) {
   svg += `<path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
   svg += `<path data-stirrup-marker="overlap" d="${markerPath}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter"/>`;
   svg += `<path d="${markerPath}" fill="none" stroke="#3a5070" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="miter"/>`;
+  if (parts.tailStart > 0) {
+    svg += `<text data-tail-dim="1" x="${(markerX - 4).toFixed(1)}" y="${(y + marker / 2).toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.4" paint-order="stroke fill" stroke-linejoin="round">${escapeHtml(displayLengthCm(parts.tailStart))}</text>`;
+  }
+  if (parts.tailEnd > 0) {
+    svg += `<text data-tail-dim="1" x="${((markerX + right) / 2).toFixed(1)}" y="${(markerY + 9).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.4" paint-order="stroke fill" stroke-linejoin="round">${escapeHtml(displayLengthCm(parts.tailEnd))}</text>`;
+  }
 
   [
     { x: midX, y: y - 11, value: parts.top },

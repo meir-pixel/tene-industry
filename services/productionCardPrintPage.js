@@ -850,6 +850,12 @@ function buildClosedStirrupSVG(parts) {
   s += '<path d="' + pd + '" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
   s += '<path data-stirrup-marker="overlap" d="' + markerPath + '" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter"/>';
   s += '<path d="' + markerPath + '" fill="none" stroke="#3a5070" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="miter"/>';
+  if (parts.tailStart > 0) {
+    s += '<text data-tail-dim="1" x="' + (markerX - 4).toFixed(1) + '" y="' + (y + marker / 2).toFixed(1) + '" text-anchor="end" dominant-baseline="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.4" paint-order="stroke fill" stroke-linejoin="round">' + displayLengthCm(parts.tailStart) + '</text>';
+  }
+  if (parts.tailEnd > 0) {
+    s += '<text data-tail-dim="1" x="' + ((markerX + right) / 2).toFixed(1) + '" y="' + (markerY + 9).toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.4" paint-order="stroke fill" stroke-linejoin="round">' + displayLengthCm(parts.tailEnd) + '</text>';
+  }
   [
     { x: midX, y: y - 11, value: parts.top },
     { x: right + 20, y: midY, value: parts.right },
@@ -951,7 +957,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   }
 
   var shapeSvg = shapeSvgForCard(item, segs);
-  var printRef = SHORT_REF || CUSTOMER || ORDER_NUM;
+  var elementName = String(item.struct_element || item.structElement || item.element_name || item.elementName || item.element || '').trim();
+  var printRef = escapeHtml(elementName || SHORT_REF || CUSTOMER || ORDER_NUM);
   var printLengthCm = Math.round((Number(item.total_length_mm || 0)) / 10);
   var allowSplit = !item.virtual_card;
   var splitTools = !allowSplit ? '<div class="pc-screen-tools"><span class="pc-split-state">'+(item.pile_card_type==='pile_master'?'כרטיס כלונס':'רכיב כלונס')+'</span></div>' : totalCards > 1
@@ -961,8 +968,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += splitTools;
   h += '<div class="pc-print-face">';
   h += '<div class="pc-print-main">';
-  var orderShort = ORDER_NUM ? ORDER_NUM.split('-').pop() : '';
-  h += '<div class="pc-print-head"><b>'+escapeHtml(itemHumanTitle(item))+badge+'</b><span style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;font-weight:700;opacity:0.75;letter-spacing:0.5px">#'+escapeHtml(orderShort)+'</span><b>Ø '+escapeHtml(item.diameter)+'</b></span></div>';
+  var headMeta = [ORDER_NUM, CUSTOMER].filter(Boolean).join(' · ');
+  h += '<div class="pc-print-head"><b style="white-space:nowrap">'+escapeHtml(itemOrderLineLabel(item))+badge+'</b><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:9px;font-weight:700;opacity:0.85;letter-spacing:0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(headMeta)+'</span><b style="white-space:nowrap">Ø '+escapeHtml(item.diameter)+'</b></span></div>';
   h += '<div class="pc-print-ref">'+printRef+'</div>';
   h += '<div class="pc-print-shape">'+shapeSvg+'</div>';
   h += '<div class="pc-print-bottom"><span>L = '+printLengthCm+' cm</span><span>PCS '+subQty+'</span><span>'+wProp+' kg</span></div>';
