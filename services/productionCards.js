@@ -241,7 +241,7 @@ function unitVector(from, to) {
 }
 
 function angleLabelSvg(text, x, y, color = '#c9621a') {
-  return '<text data-angle-label="1" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="900" fill="' + color + '" stroke="white" stroke-width="3" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
+  return '<text data-angle-label="1" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="11" font-family="Heebo,Arial" font-weight="900" fill="' + color + '" stroke="white" stroke-width="3.4" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
 }
 
 function angleLabelPosition(previous, corner, next, distance = 22) {
@@ -276,7 +276,7 @@ function rightAngleMarkerSvg(previous, corner, next) {
 }
 
 function dimensionLabelSvg(text, x, y, width = 38) {
-  return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.4" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
+  return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.8" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
 }
 
 function sideDimensionSvg(start, end, value, center, distance = 18) {
@@ -573,7 +573,7 @@ function closedStirrupSvg(parts) {
     { x: x - 20, y: midY, value: parts.left },
   ].forEach(label => {
     svg += `<rect x="${(label.x - 18).toFixed(1)}" y="${(label.y - 7).toFixed(1)}" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>`;
-    svg += `<text x="${label.x.toFixed(1)}" y="${label.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${escapeHtml(displayLengthCm(label.value))}</text>`;
+    svg += `<text x="${label.x.toFixed(1)}" y="${label.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">${escapeHtml(displayLengthCm(label.value))}</text>`;
   });
 
   [

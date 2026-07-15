@@ -328,17 +328,18 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .prod-card>:not(.pc-print-face){display:none!important;}
   .pc-print-face{display:grid!important;grid-template-columns:minmax(0,1fr) 27mm;width:100%;height:100%;background:#fff;direction:ltr;}
   .pc-print-main{display:grid;grid-template-rows:11mm 7mm minmax(0,1fr) 18.25mm;width:100%;height:100%;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
-  .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:8px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
+  .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:13.5px;font-weight:900;line-height:1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .pc-print-head span span{font-size:10.5px!important;}
+  .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:9.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
   .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
   .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
-  .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
+  .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:13px;font-weight:900;text-align:center;}
   .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
   .pc-print-bottom span:first-child{border-left:0;}
   .pc-print-qr-panel{display:grid;grid-template-rows:minmax(0,1fr) 22.25mm;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:#f5f7fa!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;transform:translate(-1.5mm,11mm);}
   .pc-print-qr-code canvas,.pc-print-qr-code img{width:22mm!important;height:22mm!important;display:block;}
-  .pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:9px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:10px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .prod-card{
     width:105mm!important;
     height:74.25mm!important;
@@ -731,7 +732,7 @@ function unitVector(from, to) {
 }
 
 function angleLabelSvg(text, x, y, color) {
-  return '<text data-angle-label="1" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="900" fill="' + (color || '#c9621a') + '" stroke="white" stroke-width="3" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
+  return '<text data-angle-label="1" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="11" font-family="Heebo,Arial" font-weight="900" fill="' + (color || '#c9621a') + '" stroke="white" stroke-width="3.4" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
 }
 
 function angleLabelPosition(previous, corner, next, distance) {
@@ -766,7 +767,7 @@ function rightAngleMarkerSvg(previous, corner, next) {
 }
 
 function dimensionLabelSvg(text, x, y, width = 38) {
-  return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.4" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
+  return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332" stroke="white" stroke-width="2.8" paint-order="stroke fill" stroke-linejoin="round">' + escapeHtml(text) + '</text>';
 }
 
 function sideDimensionSvg(start, end, value, center, distance = 18) {
@@ -856,7 +857,7 @@ function buildClosedStirrupSVG(parts) {
     { x: x - 20, y: midY, value: parts.left }
   ].forEach(function(label) {
     s += '<rect x="' + (label.x - 18).toFixed(1) + '" y="' + (label.y - 7).toFixed(1) + '" width="36" height="14" rx="3" fill="white" fill-opacity="0.94"/>';
-    s += '<text x="' + label.x.toFixed(1) + '" y="' + label.y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">' + displayLengthCm(label.value) + '</text>';
+    s += '<text x="' + label.x.toFixed(1) + '" y="' + label.y.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">' + displayLengthCm(label.value) + '</text>';
   });
   [
     [[x, bottom], [x, y], [right, y]],
