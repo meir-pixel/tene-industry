@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { buildFullShapeSnapshot, buildMachineProfilesPlaceholder } = require('./shapeSnapshot');
+const { mapOcrItemToShapeSnapshot } = require('./ocrShapeSnapshotMapper');
 const { rebarKgPerMeter } = require('../constants');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
 
@@ -343,6 +344,33 @@ function intakeItemNote(item = {}) {
   return firstTextValue(item.notes, item.note, item.shape_description, item.shapeDescription);
 }
 
+function applyOcrShapeSnapshotMapping(item = {}, normalized = {}) {
+  const result = mapOcrItemToShapeSnapshot({ item: { ...item, ...normalized }, source: item.source || {} });
+  if (result.status === 'not_applicable') return false;
+
+  if (result.status === 'success') {
+    normalized.shapeSnapshot = result.shapeSnapshot;
+    normalized.shape_review_status = 'ready';
+    normalized.requires_shape_edit = false;
+    return true;
+  }
+
+  normalized.requires_shape_edit = true;
+  normalized.shape_review_status = 'requires_shape_edit';
+  normalized.shape_review_reason = result.reason;
+  normalized.reviewNotes = normalizeReviewNotes(normalized.reviewNotes || normalized.review_notes);
+  pushReviewNote(normalized.reviewNotes, {
+    scope: 'item',
+    field: 'shape',
+    code: result.reason || 'requires_shape_edit',
+    message: `Shape requires review: ${result.reason || 'requires_shape_edit'}`,
+    value: result.mapping?.externalCode || item.externalShapeCode || item.externalCode || item.shapeCode || item.rawShapeCode || null,
+    source: 'ocr_shape_snapshot_mapper',
+  });
+  normalized.review_notes = normalized.reviewNotes;
+  return true;
+}
+
 function normalizeIntakeItem(item = {}) {
   const reviewNotes = normalizeReviewNotes(item.review_notes || item.reviewNotes);
   const structElement = intakeItemElementName(item);
@@ -369,7 +397,9 @@ function normalizeIntakeItem(item = {}) {
       reviewNotes,
       review_notes: reviewNotes,
     };
-    normalized.shapeSnapshot = buildIntakeShapeSnapshot(item, normalized);
+    if (!applyOcrShapeSnapshotMapping(item, normalized)) {
+      normalized.shapeSnapshot = buildIntakeShapeSnapshot(item, normalized);
+    }
     return normalized;
   }
   const sourceSegments = Array.isArray(item.segments) ? item.segments : [];
@@ -401,7 +431,9 @@ function normalizeIntakeItem(item = {}) {
     reviewNotes,
     review_notes: reviewNotes,
   };
-  normalized.shapeSnapshot = buildIntakeShapeSnapshot(item, normalized);
+  if (!applyOcrShapeSnapshotMapping(item, normalized)) {
+    normalized.shapeSnapshot = buildIntakeShapeSnapshot(item, normalized);
+  }
   return normalized;
 }
 

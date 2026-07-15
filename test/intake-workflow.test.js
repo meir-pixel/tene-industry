@@ -400,3 +400,91 @@ test('buildIntakeOrderPayload adds full Shape V2 snapshot to OCR approval items'
   assert.equal(snapshot.validation.valid, true);
   assert.equal(Object.hasOwn(snapshot, 'quantity'), false);
 });
+
+test('buildIntakeOrderPayload maps external OCR shape code through snapshot mapper', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    delivery_date: '2026-06-03',
+    delivery_address: 'Site A',
+    items: [{
+      sourceSystem: 'TASSA',
+      externalShapeCode: '103',
+      diameter: 8,
+      width: 950,
+      height: 150,
+      hookLength: 100,
+      quantity: 4,
+      shape_name: 'OCR coded stirrup',
+    }],
+  }, { calcWeightPerUnit: () => 1 });
+
+  const item = payload.pallets[0].items[0];
+  assert.equal(item.qty, 4);
+  assert.equal(item.shape_review_status, 'ready');
+  assert.equal(item.requires_shape_edit, false);
+  assert.equal(item.shapeSnapshot.shapeType, 'closed_stirrup');
+  assert.equal(item.shapeSnapshot.internalShapeCode, 'closed_stirrup_rect_hook');
+  assert.equal(item.shapeSnapshot.calculated.totalLengthMm, 2400);
+});
+
+test('buildIntakeOrderPayload keeps legacy behavior without external shape code', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    items: [{
+      diameter: 12,
+      segments: [
+        { length_mm: 300, angle_deg: 90 },
+        { length_mm: 600, angle_deg: 0 },
+      ],
+      total_length_mm: 900,
+      quantity: 2,
+      shape_name: 'L shape',
+    }],
+  }, { calcWeightPerUnit: () => 1 });
+
+  const item = payload.pallets[0].items[0];
+  assert.equal(item.shapeSnapshot.shapeType, 'l_bar');
+  assert.deepEqual(item.shapeSnapshot.data.sides, [300, 600]);
+});
+
+test('buildIntakeOrderPayload does not fallback to straight bar for unknown external code', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    items: [{
+      sourceSystem: 'TASSA',
+      externalShapeCode: '999',
+      diameter: 8,
+      length: 1000,
+      quantity: 1,
+      shape_name: 'unknown external shape',
+    }],
+  }, { calcWeightPerUnit: () => 1 });
+
+  const item = payload.pallets[0].items[0];
+  assert.equal(item.shapeSnapshot, undefined);
+  assert.equal(item.requires_shape_edit, true);
+  assert.equal(item.shape_review_status, 'requires_shape_edit');
+  assert.equal(item.shape_review_reason, 'unmapped_external_shape_code');
+  assert.ok(item.reviewNotes.some(note => note.code === 'unmapped_external_shape_code'));
+});
+
+test('buildIntakeOrderPayload does not fallback to straight bar for mapped external code without engine', () => {
+  const payload = buildIntakeOrderPayload({
+    customer_name: 'Customer A',
+    items: [{
+      sourceSystem: 'TASSA',
+      externalShapeCode: '225',
+      diameter: 8,
+      width: 950,
+      length: 1000,
+      quantity: 1,
+      shape_name: 'rounded end',
+    }],
+  }, { calcWeightPerUnit: () => 1 });
+
+  const item = payload.pallets[0].items[0];
+  assert.equal(item.shapeSnapshot, undefined);
+  assert.equal(item.requires_shape_edit, true);
+  assert.equal(item.shape_review_status, 'requires_shape_edit');
+  assert.equal(item.shape_review_reason, 'shape_engine_not_available');
+});
