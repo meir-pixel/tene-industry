@@ -753,16 +753,16 @@ function angleLabelPosition(previous, corner, next, distance) {
   return [corner[0] - vx * (distance || 22), corner[1] - vy * (distance || 22)];
 }
 
-function rightAngleMarkerSvg(previous, corner, next, center) {
+// Drawing rule: a right angle is marked by the corner square only — no "90°"
+// text next to it. Angle text is printed only for non-90° bends.
+function rightAngleMarkerSvg(previous, corner, next) {
   var a = unitVector(corner, previous);
   var b = unitVector(corner, next);
   var d = 9;
   var p1 = pointAt(corner, a, d);
   var p2 = [p1[0] + b[0] * d, p1[1] + b[1] * d];
   var p3 = pointAt(corner, b, d);
-  var label = angleLabelPosition(previous, corner, next, 22);
-  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>' +
-    angleLabelSvg('90°', label[0], label[1]);
+  return '<path d="M ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + ' L ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' L ' + p3[0].toFixed(1) + ',' + p3[1].toFixed(1) + '" fill="none" stroke="#a8b0ba" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter"/>';
 }
 
 function dimensionLabelSvg(text, x, y, width = 38) {
@@ -789,7 +789,7 @@ function sideDimensionSvg(start, end, value, center, distance = 18) {
 
 function angleMarkerSvg(previous, corner, next, angle, center) {
   if (!isPrintableBendAngle(angle)) return '';
-  if (isRightAngleValue(angle)) return rightAngleMarkerSvg(previous, corner, next, center);
+  if (isRightAngleValue(angle)) return rightAngleMarkerSvg(previous, corner, next);
   var a = unitVector(corner, previous);
   var b = unitVector(corner, next);
   var p1 = pointAt(corner, a, 13);
@@ -826,7 +826,7 @@ function buildOpenUShapeSVG(segments) {
     [[left, top], [left, bottom], [right, bottom]],
     [[left, bottom], [right, bottom], [right, top]],
   ].forEach(function(points) {
-    s += rightAngleMarkerSvg(points[0], points[1], points[2], [midX, midY]);
+    s += rightAngleMarkerSvg(points[0], points[1], points[2]);
   });
   return '<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:100px;overflow:visible">' + s + '</svg>';
 }
@@ -864,7 +864,7 @@ function buildClosedStirrupSVG(parts) {
     [[right, y], [right, bottom], [x, bottom]],
     [[right, bottom], [x, bottom], [x, y]],
   ].forEach(function(points) {
-    s += rightAngleMarkerSvg(points[0], points[1], points[2], [midX, midY]);
+    s += rightAngleMarkerSvg(points[0], points[1], points[2]);
   });
   return '<svg data-shape-kind="closed-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + s + '</svg>';
 }
