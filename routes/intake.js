@@ -102,17 +102,11 @@ module.exports = function createIntakeRouter(deps) {
 
   router.post('/analyze-image', analyzeImageAuthorization, imageAnalysisLimiter, upload.single('image'), async (req, res) => {
     if (getSetting('INTAKE_AI_ENABLED') !== 'true') return res.status(501).json({ error: 'Document recognition is disabled', feature: 'intake-ai' });
-    const openaiKey = getOpenAiApiKey();
-    if (!openaiKey) return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
     if (!req.file) return res.status(400).json({ error: 'Image or PDF is required' });
     const mime = req.file.mimetype || 'image/jpeg';
     if (mime !== 'application/pdf' && !mime.startsWith('image/')) {
       return res.status(400).json({ error: 'Only images and PDFs are supported' });
     }
-    const fileData = req.file.buffer.toString('base64');
-    const attachment = mime === 'application/pdf'
-      ? { type: 'input_file', filename: req.file.originalname || 'order.pdf', file_data: `data:application/pdf;base64,${fileData}` }
-      : { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' };
     const documentIntent = requestedOcrDocumentType(req);
     if (documentIntent !== 'order') {
       const target = documentIntent === 'supplier_delivery'
@@ -165,6 +159,15 @@ module.exports = function createIntakeRouter(deps) {
         console.warn('[intake/analyze-image] PDF table parser fallback:', pdfErr.message);
       }
     }
+    // From here on the AI model is required. Structured PDFs that the
+    // deterministic steel parser handled above never reach this check,
+    // so they keep working even when no OpenAI key is configured.
+    const openaiKey = getOpenAiApiKey();
+    if (!openaiKey) return res.status(500).json({ error: 'OPENAI_API_KEY is not configured' });
+    const fileData = req.file.buffer.toString('base64');
+    const attachment = mime === 'application/pdf'
+      ? { type: 'input_file', filename: req.file.originalname || 'order.pdf', file_data: `data:application/pdf;base64,${fileData}` }
+      : { type: 'input_image', image_url: `data:${mime};base64,${fileData}`, detail: 'high' };
     const schema = {
       type: 'object',
       additionalProperties: false,
