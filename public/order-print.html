@@ -39,7 +39,9 @@
       fail('Invalid print request.');
       return;
     }
-    const apiPath = '/api/orders/' + encodeURIComponent(id) + '/' + kind;
+    const extra = new URLSearchParams();
+    params.forEach((value, key) => { if (key !== 'id' && key !== 'kind') extra.set(key, value); });
+    const apiPath = '/api/orders/' + encodeURIComponent(id) + '/' + kind + (extra.toString() ? '?' + extra.toString() : '');
     const auth = window.IronBendAuth;
     const fetcher = auth && auth.fetch ? auth.fetch.bind(auth) : window.fetch.bind(window);
     let response;
