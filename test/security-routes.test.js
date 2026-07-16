@@ -1453,6 +1453,18 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.notEqual((await request('/api/items/1/status', { method: 'PATCH', headers: authHeaders(kiosk), body })).status, 401);
     assert.notEqual((await request('/api/items/1/status', { method: 'PATCH', headers: authHeaders(kiosk), body })).status, 403);
 
+    const machineBody = JSON.stringify({});
+    assert.equal((await request('/api/machines/1/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: machineBody })).status, 401);
+    assert.equal((await request('/api/machines/1/assign', { method: 'POST', headers: authHeaders(office), body: machineBody })).status, 403);
+    assert.equal((await request('/api/machines/1/assign', { method: 'POST', headers: authHeaders(kiosk), body: machineBody })).status, 403);
+    assert.notEqual((await request('/api/machines/1/assign', { method: 'POST', headers: authHeaders(production), body: machineBody })).status, 401);
+    assert.notEqual((await request('/api/machines/1/assign', { method: 'POST', headers: authHeaders(production), body: machineBody })).status, 403);
+
+    assert.equal((await request('/api/machines/1/send-params', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: machineBody })).status, 401);
+    assert.equal((await request('/api/machines/1/send-params', { method: 'POST', headers: authHeaders(office), body: machineBody })).status, 403);
+    assert.notEqual((await request('/api/machines/1/send-params', { method: 'POST', headers: authHeaders(kiosk), body: machineBody })).status, 401);
+    assert.notEqual((await request('/api/machines/1/send-params', { method: 'POST', headers: authHeaders(kiosk), body: machineBody })).status, 403);
+
     const wasteBody = JSON.stringify({ produced_qty: 1, actual_waste: 0 });
     assert.equal((await request('/api/items/1', { method: 'PATCH', headers: authHeaders(office), body: wasteBody })).status, 403);
     assert.notEqual((await request('/api/items/1', { method: 'PATCH', headers: authHeaders(kiosk), body: wasteBody })).status, 401);

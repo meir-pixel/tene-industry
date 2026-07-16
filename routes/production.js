@@ -2,6 +2,12 @@ const router = require('express').Router();
 const createProductionMachinesRouter = require('./productionMachines');
 const productionCards = require('../services/productionCards');
 const { consumeReservationsForProduction } = require('../services/inventoryReservation');
+const {
+  MACHINE_SAFETY_REASON,
+  MachineSafetyError,
+  assertMachineOperationAllowed,
+  isMachineSafetyError,
+} = require('../services/machineSafetyGate');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/production missing dependency: ${name}`);
@@ -78,6 +84,12 @@ module.exports = function createProductionRouter(deps) {
       item_status: item?.status || null,
       order_status: item?.order_status || null,
     });
+  }
+
+  function sendMachineSafetyError(res, error) {
+    if (!isMachineSafetyError(error)) return false;
+    res.status(error.statusCode || 409).json({ error: error.code, reason: error.code });
+    return true;
   }
 
   function forbiddenProductionPatchFields(body) {
@@ -302,51 +314,69 @@ module.exports = function createProductionRouter(deps) {
 
     if (isNaN(itemIdNum)) return res.status(400).json({ error: 'QR לא תקין' });
 
-    const machine = db.prepare('SELECT * FROM machines WHERE id=?').get(machineIdNum);
-    if (!machine) return res.status(404).json({ error: 'מכונה לא נמצאה' });
-
-    const item = db.prepare(`
-      SELECT i.*, p.order_id, o.status AS order_status
-      FROM items i
-      JOIN pallets p ON i.pallet_id=p.id
-      JOIN orders o ON p.order_id=o.id
-      WHERE i.id=?
-    `).get(itemIdNum);
-    if (!item) return res.status(404).json({ error: 'item not found' });
-    if (!isProductionGateOpen(item)) return sendProductionGateError(res, item);
-
-    const now = new Date().toISOString();
-
-    // Close previous item on this machine
-    if (machine.current_item_id && machine.current_item_id !== itemIdNum) {
-      const liveCounter = modbus.getState(machineIdNum)?.counter ?? machine.counter ?? 0;
-      const prevItem = db.prepare('SELECT * FROM items WHERE id=?').get(machine.current_item_id);
-      const actualWaste = Math.max(0, liveCounter - (prevItem?.quantity || 0));
-
-      db.prepare('UPDATE items SET status=?,completed_at=?,produced_qty=?,actual_waste=? WHERE id=?')
-        .run('הושלם', now, liveCounter, actualWaste, machine.current_item_id);
-
-      db.prepare('INSERT INTO scan_log (machine_id,worker_id,item_id,order_num,action,counter_at_scan,waste_calculated) VALUES (?,?,?,?,?,?,?)')
-        .run(machineIdNum, workerId, machine.current_item_id, machine.current_order_num, 'close_prev', liveCounter, actualWaste);
-
-      const prevPallet = prevItem ? db.prepare('SELECT order_id FROM pallets WHERE id=?').get(prevItem.pallet_id) : null;
-      if (prevPallet) {
-        consumeProductionReservations({ ...prevItem, order_id: prevPallet.order_id });
-        checkOrderComplete(prevPallet.order_id);
+    let safety;
+    try {
+      safety = assertMachineOperationAllowed({
+        db,
+        machineId: machineIdNum,
+        itemId: itemIdNum,
+        operation: 'assignment',
+      });
+      if (String(orderNum || '') !== String(safety.order.order_num || '')) {
+        throw new MachineSafetyError(MACHINE_SAFETY_REASON.ITEM_ORDER_MISMATCH);
       }
+    } catch (err) {
+      if (sendMachineSafetyError(res, err)) return;
+      throw err;
     }
 
-    // Start new item
-    db.prepare('UPDATE items SET status=?,started_at=?,worker_id=? WHERE id=?')
-      .run('בייצור', now, workerId, itemIdNum);
-    db.prepare('UPDATE machines SET current_item_id=?,current_order_num=?,counter=0 WHERE id=?')
-      .run(itemIdNum, orderNum, machineIdNum);
+    const machine = safety.machine;
+    const item = safety.item;
+    const now = new Date().toISOString();
+    db.transaction(() => {
+      // Close previous item on this machine
+      if (machine.current_item_id && machine.current_item_id !== itemIdNum) {
+        const liveCounter = modbus.getState(machineIdNum)?.counter ?? machine.counter ?? 0;
+        const prevItem = db.prepare('SELECT * FROM items WHERE id=?').get(machine.current_item_id);
+        const actualWaste = Math.max(0, liveCounter - (prevItem?.quantity || 0));
 
-    // Auto-update order status to 'בייצור'
-    db.prepare("UPDATE orders SET status='בייצור' WHERE id=? AND status IN ('בתור ייצור','ממתינה לאישור')")
-      .run(item.order_id);
+        db.prepare('UPDATE items SET status=?,completed_at=?,produced_qty=?,actual_waste=? WHERE id=?')
+          .run('הושלם', now, liveCounter, actualWaste, machine.current_item_id);
 
-    // Send params to machine via Modbus
+        db.prepare('INSERT INTO scan_log (machine_id,worker_id,item_id,order_num,action,counter_at_scan,waste_calculated) VALUES (?,?,?,?,?,?,?)')
+          .run(machineIdNum, workerId, machine.current_item_id, machine.current_order_num, 'close_prev', liveCounter, actualWaste);
+
+        const prevPallet = prevItem ? db.prepare('SELECT order_id FROM pallets WHERE id=?').get(prevItem.pallet_id) : null;
+        if (prevPallet) {
+          consumeProductionReservations({ ...prevItem, order_id: prevPallet.order_id });
+          checkOrderComplete(prevPallet.order_id);
+        }
+      }
+
+      db.prepare('UPDATE items SET status=?,started_at=COALESCE(started_at,?),worker_id=?,machine_id=? WHERE id=?')
+        .run(ITEM_STATUS.IN_PRODUCTION, now, workerId, machineIdNum, itemIdNum);
+      db.prepare('UPDATE machines SET current_item_id=?,current_order_num=?,counter=0 WHERE id=?')
+        .run(itemIdNum, safety.order.order_num, machineIdNum);
+      db.prepare('UPDATE orders SET status=? WHERE id=? AND status IN (?,?)')
+        .run(ORDER_STATUS.IN_PRODUCTION, safety.order.id, ORDER_STATUS.PRODUCTION_QUEUE, ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+      db.prepare('INSERT INTO scan_log (machine_id,worker_id,item_id,order_num,action,counter_at_scan) VALUES (?,?,?,?,?,?)')
+        .run(machineIdNum, workerId, itemIdNum, safety.order.order_num, 'start', 0);
+    })();
+
+    let commandSafety;
+    try {
+      commandSafety = assertMachineOperationAllowed({
+        db,
+        machineId: machineIdNum,
+        itemId: itemIdNum,
+        orderId: safety.order.id,
+        operation: 'command',
+      });
+    } catch (err) {
+      if (sendMachineSafetyError(res, err)) return;
+      throw err;
+    }
+
     const segments = productionCards.shapeSegmentsFromItem(item);
     const angles   = segments.slice(1).map(s => s.angle_deg || 0);
     modbus.writeParams(machineIdNum, {
@@ -354,14 +384,19 @@ module.exports = function createProductionRouter(deps) {
       totalLengthMm:  productionCards.shapeTotalLengthMmFromItem(item) ?? item.total_length_mm,
       productionQty:  item.production_qty || item.quantity,
       angles,
+      itemId: item.id,
+      orderId: safety.order.id,
+      safetyAuthorization: commandSafety.safetyAuthorization,
     }).catch(() => {}); // non-blocking
 
-    db.prepare('INSERT INTO scan_log (machine_id,worker_id,item_id,order_num,action,counter_at_scan) VALUES (?,?,?,?,?,?)')
-      .run(machineIdNum, workerId, itemIdNum, orderNum, 'start', 0);
+    wsBroadcast('machine_assign', {
+      machineId: machineIdNum,
+      itemId: itemIdNum,
+      orderNum: safety.order.order_num,
+      workerId,
+    });
 
-    wsBroadcast('machine_assign', { machineId: machineIdNum, itemId: itemIdNum, orderNum, workerId });
-
-    res.json({ success: true, item, orderNum, machineLabel: machine.label });
+    res.json({ success: true, item, orderNum: safety.order.order_num, machineLabel: machine.label });
   });
 
   // End-of-day: close last item on machine

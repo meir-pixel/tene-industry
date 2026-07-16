@@ -1,4 +1,8 @@
 const router = require('express').Router();
+const {
+  assertMachineOperationAllowed,
+  isMachineSafetyError,
+} = require('../services/machineSafetyGate');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/productionMachines missing dependency: ${name}`);
@@ -14,6 +18,13 @@ module.exports = function createProductionMachinesRouter(deps) {
   const MACHINE_STATES = required('MACHINE_STATES', deps.MACHINE_STATES);
   const STATE_TRANSITIONS = required('STATE_TRANSITIONS', deps.STATE_TRANSITIONS);
   const checkOrderComplete = required('checkOrderComplete', deps.checkOrderComplete);
+  const usableMachineStates = new Set(['ריצה', 'סרק', 'הכנה', 'ידני']);
+
+  function sendMachineSafetyError(res, error) {
+    if (!isMachineSafetyError(error)) return false;
+    res.status(error.statusCode || 409).json({ error: error.code, reason: error.code });
+    return true;
+  }
 
   // ── MACHINES ──────────────────────────────────────────────────────
   router.get('/machines', requireAnyRole(['production', 'kiosk', 'maintenance', 'office', 'manager', 'admin']), (req, res) => {
@@ -57,21 +68,57 @@ module.exports = function createProductionMachinesRouter(deps) {
     const machineId = Number(req.params.id);
     const { diameter, totalLengthMm, productionQty, angles } = req.body;
     try {
-      await modbus.writeParams(machineId, { diameter, totalLengthMm, productionQty, angles: angles || [] });
+      const machine = db.prepare('SELECT current_item_id FROM machines WHERE id=?').get(machineId);
+      const safety = assertMachineOperationAllowed({
+        db,
+        machineId,
+        itemId: machine?.current_item_id,
+        operation: 'command',
+      });
+      await modbus.writeParams(machineId, {
+        diameter,
+        totalLengthMm,
+        productionQty,
+        angles: angles || [],
+        itemId: safety.item.id,
+        orderId: safety.order.id,
+        safetyAuthorization: safety.safetyAuthorization,
+      });
       res.json({ success: true });
     } catch (err) {
+      if (sendMachineSafetyError(res, err)) return;
       res.status(500).json({ error: err.message });
     }
   });
 
   router.post('/machines/:id/assign', requireAnyRole(['production', 'manager', 'admin']), (req, res) => {
-    const { itemId, orderNum } = req.body;
-    db.prepare('UPDATE machines SET current_item_id=?,current_order_num=? WHERE id=?')
-      .run(itemId, orderNum, req.params.id);
-    db.prepare('UPDATE items SET status=?,started_at=?,machine_id=? WHERE id=?')
-      .run('בייצור', new Date().toISOString(), req.params.id, itemId);
-    wsBroadcast('machine_assign', { machineId: Number(req.params.id), itemId, orderNum });
-    res.json({ success: true });
+    const machineId = Number(req.params.id);
+    const { itemId } = req.body;
+    try {
+      const safety = assertMachineOperationAllowed({
+        db,
+        machineId,
+        itemId,
+        operation: 'assignment',
+      });
+      const assignedAt = new Date().toISOString();
+      db.transaction(() => {
+        db.prepare('UPDATE machines SET current_item_id=?,current_order_num=? WHERE id=?')
+          .run(safety.item.id, safety.order.order_num, safety.machine.id);
+        const itemUpdate = db.prepare('UPDATE items SET status=?,started_at=COALESCE(started_at,?),machine_id=? WHERE id=?')
+          .run('בייצור', assignedAt, safety.machine.id, safety.item.id);
+        if (itemUpdate.changes !== 1) throw new Error('machine_assignment_item_update_failed');
+      })();
+      wsBroadcast('machine_assign', {
+        machineId: safety.machine.id,
+        itemId: safety.item.id,
+        orderNum: safety.order.order_num,
+      });
+      res.json({ success: true, orderNum: safety.order.order_num });
+    } catch (err) {
+      if (sendMachineSafetyError(res, err)) return;
+      res.status(500).json({ error: 'machine_assignment_failed' });
+    }
   });
 
   // ── MACHINE CONNECTION CONFIG ─────────────────────────────────────
@@ -151,6 +198,22 @@ module.exports = function createProductionMachinesRouter(deps) {
     if (!machine) return res.status(404).json({ error: 'מכונה לא נמצאה' });
 
     const currentState = machine.status || 'לא מחובר';
+    if (usableMachineStates.has(state)) {
+      try {
+        assertMachineOperationAllowed({
+          db,
+          machineId,
+          operation: 'state_transition',
+          requireItem: false,
+          checkMachineAvailability: false,
+          issueAuthorization: false,
+        });
+      } catch (err) {
+        if (sendMachineSafetyError(res, err)) return;
+        throw err;
+      }
+    }
+
     const allowed = STATE_TRANSITIONS[currentState] || [];
     if (!allowed.includes(state)) {
       return res.status(409).json({
@@ -158,14 +221,6 @@ module.exports = function createProductionMachinesRouter(deps) {
         current: currentState,
         allowed
       });
-    }
-
-    // Block transition to ריצה if machine has active LOTO lock
-    if (state === 'ריצה') {
-      const activeLock = db.prepare("SELECT id FROM loto WHERE machine_id=? AND status='פעיל'").get(machineId);
-      if (activeLock) {
-        return res.status(409).json({ error: 'לא ניתן להפעיל מכונה עם נעילת LOTO פעילה', loto_id: activeLock.id });
-      }
     }
 
     // Update machine status

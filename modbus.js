@@ -1,4 +1,10 @@
 const ModbusRTU = require('modbus-serial');
+const {
+  MACHINE_SAFETY_REASON,
+  assertMachineOperationAllowed,
+  assertMachineSafetyAuthorization,
+  evaluateMachineOperationSafety,
+} = require('./services/machineSafetyGate');
 
 // XINJE XD5-32T-E registers (D-registers = Holding Registers):
 //   D0  (addr 0): Read  – unit counter
@@ -73,9 +79,28 @@ class ModbusService {
       this.state[id].status = 'לא מחובר';
       this._broadcast(id);
     }
+    const safety = evaluateMachineOperationSafety({
+      db: this.db,
+      machineId: id,
+      operation: 'connect',
+      requireItem: false,
+      checkMachineAvailability: false,
+      issueAuthorization: false,
+    });
+    if (!safety.allowed) {
+      if (safety.reason === MACHINE_SAFETY_REASON.ACTIVE_LOTO && this.state[id]) {
+        this.state[id].status = 'נעול LOTO';
+        this._broadcast(id);
+      }
+      return { reconfigured: false, reason: safety.reason };
+    }
     // Re-connect with new config
     const cfg = this._getConfigs().find(c => c.id === id);
-    if (cfg) await this.connectMachine(cfg);
+    if (cfg) {
+      await this.connectMachine(cfg);
+      return { reconfigured: true };
+    }
+    return { reconfigured: false, reason: MACHINE_SAFETY_REASON.MACHINE_NOT_FOUND };
   }
 
   onUpdate(fn) { this.listeners.push(fn); }
@@ -147,7 +172,29 @@ class ModbusService {
   }
 
   // Write production parameters to machine before starting
-  async writeParams(machineId, { diameter, totalLengthMm, productionQty, angles = [] }) {
+  async writeParams(machineId, {
+    diameter,
+    totalLengthMm,
+    productionQty,
+    angles = [],
+    itemId,
+    orderId,
+    safetyAuthorization,
+  }) {
+    assertMachineSafetyAuthorization(safetyAuthorization, {
+      machineId,
+      itemId,
+      orderId,
+      operation: 'command',
+    });
+    assertMachineOperationAllowed({
+      db: this.db,
+      machineId,
+      itemId,
+      orderId,
+      operation: 'command',
+      issueAuthorization: false,
+    });
     const cfg    = MACHINES_CONFIG.find(m => m.id === machineId);
     const client = this.clients[machineId];
 

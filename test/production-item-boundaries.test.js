@@ -110,7 +110,7 @@ test('production enforces order item ownership boundaries', async (t) => {
     });
     assert.equal(response.status, 409);
     const body = await response.json();
-    assert.equal(body.error, 'item_not_released_to_production');
+    assert.equal(body.error, 'order_not_released_for_production');
     const item = db.prepare('SELECT status,started_at,worker_id FROM items WHERE id=?').get(draft.itemId);
     assert.equal(item.status, statusContracts.ITEM_STATUS.WAITING);
     assert.equal(item.started_at, null);

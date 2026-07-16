@@ -1,5 +1,9 @@
 const router = require('express').Router();
 const { itemShapeMetrics } = require('../services/shapeSnapshot');
+const {
+  MACHINE_SAFETY_REASON,
+  evaluateMachineOperationSafety,
+} = require('../services/machineSafetyGate');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/maintenance missing dependency: ${name}`);
@@ -69,10 +73,38 @@ module.exports = function createMaintenanceRouter(deps) {
     const log = db.prepare('SELECT * FROM maintenance_logs WHERE id=?').get(req.params.id);
     if (!log) return res.status(404).json({ error: 'לא נמצא' });
     const resolvedAt = f.status==='סגורה' ? new Date().toISOString() : null;
-    db.prepare('UPDATE maintenance_logs SET status=COALESCE(?,status),assigned_to=COALESCE(?,assigned_to),downtime_min=COALESCE(?,downtime_min),root_cause=COALESCE(?,root_cause),fix_notes=COALESCE(?,fix_notes),parts_used=COALESCE(?,parts_used),cost=COALESCE(?,cost),resolved_at=COALESCE(?,resolved_at) WHERE id=?')
-      .run(f.status||null,f.assigned_to||null,f.downtime_min||null,f.root_cause||null,f.fix_notes||null,f.parts_used||null,f.cost||null,resolvedAt,req.params.id);
-    if (f.status==='סגורה'&&log.log_type==='breakdown') db.prepare("UPDATE machines SET status='מחובר' WHERE id=?").run(log.machine_id);
-    res.json({ success: true });
+    const result = db.transaction(() => {
+      db.prepare('UPDATE maintenance_logs SET status=COALESCE(?,status),assigned_to=COALESCE(?,assigned_to),downtime_min=COALESCE(?,downtime_min),root_cause=COALESCE(?,root_cause),fix_notes=COALESCE(?,fix_notes),parts_used=COALESCE(?,parts_used),cost=COALESCE(?,cost),resolved_at=COALESCE(?,resolved_at) WHERE id=?')
+        .run(f.status||null,f.assigned_to||null,f.downtime_min||null,f.root_cause||null,f.fix_notes||null,f.parts_used||null,f.cost||null,resolvedAt,req.params.id);
+
+      if (f.status !== 'סגורה' || log.log_type !== 'breakdown') {
+        return { faultClosed: false, machineAvailable: null, safetyReason: null };
+      }
+
+      const safety = evaluateMachineOperationSafety({
+        db,
+        machineId: log.machine_id,
+        operation: 'maintenance_release',
+        requireItem: false,
+        checkMachineAvailability: false,
+        issueAuthorization: false,
+      });
+      if (!safety.allowed) {
+        if (safety.reason === MACHINE_SAFETY_REASON.ACTIVE_LOTO) {
+          db.prepare("UPDATE machines SET status='נעול LOTO' WHERE id=?").run(log.machine_id);
+        }
+        return { faultClosed: true, machineAvailable: false, safetyReason: safety.reason };
+      }
+
+      db.prepare("UPDATE machines SET status='מחובר' WHERE id=?").run(log.machine_id);
+      return { faultClosed: true, machineAvailable: true, safetyReason: null };
+    })();
+    res.json({
+      success: true,
+      fault_closed: result.faultClosed,
+      machine_available: result.machineAvailable,
+      safety_reason: result.safetyReason,
+    });
   });
   router.get('/maintenance/stats', requireAnyRole(['maintenance', 'production', 'office', 'manager', 'admin']), (req, res) => {
     const loadMap = productionLoadByMachine(db);
