@@ -1,5 +1,10 @@
 'use strict';
 
+const {
+  CONTRACT_VERSION: SHAPE_SNAPSHOT_CONTRACT_VERSION,
+  isShapeDataContractV2,
+} = require('./shapeSnapshot');
+
 const CANONICAL_SPEC_VERSION = 1;
 
 const MATCHABILITY = Object.freeze({
@@ -13,8 +18,11 @@ const REASON_ORDER = Object.freeze([
   'unsupported_shape_type',
   'unsupported_3d_geometry',
   'shape_engine_unavailable',
+  'invalid_shape_snapshot',
+  'invalid_straight_geometry',
   'missing_geometry',
   'missing_material_grade',
+  'invalid_material_grade',
   'missing_diameter',
   'missing_length',
   'missing_end_treatment',
@@ -70,8 +78,8 @@ function unwrapSnapshotInput(value) {
 }
 
 function normalizeMaterialGrade(value) {
-  if (value === null || value === undefined) return null;
-  const normalized = String(value).trim().replace(/\s+/g, ' ').toUpperCase();
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().replace(/\s+/g, ' ').toUpperCase();
   return normalized || null;
 }
 
@@ -215,6 +223,10 @@ function compareNormalizedValues({
 }
 
 function validateMaterialGrade({ materialGrade, snapshot, legacyItem, reasons, discrepancies }) {
+  if (materialGrade !== null && materialGrade !== undefined && typeof materialGrade !== 'string') {
+    addReason(reasons, 'invalid_material_grade');
+    return null;
+  }
   const grade = normalizeMaterialGrade(materialGrade);
   if (!grade) {
     addReason(reasons, 'missing_material_grade');
@@ -224,9 +236,13 @@ function validateMaterialGrade({ materialGrade, snapshot, legacyItem, reasons, d
   const embeddedGrades = [
     firstDefinedField(nestedData(snapshot), ['materialGrade', 'material_grade', 'grade']),
     legacyField(legacyItem, ['materialGrade', 'material_grade', 'grade']),
-  ].filter(field => field.present && field.value !== null && field.value !== undefined && String(field.value).trim());
+  ].filter(field => field.present && field.value !== null && field.value !== undefined);
 
   for (const embedded of embeddedGrades) {
+    if (typeof embedded.value !== 'string') {
+      addReason(reasons, 'invalid_material_grade');
+      continue;
+    }
     const embeddedGrade = normalizeMaterialGrade(embedded.value);
     if (embeddedGrade && embeddedGrade !== grade) {
       addDiscrepancy(discrepancies, 'material.grade', grade, embeddedGrade);
@@ -234,6 +250,79 @@ function validateMaterialGrade({ materialGrade, snapshot, legacyItem, reasons, d
     }
   }
   return grade;
+}
+
+function parseGeometryArray(value, { allowJson = false } = {}) {
+  if (Array.isArray(value)) return value;
+  if (!allowJson || typeof value !== 'string') return null;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function meaningfulBend(value) {
+  if (value === null || value === undefined || value === '') return false;
+  if (typeof value === 'number' || typeof value === 'string') {
+    const numeric = Number(value);
+    return !Number.isFinite(numeric) || numeric !== 0;
+  }
+  if (!isObject(value)) return true;
+  const field = firstDefinedField(value, [
+    'angle',
+    'angleDeg',
+    'angle_deg',
+    'bendAfterDeg',
+    'bend_after_deg',
+  ]);
+  return field.present ? meaningfulBend(field.value) : true;
+}
+
+function segmentLengthValue(segment) {
+  if (isObject(segment)) {
+    const field = firstDefinedField(segment, ['lengthMm', 'length_mm', 'length']);
+    return field.present ? numericResult(field.value) : { kind: 'missing', value: null };
+  }
+  return numericResult(segment);
+}
+
+function straightGeometryInvalid(source, { allowJson = false, includeTopLevel = false } = {}) {
+  if (!source) return false;
+  const containers = [nestedData(source)];
+  if (isObject(source.geometry)) containers.push(source.geometry);
+  if (includeTopLevel && isObject(source)) containers.push(source);
+  const physicalLengths = [];
+
+  for (const container of containers) {
+    for (const key of ['sides', 'segments']) {
+      if (!hasOwn(container, key)) continue;
+      const entries = parseGeometryArray(container[key], { allowJson });
+      if (!entries || entries.length !== 1) return true;
+      const length = segmentLengthValue(entries[0]);
+      if (length.kind !== 'ok') return true;
+      physicalLengths.push(length.value);
+      if (key === 'segments' && isObject(entries[0])) {
+        const bend = firstDefinedField(entries[0], [
+          'angle',
+          'angleDeg',
+          'angle_deg',
+          'bendAfterDeg',
+          'bend_after_deg',
+        ]);
+        if (bend.present && meaningfulBend(bend.value)) return true;
+      }
+    }
+
+    for (const key of ['angles', 'bends']) {
+      if (!hasOwn(container, key)) continue;
+      const bends = parseGeometryArray(container[key], { allowJson });
+      if (!bends || bends.some(meaningfulBend)) return true;
+    }
+  }
+
+  return physicalLengths.some(length => length !== physicalLengths[0]);
 }
 
 function straightLengthField(snapshot) {
@@ -287,6 +376,12 @@ function legacyStraightLengthField(legacyItem) {
 function buildStraightSpec({ snapshot, legacyItem, materialGrade }) {
   const reasons = [];
   const discrepancies = [];
+  if (
+    straightGeometryInvalid(snapshot)
+    || straightGeometryInvalid(legacyItem, { allowJson: true, includeTopLevel: true })
+  ) {
+    addReason(reasons, 'invalid_straight_geometry');
+  }
   const data = nestedData(snapshot);
   const snapshotDiameter = firstDefinedField(data, ['diameter', 'diameterMm']);
   const legacyDiameter = legacyField(legacyItem, ['diameter', 'diameterMm', 'diameter_mm']);
@@ -338,7 +433,9 @@ function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
   const reasons = [];
   const discrepancies = [];
   const data = nestedData(snapshot);
-  const warnings = Array.isArray(snapshot?.validation?.warnings) ? snapshot.validation.warnings : [];
+  const inputPresence = isObject(snapshot?.validation?.inputPresence)
+    ? snapshot.validation.inputPresence
+    : {};
 
   const snapshotFields = {
     widthMm: firstDefinedField(data, ['width']),
@@ -381,15 +478,17 @@ function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
   addNumericReason(reasons, height, 'missing_geometry');
   addNumericReason(reasons, diameter, 'missing_diameter');
 
-  const hookIsExplicit = snapshotFields.hookLengthMm.present
-    && snapshotFields.hookLengthMm.value !== null
-    && snapshotFields.hookLengthMm.value !== undefined
-    && snapshotFields.hookLengthMm.value !== ''
-    && !warnings.includes('hook_length_defaulted');
-  const overlapIsExplicit = snapshotFields.overlapLengthMm.present
-    && snapshotFields.overlapLengthMm.value !== null
-    && snapshotFields.overlapLengthMm.value !== undefined
-    && snapshotFields.overlapLengthMm.value !== '';
+  function endTreatmentIsUsable(field, presenceKey) {
+    if (!field.present || field.value === null || field.value === undefined || field.value === '') return false;
+    const normalized = numericResult(field.value, { allowZero: true });
+    if (normalized.kind === 'ok' && normalized.value === 0) {
+      return inputPresence[presenceKey] === true;
+    }
+    return true;
+  }
+
+  const hookIsExplicit = endTreatmentIsUsable(snapshotFields.hookLengthMm, 'hookLength');
+  const overlapIsExplicit = endTreatmentIsUsable(snapshotFields.overlapLengthMm, 'overlapLength');
 
   if (!hookIsExplicit || !overlapIsExplicit) addReason(reasons, 'missing_end_treatment');
 
@@ -454,6 +553,25 @@ function buildCanonicalPhysicalSpec(input = {}) {
 
   if (snapshotInput.builderReason) {
     return unsupportedSnapshotResult(snapshot, snapshotInput.builderReason);
+  }
+
+  if (snapshotInput.supplied && !snapshot) {
+    return resultFromReasons(['invalid_shape_snapshot']);
+  }
+
+  if (
+    snapshot
+    && (
+      !isShapeDataContractV2(snapshot)
+      || Number(snapshot.contractVersion) !== SHAPE_SNAPSHOT_CONTRACT_VERSION
+      || !isObject(snapshot.data)
+      || !isObject(snapshot.calculated)
+      || !isObject(snapshot.machineOutput)
+      || !isObject(snapshot.validation)
+      || snapshot.validation.valid === false
+    )
+  ) {
+    return resultFromReasons(['invalid_shape_snapshot']);
   }
 
   if (is3dInput(snapshot, legacyItem)) {

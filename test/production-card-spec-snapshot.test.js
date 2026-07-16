@@ -214,14 +214,11 @@ test('snapshot and legacy discrepancies remain immutable validation data', () =>
 
 test('unsupported family remains non-exact in immutable contract', () => {
   const contract = buildProductionCardSpecSnapshot({
-    shapeSnapshot: {
-      contractVersion: 2,
-      shapeVersion: 1,
-      shapeId: 'mesh-id',
+    shapeSnapshot: straightSnapshot({
       shapeType: 'mesh_rectangular',
       family: 'mesh',
       data: { length: 600, width: 250 },
-    },
+    }),
     materialGrade: 'B500B',
   });
 

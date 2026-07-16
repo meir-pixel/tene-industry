@@ -70,6 +70,20 @@ function closedStirrupResult({
   });
 }
 
+function closedStirrupResultFromData(data, {
+  sourceSystem = 'TASSA',
+  externalShapeCode = '103',
+  diameter = 8,
+} = {}) {
+  return buildShapeSnapshotFromExternalCode({
+    sourceSystem,
+    externalShapeCode,
+    diameter,
+    data,
+    source: { sourceSystem, externalShapeCode },
+  });
+}
+
 function buildResult(input) {
   const result = buildCanonicalPhysicalSpec(input);
   return {
@@ -94,6 +108,69 @@ test('valid straight bar with explicit grade is exact_matchable', () => {
     geometry: { lengthMm: 6000 },
   });
   assert.match(fingerprint, /^physical-spec:v1:sha256:[a-f0-9]{64}$/);
+});
+
+test('valid single-segment straight geometry remains exact-matchable', () => {
+  const { result, fingerprint } = buildResult({
+    shapeSnapshot: straightSnapshot({
+      data: {
+        sides: [6000],
+        segments: [{ lengthMm: 6000, bendAfterDeg: 0 }],
+        angles: [0],
+        diameter: 12,
+      },
+    }),
+    materialGrade: 'B500B',
+  });
+
+  assert.equal(result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.equal(result.canonicalSpec.geometry.lengthMm, 6000);
+  assert.match(fingerprint, /^physical-spec:v1:sha256:[a-f0-9]{64}$/);
+});
+
+test('bent or multi-segment geometry cannot masquerade as straight', () => {
+  const cases = [
+    {
+      shapeSnapshot: straightSnapshot({
+        data: {
+          sides: [100, 200],
+          angles: [90],
+          diameter: 12,
+          lengthMm: 300,
+        },
+      }),
+    },
+    {
+      legacyItem: {
+        family: 'bars',
+        shapeType: 'straight_bar',
+        diameter: 12,
+        total_length_mm: 300,
+        segments: JSON.stringify([
+          { lengthMm: 100, bendAfterDeg: 90 },
+          { lengthMm: 200, bendAfterDeg: null },
+        ]),
+      },
+    },
+    {
+      shapeSnapshot: straightSnapshot({
+        data: {
+          segments: [{ bendAfterDeg: null }],
+          angles: [],
+          diameter: 12,
+          lengthMm: 300,
+        },
+      }),
+    },
+  ];
+
+  for (const input of cases) {
+    const { result, fingerprint } = buildResult({ ...input, materialGrade: 'B500B' });
+    assert.equal(result.status, MATCHABILITY.REVIEW_REQUIRED);
+    assert.ok(result.reasonCodes.includes('invalid_straight_geometry'));
+    assert.equal(result.canonicalSpec, null);
+    assert.equal(fingerprint, null);
+  }
 });
 
 test('straight physical changes alter fingerprints', () => {
@@ -195,6 +272,38 @@ test('stable serialization ignores object key order and rejects unsupported valu
   assert.throws(() => stableCanonicalStringify({ symbol: Symbol('x') }), /not supported/);
   assert.throws(() => stableCanonicalStringify(Array(1)), /sparse arrays/);
   assert.throws(() => stableCanonicalStringify({ [Symbol('key')]: 'value' }), /symbol keys/);
+
+  const withExtra = [1, 2];
+  withExtra.extra = 3;
+  assert.throws(() => stableCanonicalStringify(withExtra), /extra array properties/);
+
+  const withSymbol = [1, 2];
+  withSymbol[Symbol('x')] = 3;
+  assert.throws(() => stableCanonicalStringify(withSymbol), /symbol keys/);
+  assert.equal(stableCanonicalStringify([1, 2]), '[1,2]');
+});
+
+test('material grade accepts only normalized primitive strings', () => {
+  const normalized = buildResult({
+    shapeSnapshot: straightSnapshot(),
+    materialGrade: '  b500b   high  ',
+  });
+  assert.equal(normalized.result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.equal(normalized.result.canonicalSpec.material.grade, 'B500B HIGH');
+
+  const blank = buildResult({ shapeSnapshot: straightSnapshot(), materialGrade: '   ' });
+  assert.deepEqual(blank.result.reasonCodes, ['missing_material_grade']);
+
+  for (const materialGrade of [500, false, {}, ['B500B'], new String('B500B')]) {
+    const { result, fingerprint } = buildResult({
+      shapeSnapshot: straightSnapshot(),
+      materialGrade,
+    });
+    assert.equal(result.status, MATCHABILITY.REVIEW_REQUIRED);
+    assert.ok(result.reasonCodes.includes('invalid_material_grade'));
+    assert.equal(result.canonicalSpec, null);
+    assert.equal(fingerprint, null);
+  }
 });
 
 test('straight traceability and calculated values do not affect physical fingerprint', () => {
@@ -277,22 +386,70 @@ test('closed-stirrup physical changes alter fingerprints', () => {
 });
 
 test('closed stirrup requires explicit hook and overlap fields', () => {
-  const base = closedStirrupResult().snapshot;
-  const missingHook = clone(base);
-  const missingOverlap = clone(base);
-  delete missingHook.data.hookLength;
-  delete missingOverlap.data.overlapLength;
+  const missingHookBuilder = closedStirrupResultFromData({
+    width: 300,
+    height: 500,
+    overlapLength: 50,
+  });
+  assert.equal(missingHookBuilder.status, 'success');
+  assert.equal(missingHookBuilder.snapshot.data.hookLength, 0);
+  assert.deepEqual(missingHookBuilder.snapshot.validation.inputPresence, {
+    hookLength: false,
+    overlapLength: true,
+  });
+  const missingHook = buildResult({
+    shapeSnapshot: missingHookBuilder.snapshot,
+    materialGrade: 'B500B',
+  });
+  assert.equal(missingHook.result.status, MATCHABILITY.REVIEW_REQUIRED);
+  assert.ok(missingHook.result.reasonCodes.includes('missing_end_treatment'));
+  assert.equal(missingHook.fingerprint, null);
 
-  for (const snapshot of [missingHook, missingOverlap]) {
-    const { result, fingerprint } = buildResult({ shapeSnapshot: snapshot, materialGrade: 'B500B' });
-    assert.equal(result.status, MATCHABILITY.REVIEW_REQUIRED);
-    assert.ok(result.reasonCodes.includes('missing_end_treatment'));
-    assert.equal(fingerprint, null);
-  }
+  const explicitZeroHookBuilder = closedStirrupResultFromData({
+    width: 300,
+    height: 500,
+    hookLength: 0,
+    overlapLength: 0,
+  });
+  assert.deepEqual(explicitZeroHookBuilder.snapshot.validation.inputPresence, {
+    hookLength: true,
+    overlapLength: true,
+  });
+  const explicitZeroHook = buildResult({
+    shapeSnapshot: explicitZeroHookBuilder.snapshot,
+    materialGrade: 'B500B',
+  });
+  assert.equal(explicitZeroHook.result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.equal(explicitZeroHook.result.canonicalSpec.geometry.hookLengthMm, 0);
 
-  const explicitZero = buildResult({ shapeSnapshot: base, materialGrade: 'B500B' });
-  assert.equal(explicitZero.result.status, MATCHABILITY.EXACT_MATCHABLE);
-  assert.equal(explicitZero.result.canonicalSpec.geometry.overlapLengthMm, 0);
+  const missingOverlapBuilder = closedStirrupResultFromData({
+    width: 300,
+    height: 500,
+    hookLength: 80,
+  });
+  assert.deepEqual(missingOverlapBuilder.snapshot.validation.inputPresence, {
+    hookLength: true,
+    overlapLength: false,
+  });
+  const missingOverlap = buildResult({
+    shapeSnapshot: missingOverlapBuilder.snapshot,
+    materialGrade: 'B500B',
+  });
+  assert.equal(missingOverlap.result.status, MATCHABILITY.REVIEW_REQUIRED);
+  assert.ok(missingOverlap.result.reasonCodes.includes('missing_end_treatment'));
+  assert.equal(missingOverlap.fingerprint, null);
+
+  const explicitZeroOverlap = buildResult({
+    shapeSnapshot: closedStirrupResultFromData({
+      width: 300,
+      height: 500,
+      hookLength: 80,
+      overlapLength: 0,
+    }).snapshot,
+    materialGrade: 'B500B',
+  });
+  assert.equal(explicitZeroOverlap.result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.equal(explicitZeroOverlap.result.canonicalSpec.geometry.overlapLengthMm, 0);
 });
 
 test('closed-stirrup source and software identifiers remain outside identity', () => {
@@ -304,10 +461,46 @@ test('closed-stirrup source and software identifiers remain outside identity', (
   secondSnapshot.templateVersion = 88;
   secondSnapshot.internalShapeCode = 'routing-only';
   secondSnapshot.calculated.weightKg = 777;
+  secondSnapshot.calculated.totalLengthMm = 99999;
 
   const first = buildResult({ shapeSnapshot: firstSnapshot, materialGrade: 'B500B' });
   const second = buildResult({ shapeSnapshot: secondSnapshot, materialGrade: 'B500B' });
   assert.equal(first.fingerprint, second.fingerprint);
+});
+
+test('invalid supplied Shape V2 snapshots require review even with valid legacy fallback', () => {
+  const validLegacyItem = {
+    family: 'bars',
+    shapeType: 'straight_bar',
+    diameter: 12,
+    total_length_mm: 6000,
+  };
+  const wrongVersion = straightSnapshot({ contractVersion: 999 });
+  const missingVersion = straightSnapshot();
+  delete missingVersion.contractVersion;
+  const malformed = straightSnapshot();
+  delete malformed.calculated;
+  const validationFailed = straightSnapshot({
+    validation: { valid: false, errors: ['source_invalid'], warnings: [] },
+  });
+
+  for (const shapeSnapshot of [wrongVersion, missingVersion, malformed, validationFailed]) {
+    const { result, fingerprint } = buildResult({
+      shapeSnapshot,
+      legacyItem: validLegacyItem,
+      materialGrade: 'B500B',
+    });
+    assert.equal(result.status, MATCHABILITY.REVIEW_REQUIRED);
+    assert.deepEqual(result.reasonCodes, ['invalid_shape_snapshot']);
+    assert.equal(result.canonicalSpec, null);
+    assert.equal(fingerprint, null);
+  }
+
+  const validBuilderSnapshot = closedStirrupResult().snapshot;
+  assert.equal(
+    buildResult({ shapeSnapshot: validBuilderSnapshot, materialGrade: 'B500B' }).result.status,
+    MATCHABILITY.EXACT_MATCHABLE,
+  );
 });
 
 test('engine-less and unknown external mappings never create fingerprints', () => {
@@ -334,12 +527,17 @@ test('engine-less and unknown external mappings never create fingerprints', () =
 
 test('unsupported Phase 1 families and geometry return deterministic non-exact results', () => {
   const cases = [
-    [{ family: 'mesh', shapeType: 'mesh_rectangular', data: {} }, 'unsupported_shape_family'],
-    [{ family: 'piles', shapeType: 'round_pile_cage', data: {} }, 'unsupported_shape_family'],
-    [{ family: 'spirals', shapeType: 'spiral', data: {} }, 'unsupported_shape_family'],
-    [{ family: 'bars', shapeType: 'l_bar', data: { sides: [500, 200], angles: [90], diameter: 12 } }, 'unsupported_shape_type'],
-    [{ family: 'bars', shapeType: 'rounded_end_bar', data: {} }, 'unsupported_shape_type'],
-    [{ family: 'bars', shapeType: 'straight_bar', data: { sides: [1000], angles: [], diameter: 12, is3d: true } }, 'unsupported_3d_geometry'],
+    [straightSnapshot({ family: 'mesh', shapeType: 'mesh_rectangular', data: {} }), 'unsupported_shape_family'],
+    [straightSnapshot({ family: 'piles', shapeType: 'round_pile_cage', data: {} }), 'unsupported_shape_family'],
+    [straightSnapshot({ family: 'spirals', shapeType: 'spiral', data: {} }), 'unsupported_shape_family'],
+    [straightSnapshot({
+      shapeType: 'l_bar',
+      data: { sides: [500, 200], angles: [90], diameter: 12 },
+    }), 'unsupported_shape_type'],
+    [straightSnapshot({ shapeType: 'rounded_end_bar', data: {} }), 'unsupported_shape_type'],
+    [straightSnapshot({
+      data: { sides: [1000], angles: [], diameter: 12, is3d: true },
+    }), 'unsupported_3d_geometry'],
   ];
 
   for (const [shapeSnapshot, reason] of cases) {

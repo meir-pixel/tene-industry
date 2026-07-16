@@ -42,6 +42,16 @@ function cloneSource(source) {
   return source && typeof source === 'object' ? { ...source } : {};
 }
 
+function hasOwn(object, key) {
+  return Boolean(object) && Object.prototype.hasOwnProperty.call(object, key);
+}
+
+function hasExplicitInputValue(input, key) {
+  const data = input?.data && typeof input.data === 'object' ? input.data : null;
+  return (hasOwn(data, key) && data[key] !== null && data[key] !== undefined)
+    || (hasOwn(input, key) && input[key] !== null && input[key] !== undefined);
+}
+
 function inputData(input = {}) {
   const data = input.data && typeof input.data === 'object' ? input.data : {};
   return {
@@ -57,6 +67,8 @@ function normalizeClosedStirrupInput(input = {}) {
   const data = inputData(input);
   const rawHookLength = numberOrNull(data.hookLength);
   const rawOverlapLength = numberOrNull(data.overlapLength);
+  const hookLengthExplicit = hasExplicitInputValue(input, 'hookLength');
+  const overlapLengthExplicit = hasExplicitInputValue(input, 'overlapLength');
   const hasHookLength = rawHookLength !== null;
   const hasOverlapLength = rawOverlapLength !== null;
   const overlapLength = hasOverlapLength ? rawOverlapLength : null;
@@ -77,6 +89,10 @@ function normalizeClosedStirrupInput(input = {}) {
     meta: {
       hasHookLength,
       hasOverlapLength,
+      inputPresence: {
+        hookLength: hookLengthExplicit,
+        overlapLength: overlapLengthExplicit,
+      },
     },
   };
 }
@@ -96,8 +112,12 @@ function validateClosedStirrupInput(input = {}) {
   if (numberOrNull(inputData(input).diameter) === null) errors.push('missing_diameter');
   else if (positiveNumber(data.diameter) === null) errors.push('invalid_diameter');
 
-  if (meta.hasHookLength && nonNegativeNumber(data.hookLength) === null) errors.push('invalid_hook_length');
-  if (meta.hasOverlapLength && nonNegativeNumber(data.overlapLength) === null) errors.push('invalid_overlap_length');
+  if (meta.inputPresence.hookLength && nonNegativeNumber(inputData(input).hookLength) === null) {
+    errors.push('invalid_hook_length');
+  }
+  if (meta.inputPresence.overlapLength && nonNegativeNumber(inputData(input).overlapLength) === null) {
+    errors.push('invalid_overlap_length');
+  }
 
   if (!meta.hasHookLength && !meta.hasOverlapLength) warnings.push('hook_length_defaulted');
   if (meta.hasHookLength && meta.hasOverlapLength) warnings.push('both_hook_and_overlap_provided');
@@ -107,6 +127,10 @@ function validateClosedStirrupInput(input = {}) {
     valid: errors.length === 0,
     errors,
     warnings,
+    inputPresence: {
+      hookLength: meta.inputPresence.hookLength,
+      overlapLength: meta.inputPresence.overlapLength,
+    },
   };
 }
 

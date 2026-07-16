@@ -25,6 +25,19 @@ function stableCanonicalStringify(value) {
     active.add(entry);
     let serialized;
     if (Array.isArray(entry)) {
+      if (Object.getOwnPropertySymbols(entry).length) {
+        active.delete(entry);
+        throw new TypeError('symbol keys are not supported');
+      }
+      const extraKeys = Object.keys(entry).filter(key => {
+        if (!/^(0|[1-9]\d*)$/.test(key)) return true;
+        const index = Number(key);
+        return !Number.isSafeInteger(index) || index < 0 || index >= entry.length;
+      });
+      if (extraKeys.length) {
+        active.delete(entry);
+        throw new TypeError('extra array properties are not supported');
+      }
       const values = [];
       for (let index = 0; index < entry.length; index += 1) {
         if (!Object.prototype.hasOwnProperty.call(entry, index)) {
