@@ -14,6 +14,7 @@ const {
   stableCanonicalStringify,
   buildPhysicalSpecFingerprint,
 } = require('../services/physicalSpecFingerprint');
+const { buildFullShapeSnapshot } = require('../services/shapeSnapshot');
 const { buildShapeSnapshotFromExternalCode } = require('../services/shapeSnapshotBuilder');
 const { buildClosedStirrupShape } = require('../services/shapeEngines/closedStirrupEngine');
 
@@ -82,6 +83,26 @@ function closedStirrupResultFromData(data, {
     diameter,
     data,
     source: { sourceSystem, externalShapeCode },
+  });
+}
+
+function closedSnapshotFromEngineInput(input) {
+  const engineShape = buildClosedStirrupShape(input);
+  return buildFullShapeSnapshot({
+    shapeId: 'closed-stirrup-engine-input',
+    shapeVersion: 1,
+    shapeType: engineShape.shapeType,
+    family: engineShape.family,
+    source: 'engine-input-test',
+    displayName: 'closed stirrup',
+    data: engineShape.data,
+    calculated: engineShape.calculated,
+    machineOutput: engineShape.machineOutput,
+    validation: engineShape.validation,
+    extra: {
+      internalShapeCode: engineShape.internalShapeCode,
+      geometry: engineShape.geometry,
+    },
   });
 }
 
@@ -541,6 +562,11 @@ test('closed-stirrup explicit zero requires a scalar numeric input', () => {
     Symbol('zero'),
     '10mm',
     '0x10',
+    '1.2.3',
+    '8e',
+    NaN,
+    Infinity,
+    -Infinity,
   ]) {
     const built = closedStirrupResultFromData({
       width: 300,
@@ -623,27 +649,32 @@ test('closed-stirrup explicit zero requires a scalar numeric input', () => {
     overlapLength: false,
   });
 
-  const numericString = closedStirrupResultFromData({
-    width: 300,
-    height: 500,
-    hookLength: '8e1',
-    overlapLength: '+0.000',
-  });
-  const accepted = buildResult({
-    shapeSnapshot: numericString.snapshot,
-    materialGrade: 'B500B',
-  });
-  assert.equal(accepted.result.status, MATCHABILITY.EXACT_MATCHABLE);
-  assert.deepEqual(numericString.snapshot.validation.inputValidity, {
-    hookLength: true,
-    overlapLength: true,
-  });
-  assert.deepEqual(accepted.result.canonicalSpec.geometry, {
-    widthMm: 300,
-    heightMm: 500,
-    hookLengthMm: 80,
-    overlapLengthMm: 0,
-  });
+  for (const [raw, expected] of [
+    ['0', 0],
+    ['80', 80],
+    ['+0.000', 0],
+    ['.5', 0.5],
+    ['1.', 1],
+    ['8e1', 80],
+  ]) {
+    const numericString = closedStirrupResultFromData({
+      width: 300,
+      height: 500,
+      hookLength: raw,
+      overlapLength: 0,
+    });
+    const accepted = buildResult({
+      shapeSnapshot: numericString.snapshot,
+      materialGrade: 'B500B',
+    });
+    assert.equal(accepted.result.status, MATCHABILITY.EXACT_MATCHABLE);
+    assert.deepEqual(numericString.snapshot.validation.inputValidity, {
+      hookLength: true,
+      overlapLength: true,
+    });
+    assert.equal(accepted.result.canonicalSpec.geometry.hookLengthMm, expected);
+    assert.equal(accepted.result.canonicalSpec.geometry.overlapLengthMm, 0);
+  }
 
   const negative = closedStirrupResultFromData({
     width: 300,
@@ -654,6 +685,12 @@ test('closed-stirrup explicit zero requires a scalar numeric input', () => {
   assert.equal(negative.snapshot.validation.inputValidity.hookLength, true);
   assert.equal(negative.snapshot.validation.valid, false);
   assert.ok(negative.snapshot.validation.errors.includes('invalid_hook_length'));
+  const negativeResult = buildResult({
+    shapeSnapshot: negative.snapshot,
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(negativeResult.result.reasonCodes, ['invalid_physical_value']);
+  assert.equal(negativeResult.fingerprint, null);
 
   const missingAndNull = [
     closedStirrupResultFromData({ width: 300, height: 500, overlapLength: 50 }),
@@ -757,6 +794,219 @@ test('closed-stirrup explicit zero requires a scalar numeric input', () => {
   });
   assert.deepEqual(invalidProvenance.result.reasonCodes, ['invalid_physical_value']);
   assert.equal(invalidProvenance.fingerprint, null);
+});
+
+test('closed-stirrup engine aliases must be internally consistent', () => {
+  const hookConflictSnapshot = closedSnapshotFromEngineInput({
+    width: 300,
+    height: 500,
+    diameter: 8,
+    hookLength: 90,
+    data: {
+      width: 300,
+      height: 500,
+      diameter: 8,
+      hookLength: 80,
+      overlapLength: 0,
+    },
+  });
+  assert.equal(hookConflictSnapshot.validation.valid, false);
+  assert.deepEqual(hookConflictSnapshot.validation.inputConflict, {
+    hookLength: true,
+    overlapLength: false,
+  });
+  const hookConflict = buildResult({
+    shapeSnapshot: hookConflictSnapshot,
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(hookConflict.result.reasonCodes, ['invalid_physical_value']);
+  assert.deepEqual(hookConflict.result.validation.discrepancies, [{
+    source: 'snapshot_input',
+    field: 'hookLength',
+    conflictType: 'conflicting_alias_values',
+  }]);
+  assert.equal(hookConflict.fingerprint, null);
+
+  const overlapConflictSnapshot = closedSnapshotFromEngineInput({
+    width: 300,
+    height: 500,
+    diameter: 8,
+    overlapLength: 10,
+    data: {
+      width: 300,
+      height: 500,
+      diameter: 8,
+      hookLength: 80,
+      overlapLength: 0,
+    },
+  });
+  assert.deepEqual(overlapConflictSnapshot.validation.inputConflict, {
+    hookLength: false,
+    overlapLength: true,
+  });
+  assert.equal(buildResult({
+    shapeSnapshot: overlapConflictSnapshot,
+    materialGrade: 'B500B',
+  }).fingerprint, null);
+
+  const bothConflictSnapshot = closedSnapshotFromEngineInput({
+    width: 300,
+    height: 500,
+    diameter: 8,
+    hookLength: 90,
+    overlapLength: 10,
+    data: {
+      width: 300,
+      height: 500,
+      diameter: 8,
+      hookLength: 80,
+      overlapLength: 0,
+    },
+  });
+  assert.deepEqual(bothConflictSnapshot.validation.inputConflict, {
+    hookLength: true,
+    overlapLength: true,
+  });
+  const bothConflict = buildResult({
+    shapeSnapshot: bothConflictSnapshot,
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(bothConflict.result.reasonCodes, ['invalid_physical_value']);
+  assert.equal(bothConflict.fingerprint, null);
+
+  const equivalentSnapshot = closedSnapshotFromEngineInput({
+    width: 300,
+    height: 500,
+    diameter: 8,
+    hookLength: 80,
+    overlapLength: 0,
+    data: {
+      width: 300,
+      height: 500,
+      diameter: 8,
+      hookLength: '80.000',
+      overlapLength: '+0.000',
+    },
+  });
+  assert.equal(equivalentSnapshot.validation.valid, true);
+  assert.deepEqual(equivalentSnapshot.validation.inputConflict, {
+    hookLength: false,
+    overlapLength: false,
+  });
+  assert.equal(Object.hasOwn(equivalentSnapshot.calculated, 'inputConflict'), false);
+  assert.doesNotMatch(JSON.stringify(equivalentSnapshot.machineOutput), /inputConflict/);
+  const equivalent = buildResult({
+    shapeSnapshot: equivalentSnapshot,
+    materialGrade: 'B500B',
+  });
+  assert.equal(equivalent.result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.equal(Object.hasOwn(equivalent.result.canonicalSpec, 'inputConflict'), false);
+
+  const invalidAliasSnapshot = closedSnapshotFromEngineInput({
+    width: 300,
+    height: 500,
+    diameter: 8,
+    hookLength: false,
+    overlapLength: 0,
+    data: {
+      width: 300,
+      height: 500,
+      diameter: 8,
+      hookLength: 80,
+      overlapLength: 0,
+    },
+  });
+  assert.deepEqual(invalidAliasSnapshot.validation.inputValidity, {
+    hookLength: false,
+    overlapLength: true,
+  });
+  assert.deepEqual(invalidAliasSnapshot.validation.inputConflict, {
+    hookLength: false,
+    overlapLength: false,
+  });
+  const invalidAlias = buildResult({
+    shapeSnapshot: invalidAliasSnapshot,
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(invalidAlias.result.reasonCodes, ['invalid_physical_value']);
+  assert.equal(invalidAlias.fingerprint, null);
+});
+
+test('closed-stirrup legacy aliases must be internally consistent', () => {
+  const shapeSnapshot = closedStirrupResult().snapshot;
+  const legacyBase = {
+    family: 'bars',
+    shapeType: 'closed_stirrup',
+    width: 300,
+    height: 500,
+    diameter: 8,
+    overlapLength: 0,
+  };
+
+  const hookConflict = buildResult({
+    shapeSnapshot,
+    legacyItem: {
+      ...legacyBase,
+      hookLength: 80,
+      hookLengthMm: 90,
+    },
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(hookConflict.result.reasonCodes, ['invalid_physical_value']);
+  assert.deepEqual(hookConflict.result.validation.discrepancies, [{
+    source: 'legacy_item',
+    field: 'hookLength',
+    conflictType: 'conflicting_alias_values',
+  }]);
+  assert.equal(hookConflict.fingerprint, null);
+
+  const overlapConflict = buildResult({
+    shapeSnapshot,
+    legacyItem: {
+      ...legacyBase,
+      hookLength: 80,
+      overlapLengthMm: 10,
+    },
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(overlapConflict.result.reasonCodes, ['invalid_physical_value']);
+  assert.equal(overlapConflict.fingerprint, null);
+
+  const equivalent = buildResult({
+    shapeSnapshot,
+    legacyItem: {
+      ...legacyBase,
+      hookLength: 80,
+      hook_length_mm: '80.000',
+      overlap_length_mm: '0.000',
+    },
+    materialGrade: 'B500B',
+  });
+  assert.equal(equivalent.result.status, MATCHABILITY.EXACT_MATCHABLE);
+
+  const invalidAlias = buildResult({
+    shapeSnapshot,
+    legacyItem: {
+      ...legacyBase,
+      hookLength: 80,
+      hookLengthMm: [],
+    },
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(invalidAlias.result.reasonCodes, ['invalid_physical_value']);
+  assert.equal(invalidAlias.fingerprint, null);
+
+  const sourceConflict = buildResult({
+    shapeSnapshot,
+    legacyItem: {
+      ...legacyBase,
+      hookLength: 90,
+      hookLengthMm: '90.000',
+    },
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(sourceConflict.result.reasonCodes, ['snapshot_legacy_conflict']);
+  assert.equal(sourceConflict.fingerprint, null);
 });
 
 test('closed-stirrup source and software identifiers remain outside identity', () => {

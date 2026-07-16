@@ -4,6 +4,7 @@ const {
   CONTRACT_VERSION: SHAPE_SNAPSHOT_CONTRACT_VERSION,
   isShapeDataContractV2,
 } = require('./shapeSnapshot');
+const { strictNumericInput } = require('./shapeEngines/closedStirrupEngine');
 
 const CANONICAL_SPEC_VERSION = 1;
 
@@ -36,6 +37,13 @@ const UNMATCHABLE_REASONS = new Set([
   'unsupported_shape_type',
   'unsupported_3d_geometry',
   'shape_engine_unavailable',
+]);
+
+const CLOSED_PHYSICAL_VALIDATION_ERRORS = new Set([
+  'invalid_hook_length',
+  'invalid_overlap_length',
+  'conflicting_hook_length_aliases',
+  'conflicting_overlap_length_aliases',
 ]);
 
 function hasOwn(object, key) {
@@ -116,6 +124,56 @@ function legacyField(legacyItem, keys) {
   const direct = firstDefinedField(legacyItem, keys);
   if (direct.present) return direct;
   return firstDefinedField(nestedData(legacyItem), keys);
+}
+
+function collectLegacyPhysicalAliases(legacyItem, keys) {
+  const values = [];
+  for (const container of [legacyItem, nestedData(legacyItem)]) {
+    if (!isObject(container)) continue;
+    for (const key of keys) {
+      if (!hasOwn(container, key)) continue;
+      const value = container[key];
+      if (value === null || value === undefined) continue;
+      values.push(value);
+    }
+  }
+  if (!values.length) {
+    return {
+      field: { present: false, value: undefined },
+      kind: 'missing',
+      conflict: false,
+    };
+  }
+
+  const normalized = [];
+  for (const value of values) {
+    const parsed = strictNumericInput(value);
+    if (!parsed.valid) {
+      return {
+        field: { present: false, value: undefined },
+        kind: 'invalid',
+        conflict: false,
+      };
+    }
+    const physical = numericResult(parsed.value, { allowZero: true });
+    if (physical.kind !== 'ok') {
+      return {
+        field: { present: false, value: undefined },
+        kind: physical.kind,
+        conflict: false,
+      };
+    }
+    normalized.push(physical.value);
+  }
+
+  const conflict = normalized.some(value => value !== normalized[0]);
+  return {
+    field: conflict
+      ? { present: false, value: undefined }
+      : { present: true, value: normalized[0] },
+    kind: conflict ? 'invalid' : 'ok',
+    conflict,
+  };
 }
 
 function normalizeShapeType(value) {
@@ -439,7 +497,12 @@ function buildStraightSpec({ snapshot, legacyItem, materialGrade }) {
   }, discrepancies);
 }
 
-function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
+function buildClosedStirrupSpec({
+  snapshot,
+  legacyItem,
+  materialGrade,
+  snapshotPhysicalValidationFailure = false,
+}) {
   const reasons = [];
   const discrepancies = [];
   const data = nestedData(snapshot);
@@ -449,6 +512,11 @@ function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
   const inputValidity = isObject(snapshot?.validation?.inputValidity)
     ? snapshot.validation.inputValidity
     : {};
+  const inputConflict = isObject(snapshot?.validation?.inputConflict)
+    ? snapshot.validation.inputConflict
+    : {};
+
+  if (snapshotPhysicalValidationFailure) addReason(reasons, 'invalid_physical_value');
 
   const snapshotFields = {
     widthMm: firstDefinedField(data, ['width']),
@@ -457,13 +525,36 @@ function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
     hookLengthMm: firstDefinedField(data, ['hookLength']),
     overlapLengthMm: firstDefinedField(data, ['overlapLength']),
   };
+  const legacyHook = collectLegacyPhysicalAliases(
+    legacyItem,
+    ['hookLength', 'hookLengthMm', 'hook_length', 'hook_length_mm'],
+  );
+  const legacyOverlap = collectLegacyPhysicalAliases(
+    legacyItem,
+    ['overlapLength', 'overlapLengthMm', 'overlap_length', 'overlap_length_mm'],
+  );
   const legacyFields = {
     widthMm: legacyField(legacyItem, ['width', 'widthMm', 'width_mm']),
     heightMm: legacyField(legacyItem, ['height', 'heightMm', 'height_mm']),
     diameterMm: legacyField(legacyItem, ['diameter', 'diameterMm', 'diameter_mm']),
-    hookLengthMm: legacyField(legacyItem, ['hookLength', 'hookLengthMm', 'hook_length', 'hook_length_mm']),
-    overlapLengthMm: legacyField(legacyItem, ['overlapLength', 'overlapLengthMm', 'overlap_length', 'overlap_length_mm']),
+    hookLengthMm: legacyHook.field,
+    overlapLengthMm: legacyOverlap.field,
   };
+
+  for (const [field, legacyAliasResult] of [
+    ['hookLength', legacyHook],
+    ['overlapLength', legacyOverlap],
+  ]) {
+    if (legacyAliasResult.kind === 'invalid') addReason(reasons, 'invalid_physical_value');
+    if (legacyAliasResult.kind === 'precision') addReason(reasons, 'unsupported_numeric_precision');
+    if (legacyAliasResult.conflict) {
+      discrepancies.push({
+        source: 'legacy_item',
+        field,
+        conflictType: 'conflicting_alias_values',
+      });
+    }
+  }
 
   for (const [field, allowZero] of [
     ['widthMm', false],
@@ -494,6 +585,9 @@ function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
   function endTreatmentResult(field, provenanceKey) {
     const presenceKnown = hasOwn(inputPresence, provenanceKey);
     const validityKnown = hasOwn(inputValidity, provenanceKey);
+    if (inputConflict[provenanceKey] === true) {
+      return { kind: 'invalid', value: null };
+    }
     if (presenceKnown && inputPresence[provenanceKey] !== true) {
       return { kind: 'missing', value: null };
     }
@@ -519,6 +613,15 @@ function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
 
   const hook = endTreatmentResult(snapshotFields.hookLengthMm, 'hookLength');
   const overlap = endTreatmentResult(snapshotFields.overlapLengthMm, 'overlapLength');
+  for (const field of ['hookLength', 'overlapLength']) {
+    if (inputConflict[field] === true) {
+      discrepancies.push({
+        source: 'snapshot_input',
+        field,
+        conflictType: 'conflicting_alias_values',
+      });
+    }
+  }
   if (hook.kind === 'missing' || overlap.kind === 'missing') addReason(reasons, 'missing_end_treatment');
   if (hook.kind === 'invalid' || overlap.kind === 'invalid') addReason(reasons, 'invalid_physical_value');
   if (hook.kind === 'precision' || overlap.kind === 'precision') addReason(reasons, 'unsupported_numeric_precision');
@@ -581,26 +684,39 @@ function buildCanonicalPhysicalSpec(input = {}) {
     return resultFromReasons(['invalid_shape_snapshot']);
   }
 
-  if (
-    snapshot
-    && (
-      !isShapeDataContractV2(snapshot)
-      || Number(snapshot.contractVersion) !== SHAPE_SNAPSHOT_CONTRACT_VERSION
-      || !isObject(snapshot.data)
-      || !isObject(snapshot.calculated)
-      || !isObject(snapshot.machineOutput)
-      || !isObject(snapshot.validation)
-      || snapshot.validation.valid !== true
-      || (
-        hasOwn(snapshot.validation, 'errors')
-        && (
-          !Array.isArray(snapshot.validation.errors)
-          || snapshot.validation.errors.length > 0
-        )
-      )
-    )
-  ) {
-    return resultFromReasons(['invalid_shape_snapshot']);
+  let snapshotPhysicalValidationFailure = false;
+  if (snapshot) {
+    const structurallyValid = (
+      isShapeDataContractV2(snapshot)
+      && Number(snapshot.contractVersion) === SHAPE_SNAPSHOT_CONTRACT_VERSION
+      && isObject(snapshot.data)
+      && isObject(snapshot.calculated)
+      && isObject(snapshot.machineOutput)
+      && isObject(snapshot.validation)
+    );
+    if (!structurallyValid) return resultFromReasons(['invalid_shape_snapshot']);
+
+    const errorsPresent = hasOwn(snapshot.validation, 'errors');
+    const errors = errorsPresent && Array.isArray(snapshot.validation.errors)
+      ? snapshot.validation.errors
+      : null;
+    if (errorsPresent && !errors) return resultFromReasons(['invalid_shape_snapshot']);
+
+    if (snapshot.validation.valid === true) {
+      if (errors && errors.length > 0) return resultFromReasons(['invalid_shape_snapshot']);
+    } else if (snapshot.validation.valid === false) {
+      snapshotPhysicalValidationFailure = (
+        normalizeShapeType(snapshot.shapeType) === 'closed_stirrup'
+        && Array.isArray(errors)
+        && errors.length > 0
+        && errors.every(error => CLOSED_PHYSICAL_VALIDATION_ERRORS.has(error))
+      );
+      if (!snapshotPhysicalValidationFailure) {
+        return resultFromReasons(['invalid_shape_snapshot']);
+      }
+    } else {
+      return resultFromReasons(['invalid_shape_snapshot']);
+    }
   }
 
   if (is3dInput(snapshot, legacyItem)) {
@@ -637,7 +753,12 @@ function buildCanonicalPhysicalSpec(input = {}) {
           legacyValue: legacyType,
         }]);
       }
-      return buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade: input.materialGrade });
+      return buildClosedStirrupSpec({
+        snapshot,
+        legacyItem,
+        materialGrade: input.materialGrade,
+        snapshotPhysicalValidationFailure,
+      });
     }
 
     return unsupportedSnapshotResult(snapshot, null);

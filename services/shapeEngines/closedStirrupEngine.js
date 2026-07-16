@@ -66,20 +66,22 @@ function hasOwn(object, key) {
 
 function classifyEndTreatmentInput(input, key) {
   const data = input?.data && typeof input.data === 'object' ? input.data : null;
-  let value;
-  let present = false;
+  const values = [];
   if (hasOwn(data, key) && data[key] !== null && data[key] !== undefined) {
-    value = data[key];
-    present = true;
-  } else if (hasOwn(input, key) && input[key] !== null && input[key] !== undefined) {
-    value = input[key];
-    present = true;
+    values.push(data[key]);
   }
-  const numeric = present ? strictNumericInput(value) : { valid: false, value: null };
+  if (hasOwn(input, key) && input[key] !== null && input[key] !== undefined) {
+    values.push(input[key]);
+  }
+  const parsed = values.map(strictNumericInput);
+  const allValid = parsed.length > 0 && parsed.every(candidate => candidate.valid);
+  const conflict = allValid
+    && parsed.some(candidate => candidate.value !== parsed[0].value);
   return {
-    present,
-    valid: numeric.valid,
-    value: numeric.value,
+    present: values.length > 0,
+    valid: allValid && !conflict,
+    conflict,
+    value: allValid && !conflict ? parsed[0].value : null,
   };
 }
 
@@ -128,6 +130,10 @@ function normalizeClosedStirrupInput(input = {}) {
         hookLength: hookInput.valid,
         overlapLength: overlapInput.valid,
       },
+      inputConflict: {
+        hookLength: hookInput.conflict,
+        overlapLength: overlapInput.conflict,
+      },
     },
   };
 }
@@ -159,6 +165,8 @@ function validateClosedStirrupInput(input = {}) {
   ) {
     errors.push('invalid_overlap_length');
   }
+  if (meta.inputConflict.hookLength) errors.push('conflicting_hook_length_aliases');
+  if (meta.inputConflict.overlapLength) errors.push('conflicting_overlap_length_aliases');
 
   if (!meta.hasHookLength && !meta.hasOverlapLength) warnings.push('hook_length_defaulted');
   if (meta.hasHookLength && meta.hasOverlapLength) warnings.push('both_hook_and_overlap_provided');
@@ -175,6 +183,10 @@ function validateClosedStirrupInput(input = {}) {
     inputValidity: {
       hookLength: meta.inputValidity.hookLength,
       overlapLength: meta.inputValidity.overlapLength,
+    },
+    inputConflict: {
+      hookLength: meta.inputConflict.hookLength,
+      overlapLength: meta.inputConflict.overlapLength,
     },
   };
 }
@@ -338,4 +350,5 @@ module.exports = {
   calculateClosedStirrupGeometry,
   calculateClosedStirrupLength,
   buildClosedStirrupMachineOutput,
+  strictNumericInput,
 };
