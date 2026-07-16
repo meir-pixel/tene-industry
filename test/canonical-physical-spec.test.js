@@ -14,6 +14,7 @@ const {
   stableCanonicalStringify,
   buildPhysicalSpecFingerprint,
 } = require('../services/physicalSpecFingerprint');
+const { portalShapeDraftToOrderItem } = require('../services/customerPortalShapeDraft');
 const { buildFullShapeSnapshot } = require('../services/shapeSnapshot');
 const { buildShapeSnapshotFromExternalCode } = require('../services/shapeSnapshotBuilder');
 const { buildClosedStirrupShape } = require('../services/shapeEngines/closedStirrupEngine');
@@ -147,6 +148,28 @@ test('valid single-segment straight geometry remains exact-matchable', () => {
 
   assert.equal(result.status, MATCHABILITY.EXACT_MATCHABLE);
   assert.equal(result.canonicalSpec.geometry.lengthMm, 6000);
+  assert.match(fingerprint, /^physical-spec:v1:sha256:[a-f0-9]{64}$/);
+});
+
+test('portal straight builder snapshot canonicalizes successfully', () => {
+  const item = portalShapeDraftToOrderItem({
+    elementName: 'portal straight',
+    diameter: 12,
+    quantity: 20,
+    shapeDraft: {
+      family: 'bars',
+      shapeType: 'straight',
+      data: { length: 1000 },
+    },
+  });
+  const { result, fingerprint } = buildResult({
+    shapeSnapshot: item.shapeSnapshot,
+    materialGrade: 'B500B',
+  });
+
+  assert.equal(result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.equal(result.canonicalSpec.geometry.lengthMm, 1000);
+  assert.equal(result.canonicalSpec.diameterMm, 12);
   assert.match(fingerprint, /^physical-spec:v1:sha256:[a-f0-9]{64}$/);
 });
 
