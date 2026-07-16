@@ -28,6 +28,24 @@ function nonNegativeNumber(value) {
   return number !== null && number >= 0 ? number : null;
 }
 
+function strictNumericInput(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? { valid: true, value }
+      : { valid: false, value: null };
+  }
+  if (typeof value !== 'string') return { valid: false, value: null };
+  const normalized = value.trim();
+  if (!normalized) return { valid: false, value: null };
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(normalized)) {
+    return { valid: false, value: null };
+  }
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric)
+    ? { valid: true, value: numeric }
+    : { valid: false, value: null };
+}
+
 function round(value, digits = 3) {
   const factor = 10 ** digits;
   return Math.round((Number(value) || 0) * factor) / factor;
@@ -46,10 +64,23 @@ function hasOwn(object, key) {
   return Boolean(object) && Object.prototype.hasOwnProperty.call(object, key);
 }
 
-function hasExplicitInputValue(input, key) {
+function classifyEndTreatmentInput(input, key) {
   const data = input?.data && typeof input.data === 'object' ? input.data : null;
-  return (hasOwn(data, key) && data[key] !== null && data[key] !== undefined)
-    || (hasOwn(input, key) && input[key] !== null && input[key] !== undefined);
+  let value;
+  let present = false;
+  if (hasOwn(data, key) && data[key] !== null && data[key] !== undefined) {
+    value = data[key];
+    present = true;
+  } else if (hasOwn(input, key) && input[key] !== null && input[key] !== undefined) {
+    value = input[key];
+    present = true;
+  }
+  const numeric = present ? strictNumericInput(value) : { valid: false, value: null };
+  return {
+    present,
+    valid: numeric.valid,
+    value: numeric.value,
+  };
 }
 
 function inputData(input = {}) {
@@ -65,10 +96,10 @@ function inputData(input = {}) {
 
 function normalizeClosedStirrupInput(input = {}) {
   const data = inputData(input);
-  const rawHookLength = numberOrNull(data.hookLength);
-  const rawOverlapLength = numberOrNull(data.overlapLength);
-  const hookLengthExplicit = hasExplicitInputValue(input, 'hookLength');
-  const overlapLengthExplicit = hasExplicitInputValue(input, 'overlapLength');
+  const hookInput = classifyEndTreatmentInput(input, 'hookLength');
+  const overlapInput = classifyEndTreatmentInput(input, 'overlapLength');
+  const rawHookLength = hookInput.valid ? hookInput.value : null;
+  const rawOverlapLength = overlapInput.valid ? overlapInput.value : null;
   const hasHookLength = rawHookLength !== null;
   const hasOverlapLength = rawOverlapLength !== null;
   const overlapLength = hasOverlapLength ? rawOverlapLength : null;
@@ -90,8 +121,12 @@ function normalizeClosedStirrupInput(input = {}) {
       hasHookLength,
       hasOverlapLength,
       inputPresence: {
-        hookLength: hookLengthExplicit,
-        overlapLength: overlapLengthExplicit,
+        hookLength: hookInput.present,
+        overlapLength: overlapInput.present,
+      },
+      inputValidity: {
+        hookLength: hookInput.valid,
+        overlapLength: overlapInput.valid,
       },
     },
   };
@@ -112,10 +147,16 @@ function validateClosedStirrupInput(input = {}) {
   if (numberOrNull(inputData(input).diameter) === null) errors.push('missing_diameter');
   else if (positiveNumber(data.diameter) === null) errors.push('invalid_diameter');
 
-  if (meta.inputPresence.hookLength && nonNegativeNumber(inputData(input).hookLength) === null) {
+  if (
+    meta.inputValidity.hookLength
+    && nonNegativeNumber(data.hookLength) === null
+  ) {
     errors.push('invalid_hook_length');
   }
-  if (meta.inputPresence.overlapLength && nonNegativeNumber(inputData(input).overlapLength) === null) {
+  if (
+    meta.inputValidity.overlapLength
+    && nonNegativeNumber(data.overlapLength) === null
+  ) {
     errors.push('invalid_overlap_length');
   }
 
@@ -130,6 +171,10 @@ function validateClosedStirrupInput(input = {}) {
     inputPresence: {
       hookLength: meta.inputPresence.hookLength,
       overlapLength: meta.inputPresence.overlapLength,
+    },
+    inputValidity: {
+      hookLength: meta.inputValidity.hookLength,
+      overlapLength: meta.inputValidity.overlapLength,
     },
   };
 }

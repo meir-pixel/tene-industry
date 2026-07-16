@@ -320,6 +320,16 @@ function straightGeometryInvalid(source, { allowJson = false, includeTopLevel = 
       const bends = parseGeometryArray(container[key], { allowJson });
       if (!bends || bends.some(meaningfulBend)) return true;
     }
+
+    const explicitLengthKeys = includeTopLevel
+      ? ['lengthMm', 'length_mm', 'totalLengthMm', 'total_length_mm', 'length']
+      : ['lengthMm', 'length_mm', 'length'];
+    for (const key of explicitLengthKeys) {
+      if (!hasOwn(container, key)) continue;
+      const length = numericResult(container[key]);
+      if (length.kind !== 'ok') return true;
+      physicalLengths.push(length.value);
+    }
   }
 
   return physicalLengths.some(length => length !== physicalLengths[0]);
@@ -436,6 +446,9 @@ function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
   const inputPresence = isObject(snapshot?.validation?.inputPresence)
     ? snapshot.validation.inputPresence
     : {};
+  const inputValidity = isObject(snapshot?.validation?.inputValidity)
+    ? snapshot.validation.inputValidity
+    : {};
 
   const snapshotFields = {
     widthMm: firstDefinedField(data, ['width']),
@@ -478,26 +491,35 @@ function buildClosedStirrupSpec({ snapshot, legacyItem, materialGrade }) {
   addNumericReason(reasons, height, 'missing_geometry');
   addNumericReason(reasons, diameter, 'missing_diameter');
 
-  function endTreatmentIsUsable(field, presenceKey) {
-    if (!field.present || field.value === null || field.value === undefined || field.value === '') return false;
+  function endTreatmentResult(field, provenanceKey) {
+    const presenceKnown = hasOwn(inputPresence, provenanceKey);
+    const validityKnown = hasOwn(inputValidity, provenanceKey);
+    if (presenceKnown && inputPresence[provenanceKey] !== true) {
+      return { kind: 'missing', value: null };
+    }
+    if (validityKnown && inputValidity[provenanceKey] !== true) {
+      return { kind: 'invalid', value: null };
+    }
+    if (!field.present || field.value === null || field.value === undefined || field.value === '') {
+      return { kind: 'missing', value: null };
+    }
     const normalized = numericResult(field.value, { allowZero: true });
     if (normalized.kind === 'ok' && normalized.value === 0) {
-      return inputPresence[presenceKey] === true;
+      if (
+        !presenceKnown
+        || inputPresence[provenanceKey] !== true
+        || !validityKnown
+        || inputValidity[provenanceKey] !== true
+      ) {
+        return { kind: 'missing', value: null };
+      }
     }
-    return true;
+    return normalized;
   }
 
-  const hookIsExplicit = endTreatmentIsUsable(snapshotFields.hookLengthMm, 'hookLength');
-  const overlapIsExplicit = endTreatmentIsUsable(snapshotFields.overlapLengthMm, 'overlapLength');
-
-  if (!hookIsExplicit || !overlapIsExplicit) addReason(reasons, 'missing_end_treatment');
-
-  const hook = hookIsExplicit
-    ? numericResult(snapshotFields.hookLengthMm.value, { allowZero: true })
-    : { kind: 'missing', value: null };
-  const overlap = overlapIsExplicit
-    ? numericResult(snapshotFields.overlapLengthMm.value, { allowZero: true })
-    : { kind: 'missing', value: null };
+  const hook = endTreatmentResult(snapshotFields.hookLengthMm, 'hookLength');
+  const overlap = endTreatmentResult(snapshotFields.overlapLengthMm, 'overlapLength');
+  if (hook.kind === 'missing' || overlap.kind === 'missing') addReason(reasons, 'missing_end_treatment');
   if (hook.kind === 'invalid' || overlap.kind === 'invalid') addReason(reasons, 'invalid_physical_value');
   if (hook.kind === 'precision' || overlap.kind === 'precision') addReason(reasons, 'unsupported_numeric_precision');
 
@@ -568,7 +590,14 @@ function buildCanonicalPhysicalSpec(input = {}) {
       || !isObject(snapshot.calculated)
       || !isObject(snapshot.machineOutput)
       || !isObject(snapshot.validation)
-      || snapshot.validation.valid === false
+      || snapshot.validation.valid !== true
+      || (
+        hasOwn(snapshot.validation, 'errors')
+        && (
+          !Array.isArray(snapshot.validation.errors)
+          || snapshot.validation.errors.length > 0
+        )
+      )
     )
   ) {
     return resultFromReasons(['invalid_shape_snapshot']);

@@ -15,6 +15,7 @@ const {
   buildPhysicalSpecFingerprint,
 } = require('../services/physicalSpecFingerprint');
 const { buildShapeSnapshotFromExternalCode } = require('../services/shapeSnapshotBuilder');
+const { buildClosedStirrupShape } = require('../services/shapeEngines/closedStirrupEngine');
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -171,6 +172,71 @@ test('bent or multi-segment geometry cannot masquerade as straight', () => {
     assert.equal(result.canonicalSpec, null);
     assert.equal(fingerprint, null);
   }
+});
+
+test('conflicting straight length declarations require review', () => {
+  const cases = [
+    {
+      legacyItem: {
+        family: 'bars',
+        shapeType: 'straight_bar',
+        diameter: 12,
+        total_length_mm: 300,
+        segments: [{ lengthMm: 400, bendAfterDeg: null }],
+      },
+    },
+    {
+      shapeSnapshot: straightSnapshot({
+        data: {
+          sides: [6000],
+          angles: [],
+          diameter: 12,
+          lengthMm: 5000,
+        },
+      }),
+    },
+    {
+      legacyItem: {
+        family: 'bars',
+        shapeType: 'straight_bar',
+        diameter: 12,
+        lengthMm: 300,
+        total_length_mm: 400,
+      },
+    },
+    {
+      legacyItem: {
+        family: 'bars',
+        shapeType: 'straight_bar',
+        diameter: 12,
+        data: {
+          total_length_mm: 300,
+          segments: [{ lengthMm: 400, bendAfterDeg: null }],
+        },
+      },
+    },
+  ];
+
+  for (const input of cases) {
+    const { result, fingerprint } = buildResult({ ...input, materialGrade: 'B500B' });
+    assert.equal(result.status, MATCHABILITY.REVIEW_REQUIRED);
+    assert.ok(result.reasonCodes.includes('invalid_straight_geometry'));
+    assert.equal(result.canonicalSpec, null);
+    assert.equal(fingerprint, null);
+  }
+
+  const equivalent = buildResult({
+    legacyItem: {
+      family: 'bars',
+      shapeType: 'straight_bar',
+      diameter: 12,
+      total_length_mm: '6000.000',
+      segments: [{ lengthMm: 6000, bendAfterDeg: null }],
+    },
+    materialGrade: 'B500B',
+  });
+  assert.equal(equivalent.result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.equal(equivalent.result.canonicalSpec.geometry.lengthMm, 6000);
 });
 
 test('straight physical changes alter fingerprints', () => {
@@ -397,6 +463,10 @@ test('closed stirrup requires explicit hook and overlap fields', () => {
     hookLength: false,
     overlapLength: true,
   });
+  assert.deepEqual(missingHookBuilder.snapshot.validation.inputValidity, {
+    hookLength: false,
+    overlapLength: true,
+  });
   const missingHook = buildResult({
     shapeSnapshot: missingHookBuilder.snapshot,
     materialGrade: 'B500B',
@@ -415,6 +485,10 @@ test('closed stirrup requires explicit hook and overlap fields', () => {
     hookLength: true,
     overlapLength: true,
   });
+  assert.deepEqual(explicitZeroHookBuilder.snapshot.validation.inputValidity, {
+    hookLength: true,
+    overlapLength: true,
+  });
   const explicitZeroHook = buildResult({
     shapeSnapshot: explicitZeroHookBuilder.snapshot,
     materialGrade: 'B500B',
@@ -428,6 +502,10 @@ test('closed stirrup requires explicit hook and overlap fields', () => {
     hookLength: 80,
   });
   assert.deepEqual(missingOverlapBuilder.snapshot.validation.inputPresence, {
+    hookLength: true,
+    overlapLength: false,
+  });
+  assert.deepEqual(missingOverlapBuilder.snapshot.validation.inputValidity, {
     hookLength: true,
     overlapLength: false,
   });
@@ -450,6 +528,235 @@ test('closed stirrup requires explicit hook and overlap fields', () => {
   });
   assert.equal(explicitZeroOverlap.result.status, MATCHABILITY.EXACT_MATCHABLE);
   assert.equal(explicitZeroOverlap.result.canonicalSpec.geometry.overlapLengthMm, 0);
+});
+
+test('closed-stirrup explicit zero requires a scalar numeric input', () => {
+  for (const hookLength of [
+    false,
+    [],
+    {},
+    '   ',
+    new Number(0),
+    () => 0,
+    Symbol('zero'),
+    '10mm',
+    '0x10',
+  ]) {
+    const built = closedStirrupResultFromData({
+      width: 300,
+      height: 500,
+      hookLength,
+      overlapLength: 0,
+    });
+    assert.deepEqual(built.snapshot.validation.inputPresence, {
+      hookLength: true,
+      overlapLength: true,
+    });
+    assert.deepEqual(built.snapshot.validation.inputValidity, {
+      hookLength: false,
+      overlapLength: true,
+    });
+    assert.equal(built.snapshot.validation.valid, true);
+    assert.deepEqual(built.snapshot.validation.errors, []);
+    const { result, fingerprint } = buildResult({
+      shapeSnapshot: built.snapshot,
+      materialGrade: 'B500B',
+    });
+    assert.deepEqual(result.reasonCodes, ['invalid_physical_value']);
+    assert.equal(fingerprint, null);
+  }
+
+  for (const overlapLength of [false, []]) {
+    const invalidOverlap = closedStirrupResultFromData({
+      width: 300,
+      height: 500,
+      hookLength: 80,
+      overlapLength,
+    });
+    assert.equal(invalidOverlap.snapshot.validation.valid, true);
+    assert.deepEqual(invalidOverlap.snapshot.validation.inputPresence, {
+      hookLength: true,
+      overlapLength: true,
+    });
+    assert.deepEqual(invalidOverlap.snapshot.validation.inputValidity, {
+      hookLength: true,
+      overlapLength: false,
+    });
+    const { result, fingerprint } = buildResult({
+      shapeSnapshot: invalidOverlap.snapshot,
+      materialGrade: 'B500B',
+    });
+    assert.deepEqual(result.reasonCodes, ['invalid_physical_value']);
+    assert.equal(fingerprint, null);
+  }
+
+  const topLevelAlias = buildClosedStirrupShape({
+    width: 300,
+    height: 500,
+    diameter: 8,
+    hookLength: false,
+    overlapLength: 0,
+  });
+  assert.equal(topLevelAlias.validation.valid, true);
+  assert.deepEqual(topLevelAlias.validation.errors, []);
+  assert.deepEqual(topLevelAlias.validation.inputPresence, {
+    hookLength: true,
+    overlapLength: true,
+  });
+  assert.deepEqual(topLevelAlias.validation.inputValidity, {
+    hookLength: false,
+    overlapLength: true,
+  });
+  const topLevelOverlapAlias = buildClosedStirrupShape({
+    width: 300,
+    height: 500,
+    diameter: 8,
+    hookLength: 80,
+    overlapLength: [],
+  });
+  assert.deepEqual(topLevelOverlapAlias.validation.inputPresence, {
+    hookLength: true,
+    overlapLength: true,
+  });
+  assert.deepEqual(topLevelOverlapAlias.validation.inputValidity, {
+    hookLength: true,
+    overlapLength: false,
+  });
+
+  const numericString = closedStirrupResultFromData({
+    width: 300,
+    height: 500,
+    hookLength: '8e1',
+    overlapLength: '+0.000',
+  });
+  const accepted = buildResult({
+    shapeSnapshot: numericString.snapshot,
+    materialGrade: 'B500B',
+  });
+  assert.equal(accepted.result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.deepEqual(numericString.snapshot.validation.inputValidity, {
+    hookLength: true,
+    overlapLength: true,
+  });
+  assert.deepEqual(accepted.result.canonicalSpec.geometry, {
+    widthMm: 300,
+    heightMm: 500,
+    hookLengthMm: 80,
+    overlapLengthMm: 0,
+  });
+
+  const negative = closedStirrupResultFromData({
+    width: 300,
+    height: 500,
+    hookLength: -1,
+    overlapLength: 0,
+  });
+  assert.equal(negative.snapshot.validation.inputValidity.hookLength, true);
+  assert.equal(negative.snapshot.validation.valid, false);
+  assert.ok(negative.snapshot.validation.errors.includes('invalid_hook_length'));
+
+  const missingAndNull = [
+    closedStirrupResultFromData({ width: 300, height: 500, overlapLength: 50 }),
+    closedStirrupResultFromData({
+      width: 300,
+      height: 500,
+      hookLength: null,
+      overlapLength: 50,
+    }),
+    closedStirrupResultFromData({
+      width: 300,
+      height: 500,
+      hookLength: undefined,
+      overlapLength: 50,
+    }),
+  ];
+  for (const built of missingAndNull) {
+    assert.equal(built.snapshot.validation.inputPresence.hookLength, false);
+    assert.equal(built.snapshot.validation.inputValidity.hookLength, false);
+    const { result, fingerprint } = buildResult({
+      shapeSnapshot: built.snapshot,
+      materialGrade: 'B500B',
+    });
+    assert.ok(result.reasonCodes.includes('missing_end_treatment'));
+    assert.equal(fingerprint, null);
+  }
+
+  const positive = closedStirrupResultFromData({
+    width: 300,
+    height: 500,
+    hookLength: 80,
+    overlapLength: 20,
+  });
+  assert.deepEqual(positive.snapshot.validation.inputValidity, {
+    hookLength: true,
+    overlapLength: true,
+  });
+  const positiveResult = buildResult({
+    shapeSnapshot: positive.snapshot,
+    materialGrade: 'B500B',
+  });
+  const positiveWithoutProvenance = clone(positive.snapshot);
+  delete positiveWithoutProvenance.validation.inputPresence;
+  delete positiveWithoutProvenance.validation.inputValidity;
+  const backwardCompatible = buildResult({
+    shapeSnapshot: positiveWithoutProvenance,
+    materialGrade: 'B500B',
+  });
+  assert.equal(backwardCompatible.result.status, MATCHABILITY.EXACT_MATCHABLE);
+  assert.equal(backwardCompatible.fingerprint, positiveResult.fingerprint);
+  assert.equal(Object.hasOwn(positiveResult.result.canonicalSpec, 'inputPresence'), false);
+  assert.equal(Object.hasOwn(positiveResult.result.canonicalSpec, 'inputValidity'), false);
+
+  const topLevelPositive = buildClosedStirrupShape({
+    width: 300,
+    height: 500,
+    diameter: 8,
+    hookLength: 80,
+    overlapLength: 20,
+  });
+  assert.deepEqual(topLevelPositive.validation.inputPresence, {
+    hookLength: true,
+    overlapLength: true,
+  });
+  assert.deepEqual(topLevelPositive.validation.inputValidity, {
+    hookLength: true,
+    overlapLength: true,
+  });
+
+  const noProvenance = clone(
+    closedStirrupResultFromData({
+      width: 300,
+      height: 500,
+      hookLength: 0,
+      overlapLength: 0,
+    }).snapshot,
+  );
+  delete noProvenance.validation.inputPresence;
+  delete noProvenance.validation.inputValidity;
+  const noProvenanceResult = buildResult({
+    shapeSnapshot: noProvenance,
+    materialGrade: 'B500B',
+  });
+  assert.ok(noProvenanceResult.result.reasonCodes.includes('missing_end_treatment'));
+  assert.equal(noProvenanceResult.fingerprint, null);
+
+  const invalidProvenanceSnapshot = clone(
+    closedStirrupResultFromData({
+      width: 300,
+      height: 500,
+      hookLength: 80,
+      overlapLength: 20,
+    }).snapshot,
+  );
+  invalidProvenanceSnapshot.validation.inputValidity.hookLength = false;
+  invalidProvenanceSnapshot.validation.valid = true;
+  invalidProvenanceSnapshot.validation.errors = [];
+  const invalidProvenance = buildResult({
+    shapeSnapshot: invalidProvenanceSnapshot,
+    materialGrade: 'B500B',
+  });
+  assert.deepEqual(invalidProvenance.result.reasonCodes, ['invalid_physical_value']);
+  assert.equal(invalidProvenance.fingerprint, null);
 });
 
 test('closed-stirrup source and software identifiers remain outside identity', () => {
@@ -483,8 +790,36 @@ test('invalid supplied Shape V2 snapshots require review even with valid legacy 
   const validationFailed = straightSnapshot({
     validation: { valid: false, errors: ['source_invalid'], warnings: [] },
   });
+  const validationZero = straightSnapshot({
+    validation: { valid: 0, errors: ['source_invalid'], warnings: [] },
+  });
+  const validationStringFalse = straightSnapshot({
+    validation: { valid: 'false', errors: ['source_invalid'], warnings: [] },
+  });
+  const validationMissing = straightSnapshot({
+    validation: { errors: [], warnings: [] },
+  });
+  const validationObjectMissing = straightSnapshot();
+  delete validationObjectMissing.validation;
+  const errorsNotArray = straightSnapshot({
+    validation: { valid: true, errors: 'source_invalid', warnings: [] },
+  });
+  const errorsNonEmpty = straightSnapshot({
+    validation: { valid: true, errors: ['source_invalid'], warnings: [] },
+  });
 
-  for (const shapeSnapshot of [wrongVersion, missingVersion, malformed, validationFailed]) {
+  for (const shapeSnapshot of [
+    wrongVersion,
+    missingVersion,
+    malformed,
+    validationFailed,
+    validationZero,
+    validationStringFalse,
+    validationMissing,
+    validationObjectMissing,
+    errorsNotArray,
+    errorsNonEmpty,
+  ]) {
     const { result, fingerprint } = buildResult({
       shapeSnapshot,
       legacyItem: validLegacyItem,
