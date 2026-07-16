@@ -4,6 +4,12 @@ const {
   sourceIdentityConflictPayload,
   sourceIdentityFromRequest,
 } = require('../services/importSourceIdentity');
+const {
+  listExternalShapeMappings,
+  normalizeSourceSystem,
+  normalizeExternalCode,
+} = require('../services/externalShapeCodeMap');
+const { getShapeTemplateByInternalCode } = require('../services/shapeTemplateRegistry');
 
 function required(name, value) {
   if (value === undefined || value === null) throw new Error(`routes/intakeReview missing dependency: ${name}`);
@@ -149,6 +155,56 @@ module.exports = function createIntakeReviewRouter(deps) {
     }
   }
 
+  // ── Learned external shape codes ─────────────────────────────────
+  // When an operator approves an item that carries an external shape code
+  // and a resolved shape snapshot, the pair is saved so the same code maps
+  // automatically on the next intake. Built-in catalog codes always win at
+  // resolve time, so learning can never override them.
+  function learnedMappingFromReviewedItem(item) {
+    const snapshot = item?.shapeSnapshot || item?.shape_snapshot || null;
+    const internalShapeCode = String(snapshot?.internalShapeCode || snapshot?.internal_shape_code || '').trim();
+    const sourceSystem = normalizeSourceSystem(
+      item?.sourceSystem || item?.source_system || item?.source?.sourceSystem || item?.source?.source_system || ''
+    );
+    const externalCode = normalizeExternalCode(
+      item?.externalShapeCode || item?.external_shape_code || item?.externalCode || item?.external_code
+      || item?.shapeCode || item?.shape_code || ''
+    );
+    if (!internalShapeCode || !sourceSystem || !externalCode) return null;
+    const template = getShapeTemplateByInternalCode(internalShapeCode);
+    if (!template) return null;
+    return {
+      sourceSystem,
+      externalCode,
+      shapeType: String(snapshot?.shapeType || snapshot?.shape_type || template.shapeType || 'unknown').trim(),
+      internalShapeCode,
+      label: String(item?.shape_description || item?.shapeDescription || '').trim(),
+    };
+  }
+
+  function upsertLearnedShapeMapping(mapping, createdBy) {
+    db.prepare(`
+      INSERT INTO external_shape_mappings (source_system, external_code, label, shape_type, internal_shape_code, confidence, created_by, active)
+      VALUES (?,?,?,?,?, 'learned', ?, 1)
+      ON CONFLICT(source_system, external_code) DO UPDATE SET
+        label=excluded.label,
+        shape_type=excluded.shape_type,
+        internal_shape_code=excluded.internal_shape_code,
+        confidence='learned',
+        created_by=excluded.created_by,
+        active=1
+    `).run(mapping.sourceSystem, mapping.externalCode, mapping.label || null, mapping.shapeType, mapping.internalShapeCode, createdBy || null);
+  }
+
+  function saveLearnedShapeMapping(item, createdBy) {
+    try {
+      const mapping = learnedMappingFromReviewedItem(item);
+      if (mapping) upsertLearnedShapeMapping(mapping, createdBy);
+    } catch (error) {
+      console.warn('[Intake OCR] Learned shape mapping save skipped:', error.message);
+    }
+  }
+
   router.get('/intake/log', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const status = req.query.status; // optional filter: pending_review / approved / rejected
     const sql = status
@@ -290,7 +346,10 @@ module.exports = function createIntakeReviewRouter(deps) {
           const note = status === 'missing' ? 'OCR review marked this item missing or invalid.' : null;
           db.prepare('UPDATE items SET review_status=?,review_notes=?,reviewed_by=?,reviewed_at=? WHERE id=? AND order_id=?')
             .run(status, note, 'intake_ocr_review', reviewedAt, orderItem.id, row.order_id);
-          if (status === 'approved') saveReviewedItemCorrectionExample(row, item, index, orderItem);
+          if (status === 'approved') {
+            saveReviewedItemCorrectionExample(row, item, index, orderItem);
+            saveLearnedShapeMapping(item, 'intake_ocr_review');
+          }
         });
       });
       saveReview();
@@ -353,6 +412,45 @@ module.exports = function createIntakeReviewRouter(deps) {
     }
   });
 
+  // ── Shape mapping catalog: built-in + learned ────────────────────
+  router.get('/intake/shape-mappings', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const learned = db.prepare(
+      'SELECT id, source_system, external_code, label, shape_type, internal_shape_code, confidence, created_by, created_at FROM external_shape_mappings WHERE active=1 ORDER BY source_system, external_code'
+    ).all();
+    res.json({ success: true, builtin: listExternalShapeMappings(), learned });
+  });
+
+  router.post('/intake/shape-mappings', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const body = req.body || {};
+    const sourceSystem = normalizeSourceSystem(body.source_system || body.sourceSystem);
+    const externalCode = normalizeExternalCode(body.external_code || body.externalCode);
+    const internalShapeCode = String(body.internal_shape_code || body.internalShapeCode || '').trim();
+    if (!sourceSystem || !externalCode || !internalShapeCode) {
+      return res.status(400).json({ success: false, error: 'source_system, external_code and internal_shape_code are required' });
+    }
+    const template = getShapeTemplateByInternalCode(internalShapeCode);
+    if (!template) {
+      return res.status(422).json({ success: false, error: `Unknown internal shape code: ${internalShapeCode}` });
+    }
+    upsertLearnedShapeMapping({
+      sourceSystem,
+      externalCode,
+      shapeType: template.shapeType || 'unknown',
+      internalShapeCode,
+      label: String(body.label || '').trim(),
+    }, req.user?.username || 'manual');
+    res.json({
+      success: true,
+      mapping: { source_system: sourceSystem, external_code: externalCode, shape_type: template.shapeType, internal_shape_code: internalShapeCode },
+    });
+  });
+
+  router.delete('/intake/shape-mappings/:id', requireAnyRole(['manager', 'admin']), (req, res) => {
+    const result = db.prepare('UPDATE external_shape_mappings SET active=0 WHERE id=? AND active=1').run(req.params.id);
+    if (!result.changes) return res.status(404).json({ success: false, error: 'Mapping not found' });
+    res.json({ success: true });
+  });
+
   return router;
 };
 
@@ -362,5 +460,5 @@ module.exports.manifest = {
   id: 'intake-review',
   label: 'אישור קליטה',
   consumes: [{ event: 'new_intake' }, { table: 'intake_log' }],
-  produces: [{ event: 'new_order' }],
+  produces: [{ event: 'new_order' }, { table: 'external_shape_mappings' }],
 };

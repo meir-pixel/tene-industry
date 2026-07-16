@@ -464,6 +464,21 @@ function ensureCoreSchema(db) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS external_shape_mappings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_system TEXT NOT NULL,
+      external_code TEXT NOT NULL,
+      label TEXT,
+      shape_type TEXT NOT NULL,
+      internal_shape_code TEXT NOT NULL,
+      parameter_mapping TEXT DEFAULT '{}',
+      confidence TEXT DEFAULT 'learned',
+      created_by TEXT,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(source_system, external_code)
+    );
+
     CREATE TABLE IF NOT EXISTS inventory_receipt_reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source_type TEXT DEFAULT 'supplier_delivery_note',

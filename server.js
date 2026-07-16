@@ -634,6 +634,12 @@ function getIntakeTrainingGuidance(limit = 12, documentTypes = []) {
   ).join('\n')}\n`;
 }
 
+// Learned external shape codes (taught by operators during intake review)
+// resolve from the database after the built-in catalog.
+require('./services/externalShapeCodeMap').registerLearnedMappingProvider((sourceSystem, externalCode) =>
+  db.prepare('SELECT * FROM external_shape_mappings WHERE source_system=? AND external_code=? AND active=1')
+    .get(sourceSystem, externalCode));
+
 
 // ── API ROUTERS ────────────────────────────────────────────────────────
 app.use('/api', requireModule('inventory'), createInventoryRouter({

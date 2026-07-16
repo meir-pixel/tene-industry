@@ -174,6 +174,47 @@ function resolveAlias({ sourceSystem, externalCode, label }) {
   };
 }
 
+// Learned mappings live in the database (external_shape_mappings) and are
+// taught by operators during intake review. The provider is registered by
+// server.js so this module stays pure and testable. Built-in mappings always
+// win over learned ones.
+let learnedMappingProvider = null;
+
+function registerLearnedMappingProvider(provider) {
+  learnedMappingProvider = typeof provider === 'function' ? provider : null;
+}
+
+function resolveLearnedMapping(sourceSystem, externalCode, label) {
+  if (!learnedMappingProvider || !sourceSystem || !externalCode) return null;
+  let row = null;
+  try {
+    row = learnedMappingProvider(sourceSystem, externalCode);
+  } catch {
+    return null;
+  }
+  const internalShapeCode = normalizeText(row?.internal_shape_code || row?.internalShapeCode);
+  if (!internalShapeCode) return null;
+  let parameterMapping = {};
+  try {
+    parameterMapping = JSON.parse(row.parameter_mapping || row.parameterMapping || '{}') || {};
+  } catch {
+    parameterMapping = {};
+  }
+  return {
+    sourceSystem,
+    externalCode,
+    label: normalizeText(row.label || label),
+    shapeType: normalizeText(row.shape_type || row.shapeType) || 'unknown',
+    internalShapeCode,
+    confidence: normalizeText(row.confidence) || 'learned',
+    status: 'mapped',
+    requiresUserReview: false,
+    learned: true,
+    version: Number(row.version) || 1,
+    parameterMapping,
+  };
+}
+
 function resolveExternalShapeCode(input = {}) {
   const sourceSystem = normalizeSourceSystem(input.sourceSystem);
   const externalCode = normalizeExternalCode(input.externalCode);
@@ -181,6 +222,9 @@ function resolveExternalShapeCode(input = {}) {
     mapping.sourceSystem === sourceSystem && mapping.externalCode === externalCode
   );
   if (exact) return withTemplate(clone(exact));
+
+  const learned = resolveLearnedMapping(sourceSystem, externalCode, input.label);
+  if (learned) return withTemplate(learned);
 
   const alias = resolveAlias(input);
   if (alias) return withTemplate(alias);
@@ -190,7 +234,10 @@ function resolveExternalShapeCode(input = {}) {
 
 module.exports = {
   resolveExternalShapeCode,
+  registerLearnedMappingProvider,
   listExternalShapeMappings,
   getMappingsBySourceSystem,
   getMappingsByInternalShapeCode,
+  normalizeSourceSystem,
+  normalizeExternalCode,
 };
