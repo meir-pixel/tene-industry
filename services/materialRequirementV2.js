@@ -26,16 +26,17 @@ const ALLOWED_NEED_BY_SOURCES = new Set(Object.values(MATERIAL_REQUIREMENT_NEED_
 const DECIMAL_TEXT = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 class MaterialRequirementValidationError extends Error {
-  constructor(code, message) {
+  constructor(code, message, details = null) {
     super(message || code);
     this.name = 'MaterialRequirementValidationError';
     this.code = code;
     this.statusCode = 400;
+    this.details = details;
   }
 }
 
-function fail(code, message) {
-  throw new MaterialRequirementValidationError(code, message);
+function fail(code, message, details) {
+  throw new MaterialRequirementValidationError(code, message, details);
 }
 
 function normalizePositiveNumber(value, field) {
@@ -162,6 +163,66 @@ function databasePositiveInteger(value) {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
+function resolveItemOrderOwnership({ directOrderId, palletId, palletOrderId } = {}) {
+  const direct = databasePositiveInteger(directOrderId);
+  const pallet = databasePositiveInteger(palletOrderId);
+  const normalizedPalletId = databasePositiveInteger(palletId);
+
+  if (direct !== null && pallet !== null) {
+    if (direct !== pallet) {
+      return {
+        status: 'conflict',
+        orderId: null,
+        directOrderId: direct,
+        palletId: normalizedPalletId,
+        palletOrderId: pallet,
+      };
+    }
+    return {
+      status: 'consistent',
+      orderId: direct,
+      directOrderId: direct,
+      palletId: normalizedPalletId,
+      palletOrderId: pallet,
+    };
+  }
+  if (direct !== null) {
+    return {
+      status: 'direct',
+      orderId: direct,
+      directOrderId: direct,
+      palletId: normalizedPalletId,
+      palletOrderId: null,
+    };
+  }
+  if (pallet !== null) {
+    return {
+      status: 'pallet',
+      orderId: pallet,
+      directOrderId: null,
+      palletId: normalizedPalletId,
+      palletOrderId: pallet,
+    };
+  }
+  return {
+    status: 'missing',
+    orderId: null,
+    directOrderId: null,
+    palletId: normalizedPalletId,
+    palletOrderId: null,
+  };
+}
+
+function ownershipConflictDetails(itemId, requestedOrderId, ownership) {
+  return {
+    itemId,
+    requestedOrderId,
+    directOrderId: ownership.directOrderId,
+    palletId: ownership.palletId,
+    palletOrderId: ownership.palletOrderId,
+  };
+}
+
 function createMaterialRequirementV2(db, input) {
   if (!db || typeof db.prepare !== 'function' || typeof db.transaction !== 'function') {
     fail('invalid_database');
@@ -170,22 +231,37 @@ function createMaterialRequirementV2(db, input) {
   if (normalized.lifecycle_version !== 2) fail('invalid_lifecycle_version');
 
   const create = db.transaction(payload => {
+    const order = db.prepare('SELECT id, inventory_lifecycle_version FROM orders WHERE id=?')
+      .get(payload.order_id);
+    if (!order) fail('order_not_found');
+    if (databasePositiveInteger(order.inventory_lifecycle_version) !== 2) fail('order_not_lifecycle_v2');
+
+    const item = db.prepare(`
+      SELECT i.id,
+             i.order_id AS direct_order_id,
+             i.pallet_id,
+             p.order_id AS pallet_order_id
+      FROM items i
+      LEFT JOIN pallets p ON p.id=i.pallet_id
+      WHERE i.id=?
+    `).get(payload.item_id);
+    if (!item) fail('item_not_found');
+    const ownership = resolveItemOrderOwnership({
+      directOrderId: item.direct_order_id,
+      palletId: item.pallet_id,
+      palletOrderId: item.pallet_order_id,
+    });
+    if (ownership.status === 'conflict') {
+      fail('item_order_ownership_conflict', 'item order ownership conflict', ownershipConflictDetails(item.id, payload.order_id, ownership));
+    }
+    if (ownership.orderId !== payload.order_id) fail('item_order_mismatch');
+
     const replay = db.prepare('SELECT * FROM material_requirements_v2 WHERE requirement_uid=?')
       .get(payload.requirement_uid);
     if (replay) {
       if (sameRequirement(comparableRequirement(replay), payload)) return replay;
       fail('requirement_uid_conflict');
     }
-
-    const order = db.prepare('SELECT id, inventory_lifecycle_version FROM orders WHERE id=?')
-      .get(payload.order_id);
-    if (!order) fail('order_not_found');
-    if (databasePositiveInteger(order.inventory_lifecycle_version) !== 2) fail('order_not_lifecycle_v2');
-
-    const item = db.prepare('SELECT id, order_id, pallet_id FROM items WHERE id=?').get(payload.item_id);
-    if (!item) fail('item_not_found');
-    const itemOrderId = item.order_id ?? db.prepare('SELECT order_id FROM pallets WHERE id=?').get(item.pallet_id)?.order_id;
-    if (databasePositiveInteger(itemOrderId) !== payload.order_id) fail('item_order_mismatch');
 
     const current = db.prepare(`
       SELECT id FROM material_requirements_v2
@@ -257,6 +333,7 @@ module.exports = {
   MATERIAL_REQUIREMENT_SOURCE,
   MATERIAL_REQUIREMENT_NEED_BY_SOURCE,
   MaterialRequirementValidationError,
+  resolveItemOrderOwnership,
   normalizeMaterialRequirementInput,
   createMaterialRequirementV2,
   getMaterialRequirementV2ByItem,

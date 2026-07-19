@@ -173,6 +173,45 @@ test('a lifecycle-v2 order with a matching item receives one requirement', () =>
   db.close();
 });
 
+test('direct-only, pallet-only and consistent dual item ownership resolve to the requested order', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO orders (id, order_num, inventory_lifecycle_version) VALUES (1, ?, 2), (2, ?, 2)')
+    .run('ORD-1', 'ORD-2');
+  db.prepare('INSERT INTO pallets (id, order_id) VALUES (10, 1)').run();
+  db.prepare('INSERT INTO items (id, order_id, diameter, total_weight) VALUES (1, 1, 12, 100)').run();
+  db.prepare('INSERT INTO items (id, pallet_id, diameter, total_weight) VALUES (2, 10, 12, 100)').run();
+  db.prepare('INSERT INTO items (id, order_id, pallet_id, diameter, total_weight) VALUES (3, 1, 10, 12, 100)').run();
+
+  for (const itemId of [1, 2, 3]) {
+    const row = createMaterialRequirementV2(db, validInput({ requirement_uid: `req-${itemId}`, item_id: itemId }));
+    assert.equal(row.order_id, 1);
+    assert.equal(row.item_id, itemId);
+  }
+  db.close();
+});
+
+test('conflicting direct and pallet ownership rejects either requested owner without creating a requirement', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO orders (id, order_num, inventory_lifecycle_version) VALUES (1, ?, 2), (2, ?, 2)')
+    .run('ORD-1', 'ORD-2');
+  db.prepare('INSERT INTO pallets (id, order_id) VALUES (10, 2)').run();
+  db.prepare('INSERT INTO items (id, order_id, pallet_id, diameter, total_weight) VALUES (1, 1, 10, 12, 100)').run();
+
+  for (const orderId of [1, 2]) {
+    let error;
+    try {
+      createMaterialRequirementV2(db, validInput({ requirement_uid: `conflict-${orderId}`, order_id: orderId }));
+    } catch (caught) {
+      error = caught;
+    }
+    assert.ok(error instanceof MaterialRequirementValidationError);
+    assert.equal(error.code, 'item_order_ownership_conflict');
+    assert.deepEqual(error.details, { itemId: 1, requestedOrderId: orderId, directOrderId: 1, palletId: 10, palletOrderId: 2 });
+  }
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM material_requirements_v2').get().count, 0);
+  db.close();
+});
+
 test('missing orders, missing items and item/order mismatches are rejected', () => {
   const db = createDb();
   assertValidationCode(() => createMaterialRequirementV2(db, validInput()), 'order_not_found');
@@ -190,6 +229,21 @@ test('same UID and identical normalized payload is idempotent', () => {
   const replay = createMaterialRequirementV2(db, validInput({ diameter: '12', required_kg: '100.0' }));
   assert.equal(replay.id, first.id);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM material_requirements_v2').get().count, 1);
+  db.close();
+});
+
+test('a same-UID replay fails if item ownership becomes conflicting and leaves the requirement unchanged', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO orders (id, order_num, inventory_lifecycle_version) VALUES (1, ?, 2), (2, ?, 2)')
+    .run('ORD-1', 'ORD-2');
+  db.prepare('INSERT INTO pallets (id, order_id) VALUES (10, 1)').run();
+  db.prepare('INSERT INTO items (id, order_id, pallet_id, diameter, total_weight) VALUES (1, 1, 10, 12, 100)').run();
+  createMaterialRequirementV2(db, validInput());
+  const before = db.prepare('SELECT * FROM material_requirements_v2 WHERE requirement_uid=?').get('req-1');
+  db.prepare('UPDATE pallets SET order_id=2 WHERE id=10').run();
+
+  assertValidationCode(() => createMaterialRequirementV2(db, validInput()), 'item_order_ownership_conflict');
+  assert.deepEqual(db.prepare('SELECT * FROM material_requirements_v2 WHERE requirement_uid=?').get('req-1'), before);
   db.close();
 });
 
