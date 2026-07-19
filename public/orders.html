@@ -126,7 +126,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .detail-header{padding:18px 22px;border-bottom:1px solid rgba(2,26,72,0.10);position:sticky;top:0;
   background:rgba(255,255,255,0.94);backdrop-filter:blur(10px);z-index:10;
   display:flex;align-items:center;justify-content:space-between;gap:12px;}
-.detail-order-num{font-size:24px;font-weight:900;color:var(--accent);line-height:1;}
+.detail-order-num{font-size:24px;font-weight:900;color:var(--accent);line-height:1.15;overflow-wrap:anywhere;padding-inline-end:6px;}
 .detail-customer{font-size:13px;color:var(--dim);margin-top:2px;}
 .detail-close{width:38px;height:38px;background:rgba(0,0,0,0.04);border:1px solid var(--border);
   border-radius:8px;color:var(--text);cursor:pointer;font-size:18px;
@@ -557,7 +557,7 @@ async function openDetail(id) {
   const pkgs = await pkgR.json().catch(() => []);
   currentDetailOrder = o;
   document.getElementById('detailOrderNum').textContent = o.order_num;
-  document.getElementById('detailCustomer').textContent = o.customer_name ?? '';
+  document.getElementById('detailCustomer').textContent = [`הזמנה ${o.order_num}`, o.customer_name].filter(Boolean).join(' · ');
   document.getElementById('detailBody').innerHTML = buildDetailHTML(o, pkgs);
   document.getElementById('detailOverlay').classList.add('show');
   requestAnimationFrame(renderDetailShapes);
@@ -875,6 +875,9 @@ function buildDetailHTML(o, pkgs) {
   </div>`;
 
   // ── Items
+  let _itemLine = 0;
+  (o.pallets||[]).forEach(p => (p.items||[]).forEach(it => { _itemLine += 1; it._lineNo = _itemLine; }));
+  const _totalLines = _itemLine;
   const palletsHtml = (o.pallets||[]).map((p, pi) => {
     const done = (p.items||[]).filter(i => i.status==='הושלם').length;
     const pct  = p.items?.length ? Math.round(done / p.items.length * 100) : 0;
@@ -908,6 +911,7 @@ function buildDetailHTML(o, pkgs) {
         ${visualHtml}
         <div class="item-main">
           <div class="item-head">
+            <span style="background:#eef2f7;color:#1a2533;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap">פריט ${item._lineNo}/${_totalLines}</span>
             <span class="item-diameter">⌀${escHtml(item.diameter)}</span>
             <span class="item-shape">${escHtml(shapeLabel(item.shape_name, sides, item))}</span>
             ${item.is_3d ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px">3D</span>' : ''}
