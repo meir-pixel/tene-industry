@@ -1,4 +1,10 @@
 const ModbusRTU = require('modbus-serial');
+const {
+  MACHINE_COMMAND_REASON,
+  MachineCommandError,
+  areMachineWritesEnabled,
+  assertMachineWriteAuthorization,
+} = require('./services/machineSafetyGate');
 
 // XINJE XD5-32T-E registers (D-registers = Holding Registers):
 //   D0  (addr 0): Read  – unit counter
@@ -147,7 +153,24 @@ class ModbusService {
   }
 
   // Write production parameters to machine before starting
-  async writeParams(machineId, { diameter, totalLengthMm, productionQty, angles = [] }) {
+  async writeParams(machineId, {
+    diameter,
+    totalLengthMm,
+    productionQty,
+    angles = [],
+    itemId = null,
+    orderId = null,
+    safetyAuthorization,
+  }) {
+    if (!areMachineWritesEnabled()) {
+      throw new MachineCommandError(MACHINE_COMMAND_REASON.WRITES_DISABLED);
+    }
+    assertMachineWriteAuthorization(safetyAuthorization, {
+      machineId,
+      operation: 'write_params',
+      itemId,
+      orderId,
+    });
     const cfg    = MACHINES_CONFIG.find(m => m.id === machineId);
     const client = this.clients[machineId];
 
