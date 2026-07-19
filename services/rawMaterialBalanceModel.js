@@ -154,6 +154,25 @@ function classifyRawMaterialIntegrity(input = {}) {
   const scope = input.scope || 'demand';
   const entity = input.entity || {};
   const usageCount = Number(input.usageCount || 0);
+  const usageIds = [...(input.usageIds || [])].sort((left, right) => left - right);
+  const reservations = [...(input.reservations || [])].sort((left, right) => left.reservationId - right.reservationId);
+  const bucketEvidence = {
+    orderId: entity.orderId ?? null,
+    itemId: entity.itemId ?? null,
+    diameter: entity.diameter ?? null,
+    materialType: entity.materialType ?? null,
+    usageIds,
+    reservationIds: reservations.map(row => row.reservationId),
+    reservations,
+  };
+  const evidenceForStatuses = statuses => {
+    const matchingReservations = reservations.filter(row => statuses.has(row.status));
+    return {
+      ...bucketEvidence,
+      reservationIds: matchingReservations.map(row => row.reservationId),
+      reservations: matchingReservations,
+    };
+  };
   const diagnostics = [];
   const add = (code, evidence, diagnosticScope = scope, diagnosticEntity = entity) => {
     diagnostics.push(diagnostic(code, diagnosticScope, diagnosticEntity, evidence));
@@ -192,27 +211,30 @@ function classifyRawMaterialIntegrity(input = {}) {
   const totalReservationKg = roundKg(
     observed.activeReservedKg + observed.consumedReservationKg + observed.releasedReservationKg
   );
-  if (scope === 'demand' && observed.usageRowsKg > 0 && totalReservationKg === 0) {
+  if (scope === 'demand' && usageCount > 0 && totalReservationKg === 0) {
     add(RAW_MATERIAL_DIAGNOSTIC.USAGE_WITHOUT_RESERVATION, {
+      ...bucketEvidence,
       usageCount,
       usageRowsKg: observed.usageRowsKg,
     });
   }
-  if (scope === 'demand' && observed.releasedReservationKg > 0 && observed.usageRowsKg > 0) {
+  if (scope === 'demand' && observed.releasedReservationKg > 0 && usageCount > 0) {
     add(RAW_MATERIAL_DIAGNOSTIC.RELEASED_RESERVATION_WITH_USAGE, {
+      ...evidenceForStatuses(new Set(['released'])),
       releasedReservationKg: observed.releasedReservationKg,
       usageRowsKg: observed.usageRowsKg,
     });
   }
-  if (scope === 'demand' && observed.consumedReservationKg > 0 && observed.usageRowsKg === 0) {
+  if (scope === 'demand' && observed.consumedReservationKg > 0 && usageCount === 0) {
     add(RAW_MATERIAL_DIAGNOSTIC.CONSUMED_RESERVATION_WITHOUT_USAGE, {
+      ...evidenceForStatuses(new Set(['consumed'])),
       consumedReservationKg: observed.consumedReservationKg,
     });
   }
   if (usageCount > 0 && input.emitHistoricalAmbiguity !== false) {
     add(RAW_MATERIAL_DIAGNOSTIC.AMBIGUOUS_HISTORICAL_CONSUMPTION, {
       usageCount,
-      usageIds: [...(input.usageIds || [])].sort((left, right) => left - right),
+      usageIds,
       usageRowsKg: observed.usageRowsKg,
       supportingProductionEvidence: input.supportingProductionEvidence || null,
     });
