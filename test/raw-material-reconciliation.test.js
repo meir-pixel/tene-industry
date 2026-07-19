@@ -79,6 +79,35 @@ function assertReadOnly(db, action) {
   assert.deepEqual(after, before);
 }
 
+function assertDemandAggregationInvariant(demand) {
+  const totals = demand.materialBuckets.reduce((sum, bucket) => ({
+    usageCount: sum.usageCount + bucket.usageRows.length,
+    usageRowsKg: sum.usageRowsKg + bucket.totals.usageRowsKg,
+    reservationCount: sum.reservationCount + bucket.reservations.length,
+    activeReservationCount: sum.activeReservationCount + bucket.totals.activeReservationCount,
+    activeReservedKg: sum.activeReservedKg + bucket.totals.activeReservedKg,
+    consumedReservationCount: sum.consumedReservationCount + bucket.totals.consumedReservationCount,
+    consumedReservationKg: sum.consumedReservationKg + bucket.totals.consumedReservationKg,
+    releasedReservationCount: sum.releasedReservationCount + bucket.totals.releasedReservationCount,
+    releasedReservationKg: sum.releasedReservationKg + bucket.totals.releasedReservationKg,
+    unknownReservationCount: sum.unknownReservationCount + bucket.totals.unknownReservationCount,
+    unknownReservedKg: sum.unknownReservedKg + bucket.totals.unknownReservedKg,
+  }), {
+    usageCount: 0,
+    usageRowsKg: 0,
+    reservationCount: 0,
+    activeReservationCount: 0,
+    activeReservedKg: 0,
+    consumedReservationCount: 0,
+    consumedReservationKg: 0,
+    releasedReservationCount: 0,
+    releasedReservationKg: 0,
+    unknownReservationCount: 0,
+    unknownReservedKg: 0,
+  });
+  for (const [field, value] of Object.entries(totals)) assert.equal(demand[field], value, field);
+}
+
 test('empty reconciliation database returns a deterministic read-only report', () => {
   const db = createDb();
   const first = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
@@ -426,6 +455,113 @@ test('orphaned reservation cannot suppress usage-without-reservation for valid u
   db.close();
 });
 
+test('invalid-only usage demands remain neutral while retaining mismatch and orphan evidence', () => {
+  const scenarios = [
+    {
+      seed(db) {
+        seedDemand(db, { orderId: 1, itemId: 10, itemOrderId: 2 });
+        db.prepare("INSERT INTO raw_material VALUES (1,12,'coil',100,10,0,1)").run();
+        db.prepare('INSERT INTO raw_material_usage VALUES (6,1,1,10,10)').run();
+      },
+      code: RAW_MATERIAL_DIAGNOSTIC.ITEM_ORDER_MISMATCH,
+      sourceId: 6,
+    },
+    {
+      seed(db) {
+        seedDemand(db);
+        db.prepare('INSERT INTO raw_material_usage VALUES (8,999,1,1,10)').run();
+      },
+      code: RAW_MATERIAL_DIAGNOSTIC.ORPHANED_USAGE,
+      sourceId: 8,
+    },
+  ];
+  for (const scenario of scenarios) {
+    const db = createDb();
+    scenario.seed(db);
+    const first = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+    const second = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+    assert.deepEqual(second, first);
+    const demand = first.demands[0];
+    assert.deepEqual(demand.materialBuckets, []);
+    assert.equal(demand.usageCount, 0);
+    assert.equal(demand.usageRowsKg, 0);
+    assert.deepEqual(demand.usageIds, []);
+    assert.deepEqual(demand.supportingProductionEvidence, []);
+    assert.equal(demand.relationship, 'none');
+    assertDemandAggregationInvariant(demand);
+    const broken = diagnostics(first, scenario.code);
+    assert.equal(broken.length, 1);
+    assert.equal(broken[0].evidence.usageId ?? broken[0].evidence.sourceRowId, scenario.sourceId);
+    assertReadOnly(db, () => buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK }));
+    db.close();
+  }
+});
+
+test('invalid-only reservation demand remains neutral while retaining mismatch evidence', () => {
+  const db = createDb();
+  seedDemand(db, { orderId: 1, itemId: 10, itemOrderId: 2 });
+  db.prepare("INSERT INTO inventory_reservations VALUES (9,1,10,12,'coil',10,'active')").run();
+  const first = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  const second = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  assert.deepEqual(second, first);
+  const demand = first.demands[0];
+  assert.deepEqual(demand.materialBuckets, []);
+  assert.equal(demand.reservationCount, 0);
+  assert.equal(demand.activeReservationCount, 0);
+  assert.equal(demand.activeReservedKg, 0);
+  assert.equal(demand.consumedReservationCount, 0);
+  assert.equal(demand.consumedReservationKg, 0);
+  assert.equal(demand.releasedReservationCount, 0);
+  assert.equal(demand.releasedReservationKg, 0);
+  assert.equal(demand.unknownReservationCount, 0);
+  assert.equal(demand.unknownReservedKg, 0);
+  assert.deepEqual(demand.reservationIds, []);
+  assert.equal(demand.relationship, 'none');
+  assertDemandAggregationInvariant(demand);
+  assert.equal(diagnostics(first, RAW_MATERIAL_DIAGNOSTIC.ITEM_ORDER_MISMATCH).length, 1);
+  assertReadOnly(db, () => buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK }));
+  db.close();
+});
+
+test('valid and orphaned usage in one apparent demand counts only the valid bucket row', () => {
+  const db = createDb();
+  seedDemand(db);
+  db.prepare("INSERT INTO raw_material VALUES (1,12,'coil',100,5,0,1)").run();
+  db.prepare('INSERT INTO raw_material_usage VALUES (1,1,1,1,5),(2,999,1,1,7)').run();
+  const report = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  const demand = report.demands[0];
+  assert.equal(demand.usageCount, 1);
+  assert.equal(demand.usageRowsKg, 5);
+  assert.deepEqual(demand.usageIds, [1]);
+  assert.equal(demand.relationship, 'usage_only');
+  assert.deepEqual(demand.materialBuckets[0].usageRows.map(row => row.usageId), [1]);
+  assert.equal(diagnostics(report, RAW_MATERIAL_DIAGNOSTIC.ORPHANED_USAGE).length, 1);
+  assertDemandAggregationInvariant(demand);
+  db.close();
+});
+
+test('valid reservation totals exclude a mismatched reservation demand', () => {
+  const db = createDb();
+  seedDemand(db, { orderId: 1, itemId: 1 });
+  db.prepare("INSERT INTO orders VALUES (2,'waiting')").run();
+  db.prepare("INSERT INTO inventory_reservations VALUES (1,1,1,12,'coil',4,'active'),(2,2,1,12,'coil',9,'consumed')").run();
+  const report = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  const validDemand = report.demands.find(row => row.orderId === 1);
+  const invalidDemand = report.demands.find(row => row.orderId === 2);
+  assert.equal(validDemand.reservationCount, 1);
+  assert.equal(validDemand.activeReservationCount, 1);
+  assert.equal(validDemand.activeReservedKg, 4);
+  assert.equal(validDemand.relationship, 'reservation_only');
+  assert.equal(invalidDemand.reservationCount, 0);
+  assert.equal(invalidDemand.consumedReservationCount, 0);
+  assert.equal(invalidDemand.consumedReservationKg, 0);
+  assert.equal(invalidDemand.relationship, 'none');
+  assert.equal(diagnostics(report, RAW_MATERIAL_DIAGNOSTIC.ITEM_ORDER_MISMATCH).length, 1);
+  assertDemandAggregationInvariant(validDemand);
+  assertDemandAggregationInvariant(invalidDemand);
+  db.close();
+});
+
 test('matching ownership has no mismatch while missing order or item remains orphaned', () => {
   const db = createDb();
   seedDemand(db, { orderId: 1, itemId: 1 });
@@ -601,8 +737,11 @@ test('unknown reservation status variants remain distinct, visible and excluded 
   assert.equal(report.demands[0].materialBuckets[0].totals.unknownReservationCount, 5);
   assert.deepEqual(report.demands[0].materialBuckets[0].totals, {
     usageRowsKg: 0,
+    activeReservationCount: 0,
     activeReservedKg: 0,
+    consumedReservationCount: 0,
     consumedReservationKg: 0,
+    releasedReservationCount: 0,
     releasedReservationKg: 0,
     unknownReservationCount: 5,
     unknownReservedKg: 15,
@@ -624,6 +763,81 @@ test('null reservation material type remains a separate unknown physical bucket'
   assert.deepEqual(report.demands[0].materialBuckets.map(row => row.materialType), ['coil', null]);
   assert.equal(diagnostics(report, RAW_MATERIAL_DIAGNOSTIC.PROBABLE_DOUBLE_COUNT).length, 0);
   assert.equal(diagnostics(report, RAW_MATERIAL_DIAGNOSTIC.USAGE_WITHOUT_RESERVATION).length, 1);
+  db.close();
+});
+
+test('material buckets expose separate diameters with their own totals', () => {
+  const db = createDb();
+  seedDemand(db);
+  db.prepare("INSERT INTO raw_material VALUES (1,12,'coil',100,5,0,1),(2,16,'coil',100,7,0,1)").run();
+  db.prepare('INSERT INTO raw_material_usage VALUES (1,1,1,1,5),(2,2,1,1,7)').run();
+  db.prepare("INSERT INTO inventory_reservations VALUES (3,1,1,12,'coil',4,'active'),(4,1,1,16,'coil',6,'active')").run();
+  const report = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  const demand = report.demands[0];
+  assert.deepEqual(demand.materialBuckets.map(bucket => ({
+    diameter: bucket.diameter,
+    usageRowsKg: bucket.totals.usageRowsKg,
+    activeReservedKg: bucket.totals.activeReservedKg,
+  })), [
+    { diameter: 12, usageRowsKg: 5, activeReservedKg: 4 },
+    { diameter: 16, usageRowsKg: 7, activeReservedKg: 6 },
+  ]);
+  assertDemandAggregationInvariant(demand);
+  db.close();
+});
+
+test('one consumed and one active reservation do not form a duplicate active group', () => {
+  const db = createDb();
+  seedDemand(db);
+  db.prepare("INSERT INTO inventory_reservations VALUES (1,1,1,12,'coil',4,'active'),(2,1,1,12,'coil',6,'consumed')").run();
+  const report = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  const demand = report.demands[0];
+  assert.equal(diagnostics(report, RAW_MATERIAL_DIAGNOSTIC.DUPLICATE_RESERVATION).length, 0);
+  assert.equal(demand.activeReservationCount, 1);
+  assert.equal(demand.activeReservedKg, 4);
+  assert.equal(demand.consumedReservationCount, 1);
+  assert.equal(demand.consumedReservationKg, 6);
+  assertDemandAggregationInvariant(demand);
+  db.close();
+});
+
+test('demand operational summaries equal independent sums across multiple lifecycle buckets', () => {
+  const db = createDb();
+  seedDemand(db);
+  db.prepare("INSERT INTO raw_material VALUES (1,12,'coil',100,5,0,1),(2,16,'straight',100,7,0,1)").run();
+  db.prepare('INSERT INTO raw_material_usage VALUES (1,1,1,1,5),(2,2,1,1,7)').run();
+  db.prepare("INSERT INTO inventory_reservations VALUES (1,1,1,12,'coil',2,'active'),(2,1,1,12,'coil',3,'consumed'),(3,1,1,16,'straight',4,'released'),(4,1,1,16,'straight',5,'mystery')").run();
+  const report = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  const demand = report.demands[0];
+  assertDemandAggregationInvariant(demand);
+  assert.deepEqual({
+    usageCount: demand.usageCount,
+    usageRowsKg: demand.usageRowsKg,
+    reservationCount: demand.reservationCount,
+    activeReservationCount: demand.activeReservationCount,
+    activeReservedKg: demand.activeReservedKg,
+    consumedReservationCount: demand.consumedReservationCount,
+    consumedReservationKg: demand.consumedReservationKg,
+    releasedReservationCount: demand.releasedReservationCount,
+    releasedReservationKg: demand.releasedReservationKg,
+    unknownReservationCount: demand.unknownReservationCount,
+    unknownReservedKg: demand.unknownReservedKg,
+    relationship: demand.relationship,
+  }, {
+    usageCount: 2,
+    usageRowsKg: 12,
+    reservationCount: 4,
+    activeReservationCount: 1,
+    activeReservedKg: 2,
+    consumedReservationCount: 1,
+    consumedReservationKg: 3,
+    releasedReservationCount: 1,
+    releasedReservationKg: 4,
+    unknownReservationCount: 1,
+    unknownReservedKg: 5,
+    relationship: 'usage_and_reservation',
+  });
+  assert.deepEqual(demand.supportingProductionEvidence.map(row => row.usageId), [1, 2]);
   db.close();
 });
 

@@ -105,6 +105,57 @@ function deduplicateSupportingEvidence(rows) {
     || JSON.stringify(canonicalValue(left)).localeCompare(JSON.stringify(canonicalValue(right)), 'en'));
 }
 
+function summarizeMaterialBuckets(materialBuckets) {
+  const summary = {
+    usageCount: 0,
+    usageRowsKg: 0,
+    reservationCount: 0,
+    activeReservationCount: 0,
+    activeReservedKg: 0,
+    consumedReservationCount: 0,
+    consumedReservationKg: 0,
+    releasedReservationCount: 0,
+    releasedReservationKg: 0,
+    unknownReservationCount: 0,
+    unknownReservedKg: 0,
+    usageIds: [],
+    reservationIds: [],
+    supportingProductionEvidence: [],
+  };
+  for (const bucket of materialBuckets) {
+    summary.usageCount += bucket.usageRows.length;
+    summary.usageRowsKg += bucket.totals.usageRowsKg;
+    summary.reservationCount += bucket.reservations.length;
+    summary.activeReservationCount += bucket.totals.activeReservationCount;
+    summary.activeReservedKg += bucket.totals.activeReservedKg;
+    summary.consumedReservationCount += bucket.totals.consumedReservationCount;
+    summary.consumedReservationKg += bucket.totals.consumedReservationKg;
+    summary.releasedReservationCount += bucket.totals.releasedReservationCount;
+    summary.releasedReservationKg += bucket.totals.releasedReservationKg;
+    summary.unknownReservationCount += bucket.totals.unknownReservationCount;
+    summary.unknownReservedKg += bucket.totals.unknownReservedKg;
+    summary.usageIds.push(...bucket.usageRows.map(row => row.usageId));
+    summary.reservationIds.push(...bucket.reservations.map(row => row.reservationId));
+    summary.supportingProductionEvidence.push(...bucket.supportingProductionEvidence);
+  }
+  summary.usageRowsKg = roundKg(summary.usageRowsKg);
+  summary.activeReservedKg = roundKg(summary.activeReservedKg);
+  summary.consumedReservationKg = roundKg(summary.consumedReservationKg);
+  summary.releasedReservationKg = roundKg(summary.releasedReservationKg);
+  summary.unknownReservedKg = roundKg(summary.unknownReservedKg);
+  summary.usageIds.sort((left, right) => left - right);
+  summary.reservationIds.sort((left, right) => left - right);
+  summary.supportingProductionEvidence = deduplicateSupportingEvidence(summary.supportingProductionEvidence);
+  summary.relationship = summary.usageCount && summary.reservationCount
+    ? 'usage_and_reservation'
+    : summary.usageCount
+      ? 'usage_only'
+      : summary.reservationCount
+        ? 'reservation_only'
+        : 'none';
+  return summary;
+}
+
 function emptyObserved(overrides = {}) {
   return {
     receivedKg: 0,
@@ -180,19 +231,7 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
     if (!demands.has(key)) demands.set(key, {
       orderId: orderId ?? null,
       itemId: itemId ?? null,
-      usageCount: 0,
-      usageRowsKg: 0,
-      usageIds: [],
-      reservationCount: 0,
-      activeReservationCount: 0,
-      activeReservedKg: 0,
-      consumedReservationKg: 0,
-      releasedReservationKg: 0,
-      unknownReservationCount: 0,
-      unknownReservedKg: 0,
-      reservationIds: [],
       materialBuckets: new Map(),
-      supportingProductionEvidence: [],
     });
     return demands.get(key);
   }
@@ -262,11 +301,6 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
     const currentDemand = demand(row.order_id, row.item_id);
     const weight = Number(row.weight_used || 0);
     const evidence = supportingProductionEvidence(row, row.id);
-    currentDemand.usageCount += 1;
-    currentDemand.usageRowsKg += weight;
-    currentDemand.usageIds.push(row.id);
-    currentDemand.supportingProductionEvidence.push(evidence);
-
     const material = rawMaterialById.get(row.raw_material_id);
     if (material) {
       stock(material.diameter, material.material_type).usageRowsKg += weight;
@@ -340,8 +374,6 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
     const currentDemand = demand(row.order_id, row.item_id);
     const currentStock = stock(row.diameter, row.material_type);
     const weight = Number(row.reserved_kg || 0);
-    currentDemand.reservationCount += 1;
-    currentDemand.reservationIds.push(row.id);
     currentStock.reservationIds.push(row.id);
 
     if (exactOwnership(row)) {
@@ -353,14 +385,10 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
     }
 
     if (row.status === 'active') {
-      currentDemand.activeReservationCount += 1;
-      currentDemand.activeReservedKg += weight;
       currentStock.activeReservedKg += weight;
     } else if (row.status === 'consumed') {
-      currentDemand.consumedReservationKg += weight;
       currentStock.consumedReservationKg += weight;
     } else if (row.status === 'released') {
-      currentDemand.releasedReservationKg += weight;
       currentStock.releasedReservationKg += weight;
     } else {
       const unknown = {
@@ -372,8 +400,6 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
         diameter: row.diameter,
         materialType: row.material_type,
       };
-      currentDemand.unknownReservationCount += 1;
-      currentDemand.unknownReservedKg += weight;
       currentStock.unknownReservationCount += 1;
       currentStock.unknownReservedKg += weight;
       if (!exactOwnership(row)) {
@@ -567,8 +593,11 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
         reservations,
         totals: {
           usageRowsKg: observedBalance.observed.usageRowsKg,
+          activeReservationCount: activeRows.length,
           activeReservedKg: observedBalance.observed.activeReservedKg,
+          consumedReservationCount: consumedRows.length,
           consumedReservationKg: observedBalance.observed.consumedReservationKg,
+          releasedReservationCount: releasedRows.length,
           releasedReservationKg: observedBalance.observed.releasedReservationKg,
           unknownReservationCount: unknownRows.length,
           unknownReservedKg: roundKg(unknownRows.reduce((sum, candidate) => sum + candidate.reservedKg, 0)),
@@ -578,24 +607,26 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
       };
     }).sort(comparePhysicalBuckets);
     const diagnostics = deduplicateDiagnostics(materialBuckets.flatMap(bucket => bucket.diagnostics));
-    const supportingEvidence = deduplicateSupportingEvidence(row.supportingProductionEvidence);
+    const summary = summarizeMaterialBuckets(materialBuckets);
 
     return {
       orderId: row.orderId,
       itemId: row.itemId,
-      supportingProductionEvidence: supportingEvidence,
-      usageCount: row.usageCount,
-      usageRowsKg: roundKg(row.usageRowsKg),
-      reservationCount: row.reservationCount,
-      activeReservationCount: row.activeReservationCount,
-      activeReservedKg: roundKg(row.activeReservedKg),
-      consumedReservationKg: roundKg(row.consumedReservationKg),
-      releasedReservationKg: roundKg(row.releasedReservationKg),
-      unknownReservationCount: row.unknownReservationCount,
-      unknownReservedKg: roundKg(row.unknownReservedKg),
-      relationship: row.usageCount && row.reservationCount ? 'usage_and_reservation' : row.usageCount ? 'usage_only' : 'reservation_only',
-      usageIds: [...row.usageIds].sort((left, right) => left - right),
-      reservationIds: [...row.reservationIds].sort((left, right) => left - right),
+      supportingProductionEvidence: summary.supportingProductionEvidence,
+      usageCount: summary.usageCount,
+      usageRowsKg: summary.usageRowsKg,
+      reservationCount: summary.reservationCount,
+      activeReservationCount: summary.activeReservationCount,
+      activeReservedKg: summary.activeReservedKg,
+      consumedReservationCount: summary.consumedReservationCount,
+      consumedReservationKg: summary.consumedReservationKg,
+      releasedReservationCount: summary.releasedReservationCount,
+      releasedReservationKg: summary.releasedReservationKg,
+      unknownReservationCount: summary.unknownReservationCount,
+      unknownReservedKg: summary.unknownReservedKg,
+      relationship: summary.relationship,
+      usageIds: summary.usageIds,
+      reservationIds: summary.reservationIds,
       materialBuckets,
       diagnostics,
     };
