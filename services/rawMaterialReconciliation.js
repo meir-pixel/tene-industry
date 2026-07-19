@@ -9,16 +9,26 @@ const {
 
 const RECOGNIZED_RESERVATION_STATUSES = new Set(['active', 'consumed', 'released']);
 const SUPPORTING_PRODUCTION_STATUSES = new Set(['בייצור', 'הושלם', 'in_production', 'done', 'completed']);
+const INVALID_PHYSICAL_BUCKET_IDENTITY = 'invalid_physical_bucket_identity';
 
 function roundKg(value) {
   return Number(Number(value || 0).toFixed(3));
 }
 
+function parseDiameter(value) {
+  if (value === null || value === undefined) return { valid: false, value: null, reason: 'missing_diameter' };
+  if (typeof value === 'string' && value.trim() === '') {
+    return { valid: false, value: null, reason: 'empty_diameter' };
+  }
+  const diameter = Number(typeof value === 'string' ? value.trim() : value);
+  if (Number.isNaN(diameter)) return { valid: false, value: null, reason: 'non_numeric_diameter' };
+  if (!Number.isFinite(diameter)) return { valid: false, value: null, reason: 'non_finite_diameter' };
+  if (diameter <= 0) return { valid: false, value: null, reason: 'non_positive_diameter' };
+  return { valid: true, value: diameter, reason: null };
+}
+
 function normalizeDiameter(value) {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'string' && value.trim() === '') return value.trim();
-  const diameter = Number(value);
-  return Number.isFinite(diameter) ? diameter : value;
+  return parseDiameter(value).value;
 }
 
 function normalizeMaterialType(value, nullDefault = null) {
@@ -105,6 +115,43 @@ function deduplicateSupportingEvidence(rows) {
     || JSON.stringify(canonicalValue(left)).localeCompare(JSON.stringify(canonicalValue(right)), 'en'));
 }
 
+function invalidPhysicalBucketDiagnostic({
+  sourceKind,
+  sourceRowId,
+  rawMaterialId = null,
+  orderId = null,
+  itemId = null,
+  rawDiameter,
+  materialType,
+  reason,
+}) {
+  const sourceIdField = sourceKind === 'usage' ? 'usageId' : 'reservationId';
+  return {
+    code: INVALID_PHYSICAL_BUCKET_IDENTITY,
+    severity: 'error',
+    scope: 'reference',
+    entity: {
+      rawMaterialId,
+      orderId,
+      itemId,
+      diameter: null,
+      materialType,
+    },
+    evidence: {
+      sourceKind,
+      sourceRowId,
+      [sourceIdField]: sourceRowId,
+      orderId,
+      itemId,
+      rawMaterialId,
+      rawDiameter: rawDiameter ?? null,
+      materialType,
+      reason,
+    },
+    explanationKey: 'physical_bucket_diameter_is_invalid',
+  };
+}
+
 function summarizeMaterialBuckets(materialBuckets) {
   const summary = {
     usageCount: 0,
@@ -146,11 +193,14 @@ function summarizeMaterialBuckets(materialBuckets) {
   summary.usageIds.sort((left, right) => left - right);
   summary.reservationIds.sort((left, right) => left - right);
   summary.supportingProductionEvidence = deduplicateSupportingEvidence(summary.supportingProductionEvidence);
-  summary.relationship = summary.usageCount && summary.reservationCount
+  const recognizedReservationCount = summary.activeReservationCount
+    + summary.consumedReservationCount
+    + summary.releasedReservationCount;
+  summary.relationship = summary.usageCount && recognizedReservationCount
     ? 'usage_and_reservation'
     : summary.usageCount
       ? 'usage_only'
-      : summary.reservationCount
+      : recognizedReservationCount
         ? 'reservation_only'
         : 'none';
   return summary;
@@ -183,11 +233,16 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
            COALESCE(active, 1) AS active
     FROM raw_material
     ORDER BY id
-  `).all().map(row => ({
-    ...row,
-    diameter: normalizeDiameter(row.diameter),
-    material_type: normalizeMaterialType(row.material_type),
-  }));
+  `).all().map(row => {
+    const diameterIdentity = parseDiameter(row.diameter);
+    return {
+      ...row,
+      raw_diameter: row.diameter,
+      diameter: diameterIdentity.value,
+      diameterIdentity,
+      material_type: normalizeMaterialType(row.material_type),
+    };
+  });
   const usages = db.prepare(`
     SELECT u.id, u.raw_material_id, u.order_id, u.item_id,
            COALESCE(u.weight_used, 0) AS weight_used,
@@ -212,11 +267,16 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
     LEFT JOIN orders o ON o.id=r.order_id
     LEFT JOIN items i ON i.id=r.item_id
     ORDER BY r.id
-  `).all().map(row => ({
-    ...row,
-    diameter: normalizeDiameter(row.diameter),
-    material_type: normalizeMaterialType(row.material_type),
-  }));
+  `).all().map(row => {
+    const diameterIdentity = parseDiameter(row.diameter);
+    return {
+      ...row,
+      raw_diameter: row.diameter,
+      diameter: diameterIdentity.value,
+      diameterIdentity,
+      material_type: normalizeMaterialType(row.material_type),
+    };
+  });
 
   const rawMaterialById = new Map(rawMaterials.map(row => [row.id, row]));
   const usagesByLot = new Map();
@@ -288,6 +348,7 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
   }
 
   for (const row of rawMaterials) {
+    if (!row.diameterIdentity.valid) continue;
     const currentStock = stock(row.diameter, row.material_type);
     currentStock.rawMaterialIds.push(row.id);
     currentStock.receivedKg += Number(row.weight_received || 0);
@@ -296,13 +357,14 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
   }
 
   for (const row of usages) {
-    if (!usagesByLot.has(row.raw_material_id)) usagesByLot.set(row.raw_material_id, []);
-    usagesByLot.get(row.raw_material_id).push(row);
     const currentDemand = demand(row.order_id, row.item_id);
     const weight = Number(row.weight_used || 0);
     const evidence = supportingProductionEvidence(row, row.id);
     const material = rawMaterialById.get(row.raw_material_id);
-    if (material) {
+    const validPhysicalIdentity = Boolean(material?.diameterIdentity.valid);
+    if (material && validPhysicalIdentity) {
+      if (!usagesByLot.has(row.raw_material_id)) usagesByLot.set(row.raw_material_id, []);
+      usagesByLot.get(row.raw_material_id).push(row);
       stock(material.diameter, material.material_type).usageRowsKg += weight;
       if (exactOwnership(row)) {
         materialBucket(currentDemand, material.diameter, material.material_type).usageRows.push({
@@ -311,6 +373,18 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
           supportingProductionEvidence: evidence,
         });
       }
+    }
+    if (material && !validPhysicalIdentity) {
+      referenceDiagnostics.push(invalidPhysicalBucketDiagnostic({
+        sourceKind: 'usage',
+        sourceRowId: row.id,
+        rawMaterialId: row.raw_material_id,
+        orderId: row.order_id,
+        itemId: row.item_id,
+        rawDiameter: material.raw_diameter,
+        materialType: material.material_type,
+        reason: material.diameterIdentity.reason,
+      }));
     }
 
     const missing = [];
@@ -358,7 +432,7 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
         itemOrderMismatches: [mismatch],
       }));
     }
-    if (!exactOwnership(row)) {
+    if (!exactOwnership(row) || !validPhysicalIdentity) {
       referenceDiagnostics.push(...classifyRawMaterialIntegrity({
         balance: calculateObservedRawMaterialBalance(emptyObserved({ usageRowsKg: weight })),
         scope: 'reference',
@@ -372,24 +446,36 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
 
   for (const row of reservations) {
     const currentDemand = demand(row.order_id, row.item_id);
-    const currentStock = stock(row.diameter, row.material_type);
     const weight = Number(row.reserved_kg || 0);
-    currentStock.reservationIds.push(row.id);
+    const validPhysicalIdentity = row.diameterIdentity.valid;
+    const currentStock = validPhysicalIdentity ? stock(row.diameter, row.material_type) : null;
+    if (currentStock) currentStock.reservationIds.push(row.id);
 
-    if (exactOwnership(row)) {
+    if (exactOwnership(row) && validPhysicalIdentity) {
       materialBucket(currentDemand, row.diameter, row.material_type).reservations.push({
         reservationId: row.id,
         reservedKg: roundKg(weight),
         status: row.status ?? null,
       });
     }
+    if (!validPhysicalIdentity) {
+      referenceDiagnostics.push(invalidPhysicalBucketDiagnostic({
+        sourceKind: 'reservation',
+        sourceRowId: row.id,
+        orderId: row.order_id,
+        itemId: row.item_id,
+        rawDiameter: row.raw_diameter,
+        materialType: row.material_type,
+        reason: row.diameterIdentity.reason,
+      }));
+    }
 
     if (row.status === 'active') {
-      currentStock.activeReservedKg += weight;
+      if (currentStock) currentStock.activeReservedKg += weight;
     } else if (row.status === 'consumed') {
-      currentStock.consumedReservationKg += weight;
+      if (currentStock) currentStock.consumedReservationKg += weight;
     } else if (row.status === 'released') {
-      currentStock.releasedReservationKg += weight;
+      if (currentStock) currentStock.releasedReservationKg += weight;
     } else {
       const unknown = {
         reservationId: row.id,
@@ -400,9 +486,11 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
         diameter: row.diameter,
         materialType: row.material_type,
       };
-      currentStock.unknownReservationCount += 1;
-      currentStock.unknownReservedKg += weight;
-      if (!exactOwnership(row)) {
+      if (currentStock) {
+        currentStock.unknownReservationCount += 1;
+        currentStock.unknownReservedKg += weight;
+      }
+      if (!exactOwnership(row) || !validPhysicalIdentity) {
         referenceDiagnostics.push(...classifyRawMaterialIntegrity({
           balance: calculateObservedRawMaterialBalance(emptyObserved()),
           scope: 'reference',
@@ -668,5 +756,6 @@ function buildRawMaterialReconciliationReport(db, options = {}) {
 }
 
 module.exports = {
+  INVALID_PHYSICAL_BUCKET_IDENTITY,
   buildRawMaterialReconciliationReport,
 };
