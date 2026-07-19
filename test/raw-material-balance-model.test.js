@@ -26,6 +26,23 @@ function codes(rows) {
   return rows.map(row => row.code);
 }
 
+test('seven zero values produce a deterministic empty observed balance', () => {
+  const result = calculateObservedRawMaterialBalance({
+    receivedKg: 0,
+    legacyUsedCounterKg: 0,
+    usageRowsKg: 0,
+    scrappedCounterKg: 0,
+    activeReservedKg: 0,
+    consumedReservationKg: 0,
+    releasedReservationKg: 0,
+  });
+  assert.equal(result.counterPhysicalOnHand, 0);
+  assert.equal(result.usageRowPhysicalOnHand, 0);
+  assert.equal(result.reservationAwareAvailableFromCounter, 0);
+  assert.equal(result.reservationAwareAvailableFromUsageRows, 0);
+  assert.deepEqual(result.discrepancies, []);
+});
+
 test('100 kg received with no use, reservation or scrap remains fully observed on hand', () => {
   const result = calculateObservedRawMaterialBalance(observed());
   assert.equal(result.counterPhysicalOnHand, 100);
@@ -40,7 +57,22 @@ test('100 kg received with no use, reservation or scrap remains fully observed o
 test('legacy double-count pattern exposes 90 physical-style and 80 reservation-aware values', () => {
   const input = observed({ legacyUsedCounterKg: 10, usageRowsKg: 10, activeReservedKg: 10 });
   const balance = calculateObservedRawMaterialBalance(input);
-  const diagnostics = classifyRawMaterialIntegrity({ balance, usageCount: 1, activeReservationCount: 1 });
+  const diagnostics = classifyRawMaterialIntegrity({
+    balance,
+    scope: 'demand',
+    usageCount: 1,
+    usageIds: [41],
+    exactDemandOverlaps: [{
+      orderId: 7,
+      itemId: 9,
+      diameter: 12,
+      materialType: 'coil',
+      usageIds: [41],
+      reservationIds: [51],
+      usageRowsKg: 10,
+      activeReservedKg: 10,
+    }],
+  });
   assert.equal(balance.counterPhysicalOnHand, 90);
   assert.equal(balance.usageRowPhysicalOnHand, 90);
   assert.equal(balance.reservationAwareAvailableFromCounter, 80);
@@ -58,12 +90,12 @@ test('counter and usage-row totals can agree without selecting confirmed product
 test('counter and usage-row disagreement is explicit and classified', () => {
   const balance = calculateObservedRawMaterialBalance(observed({ legacyUsedCounterKg: 10, usageRowsKg: 7 }));
   assert.deepEqual(balance.discrepancies, [{ code: 'counter_usage_mismatch', counterUsageDeltaKg: 3 }]);
-  assert.ok(codes(classifyRawMaterialIntegrity({ balance })).includes(RAW_MATERIAL_DIAGNOSTIC.COUNTER_USAGE_MISMATCH));
+  assert.ok(codes(classifyRawMaterialIntegrity({ balance, scope: 'lot' })).includes(RAW_MATERIAL_DIAGNOSTIC.COUNTER_USAGE_MISMATCH));
 });
 
 test('active reservations above observed stock preserve negative availability and diagnostics', () => {
   const balance = calculateObservedRawMaterialBalance(observed({ activeReservedKg: 120 }));
-  const diagnostics = classifyRawMaterialIntegrity({ balance, activeReservationCount: 1 });
+  const diagnostics = classifyRawMaterialIntegrity({ balance, scope: 'bucket' });
   assert.equal(balance.reservationAwareAvailableFromCounter, -20);
   assert.equal(balance.reservationAwareAvailableFromUsageRows, -20);
   assert.ok(codes(diagnostics).includes(RAW_MATERIAL_DIAGNOSTIC.OVER_RESERVED));
