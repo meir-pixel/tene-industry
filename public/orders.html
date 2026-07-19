@@ -914,7 +914,7 @@ function buildDetailHTML(o, pkgs) {
             ${review || isReviewApproved(item) ? reviewStatusHtml(item) : ''}
           </div>
           <div class="item-kpis">
-            <div class="item-kpi"><div class="item-kpi-label">כמות</div><div class="item-kpi-value">${qty} יח'</div></div>
+            <div class="item-kpi"><div class="item-kpi-label">כמות</div><div class="item-kpi-value" id="qtyVal-${item.id}" onclick="startQtyEdit(event, ${o.id}, ${item.id}, ${qty})" style="cursor:pointer" title="לחץ לשינוי כמות">${qty} יח' <span style="font-size:11px;opacity:0.55">✎</span></div></div>
             <div class="item-kpi"><div class="item-kpi-label">אורך פתיחה</div><div class="item-kpi-value">${Math.round(length)} מ"מ</div></div>
             <div class="item-kpi"><div class="item-kpi-label">משקל רצוי</div><div class="item-kpi-value">${weight.toFixed(1)} ק"ג</div></div>
             <div class="item-kpi"><div class="item-kpi-label">יוצר</div><div class="item-kpi-value">${produced}/${qty}</div></div>
@@ -1290,6 +1290,38 @@ async function deleteOrder(orderId, orderNum) {
   fetchOrders();
 }
 
+function startQtyEdit(event, orderId, itemId, current) {
+  event?.stopPropagation?.();
+  const el = document.getElementById(`qtyVal-${itemId}`);
+  if (!el || el.dataset.editing) return;
+  el.dataset.editing = '1';
+  el.innerHTML = `
+    <input type="number" id="qtyInp-${itemId}" value="${current}" min="1" step="1" dir="ltr"
+      style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-weight:800;font-size:14px"
+      onclick="event.stopPropagation()"
+      onkeydown="if(event.key==='Enter'){saveQtyEdit(event,${orderId},${itemId});}else if(event.key==='Escape'){openDetail(${orderId});}">
+    <button class="review-btn primary" style="padding:3px 10px" onclick="saveQtyEdit(event,${orderId},${itemId})">שמור</button>`;
+  const input = document.getElementById(`qtyInp-${itemId}`);
+  input?.focus();
+  input?.select();
+}
+async function saveQtyEdit(event, orderId, itemId) {
+  event?.stopPropagation?.();
+  const input = document.getElementById(`qtyInp-${itemId}`);
+  const quantity = Number(input?.value);
+  if (!Number.isInteger(quantity) || quantity < 1) { alert('כמות חייבת להיות מספר שלם חיובי'); return; }
+  const response = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    alert(result.error || 'עדכון הכמות נכשל');
+    return;
+  }
+  await openDetail(orderId);
+}
 async function deleteOrderItem(event, orderId, itemId) {
   event?.stopPropagation?.();
   if (!confirm('\u05dc\u05de\u05d7\u05d5\u05e7 \u05d0\u05ea \u05d4\u05e4\u05e8\u05d9\u05d8 \u05d4\u05d6\u05d4 \u05de\u05d4\u05d4\u05d6\u05de\u05e0\u05d4?')) return;
