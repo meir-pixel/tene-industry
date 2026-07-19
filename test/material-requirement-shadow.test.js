@@ -205,6 +205,61 @@ test('lifecycle-v2 orders are excluded from the lifecycle-v1 shadow report', () 
   db.close();
 });
 
+test('direct-only, pallet-only and consistent dual ownership use their canonical order metadata', () => {
+  const db = createDb({ explicitMaterialType: true });
+  db.exec(`
+    INSERT INTO orders (id,order_num,delivery_date,priority,inventory_lifecycle_version) VALUES
+      (1,'DIRECT','2026-08-20','direct-priority',1),
+      (2,'PALLET','2026-08-21','pallet-priority',1);
+    INSERT INTO pallets (id,order_id) VALUES (10,2),(11,1);
+    INSERT INTO items (id,order_id,diameter,total_weight,material_type) VALUES (1,1,12,100,'coil');
+    INSERT INTO items (id,pallet_id,diameter,total_weight,material_type) VALUES (2,10,12,100,'coil');
+    INSERT INTO items (id,order_id,pallet_id,diameter,total_weight,material_type) VALUES (3,1,11,12,100,'coil');
+  `);
+
+  const rows = buildMaterialRequirementShadowReport(db, { clock: FIXED_CLOCK }).rows;
+  assert.deepEqual(rows.map(row => [row.itemId, row.orderId, row.orderNumber, row.needByDate, row.priority, row.ownership.status]), [
+    [1, 1, 'DIRECT', '2026-08-20', 'direct-priority', 'direct'],
+    [3, 1, 'DIRECT', '2026-08-20', 'direct-priority', 'consistent'],
+    [2, 2, 'PALLET', '2026-08-21', 'pallet-priority', 'pallet'],
+  ]);
+  db.close();
+});
+
+test('conflicting ownership remains ambiguous, ignores legacy evidence and reports deterministically without writes', () => {
+  const db = createDb({ explicitMaterialType: true });
+  db.exec(`
+    INSERT INTO orders (id,order_num,delivery_date,priority,inventory_lifecycle_version) VALUES
+      (1,'DIRECT','2026-08-20','direct-priority',1),
+      (2,'PALLET','2026-08-21','pallet-priority',1);
+    INSERT INTO pallets (id,order_id) VALUES (10,2);
+    INSERT INTO items (id,order_id,pallet_id,diameter,total_weight,batch_id,material_type) VALUES (1,1,10,12,100,9,'coil');
+    INSERT INTO raw_material (id,material_type) VALUES (9,'straight'),(8,'coil');
+    INSERT INTO inventory_reservations (id,order_id,item_id,material_type) VALUES (1,1,1,'coil');
+    INSERT INTO raw_material_usage (id,raw_material_id,order_id,item_id,weight_used) VALUES (1,8,2,1,50);
+  `);
+  const before = snapshot(db);
+  const first = buildMaterialRequirementShadowReport(db, { clock: FIXED_CLOCK });
+  const second = buildMaterialRequirementShadowReport(db, { clock: FIXED_CLOCK });
+  const [row] = first.rows;
+  assert.deepEqual(first, second);
+  assert.deepEqual(snapshot(db), before);
+  assert.deepEqual(row.ownership, { status: 'conflict', orderId: null, directOrderId: 1, palletId: 10, palletOrderId: 2 });
+  assert.equal(row.orderId, null);
+  assert.equal(row.orderNumber, null);
+  assert.equal(row.needByDate, null);
+  assert.equal(row.needBySource, 'unknown');
+  assert.equal(row.priority, null);
+  assert.equal(row.materialTypeCandidate, null);
+  assert.deepEqual(row.legacyMaterialTypeEvidence, []);
+  assert.equal(row.readiness, 'ambiguous');
+  assert.deepEqual(row.issues, ['item_order_ownership_conflict']);
+  assert.equal(row.v2AllocatedKg, null);
+  assert.equal(row.v2CurrentlyUnallocatedKg, null);
+  assert.equal(row.procurementShortageKg, null);
+  db.close();
+});
+
 test('report ordering and evidence ordering are deterministic', () => {
   const db = createDb();
   insertCandidate(db, { orderId: 2, itemId: 8, orderNum: 'ORD-2' });

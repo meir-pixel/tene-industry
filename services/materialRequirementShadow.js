@@ -1,5 +1,7 @@
 'use strict';
 
+const { resolveItemOrderOwnership } = require('./materialRequirementV2');
+
 const VALID_MATERIAL_TYPES = new Set(['coil', 'straight']);
 const DECIMAL_TEXT = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
 
@@ -164,18 +166,25 @@ function buildMaterialRequirementShadowReport(db, { clock } = {}) {
   const hasPalletOrder = itemColumns.has('pallet_id') && palletColumns.has('id') && palletColumns.has('order_id');
   if (!hasDirectOrder && !hasPalletOrder) return report;
 
-  const orderExpression = hasDirectOrder && hasPalletOrder
-    ? 'COALESCE(i.order_id, p.order_id)'
-    : (hasDirectOrder ? 'i.order_id' : 'p.order_id');
   const palletJoin = hasPalletOrder ? 'LEFT JOIN pallets p ON p.id=i.pallet_id' : '';
-  const lifecycleFilter = orderColumns.has('inventory_lifecycle_version')
-    ? 'AND COALESCE(o.inventory_lifecycle_version, 1)=1'
-    : '';
+  const directOrderJoin = hasDirectOrder
+    ? 'LEFT JOIN orders direct_o ON direct_o.id=i.order_id'
+    : 'LEFT JOIN orders direct_o ON 1=0';
+  const palletOrderJoin = hasPalletOrder
+    ? 'LEFT JOIN orders pallet_o ON pallet_o.id=p.order_id'
+    : 'LEFT JOIN orders pallet_o ON 1=0';
   const select = [
-    'o.id AS order_id',
-    orderColumns.has('order_num') ? 'o.order_num' : 'NULL AS order_num',
-    orderColumns.has('delivery_date') ? 'o.delivery_date' : 'NULL AS delivery_date',
-    orderColumns.has('priority') ? 'o.priority' : 'NULL AS priority',
+    hasDirectOrder ? 'i.order_id AS direct_order_id' : 'NULL AS direct_order_id',
+    hasPalletOrder ? 'i.pallet_id AS pallet_id' : 'NULL AS pallet_id',
+    hasPalletOrder ? 'p.order_id AS pallet_order_id' : 'NULL AS pallet_order_id',
+    orderColumns.has('order_num') ? 'direct_o.order_num AS direct_order_num' : 'NULL AS direct_order_num',
+    orderColumns.has('delivery_date') ? 'direct_o.delivery_date AS direct_delivery_date' : 'NULL AS direct_delivery_date',
+    orderColumns.has('priority') ? 'direct_o.priority AS direct_priority' : 'NULL AS direct_priority',
+    orderColumns.has('inventory_lifecycle_version') ? 'direct_o.inventory_lifecycle_version AS direct_lifecycle_version' : '1 AS direct_lifecycle_version',
+    orderColumns.has('order_num') ? 'pallet_o.order_num AS pallet_order_num' : 'NULL AS pallet_order_num',
+    orderColumns.has('delivery_date') ? 'pallet_o.delivery_date AS pallet_delivery_date' : 'NULL AS pallet_delivery_date',
+    orderColumns.has('priority') ? 'pallet_o.priority AS pallet_priority' : 'NULL AS pallet_priority',
+    orderColumns.has('inventory_lifecycle_version') ? 'pallet_o.inventory_lifecycle_version AS pallet_lifecycle_version' : '1 AS pallet_lifecycle_version',
     'i.id AS item_id',
     itemColumns.has('diameter') ? 'i.diameter' : 'NULL AS diameter',
     itemColumns.has('total_weight') ? 'i.total_weight' : 'NULL AS total_weight',
@@ -187,16 +196,30 @@ function buildMaterialRequirementShadowReport(db, { clock } = {}) {
     SELECT ${select.join(', ')}
     FROM items i
     ${palletJoin}
-    JOIN orders o ON o.id=${orderExpression}
-    WHERE 1=1 ${lifecycleFilter}
-    ORDER BY o.id ASC, i.id ASC
+    ${directOrderJoin}
+    ${palletOrderJoin}
+    ORDER BY i.id ASC
   `).all();
 
   for (const sourceRow of rows) {
+    const ownership = resolveItemOrderOwnership({
+      directOrderId: sourceRow.direct_order_id,
+      palletId: sourceRow.pallet_id,
+      palletOrderId: sourceRow.pallet_order_id,
+    });
+    if (ownership.status === 'missing') continue;
+    if (ownership.status !== 'conflict') {
+      const lifecycleVersion = ownership.status === 'pallet'
+        ? sourceRow.pallet_lifecycle_version
+        : sourceRow.direct_lifecycle_version;
+      if (Number(lifecycleVersion) !== 1) continue;
+    } else if (Number(sourceRow.direct_lifecycle_version) !== 1 && Number(sourceRow.pallet_lifecycle_version) !== 1) {
+      continue;
+    }
+
     const row = {
-      orderId: Number(sourceRow.order_id),
       itemId: Number(sourceRow.item_id),
-      orderNumber: sourceRow.order_num ?? null,
+      orderId: ownership.orderId,
       batchId: sourceRow.batch_id ?? null,
     };
     const issues = [];
@@ -205,13 +228,48 @@ function buildMaterialRequirementShadowReport(db, { clock } = {}) {
     if (diameter === null) issues.push(sourceRow.diameter === null || sourceRow.diameter === undefined ? 'missing_diameter' : 'invalid_diameter');
     if (requiredKg === null) issues.push(sourceRow.total_weight === null || sourceRow.total_weight === undefined ? 'missing_required_kg' : 'invalid_required_kg');
 
+    if (ownership.status === 'conflict') {
+      report.rows.push({
+        orderId: null,
+        itemId: row.itemId,
+        orderNumber: null,
+        ownership,
+        diameterCandidate: diameter,
+        requiredKgCandidate: requiredKg,
+        materialTypeCandidate: null,
+        materialTypeEvidence: { classification: 'missing', authoritative: false, values: [], sources: [] },
+        legacyMaterialTypeEvidence: [],
+        needByDate: null,
+        needBySource: 'unknown',
+        priority: null,
+        readiness: 'ambiguous',
+        issues: ['item_order_ownership_conflict', ...issues],
+        v2AllocatedKg: null,
+        v2CurrentlyUnallocatedKg: null,
+        procurementShortageKg: null,
+        procurementStatus: 'not_calculated_in_b1',
+      });
+      continue;
+    }
+
+    const metadata = ownership.status === 'pallet'
+      ? {
+          orderNumber: sourceRow.pallet_order_num,
+          deliveryDate: sourceRow.pallet_delivery_date,
+          priority: sourceRow.pallet_priority,
+        }
+      : {
+          orderNumber: sourceRow.direct_order_num,
+          deliveryDate: sourceRow.direct_delivery_date,
+          priority: sourceRow.direct_priority,
+        };
     const legacyEvidence = collectLegacyMaterialEvidence(db, row, schema);
     const material = materialTypeAssessment(sourceRow.explicit_material_type, itemColumns.has('material_type'), legacyEvidence);
     if (material.issue) issues.push(material.issue);
 
-    const needByDate = validDate(sourceRow.delivery_date);
+    const needByDate = validDate(metadata.deliveryDate);
     const needBySource = needByDate ? 'order_delivery_date' : 'unknown';
-    if (!needByDate) issues.push(sourceRow.delivery_date ? 'invalid_need_by_date' : 'missing_need_by_date');
+    if (!needByDate) issues.push(metadata.deliveryDate ? 'invalid_need_by_date' : 'missing_need_by_date');
 
     const blockingIssues = issues.filter(issue => issue !== 'missing_need_by_date');
     const readiness = material.ambiguous
@@ -221,7 +279,8 @@ function buildMaterialRequirementShadowReport(db, { clock } = {}) {
     report.rows.push({
       orderId: row.orderId,
       itemId: row.itemId,
-      orderNumber: row.orderNumber,
+      orderNumber: metadata.orderNumber ?? null,
+      ownership,
       diameterCandidate: diameter,
       requiredKgCandidate: requiredKg,
       materialTypeCandidate: material.candidate,
@@ -229,7 +288,7 @@ function buildMaterialRequirementShadowReport(db, { clock } = {}) {
       legacyMaterialTypeEvidence: legacyEvidence,
       needByDate,
       needBySource,
-      priority: sourceRow.priority ?? null,
+      priority: metadata.priority ?? null,
       readiness,
       issues,
       v2AllocatedKg: requiredKg === null ? null : 0,
@@ -238,6 +297,12 @@ function buildMaterialRequirementShadowReport(db, { clock } = {}) {
       procurementStatus: 'not_calculated_in_b1',
     });
   }
+
+  report.rows.sort((left, right) => {
+    const leftOrderId = left.orderId === null ? Number.MAX_SAFE_INTEGER : left.orderId;
+    const rightOrderId = right.orderId === null ? Number.MAX_SAFE_INTEGER : right.orderId;
+    return leftOrderId - rightOrderId || left.itemId - right.itemId;
+  });
 
   return report;
 }
