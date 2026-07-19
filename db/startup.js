@@ -1,6 +1,6 @@
 'use strict';
 
-const { ensureCoreSchema } = require('./coreSchema');
+const { ensureCoreSchema, ensureMaterialRequirementV2Schema } = require('./coreSchema');
 const { seedCoreData } = require('./seed');
 const { ensureVehicleCompatibility } = require('./vehicleMigrations');
 const { seedLegacyDiameterCatalog } = require('../services/materialCatalog');
@@ -107,6 +107,7 @@ function runCoreMigrations(db) {
   addCol('orders',     'waste_pct_charged',  'REAL DEFAULT 3');
   addCol('orders',     'billing_weight',     'REAL DEFAULT 0');
   addCol('orders',     'priority_order_id',  'TEXT');
+  addCol('orders',     'inventory_lifecycle_version', 'INTEGER NOT NULL DEFAULT 1 CHECK (inventory_lifecycle_version IN (1, 2))');
   addCol('orders',     'created_by',         'INTEGER');
   addCol('orders',     'stable_order_id',    'TEXT');
   addCol('orders',     'approved_by',        'INTEGER');
@@ -194,6 +195,8 @@ function runCoreMigrations(db) {
   try { db.prepare("UPDATE raw_material SET verification_status='approved' WHERE verification_status IS NULL OR verification_status='' ").run(); } catch {}
   ensureRawMaterialVerificationStatusConstraint(db);
   try { seedLegacyDiameterCatalog(db); } catch (err) { console.warn('[DB] material diameter catalog seed warn:', err.message); }
+
+  ensureMaterialRequirementV2Schema(db);
 
   try { db.prepare("UPDATE orders SET stable_order_id=order_num WHERE stable_order_id IS NULL OR stable_order_id=''").run(); } catch {}
   try { db.prepare("UPDATE items SET order_id=(SELECT pallets.order_id FROM pallets WHERE pallets.id=items.pallet_id) WHERE order_id IS NULL").run(); } catch {}
