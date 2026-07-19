@@ -1,6 +1,6 @@
 'use strict';
 
-const { ensureCoreSchema } = require('./coreSchema');
+const { ensureCoreSchema, ensureMaterialRequirementV2Schema } = require('./coreSchema');
 const { seedCoreData } = require('./seed');
 const { ensureVehicleCompatibility } = require('./vehicleMigrations');
 
@@ -53,6 +53,7 @@ function runCoreMigrations(db) {
   addCol('orders',     'waste_pct_charged',  'REAL DEFAULT 3');
   addCol('orders',     'billing_weight',     'REAL DEFAULT 0');
   addCol('orders',     'priority_order_id',  'TEXT');
+  addCol('orders',     'inventory_lifecycle_version', 'INTEGER NOT NULL DEFAULT 1 CHECK (inventory_lifecycle_version IN (1, 2))');
   addCol('orders',     'created_by',         'INTEGER');
   addCol('orders',     'stable_order_id',    'TEXT');
   addCol('orders',     'approved_by',        'INTEGER');
@@ -131,6 +132,8 @@ function runCoreMigrations(db) {
   addCol('raw_material','bending_shape_source','TEXT');
   addCol('raw_material','bending_shape_confidence','REAL');
   addCol('raw_material_usage','allocation_policy','TEXT');
+
+  ensureMaterialRequirementV2Schema(db);
 
   try { db.prepare("UPDATE orders SET stable_order_id=order_num WHERE stable_order_id IS NULL OR stable_order_id=''").run(); } catch {}
   try { db.prepare("UPDATE items SET order_id=(SELECT pallets.order_id FROM pallets WHERE pallets.id=items.pallet_id) WHERE order_id IS NULL").run(); } catch {}

@@ -12,6 +12,45 @@ function ensureColumn(db, table, column, definition) {
   console.log(`[DB] Migration: ${table}.${column} added`);
 }
 
+function ensureMaterialRequirementV2Schema(db) {
+  ensureColumn(
+    db,
+    'orders',
+    'inventory_lifecycle_version',
+    'INTEGER NOT NULL DEFAULT 1 CHECK (inventory_lifecycle_version IN (1, 2))'
+  );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS material_requirements_v2 (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      requirement_uid   TEXT NOT NULL UNIQUE,
+      order_id          INTEGER NOT NULL,
+      item_id           INTEGER NOT NULL,
+      lifecycle_version INTEGER NOT NULL DEFAULT 2 CHECK (lifecycle_version = 2),
+      diameter          NUMERIC NOT NULL CHECK (typeof(diameter) IN ('integer', 'real') AND diameter > 0),
+      material_type     TEXT NOT NULL CHECK (material_type IN ('coil', 'straight')),
+      required_kg       NUMERIC NOT NULL CHECK (typeof(required_kg) IN ('integer', 'real') AND required_kg > 0),
+      need_by_date      TEXT,
+      need_by_source    TEXT NOT NULL CHECK (need_by_source IN ('manual_override', 'planned_production', 'order_delivery_date', 'unknown')),
+      priority_snapshot TEXT,
+      status            TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'cancelled', 'superseded')),
+      source            TEXT NOT NULL CHECK (source IN ('order_item', 'manual', 'import')),
+      source_revision   TEXT,
+      created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (order_id) REFERENCES orders(id),
+      FOREIGN KEY (item_id) REFERENCES items(id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_material_requirements_v2_current_item
+      ON material_requirements_v2(order_id, item_id)
+      WHERE status = 'open';
+
+    CREATE INDEX IF NOT EXISTS idx_material_requirements_v2_order
+      ON material_requirements_v2(order_id, id);
+  `);
+}
+
 function intakeSourceIdentityDuplicates(db) {
   return db.prepare(`
     SELECT source_system, external_id, COUNT(*) AS count
@@ -221,6 +260,7 @@ function ensureCoreSchema(db) {
       driver_notes TEXT,
       general_notes TEXT,
       priority_order_id TEXT,
+      inventory_lifecycle_version INTEGER NOT NULL DEFAULT 1 CHECK (inventory_lifecycle_version IN (1, 2)),
       created_by INTEGER,
       approved_by INTEGER,
       approved_at TEXT,
@@ -975,6 +1015,8 @@ function ensureCoreSchema(db) {
 
   ensureIntakeSourceIdentityIndex(db);
 
+  ensureMaterialRequirementV2Schema(db);
+
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)
   // 'straight_cut'      = straight bar cut to custom length (material + cutting)
@@ -987,4 +1029,5 @@ function ensureCoreSchema(db) {
 
 module.exports = {
   ensureCoreSchema,
+  ensureMaterialRequirementV2Schema,
 };
