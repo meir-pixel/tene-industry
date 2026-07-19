@@ -17,10 +17,16 @@ function roundKg(value) {
 
 function parseDiameter(value) {
   if (value === null || value === undefined) return { valid: false, value: null, reason: 'missing_diameter' };
-  if (typeof value === 'string' && value.trim() === '') {
-    return { valid: false, value: null, reason: 'empty_diameter' };
+  const inputType = typeof value;
+  if (inputType !== 'number' && inputType !== 'string') {
+    return { valid: false, value: null, reason: 'non_numeric_diameter' };
   }
-  const diameter = Number(typeof value === 'string' ? value.trim() : value);
+  if (inputType === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') return { valid: false, value: null, reason: 'empty_diameter' };
+    value = trimmed;
+  }
+  const diameter = Number(value);
   if (Number.isNaN(diameter)) return { valid: false, value: null, reason: 'non_numeric_diameter' };
   if (!Number.isFinite(diameter)) return { valid: false, value: null, reason: 'non_finite_diameter' };
   if (diameter <= 0) return { valid: false, value: null, reason: 'non_positive_diameter' };
@@ -115,6 +121,31 @@ function deduplicateSupportingEvidence(rows) {
     || JSON.stringify(canonicalValue(left)).localeCompare(JSON.stringify(canonicalValue(right)), 'en'));
 }
 
+function describeRawDiameter(value) {
+  if (Buffer.isBuffer(value)) {
+    return {
+      rawDiameterType: 'blob',
+      rawDiameterByteLength: value.length,
+      rawDiameterHex: value.toString('hex'),
+    };
+  }
+  const inputType = typeof value;
+  if (value === null || value === undefined || inputType === 'number' || inputType === 'string') {
+    return { rawDiameter: value ?? null };
+  }
+  if (value instanceof Uint8Array) {
+    return {
+      rawDiameterType: 'uint8array',
+      rawDiameterByteLength: value.byteLength,
+      rawDiameterHex: Buffer.from(value.buffer, value.byteOffset, value.byteLength).toString('hex'),
+    };
+  }
+  if (Array.isArray(value)) return { rawDiameterType: 'array' };
+  if (value instanceof Number) return { rawDiameterType: 'boxed_number' };
+  if (value instanceof String) return { rawDiameterType: 'boxed_string' };
+  return { rawDiameterType: inputType };
+}
+
 function invalidPhysicalBucketDiagnostic({
   sourceKind,
   sourceRowId,
@@ -144,7 +175,7 @@ function invalidPhysicalBucketDiagnostic({
       orderId,
       itemId,
       rawMaterialId,
-      rawDiameter: rawDiameter ?? null,
+      ...describeRawDiameter(rawDiameter),
       materialType,
       reason,
     },

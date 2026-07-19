@@ -141,6 +141,19 @@ function assertDiagnosticCounts(report) {
   ));
 }
 
+function assertBlobDiagnostic(row, { sourceKind, sourceRowId, rawMaterialId = null }) {
+  assert.equal(row.severity, 'error');
+  assert.equal(row.scope, 'reference');
+  assert.equal(row.evidence.sourceKind, sourceKind);
+  assert.equal(row.evidence.sourceRowId, sourceRowId);
+  assert.equal(row.evidence.rawMaterialId, rawMaterialId);
+  assert.equal(row.evidence.reason, 'non_numeric_diameter');
+  assert.equal(row.evidence.rawDiameterType, 'blob');
+  assert.equal(row.evidence.rawDiameterByteLength, 2);
+  assert.equal(row.evidence.rawDiameterHex, '3132');
+  assert.equal(Object.hasOwn(row.evidence, 'rawDiameter'), false);
+}
+
 test('empty reconciliation database returns a deterministic read-only report', () => {
   const db = createDb();
   const first = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
@@ -630,21 +643,124 @@ test('invalid usage diameters remain diagnosed and historically ambiguous withou
   }
 });
 
+test('SQLite reservation BLOB diameter remains diagnostic-only and read-only', () => {
+  const db = createDb();
+  seedDemand(db);
+  db.prepare("INSERT INTO inventory_reservations VALUES (9,1,1,?,'coil',10,'active')")
+    .run(Buffer.from('12'));
+  const stored = db.prepare('SELECT typeof(diameter) AS storageType FROM inventory_reservations WHERE id=9').get();
+  assert.equal(stored.storageType, 'blob');
+  const first = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  const second = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  assert.deepEqual(second, first);
+  assertNeutralDemand(first.demands[0]);
+  assert.deepEqual(first.stockPositions, []);
+  const rows = diagnostics(first, INVALID_PHYSICAL_BUCKET_IDENTITY);
+  assert.equal(rows.length, 1);
+  assertBlobDiagnostic(rows[0], { sourceKind: 'reservation', sourceRowId: 9 });
+  assert.equal(diagnostics(first, RAW_MATERIAL_DIAGNOSTIC.PROBABLE_DOUBLE_COUNT).length, 0);
+  assert.equal(diagnostics(first, RAW_MATERIAL_DIAGNOSTIC.DUPLICATE_RESERVATION).length, 0);
+  assertReadOnly(db, () => buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK }));
+  db.close();
+});
+
+test('SQLite usage BLOB diameter remains ambiguous but not operational', () => {
+  const db = createDb();
+  seedDemand(db);
+  db.prepare("INSERT INTO raw_material VALUES (7,?,'coil',100,10,0,1)").run(Buffer.from('12'));
+  db.prepare('INSERT INTO raw_material_usage VALUES (8,7,1,1,10)').run();
+  const stored = db.prepare('SELECT typeof(diameter) AS storageType FROM raw_material WHERE id=7').get();
+  assert.equal(stored.storageType, 'blob');
+  const first = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  const second = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+  assert.deepEqual(second, first);
+  assertNeutralDemand(first.demands[0]);
+  assert.deepEqual(first.lots[0].usageIds, []);
+  assert.equal(first.lots[0].observedBalance.observed.usageRowsKg, 0);
+  const rows = diagnostics(first, INVALID_PHYSICAL_BUCKET_IDENTITY);
+  assert.equal(rows.length, 1);
+  assertBlobDiagnostic(rows[0], { sourceKind: 'usage', sourceRowId: 8, rawMaterialId: 7 });
+  assert.equal(diagnostics(first, RAW_MATERIAL_DIAGNOSTIC.AMBIGUOUS_HISTORICAL_CONSUMPTION).length, 1);
+  assert.equal(diagnostics(first, RAW_MATERIAL_DIAGNOSTIC.USAGE_WITHOUT_RESERVATION).length, 0);
+  assertReadOnly(db, () => buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK }));
+  db.close();
+});
+
+test('valid rows remain isolated from matching-byte BLOB rows', () => {
+  const reservationDb = createDb();
+  seedDemand(reservationDb);
+  reservationDb.prepare("INSERT INTO inventory_reservations VALUES (1,1,1,12,'coil',4,'active')").run();
+  reservationDb.prepare("INSERT INTO inventory_reservations VALUES (2,1,1,?,'coil',9,'active')")
+    .run(Buffer.from('12'));
+  const reservationReport = buildRawMaterialReconciliationReport(reservationDb, { clock: FIXED_CLOCK });
+  const reservationDemand = reservationReport.demands[0];
+  assert.equal(reservationDemand.materialBuckets.length, 1);
+  assert.deepEqual(reservationDemand.reservationIds, [1]);
+  assert.equal(reservationDemand.reservationCount, 1);
+  assert.equal(reservationDemand.activeReservationCount, 1);
+  assert.equal(reservationDemand.activeReservedKg, 4);
+  assert.equal(reservationDemand.relationship, 'reservation_only');
+  assert.equal(diagnostics(reservationReport, INVALID_PHYSICAL_BUCKET_IDENTITY).length, 1);
+  assert.equal(diagnostics(reservationReport, RAW_MATERIAL_DIAGNOSTIC.DUPLICATE_RESERVATION).length, 0);
+  assertDemandAggregationInvariant(reservationDemand);
+  reservationDb.close();
+
+  const usageDb = createDb();
+  seedDemand(usageDb);
+  usageDb.prepare("INSERT INTO raw_material VALUES (1,12,'coil',100,5,0,1)").run();
+  usageDb.prepare("INSERT INTO raw_material VALUES (2,?,'coil',100,7,0,1)").run(Buffer.from('12'));
+  usageDb.prepare('INSERT INTO raw_material_usage VALUES (1,1,1,1,5),(2,2,1,1,7)').run();
+  const usageReport = buildRawMaterialReconciliationReport(usageDb, { clock: FIXED_CLOCK });
+  const usageDemand = usageReport.demands[0];
+  assert.equal(usageDemand.materialBuckets.length, 1);
+  assert.deepEqual(usageDemand.usageIds, [1]);
+  assert.equal(usageDemand.usageCount, 1);
+  assert.equal(usageDemand.usageRowsKg, 5);
+  assert.deepEqual(usageDemand.supportingProductionEvidence.map(row => row.usageId), [1]);
+  assert.equal(usageDemand.relationship, 'usage_only');
+  assert.equal(diagnostics(usageReport, INVALID_PHYSICAL_BUCKET_IDENTITY).length, 1);
+  assertDemandAggregationInvariant(usageDemand);
+  usageDb.close();
+});
+
+test('BLOB usage cannot suppress or create recognized lifecycle diagnostics', () => {
+  for (const status of ['consumed', 'released']) {
+    const db = createDb();
+    seedDemand(db);
+    db.prepare("INSERT INTO raw_material VALUES (1,?,'coil',100,10,0,1)").run(Buffer.from('12'));
+    db.prepare('INSERT INTO raw_material_usage VALUES (1,1,1,1,10)').run();
+    db.prepare("INSERT INTO inventory_reservations VALUES (2,1,1,12,'coil',10,?)").run(status);
+    const report = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
+    assert.equal(diagnostics(report, INVALID_PHYSICAL_BUCKET_IDENTITY).length, 1);
+    assert.equal(
+      diagnostics(report, RAW_MATERIAL_DIAGNOSTIC.CONSUMED_RESERVATION_WITHOUT_USAGE).length,
+      status === 'consumed' ? 1 : 0
+    );
+    assert.equal(diagnostics(report, RAW_MATERIAL_DIAGNOSTIC.RELEASED_RESERVATION_WITH_USAGE).length, 0);
+    assert.equal(report.demands[0].usageCount, 0);
+    assert.equal(report.demands[0].relationship, 'reservation_only');
+    assertDemandAggregationInvariant(report.demands[0]);
+    db.close();
+  }
+});
+
 test('positive numeric diameters normalize deterministically into exact buckets', () => {
   const db = createDb();
   seedDemand(db);
   db.prepare("INSERT INTO raw_material VALUES (1,12,'coil',100,0,0,1)").run();
   db.prepare("INSERT INTO raw_material VALUES (2,?,'coil',100,0,0,1)").run('12');
   db.prepare("INSERT INTO raw_material VALUES (3,?,'coil',100,0,0,1)").run('12.5');
-  db.prepare('INSERT INTO raw_material_usage VALUES (1,1,1,1,2),(2,2,1,1,3),(3,3,1,1,4)').run();
+  db.prepare("INSERT INTO raw_material VALUES (4,?,'coil',100,0,0,1)").run(' 12 ');
+  db.prepare("INSERT INTO raw_material VALUES (5,12.5,'coil',100,0,0,1)").run();
+  db.prepare('INSERT INTO raw_material_usage VALUES (1,1,1,1,2),(2,2,1,1,3),(3,3,1,1,4),(4,4,1,1,5),(5,5,1,1,6)').run();
   const report = buildRawMaterialReconciliationReport(db, { clock: FIXED_CLOCK });
   assert.deepEqual(report.demands[0].materialBuckets.map(bucket => ({
     diameter: bucket.diameter,
     usageIds: bucket.usageRows.map(row => row.usageId),
     usageRowsKg: bucket.totals.usageRowsKg,
   })), [
-    { diameter: 12, usageIds: [1, 2], usageRowsKg: 5 },
-    { diameter: 12.5, usageIds: [3], usageRowsKg: 4 },
+    { diameter: 12, usageIds: [1, 2, 4], usageRowsKg: 10 },
+    { diameter: 12.5, usageIds: [3, 5], usageRowsKg: 10 },
   ]);
   assert.equal(diagnostics(report, INVALID_PHYSICAL_BUCKET_IDENTITY).length, 0);
   assertDemandAggregationInvariant(report.demands[0]);
