@@ -119,12 +119,21 @@
           ?? data.totalLengthMm
           ?? data.lengthMm
       ),
+      // Unit and total weights are kept separate: engines and editors write
+      // weightKg/unitWeightKg per bar, while intake and the order screen write
+      // totalWeightKg for the whole quantity. Mixing them multiplies totals by
+      // quantity twice (inflated delivery certificates and pricing).
       weightKg: positiveNumberOrNull(
         calculated.weightKg
-          ?? calculated.totalWeightKg
+          ?? calculated.unitWeightKg
           ?? generic.weightKg
-          ?? generic.totalWeightKg
+          ?? generic.unitWeightKg
           ?? data.weightKg
+      ),
+      totalWeightKg: positiveNumberOrNull(
+        calculated.totalWeightKg
+          ?? generic.totalWeightKg
+          ?? data.totalWeightKg
       ),
     };
   }
@@ -145,12 +154,25 @@
     const metrics = shapeSnapshotMetrics(snapshot) || {};
     const quantity = itemQuantity(item);
     const totalLengthMm = metrics.totalLengthMm ?? positiveNumberOrNull(item.totalLengthMm ?? item.total_length_mm ?? item.length_mm ?? item.length);
-    const unitWeightKg = metrics.weightKg
-      ?? positiveNumberOrNull(item.weightPerUnit ?? item.weight_per_unit)
-      ?? null;
-    const totalWeightKg = unitWeightKg !== null
-      ? unitWeightKg * quantity
-      : positiveNumberOrNull(item.totalWeight ?? item.total_weight);
+    const snapUnit = metrics.weightKg ?? null;
+    const snapTotal = metrics.totalWeightKg ?? null;
+    const dbUnit = positiveNumberOrNull(item.weightPerUnit ?? item.weight_per_unit);
+    let unitWeightKg = snapUnit ?? dbUnit ?? (snapTotal !== null ? snapTotal / quantity : null);
+    let totalWeightKg;
+    if (snapUnit !== null && snapTotal !== null && quantity > 1 && Math.abs(snapUnit - snapTotal) < 0.0005) {
+      // Some editor snapshots mirror the same number into both fields; the
+      // value is a total — never multiply it by quantity again.
+      totalWeightKg = snapTotal;
+      unitWeightKg = dbUnit ?? snapTotal / quantity;
+    } else if (snapUnit !== null) {
+      totalWeightKg = snapUnit * quantity;
+    } else if (snapTotal !== null) {
+      totalWeightKg = snapTotal;
+    } else if (dbUnit !== null) {
+      totalWeightKg = dbUnit * quantity;
+    } else {
+      totalWeightKg = positiveNumberOrNull(item.totalWeight ?? item.total_weight);
+    }
     return { totalLengthMm, unitWeightKg, totalWeightKg, quantity };
   }
 

@@ -24,11 +24,14 @@ function isSixOrTwelveMeterStraight(lengthMm) {
 function deliveryItemMetrics(item, industry = null) {
   const metrics = itemShapeMetrics(item || {});
   const totalLengthMm = metrics.totalLengthMm || Number(item && item.total_length_mm) || 0;
-  const snapshotWeight = metrics.totalWeightKg || 0;
-  if (snapshotWeight > 0) return { totalLengthMm, totalWeightKg: snapshotWeight };
-
+  // The certificate must match the A4 sheet and billing_weight, which are all
+  // driven by items.total_weight — so the stored weight wins and the snapshot
+  // is only a fallback for legacy rows without one.
   const legacyWeight = Number(item && item.total_weight) || 0;
   if (legacyWeight > 0) return { totalLengthMm, totalWeightKg: legacyWeight };
+
+  const snapshotWeight = metrics.totalWeightKg || 0;
+  if (snapshotWeight > 0) return { totalLengthMm, totalWeightKg: snapshotWeight };
 
   const kgm = industry && typeof industry.kgPerMeter === 'function'
     ? industry.kgPerMeter(Math.round(Number(item && item.diameter) || 0))
