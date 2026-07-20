@@ -2524,7 +2524,15 @@ class ShapeEditorModal {
     document.getElementById('seAddSide').onclick       = () => this._addSide();
     document.getElementById('seSaveShapeBtn').onclick  = () => this._showSaveBar();
     document.getElementById('seBackBtn').onclick = () => this._goBack();
-    this._el.addEventListener('click', e => { if (e.target === this._el) this.close(); });
+    // Phone taps synthesize extra mouse events right after the tap; they can
+    // land on the backdrop while the modal is still sliding in and close the
+    // editor instantly. Close only when the press actually started on the
+    // backdrop and the open animation has settled.
+    this._el.addEventListener('pointerdown', e => { this._backdropPress = e.target === this._el; });
+    this._el.addEventListener('click', e => {
+      if (e.target === this._el && this._backdropPress && Date.now() - (this._openedAt || 0) > 400) this.close();
+      this._backdropPress = false;
+    });
     this._bindDragRotation();
     this._bindWheelZoom();
     this._initShapeTooltip();
@@ -4159,6 +4167,8 @@ class ShapeEditorModal {
   open(existingData) {
     if (!this._el || !document.body.contains(this._el)) this._ensureDom();
     window._seEditor = this;
+    this._openedAt = Date.now();
+    this._backdropPress = false;
     this._hideSaveBar?.();
     this._el.classList.remove('show');
     // Sync orbit controls and cursor to current view mode on open
