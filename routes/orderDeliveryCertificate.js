@@ -291,7 +291,14 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
   body{background:#fff;padding:0;}
   .toolbar{display:none!important;}
   .page{box-shadow:none;padding:10mm 10mm;width:100%;}
-  @page{size:A4 portrait;margin:8mm;}
+  /* Totals print once at the end of the table instead of repeating on
+     every page (browsers repeat a real tfoot per printed page). */
+  tfoot{display:table-row-group;}
+  @page{
+    size:A4 portrait;
+    margin:8mm 8mm 14mm;
+    @bottom-center{content:"עמוד " counter(page) " מתוך " counter(pages);font-size:10px;font-family:Heebo,Arial;color:#55606e;}
+  }
 }
 </style>
 </head>
