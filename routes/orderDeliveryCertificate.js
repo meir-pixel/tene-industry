@@ -167,25 +167,25 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
 
   const tfootTotalsHtml = includeWaste ? `
       <tr>
-        <td colspan="5" style="text-align:right;background:#eef3f8;color:#1a2332;">סה"כ משקל תיאורטי:</td>
+        <td colspan="4" style="text-align:right;background:#eef3f8;color:#1a2332;">סה"כ משקל תיאורטי:</td>
         <td class="total-val" style="background:#eef3f8;color:#1a2332;">${fmt2(wTotal)}</td>
         <td style="background:#eef3f8;"></td>
         <td style="background:#eef3f8;color:#1a2332;">סה"כ כללי קומפלט · ${allItems.length} פריטים</td>
       </tr>
       <tr>
-        <td colspan="5" style="text-align:right;background:#fff;color:#c0392b;">תוספת 3% פערי משקלים:</td>
+        <td colspan="4" style="text-align:right;background:#fff;color:#c0392b;">תוספת 3% פערי משקלים:</td>
         <td class="total-val" style="background:#fff;color:#c0392b;">${fmt2(wWaste)}</td>
         <td style="background:#fff;"></td>
         <td style="background:#fff;"></td>
       </tr>
       <tr>
-        <td colspan="5" style="text-align:right;">סה"כ משקל לחיוב:</td>
+        <td colspan="4" style="text-align:right;">סה"כ משקל לחיוב:</td>
         <td class="total-val">${fmt2(wBilling)}</td>
         <td></td>
         <td></td>
       </tr>` : `
       <tr>
-        <td colspan="5" style="text-align:right;">סה"כ משקל</td>
+        <td colspan="4" style="text-align:right;">סה"כ משקל</td>
         <td class="total-val">${fmt2(wTotal)}</td>
         <td></td>
         <td>סה"כ כללי קומפלט · ${allItems.length} פריטים</td>
@@ -196,10 +196,8 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
   allItems.forEach((item, idx) => {
     const segs   = parseSegs(item.segments);
     const itemMetrics = deliveryItemMetrics(item, industry);
-    const bent   = isBent(item);
     const posNum = idx + 1;
     const diam   = item.diameter || '–';
-    const type   = bent ? 'מכופף' : (isSixOrTwelveMeterStraight(itemMetrics.totalLengthMm) ? 'ברזל ישר 6/12' : 'ישר חתוך');
     const lenCm  = itemMetrics.totalLengthMm ? Math.round(itemMetrics.totalLengthMm / 10) : '–';
     const qty    = item.quantity || 1;
     const wt     = fmt1(calcItemWeight(item));
@@ -211,7 +209,6 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
       <tr>
         <td class="c">${posNum}</td>
         <td class="c"><b>Ø${diam}</b></td>
-        <td class="c">${type}</td>
         <td class="c">${lenCm}</td>
         <td class="c">${qty}</td>
         <td class="c"><b>${wt}</b></td>
@@ -343,7 +340,6 @@ ${summaryTotalsHtml}
       <tr>
         <th>פוזיציה</th>
         <th>קוטר<br>(מ"מ)</th>
-        <th>סוג ברזל</th>
         <th>אורך<br>(ס"מ)</th>
         <th>כמות<br>(יח')</th>
         <th>משקל<br>(ק"ג)</th>
