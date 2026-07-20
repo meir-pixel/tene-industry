@@ -241,6 +241,11 @@ body{font-family:'Heebo',Arial,sans-serif;direction:rtl;background:#f0f2f5;paddi
 /* ── A4 page ── */
 .page{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:14mm 12mm;
   box-shadow:0 4px 20px rgba(0,0,0,0.15);}
+.cert-pages{display:flex;flex-direction:column;gap:16px;align-items:center;}
+.cert-pages .page{height:297mm;min-height:297mm;margin:0;padding:12mm 12mm 10mm;
+  display:flex;flex-direction:column;overflow:hidden;position:relative;}
+.page-body{flex:1 1 auto;overflow:hidden;}
+.page-num{position:absolute;bottom:4mm;left:0;right:0;text-align:center;font-size:10px;color:#66707c;}
 
 /* ── Header ── */
 .doc-title{text-align:center;font-size:22px;font-weight:900;color:#1a2332;letter-spacing:0.5px;margin-bottom:4px;}
@@ -287,15 +292,14 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
 @media print{
   body{background:#fff;padding:0;}
   .toolbar{display:none!important;}
-  .page{box-shadow:none;padding:10mm 10mm;width:100%;}
-  /* Totals print once at the end of the table instead of repeating on
-     every page (browsers repeat a real tfoot per printed page). */
+  .cert-pages{display:block;}
+  .page{box-shadow:none;margin:0;width:210mm;}
+  .cert-pages .page{break-after:page;page-break-after:always;}
+  .cert-pages .page:last-child{break-after:auto;page-break-after:auto;}
+  /* Fallback when the paginator did not run: keep rows whole per page. */
+  tbody tr{break-inside:avoid;page-break-inside:avoid;}
   tfoot{display:table-row-group;}
-  @page{
-    size:A4 portrait;
-    margin:8mm 8mm 14mm;
-    @bottom-center{content:"עמוד " counter(page) " מתוך " counter(pages);font-size:10px;font-family:Heebo,Arial;color:#55606e;}
-  }
+  @page{size:A4 portrait;margin:0;}
 }
 </style>
 </head>
@@ -311,7 +315,7 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
   <span style="font-size:13px;color:#666;">הזמנה ${order.order_num} · ${order.customer_name || ''}</span>
 </div>
 
-<div class="page">
+<div class="page" id="certSource">
 
   <!-- Header -->
   <div class="doc-title">ריכוז תעודת משלוח וסיכום משקלים סופי</div>
@@ -365,6 +369,104 @@ ${summaryTotalsHtml}
   </div>
 
 </div><!-- /page -->
+<div class="cert-pages" id="certPages"></div>
+<script>
+(function(){
+  function paginate(){
+    var source = document.getElementById('certSource');
+    var target = document.getElementById('certPages');
+    if (!source || !target) return;
+    var table = source.querySelector('table');
+    if (!table) return;
+    // The source stays intact (hidden) and pages are built from clones, so
+    // pagination can re-run cleanly after webfonts finish loading.
+    target.innerHTML = '';
+    var thead = table.querySelector('thead');
+    var tfootSource = table.querySelector('tfoot');
+    var tfoot = tfootSource ? tfootSource.cloneNode(true) : null;
+    var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr')).map(function(row){ return row.cloneNode(true); });
+    var blocksBefore = [];
+    var blocksAfter = [];
+    var seenTable = false;
+    Array.prototype.slice.call(source.children).forEach(function(node){
+      if (node === table) { seenTable = true; return; }
+      (seenTable ? blocksAfter : blocksBefore).push(node.cloneNode(true));
+    });
+
+    var pages = [];
+    var currentBody = null, currentTable = null, currentTbody = null;
+    function newPage(){
+      var page = document.createElement('div');
+      page.className = 'page';
+      currentBody = document.createElement('div');
+      currentBody.className = 'page-body';
+      page.appendChild(currentBody);
+      target.appendChild(page);
+      pages.push(page);
+      currentTable = null; currentTbody = null;
+    }
+    function ensureTable(){
+      if (currentTable) return;
+      currentTable = document.createElement('table');
+      if (thead) currentTable.appendChild(thead.cloneNode(true));
+      currentTbody = document.createElement('tbody');
+      currentTable.appendChild(currentTbody);
+      currentBody.appendChild(currentTable);
+    }
+    function overflows(){
+      return currentBody.scrollHeight > currentBody.clientHeight + 1;
+    }
+    function place(node, needsTable){
+      function append(){
+        if (needsTable) {
+          ensureTable();
+          if (node.tagName === 'TFOOT') currentTable.appendChild(node);
+          else currentTbody.appendChild(node);
+        } else {
+          currentBody.appendChild(node);
+        }
+      }
+      append();
+      if (!overflows()) return;
+      var alone = needsTable
+        ? currentBody.childElementCount === 1 && currentTbody.childElementCount <= 1
+        : currentBody.childElementCount === 1;
+      if (alone) return; // a single block taller than a page stays where it is
+      node.parentNode.removeChild(node);
+      newPage();
+      append();
+    }
+
+    newPage();
+    blocksBefore.forEach(function(node){ place(node, false); });
+    rows.forEach(function(row){ place(row, true); });
+    if (tfoot) place(tfoot, true);
+    blocksAfter.forEach(function(node){ place(node, false); });
+
+    source.style.display = 'none';
+    pages.forEach(function(page, index){
+      var num = document.createElement('div');
+      num.className = 'page-num';
+      num.textContent = 'עמוד ' + (index + 1) + ' מתוך ' + pages.length;
+      page.appendChild(num);
+    });
+  }
+  function run(){
+    try { paginate(); } catch (err) {
+      var source = document.getElementById('certSource');
+      var target = document.getElementById('certPages');
+      if (target) target.innerHTML = '';
+      if (source) source.style.display = '';
+    }
+  }
+  if (document.readyState === 'complete') run();
+  else window.addEventListener('load', run);
+  // Text metrics change once webfonts arrive — repaginate with final fonts.
+  if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+    document.fonts.ready.then(function(){ setTimeout(run, 0); });
+  }
+})();
+</script>
 </body>
 </html>`);
 });
