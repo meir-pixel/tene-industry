@@ -309,7 +309,7 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
   <a href="/orders.html" class="btn-back">← חזור להזמנות</a>
   <button class="btn-print" onclick="window.print()">🖨️ הדפס / שמור PDF</button>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#1a2332;cursor:pointer;">
-    <input type="checkbox" ${includeWaste ? 'checked' : ''} onchange="const u=new URL(location.href);u.searchParams.set('waste3',this.checked?'1':'0');location.href=u.href;">
+    <input type="checkbox" ${includeWaste ? 'checked' : ''} onchange="toggleWaste3(this)">
     תוספת 3% פערי משקלים
   </label>
   <span style="font-size:13px;color:#666;">הזמנה ${order.order_num} · ${order.customer_name || ''}</span>
@@ -371,6 +371,14 @@ ${summaryTotalsHtml}
 </div><!-- /page -->
 <div class="cert-pages" id="certPages"></div>
 <script>
+// Inline handlers resolve identifiers against document first, where
+// document.URL is a string that shadows the URL constructor — so the
+// toggle lives here as a named function using window.URL explicitly.
+function toggleWaste3(input){
+  var u = new window.URL(window.location.href);
+  u.searchParams.set('waste3', input.checked ? '1' : '0');
+  window.location.href = u.href;
+}
 (function(){
   function paginate(){
     var source = document.getElementById('certSource');
