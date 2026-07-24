@@ -313,17 +313,56 @@
     } catch {}
   }
 
+  function gotoLogin() {
+    const next = encodeURIComponent(location.pathname + location.search);
+    location.replace('/login.html?redirect=' + next);
+  }
+
+  // nav.js is present only on protected app pages. Map the current page to its
+  // registered manifest screen id so we can redirect away when the role may not
+  // see it. Only screens whose manifest id is known to match are gated here;
+  // pages without a cleanly-registered screen (e.g. pricing, profitability) are
+  // left to server-side data guards so an admin is never wrongly bounced.
+  const GATEABLE = {
+    'orders': 'orders', 'new': 'new-order', 'intake': 'intake', 'customers': 'customers',
+    'production-queue': 'production-queue', 'worker-visual': 'worker-visual', 'machine': 'machine',
+    'kiosk': 'kiosk', 'production-setup': 'production-setup', 'warehouse': 'warehouse',
+    'inventory': 'inventory', 'procurement': 'procurement', 'delivery-admin': 'delivery-admin',
+    'driver': 'driver', 'quality': 'quality', 'maintenance': 'maintenance', 'warroom': 'warroom',
+    'reports': 'reports', 'finance': 'finance', 'projects': 'projects', 'holdings': 'holdings',
+    'admin': 'admin',
+  };
+  function currentScreenId() {
+    const here = location.pathname.replace(/^\//, '') || 'dashboard.html';
+    const link = LINKS.find(l => l.href.replace('/', '') === here);
+    return link ? (GATEABLE[link.id] || null) : null;
+  }
+
   async function applyAccessControl() {
+    // No token at all → this page requires login. window.fetch is patched to
+    // auto-refresh, so a merely-expired token still resolves below; we only
+    // land here with a truly-absent session.
+    const token = localStorage.getItem('ib_access_token') || sessionStorage.getItem('ib_access_token');
+    if (!token) { gotoLogin(); return; }
+    let res;
     try {
-      const token = localStorage.getItem('ib_access_token') || sessionStorage.getItem('ib_access_token');
-      if (!token) return;
-      const res = await fetch('/api/access/me', {
-        headers: { Authorization: 'Bearer ' + token }
-      });
-      if (!res.ok) return;
+      res = await fetch('/api/access/me', { headers: { Authorization: 'Bearer ' + token } });
+    } catch {
+      return; // network blip: leave the shell; server-side guards still protect data
+    }
+    if (res.status === 401) { gotoLogin(); return; }
+    if (!res.ok) return;
+    try {
       const { screens } = await res.json();
       if (!Array.isArray(screens)) return;
       const visibleIds = new Set(screens.map(s => s.id));
+      // Role-gate the current page: if this screen is hidden for the role,
+      // send the user to the dashboard (always allowed) instead of the shell.
+      const screenId = currentScreenId();
+      if (screenId && screenId !== 'dashboard' && !visibleIds.has(screenId)) {
+        location.replace('/dashboard.html');
+        return;
+      }
       // Map screen IDs back to nav link IDs (some overlap, some differ)
       visibleLinks = LINKS.filter(link => {
         // Always show dashboard

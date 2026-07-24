@@ -62,11 +62,15 @@ function createAuthService(db, options = {}) {
   const lockMinutes = Number(options.lockMinutes || 15);
   const now = options.now || (() => new Date());
 
+  // Access tokens are long-lived (default 3h) so an active shift never hits a
+  // re-login prompt; the refresh cookie renews silently for longer gaps.
+  const accessTokenTtl = options.accessTokenTtl || process.env.ACCESS_TOKEN_TTL || '3h';
+
   function accessTokenFor(user) {
     return jwt.sign(
       { sub: String(user.id), role: user.role, display_name: user.display_name },
       jwtSecret,
-      { expiresIn: options.accessTokenTtl || '15m' }
+      { expiresIn: accessTokenTtl }
     );
   }
 

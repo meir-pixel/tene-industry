@@ -40,15 +40,29 @@
     localStorage.setItem(ROLE_KEY, result.user.role || '');
   }
 
+  // Single-flight refresh: a dashboard fires many API calls at once, and when
+  // the access token expires they all get 401 together. Without this, each one
+  // POSTs /api/auth/refresh with the same rotating cookie — the first rotates
+  // it and the rest fail with a revoked token, forcing a spurious re-login.
+  // One shared promise means concurrent 401s share a single refresh.
+  let refreshInFlight = null;
   async function refreshAccessToken() {
-    const response = await nativeFetch('/api/auth/refresh', {
-      method: 'POST',
-      credentials: 'same-origin',
-    });
-    if (!response.ok) return null;
-    const result = await response.json();
-    storeSession(result, true);
-    return result.access_token;
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = (async () => {
+      try {
+        const response = await nativeFetch('/api/auth/refresh', {
+          method: 'POST',
+          credentials: 'same-origin',
+        });
+        if (!response.ok) return null;
+        const result = await response.json();
+        storeSession(result, true);
+        return result.access_token;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+    return refreshInFlight;
   }
 
   function isApiUrl(url) {
