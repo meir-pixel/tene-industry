@@ -232,14 +232,11 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     <h2 id="modalBatchTitle">📦 קבלת חומר גלם</h2>
     <div class="form-grid">
       <div class="form-row"><label>קוטר (מ"מ) *</label>
-        <select id="bDiameter">
-          <option value="6">Ø6</option><option value="8">Ø8</option><option value="10">Ø10</option>
-          <option value="12">Ø12</option><option value="14">Ø14</option><option value="16">Ø16</option>
-          <option value="18">Ø18</option><option value="20">Ø20</option><option value="22">Ø22</option>
-          <option value="25">Ø25</option><option value="28">Ø28</option><option value="32">Ø32</option>
-          <option value="36">Ø36</option><option value="40">Ø40</option>
-        </select>
+        <input id="bDiameter" type="text" list="bDiameterSuggestions" inputmode="decimal" autocomplete="off" placeholder="לדוגמה: 5.5 או Ø14" onblur="normalizeBatchDiameter()">
+        <datalist id="bDiameterSuggestions"></datalist>
+        <small id="bDiameterHint" class="muted">אפשר להקליד קוטר ולנווט עם החיצים, Enter ו־Tab</small>
       </div>
+      <div class="form-row"><label>מק"ט חומר גלם</label><select id="bCatalogItem" onchange="applyCatalogItem()"><option value="">— ללא מק"ט —</option></select></div>
       <div class="form-row"><label>סוג חומר</label>
         <select id="bType" onchange="toggleBendingPanel()"><option value="coil">סלילים (coil)</option><option value="straight">ישר (straight)</option><option value="bent">כיפוף (bent)</option></select>
       </div>
@@ -251,6 +248,8 @@ tr:hover td{background:rgba(0,0,0,0.015);}
       <div class="form-row"><label>תקן פלדה</label>
         <select id="bGrade"><option value="B500B">B500B</option><option value="B500C">B500C</option><option value="B500A">B500A</option><option value="other">אחר</option></select>
       </div>
+      <div class="form-row"><label>תקן / מפרט</label><input id="bStandard" type="text" placeholder="לדוגמה: 10219"></div>
+      <div class="form-row"><label>אורך נומינלי (מ"מ)</label><input id="bNominalLength" type="number" step="1" min="0" placeholder="אופציונלי"></div>
       <div class="form-row"><label>תאריך קבלה *</label><input id="bDate" type="date"></div>
       <div class="form-row"><label>משקל (ק"ג) *</label><input id="bWeight" type="number" step="0.1" min="0" placeholder="5000"></div>
       <div class="form-row"><label>מחיר לטון (₪)</label><input id="bPrice" type="number" step="1" min="0" placeholder="3800"></div>
@@ -308,6 +307,55 @@ let suppliers = [];
 let batches   = [];
 let summary   = [];
 let bendingShapeSource = 'manual';
+let rawCatalogItems = [];
+let diameterCatalogRows = [];
+
+function normalizeDiameterText(value) {
+  const text = String(value || '').trim().replace(/\s+/g, '').replace(/^Ø/i, '').replace(',', '.');
+  const match = /^(\d+)(?:\.(\d{1,3}))?$/.exec(text);
+  if (!match) return null;
+  const whole = String(Number(match[1]));
+  const fraction = (match[2] || '').replace(/0+$/, '');
+  const key = fraction ? `${whole}.${fraction}` : whole;
+  const numeric = Number(key);
+  return numeric > 0 && numeric <= 100 ? { key, display:`Ø${key}` } : null;
+}
+
+function normalizeBatchDiameter() {
+  const input = document.getElementById('bDiameter');
+  const hint = document.getElementById('bDiameterHint');
+  const diameter = normalizeDiameterText(input.value);
+  if (!input.value.trim()) { hint.textContent = 'אפשר להקליד קוטר ולנווט עם החיצים, Enter ו־Tab'; return null; }
+  if (!diameter) { hint.textContent = 'קוטר לא תקין — הזן מספר חיובי עד שלוש ספרות עשרוניות'; return null; }
+  input.value = diameter.display;
+  hint.textContent = `נבחר ${diameter.display}`;
+  return diameter;
+}
+
+async function loadMaterialCatalogChoices() {
+  const [diameters, items] = await Promise.all([
+    fetch('/api/inventory/diameter-catalog').then(r => r.ok ? r.json() : []).catch(() => []),
+    fetch('/api/inventory/catalog-items').then(r => r.ok ? r.json() : []).catch(() => []),
+  ]);
+  diameterCatalogRows = diameters;
+  document.getElementById('bDiameterSuggestions').innerHTML = diameters
+    .filter(row => row.status === 'active').map(row => `<option value="${escH(row.diameter_display)}"></option>`).join('');
+  rawCatalogItems = items;
+  document.getElementById('bCatalogItem').innerHTML = '<option value="">— ללא מק"ט —</option>' + items
+    .map(item => `<option value="${item.id}">${escH(item.sku)} · ${escH(item.name)}</option>`).join('');
+}
+
+function applyCatalogItem() {
+  const item = rawCatalogItems.find(row => String(row.id) === document.getElementById('bCatalogItem').value);
+  if (!item) return;
+  if (item.diameter_key) document.getElementById('bDiameter').value = `Ø${item.diameter_key}`;
+  if (item.supply_form) document.getElementById('bType').value = item.supply_form;
+  if (item.steel_grade) document.getElementById('bGrade').value = item.steel_grade;
+  document.getElementById('bStandard').value = item.standard_code || '';
+  document.getElementById('bNominalLength').value = item.nominal_length_mm || '';
+  normalizeBatchDiameter();
+  toggleBendingPanel();
+}
 
 function showTab(id) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', b.onclick.toString().includes(`'${id}'`)));
@@ -690,7 +738,7 @@ function openAddBatch() {
   initBendingPresets();
   document.getElementById('modalBatchTitle').textContent = '📦 קבלת חומר גלם';
   document.getElementById('bDate').value = new Date().toISOString().split('T')[0];
-  ['bDiameter','bType','bSupplier','bLot','bCert','bGrade','bWeight','bPrice','bLoc','bNotes','bShapeName','bShapeSides','bShapeAngles'].forEach(id => {
+  ['bDiameter','bCatalogItem','bType','bSupplier','bLot','bCert','bGrade','bStandard','bNominalLength','bWeight','bPrice','bLoc','bNotes','bShapeName','bShapeSides','bShapeAngles'].forEach(id => {
     const el = document.getElementById(id);
     if (el.tagName === 'SELECT') el.selectedIndex = 0;
     else el.value = '';
@@ -699,6 +747,7 @@ function openAddBatch() {
   document.getElementById('bShapeStatus').textContent = '';
   bendingShapeSource = 'manual';
   renderShapePreview([]);
+  loadMaterialCatalogChoices();
   toggleBendingPanel();
   // Refresh supplier list
   fetch('/api/suppliers').then(r=>r.ok ? r.json() : []).then(s => {
@@ -716,11 +765,13 @@ function editBatch(id) {
   initBendingPresets();
   editingBatchId = id;
   document.getElementById('modalBatchTitle').textContent = 'עריכת אצווה';
-  document.getElementById('bDiameter').value = b.diameter;
+  document.getElementById('bDiameter').value = `Ø${b.diameter}`;
   document.getElementById('bType').value = b.material_type||'coil';
   document.getElementById('bLot').value = b.lot_number||'';
   document.getElementById('bCert').value = b.certificate_num||'';
   document.getElementById('bGrade').value = b.grade||'B500B';
+  document.getElementById('bStandard').value = b.standard_code||'';
+  document.getElementById('bNominalLength').value = b.nominal_length_mm||'';
   document.getElementById('bDate').value = b.received_date||'';
   document.getElementById('bWeight').value = b.weight_received||'';
   document.getElementById('bPrice').value = b.purchase_price||'';
@@ -728,6 +779,7 @@ function editBatch(id) {
   document.getElementById('bNotes').value = b.notes||'';
   toggleBendingPanel();
   setBendingShapeFields(readStoredBendingShape(b));
+  loadMaterialCatalogChoices().then(() => { document.getElementById('bCatalogItem').value = b.catalog_item_id||''; });
   fetch('/api/suppliers').then(r=>r.ok ? r.json() : []).then(s => {
     const sel = document.getElementById('bSupplier');
     sel.innerHTML = '<option value="">— ללא ספק —</option>' + s.map(x=>`<option value="${x.id}">${escH(x.name)}</option>`).join('');
@@ -743,13 +795,21 @@ function closeBatchModal() { document.getElementById('modalBatch').classList.rem
 async function saveBatch() {
   const isBent = document.getElementById('bType').value === 'bent';
   const bendingSegments = parseBendingShapeSegments();
+  const diameter = normalizeBatchDiameter();
+  if (!diameter) return alert('קוטר לא תקין');
   const body = {
     material_type: document.getElementById('bType').value,
-    diameter:      Number(document.getElementById('bDiameter').value),
+    diameter:      diameter.key,
+    diameter_input: document.getElementById('bDiameter').value,
+    approve_new_diameter: false,
+    reactivate_diameter: false,
+    catalog_item_id: document.getElementById('bCatalogItem').value || null,
     supplier_id:   document.getElementById('bSupplier').value || null,
     lot_number:    document.getElementById('bLot').value,
     certificate_num: document.getElementById('bCert').value,
     grade:         document.getElementById('bGrade').value,
+    standard_code: document.getElementById('bStandard').value.trim() || null,
+    nominal_length_mm: Number(document.getElementById('bNominalLength').value) || null,
     received_date: document.getElementById('bDate').value,
     weight_received: Number(document.getElementById('bWeight').value),
     purchase_price:  Number(document.getElementById('bPrice').value)||0,
@@ -759,12 +819,23 @@ async function saveBatch() {
     bending_shape_source: isBent ? bendingShapeSource : null,
     notes:         document.getElementById('bNotes').value,
   };
+  const catalogDiameter = diameterCatalogRows.find(row => row.diameter_key === diameter.key);
+  if (!catalogDiameter && confirm(`${diameter.display} אינו קיים בקטלוג. לאשר הוספה או לשלוח לאישור?`)) {
+    body.approve_new_diameter = true;
+  }
+  if (catalogDiameter?.status === 'inactive' && confirm(`${diameter.display} אינו פעיל. להפעיל אותו מחדש?`)) {
+    body.reactivate_diameter = true;
+  }
   if (!body.diameter || !body.weight_received) return alert('קוטר ומשקל חובה');
   if (isBent && (!body.bending_shape_name || !bendingSegments.length)) return alert('בחומר מסוג כיפוף חובה להזין שם וצלעות צורה');
   const url = editingBatchId ? `/api/inventory/${editingBatchId}` : '/api/inventory';
   const method = editingBatchId ? 'PATCH' : 'POST';
   const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-  if (!r.ok) return alert('שגיאה בשמירה');
+  const result = await r.json().catch(()=>({}));
+  if (!r.ok) return alert(result.error || 'שגיאה בשמירה');
+  if (result.verification_status === 'pending_verification') {
+    alert('הקבלה נשמרה כממתינה לאימות ואינה זמינה עדיין למלאי תפעולי');
+  }
   closeBatchModal();
   loadSummary();
   loadBatches();

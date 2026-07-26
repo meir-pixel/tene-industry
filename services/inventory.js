@@ -1,6 +1,14 @@
 const MATERIAL_TYPES = new Set(['coil', 'straight', 'bent']);
 const STOCK_ALLOCATION_POLICIES = new Set(['auto_fifo', 'manual_required', 'disabled']);
 
+function rawMaterialHasVerificationStatus(db) {
+  return db.prepare("SELECT 1 FROM pragma_table_info('raw_material') WHERE name='verification_status'").get();
+}
+
+function verifiedRawMaterialClause(db) {
+  return rawMaterialHasVerificationStatus(db) ? " AND COALESCE(verification_status, 'approved')='approved'" : '';
+}
+
 function normalizeStockAllocationPolicy(value) {
   const policy = String(value || '').trim();
   return STOCK_ALLOCATION_POLICIES.has(policy) ? policy : 'auto_fifo';
@@ -97,7 +105,7 @@ function candidateRawMaterials(db, item) {
     SELECT *,
            ROUND(weight_received - weight_used - weight_scrapped, 3) AS weight_available
     FROM raw_material
-    WHERE active=1
+    WHERE active=1${verifiedRawMaterialClause(db)}
       AND diameter=?
       AND ROUND(weight_received - weight_used - weight_scrapped, 3) > 0
     ORDER BY date(COALESCE(received_date, created_at)) ASC, id ASC
@@ -203,7 +211,7 @@ function allocateOrderItemStock(db, {
   if (requestedId === 'none' || normalizedPolicy === 'disabled') return { allocated: false, reason: 'disabled' };
 
   const requestedRows = requestedId
-    ? [db.prepare('SELECT * FROM raw_material WHERE id=? AND active=1').get(requestedId)].filter(Boolean)
+    ? [db.prepare(`SELECT * FROM raw_material WHERE id=? AND active=1${verifiedRawMaterialClause(db)}`).get(requestedId)].filter(Boolean)
     : [];
   if (requestedId && !requestedRows.length) {
     throw Object.assign(new Error('selected raw material batch was not found'), { statusCode: 400 });

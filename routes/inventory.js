@@ -6,6 +6,7 @@ const {
   normalizeReceiptReviewItem,
   parseReceiptReviewPayload,
 } = require('../services/inventory');
+const { normalizeDiameter } = require('../services/materialCatalog');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/inventory missing dependency: ${name}`);
@@ -19,12 +20,62 @@ module.exports = function createInventoryRouter(deps) {
   const auditLog = required('auditLog', deps.auditLog);
   const listPage = required('listPage', deps.listPage);
 
+  function canApproveCatalog(req) {
+    return ['manager', 'admin', 'procurement'].includes(req.auth?.role);
+  }
+
+  function resolveDiameterCatalog(value, req, { approveNew, reactivate } = {}) {
+    const diameter = normalizeDiameter(value);
+    if (!diameter) {
+      throw Object.assign(new Error('invalid_diameter'), { statusCode: 400 });
+    }
+    const existing = db.prepare('SELECT * FROM diameter_catalog WHERE diameter_key=?').get(diameter.key);
+    if (!existing) {
+      const status = canApproveCatalog(req) && approveNew !== false ? 'active' : 'pending_approval';
+      db.prepare(`
+        INSERT INTO diameter_catalog (diameter_key,diameter_display,status,source,created_by,approved_by,approved_at)
+        VALUES (?,?,?,?,?,?,CASE WHEN ?='active' THEN CURRENT_TIMESTAMP ELSE NULL END)
+      `).run(diameter.key, diameter.display, status, 'manual', req.auth?.sub || null,
+        status === 'active' ? req.auth?.sub || null : null, status);
+      return { ...diameter, status, catalogAction: 'created' };
+    }
+    if (existing.status !== 'active' && canApproveCatalog(req) && reactivate) {
+      db.prepare(`UPDATE diameter_catalog
+        SET status='active', approved_by=?, approved_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+        WHERE id=?`).run(req.auth?.sub || null, existing.id);
+      return { ...diameter, status: 'active', catalogAction: 'reactivated' };
+    }
+    return { ...diameter, status: existing.status, catalogAction: null };
+  }
+
+  function resolveCatalogItem(input, materialType, diameter) {
+    const catalogItemId = Number(input.catalog_item_id ?? input.catalogItemId);
+    if (!Number.isSafeInteger(catalogItemId) || catalogItemId <= 0) {
+      return { catalogItem: null, specException: false };
+    }
+    const catalogItem = db.prepare(`SELECT * FROM catalog_items
+      WHERE id=? AND item_kind='raw_material' AND active=1`).get(catalogItemId);
+    if (!catalogItem) throw Object.assign(new Error('catalog_item_not_found'), { statusCode: 400 });
+    const comparisons = [
+      ['diameter_key', diameter.key],
+      ['supply_form', materialType],
+      ['steel_grade', input.grade || 'B500B'],
+      ['standard_code', input.standard_code || input.standardCode || null],
+      ['nominal_length_mm', input.nominal_length_mm ?? input.nominalLengthMm ?? null],
+    ];
+    const specException = comparisons.some(([field, actual]) => {
+      if (catalogItem[field] === null || catalogItem[field] === undefined || actual === null || actual === '') return false;
+      return String(catalogItem[field]) !== String(actual);
+    });
+    return { catalogItem, specException };
+  }
+
 
 
   router.get('/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
     const { diameter, supplier_id } = req.query;
     const page = listPage(req.query, { limit: 200, max: 1000 });
-    let sql = 'SELECT r.*,s.name as supplier_name,ROUND(r.weight_received-r.weight_used-r.weight_scrapped,2) as weight_available FROM raw_material r LEFT JOIN suppliers s ON r.supplier_id=s.id WHERE r.active=1';
+    let sql = "SELECT r.*,s.name as supplier_name,ROUND(r.weight_received-r.weight_used-r.weight_scrapped,2) as weight_available FROM raw_material r LEFT JOIN suppliers s ON r.supplier_id=s.id WHERE r.active=1 AND COALESCE(r.verification_status,'approved')='approved'";
     const params = [];
     if (diameter) { sql += ' AND r.diameter=?'; params.push(diameter); }
     if (supplier_id) { sql += ' AND r.supplier_id=?'; params.push(supplier_id); }
@@ -34,7 +85,87 @@ module.exports = function createInventoryRouter(deps) {
   });
 
   router.get('/inventory/summary', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-    res.json(db.prepare('SELECT diameter,SUM(weight_received) as total_received,SUM(weight_used) as total_used,SUM(weight_scrapped) as total_scrapped,ROUND(SUM(weight_received-weight_used-weight_scrapped),2) as available,COUNT(*) as batches FROM raw_material WHERE active=1 GROUP BY diameter ORDER BY diameter').all());
+    res.json(db.prepare("SELECT diameter,SUM(weight_received) as total_received,SUM(weight_used) as total_used,SUM(weight_scrapped) as total_scrapped,ROUND(SUM(weight_received-weight_used-weight_scrapped),2) as available,COUNT(*) as batches FROM raw_material WHERE active=1 AND COALESCE(verification_status,'approved')='approved' GROUP BY diameter ORDER BY diameter").all());
+  });
+
+  router.get('/inventory/diameter-catalog', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (_req, res) => {
+    res.json(db.prepare(`SELECT id,diameter_key,diameter_display,status
+      FROM diameter_catalog WHERE status IN ('active','inactive','pending_approval')
+      ORDER BY CAST(diameter_key AS NUMERIC), diameter_key`).all());
+  });
+
+  router.get('/inventory/catalog-items', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (_req, res) => {
+    res.json(db.prepare(`SELECT id,sku,name,category,supply_form,diameter_key,steel_grade,standard_code,nominal_length_mm,
+      nominal_kg_per_meter,nominal_unit_weight_kg
+      FROM catalog_items WHERE item_kind='raw_material' AND active=1 ORDER BY sku`).all());
+  });
+
+  router.get('/inventory/pending-verification', requireAnyRole(['manager', 'admin']), (_req, res) => {
+    res.json(db.prepare(`SELECT r.*, d.status AS diameter_catalog_status
+      FROM raw_material r
+      LEFT JOIN diameter_catalog d ON d.diameter_key=CAST(r.diameter AS TEXT)
+      WHERE r.active=1 AND r.verification_status='pending_verification'
+      ORDER BY r.created_at ASC, r.id ASC`).all());
+  });
+
+  router.post('/inventory/:id/approve-verification', requireAnyRole(['manager', 'admin']), (req, res) => {
+    const lot = db.prepare('SELECT * FROM raw_material WHERE id=?').get(req.params.id);
+    if (!lot) return res.status(404).json({ error: 'raw_material_not_found' });
+    const diameter = normalizeDiameter(lot.diameter);
+    if (!diameter) return res.status(400).json({ error: 'invalid_diameter' });
+    const tx = db.transaction(() => {
+      db.prepare(`UPDATE diameter_catalog SET status='active', approved_by=?, approved_at=CURRENT_TIMESTAMP,
+        updated_at=CURRENT_TIMESTAMP WHERE diameter_key=? AND status<>'active'`).run(req.auth?.sub || null, diameter.key);
+      db.prepare("UPDATE raw_material SET verification_status='approved' WHERE id=?").run(lot.id);
+    });
+    tx();
+    auditLog('raw_material', lot.id, lot.lot_number || String(lot.id), 'approve_verification', 'verification_status',
+      lot.verification_status, 'approved', null, req.auth?.sub || null, req.auth?.display_name || null);
+    res.json({ success: true });
+  });
+
+  router.post('/inventory/product-masters', requireAnyRole(['manager', 'admin']), (req, res) => {
+    const code = String(req.body?.master_code ?? req.body?.masterCode ?? '').trim();
+    const name = String(req.body?.name ?? '').trim();
+    if (!code || !name) return res.status(400).json({ error: 'master_code_and_name_required' });
+    try {
+      const result = db.prepare('INSERT INTO product_masters (master_code,name,category) VALUES (?,?,?)')
+        .run(code, name, String(req.body?.category ?? '').trim());
+      res.status(201).json({ id: result.lastInsertRowid });
+    } catch (err) {
+      res.status(409).json({ error: 'product_master_code_exists' });
+    }
+  });
+
+  router.post('/inventory/catalog-items', requireAnyRole(['manager', 'admin']), (req, res) => {
+    const body = req.body || {};
+    const sku = String(body.sku ?? '').trim();
+    const name = String(body.name ?? '').trim();
+    const itemKind = body.item_kind ?? body.itemKind;
+    if (!sku || !name || !['raw_material', 'finished_product'].includes(itemKind)) {
+      return res.status(400).json({ error: 'invalid_catalog_item' });
+    }
+    const diameter = body.diameter === undefined || body.diameter === null || body.diameter === '' ? null : normalizeDiameter(body.diameter);
+    if (body.diameter !== undefined && !diameter) return res.status(400).json({ error: 'invalid_diameter' });
+    const supplyForm = body.supply_form ?? body.supplyForm ?? null;
+    if (supplyForm !== null && !MATERIAL_TYPES.has(supplyForm)) return res.status(400).json({ error: 'invalid_supply_form' });
+    const productMasterId = Number(body.product_master_id ?? body.productMasterId) || null;
+    if (productMasterId && !db.prepare('SELECT 1 FROM product_masters WHERE id=? AND active=1').get(productMasterId)) {
+      return res.status(400).json({ error: 'product_master_not_found' });
+    }
+    try {
+      const result = db.prepare(`INSERT INTO catalog_items
+        (sku,product_master_id,item_kind,name,category,supply_form,diameter_key,steel_grade,standard_code,nominal_length_mm,nominal_kg_per_meter,nominal_unit_weight_kg)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        sku, productMasterId, itemKind, name, String(body.category ?? '').trim(),
+        supplyForm, diameter?.key || null, body.steel_grade ?? body.steelGrade ?? null, body.standard_code ?? body.standardCode ?? null,
+        Number(body.nominal_length_mm ?? body.nominalLengthMm) || null, Number(body.nominal_kg_per_meter ?? body.nominalKgPerMeter) || null,
+        Number(body.nominal_unit_weight_kg ?? body.nominalUnitWeightKg) || null
+      );
+      res.status(201).json({ id: result.lastInsertRowid });
+    } catch (err) {
+      res.status(409).json({ error: 'catalog_sku_exists' });
+    }
   });
 
   router.get('/inventory/receipt-reviews', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
@@ -68,7 +199,8 @@ module.exports = function createInventoryRouter(deps) {
         if (item.material_type === 'bent' && (!item.bending_shape_name || !item.bending_shape_segments)) {
           throw new Error('bending shape is required for bent material receipt rows');
         }
-        const result = insert.run(item.material_type, item.diameter, item.supplier_id, item.lot_number, item.certificate_num, item.grade,
+        const diameter = resolveDiameterCatalog(item.diameter, req);
+        const result = insert.run(item.material_type, diameter.numeric, item.supplier_id, item.lot_number, item.certificate_num, item.grade,
           item.received_date || parsed.received_date || new Date().toISOString().slice(0, 10), item.weight_received, item.purchase_price,
           item.warehouse_loc, item.bending_shape_name, item.bending_shape_segments, item.bending_shape_source, item.bending_shape_confidence,
           item.notes || parsed.notes || null);
@@ -111,9 +243,26 @@ module.exports = function createInventoryRouter(deps) {
     if (materialType === 'bent' && (!shape.name || !shape.segments)) {
       return res.status(400).json({ error: 'צורת כיפוף חובה עבור חומר מסוג כיפוף' });
     }
-    const r = db.prepare('INSERT INTO raw_material (material_type,diameter,supplier_id,lot_number,certificate_num,grade,received_date,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(materialType, f.diameter, f.supplier_id || null, f.lot_number || null, f.certificate_num || null, f.grade || 'B500B', f.received_date || new Date().toISOString().split('T')[0], f.weight_received, f.purchase_price || 0, f.warehouse_loc || null, shape.name, shape.segments, shape.source, shape.confidence, f.notes || null);
-    res.json({ id: r.lastInsertRowid });
+    try {
+      const diameter = resolveDiameterCatalog(f.diameter_input ?? f.diameter, req, {
+        approveNew: f.approve_new_diameter,
+        reactivate: f.reactivate_diameter,
+      });
+      const { catalogItem, specException } = resolveCatalogItem(f, materialType, diameter);
+      const verificationStatus = diameter.status === 'active' && !specException ? 'approved' : 'pending_verification';
+      const r = db.prepare(`INSERT INTO raw_material
+        (material_type,diameter,catalog_item_id,verification_status,supplier_id,lot_number,certificate_num,grade,standard_code,nominal_length_mm,spec_exception,received_date,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(materialType, diameter.numeric, catalogItem?.id || null, verificationStatus, f.supplier_id || null,
+          f.lot_number || null, f.certificate_num || null, f.grade || 'B500B', f.standard_code ?? f.standardCode ?? null,
+          Number(f.nominal_length_mm ?? f.nominalLengthMm) || null, specException ? 1 : 0,
+          f.received_date || new Date().toISOString().split('T')[0], f.weight_received, f.purchase_price || 0,
+          f.warehouse_loc || null, shape.name, shape.segments, shape.source, shape.confidence, f.notes || null);
+      res.json({ id: r.lastInsertRowid, diameter: diameter.display, verification_status: verificationStatus,
+        catalog_action: diameter.catalogAction, spec_exception: specException });
+    } catch (err) {
+      res.status(err.statusCode || 400).json({ error: err.message || 'inventory_receipt_failed' });
+    }
   });
 
   router.patch('/inventory/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
@@ -162,7 +311,7 @@ module.exports = function createInventoryRouter(deps) {
     const stock = db.prepare(`
       SELECT diameter,
              COALESCE(SUM(weight_received-weight_used-weight_scrapped),0) as on_hand_kg
-      FROM raw_material WHERE active=1
+      FROM raw_material WHERE active=1 AND COALESCE(verification_status,'approved')='approved'
       GROUP BY diameter
     `).all();
 
