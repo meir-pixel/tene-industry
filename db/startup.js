@@ -3,6 +3,7 @@
 const { ensureCoreSchema } = require('./coreSchema');
 const { seedCoreData } = require('./seed');
 const { ensureVehicleCompatibility } = require('./vehicleMigrations');
+const { seedLegacyDiameterCatalog } = require('../services/materialCatalog');
 
 function runCoreMigrations(db) {
   // ── MIGRATIONS (safe column additions) ────────────────────────────
@@ -131,6 +132,14 @@ function runCoreMigrations(db) {
   addCol('raw_material','bending_shape_source','TEXT');
   addCol('raw_material','bending_shape_confidence','REAL');
   addCol('raw_material_usage','allocation_policy','TEXT');
+  addCol('raw_material','catalog_item_id','INTEGER');
+  addCol('raw_material','verification_status',"TEXT NOT NULL DEFAULT 'approved'");
+  addCol('raw_material','standard_code','TEXT');
+  addCol('raw_material','nominal_length_mm','INTEGER');
+  addCol('raw_material','spec_exception','INTEGER NOT NULL DEFAULT 0');
+
+  try { db.prepare("UPDATE raw_material SET verification_status='approved' WHERE verification_status IS NULL OR verification_status='' ").run(); } catch {}
+  try { seedLegacyDiameterCatalog(db); } catch (err) { console.warn('[DB] material diameter catalog seed warn:', err.message); }
 
   try { db.prepare("UPDATE orders SET stable_order_id=order_num WHERE stable_order_id IS NULL OR stable_order_id=''").run(); } catch {}
   try { db.prepare("UPDATE items SET order_id=(SELECT pallets.order_id FROM pallets WHERE pallets.id=items.pallet_id) WHERE order_id IS NULL").run(); } catch {}

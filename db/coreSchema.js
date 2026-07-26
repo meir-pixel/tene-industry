@@ -533,10 +533,15 @@ function ensureCoreSchema(db) {
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       material_type   TEXT DEFAULT 'coil',  -- 'coil' | 'straight' | 'bent'
       diameter        INTEGER NOT NULL,
+      catalog_item_id INTEGER,
+      verification_status TEXT NOT NULL DEFAULT 'approved', -- approved | pending_verification | rejected
       supplier_id     INTEGER,
       lot_number      TEXT,
       certificate_num TEXT,
       grade           TEXT DEFAULT 'B500B', -- steel grade
+      standard_code   TEXT,
+      nominal_length_mm INTEGER,
+      spec_exception  INTEGER NOT NULL DEFAULT 0,
       received_date   TEXT,
       weight_received REAL DEFAULT 0,       -- kg received
       weight_used     REAL DEFAULT 0,       -- kg consumed so far
@@ -550,7 +555,50 @@ function ensureCoreSchema(db) {
       notes           TEXT,
       active          INTEGER DEFAULT 1,
       created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+      FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+      FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS product_masters (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      master_code     TEXT NOT NULL UNIQUE,
+      name            TEXT NOT NULL,
+      category        TEXT NOT NULL DEFAULT '',
+      active          INTEGER NOT NULL DEFAULT 1,
+      created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS catalog_items (
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      sku                   TEXT NOT NULL UNIQUE,
+      product_master_id     INTEGER REFERENCES product_masters(id),
+      item_kind             TEXT NOT NULL CHECK (item_kind IN ('raw_material','finished_product')),
+      name                  TEXT NOT NULL,
+      category              TEXT NOT NULL DEFAULT '',
+      supply_form           TEXT CHECK (supply_form IN ('coil','straight','bent')),
+      diameter_key          TEXT,
+      steel_grade           TEXT,
+      standard_code         TEXT,
+      nominal_length_mm     INTEGER,
+      nominal_kg_per_meter  NUMERIC,
+      nominal_unit_weight_kg NUMERIC,
+      active                INTEGER NOT NULL DEFAULT 1,
+      created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS diameter_catalog (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      diameter_key     TEXT NOT NULL UNIQUE,
+      diameter_display TEXT NOT NULL,
+      status           TEXT NOT NULL DEFAULT 'pending_approval' CHECK (status IN ('active','inactive','pending_approval','rejected')),
+      source           TEXT NOT NULL DEFAULT 'manual',
+      created_by       INTEGER,
+      approved_by      INTEGER,
+      approved_at      DATETIME,
+      created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS raw_material_usage (

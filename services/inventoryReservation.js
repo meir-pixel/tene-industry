@@ -97,12 +97,14 @@ function placeholders(values) {
 }
 
 function calculatePhysicalStockKg(db, { diameter, material_type }) {
+  const hasVerificationStatus = tableColumns(db, 'raw_material').has('verification_status');
   const row = db.prepare(`
     SELECT COALESCE(SUM(
       COALESCE(weight_received, 0) - COALESCE(weight_used, 0) - COALESCE(weight_scrapped, 0)
     ), 0) AS physicalStockKg
     FROM raw_material
     WHERE active=1
+      ${hasVerificationStatus ? "AND COALESCE(verification_status, 'approved')='approved'" : ''}
       AND diameter=?
       AND COALESCE(material_type, 'coil')=?
   `).get(diameter, material_type);
