@@ -153,7 +153,20 @@ function approveConsumptionReport(db, input = {}) {
 function getConsumptionEvent(db, id) {
   const event = db.prepare('SELECT * FROM material_consumption_events_v2 WHERE id=?').get(Number(id));
   if (!event) return null;
-  return { ...event, lines: db.prepare('SELECT * FROM material_consumption_event_lines_v2 WHERE consumption_event_id=? ORDER BY id').all(event.id) };
+  const lines = db.prepare('SELECT * FROM material_consumption_event_lines_v2 WHERE consumption_event_id=? ORDER BY id').all(event.id);
+  if (event.event_type !== 'consumption') return { ...event, lines };
+  const reversedKg = kg(db.prepare(`SELECT COALESCE(SUM(r.consumed_kg),0) AS total FROM material_consumption_event_lines_v2 r
+    JOIN material_consumption_events_v2 e ON e.id=r.consumption_event_id WHERE r.original_event_line_id IN (SELECT id FROM material_consumption_event_lines_v2 WHERE consumption_event_id=?) AND e.event_type='reversal'`).get(event.id).total);
+  const consumedKg = kg(lines.reduce((sum, line) => sum + Number(line.consumed_kg), 0));
+  return { ...event, lines, consumed_kg: consumedKg, reversed_kg: reversedKg, reversal_status: reversedKg <= 0 ? 'not_reversed' : (reversedKg >= consumedKg ? 'fully_reversed' : 'partially_reversed') };
+}
+
+function listConsumptionEvents(db, { material_requirement_id, item_id } = {}) {
+  const clauses = []; const params = [];
+  if (material_requirement_id !== undefined) { clauses.push('material_requirement_id=?'); params.push(Number(material_requirement_id)); }
+  if (item_id !== undefined) { clauses.push('item_id=?'); params.push(Number(item_id)); }
+  if (!clauses.length) fail('requirement_or_item_required');
+  return db.prepare(`SELECT id FROM material_consumption_events_v2 WHERE ${clauses.join(' AND ')} ORDER BY id`).all(...params).map(row => getConsumptionEvent(db, row.id));
 }
 
 function reverseConsumptionEvent(db, input = {}) {
@@ -190,4 +203,4 @@ function reverseConsumptionEvent(db, input = {}) {
   return reverse.immediate();
 }
 
-module.exports = { MaterialConsumptionError, createConsumptionReport, updateConsumptionReport, cancelConsumptionReport, approveConsumptionReport, reverseConsumptionEvent, getConsumptionReport, getConsumptionEvent, consumedForAllocationLine };
+module.exports = { MaterialConsumptionError, createConsumptionReport, updateConsumptionReport, cancelConsumptionReport, approveConsumptionReport, reverseConsumptionEvent, getConsumptionReport, getConsumptionEvent, listConsumptionEvents, consumedForAllocationLine };

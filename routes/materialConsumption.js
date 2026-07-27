@@ -19,6 +19,9 @@ module.exports = function createMaterialConsumptionRouter({ db, requireAnyRole }
   router.get('/material-consumption-reports/:id', requireAnyRole(READ_ROLES), (req, res) => {
     const report = consumption.getConsumptionReport(db, req.params.id); return report ? res.json(report) : res.status(404).json({ error: 'consumption_report_not_found' });
   });
+  router.get('/material-consumption-events', requireAnyRole(READ_ROLES), (req, res) => {
+    try { res.json(consumption.listConsumptionEvents(db, req.query)); } catch (error) { sendError(res, error); }
+  });
   router.patch('/material-consumption-reports/:id', requireAnyRole(DRAFT_ROLES), (req, res) => {
     try { res.json(consumption.updateConsumptionReport(db, { ...req.body, report_id: req.params.id, updated_by: req.auth?.sub })); } catch (error) { sendError(res, error); }
   });

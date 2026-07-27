@@ -123,7 +123,7 @@ function releaseAllocationPlan(db, { allocation_plan_id, released_by, reason = '
   const release = db.transaction(() => {
     const plan = db.prepare("SELECT * FROM allocation_plans_v2 WHERE id=? AND status='active'").get(planId);
     if (!plan) fail('active_allocation_plan_required');
-    if (planHasConsumedLines(db, plan.id)) fail('consumed_allocation_requires_reversal');
+    if (planHasConsumedLines(db, plan.id)) fail('allocation_has_confirmed_consumption');
     db.prepare("UPDATE allocation_plan_lines_v2 SET status='released',released_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE allocation_plan_id=? AND status='active'").run(planId);
     db.prepare("UPDATE allocation_plans_v2 SET status='released',released_by=?,released_at=CURRENT_TIMESTAMP,release_reason=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(released_by ?? null, reason, planId);
     return getAllocationPlan(db, planId);
@@ -136,7 +136,7 @@ function activePlanForRequirement(db, requirementId) {
 }
 
 function releaseAllLines(db, planId) {
-  if (planHasConsumedLines(db, planId)) fail('consumed_allocation_requires_reversal');
+  if (planHasConsumedLines(db, planId)) fail('allocation_has_confirmed_consumption');
   db.prepare("UPDATE allocation_plan_lines_v2 SET status='released',released_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE allocation_plan_id=? AND status='active'").run(planId);
 }
 

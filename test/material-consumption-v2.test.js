@@ -40,6 +40,16 @@ test('approved reports atomically write immutable consumption and enforce idempo
   assert.throws(() => consumption.approveConsumptionReport(value, { report_id: over.id, approved_by: 9, idempotency_key: 'over' }), /consumption_exceeds_allocation/);
   value.close();
 });
+test('competing approvals on one allocation line allow only the remaining allocation to be consumed', () => {
+  const value = db(); seed(value, { allocationKg: 50 }); const lineId = allocationLineId(value);
+  const first = consumption.createConsumptionReport(value, { material_requirement_id: 1, lines: [{ allocation_plan_line_id: lineId, raw_material_id: 1, consumed_kg: 50 }] });
+  const second = consumption.createConsumptionReport(value, { material_requirement_id: 1, lines: [{ allocation_plan_line_id: lineId, raw_material_id: 1, consumed_kg: 1 }] });
+  consumption.approveConsumptionReport(value, { report_id: first.id, approved_by: 9, idempotency_key: 'winner' });
+  assert.throws(() => consumption.approveConsumptionReport(value, { report_id: second.id, approved_by: 10, idempotency_key: 'loser' }), /consumption_exceeds_allocation/);
+  assert.equal(value.prepare('SELECT weight_used FROM raw_material WHERE id=1').get().weight_used, 50);
+  assert.equal(value.prepare("SELECT COUNT(*) AS n FROM material_consumption_events_v2 WHERE event_type='consumption'").get().n, 1);
+  value.close();
+});
 test('partial reversals are append-only and cannot exceed original consumption', () => {
   const value = db(); seed(value); const lineId = allocationLineId(value);
   const report = consumption.createConsumptionReport(value, { material_requirement_id: 1, lines: [{ allocation_plan_line_id: lineId, raw_material_id: 1, consumed_kg: 50 }] });
@@ -47,8 +57,18 @@ test('partial reversals are append-only and cannot exceed original consumption',
   const originalLine = event.lines[0];
   consumption.reverseConsumptionEvent(value, { original_event_id: event.id, reversed_by: 1, idempotency_key: 'reverse-20', lines: [{ original_event_line_id: originalLine.id, raw_material_id: 1, consumed_kg: 20 }] });
   assert.equal(value.prepare('SELECT weight_used FROM raw_material WHERE id=1').get().weight_used, 30);
+  assert.equal(consumption.getConsumptionEvent(value, event.id).reversal_status, 'partially_reversed');
+  assert.equal(consumption.listConsumptionEvents(value, { material_requirement_id: 1 }).find(row => row.id === event.id).reversal_status, 'partially_reversed');
+  assert.equal(consumption.listConsumptionEvents(value, { item_id: 1 }).find(row => row.id === event.id).reversal_status, 'partially_reversed');
   assert.throws(() => consumption.reverseConsumptionEvent(value, { original_event_id: event.id, reversed_by: 1, idempotency_key: 'reverse-too-much', lines: [{ original_event_line_id: originalLine.id, raw_material_id: 1, consumed_kg: 31 }] }), /reversal_exceeds_consumption/);
   assert.equal(value.prepare('SELECT COUNT(*) AS n FROM material_consumption_events_v2').get().n, 2); value.close();
+});
+test('full reversal is projected from append-only reversal lines', () => {
+  const value = db(); seed(value); const lineId = allocationLineId(value);
+  const report = consumption.createConsumptionReport(value, { material_requirement_id: 1, lines: [{ allocation_plan_line_id: lineId, raw_material_id: 1, consumed_kg: 20 }] });
+  const event = consumption.approveConsumptionReport(value, { report_id: report.id, approved_by: 9, idempotency_key: 'full-consume' });
+  consumption.reverseConsumptionEvent(value, { original_event_id: event.id, reversed_by: 1, idempotency_key: 'full-reverse', lines: [{ original_event_line_id: event.lines[0].id, raw_material_id: 1, consumed_kg: 20 }] });
+  assert.equal(consumption.getConsumptionEvent(value, event.id).reversal_status, 'fully_reversed'); assert.equal(value.prepare('SELECT weight_used FROM raw_material WHERE id=1').get().weight_used, 0); value.close();
 });
 test('one approved report can consume explicitly from multiple allocated lots', () => {
   const value = db();
@@ -61,11 +81,14 @@ test('one approved report can consume explicitly from multiple allocated lots', 
   const event = consumption.approveConsumptionReport(value, { report_id: report.id, approved_by: 9, idempotency_key: 'multi-approve' });
   assert.equal(event.lines.length, 2); assert.deepEqual(value.prepare('SELECT id,weight_used FROM raw_material ORDER BY id').all(), [{ id: 1, weight_used: 20 }, { id: 2, weight_used: 30 }]); value.close();
 });
-test('lifecycle-v1 is fail-closed and B2 cannot release consumed allocation', () => {
+test('lifecycle-v1 is fail-closed and B2 cannot release consumed allocation after requirement cancellation', () => {
   const value = db(); const { line } = seed(value); const lineId = allocationLineId(value);
   const report = consumption.createConsumptionReport(value, { material_requirement_id: 1, lines: [{ allocation_plan_line_id: lineId, raw_material_id: 1, consumed_kg: 10 }] });
   consumption.approveConsumptionReport(value, { report_id: report.id, approved_by: 9, idempotency_key: 'consume' });
-  assert.throws(() => allocation.releaseAllocationPlan(value, { allocation_plan_id: 1 }), /consumed_allocation_requires_reversal/);
+  assert.throws(() => allocation.releaseAllocationPlan(value, { allocation_plan_id: 1 }), /allocation_has_confirmed_consumption/);
+  value.prepare("UPDATE material_requirements_v2 SET status='cancelled' WHERE id=1").run();
+  assert.throws(() => allocation.reconcileAllocationPlan(value, { material_requirement_id: 1, idempotency_key: 'cancel-after-consumption' }), /allocation_has_confirmed_consumption/);
+  assert.equal(value.prepare('SELECT weight_used FROM raw_material WHERE id=1').get().weight_used, 10);
   value.close();
   const legacy = db(); seed(legacy, { lifecycle: 1 });
   assert.throws(() => consumption.createConsumptionReport(legacy, { material_requirement_id: 1, lines: [{ allocation_plan_line_id: 1, raw_material_id: 1, consumed_kg: 1 }] }), /lifecycle_v2_required/); legacy.close();
