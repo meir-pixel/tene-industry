@@ -74,6 +74,90 @@ function ensureMaterialAllocationPlanningV2Schema(db) {
   ensureColumn(db, 'allocation_plans_v2', 'spec_material_type', 'TEXT');
 }
 
+function ensureMaterialConsumptionV2Schema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS material_consumption_reports_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_uid TEXT NOT NULL UNIQUE,
+      material_requirement_id INTEGER NOT NULL,
+      requirement_uid TEXT NOT NULL,
+      order_id INTEGER NOT NULL,
+      item_id INTEGER NOT NULL,
+      lifecycle_version INTEGER NOT NULL DEFAULT 2 CHECK (lifecycle_version=2),
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','cancelled','approved')),
+      notes TEXT,
+      created_by INTEGER,
+      cancelled_by INTEGER,
+      cancelled_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (material_requirement_id) REFERENCES material_requirements_v2(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_material_consumption_reports_v2_requirement
+      ON material_consumption_reports_v2(material_requirement_id, id);
+    CREATE TABLE IF NOT EXISTS material_consumption_report_lines_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_id INTEGER NOT NULL,
+      allocation_plan_id INTEGER NOT NULL,
+      allocation_plan_line_id INTEGER NOT NULL,
+      raw_material_id INTEGER NOT NULL,
+      consumed_kg NUMERIC NOT NULL CHECK (typeof(consumed_kg) IN ('integer','real') AND consumed_kg>0),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (report_id) REFERENCES material_consumption_reports_v2(id),
+      FOREIGN KEY (allocation_plan_id) REFERENCES allocation_plans_v2(id),
+      FOREIGN KEY (allocation_plan_line_id) REFERENCES allocation_plan_lines_v2(id),
+      FOREIGN KEY (raw_material_id) REFERENCES raw_material(id),
+      UNIQUE(report_id, allocation_plan_line_id)
+    );
+    CREATE TABLE IF NOT EXISTS material_consumption_events_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_uid TEXT NOT NULL UNIQUE,
+      event_type TEXT NOT NULL CHECK (event_type IN ('consumption','reversal')),
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      report_id INTEGER,
+      original_event_id INTEGER,
+      material_requirement_id INTEGER NOT NULL,
+      requirement_uid TEXT NOT NULL,
+      order_id INTEGER NOT NULL,
+      item_id INTEGER NOT NULL,
+      lifecycle_version INTEGER NOT NULL DEFAULT 2 CHECK (lifecycle_version=2),
+      approved_by INTEGER NOT NULL,
+      approved_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reason TEXT,
+      FOREIGN KEY (report_id) REFERENCES material_consumption_reports_v2(id),
+      FOREIGN KEY (original_event_id) REFERENCES material_consumption_events_v2(id),
+      FOREIGN KEY (material_requirement_id) REFERENCES material_requirements_v2(id)
+    );
+    CREATE TABLE IF NOT EXISTS material_consumption_event_lines_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      consumption_event_id INTEGER NOT NULL,
+      original_event_line_id INTEGER,
+      allocation_plan_id INTEGER NOT NULL,
+      allocation_plan_line_id INTEGER NOT NULL,
+      raw_material_id INTEGER NOT NULL,
+      consumed_kg NUMERIC NOT NULL CHECK (typeof(consumed_kg) IN ('integer','real') AND consumed_kg>0),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (consumption_event_id) REFERENCES material_consumption_events_v2(id),
+      FOREIGN KEY (original_event_line_id) REFERENCES material_consumption_event_lines_v2(id),
+      FOREIGN KEY (allocation_plan_id) REFERENCES allocation_plans_v2(id),
+      FOREIGN KEY (allocation_plan_line_id) REFERENCES allocation_plan_lines_v2(id),
+      FOREIGN KEY (raw_material_id) REFERENCES raw_material(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_material_consumption_event_lines_v2_allocation
+      ON material_consumption_event_lines_v2(allocation_plan_line_id, id);
+    CREATE TABLE IF NOT EXISTS material_consumption_report_audit_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_id INTEGER NOT NULL,
+      action TEXT NOT NULL CHECK (action IN ('created','updated','cancelled','approved')),
+      actor_id INTEGER,
+      details_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (report_id) REFERENCES material_consumption_reports_v2(id)
+    );
+  `);
+}
+
 function ensureMaterialRequirementV2Schema(db) {
   ensureColumn(
     db,
@@ -1127,6 +1211,7 @@ function ensureCoreSchema(db) {
 
   ensureMaterialRequirementV2Schema(db);
   ensureMaterialAllocationPlanningV2Schema(db);
+  ensureMaterialConsumptionV2Schema(db);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)
@@ -1142,4 +1227,5 @@ module.exports = {
   ensureCoreSchema,
   ensureMaterialRequirementV2Schema,
   ensureMaterialAllocationPlanningV2Schema,
+  ensureMaterialConsumptionV2Schema,
 };

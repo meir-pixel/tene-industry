@@ -35,6 +35,7 @@ const intakeWorkflow = require('./services/intakeWorkflow');
 const moduleCatalog = require('./shared/module-catalog.json');
 const createInventoryRouter = require('./routes/inventory');
 const createMaterialAllocationPlanningRouter = require('./routes/materialAllocationPlanning');
+const createMaterialConsumptionRouter = require('./routes/materialConsumption');
 const createInventoryVisionRouter = require('./routes/inventoryVision');
 const createProcurementRouter = require('./routes/procurement');
 const createOrdersRouter = require('./routes/orders');
@@ -301,6 +302,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/intakeTraining.js', factory: createIntakeTrainingRouter },
     { file: 'routes/inventory.js', factory: createInventoryRouter },
     { file: 'routes/materialAllocationPlanning.js', factory: createMaterialAllocationPlanningRouter },
+    { file: 'routes/materialConsumption.js', factory: createMaterialConsumptionRouter },
     { file: 'routes/inventoryVision.js', factory: createInventoryVisionRouter },
     { file: 'routes/license.js', factory: createLicenseRouter },
     { file: 'routes/logistics.js', factory: createLogisticsRouter },
@@ -657,6 +659,8 @@ app.use('/api', requireModule('inventory'), createMaterialAllocationPlanningRout
   db,
   requireAnyRole,
 }));
+
+app.use('/api', requireModule('inventory'), createMaterialConsumptionRouter({ db, requireAnyRole }));
 
 app.use('/api', requireModule('inventory'), createInventoryVisionRouter({
   db,

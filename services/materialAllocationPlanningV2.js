@@ -42,19 +42,17 @@ function normalizeLines(lines) {
 }
 
 function activeAllocatedForLot(db, rawMaterialId) {
-  return kg(db.prepare(`SELECT COALESCE(SUM(l.allocated_kg),0) AS total
-    FROM allocation_plan_lines_v2 l JOIN allocation_plans_v2 p ON p.id=l.allocation_plan_id
-    WHERE l.raw_material_id=? AND l.status='active' AND p.status='active'`).get(rawMaterialId).total);
+  const lines = db.prepare(`SELECT l.id,l.allocated_kg FROM allocation_plan_lines_v2 l JOIN allocation_plans_v2 p ON p.id=l.allocation_plan_id
+    WHERE l.raw_material_id=? AND l.status='active' AND p.status='active'`).all(rawMaterialId);
+  return kg(lines.reduce((total, line) => total + Math.max(0, Number(line.allocated_kg) - consumedForAllocationLine(db, line.id)), 0));
 }
 
 function suggestionRows(db, requirement) {
-  return db.prepare(`SELECT r.*, COALESCE(SUM(l.allocated_kg),0) AS planned_kg
+  return db.prepare(`SELECT r.*
     FROM raw_material r
-    LEFT JOIN allocation_plan_lines_v2 l ON l.raw_material_id=r.id AND l.status='active'
-    LEFT JOIN allocation_plans_v2 p ON p.id=l.allocation_plan_id AND p.status='active'
     WHERE r.active=1 AND COALESCE(r.verification_status,'approved')='approved'
       AND r.diameter=? AND COALESCE(r.material_type,'coil')=?
-    GROUP BY r.id ORDER BY date(COALESCE(r.received_date,r.created_at)) ASC, r.id ASC`).all(requirement.diameter, requirement.material_type);
+    ORDER BY date(COALESCE(r.received_date,r.created_at)) ASC, r.id ASC`).all(requirement.diameter, requirement.material_type);
 }
 
 function suggestFifoLots(db, { material_requirement_id }) {
@@ -62,7 +60,7 @@ function suggestFifoLots(db, { material_requirement_id }) {
   let remaining = kg(requirement.required_kg);
   const lines = [];
   for (const row of suggestionRows(db, requirement)) {
-    const free = kg(Number(row.weight_received || 0) - Number(row.weight_used || 0) - Number(row.weight_scrapped || 0) - Number(row.planned_kg || 0));
+    const free = kg(Number(row.weight_received || 0) - Number(row.weight_used || 0) - Number(row.weight_scrapped || 0) - activeAllocatedForLot(db, row.id));
     const allocatedKg = kg(Math.min(Math.max(0, free), remaining));
     if (allocatedKg > 0) lines.push({ raw_material_id: row.id, allocated_kg: allocatedKg });
     remaining = kg(Math.max(0, remaining - allocatedKg));
@@ -125,6 +123,7 @@ function releaseAllocationPlan(db, { allocation_plan_id, released_by, reason = '
   const release = db.transaction(() => {
     const plan = db.prepare("SELECT * FROM allocation_plans_v2 WHERE id=? AND status='active'").get(planId);
     if (!plan) fail('active_allocation_plan_required');
+    if (planHasConsumedLines(db, plan.id)) fail('consumed_allocation_requires_reversal');
     db.prepare("UPDATE allocation_plan_lines_v2 SET status='released',released_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE allocation_plan_id=? AND status='active'").run(planId);
     db.prepare("UPDATE allocation_plans_v2 SET status='released',released_by=?,released_at=CURRENT_TIMESTAMP,release_reason=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(released_by ?? null, reason, planId);
     return getAllocationPlan(db, planId);
@@ -137,6 +136,7 @@ function activePlanForRequirement(db, requirementId) {
 }
 
 function releaseAllLines(db, planId) {
+  if (planHasConsumedLines(db, planId)) fail('consumed_allocation_requires_reversal');
   db.prepare("UPDATE allocation_plan_lines_v2 SET status='released',released_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE allocation_plan_id=? AND status='active'").run(planId);
 }
 
@@ -180,14 +180,19 @@ function reconcileAllocationPlan(db, input = {}) {
         for (const line of lines) {
           if (excess <= 0) break;
           const allocatedKg = kg(line.allocated_kg);
-          if (allocatedKg <= excess) {
+          const consumedKg = consumedForAllocationLine(db, line.id);
+          const releasableKg = kg(allocatedKg - consumedKg);
+          if (releasableKg <= 0) continue;
+          if (releasableKg <= excess && consumedKg === 0) {
             db.prepare("UPDATE allocation_plan_lines_v2 SET status='released',released_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(line.id);
-            excess = kg(excess - allocatedKg);
+            excess = kg(excess - releasableKg);
           } else {
-            db.prepare('UPDATE allocation_plan_lines_v2 SET allocated_kg=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(kg(allocatedKg - excess), line.id);
-            excess = 0;
+            const reduction = Math.min(releasableKg, excess);
+            db.prepare('UPDATE allocation_plan_lines_v2 SET allocated_kg=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(kg(allocatedKg - reduction), line.id);
+            excess = kg(excess - reduction);
           }
         }
+        if (excess > 0) fail('requirement_below_consumed_allocation');
         action = 'reduced';
       }
       db.prepare(`UPDATE allocation_plans_v2 SET required_kg=?,source_revision=?,spec_diameter=?,spec_material_type=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
@@ -204,6 +209,18 @@ function reconcileAllocationPlan(db, input = {}) {
 
 function activeAllocatedForPlan(db, planId) {
   return kg(db.prepare("SELECT COALESCE(SUM(allocated_kg),0) AS total FROM allocation_plan_lines_v2 WHERE allocation_plan_id=? AND status='active'").get(planId).total);
+}
+
+function consumedForAllocationLine(db, lineId) {
+  return kg(db.prepare(`SELECT COALESCE(SUM(CASE WHEN e.event_type='consumption' THEN l.consumed_kg ELSE -l.consumed_kg END),0) AS total
+    FROM material_consumption_event_lines_v2 l JOIN material_consumption_events_v2 e ON e.id=l.consumption_event_id
+    WHERE l.allocation_plan_line_id=?`).get(lineId).total);
+}
+
+function planHasConsumedLines(db, planId) {
+  return db.prepare(`SELECT 1 FROM allocation_plan_lines_v2 l JOIN material_consumption_event_lines_v2 c ON c.allocation_plan_line_id=l.id
+    JOIN material_consumption_events_v2 e ON e.id=c.consumption_event_id
+    WHERE l.allocation_plan_id=? GROUP BY l.id HAVING SUM(CASE WHEN e.event_type='consumption' THEN c.consumed_kg ELSE -c.consumed_kg END)>0 LIMIT 1`).get(planId);
 }
 
 module.exports = { MaterialAllocationPlanningError, suggestFifoLots, confirmAllocationPlan, reconcileAllocationPlan, releaseAllocationPlan, getAllocationPlan };
