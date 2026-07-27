@@ -12,6 +12,51 @@ function ensureColumn(db, table, column, definition) {
   console.log(`[DB] Migration: ${table}.${column} added`);
 }
 
+function ensureMaterialAllocationPlanningV2Schema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS allocation_plans_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_uid TEXT NOT NULL UNIQUE,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      material_requirement_id INTEGER NOT NULL,
+      requirement_uid TEXT NOT NULL,
+      required_kg NUMERIC NOT NULL CHECK (typeof(required_kg) IN ('integer','real') AND required_kg > 0),
+      source_revision TEXT,
+      lifecycle_version INTEGER NOT NULL DEFAULT 2 CHECK (lifecycle_version = 2),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','released','superseded','cancelled')),
+      planned_by INTEGER,
+      planned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      released_by INTEGER,
+      released_at DATETIME,
+      release_reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (material_requirement_id) REFERENCES material_requirements_v2(id)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_allocation_plans_v2_one_active_requirement
+      ON allocation_plans_v2(material_requirement_id) WHERE status='active';
+    CREATE INDEX IF NOT EXISTS idx_allocation_plans_v2_requirement
+      ON allocation_plans_v2(material_requirement_id, id);
+    CREATE TABLE IF NOT EXISTS allocation_plan_lines_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      allocation_plan_id INTEGER NOT NULL,
+      raw_material_id INTEGER NOT NULL,
+      allocated_kg NUMERIC NOT NULL CHECK (typeof(allocated_kg) IN ('integer','real') AND allocated_kg > 0),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','released')),
+      allocation_sequence INTEGER NOT NULL,
+      released_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (allocation_plan_id) REFERENCES allocation_plans_v2(id),
+      FOREIGN KEY (raw_material_id) REFERENCES raw_material(id),
+      UNIQUE(allocation_plan_id, raw_material_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_allocation_plan_lines_v2_active_lot
+      ON allocation_plan_lines_v2(raw_material_id, status);
+  `);
+}
+
 function ensureMaterialRequirementV2Schema(db) {
   ensureColumn(
     db,
@@ -1064,6 +1109,7 @@ function ensureCoreSchema(db) {
   ensureIntakeSourceIdentityIndex(db);
 
   ensureMaterialRequirementV2Schema(db);
+  ensureMaterialAllocationPlanningV2Schema(db);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)
@@ -1078,4 +1124,5 @@ function ensureCoreSchema(db) {
 module.exports = {
   ensureCoreSchema,
   ensureMaterialRequirementV2Schema,
+  ensureMaterialAllocationPlanningV2Schema,
 };

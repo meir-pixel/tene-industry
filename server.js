@@ -34,6 +34,7 @@ const ordersService = require('./services/orders');
 const intakeWorkflow = require('./services/intakeWorkflow');
 const moduleCatalog = require('./shared/module-catalog.json');
 const createInventoryRouter = require('./routes/inventory');
+const createMaterialAllocationPlanningRouter = require('./routes/materialAllocationPlanning');
 const createInventoryVisionRouter = require('./routes/inventoryVision');
 const createProcurementRouter = require('./routes/procurement');
 const createOrdersRouter = require('./routes/orders');
@@ -256,6 +257,7 @@ const allRouteFactories = [
   createOrdersRouter, createCustomersRouter, createIntakeRouter, createProductionRouter,
   createProductionMachinesRouter, createProductionCardsRouter, createWarehouseRouter,
   createInventoryRouter, createProcurementRouter, createFleetRouter, createQualityRouter,
+  createMaterialAllocationPlanningRouter,
   createMaintenanceRouter, createReportsRouter, createFinanceRouter, createFinanceInvoicesRouter,
   createFinanceCostsRouter, createFinanceLedgerRouter, createFinanceCreditRouter,
   createCompaniesRouter, createAdminRouter, createLogisticsRouter, createPortalRouter,
@@ -298,6 +300,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/intakeReview.js', factory: createIntakeReviewRouter },
     { file: 'routes/intakeTraining.js', factory: createIntakeTrainingRouter },
     { file: 'routes/inventory.js', factory: createInventoryRouter },
+    { file: 'routes/materialAllocationPlanning.js', factory: createMaterialAllocationPlanningRouter },
     { file: 'routes/inventoryVision.js', factory: createInventoryVisionRouter },
     { file: 'routes/license.js', factory: createLicenseRouter },
     { file: 'routes/logistics.js', factory: createLogisticsRouter },
@@ -648,6 +651,11 @@ app.use('/api', requireModule('inventory'), createInventoryRouter({
   wsBroadcast,
   auditLog,
   listPage,
+}));
+
+app.use('/api', requireModule('inventory'), createMaterialAllocationPlanningRouter({
+  db,
+  requireAnyRole,
 }));
 
 app.use('/api', requireModule('inventory'), createInventoryVisionRouter({
