@@ -22,6 +22,14 @@ function activeRequirement(db, id) {
   return requirement;
 }
 
+function lifecycleV2Requirement(db, id) {
+  const requirement = db.prepare('SELECT * FROM material_requirements_v2 WHERE id=?').get(id);
+  if (!requirement || Number(requirement.lifecycle_version) !== 2 || !SUPPORTED_MATERIAL_TYPES.has(requirement.material_type)) fail('lifecycle_v2_requirement_required');
+  const order = db.prepare('SELECT inventory_lifecycle_version FROM orders WHERE id=?').get(requirement.order_id);
+  if (!order || Number(order.inventory_lifecycle_version) !== 2) fail('lifecycle_v2_required');
+  return requirement;
+}
+
 function normalizeLines(lines) {
   if (!Array.isArray(lines)) fail('allocation_lines_required');
   const seen = new Set();
@@ -86,15 +94,21 @@ function confirmAllocationPlan(db, input = {}) {
       if (line.allocatedKg > free) fail('over_allocation');
     }
     const result = db.prepare(`INSERT INTO allocation_plans_v2
-      (plan_uid,idempotency_key,payload_fingerprint,material_requirement_id,requirement_uid,required_kg,source_revision,planned_by)
-      VALUES (?,?,?,?,?,?,?,?)`).run(crypto.randomUUID(), idempotencyKey, payloadFingerprint, requirement.id,
-      requirement.requirement_uid, kg(requirement.required_kg), requirement.source_revision ?? null, input.planned_by ?? input.plannedBy ?? null);
+      (plan_uid,idempotency_key,payload_fingerprint,material_requirement_id,requirement_uid,required_kg,source_revision,spec_diameter,spec_material_type,planned_by)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`).run(crypto.randomUUID(), idempotencyKey, payloadFingerprint, requirement.id,
+      requirement.requirement_uid, kg(requirement.required_kg), requirement.source_revision ?? null, requirement.diameter,
+      requirement.material_type, input.planned_by ?? input.plannedBy ?? null);
     const insertLine = db.prepare(`INSERT INTO allocation_plan_lines_v2
       (allocation_plan_id,raw_material_id,allocated_kg,allocation_sequence) VALUES (?,?,?,?)`);
     for (const line of lines) insertLine.run(result.lastInsertRowid, line.rawMaterialId, line.allocatedKg, line.sequence);
     return getAllocationPlan(db, result.lastInsertRowid);
   });
-  return create.immediate(payload);
+  try {
+    return create.immediate(payload);
+  } catch (error) {
+    if (/idx_allocation_plans_v2_one_active_requirement|allocation_plans_v2\.material_requirement_id/i.test(String(error.message))) fail('active_allocation_plan_exists');
+    throw error;
+  }
 }
 
 function getAllocationPlan(db, planId) {
@@ -118,4 +132,78 @@ function releaseAllocationPlan(db, { allocation_plan_id, released_by, reason = '
   return release.immediate();
 }
 
-module.exports = { MaterialAllocationPlanningError, suggestFifoLots, confirmAllocationPlan, releaseAllocationPlan, getAllocationPlan };
+function activePlanForRequirement(db, requirementId) {
+  return db.prepare("SELECT * FROM allocation_plans_v2 WHERE material_requirement_id=? AND status='active'").get(requirementId);
+}
+
+function releaseAllLines(db, planId) {
+  db.prepare("UPDATE allocation_plan_lines_v2 SET status='released',released_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE allocation_plan_id=? AND status='active'").run(planId);
+}
+
+function insertReconciliationEvent(db, planId, idempotencyKey, payloadFingerprint, actorId, details) {
+  db.prepare(`INSERT INTO allocation_plan_events_v2
+    (allocation_plan_id,event_type,idempotency_key,payload_fingerprint,actor_id,details_json)
+    VALUES (?, 'reconciled', ?, ?, ?, ?)`).run(planId, idempotencyKey, payloadFingerprint, actorId ?? null, JSON.stringify(details));
+}
+
+function reconcileAllocationPlan(db, input = {}) {
+  const requirementId = Number(input.material_requirement_id ?? input.materialRequirementId);
+  const idempotencyKey = String(input.idempotency_key ?? input.idempotencyKey ?? '').trim();
+  if (!Number.isSafeInteger(requirementId) || requirementId <= 0 || !idempotencyKey) fail('idempotency_key_required');
+  const payload = { material_requirement_id: requirementId, operation: 'reconcile' };
+  const payloadFingerprint = fingerprint(payload);
+  const reconcile = db.transaction(() => {
+    const replay = db.prepare('SELECT * FROM allocation_plan_events_v2 WHERE idempotency_key=?').get(idempotencyKey);
+    if (replay) {
+      if (replay.payload_fingerprint !== payloadFingerprint) fail('idempotency_key_conflict');
+      return getAllocationPlan(db, replay.allocation_plan_id);
+    }
+    const requirement = lifecycleV2Requirement(db, requirementId);
+    const plan = activePlanForRequirement(db, requirementId);
+    if (!plan) fail('active_allocation_plan_required');
+    let action = 'preserved';
+    if (requirement.status === 'cancelled') {
+      releaseAllLines(db, plan.id);
+      db.prepare("UPDATE allocation_plans_v2 SET status='cancelled',released_by=?,released_at=CURRENT_TIMESTAMP,release_reason='requirement_cancelled',updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .run(input.reconciled_by ?? input.reconciledBy ?? null, plan.id);
+      action = 'cancelled';
+    } else if (requirement.status !== 'open' || ((plan.spec_diameter !== null && plan.spec_material_type !== null)
+      && (Number(plan.spec_diameter) !== Number(requirement.diameter) || String(plan.spec_material_type) !== String(requirement.material_type)))) {
+      releaseAllLines(db, plan.id);
+      db.prepare("UPDATE allocation_plans_v2 SET status='superseded',released_by=?,released_at=CURRENT_TIMESTAMP,release_reason='requirement_specification_changed',updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .run(input.reconciled_by ?? input.reconciledBy ?? null, plan.id);
+      action = 'superseded';
+    } else {
+      let excess = kg(activeAllocatedForPlan(db, plan.id) - Number(requirement.required_kg));
+      if (excess > 0) {
+        const lines = db.prepare("SELECT * FROM allocation_plan_lines_v2 WHERE allocation_plan_id=? AND status='active' ORDER BY allocation_sequence DESC, id DESC").all(plan.id);
+        for (const line of lines) {
+          if (excess <= 0) break;
+          const allocatedKg = kg(line.allocated_kg);
+          if (allocatedKg <= excess) {
+            db.prepare("UPDATE allocation_plan_lines_v2 SET status='released',released_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(line.id);
+            excess = kg(excess - allocatedKg);
+          } else {
+            db.prepare('UPDATE allocation_plan_lines_v2 SET allocated_kg=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(kg(allocatedKg - excess), line.id);
+            excess = 0;
+          }
+        }
+        action = 'reduced';
+      }
+      db.prepare(`UPDATE allocation_plans_v2 SET required_kg=?,source_revision=?,spec_diameter=?,spec_material_type=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+        .run(kg(requirement.required_kg), requirement.source_revision ?? null, requirement.diameter, requirement.material_type, plan.id);
+      if (action === 'preserved' && Number(plan.required_kg) !== Number(requirement.required_kg)) action = 'increased';
+    }
+    insertReconciliationEvent(db, plan.id, idempotencyKey, payloadFingerprint, input.reconciled_by ?? input.reconciledBy ?? null, {
+      action, requirement_status: requirement.status, required_kg: kg(requirement.required_kg), source_revision: requirement.source_revision ?? null,
+    });
+    return getAllocationPlan(db, plan.id);
+  });
+  return reconcile.immediate();
+}
+
+function activeAllocatedForPlan(db, planId) {
+  return kg(db.prepare("SELECT COALESCE(SUM(allocated_kg),0) AS total FROM allocation_plan_lines_v2 WHERE allocation_plan_id=? AND status='active'").get(planId).total);
+}
+
+module.exports = { MaterialAllocationPlanningError, suggestFifoLots, confirmAllocationPlan, reconcileAllocationPlan, releaseAllocationPlan, getAllocationPlan };

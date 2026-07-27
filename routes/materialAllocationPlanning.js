@@ -34,6 +34,10 @@ function createMaterialAllocationPlanningRouter(deps) {
     try { res.json(planning.releaseAllocationPlan(db, { allocation_plan_id: req.params.id, released_by: req.auth?.sub || null, reason: req.body?.reason })); }
     catch (error) { sendError(res, error); }
   });
+  router.post('/material-allocation-plans/reconcile', requireAnyRole(PLANNER_ROLES), (req, res) => {
+    try { res.json(planning.reconcileAllocationPlan(db, { ...req.body, reconciled_by: req.auth?.sub || null })); }
+    catch (error) { sendError(res, error); }
+  });
   return router;
 }
 

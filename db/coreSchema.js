@@ -23,6 +23,8 @@ function ensureMaterialAllocationPlanningV2Schema(db) {
       requirement_uid TEXT NOT NULL,
       required_kg NUMERIC NOT NULL CHECK (typeof(required_kg) IN ('integer','real') AND required_kg > 0),
       source_revision TEXT,
+      spec_diameter NUMERIC,
+      spec_material_type TEXT,
       lifecycle_version INTEGER NOT NULL DEFAULT 2 CHECK (lifecycle_version = 2),
       status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','released','superseded','cancelled')),
       planned_by INTEGER,
@@ -54,7 +56,22 @@ function ensureMaterialAllocationPlanningV2Schema(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_allocation_plan_lines_v2_active_lot
       ON allocation_plan_lines_v2(raw_material_id, status);
+    CREATE TABLE IF NOT EXISTS allocation_plan_events_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      allocation_plan_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL CHECK (event_type IN ('reconciled', 'released')),
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      actor_id INTEGER,
+      details_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (allocation_plan_id) REFERENCES allocation_plans_v2(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_allocation_plan_events_v2_plan
+      ON allocation_plan_events_v2(allocation_plan_id, id);
   `);
+  ensureColumn(db, 'allocation_plans_v2', 'spec_diameter', 'NUMERIC');
+  ensureColumn(db, 'allocation_plans_v2', 'spec_material_type', 'TEXT');
 }
 
 function ensureMaterialRequirementV2Schema(db) {

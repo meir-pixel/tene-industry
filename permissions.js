@@ -4,6 +4,7 @@ const ROLE_PERMISSIONS = {
   office:      { level:  70, canApprove: true,  canDelete: false, finance: false, config: false },
   finance:     { level:  65, canApprove: true,  canDelete: false, finance: true,  config: false },
   production:  { level:  50, canApprove: false, canDelete: false, finance: false, config: false },
+  production_planner: { level: 50, canApprove: false, canDelete: false, finance: false, config: false },
   quality:     { level:  50, canApprove: true,  canDelete: false, finance: false, config: false },
   maintenance: { level:  50, canApprove: false, canDelete: false, finance: false, config: false },
   warehouse:   { level:  30, canApprove: false, canDelete: false, finance: false, config: false },
