@@ -122,11 +122,15 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pending_raw_material_receipts_v2 WHERE source_type='ocr'").get().n, 1);
   const approveOcr = await request(`/api/inventory/pending-receipts/${firstOcrBody.receipt_id}/approve`, { method: 'POST', headers: authHeaders(admin), body: JSON.stringify({ idempotency_key: 'approve-http-ocr' }) });
   assert.equal(approveOcr.status, 200); assert.equal(db.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n, beforeOcrLots + 1);
-  axios.post = async () => { throw new Error('controlled OCR failure'); };
-  const failedOcr = await request('/api/inventory/receipt-reviews/analyze', { method: 'POST', headers: { Authorization: `Bearer ${warehouse}` }, body: (() => { const f = new FormData(); f.append('image', new Blob([Buffer.from('other')], { type: 'image/png' }), 'ocr-fail.png'); return f; })() });
-  assert.equal(failedOcr.status, 502);
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pending_raw_material_receipts_v2 WHERE source_type='ocr'").get().n, 1);
-  axios.post = originalAxiosPost;
+  const beforeOcrFailure = { receipts: db.prepare('SELECT COUNT(*) AS n FROM pending_raw_material_receipts_v2').get().n, lines: db.prepare('SELECT COUNT(*) AS n FROM pending_raw_material_receipt_lines_v2').get().n, lots: db.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n };
+  try {
+    axios.post = async () => { throw new Error('controlled OCR failure'); };
+    const failedOcr = await request('/api/inventory/receipt-reviews/analyze', { method: 'POST', headers: { Authorization: `Bearer ${warehouse}` }, body: (() => { const f = new FormData(); f.append('image', new Blob([Buffer.from('other')], { type: 'image/png' }), 'ocr-fail.png'); return f; })() });
+    assert.equal(failedOcr.status, 502);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pending_raw_material_receipts_v2').get().n, beforeOcrFailure.receipts);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pending_raw_material_receipt_lines_v2').get().n, beforeOcrFailure.lines);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n, beforeOcrFailure.lots);
+  } finally { axios.post = originalAxiosPost; }
 
   const pendingReceiptBody = { source_type: 'manual', idempotency_key: 'smoke-b4-receipt', lines: [{ source_line_ref: '1', material_type: 'coil', diameter: 12, weight_received: 5 }] };
   assert.equal((await request('/api/inventory/pending-receipts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pendingReceiptBody) })).status, 401);
@@ -155,6 +159,7 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   const bentInventory = {
     material_type: 'bent',
     diameter: 10,
+    grade: 'B500B',
     weight_received: 120,
     received_date: '2026-06-02',
     bending_shape_name: 'U - אסדה',

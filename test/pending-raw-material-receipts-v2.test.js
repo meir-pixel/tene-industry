@@ -7,7 +7,18 @@ const receipts = require('../services/pendingRawMaterialReceiptV2');
 const allocation = require('../services/materialAllocationPlanningV2');
 
 function db() { const value = new Database(':memory:'); value.pragma('foreign_keys=ON'); ensureCoreSchema(value); return value; }
-function line(overrides = {}) { return { source_line_ref: '1', material_type: 'coil', diameter: 12, lot_number: 'HEAT-1', certificate_num: 'CERT-1', weight_received: 100, ...overrides }; }
+function line(overrides = {}) { return { source_line_ref: '1', material_type: 'coil', diameter: 12, lot_number: 'HEAT-1', certificate_num: 'CERT-1', grade: 'B500B', weight_received: 100, ...overrides }; }
+function fullCatalog(value) {
+  value.prepare("INSERT OR IGNORE INTO diameter_catalog (diameter_key,diameter_display,status) VALUES ('12','Ø12','active'),('14','Ø14','active')").run();
+  return value.prepare("INSERT INTO catalog_items (sku,item_kind,name,supply_form,diameter_key,steel_grade,standard_code,nominal_length_mm) VALUES ('RB-12-FULL','raw_material','RB 12','coil','12','B500B','SI-4466',600)").run().lastInsertRowid;
+}
+function approveSpec(value, overrides = {}) {
+  const itemId = fullCatalog(value); const draft = receipts.createDraft(value, { source_type: 'manual', idempotency_key: `spec-${Math.random()}`, lines: [line({ catalog_item_id: itemId, standard_code: 'SI-4466', nominal_length_mm: 600, ...overrides })] });
+  receipts.approveReceipt(value, { receipt_id: draft.id, idempotency_key: `approve-${Math.random()}` });
+  const receiptLine = value.prepare('SELECT * FROM pending_raw_material_receipt_lines_v2 WHERE receipt_id=?').get(draft.id); const lot = value.prepare('SELECT * FROM raw_material WHERE id=?').get(receiptLine.created_raw_material_id);
+  return { receiptLine, lot };
+}
+function assertSpec(value, overrides, expected, status = 'pending_verification') { const { receiptLine, lot } = approveSpec(value, overrides); assert.equal(lot.verification_status, status); assert.equal(lot.catalog_item_id > 0, true); assert.equal(lot.spec_exception, status === 'approved' ? 0 : 1); assert.ok(JSON.parse(receiptLine.spec_snapshot_json).sku); assert.ok(JSON.parse(receiptLine.spec_exceptions_json).includes(expected)); value.close(); }
 test('draft receipt is separate from inventory and approval creates an approved lot', () => {
   const value = db(); value.prepare("INSERT INTO diameter_catalog (diameter_key,diameter_display,status) VALUES ('12','Ø12','active')").run();
   const catalogItemId = value.prepare("INSERT INTO catalog_items (sku,item_kind,name,supply_form,diameter_key,steel_grade) VALUES ('RB-12','raw_material','RB 12','coil','12','B500B')").run().lastInsertRowid;
@@ -53,3 +64,10 @@ test('decision idempotency binds the action and decision payload', () => {
   assert.throws(() => receipts.cancelDraft(value, { receipt_id: draft.id, idempotency_key: 'decision-key', notes: 'certificate missing' }), /idempotency_key_conflict/);
   value.close();
 });
+test('full matching catalog specification is approved with a snapshot', () => { const value = db(); const { receiptLine, lot } = approveSpec(value); assert.equal(lot.verification_status, 'approved'); assert.deepEqual(JSON.parse(receiptLine.spec_exceptions_json), []); assert.equal(JSON.parse(receiptLine.spec_snapshot_json).sku, 'RB-12-FULL'); value.close(); });
+test('missing catalog standard is fail-closed', () => assertSpec(db(), { standard_code: null }, 'catalog_standard_code_missing'));
+test('missing catalog nominal length is fail-closed', () => assertSpec(db(), { nominal_length_mm: null }, 'catalog_nominal_length_mm_missing'));
+test('missing catalog grade is fail-closed', () => assertSpec(db(), { grade: null }, 'catalog_steel_grade_missing'));
+test('mismatched catalog grade is fail-closed', () => assertSpec(db(), { grade: 'B400' }, 'catalog_steel_grade_mismatch'));
+test('mismatched catalog supply form is fail-closed', () => assertSpec(db(), { material_type: 'straight' }, 'catalog_supply_form_mismatch'));
+test('mismatched catalog diameter is fail-closed', () => assertSpec(db(), { diameter: 14 }, 'catalog_diameter_key_mismatch'));

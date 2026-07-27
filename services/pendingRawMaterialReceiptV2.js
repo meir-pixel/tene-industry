@@ -24,7 +24,7 @@ function normalizeLines(lines = []) {
     const shape = bendingShapeColumns(row);
     if (materialType === 'bent' && (!shape.name || !shape.segments)) fail('bending_shape_required');
     return { sourceLineRef, materialType, diameter, lotNumber: row.lot_number ?? row.lotNumber ?? row.heat_number ?? row.heatNumber ?? null,
-      certificateNum: row.certificate_num ?? row.certificateNum ?? null, grade: row.grade || 'B500B',
+      certificateNum: row.certificate_num ?? row.certificateNum ?? null, grade: row.grade ?? null,
       standardCode: row.standard_code ?? row.standardCode ?? null, nominalLengthMm: Number(row.nominal_length_mm ?? row.nominalLengthMm) || null,
       weightReceived: positive(row.weight_received ?? row.weightReceived ?? row.weight_kg, 'invalid_weight_received'),
       purchasePrice: Number(row.purchase_price ?? row.purchasePrice) || 0, warehouseLoc: row.warehouse_loc ?? row.warehouseLoc ?? null,
