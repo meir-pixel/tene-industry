@@ -106,8 +106,13 @@ function decideReceipt(db, input = {}, status) {
         const diameter = normalizeDiameter(line.diameter); const catalog = diameter && db.prepare("SELECT status FROM diameter_catalog WHERE diameter_key=?").get(diameter.key);
         const item = line.catalog_item_id ? db.prepare("SELECT * FROM catalog_items WHERE id=? AND item_kind='raw_material' AND active=1").get(line.catalog_item_id) : null;
         const exceptions = []; if (!catalog || catalog.status !== 'active') exceptions.push('diameter_not_active');
-        if (line.catalog_item_id && !item) exceptions.push('catalog_item_not_found');
-        if (item) for (const [field, actual] of [['diameter_key', diameter.key],['supply_form',line.material_type],['steel_grade',line.grade],['standard_code',line.standard_code],['nominal_length_mm',line.nominal_length_mm]]) if (item[field] != null && actual != null && String(item[field]) !== String(actual)) exceptions.push(`catalog_${field}_mismatch`);
+        if (!line.catalog_item_id) exceptions.push('catalog_item_unidentified');
+        else if (!item) exceptions.push('catalog_item_not_found');
+        if (item) for (const [field, actual] of [['diameter_key', diameter.key],['supply_form',line.material_type],['steel_grade',line.grade],['standard_code',line.standard_code],['nominal_length_mm',line.nominal_length_mm]]) {
+          if (item[field] == null) continue;
+          if (actual == null || actual === '') exceptions.push(`catalog_${field}_missing`);
+          else if (String(item[field]) !== String(actual)) exceptions.push(`catalog_${field}_mismatch`);
+        }
         const verification = exceptions.length ? 'pending_verification' : 'approved'; const snapshot = item ? { id:item.id,sku:item.sku,diameter_key:item.diameter_key,supply_form:item.supply_form,steel_grade:item.steel_grade,standard_code:item.standard_code,nominal_length_mm:item.nominal_length_mm } : null;
         const lot = insert.run(line.material_type, line.diameter, item?.id || null, verification, receipt.supplier_id, line.lot_number, line.certificate_num, line.grade, line.standard_code, line.nominal_length_mm, exceptions.length ? 1 : 0, new Date().toISOString().slice(0,10), line.weight_received, line.purchase_price, line.warehouse_loc, line.bending_shape_name, line.bending_shape_segments, line.bending_shape_source, line.bending_shape_confidence, line.notes);
         link.run(lot.lastInsertRowid, JSON.stringify(snapshot), JSON.stringify(exceptions), line.id);

@@ -3,6 +3,7 @@ const test = require('node:test');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const axios = require('axios');
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tene-smoke-'));
 process.env.NODE_ENV = 'test';
@@ -104,6 +105,29 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   const warehouse = await token('warehouse-smoke', '9003');
   const office = await token('office-smoke', '9004');
 
+  const originalAxiosPost = axios.post;
+  t.after(() => { axios.post = originalAxiosPost; });
+  db.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ('INTAKE_AI_ENABLED','true'),('OPENAI_API_KEY','test-key')").run();
+  let ocrCalls = 0;
+  axios.post = async () => ({ data: { output: [{ content: [{ type: 'output_text', text: JSON.stringify({ supplier_name: 'OCR Smoke', delivery_note_num: 'OCR-1', received_date: '2026-06-02', notes: null, items: [{ material_type: 'coil', diameter: 12, lot_number: 'OCR-HEAT', certificate_num: 'OCR-CERT', grade: 'B500B', weight_kg: 11, purchase_price: 0, warehouse_loc: null, shape_name: null, segments: [], confidence: 1, notes: null }] }) }] }] } });
+  const ocrForm = () => { const form = new FormData(); form.append('image', new Blob([Buffer.from('fake-image')], { type: 'image/png' }), 'ocr-smoke.png'); return form; };
+  const beforeOcrLots = db.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n;
+  const firstOcr = await request('/api/inventory/receipt-reviews/analyze', { method: 'POST', headers: { Authorization: `Bearer ${warehouse}` }, body: ocrForm() });
+  assert.equal(firstOcr.status, 200); const firstOcrBody = await firstOcr.json();
+  assert.equal(db.prepare('SELECT status FROM pending_raw_material_receipts_v2 WHERE id=?').get(firstOcrBody.receipt_id).status, 'draft');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pending_raw_material_receipt_lines_v2 WHERE receipt_id=?').get(firstOcrBody.receipt_id).n, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n, beforeOcrLots);
+  const replayOcr = await request('/api/inventory/receipt-reviews/analyze', { method: 'POST', headers: { Authorization: `Bearer ${warehouse}` }, body: ocrForm() });
+  assert.equal(replayOcr.status, 200); assert.equal((await replayOcr.json()).receipt_id, firstOcrBody.receipt_id);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pending_raw_material_receipts_v2 WHERE source_type='ocr'").get().n, 1);
+  const approveOcr = await request(`/api/inventory/pending-receipts/${firstOcrBody.receipt_id}/approve`, { method: 'POST', headers: authHeaders(admin), body: JSON.stringify({ idempotency_key: 'approve-http-ocr' }) });
+  assert.equal(approveOcr.status, 200); assert.equal(db.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n, beforeOcrLots + 1);
+  axios.post = async () => { throw new Error('controlled OCR failure'); };
+  const failedOcr = await request('/api/inventory/receipt-reviews/analyze', { method: 'POST', headers: { Authorization: `Bearer ${warehouse}` }, body: (() => { const f = new FormData(); f.append('image', new Blob([Buffer.from('other')], { type: 'image/png' }), 'ocr-fail.png'); return f; })() });
+  assert.equal(failedOcr.status, 502);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pending_raw_material_receipts_v2 WHERE source_type='ocr'").get().n, 1);
+  axios.post = originalAxiosPost;
+
   const pendingReceiptBody = { source_type: 'manual', idempotency_key: 'smoke-b4-receipt', lines: [{ source_line_ref: '1', material_type: 'coil', diameter: 12, weight_received: 5 }] };
   assert.equal((await request('/api/inventory/pending-receipts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pendingReceiptBody) })).status, 401);
   assert.equal((await request('/api/inventory/pending-receipts', { method: 'POST', headers: authHeaders(office), body: JSON.stringify(pendingReceiptBody) })).status, 403);
@@ -140,6 +164,9 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
       { length_mm: 300, angle_deg: 180 },
     ],
   };
+  db.prepare("INSERT OR IGNORE INTO diameter_catalog (diameter_key,diameter_display,status,source) VALUES ('10','Ø10','active','test')").run();
+  const bentCatalogItemId = db.prepare("INSERT INTO catalog_items (sku,item_kind,name,supply_form,diameter_key,steel_grade) VALUES ('RB-10-BENT','raw_material','RB 10 bent','bent','10','B500B')").run().lastInsertRowid;
+  bentInventory.catalog_item_id = bentCatalogItemId;
   const createBent = await request('/api/inventory', {
     method: 'POST',
     headers: authHeaders(admin),
@@ -272,10 +299,12 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     method: 'POST', headers: authHeaders(admin), body: JSON.stringify({ idempotency_key: 'approve-ocr-receipt' }),
   });
   assert.equal(approveOcrReceipt.status, 200);
-  const approvedMaterialId = (await approveOcrReceipt.json()).lines[0].created_raw_material_id;
+  let approvedMaterialId = (await approveOcrReceipt.json()).lines[0].created_raw_material_id;
   const approvedMaterial = db.prepare('SELECT * FROM raw_material WHERE id=?').get(approvedMaterialId);
   assert.equal(approvedMaterial.lot_number, 'HEAT-SMOKE');
   assert.equal(approvedMaterial.weight_received, 250);
+  assert.equal(approvedMaterial.verification_status, 'pending_verification');
+  approvedMaterialId = db.prepare("INSERT INTO raw_material (material_type,diameter,verification_status,weight_received,lot_number) VALUES ('coil',12,'approved',250,'HEAT-STOCK-SMOKE')").run().lastInsertRowid;
 
   const poCreate = await request('/api/purchase-orders', {
     method: 'POST', headers: authHeaders(manager),

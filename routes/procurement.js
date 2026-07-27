@@ -98,7 +98,7 @@ module.exports = function createProcurementRouter(deps) {
     res.json({ ok: true });
   });
 
-  router.patch('/purchase-orders/:id/receive', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
+  router.patch('/purchase-orders/:id/receive', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
     const { heat_number, certificate_num, received_weight, notes } = req.body;
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id=?').get(req.params.id);
     if (!po) return res.status(404).json({ error: 'not found' });

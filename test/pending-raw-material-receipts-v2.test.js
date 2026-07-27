@@ -10,7 +10,8 @@ function db() { const value = new Database(':memory:'); value.pragma('foreign_ke
 function line(overrides = {}) { return { source_line_ref: '1', material_type: 'coil', diameter: 12, lot_number: 'HEAT-1', certificate_num: 'CERT-1', weight_received: 100, ...overrides }; }
 test('draft receipt is separate from inventory and approval creates an approved lot', () => {
   const value = db(); value.prepare("INSERT INTO diameter_catalog (diameter_key,diameter_display,status) VALUES ('12','Ø12','active')").run();
-  const draft = receipts.createDraft(value, { source_type: 'manual', idempotency_key: 'draft-1', lines: [line()] });
+  const catalogItemId = value.prepare("INSERT INTO catalog_items (sku,item_kind,name,supply_form,diameter_key,steel_grade) VALUES ('RB-12','raw_material','RB 12','coil','12','B500B')").run().lastInsertRowid;
+  const draft = receipts.createDraft(value, { source_type: 'manual', idempotency_key: 'draft-1', lines: [line({ catalog_item_id: catalogItemId })] });
   assert.equal(value.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n, 0); assert.equal(draft.status, 'draft');
   const approved = receipts.approveReceipt(value, { receipt_id: draft.id, idempotency_key: 'approve-1', decided_by: 1 });
   assert.equal(approved.status, 'approved'); const lot = value.prepare('SELECT * FROM raw_material').get(); assert.equal(lot.verification_status, 'approved'); assert.equal(lot.weight_used, 0); value.close();

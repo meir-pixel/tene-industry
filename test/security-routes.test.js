@@ -1440,8 +1440,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request('/api/purchase-orders/1', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 403);
     assert.equal((await request('/api/purchase-orders/1', { method: 'PATCH', headers: authHeaders(finance), body: emptyBody })).status, 200);
     assert.equal((await request('/api/purchase-orders/1/receive', { method: 'PATCH', headers: authHeaders(production), body: emptyBody })).status, 403);
-    assert.notEqual((await request('/api/purchase-orders/1/receive', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 401);
-    assert.notEqual((await request('/api/purchase-orders/1/receive', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 403);
+    assert.equal((await request('/api/purchase-orders/1/receive', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 403);
   });
 
   await t.test('production mutation allows production but rejects office', async () => {
