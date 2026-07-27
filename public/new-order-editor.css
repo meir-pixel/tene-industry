@@ -134,7 +134,7 @@ body[data-page="new"] .order-lines-table{margin:12px 14px 14px!important;border:
 /* 9 columns: מס׳ | אלמנט | צורה | קוטר | כמות | אורך | סה״כ | משקל | × */
 body[data-page="new"] .order-lines-head,
 body[data-page="new"] .order-line-row,
-body[data-page="new"] .order-line-add-row{display:grid!important;grid-template-columns:38px minmax(90px,.9fr) minmax(130px,1.2fr) 56px 58px 80px 88px 78px 30px!important;gap:0!important;align-items:stretch!important}
+body[data-page="new"] .order-line-add-row{display:grid!important;grid-template-columns:38px minmax(84px,.78fr) minmax(220px,1.85fr) 52px 54px 72px 80px 74px 30px!important;gap:0!important;align-items:stretch!important}
 
 body[data-page="new"] .order-lines-head>*,
 body[data-page="new"] .order-line-row>*{border-right:1px solid var(--border,#dce6f3)!important;padding:0 7px!important;display:flex!important;align-items:center!important;justify-content:center!important;min-width:0!important;box-sizing:border-box!important;border-left:0!important}
@@ -149,7 +149,7 @@ body[data-page="new"] .order-lines-head>*{justify-content:center!important;text-
 body[data-page="new"] .order-lines-body{max-height:max(280px,calc(100vh - 320px))!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important}
 
 /* Row */
-body[data-page="new"] .order-line-row{height:48px!important;border-bottom:1px solid var(--border,#dce6f3)!important;background:#fff!important;transition:background .1s!important}
+body[data-page="new"] .order-line-row{height:66px!important;border-bottom:1px solid var(--border,#dce6f3)!important;background:#fff!important;transition:background .1s!important}
 body[data-page="new"] .order-line-row:last-child{border-bottom:0!important}
 body[data-page="new"] .order-line-row:nth-child(even){background:#fafcff!important}
 body[data-page="new"] .order-line-row:hover{background:#eef4ff!important}
@@ -162,15 +162,15 @@ body[data-page="new"] .order-line-row.no-shape-yet:hover{background:#fff9e6!impo
 body[data-page="new"] .line-index{color:#8da0b8!important;font-size:11px!important;font-weight:900!important;justify-content:center!important}
 
 /* אלמנט */
-body[data-page="new"] .line-element{width:calc(100% - 12px)!important;height:30px!important;border:1.5px solid #d0dcea!important;border-radius:7px!important;background:#f7fafd!important;color:var(--text,#0f234b)!important;font-family:inherit!important;font-weight:900!important;font-size:13px!important;padding:0 7px!important;box-sizing:border-box!important;text-align:right!important}
+body[data-page="new"] .line-element{width:calc(100% - 8px)!important;height:32px!important;border:1.5px solid #d0dcea!important;border-radius:7px!important;background:#f7fafd!important;color:var(--text,#0f234b)!important;font-family:inherit!important;font-weight:900!important;font-size:13px!important;padding:0 7px!important;box-sizing:border-box!important;text-align:right!important}
 body[data-page="new"] .line-element:focus{outline:none!important;border-color:#4a90d9!important;background:#fff!important}
 
 /* צורה ומידות */
 body[data-page="new"] .line-shape{border:0!important;background:transparent!important;padding:3px!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;font-family:inherit!important;width:100%!important;height:100%!important}
 body[data-page="new"] .line-shape:hover{background:rgba(74,144,217,.07)!important}
-body[data-page="new"] .line-shape-sketch{width:100%!important;height:38px!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
+body[data-page="new"] .line-shape-sketch{width:100%!important;height:58px!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
 body[data-page="new"] .line-shape-sketch svg,
-body[data-page="new"] .line-shape svg{width:auto!important;height:36px!important;max-width:100%!important;display:block!important}
+body[data-page="new"] .line-shape svg{width:auto!important;height:56px!important;max-width:100%!important;display:block!important}
 
 /* Placeholder — כפתור ברור */
 body[data-page="new"] .line-shape-empty{display:inline-flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:4px!important;height:30px!important;padding:0 10px!important;border:1.5px dashed #6baed6!important;border-radius:7px!important;color:#3a7fc1!important;font-size:12px!important;font-weight:900!important;background:#f0f7ff!important;white-space:nowrap!important}
