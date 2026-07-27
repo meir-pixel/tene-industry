@@ -7,6 +7,7 @@ const {
   parseReceiptReviewPayload,
 } = require('../services/inventory');
 const { normalizeDiameter } = require('../services/materialCatalog');
+const receipts = require('../services/pendingRawMaterialReceiptV2');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/inventory missing dependency: ${name}`);
@@ -237,6 +238,33 @@ module.exports = function createInventoryRouter(deps) {
     auditLog('inventory_receipt_review', review.id, review.delivery_note_num, 'reject', 'status', review.status, 'rejected', req.body?.notes || null, req.auth?.sub || null, req.auth?.display_name || null);
     wsBroadcast('inventory_receipt_review_rejected', { id: review.id });
     res.json({ success: true });
+  });
+
+  router.get('/inventory/pending-receipts', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
+    res.json(receipts.listReceipts(db, { status: req.query.status || 'draft' }));
+  });
+  router.get('/inventory/pending-receipts/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
+    const receipt = receipts.getReceipt(db, req.params.id); return receipt ? res.json(receipt) : res.status(404).json({ error: 'pending_receipt_not_found' });
+  });
+  router.post('/inventory/pending-receipts', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    try { res.status(201).json(receipts.createDraft(db, { ...req.body, source_type: req.body?.source_type || 'manual', created_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+  router.patch('/inventory/pending-receipts/:id', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    try { res.json(receipts.updateDraft(db, { ...req.body, receipt_id: req.params.id, updated_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+  router.post('/inventory/pending-receipts/:id/cancel', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    try { res.json(receipts.cancelDraft(db, { ...req.body, receipt_id: req.params.id, decided_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+  router.post('/inventory/pending-receipts/:id/approve', requireAnyRole(['manager', 'admin']), (req, res) => {
+    try { res.json(receipts.approveReceipt(db, { ...req.body, receipt_id: req.params.id, decided_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+  router.post('/inventory/pending-receipts/:id/reject', requireAnyRole(['manager', 'admin']), (req, res) => {
+    try { res.json(receipts.rejectReceipt(db, { ...req.body, receipt_id: req.params.id, decided_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
   });
 
   router.post('/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {

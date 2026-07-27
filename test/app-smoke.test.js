@@ -48,6 +48,7 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   seedUser('admin-smoke', 'admin', '9001');
   seedUser('manager-smoke', 'manager', '9002');
   seedUser('warehouse-smoke', 'warehouse', '9003');
+  seedUser('office-smoke', 'office', '9004');
 
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -101,6 +102,17 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   const admin = await token('admin-smoke', '9001');
   const manager = await token('manager-smoke', '9002');
   const warehouse = await token('warehouse-smoke', '9003');
+  const office = await token('office-smoke', '9004');
+
+  const pendingReceiptBody = { source_type: 'manual', idempotency_key: 'smoke-b4-receipt', lines: [{ source_line_ref: '1', material_type: 'coil', diameter: 12, weight_received: 5 }] };
+  assert.equal((await request('/api/inventory/pending-receipts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pendingReceiptBody) })).status, 401);
+  assert.equal((await request('/api/inventory/pending-receipts', { method: 'POST', headers: authHeaders(office), body: JSON.stringify(pendingReceiptBody) })).status, 403);
+  const draftReceipt = await request('/api/inventory/pending-receipts', { method: 'POST', headers: authHeaders(warehouse), body: JSON.stringify(pendingReceiptBody) });
+  assert.equal(draftReceipt.status, 201);
+  const pendingReceipt = await draftReceipt.json();
+  assert.equal((await request('/api/inventory/pending-receipts', { headers: authHeaders(office) })).status, 200);
+  assert.equal((await request(`/api/inventory/pending-receipts/${pendingReceipt.id}/approve`, { method: 'POST', headers: authHeaders(warehouse), body: JSON.stringify({ idempotency_key: 'blocked-b4' }) })).status, 403);
+  assert.equal((await request(`/api/inventory/pending-receipts/${pendingReceipt.id}/approve`, { method: 'POST', headers: authHeaders(manager), body: JSON.stringify({ idempotency_key: 'approve-b4' }) })).status, 200);
   const endpoints = [
     '/api/settings',
     '/api/dashboard',

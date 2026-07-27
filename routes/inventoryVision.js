@@ -1,10 +1,12 @@
 const axios = require('axios');
+const crypto = require('node:crypto');
 const router = require('express').Router();
 
 const {
   normalizeBendingShapeInput,
   parseReceiptReviewPayload,
 } = require('../services/inventory');
+const pendingReceipts = require('../services/pendingRawMaterialReceiptV2');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/inventoryVision missing dependency: ${name}`);
@@ -296,13 +298,14 @@ Put uncertainty in notes. The manager will compare this parsed data against the 
         received_date: item.received_date || parsed.received_date || new Date().toISOString().slice(0, 10),
         lot_number: item.lot_number || parsed.delivery_note_num || null,
       }));
-      const row = db.prepare(`
-        INSERT INTO inventory_receipt_reviews
-          (original_filename,original_mime,original_data_url,supplier_id,supplier_name,delivery_note_num,parsed_data,status)
-        VALUES (?,?,?,?,?,?,?,'pending_review')
-      `).run(req.file.originalname || null, mime, dataUrl, supplier?.id || null, parsed.supplier_name, parsed.delivery_note_num, JSON.stringify(parsed));
-      wsBroadcast('inventory_receipt_review_created', { id: row.lastInsertRowid, supplier_name: parsed.supplier_name, item_count: parsed.items.length });
-      res.json({ success: true, id: row.lastInsertRowid, parsed });
+      const receipt = pendingReceipts.createDraft(db, {
+        source_type: 'ocr', source_ref: `ocr:${req.file.originalname || 'supplier-delivery-note'}:${crypto.createHash('sha256').update(req.file.buffer).digest('hex')}`,
+        supplier_id: supplier?.id || null, supplier_name: parsed.supplier_name, delivery_note_num: parsed.delivery_note_num,
+        notes: parsed.notes, lines: parsed.items.map((item, index) => ({ ...item, source_line_ref: `ocr-${index + 1}`, weight_received: item.weight_received ?? item.weight_kg })),
+        idempotency_key: `ocr:${crypto.createHash('sha256').update(req.file.buffer).digest('hex')}`, created_by: req.auth?.sub,
+      });
+      wsBroadcast('pending_raw_material_receipt_created', { id: receipt.id, supplier_name: parsed.supplier_name, item_count: parsed.items.length });
+      res.json({ success: true, id: receipt.id, receipt_id: receipt.id, parsed });
     } catch (err) {
       console.error('[Inventory Receipt OCR]', err.response?.data || err.message);
       res.status(502).json({ error: 'Supplier delivery note recognition failed', detail: err.response?.data?.error?.message || err.message });
@@ -318,5 +321,5 @@ module.exports.manifest = {
   id: 'inventory-vision',
   label: 'זיהוי מלאי',
   consumes: [{ external: 'openai-vision' }, { table: 'intake_training_examples' }],
-  produces: [{ event: 'inventory_receipt_review_created' }],
+  produces: [{ event: 'inventory_receipt_review_created' }, { event: 'pending_raw_material_receipt_created' }],
 };

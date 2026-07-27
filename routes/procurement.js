@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const pendingReceipts = require('../services/pendingRawMaterialReceiptV2');
 const { calculatePurchaseRecommendations } = require('../services/inventoryReservation');
 
 function required(name, value) {
@@ -107,16 +108,18 @@ module.exports = function createProcurementRouter(deps) {
       SET status='הגיע', heat_number=?, certificate_num=?, received_weight=?, received_at=CURRENT_TIMESTAMP
       WHERE id=?
     `).run(heat_number || '', certificate_num || '', actualWeight, req.params.id);
+    let receipt = null;
     if (po.supplier_id && po.diameter) {
-      db.prepare(`
-        INSERT INTO raw_material
-          (material_type,diameter,supplier_id,lot_number,certificate_num,received_date,weight_received,purchase_price,notes)
-        VALUES (?,?,?,?,?,date('now'),?,?,?)
-      `).run(po.material_type || 'coil', po.diameter, po.supplier_id,
-        heat_number || '', certificate_num || '',
-        actualWeight, po.price_per_ton || 0, notes || '');
+      receipt = pendingReceipts.createDraft(db, {
+        source_type: 'purchase_order', source_ref: `purchase_order:${po.id}`, supplier_id: po.supplier_id,
+        delivery_note_num: req.body.delivery_note_num || `PO-${po.po_num}`, created_by: req.auth?.sub,
+        idempotency_key: `purchase-order-receive:${po.id}`,
+        lines: [{ source_line_ref: `po-${po.id}-1`, material_type: po.material_type || 'coil', diameter: po.diameter,
+          lot_number: heat_number || null, certificate_num: certificate_num || null, weight_received: actualWeight,
+          purchase_price: po.price_per_ton || 0, notes: notes || null }],
+      });
     }
-    res.json({ ok: true });
+    res.json({ ok: true, receipt_id: receipt?.id || null, status: receipt?.status || null });
   });
 
   return router;
