@@ -534,7 +534,7 @@ function ensureCoreSchema(db) {
       material_type   TEXT DEFAULT 'coil',  -- 'coil' | 'straight' | 'bent'
       diameter        INTEGER NOT NULL,
       catalog_item_id INTEGER,
-      verification_status TEXT NOT NULL DEFAULT 'approved', -- approved | pending_verification | rejected
+      verification_status TEXT NOT NULL DEFAULT 'approved' CHECK (verification_status IN ('approved','pending_verification','rejected')),
       supplier_id     INTEGER,
       lot_number      TEXT,
       certificate_num TEXT,

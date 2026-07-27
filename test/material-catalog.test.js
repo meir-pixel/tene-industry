@@ -44,5 +44,31 @@ test('catalog foundation keeps legacy lots approved and optional catalog linking
   const lot = db.prepare('SELECT diameter,verification_status,catalog_item_id FROM raw_material').get();
   assert.deepEqual(lot, { diameter: 14, verification_status: 'approved', catalog_item_id: null });
   assert.deepEqual(db.prepare("SELECT diameter_key,status FROM diameter_catalog WHERE diameter_key='14'").get(), { diameter_key: '14', status: 'active' });
+  assert.throws(() => db.prepare("INSERT INTO raw_material (diameter,verification_status) VALUES (16,'unknown')").run(), /CHECK constraint failed/);
+  db.close();
+});
+
+test('startup upgrades an existing raw-material table with the verification check without changing lots', () => {
+  const db = new Database(':memory:');
+  ensureCoreSchema(db);
+  db.exec(`
+    CREATE TABLE raw_material_legacy (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, material_type TEXT DEFAULT 'coil', diameter INTEGER NOT NULL,
+      supplier_id INTEGER, lot_number TEXT, certificate_num TEXT, grade TEXT DEFAULT 'B500B', received_date TEXT,
+      weight_received REAL DEFAULT 0, weight_used REAL DEFAULT 0, weight_scrapped REAL DEFAULT 0,
+      purchase_price REAL DEFAULT 0, warehouse_loc TEXT, bending_shape_name TEXT, bending_shape_segments TEXT,
+      bending_shape_source TEXT, bending_shape_confidence REAL, notes TEXT, active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO raw_material_legacy (id,diameter,lot_number,weight_received) VALUES (7,5.5,'LEGACY-55',80);
+    DROP TABLE raw_material;
+    ALTER TABLE raw_material_legacy RENAME TO raw_material;
+  `);
+  runCoreMigrations(db);
+  assert.deepEqual(db.prepare('SELECT id,diameter,lot_number,weight_received,verification_status FROM raw_material').get(), {
+    id: 7, diameter: 5.5, lot_number: 'LEGACY-55', weight_received: 80, verification_status: 'approved',
+  });
+  assert.match(db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='raw_material'").get().sql, /CHECK \(verification_status IN/);
+  assert.throws(() => db.prepare("UPDATE raw_material SET verification_status='unexpected' WHERE id=7").run(), /CHECK constraint failed/);
   db.close();
 });

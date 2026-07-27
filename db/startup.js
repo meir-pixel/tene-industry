@@ -5,6 +5,59 @@ const { seedCoreData } = require('./seed');
 const { ensureVehicleCompatibility } = require('./vehicleMigrations');
 const { seedLegacyDiameterCatalog } = require('../services/materialCatalog');
 
+function ensureRawMaterialVerificationStatusConstraint(db) {
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='raw_material'").get()?.sql || '';
+  if (sql.includes("CHECK (verification_status IN ('approved','pending_verification','rejected'))")) return;
+
+  const foreignKeysEnabled = db.pragma('foreign_keys', { simple: true });
+  db.exec('PRAGMA foreign_keys=OFF');
+  try {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE raw_material__verification_status_check (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          material_type TEXT DEFAULT 'coil',
+          diameter INTEGER NOT NULL,
+          catalog_item_id INTEGER,
+          verification_status TEXT NOT NULL DEFAULT 'approved' CHECK (verification_status IN ('approved','pending_verification','rejected')),
+          supplier_id INTEGER,
+          lot_number TEXT,
+          certificate_num TEXT,
+          grade TEXT DEFAULT 'B500B',
+          standard_code TEXT,
+          nominal_length_mm INTEGER,
+          spec_exception INTEGER NOT NULL DEFAULT 0,
+          received_date TEXT,
+          weight_received REAL DEFAULT 0,
+          weight_used REAL DEFAULT 0,
+          weight_scrapped REAL DEFAULT 0,
+          purchase_price REAL DEFAULT 0,
+          warehouse_loc TEXT,
+          bending_shape_name TEXT,
+          bending_shape_segments TEXT,
+          bending_shape_source TEXT,
+          bending_shape_confidence REAL,
+          notes TEXT,
+          active INTEGER DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+          FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id)
+        );
+        INSERT INTO raw_material__verification_status_check
+          SELECT id,material_type,diameter,catalog_item_id,verification_status,supplier_id,lot_number,certificate_num,
+                 grade,standard_code,nominal_length_mm,spec_exception,received_date,weight_received,weight_used,
+                 weight_scrapped,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,
+                 bending_shape_source,bending_shape_confidence,notes,active,created_at
+          FROM raw_material;
+        DROP TABLE raw_material;
+        ALTER TABLE raw_material__verification_status_check RENAME TO raw_material;
+      `);
+    })();
+  } finally {
+    db.exec(`PRAGMA foreign_keys=${foreignKeysEnabled ? 'ON' : 'OFF'}`);
+  }
+}
+
 function runCoreMigrations(db) {
   // ── MIGRATIONS (safe column additions) ────────────────────────────
   function addCol(table, col, def) {
@@ -139,6 +192,7 @@ function runCoreMigrations(db) {
   addCol('raw_material','spec_exception','INTEGER NOT NULL DEFAULT 0');
 
   try { db.prepare("UPDATE raw_material SET verification_status='approved' WHERE verification_status IS NULL OR verification_status='' ").run(); } catch {}
+  ensureRawMaterialVerificationStatusConstraint(db);
   try { seedLegacyDiameterCatalog(db); } catch (err) { console.warn('[DB] material diameter catalog seed warn:', err.message); }
 
   try { db.prepare("UPDATE orders SET stable_order_id=order_num WHERE stable_order_id IS NULL OR stable_order_id=''").run(); } catch {}

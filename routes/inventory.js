@@ -149,6 +149,10 @@ module.exports = function createInventoryRouter(deps) {
     if (body.diameter !== undefined && !diameter) return res.status(400).json({ error: 'invalid_diameter' });
     const supplyForm = body.supply_form ?? body.supplyForm ?? null;
     if (supplyForm !== null && !MATERIAL_TYPES.has(supplyForm)) return res.status(400).json({ error: 'invalid_supply_form' });
+    if (itemKind === 'raw_material' && diameter) {
+      const catalogDiameter = db.prepare("SELECT 1 FROM diameter_catalog WHERE diameter_key=? AND status='active'").get(diameter.key);
+      if (!catalogDiameter) return res.status(400).json({ error: 'catalog_diameter_must_be_active' });
+    }
     const productMasterId = Number(body.product_master_id ?? body.productMasterId) || null;
     if (productMasterId && !db.prepare('SELECT 1 FROM product_masters WHERE id=? AND active=1').get(productMasterId)) {
       return res.status(400).json({ error: 'product_master_not_found' });
@@ -267,18 +271,33 @@ module.exports = function createInventoryRouter(deps) {
 
   router.patch('/inventory/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
     const f = req.body;
-    const materialType = f.material_type && MATERIAL_TYPES.has(f.material_type) ? f.material_type : null;
-    const shape = bendingShapeColumns(f);
+    const current = db.prepare('SELECT * FROM raw_material WHERE id=?').get(req.params.id);
+    if (!current) return res.status(404).json({ error: 'raw_material_not_found' });
+    const materialType = f.material_type && MATERIAL_TYPES.has(f.material_type) ? f.material_type : current.material_type;
+    const merged = { ...current, ...f, material_type: materialType };
+    const shape = bendingShapeColumns(merged);
     if (materialType === 'bent' && (!shape.name || !shape.segments)) {
       return res.status(400).json({ error: 'צורת כיפוף חובה עבור חומר מסוג כיפוף' });
     }
-    db.prepare(`UPDATE raw_material SET
-      material_type=COALESCE(?,material_type),
-      diameter=COALESCE(?,diameter),
+    try {
+      const diameter = resolveDiameterCatalog(f.diameter_input ?? f.diameter ?? current.diameter, req, {
+        approveNew: f.approve_new_diameter,
+        reactivate: f.reactivate_diameter,
+      });
+      const { catalogItem, specException } = resolveCatalogItem(merged, materialType, diameter);
+      const verificationStatus = diameter.status === 'active' && !specException ? 'approved' : 'pending_verification';
+      db.prepare(`UPDATE raw_material SET
+      material_type=?,
+      diameter=?,
+      catalog_item_id=?,
+      verification_status=?,
       supplier_id=COALESCE(?,supplier_id),
       lot_number=COALESCE(?,lot_number),
       certificate_num=COALESCE(?,certificate_num),
       grade=COALESCE(?,grade),
+      standard_code=COALESCE(?,standard_code),
+      nominal_length_mm=COALESCE(?,nominal_length_mm),
+      spec_exception=?,
       received_date=COALESCE(?,received_date),
       weight_received=COALESCE(?,weight_received),
       weight_used=COALESCE(?,weight_used),
@@ -292,8 +311,17 @@ module.exports = function createInventoryRouter(deps) {
       notes=COALESCE(?,notes),
       active=COALESCE(?,active)
       WHERE id=?`)
-      .run(materialType, f.diameter ?? null, f.supplier_id || null, f.lot_number || null, f.certificate_num || null, f.grade || null, f.received_date || null, f.weight_received ?? null, f.weight_used ?? null, f.weight_scrapped ?? null, f.purchase_price ?? null, f.warehouse_loc || null, shape.name, shape.segments, shape.source, shape.confidence, f.notes || null, f.active ?? null, req.params.id);
-    res.json({ success: true });
+      .run(materialType, diameter.numeric, catalogItem?.id || null, verificationStatus,
+        f.supplier_id || null, f.lot_number || null, f.certificate_num || null, f.grade || null,
+        f.standard_code ?? f.standardCode ?? null, Number(f.nominal_length_mm ?? f.nominalLengthMm) || null, specException ? 1 : 0,
+        f.received_date || null, f.weight_received ?? null, f.weight_used ?? null, f.weight_scrapped ?? null,
+        f.purchase_price ?? null, f.warehouse_loc || null, shape.name, shape.segments, shape.source,
+        shape.confidence, f.notes || null, f.active ?? null, req.params.id);
+      res.json({ success: true, diameter: diameter.display, verification_status: verificationStatus,
+        catalog_action: diameter.catalogAction, spec_exception: specException });
+    } catch (err) {
+      res.status(err.statusCode || 400).json({ error: err.message || 'inventory_update_failed' });
+    }
   });
 
   router.get('/inventory/forecast', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {

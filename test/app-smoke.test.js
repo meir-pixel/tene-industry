@@ -46,6 +46,8 @@ function authHeaders(accessToken) {
 
 test('core app smoke loads critical screens and authenticated APIs', async (t) => {
   seedUser('admin-smoke', 'admin', '9001');
+  seedUser('manager-smoke', 'manager', '9002');
+  seedUser('warehouse-smoke', 'warehouse', '9003');
 
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -97,6 +99,8 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   }
 
   const admin = await token('admin-smoke', '9001');
+  const manager = await token('manager-smoke', '9002');
+  const warehouse = await token('warehouse-smoke', '9003');
   const endpoints = [
     '/api/settings',
     '/api/dashboard',
@@ -135,6 +139,64 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   assert.ok(savedBent);
   assert.equal(savedBent.bending_shape_name, 'U - אסדה');
   assert.match(savedBent.bending_shape_segments, /length_mm/);
+
+  const pendingNewDiameter = await request('/api/inventory', {
+    method: 'POST',
+    headers: authHeaders(warehouse),
+    body: JSON.stringify({ material_type: 'coil', diameter: '5.5', diameter_input: 'Ø5.5', weight_received: 30 }),
+  });
+  assert.equal(pendingNewDiameter.status, 200);
+  const pendingNewDiameterBody = await pendingNewDiameter.json();
+  assert.equal(pendingNewDiameterBody.verification_status, 'pending_verification');
+  assert.equal(db.prepare('SELECT status FROM diameter_catalog WHERE diameter_key=?').get('5.5').status, 'pending_approval');
+  const visibleBeforeApproval = await (await request('/api/inventory', { headers: authHeaders(admin) })).json();
+  assert.ok(!visibleBeforeApproval.some(row => row.id === pendingNewDiameterBody.id));
+
+  const approvePendingDiameter = await request(`/api/inventory/${pendingNewDiameterBody.id}/approve-verification`, {
+    method: 'POST', headers: authHeaders(manager), body: JSON.stringify({}),
+  });
+  assert.equal(approvePendingDiameter.status, 200);
+  assert.equal(db.prepare('SELECT verification_status FROM raw_material WHERE id=?').get(pendingNewDiameterBody.id).verification_status, 'approved');
+  assert.equal(db.prepare('SELECT status FROM diameter_catalog WHERE diameter_key=?').get('5.5').status, 'active');
+
+  db.prepare("INSERT INTO diameter_catalog (diameter_key,diameter_display,status,source) VALUES ('34','Ø34','inactive','test')").run();
+  const reactivateDiameter = await request('/api/inventory', {
+    method: 'POST', headers: authHeaders(manager),
+    body: JSON.stringify({ material_type: 'coil', diameter: '34', reactivate_diameter: true, weight_received: 10 }),
+  });
+  assert.equal(reactivateDiameter.status, 200);
+  assert.equal((await reactivateDiameter.json()).verification_status, 'approved');
+  assert.equal(db.prepare('SELECT status FROM diameter_catalog WHERE diameter_key=?').get('34').status, 'active');
+
+  const invalidCatalogItem = await request('/api/inventory/catalog-items', {
+    method: 'POST', headers: authHeaders(manager),
+    body: JSON.stringify({ sku: 'RB-Ø19-B500B', name: 'Ø19 B500B', item_kind: 'raw_material', diameter: '19', supply_form: 'coil' }),
+  });
+  assert.equal(invalidCatalogItem.status, 400);
+  const validCatalogItem = await request('/api/inventory/catalog-items', {
+    method: 'POST', headers: authHeaders(manager),
+    body: JSON.stringify({ sku: 'RB-Ø10-B500B', name: 'Ø10 B500B', item_kind: 'raw_material', diameter: '10', supply_form: 'coil', steel_grade: 'B500B' }),
+  });
+  assert.equal(validCatalogItem.status, 201);
+  const catalogItemId = (await validCatalogItem.json()).id;
+
+  const specException = await request('/api/inventory', {
+    method: 'POST', headers: authHeaders(warehouse),
+    body: JSON.stringify({ material_type: 'straight', diameter: '10', catalog_item_id: catalogItemId, weight_received: 20 }),
+  });
+  assert.equal(specException.status, 200);
+  const specExceptionBody = await specException.json();
+  assert.equal(specExceptionBody.verification_status, 'pending_verification');
+  assert.equal(specExceptionBody.spec_exception, true);
+
+  const editedToNewDiameter = await request(`/api/inventory/${savedBent.id}`, {
+    method: 'PATCH', headers: authHeaders(warehouse),
+    body: JSON.stringify({ diameter: '5.25' }),
+  });
+  assert.equal(editedToNewDiameter.status, 200);
+  const editedToNewDiameterBody = await editedToNewDiameter.json();
+  assert.equal(editedToNewDiameterBody.verification_status, 'pending_verification');
+  assert.equal(db.prepare('SELECT verification_status FROM raw_material WHERE id=?').get(savedBent.id).verification_status, 'pending_verification');
 
   const reviewPayload = {
     supplier_name: 'Smoke Supplier',
