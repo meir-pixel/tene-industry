@@ -66,9 +66,9 @@ function createDraft(db, input = {}) {
       input.supplier_id ?? input.supplierId ?? null, input.supplier_name ?? input.supplierName ?? null,
       input.delivery_note_num ?? input.deliveryNoteNum ?? null, input.notes ?? null, input.created_by ?? input.createdBy ?? null, idempotencyKey, payloadFingerprint);
     const insert = db.prepare(`INSERT INTO pending_raw_material_receipt_lines_v2
-      (receipt_id,source_line_ref,material_type,diameter,lot_number,certificate_num,grade,standard_code,nominal_length_mm,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-    for (const line of lines) insert.run(result.lastInsertRowid, line.sourceLineRef, line.materialType, line.diameter.numeric, line.lotNumber, line.certificateNum, line.grade, line.standardCode, line.nominalLengthMm, line.weightReceived, line.purchasePrice, line.warehouseLoc, line.shape.name, line.shape.segments, line.shape.source, line.shape.confidence, line.notes);
+      (receipt_id,source_line_ref,material_type,diameter,lot_number,certificate_num,grade,standard_code,nominal_length_mm,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes,catalog_item_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    for (const line of lines) insert.run(result.lastInsertRowid, line.sourceLineRef, line.materialType, line.diameter.numeric, line.lotNumber, line.certificateNum, line.grade, line.standardCode, line.nominalLengthMm, line.weightReceived, line.purchasePrice, line.warehouseLoc, line.shape.name, line.shape.segments, line.shape.source, line.shape.confidence, line.notes, line.catalogItemId || null);
     db.prepare('INSERT INTO pending_raw_material_receipt_events_v2 (receipt_id,event_type,idempotency_key,payload_fingerprint,actor_id,details_json) VALUES (?,?,?,?,?,?)')
       .run(result.lastInsertRowid, 'created', `create:${idempotencyKey}`, payloadFingerprint, input.created_by ?? input.createdBy ?? null, JSON.stringify({ source_type: sourceType }));
     return getReceipt(db, result.lastInsertRowid);
@@ -81,8 +81,8 @@ function updateDraft(db, input = {}) {
     const receipt = db.prepare("SELECT * FROM pending_raw_material_receipts_v2 WHERE id=? AND status='draft'").get(receiptId); if (!receipt) fail('draft_receipt_required');
     db.prepare('DELETE FROM pending_raw_material_receipt_lines_v2 WHERE receipt_id=?').run(receiptId);
     const key = `update:${receiptId}:${crypto.randomUUID()}`;
-    const insert = db.prepare(`INSERT INTO pending_raw_material_receipt_lines_v2 (receipt_id,source_line_ref,material_type,diameter,lot_number,certificate_num,grade,standard_code,nominal_length_mm,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-    for (const line of lines) insert.run(receiptId,line.sourceLineRef,line.materialType,line.diameter.numeric,line.lotNumber,line.certificateNum,line.grade,line.standardCode,line.nominalLengthMm,line.weightReceived,line.purchasePrice,line.warehouseLoc,line.shape.name,line.shape.segments,line.shape.source,line.shape.confidence,line.notes);
+    const insert = db.prepare(`INSERT INTO pending_raw_material_receipt_lines_v2 (receipt_id,source_line_ref,material_type,diameter,lot_number,certificate_num,grade,standard_code,nominal_length_mm,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes,catalog_item_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    for (const line of lines) insert.run(receiptId,line.sourceLineRef,line.materialType,line.diameter.numeric,line.lotNumber,line.certificateNum,line.grade,line.standardCode,line.nominalLengthMm,line.weightReceived,line.purchasePrice,line.warehouseLoc,line.shape.name,line.shape.segments,line.shape.source,line.shape.confidence,line.notes,line.catalogItemId || null);
     db.prepare('UPDATE pending_raw_material_receipts_v2 SET notes=COALESCE(?,notes),updated_at=CURRENT_TIMESTAMP WHERE id=?').run(input.notes ?? null, receiptId);
     db.prepare('INSERT INTO pending_raw_material_receipt_events_v2 (receipt_id,event_type,idempotency_key,payload_fingerprint,actor_id,details_json) VALUES (?,?,?,?,?,?)').run(receiptId,'updated',key,fingerprint({ lines }),input.updated_by ?? input.updatedBy ?? null,JSON.stringify({ line_count: lines.length }));
     return getReceipt(db, receiptId);
@@ -92,23 +92,29 @@ function updateDraft(db, input = {}) {
 function decideReceipt(db, input = {}, status) {
   const id = Number(input.receipt_id ?? input.receiptId); const key = String(input.idempotency_key ?? input.idempotencyKey ?? '').trim(); if (!key) fail('idempotency_key_required');
   const tx = db.transaction(() => {
+    const eventPayload = { action: status, receipt_id: id, confirm_duplicate: input.confirm_duplicate === true || input.confirmDuplicate === true, notes: input.notes ?? null };
+    const eventFingerprint = fingerprint(eventPayload);
     const replay = db.prepare('SELECT * FROM pending_raw_material_receipt_events_v2 WHERE idempotency_key=?').get(key);
-    if (replay) return getReceipt(db, replay.receipt_id);
+    if (replay) { if (replay.payload_fingerprint !== eventFingerprint) fail('idempotency_key_conflict'); return getReceipt(db, replay.receipt_id); }
     const receipt = db.prepare("SELECT * FROM pending_raw_material_receipts_v2 WHERE id=? AND status='draft'").get(id); if (!receipt) fail('draft_receipt_required');
     const lines = db.prepare('SELECT * FROM pending_raw_material_receipt_lines_v2 WHERE receipt_id=? ORDER BY id').all(id);
     const warning = duplicateWarning(db, receipt, lines); if (status === 'approved' && warning.suspected && input.confirm_duplicate !== true && input.confirmDuplicate !== true) fail('duplicate_confirmation_required');
     if (status === 'approved') {
-      const insert = db.prepare(`INSERT INTO raw_material (material_type,diameter,verification_status,supplier_id,lot_number,certificate_num,grade,standard_code,nominal_length_mm,received_date,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-      const link = db.prepare('UPDATE pending_raw_material_receipt_lines_v2 SET created_raw_material_id=? WHERE id=?');
+      const insert = db.prepare(`INSERT INTO raw_material (material_type,diameter,catalog_item_id,verification_status,supplier_id,lot_number,certificate_num,grade,standard_code,nominal_length_mm,spec_exception,received_date,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      const link = db.prepare('UPDATE pending_raw_material_receipt_lines_v2 SET created_raw_material_id=?,spec_snapshot_json=?,spec_exceptions_json=? WHERE id=?');
       for (const line of lines) {
         const diameter = normalizeDiameter(line.diameter); const catalog = diameter && db.prepare("SELECT status FROM diameter_catalog WHERE diameter_key=?").get(diameter.key);
-        const verification = catalog?.status === 'active' ? 'approved' : 'pending_verification';
-        const lot = insert.run(line.material_type, line.diameter, verification, receipt.supplier_id, line.lot_number, line.certificate_num, line.grade, line.standard_code, line.nominal_length_mm, new Date().toISOString().slice(0,10), line.weight_received, line.purchase_price, line.warehouse_loc, line.bending_shape_name, line.bending_shape_segments, line.bending_shape_source, line.bending_shape_confidence, line.notes);
-        link.run(lot.lastInsertRowid, line.id);
+        const item = line.catalog_item_id ? db.prepare("SELECT * FROM catalog_items WHERE id=? AND item_kind='raw_material' AND active=1").get(line.catalog_item_id) : null;
+        const exceptions = []; if (!catalog || catalog.status !== 'active') exceptions.push('diameter_not_active');
+        if (line.catalog_item_id && !item) exceptions.push('catalog_item_not_found');
+        if (item) for (const [field, actual] of [['diameter_key', diameter.key],['supply_form',line.material_type],['steel_grade',line.grade],['standard_code',line.standard_code],['nominal_length_mm',line.nominal_length_mm]]) if (item[field] != null && actual != null && String(item[field]) !== String(actual)) exceptions.push(`catalog_${field}_mismatch`);
+        const verification = exceptions.length ? 'pending_verification' : 'approved'; const snapshot = item ? { id:item.id,sku:item.sku,diameter_key:item.diameter_key,supply_form:item.supply_form,steel_grade:item.steel_grade,standard_code:item.standard_code,nominal_length_mm:item.nominal_length_mm } : null;
+        const lot = insert.run(line.material_type, line.diameter, item?.id || null, verification, receipt.supplier_id, line.lot_number, line.certificate_num, line.grade, line.standard_code, line.nominal_length_mm, exceptions.length ? 1 : 0, new Date().toISOString().slice(0,10), line.weight_received, line.purchase_price, line.warehouse_loc, line.bending_shape_name, line.bending_shape_segments, line.bending_shape_source, line.bending_shape_confidence, line.notes);
+        link.run(lot.lastInsertRowid, JSON.stringify(snapshot), JSON.stringify(exceptions), line.id);
       }
     }
     db.prepare('UPDATE pending_raw_material_receipts_v2 SET status=?,decided_by=?,decision_notes=?,decided_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(status,input.decided_by ?? input.decidedBy ?? null,input.notes ?? null,id);
-    db.prepare('INSERT INTO pending_raw_material_receipt_events_v2 (receipt_id,event_type,idempotency_key,payload_fingerprint,actor_id,details_json) VALUES (?,?,?,?,?,?)').run(id,status,key,fingerprint({status,id,confirm_duplicate:input.confirm_duplicate===true}),input.decided_by ?? input.decidedBy ?? null,JSON.stringify({ duplicate_warning: warning }));
+    db.prepare('INSERT INTO pending_raw_material_receipt_events_v2 (receipt_id,event_type,idempotency_key,payload_fingerprint,actor_id,details_json) VALUES (?,?,?,?,?,?)').run(id,status,key,eventFingerprint,input.decided_by ?? input.decidedBy ?? null,JSON.stringify({ duplicate_warning: warning }));
     return getReceipt(db,id);
   }); return tx.immediate();
 }

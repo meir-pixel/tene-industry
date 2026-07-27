@@ -146,6 +146,13 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     body: JSON.stringify(bentInventory),
   });
   assert.equal(createBent.status, 200);
+  const createBentBody = await createBent.json();
+  assert.equal(createBentBody.status, 'draft');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM raw_material WHERE material_type=?').get('bent').n, 0);
+  const approveBent = await request(`/api/inventory/pending-receipts/${createBentBody.receipt_id}/approve`, {
+    method: 'POST', headers: authHeaders(admin), body: JSON.stringify({ idempotency_key: 'approve-bent-receipt' }),
+  });
+  assert.equal(approveBent.status, 200);
   const bentRows = await (await request('/api/inventory', { headers: authHeaders(admin) })).json();
   const savedBent = bentRows.find(row => row.material_type === 'bent');
   assert.ok(savedBent);
@@ -158,17 +165,22 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     body: JSON.stringify({ material_type: 'coil', diameter: '5.5', diameter_input: 'Ø5.5', weight_received: 30 }),
   });
   assert.equal(pendingNewDiameter.status, 200);
-  const pendingNewDiameterBody = await pendingNewDiameter.json();
-  assert.equal(pendingNewDiameterBody.verification_status, 'pending_verification');
+  const pendingNewDiameterReceipt = await pendingNewDiameter.json();
+  const approveNewDiameterReceipt = await request(`/api/inventory/pending-receipts/${pendingNewDiameterReceipt.receipt_id}/approve`, {
+    method: 'POST', headers: authHeaders(manager), body: JSON.stringify({ idempotency_key: 'approve-new-diameter-receipt' }),
+  });
+  assert.equal(approveNewDiameterReceipt.status, 200);
+  const pendingNewDiameterBody = (await approveNewDiameterReceipt.json()).lines[0];
+  assert.equal(db.prepare('SELECT verification_status FROM raw_material WHERE id=?').get(pendingNewDiameterBody.created_raw_material_id).verification_status, 'pending_verification');
   assert.equal(db.prepare('SELECT status FROM diameter_catalog WHERE diameter_key=?').get('5.5').status, 'pending_approval');
   const visibleBeforeApproval = await (await request('/api/inventory', { headers: authHeaders(admin) })).json();
-  assert.ok(!visibleBeforeApproval.some(row => row.id === pendingNewDiameterBody.id));
+  assert.ok(!visibleBeforeApproval.some(row => row.id === pendingNewDiameterBody.created_raw_material_id));
 
-  const approvePendingDiameter = await request(`/api/inventory/${pendingNewDiameterBody.id}/approve-verification`, {
+  const approvePendingDiameter = await request(`/api/inventory/${pendingNewDiameterBody.created_raw_material_id}/approve-verification`, {
     method: 'POST', headers: authHeaders(manager), body: JSON.stringify({}),
   });
   assert.equal(approvePendingDiameter.status, 200);
-  assert.equal(db.prepare('SELECT verification_status FROM raw_material WHERE id=?').get(pendingNewDiameterBody.id).verification_status, 'approved');
+  assert.equal(db.prepare('SELECT verification_status FROM raw_material WHERE id=?').get(pendingNewDiameterBody.created_raw_material_id).verification_status, 'approved');
   assert.equal(db.prepare('SELECT status FROM diameter_catalog WHERE diameter_key=?').get('5.5').status, 'active');
 
   db.prepare("INSERT INTO diameter_catalog (diameter_key,diameter_display,status,source) VALUES ('34','Ø34','inactive','test')").run();
@@ -177,8 +189,12 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     body: JSON.stringify({ material_type: 'coil', diameter: '34', reactivate_diameter: true, weight_received: 10 }),
   });
   assert.equal(reactivateDiameter.status, 200);
-  assert.equal((await reactivateDiameter.json()).verification_status, 'approved');
+  const reactivateReceipt = await reactivateDiameter.json();
   assert.equal(db.prepare('SELECT status FROM diameter_catalog WHERE diameter_key=?').get('34').status, 'active');
+  const approveReactivated = await request(`/api/inventory/pending-receipts/${reactivateReceipt.receipt_id}/approve`, {
+    method: 'POST', headers: authHeaders(manager), body: JSON.stringify({ idempotency_key: 'approve-reactivated-receipt' }),
+  });
+  assert.equal(approveReactivated.status, 200);
 
   const invalidCatalogItem = await request('/api/inventory/catalog-items', {
     method: 'POST', headers: authHeaders(manager),
@@ -197,9 +213,15 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     body: JSON.stringify({ material_type: 'straight', diameter: '10', catalog_item_id: catalogItemId, weight_received: 20 }),
   });
   assert.equal(specException.status, 200);
-  const specExceptionBody = await specException.json();
-  assert.equal(specExceptionBody.verification_status, 'pending_verification');
-  assert.equal(specExceptionBody.spec_exception, true);
+  const specExceptionReceipt = await specException.json();
+  const approveSpecException = await request(`/api/inventory/pending-receipts/${specExceptionReceipt.receipt_id}/approve`, {
+    method: 'POST', headers: authHeaders(manager), body: JSON.stringify({ idempotency_key: 'approve-spec-exception-receipt' }),
+  });
+  assert.equal(approveSpecException.status, 200);
+  const specExceptionBody = (await approveSpecException.json()).lines[0];
+  const specExceptionLot = db.prepare('SELECT * FROM raw_material WHERE id=?').get(specExceptionBody.created_raw_material_id);
+  assert.equal(specExceptionLot.verification_status, 'pending_verification');
+  assert.equal(specExceptionLot.spec_exception, 1);
 
   const editedToNewDiameter = await request(`/api/inventory/${savedBent.id}`, {
     method: 'PATCH', headers: authHeaders(warehouse),
@@ -210,6 +232,7 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   assert.equal(editedToNewDiameterBody.verification_status, 'pending_verification');
   assert.equal(db.prepare('SELECT verification_status FROM raw_material WHERE id=?').get(savedBent.id).verification_status, 'pending_verification');
 
+  db.prepare("INSERT OR IGNORE INTO diameter_catalog (diameter_key,diameter_display,status,source) VALUES ('12','Ø12','active','test')").run();
   const reviewPayload = {
     supplier_name: 'Smoke Supplier',
     delivery_note_num: 'DN-SMOKE-1',
@@ -242,10 +265,45 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   });
   assert.equal(approveReview.status, 200);
   const reviewResult = await approveReview.json();
-  assert.equal(reviewResult.raw_material_ids.length, 1);
-  const approvedMaterial = db.prepare('SELECT * FROM raw_material WHERE id=?').get(reviewResult.raw_material_ids[0]);
+  assert.equal(reviewResult.raw_material_ids.length, 0);
+  assert.ok(reviewResult.receipt_id);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM raw_material WHERE lot_number=?').get('HEAT-SMOKE').n, 0);
+  const approveOcrReceipt = await request(`/api/inventory/pending-receipts/${reviewResult.receipt_id}/approve`, {
+    method: 'POST', headers: authHeaders(admin), body: JSON.stringify({ idempotency_key: 'approve-ocr-receipt' }),
+  });
+  assert.equal(approveOcrReceipt.status, 200);
+  const approvedMaterialId = (await approveOcrReceipt.json()).lines[0].created_raw_material_id;
+  const approvedMaterial = db.prepare('SELECT * FROM raw_material WHERE id=?').get(approvedMaterialId);
   assert.equal(approvedMaterial.lot_number, 'HEAT-SMOKE');
   assert.equal(approvedMaterial.weight_received, 250);
+
+  const poCreate = await request('/api/purchase-orders', {
+    method: 'POST', headers: authHeaders(manager),
+    body: JSON.stringify({ diameter: 12, material_type: 'coil', quantity_ton: 0.01, price_per_ton: 100, status: 'pending' }),
+  });
+  assert.equal(poCreate.status, 200);
+  const po = await poCreate.json();
+  const lotsBeforePoReceipt = db.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n;
+  const poReceive = await request(`/api/purchase-orders/${po.id}/receive`, {
+    method: 'PATCH', headers: authHeaders(warehouse),
+    body: JSON.stringify({ received_weight: 10, idempotency_key: 'smoke-po-receive' }),
+  });
+  assert.equal(poReceive.status, 200);
+  const poReceiveBody = await poReceive.json();
+  assert.equal(poReceiveBody.status, 'draft');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM raw_material').get().n, lotsBeforePoReceipt);
+  assert.equal(db.prepare('SELECT status FROM purchase_orders WHERE id=?').get(po.id).status, 'הגיע');
+
+  const invalidPoCreate = await request('/api/purchase-orders', {
+    method: 'POST', headers: authHeaders(manager), body: JSON.stringify({ material_type: 'coil', quantity_ton: 0.01, status: 'pending' }),
+  });
+  assert.equal(invalidPoCreate.status, 200);
+  const invalidPo = await invalidPoCreate.json();
+  const invalidPoReceive = await request(`/api/purchase-orders/${invalidPo.id}/receive`, {
+    method: 'PATCH', headers: authHeaders(warehouse), body: JSON.stringify({ received_weight: 10, idempotency_key: 'smoke-po-invalid' }),
+  });
+  assert.equal(invalidPoReceive.status, 400);
+  assert.equal(db.prepare('SELECT status FROM purchase_orders WHERE id=?').get(invalidPo.id).status, 'pending');
 
   const stockOrder = await request('/api/orders', {
     method: 'POST',
@@ -258,10 +316,10 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
   });
   assert.equal(stockOrder.status, 200);
   const stockOrderBody = await stockOrder.json();
-  const usedAfterOrder = db.prepare('SELECT weight_used FROM raw_material WHERE id=?').get(reviewResult.raw_material_ids[0]).weight_used;
+  const usedAfterOrder = db.prepare('SELECT weight_used FROM raw_material WHERE id=?').get(approvedMaterialId).weight_used;
   assert.ok(usedAfterOrder > 0, 'order should consume matching inventory by default');
   const usageRow = db.prepare('SELECT * FROM raw_material_usage WHERE order_id=?').get(stockOrderBody.orderId);
-  assert.equal(usageRow.raw_material_id, reviewResult.raw_material_ids[0]);
+  assert.equal(usageRow.raw_material_id, approvedMaterialId);
 
   const shortageOrder = await request('/api/orders', {
     method: 'POST',

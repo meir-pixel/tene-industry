@@ -36,3 +36,19 @@ test('idempotent creation replay is safe and conflicting payload is rejected', (
   assert.equal(receipts.createDraft(value, { source_type: 'manual', idempotency_key: 'same', lines: [line()] }).id, first.id);
   assert.throws(() => receipts.createDraft(value, { source_type: 'manual', idempotency_key: 'same', lines: [line({ weight_received: 99 })] }), /idempotency_key_conflict/); value.close();
 });
+test('approval idempotency rejects a conflicting replay', () => {
+  const value = db(); value.prepare("INSERT INTO diameter_catalog (diameter_key,diameter_display,status) VALUES ('12','Ø12','active')").run();
+  const draft = receipts.createDraft(value, { source_type: 'manual', idempotency_key: 'draft-approval', lines: [line()] });
+  receipts.approveReceipt(value, { receipt_id: draft.id, idempotency_key: 'approve-once', decided_by: 1 });
+  assert.equal(receipts.approveReceipt(value, { receipt_id: draft.id, idempotency_key: 'approve-once', decided_by: 1 }).status, 'approved');
+  assert.throws(() => receipts.approveReceipt(value, { receipt_id: draft.id, idempotency_key: 'approve-once', confirm_duplicate: true, decided_by: 1 }), /idempotency_key_conflict/); value.close();
+});
+
+test('decision idempotency binds the action and decision payload', () => {
+  const value = db();
+  const draft = receipts.createDraft(value, { source_type: 'manual', idempotency_key: 'decision-draft', lines: [line()] });
+  assert.equal(receipts.rejectReceipt(value, { receipt_id: draft.id, idempotency_key: 'decision-key', notes: 'certificate missing' }).status, 'rejected');
+  assert.throws(() => receipts.rejectReceipt(value, { receipt_id: draft.id, idempotency_key: 'decision-key', notes: 'changed note' }), /idempotency_key_conflict/);
+  assert.throws(() => receipts.cancelDraft(value, { receipt_id: draft.id, idempotency_key: 'decision-key', notes: 'certificate missing' }), /idempotency_key_conflict/);
+  value.close();
+});

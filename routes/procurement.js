@@ -103,22 +103,21 @@ module.exports = function createProcurementRouter(deps) {
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id=?').get(req.params.id);
     if (!po) return res.status(404).json({ error: 'not found' });
     const actualWeight = received_weight || (po.quantity_ton * 1000);
-    db.prepare(`
-      UPDATE purchase_orders
-      SET status='הגיע', heat_number=?, certificate_num=?, received_weight=?, received_at=CURRENT_TIMESTAMP
-      WHERE id=?
-    `).run(heat_number || '', certificate_num || '', actualWeight, req.params.id);
     let receipt = null;
-    if (po.supplier_id && po.diameter) {
+    const receive = db.transaction(() => {
       receipt = pendingReceipts.createDraft(db, {
         source_type: 'purchase_order', source_ref: `purchase_order:${po.id}`, supplier_id: po.supplier_id,
         delivery_note_num: req.body.delivery_note_num || `PO-${po.po_num}`, created_by: req.auth?.sub,
-        idempotency_key: `purchase-order-receive:${po.id}`,
-        lines: [{ source_line_ref: `po-${po.id}-1`, material_type: po.material_type || 'coil', diameter: po.diameter,
-          lot_number: heat_number || null, certificate_num: certificate_num || null, weight_received: actualWeight,
-          purchase_price: po.price_per_ton || 0, notes: notes || null }],
+        idempotency_key: req.body.idempotency_key || req.body.idempotencyKey || `purchase-order-receive:${po.id}`,
+        lines: [{ source_line_ref: `po-${po.id}-1`, material_type: po.material_type || 'coil', diameter: po.diameter, lot_number: heat_number || null, certificate_num: certificate_num || null, weight_received: actualWeight, purchase_price: po.price_per_ton || 0, notes: notes || null }],
       });
-    }
+      db.prepare(`
+        UPDATE purchase_orders
+        SET status='הגיע', heat_number=?, certificate_num=?, received_weight=?, received_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(heat_number || '', certificate_num || '', actualWeight, req.params.id);
+    });
+    try { receive.immediate(); } catch (error) { return res.status(400).json({ error: error.code || error.message }); }
     res.json({ ok: true, receipt_id: receipt?.id || null, status: receipt?.status || null });
   });
 

@@ -200,6 +200,9 @@ function ensurePendingRawMaterialReceiptV2Schema(db) {
       bending_shape_source TEXT,
       bending_shape_confidence REAL,
       notes TEXT,
+      catalog_item_id INTEGER,
+      spec_snapshot_json TEXT,
+      spec_exceptions_json TEXT,
       created_raw_material_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (receipt_id) REFERENCES pending_raw_material_receipts_v2(id),
@@ -218,6 +221,9 @@ function ensurePendingRawMaterialReceiptV2Schema(db) {
       FOREIGN KEY (receipt_id) REFERENCES pending_raw_material_receipts_v2(id)
     );
   `);
+  ensureColumn(db, 'pending_raw_material_receipt_lines_v2', 'catalog_item_id', 'INTEGER');
+  ensureColumn(db, 'pending_raw_material_receipt_lines_v2', 'spec_snapshot_json', 'TEXT');
+  ensureColumn(db, 'pending_raw_material_receipt_lines_v2', 'spec_exceptions_json', 'TEXT');
 }
 
 function ensureMaterialRequirementV2Schema(db) {

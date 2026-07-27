@@ -1213,7 +1213,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request('/api/inventory/forecast')).status, 401);
     assert.equal((await request('/api/inventory/forecast', { headers: authHeaders(office) })).status, 200);
     assert.equal((await request('/api/inventory', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
-    assert.equal((await request('/api/inventory', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 400);
+    assert.equal((await request('/api/inventory', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 403);
 
     assert.equal((await request('/api/packages')).status, 401);
     assert.equal((await request('/api/packages', { headers: authHeaders(production) })).status, 403);
