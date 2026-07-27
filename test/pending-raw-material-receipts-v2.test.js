@@ -21,16 +21,20 @@ function approveSpec(value, overrides = {}) {
 }
 function assertLotBlockedFromB2(value, lot) {
   const id = allocationSequence++;
-  const beforeWeights = {
-    weight_received: lot.weight_received,
-    weight_used: lot.weight_used,
-    weight_scrapped: lot.weight_scrapped
+  const before = value.prepare('SELECT verification_status,active,weight_received,weight_used,weight_scrapped FROM raw_material WHERE id=?').get(lot.id);
+  const beforeState = {
+    weight_received: before.weight_received,
+    weight_used: before.weight_used,
+    weight_scrapped: before.weight_scrapped,
+    active: before.active,
+    verification_status: before.verification_status
   };
   value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,2)').run(id, `B4-BLOCKED-${id}`);
   value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,1)').run(id, id, lot.diameter);
   value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source,source_revision) VALUES (?,?,?,?,2,?,?,1,'unknown','open','manual',?)").run(id, `b4-blocked-${id}`, id, id, lot.diameter, lot.material_type, `b4-blocked-${id}`);
 
-  assert.equal(lot.active, 1);
+  assert.equal(beforeState.active, 1);
+  assert.equal(beforeState.verification_status, 'pending_verification');
   assert.throws(() => allocation.confirmAllocationPlan(value, {
     material_requirement_id: id,
     idempotency_key: `blocked-${id}`,
@@ -39,11 +43,11 @@ function assertLotBlockedFromB2(value, lot) {
   assert.equal(value.prepare('SELECT COUNT(*) AS n FROM allocation_plans_v2 WHERE material_requirement_id=?').get(id).n, 0);
   assert.equal(value.prepare('SELECT COUNT(*) AS n FROM allocation_plan_lines_v2').get().n, 0);
   const after = value.prepare('SELECT verification_status,active,weight_received,weight_used,weight_scrapped FROM raw_material WHERE id=?').get(lot.id);
-  assert.equal(after.verification_status, 'pending_verification');
-  assert.equal(after.active, 1);
-  assert.equal(after.weight_received, beforeWeights.weight_received);
-  assert.equal(after.weight_used, beforeWeights.weight_used);
-  assert.equal(after.weight_scrapped, beforeWeights.weight_scrapped);
+  assert.equal(after.weight_received, beforeState.weight_received);
+  assert.equal(after.weight_used, beforeState.weight_used);
+  assert.equal(after.weight_scrapped, beforeState.weight_scrapped);
+  assert.equal(after.active, beforeState.active);
+  assert.equal(after.verification_status, beforeState.verification_status);
 }
 function assertSpec(value, overrides, expected, status = 'pending_verification') {
   const { receiptLine, lot } = approveSpec(value, overrides);
