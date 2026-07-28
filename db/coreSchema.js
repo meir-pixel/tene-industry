@@ -158,6 +158,74 @@ function ensureMaterialConsumptionV2Schema(db) {
   `);
 }
 
+function ensurePendingRawMaterialReceiptV2Schema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pending_raw_material_receipts_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      receipt_uid TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved','rejected','cancelled')),
+      source_type TEXT NOT NULL CHECK (source_type IN ('manual','ocr','purchase_order')),
+      source_ref TEXT,
+      supplier_id INTEGER,
+      supplier_name TEXT,
+      delivery_note_num TEXT,
+      notes TEXT,
+      created_by INTEGER,
+      decided_by INTEGER,
+      decision_notes TEXT,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      decided_at DATETIME,
+      FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_pending_receipts_v2_status ON pending_raw_material_receipts_v2(status, id);
+    CREATE TABLE IF NOT EXISTS pending_raw_material_receipt_lines_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      receipt_id INTEGER NOT NULL,
+      source_line_ref TEXT,
+      material_type TEXT NOT NULL CHECK (material_type IN ('coil','straight','bent')),
+      diameter NUMERIC NOT NULL,
+      lot_number TEXT,
+      certificate_num TEXT,
+      grade TEXT DEFAULT 'B500B',
+      standard_code TEXT,
+      nominal_length_mm INTEGER,
+      weight_received NUMERIC NOT NULL CHECK (typeof(weight_received) IN ('integer','real') AND weight_received > 0),
+      purchase_price NUMERIC DEFAULT 0,
+      warehouse_loc TEXT,
+      bending_shape_name TEXT,
+      bending_shape_segments TEXT,
+      bending_shape_source TEXT,
+      bending_shape_confidence REAL,
+      notes TEXT,
+      catalog_item_id INTEGER,
+      spec_snapshot_json TEXT,
+      spec_exceptions_json TEXT,
+      created_raw_material_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (receipt_id) REFERENCES pending_raw_material_receipts_v2(id),
+      FOREIGN KEY (created_raw_material_id) REFERENCES raw_material(id),
+      UNIQUE(receipt_id, source_line_ref)
+    );
+    CREATE TABLE IF NOT EXISTS pending_raw_material_receipt_events_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      receipt_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL CHECK (event_type IN ('created','updated','approved','rejected','cancelled')),
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      actor_id INTEGER,
+      details_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (receipt_id) REFERENCES pending_raw_material_receipts_v2(id)
+    );
+  `);
+  ensureColumn(db, 'pending_raw_material_receipt_lines_v2', 'catalog_item_id', 'INTEGER');
+  ensureColumn(db, 'pending_raw_material_receipt_lines_v2', 'spec_snapshot_json', 'TEXT');
+  ensureColumn(db, 'pending_raw_material_receipt_lines_v2', 'spec_exceptions_json', 'TEXT');
+}
+
 function ensureMaterialRequirementV2Schema(db) {
   ensureColumn(
     db,
@@ -1212,6 +1280,7 @@ function ensureCoreSchema(db) {
   ensureMaterialRequirementV2Schema(db);
   ensureMaterialAllocationPlanningV2Schema(db);
   ensureMaterialConsumptionV2Schema(db);
+  ensurePendingRawMaterialReceiptV2Schema(db);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)
@@ -1228,4 +1297,5 @@ module.exports = {
   ensureMaterialRequirementV2Schema,
   ensureMaterialAllocationPlanningV2Schema,
   ensureMaterialConsumptionV2Schema,
+  ensurePendingRawMaterialReceiptV2Schema,
 };

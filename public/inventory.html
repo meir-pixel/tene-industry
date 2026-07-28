@@ -666,6 +666,11 @@ function renderReceiptReview(row) {
 async function loadReceiptReviews() {
   const box = document.getElementById('receiptReviewList');
   box.innerHTML = '<div class="muted">טוען תעודות...</div>';
+  const pending = await fetch('/api/inventory/pending-receipts?status=draft').then(r=>r.ok ? r.json() : []).catch(()=>[]);
+  if (pending.length) {
+    box.innerHTML = pending.map(r => `<article class="receipt-card"><div class="card-title">${escH(r.supplier_name || 'ללא ספק')} · ${escH(r.delivery_note_num || 'ללא תעודה')}</div><div class="muted">${escH(r.source_type)} · ${escH(r.status)} · ${r.lines.length} שורות${r.duplicate_warning?.suspected ? ' · אזהרת כפילות' : ''}</div></article>`).join('');
+    return;
+  }
   receiptReviews = await fetch('/api/inventory/receipt-reviews?status=pending_review').then(r=>r.ok ? r.json() : []).catch(()=>[]);
   box.innerHTML = receiptReviews.length ? receiptReviews.map(renderReceiptReview).join('') : '<div class="muted">אין תעודות ממתינות לאישור.</div>';
   if (receiptReviews[0]) showReceiptSource(receiptReviews[0].id);

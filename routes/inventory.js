@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const crypto = require('node:crypto');
 
 const {
   MATERIAL_TYPES,
@@ -7,6 +8,7 @@ const {
   parseReceiptReviewPayload,
 } = require('../services/inventory');
 const { normalizeDiameter } = require('../services/materialCatalog');
+const receipts = require('../services/pendingRawMaterialReceiptV2');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/inventory missing dependency: ${name}`);
@@ -190,37 +192,26 @@ module.exports = function createInventoryRouter(deps) {
     if (!review) return res.status(404).json({ error: 'not found' });
     if (review.status !== 'pending_review') return res.status(409).json({ error: 'review is not pending', status: review.status });
     const parsed = parseReceiptReviewPayload(JSON.parse(review.parsed_data || '{}'));
-    const ids = [];
-    const insert = db.prepare(`
-      INSERT INTO raw_material
-        (material_type,diameter,supplier_id,lot_number,certificate_num,grade,received_date,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `);
+    let receipt = null;
     const tx = db.transaction(() => {
-      for (const rawItem of parsed.items) {
-        const item = normalizeReceiptReviewItem({ ...rawItem, supplier_id: rawItem.supplier_id || review.supplier_id });
-        if (!item.diameter || !item.weight_received) throw new Error('diameter and weight are required for every approved receipt row');
-        if (item.material_type === 'bent' && (!item.bending_shape_name || !item.bending_shape_segments)) {
-          throw new Error('bending shape is required for bent material receipt rows');
-        }
-        const diameter = resolveDiameterCatalog(item.diameter, req);
-        const result = insert.run(item.material_type, diameter.numeric, item.supplier_id, item.lot_number, item.certificate_num, item.grade,
-          item.received_date || parsed.received_date || new Date().toISOString().slice(0, 10), item.weight_received, item.purchase_price,
-          item.warehouse_loc, item.bending_shape_name, item.bending_shape_segments, item.bending_shape_source, item.bending_shape_confidence,
-          item.notes || parsed.notes || null);
-        ids.push(result.lastInsertRowid);
-      }
+      receipt = receipts.createDraft(db, {
+        source_type: 'ocr', source_ref: `receipt_review:${review.id}`, supplier_id: review.supplier_id,
+        supplier_name: review.supplier_name, delivery_note_num: review.delivery_note_num,
+        notes: req.body?.notes || parsed.notes, created_by: req.auth?.sub,
+        idempotency_key: req.body?.idempotency_key || req.body?.idempotencyKey || `receipt-review:${review.id}`,
+        lines: parsed.items.map((item, index) => ({ ...item, source_line_ref: `review-${review.id}-${index + 1}`, weight_received: item.weight_received ?? item.weight_kg })),
+      });
       db.prepare(`
         UPDATE inventory_receipt_reviews
         SET status='approved', raw_material_ids=?, reviewed_by=?, review_notes=?, reviewed_at=CURRENT_TIMESTAMP
         WHERE id=?
-      `).run(JSON.stringify(ids), req.auth?.sub || null, req.body?.notes || null, review.id);
+      `).run(JSON.stringify([]), req.auth?.sub || null, req.body?.notes || null, review.id);
     });
     try {
       tx();
       auditLog('inventory_receipt_review', review.id, review.delivery_note_num, 'approve', 'status', 'pending_review', 'approved', req.body?.notes || null, req.auth?.sub || null, req.auth?.display_name || null);
-      wsBroadcast('inventory_receipt_review_approved', { id: review.id, raw_material_ids: ids });
-      res.json({ success: true, raw_material_ids: ids });
+      wsBroadcast('inventory_receipt_review_approved', { id: review.id, receipt_id: receipt.id });
+      res.json({ success: true, raw_material_ids: [], receipt_id: receipt.id, status: receipt.status });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
@@ -239,34 +230,47 @@ module.exports = function createInventoryRouter(deps) {
     res.json({ success: true });
   });
 
+  router.get('/inventory/pending-receipts', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
+    res.json(receipts.listReceipts(db, { status: req.query.status || 'draft' }));
+  });
+  router.get('/inventory/pending-receipts/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
+    const receipt = receipts.getReceipt(db, req.params.id); return receipt ? res.json(receipt) : res.status(404).json({ error: 'pending_receipt_not_found' });
+  });
+  router.post('/inventory/pending-receipts', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    try { res.status(201).json(receipts.createDraft(db, { ...req.body, source_type: req.body?.source_type || 'manual', created_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+  router.patch('/inventory/pending-receipts/:id', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    try { res.json(receipts.updateDraft(db, { ...req.body, receipt_id: req.params.id, updated_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+  router.post('/inventory/pending-receipts/:id/cancel', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    try { res.json(receipts.cancelDraft(db, { ...req.body, receipt_id: req.params.id, decided_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+  router.post('/inventory/pending-receipts/:id/approve', requireAnyRole(['manager', 'admin']), (req, res) => {
+    try { res.json(receipts.approveReceipt(db, { ...req.body, receipt_id: req.params.id, decided_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+  router.post('/inventory/pending-receipts/:id/reject', requireAnyRole(['manager', 'admin']), (req, res) => {
+    try { res.json(receipts.rejectReceipt(db, { ...req.body, receipt_id: req.params.id, decided_by: req.auth?.sub })); }
+    catch (error) { res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
+  });
+
   router.post('/inventory', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
-    const f = req.body;
-    if (!f.diameter || !f.weight_received) return res.status(400).json({ error: 'קוטר ומשקל חובה' });
-    const materialType = MATERIAL_TYPES.has(f.material_type) ? f.material_type : 'coil';
-    const shape = bendingShapeColumns(f);
-    if (materialType === 'bent' && (!shape.name || !shape.segments)) {
-      return res.status(400).json({ error: 'צורת כיפוף חובה עבור חומר מסוג כיפוף' });
-    }
+    if (req.auth?.role === 'office') return res.status(403).json({ error: 'Forbidden' });
     try {
+      const f = req.body || {};
+      if (!f.diameter || !f.weight_received) return res.status(400).json({ error: 'diameter_and_weight_required' });
       const diameter = resolveDiameterCatalog(f.diameter_input ?? f.diameter, req, {
         approveNew: f.approve_new_diameter,
         reactivate: f.reactivate_diameter,
       });
-      const { catalogItem, specException } = resolveCatalogItem(f, materialType, diameter);
-      const verificationStatus = diameter.status === 'active' && !specException ? 'approved' : 'pending_verification';
-      const r = db.prepare(`INSERT INTO raw_material
-        (material_type,diameter,catalog_item_id,verification_status,supplier_id,lot_number,certificate_num,grade,standard_code,nominal_length_mm,spec_exception,received_date,weight_received,purchase_price,warehouse_loc,bending_shape_name,bending_shape_segments,bending_shape_source,bending_shape_confidence,notes)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(materialType, diameter.numeric, catalogItem?.id || null, verificationStatus, f.supplier_id || null,
-          f.lot_number || null, f.certificate_num || null, f.grade || 'B500B', f.standard_code ?? f.standardCode ?? null,
-          Number(f.nominal_length_mm ?? f.nominalLengthMm) || null, specException ? 1 : 0,
-          f.received_date || new Date().toISOString().split('T')[0], f.weight_received, f.purchase_price || 0,
-          f.warehouse_loc || null, shape.name, shape.segments, shape.source, shape.confidence, f.notes || null);
-      res.json({ id: r.lastInsertRowid, diameter: diameter.display, verification_status: verificationStatus,
-        catalog_action: diameter.catalogAction, spec_exception: specException });
-    } catch (err) {
-      res.status(err.statusCode || 400).json({ error: err.message || 'inventory_receipt_failed' });
-    }
+      const receipt = receipts.createDraft(db, { ...f, source_type: 'manual', created_by: req.auth?.sub,
+        idempotency_key: req.body?.idempotency_key || req.body?.idempotencyKey || `manual:${crypto.randomUUID()}`,
+        lines: f.lines || [{ ...f, source_line_ref: 'manual-1', diameter: diameter.numeric }] });
+      return res.status(200).json({ id: receipt.id, receipt_id: receipt.id, status: receipt.status, verification_status: 'pending_receipt', diameter: diameter.display, catalog_action: diameter.catalogAction });
+    } catch (error) { return res.status(error instanceof receipts.PendingReceiptError ? 409 : 400).json({ error: error.code || error.message }); }
   });
 
   router.patch('/inventory/:id', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
