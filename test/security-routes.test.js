@@ -1435,6 +1435,14 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request('/api/procurement/recommendations?diameter=12&material_type=coil')).status, 401);
     assert.equal((await request('/api/procurement/recommendations?diameter=12&material_type=coil', { headers: authHeaders(production) })).status, 403);
     assert.equal((await request('/api/procurement/recommendations?diameter=12&material_type=coil', { headers: authHeaders(office) })).status, 200);
+    assert.equal((await request('/api/procurement/material-coverage-v2')).status, 401);
+    assert.equal((await request('/api/procurement/material-coverage-v2', { headers: authHeaders(production) })).status, 403);
+    for (const role of [warehouse, office, finance, manager, admin]) {
+      const response = await request('/api/procurement/material-coverage-v2', { headers: authHeaders(role) });
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.is_procurement_instruction, false);
+    }
     assert.equal((await request('/api/purchase-orders', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
     assert.equal((await request('/api/purchase-orders', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 200);
     assert.equal((await request('/api/purchase-orders/1', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 403);
