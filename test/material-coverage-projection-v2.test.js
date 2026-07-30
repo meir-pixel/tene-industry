@@ -113,8 +113,16 @@ test('B5A anomaly sort distinguishes same-code requirement anomalies', () => {
 });
 
 test('B5A anomaly sort orders global and group traceability deterministically', () => {
-  const anomalies = [{ code:'same', source_type:'group', diameter:12, material_type:'coil' }, { code:'same', source_type:'global', scope:'all' }].sort(anomalySort);
-  assert.deepEqual(anomalies.map(anomaly => anomaly.source_type), ['global','group']);
+  const value = db(); requirement(value, 1, { required: 10 });
+  value.prepare("INSERT INTO inventory_reservations (id,order_id,item_id,diameter,material_type,reserved_kg,status) VALUES (1,1,1,12,'coil',1,'active')").run();
+  value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(2, 'INVALID-2', 2);
+  value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,?)').run(2, 2, 12, 10);
+  withIgnoredCheckConstraints(value, () => value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (2,'INVALID-2',2,2,2,12,'bent',10,'unknown','open','manual')").run());
+  const projection = projectMaterialCoverageV2(value); const actualGlobal = projection.global_anomalies.find(anomaly => anomaly.code === 'invalid_requirement_identity'); const actualGroup = group(projection).anomalies.find(anomaly => anomaly.code === 'legacy_reservation_exceeds_v2_free_stock');
+  assert.ok(actualGlobal); assert.ok(actualGroup); assert.equal(Object.hasOwn(actualGlobal, 'source_type'), false); assert.equal(actualGlobal.requirement_id, 2); assert.deepEqual(Object.keys(actualGroup).sort(), ['code','diameter','material_type','severity','source_type']); assert.equal(actualGroup.source_type, 'group');
+  const globalWithMatchingCode = { ...actualGlobal, code: actualGroup.code }; const expected = [globalWithMatchingCode, actualGroup];
+  for (const input of [[globalWithMatchingCode, actualGroup], [actualGroup, globalWithMatchingCode]]) assert.deepEqual([...input].sort(anomalySort), expected);
+  assert.notEqual(anomalySort(globalWithMatchingCode, actualGroup), 0); value.close();
 });
 
 test('B5A anomaly sort uses canonical serialization only as the final tie-breaker', () => {
