@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const { ensureCoreSchema } = require('../db/coreSchema');
-const { projectMaterialCoverageV2 } = require('../services/materialCoverageProjectionV2');
+const { projectMaterialCoverageV2, anomalySort } = require('../services/materialCoverageProjectionV2');
 
 function db() { const value = new Database(':memory:'); value.pragma('foreign_keys=ON'); ensureCoreSchema(value); return value; }
 function requirement(value, id, { diameter = 12, material = 'coil', required = 1000, status = 'open', lifecycle = 2 } = {}) {
@@ -71,7 +71,51 @@ test('B5A reports over-consumption, allocation excess and conservative legacy ga
   const row = group(projectMaterialCoverageV2(value)); const codes=[...row.anomalies,...row.requirements[0].anomalies].map(x=>x.code); assert.equal(row.requirements[0].confirmed_consumed_kg,120); assert.equal(row.requirements[0].remaining_required_kg,0); assert.equal(row.requirements[0].allocated_remaining_kg,0); assert.ok(codes.includes('requirement_overconsumed')); assert.ok(codes.includes('allocation_consumed_exceeds_allocated')); assert.equal(row.legacy_reservations.conservative_free_kg,0); assert.ok(codes.includes('legacy_reservation_exceeds_v2_free_stock')); value.close();
 });
 
-test('B5A projection is stable across insertion order and rejects non-V2 identities', () => {
-  const build = reverse => { const value=db(); const ids=reverse?[3,2,1]:[1,2,3]; for(const id of ids) requirement(value,id,{required:10}); for(const id of ids) lot(value,id,{received:10}); value.pragma('foreign_keys=OFF'); value.pragma('ignore_check_constraints=ON'); value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (99,'bad',1,99,1,0,'bent',5,'unknown','open','manual')").run(); return value; };
-  const first=build(false), second=build(true); const normalize=result=>({ ...result, generated_at:null }); assert.deepEqual(normalize(projectMaterialCoverageV2(first)),normalize(projectMaterialCoverageV2(second))); assert.ok(projectMaterialCoverageV2(first).global_anomalies.some(x=>x.code==='invalid_requirement_identity')); first.close(); second.close();
+test('B5A excludes a valid-identity requirement whose order is lifecycle V1', () => {
+  const value = db(); value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(1, 'V1-1', 1); value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,?)').run(1, 1, 12, 90);
+  value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (1,'V1-R',1,1,2,12,'coil',90,'unknown','open','manual')").run(); requirement(value, 2, { lifecycle: 2, required: 40 });
+  const result = projectMaterialCoverageV2(value); const row = group(result);
+  assert.deepEqual(row.requirements.map(entry => entry.requirement_id), [2]); assert.equal(row.demand.remaining_required_kg, 40);
+  assert.equal(result.global_anomalies.some(entry => entry.requirement_id === 1), false); value.close();
+});
+
+test('B5A excludes bent V2 demand without mixing it into coil or straight', () => {
+  const value = db(); requirement(value, 1, { required: 40 });
+  value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(2, 'BENT-2', 2);
+  value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,?)').run(2, 2, 12, 70);
+  value.pragma('ignore_check_constraints=ON');
+  value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (2,'BENT-2',2,2,2,12,'bent',70,'unknown','open','manual')").run();
+  value.pragma('ignore_check_constraints=OFF');
+  const result = projectMaterialCoverageV2(value); assert.equal(group(result).demand.remaining_required_kg, 40); assert.equal(group(result, 12, 'straight'), undefined);
+  assert.deepEqual(result.global_anomalies.filter(entry => entry.code === 'invalid_requirement_identity').map(entry => entry.requirement_id), [2]); value.close();
+});
+
+test('B5A keeps legacy reservations out of V2 requirements and V2 gap', () => {
+  const value = db(); value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(1, 'LEGACY-ONLY', 1);
+  value.prepare("INSERT INTO inventory_reservations (id,order_id,diameter,material_type,reserved_kg,status) VALUES (1,1,12,'coil',25,'active')").run();
+  let row = group(projectMaterialCoverageV2(value)); assert.deepEqual(row.requirements, []); assert.equal(row.demand.remaining_required_kg, 0); assert.equal(row.demand.unallocated_demand_kg, 0); assert.equal(row.legacy_reservations.active_reserved_kg, 25);
+  requirement(value, 2, { required: 100 }); row = group(projectMaterialCoverageV2(value)); assert.deepEqual(row.requirements.map(entry => entry.requirement_id), [2]); assert.equal(row.approved_inventory.v2_gap_kg, 100); assert.equal(row.legacy_reservations.active_reserved_kg, 25); assert.equal(row.legacy_reservations.conservative_gap_kg, 100); value.close();
+});
+
+test('B5A has a total anomaly order and a full deterministic projection fixture', () => {
+  const build = reverse => {
+    const value = db(); const ordered = rows => reverse ? [...rows].reverse() : rows;
+    for (const [id, lifecycle] of ordered([[1, 2], [2, 2], [3, 2], [99, 2]])) value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(id, `O-${id}`, lifecycle);
+    for (const [id, diameter, total] of ordered([[1, 12, 100], [2, 12, 200], [3, 14, 50], [99, 12, 1]])) value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,?)').run(id, id, diameter, total);
+    for (const [id, diameter, material, required] of ordered([[1, 12, 'coil', 100], [2, 12, 'coil', 200], [3, 14, 'straight', 50]])) value.prepare('INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source,source_revision) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, `R-${id}`, id, id, 2, diameter, material, required, 'unknown', 'open', 'manual', 'r1');
+    value.pragma('ignore_check_constraints=ON'); value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (99,'R-BENT',99,99,2,12,'bent',1,'unknown','open','manual')").run(); value.pragma('ignore_check_constraints=OFF');
+    for (const [id, diameter, material, received, used, verification, catalog] of ordered([[1,12,'coil',100,0,'approved',null],[2,12,'coil',30,0,'pending_verification',null],[3,14,'straight',80,0,'approved',null],[4,12,'coil',10,20,'approved',null],[5,12,'coil',5,0,'approved',null]])) lot(value,id,{diameter,material,received,used,verification,catalog});
+    for (const [id, requirementId, required, diameter, material] of ordered([[1,1,100,12,'coil'],[2,2,200,12,'coil']])) value.prepare('INSERT INTO allocation_plans_v2 (id,plan_uid,idempotency_key,payload_fingerprint,material_requirement_id,requirement_uid,required_kg,source_revision,spec_diameter,spec_material_type,status) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,`P-${id}`,`K-${id}`,`F-${id}`,requirementId,`R-${requirementId}`,required,'r1',diameter,material,'active');
+    for (const [id, planId, lotId, amount] of ordered([[1,1,1,40],[2,2,1,30]])) value.prepare('INSERT INTO allocation_plan_lines_v2 (id,allocation_plan_id,raw_material_id,allocated_kg,status,allocation_sequence) VALUES (?,?,?,?,?,?)').run(id,planId,lotId,amount,'active',id);
+    for (const [id, type, requirementId] of ordered([[1,'consumption',1],[2,'reversal',1],[3,'consumption',2]])) value.prepare('INSERT INTO material_consumption_events_v2 (id,event_uid,event_type,idempotency_key,payload_fingerprint,material_requirement_id,requirement_uid,order_id,item_id,approved_by) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,`E-${id}`,type,`EK-${id}`,`EF-${id}`,requirementId,`R-${requirementId}`,requirementId,requirementId,1);
+    for (const [id, eventId, planId, lineId, amount] of ordered([[1,1,1,1,50],[2,2,1,1,5],[3,3,2,2,40]])) value.prepare('INSERT INTO material_consumption_event_lines_v2 (id,consumption_event_id,allocation_plan_id,allocation_plan_line_id,raw_material_id,consumed_kg) VALUES (?,?,?,?,?,?)').run(id,eventId,planId,lineId,1,amount);
+    for (const [id, uid, material] of ordered([[1,'D-1','coil'],[2,'D-2','straight']])) value.prepare('INSERT INTO pending_raw_material_receipts_v2 (id,receipt_uid,status,source_type,idempotency_key,payload_fingerprint) VALUES (?,?,?,?,?,?)').run(id,uid,'draft','manual',`DK-${id}`,`DF-${id}`);
+    for (const [id, receiptId, sourceLine, material, diameter, weight] of ordered([[1,1,'1','coil',12,20],[2,1,'2','coil',12,10],[3,2,'1','straight',14,5]])) value.prepare('INSERT INTO pending_raw_material_receipt_lines_v2 (id,receipt_id,source_line_ref,material_type,diameter,weight_received) VALUES (?,?,?,?,?,?)').run(id,receiptId,sourceLine,material,diameter,weight);
+    for (const [id, material, reserved] of ordered([[1,'coil',15],[2,null,1]])) value.prepare('INSERT INTO inventory_reservations (id,order_id,item_id,diameter,material_type,reserved_kg,status) VALUES (?,?,?,?,?,?,?)').run(id,1,1,12,material,reserved,'active');
+    for (const [id, po, quantity] of ordered([[1,'PO-1',0.1],[2,'PO-2',0.2]])) value.prepare('INSERT INTO purchase_orders (id,po_num,diameter,material_type,quantity_ton,received_weight,status) VALUES (?,?,?,?,?,?,?)').run(id,po,12,'coil',quantity,0,'ordered');
+    return value;
+  };
+  const first = build(false); const second = build(true); const normalize = result => ({ ...result, generated_at: null }); const firstProjection = projectMaterialCoverageV2(first); const secondProjection = projectMaterialCoverageV2(second);
+  assert.deepEqual(normalize(firstProjection), normalize(secondProjection)); const coil = group(firstProjection); assert.equal(coil.requirements.length, 2); assert.equal(coil.legacy_purchase_orders.length, 2); assert.equal(coil.pending_receipts.line_count, 2); assert.ok(coil.requirements.every(entry => entry.anomalies.some(anomaly => anomaly.code === 'allocation_consumed_exceeds_allocated'))); assert.deepEqual(coil.anomalies.filter(anomaly => anomaly.code === 'approved_lot_incomplete_spec').map(anomaly => anomaly.raw_material_id), [1,4,5]); assert.deepEqual(coil.anomalies.filter(anomaly => anomaly.code === 'legacy_po_possible_overlap').map(anomaly => anomaly.purchase_order_id), [1,2]); assert.ok(firstProjection.global_anomalies.some(anomaly => anomaly.code === 'invalid_requirement_identity')); assert.ok(firstProjection.global_anomalies.some(anomaly => anomaly.code === 'legacy_reservation_unclassified'));
+  const unordered = [{ code:'same', source_type:'group', diameter:14 }, { code:'same', source_type:'group', diameter:12 }]; assert.notEqual(anomalySort(unordered[0], unordered[1]), 0); assert.deepEqual(unordered.sort(anomalySort).map(anomaly => anomaly.diameter), [12,14]); first.close(); second.close();
 });

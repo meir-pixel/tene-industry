@@ -13,10 +13,30 @@ const raw = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const key = (diameter, materialType) => `${Number(diameter)}|${materialType}`;
 const validIdentity = row => Number.isFinite(Number(row.diameter)) && Number(row.diameter) > 0 && SUPPORTED.has(String(row.material_type));
 const anomaly = (code, severity, source = {}) => ({ code, severity, ...source });
+const sourceFields = ['requirement_id', 'raw_material_id', 'lot_id', 'allocation_plan_id', 'allocation_plan_line_id', 'allocation_line_id', 'consumption_event_id', 'consumption_event_line_id', 'inventory_reservation_id', 'reservation_id', 'receipt_id', 'receipt_line_id', 'purchase_order_id', 'order_id', 'item_id'];
+const stableValue = value => {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'number') return `number:${value}`;
+  if (typeof value !== 'object') return `${typeof value}:${String(value)}`;
+  if (Array.isArray(value)) return `[${value.map(stableValue).join(',')}]`;
+  return `{${Object.keys(value).sort().map(name => `${JSON.stringify(name)}:${stableValue(value[name])}`).join(',')}}`;
+};
+const compareValue = (left, right) => {
+  if (left === right) return 0;
+  if (left === null || left === undefined) return -1;
+  if (right === null || right === undefined) return 1;
+  if (typeof left === 'number' && typeof right === 'number') return left - right;
+  return String(left).localeCompare(String(right));
+};
 const anomalySort = (left, right) => {
-  const leftId = left.requirement_id ?? left.raw_material_id ?? left.allocation_plan_line_id ?? left.inventory_reservation_id ?? left.purchase_order_id ?? 0;
-  const rightId = right.requirement_id ?? right.raw_material_id ?? right.allocation_plan_line_id ?? right.inventory_reservation_id ?? right.purchase_order_id ?? 0;
-  return String(left.code).localeCompare(String(right.code)) || Number(leftId) - Number(rightId);
+  let result = compareValue(left.code, right.code) || compareValue(left.entity_type ?? left.source_type, right.entity_type ?? right.source_type);
+  if (result) return result;
+  for (const field of sourceFields) {
+    result = compareValue(left[field], right[field]);
+    if (result) return result;
+  }
+  return compareValue(stableValue(left), stableValue(right));
 };
 
 function projectMaterialCoverageV2(db) {
@@ -38,11 +58,13 @@ function projectMaterialCoverageV2(db) {
   const netForRequirement = db.prepare(`SELECT COALESCE(SUM(CASE WHEN e.event_type='consumption' THEN l.consumed_kg ELSE -l.consumed_kg END),0) AS kg
     FROM material_consumption_event_lines_v2 l JOIN material_consumption_events_v2 e ON e.id=l.consumption_event_id WHERE e.material_requirement_id=?`);
   const activeLines = db.prepare(`SELECT l.id,l.allocated_kg FROM allocation_plan_lines_v2 l JOIN allocation_plans_v2 p ON p.id=l.allocation_plan_id
-    WHERE p.material_requirement_id=? AND p.status='active' AND l.status='active'`);
+    WHERE p.material_requirement_id=? AND p.status='active' AND l.status='active' ORDER BY p.id,l.id`);
   const netForLine = db.prepare(`SELECT COALESCE(SUM(CASE WHEN e.event_type='consumption' THEN l.consumed_kg ELSE -l.consumed_kg END),0) AS kg
     FROM material_consumption_event_lines_v2 l JOIN material_consumption_events_v2 e ON e.id=l.consumption_event_id WHERE l.allocation_plan_line_id=?`);
 
-  const requirements = db.prepare("SELECT * FROM material_requirements_v2 WHERE status='open' ORDER BY order_id,item_id,id").all();
+  const requirements = db.prepare(`SELECT r.* FROM material_requirements_v2 r
+    JOIN orders o ON o.id=r.order_id
+    WHERE r.status='open' AND o.inventory_lifecycle_version=2 ORDER BY r.order_id,r.item_id,r.id`).all();
   for (const r of requirements) {
     if (Number(r.lifecycle_version) !== 2 || !validIdentity(r)) { global.push(anomaly('invalid_requirement_identity', 'warning', { requirement_id: r.id })); continue; }
     const consumed = kg(netForRequirement.get(r.id).kg);
@@ -95,11 +117,11 @@ function projectMaterialCoverageV2(db) {
     for (const section of [g.demand, g.approved_inventory, g.legacy_reservations, g.pending_receipts, g.pending_verification]) for (const [name,value] of Object.entries(section)) if (name.endsWith('_kg')) section[name] = kg(value);
     const inv = g.approved_inventory; inv.v2_free_approved_kg = kg(inv.physical_kg - inv.active_v2_allocated_remaining_kg); inv.v2_candidate_cover_kg = Math.min(g.demand.unallocated_demand_kg, inv.v2_free_approved_kg); inv.v2_gap_kg = kg(g.demand.unallocated_demand_kg - inv.v2_candidate_cover_kg);
     const legacySection = g.legacy_reservations; legacySection.legacy_stock_overlap = legacySection.active_reserved_kg > 0; legacySection.conservative_free_kg = kg(inv.v2_free_approved_kg - legacySection.active_reserved_kg); legacySection.conservative_candidate_cover_kg = Math.min(g.demand.unallocated_demand_kg, legacySection.conservative_free_kg); legacySection.conservative_gap_kg = kg(g.demand.unallocated_demand_kg - legacySection.conservative_candidate_cover_kg);
-    if (legacySection.active_reserved_kg > inv.v2_free_approved_kg) g.anomalies.push(anomaly('legacy_reservation_exceeds_v2_free_stock', 'warning'));
+    if (legacySection.active_reserved_kg > inv.v2_free_approved_kg) g.anomalies.push(anomaly('legacy_reservation_exceeds_v2_free_stock', 'warning', { source_type: 'group', diameter: g.diameter, material_type: g.material_type }));
     g.anomalies.sort(anomalySort);
   }
   global.sort(anomalySort);
   return { projection: 'material_coverage_v2', mode: 'read_only', is_procurement_instruction: false, generated_at: new Date().toISOString(), identity_scope: 'diameter_material_type', identity_is_partial: true, groups: result, global_anomalies: global };
 }
 
-module.exports = { projectMaterialCoverageV2 };
+module.exports = { projectMaterialCoverageV2, anomalySort };
