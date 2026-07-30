@@ -1443,6 +1443,13 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
       const body = await response.json();
       assert.equal(body.is_procurement_instruction, false);
     }
+    const projectionTables = ['material_requirements_v2','allocation_plans_v2','allocation_plan_lines_v2','material_consumption_events_v2','material_consumption_event_lines_v2','raw_material','inventory_reservations','pending_raw_material_receipts_v2','pending_raw_material_receipt_lines_v2','purchase_orders'];
+    const snapshotProjectionSources = () => Object.fromEntries(projectionTables.map(table => [table, db.prepare(`SELECT * FROM ${table} ORDER BY id`).all()]));
+    const beforeProjection = snapshotProjectionSources(); const beforeProjectionChanges = db.totalChanges;
+    const projectionResponse = await request('/api/procurement/material-coverage-v2', { headers: authHeaders(office) });
+    const projectionBody = await projectionResponse.json(); const afterProjection = snapshotProjectionSources();
+    assert.equal(projectionResponse.status, 200); assert.equal(projectionBody.mode, 'read_only'); assert.equal(projectionBody.is_procurement_instruction, false);
+    assert.deepEqual(afterProjection, beforeProjection); assert.equal(db.totalChanges, beforeProjectionChanges);
     assert.equal((await request('/api/purchase-orders', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
     assert.equal((await request('/api/purchase-orders', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 200);
     assert.equal((await request('/api/purchase-orders/1', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 403);

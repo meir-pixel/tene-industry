@@ -55,3 +55,23 @@ test('B5A emits invalid, negative, cancelled allocation and unclassified reserva
   value.prepare("INSERT INTO inventory_reservations (order_id,diameter,material_type,reserved_kg,status) VALUES (1,12,NULL,1,'active')").run();
   const result = projectMaterialCoverageV2(value); const codes = [...result.global_anomalies,...group(result).anomalies].map(x=>x.code); assert.ok(codes.includes('negative_lot_available_weight')); assert.ok(codes.includes('approved_lot_incomplete_spec')); assert.ok(codes.includes('cancelled_requirement_has_active_allocation')); assert.ok(codes.includes('legacy_reservation_unclassified')); value.close();
 });
+
+test('B5A keeps draft lines and inactive pending lots outside coverage', () => {
+  const value = db(); requirement(value,1); lot(value,1,{received:50,verification:'pending_verification'}); lot(value,2,{received:500,verification:'pending_verification',active:0});
+  value.prepare("INSERT INTO pending_raw_material_receipts_v2 (id,receipt_uid,status,source_type,idempotency_key,payload_fingerprint) VALUES (1,'r','draft','manual','k','f')").run();
+  value.prepare("INSERT INTO pending_raw_material_receipt_lines_v2 (receipt_id,source_line_ref,material_type,diameter,weight_received) VALUES (1,'1','coil',12,20),(1,'2','coil',12,30)").run();
+  const row = group(projectMaterialCoverageV2(value)); assert.deepEqual(row.pending_receipts,{ weight_kg:50, receipt_count:1, line_count:2, counted_as_coverage:false, operational_state:'pending_approval' }); assert.equal(row.pending_verification.weight_kg,50); assert.equal(row.pending_verification.lot_count,1); assert.equal(row.approved_inventory.physical_kg,0); value.close();
+});
+
+test('B5A reports over-consumption, allocation excess and conservative legacy gap', () => {
+  const value = db(); requirement(value,1,{required:100}); lot(value,1,{received:100});
+  value.prepare("INSERT INTO allocation_plans_v2 (id,plan_uid,idempotency_key,payload_fingerprint,material_requirement_id,requirement_uid,required_kg,status) VALUES (1,'p','k','f',1,'R-1',100,'active')").run(); value.prepare("INSERT INTO allocation_plan_lines_v2 (id,allocation_plan_id,raw_material_id,allocated_kg,status,allocation_sequence) VALUES (1,1,1,50,'active',1)").run();
+  value.prepare("INSERT INTO material_consumption_events_v2 (id,event_uid,event_type,idempotency_key,payload_fingerprint,material_requirement_id,requirement_uid,order_id,item_id,approved_by) VALUES (1,'e','consumption','e','f',1,'R-1',1,1,1)").run(); value.prepare("INSERT INTO material_consumption_event_lines_v2 (consumption_event_id,allocation_plan_id,allocation_plan_line_id,raw_material_id,consumed_kg) VALUES (1,1,1,1,120)").run();
+  value.prepare("INSERT INTO inventory_reservations (order_id,item_id,diameter,material_type,reserved_kg,status) VALUES (1,1,12,'coil',200,'active')").run();
+  const row = group(projectMaterialCoverageV2(value)); const codes=[...row.anomalies,...row.requirements[0].anomalies].map(x=>x.code); assert.equal(row.requirements[0].confirmed_consumed_kg,120); assert.equal(row.requirements[0].remaining_required_kg,0); assert.equal(row.requirements[0].allocated_remaining_kg,0); assert.ok(codes.includes('requirement_overconsumed')); assert.ok(codes.includes('allocation_consumed_exceeds_allocated')); assert.equal(row.legacy_reservations.conservative_free_kg,0); assert.ok(codes.includes('legacy_reservation_exceeds_v2_free_stock')); value.close();
+});
+
+test('B5A projection is stable across insertion order and rejects non-V2 identities', () => {
+  const build = reverse => { const value=db(); const ids=reverse?[3,2,1]:[1,2,3]; for(const id of ids) requirement(value,id,{required:10}); for(const id of ids) lot(value,id,{received:10}); value.pragma('foreign_keys=OFF'); value.pragma('ignore_check_constraints=ON'); value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (99,'bad',1,99,1,0,'bent',5,'unknown','open','manual')").run(); return value; };
+  const first=build(false), second=build(true); const normalize=result=>({ ...result, generated_at:null }); assert.deepEqual(normalize(projectMaterialCoverageV2(first)),normalize(projectMaterialCoverageV2(second))); assert.ok(projectMaterialCoverageV2(first).global_anomalies.some(x=>x.code==='invalid_requirement_identity')); first.close(); second.close();
+});

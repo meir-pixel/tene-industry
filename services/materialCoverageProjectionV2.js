@@ -13,6 +13,11 @@ const raw = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const key = (diameter, materialType) => `${Number(diameter)}|${materialType}`;
 const validIdentity = row => Number.isFinite(Number(row.diameter)) && Number(row.diameter) > 0 && SUPPORTED.has(String(row.material_type));
 const anomaly = (code, severity, source = {}) => ({ code, severity, ...source });
+const anomalySort = (left, right) => {
+  const leftId = left.requirement_id ?? left.raw_material_id ?? left.allocation_plan_line_id ?? left.inventory_reservation_id ?? left.purchase_order_id ?? 0;
+  const rightId = right.requirement_id ?? right.raw_material_id ?? right.allocation_plan_line_id ?? right.inventory_reservation_id ?? right.purchase_order_id ?? 0;
+  return String(left.code).localeCompare(String(right.code)) || Number(leftId) - Number(rightId);
+};
 
 function projectMaterialCoverageV2(db) {
   const groups = new Map(); const global = [];
@@ -42,21 +47,22 @@ function projectMaterialCoverageV2(db) {
     if (Number(r.lifecycle_version) !== 2 || !validIdentity(r)) { global.push(anomaly('invalid_requirement_identity', 'warning', { requirement_id: r.id })); continue; }
     const consumed = kg(netForRequirement.get(r.id).kg);
     const lines = activeLines.all(r.id);
-    let allocated = 0; let allocatedConsumed = 0;
+    let allocated = 0; let allocatedConsumed = 0; const requirementAnomalies = [];
     for (const line of lines) {
       const used = kg(netForLine.get(line.id).kg); const amount = kg(line.allocated_kg);
-      if (raw(netForLine.get(line.id).kg) > raw(line.allocated_kg)) global.push(anomaly('allocation_consumed_exceeds_allocated', 'warning', { allocation_plan_line_id: line.id, requirement_id: r.id }));
+      if (raw(netForLine.get(line.id).kg) > raw(line.allocated_kg)) requirementAnomalies.push(anomaly('allocation_consumed_exceeds_allocated', 'warning', { allocation_plan_line_id: line.id, requirement_id: r.id }));
       allocated += amount; allocatedConsumed += used;
     }
     const required = kg(r.required_kg); const remaining = kg(required - consumed); const allocatedRemaining = kg(allocated - allocatedConsumed); const unallocated = kg(remaining - allocatedRemaining);
-    const row = { requirement_id: r.id, requirement_uid: r.requirement_uid, order_id: r.order_id, item_id: r.item_id, source_revision: r.source_revision ?? null, need_by_source: r.need_by_source ?? null, diameter: Number(r.diameter), material_type: r.material_type, required_kg: required, confirmed_consumed_kg: consumed, remaining_required_kg: remaining, active_allocated_kg: kg(allocated), allocated_consumed_kg: kg(allocatedConsumed), allocated_remaining_kg: allocatedRemaining, unallocated_demand_kg: unallocated, anomalies: [] };
+    const row = { requirement_id: r.id, requirement_uid: r.requirement_uid, order_id: r.order_id, item_id: r.item_id, source_revision: r.source_revision ?? null, need_by_source: r.need_by_source ?? null, diameter: Number(r.diameter), material_type: r.material_type, required_kg: required, confirmed_consumed_kg: consumed, remaining_required_kg: remaining, active_allocated_kg: kg(allocated), allocated_consumed_kg: kg(allocatedConsumed), allocated_remaining_kg: allocatedRemaining, unallocated_demand_kg: unallocated, anomalies: requirementAnomalies };
     if (raw(netForRequirement.get(r.id).kg) > raw(r.required_kg)) row.anomalies.push(anomaly('requirement_overconsumed', 'warning', { requirement_id: r.id }));
     if (allocatedRemaining > remaining) row.anomalies.push(anomaly('allocation_exceeds_remaining_requirement', 'warning', { requirement_id: r.id }));
+    row.anomalies.sort(anomalySort);
     const group = add(r.diameter, r.material_type); group.requirements.push(row);
     group.demand.remaining_required_kg += remaining; group.demand.allocated_remaining_kg += allocatedRemaining; group.demand.unallocated_demand_kg += unallocated;
   }
 
-  const lots = db.prepare("SELECT * FROM raw_material WHERE active=1 AND material_type IN ('coil','straight')").all();
+  const lots = db.prepare("SELECT * FROM raw_material WHERE active=1 AND material_type IN ('coil','straight') ORDER BY id").all();
   for (const lot of lots) {
     if (!validIdentity(lot)) continue; const group = add(lot.diameter, lot.material_type); const availableRaw = raw(lot.weight_received) - raw(lot.weight_used) - raw(lot.weight_scrapped);
     if (availableRaw < 0) group.anomalies.push(anomaly('negative_lot_available_weight', 'warning', { raw_material_id: lot.id, available_kg: availableRaw }));
@@ -67,18 +73,18 @@ function projectMaterialCoverageV2(db) {
   }
   const allocationRows = db.prepare(`SELECT l.id,l.raw_material_id,l.allocated_kg,r.diameter,r.material_type,req.status AS requirement_status
     FROM allocation_plan_lines_v2 l JOIN allocation_plans_v2 p ON p.id=l.allocation_plan_id JOIN raw_material r ON r.id=l.raw_material_id
-    LEFT JOIN material_requirements_v2 req ON req.id=p.material_requirement_id WHERE p.status='active' AND l.status='active'`).all();
+    LEFT JOIN material_requirements_v2 req ON req.id=p.material_requirement_id WHERE p.status='active' AND l.status='active' ORDER BY p.id,l.id`).all();
   for (const line of allocationRows) {
     if (!validIdentity(line)) continue; const net = raw(netForLine.get(line.id).kg); const remaining = kg(raw(line.allocated_kg) - net); const group = add(line.diameter, line.material_type);
     group.approved_inventory.active_v2_allocated_remaining_kg += remaining;
     if (line.requirement_status === 'cancelled') group.anomalies.push(anomaly('cancelled_requirement_has_active_allocation', 'warning', { allocation_plan_line_id: line.id }));
   }
-  const legacy = db.prepare("SELECT * FROM inventory_reservations WHERE status='active'").all();
+  const legacy = db.prepare("SELECT * FROM inventory_reservations WHERE status='active' ORDER BY id").all();
   for (const row of legacy) {
     if (!validIdentity(row)) { global.push(anomaly('legacy_reservation_unclassified', 'warning', { inventory_reservation_id: row.id })); continue; }
     add(row.diameter, row.material_type).legacy_reservations.active_reserved_kg += kg(row.reserved_kg);
   }
-  const drafts = db.prepare(`SELECT r.id AS receipt_id,l.* FROM pending_raw_material_receipts_v2 r JOIN pending_raw_material_receipt_lines_v2 l ON l.receipt_id=r.id WHERE r.status='draft'`).all();
+  const drafts = db.prepare(`SELECT r.id AS receipt_id,l.* FROM pending_raw_material_receipts_v2 r JOIN pending_raw_material_receipt_lines_v2 l ON l.receipt_id=r.id WHERE r.status='draft' ORDER BY r.id,l.id`).all();
   const draftSets = new Map();
   for (const line of drafts) if (validIdentity(line)) { const group = add(line.diameter, line.material_type); group.pending_receipts.weight_kg += kg(line.weight_received); group.pending_receipts.line_count += 1; const id = key(line.diameter,line.material_type); if (!draftSets.has(id)) draftSets.set(id,new Set()); draftSets.get(id).add(line.receipt_id); }
   for (const [id, set] of draftSets) groups.get(id).pending_receipts.receipt_count = set.size;
@@ -90,7 +96,9 @@ function projectMaterialCoverageV2(db) {
     const inv = g.approved_inventory; inv.v2_free_approved_kg = kg(inv.physical_kg - inv.active_v2_allocated_remaining_kg); inv.v2_candidate_cover_kg = Math.min(g.demand.unallocated_demand_kg, inv.v2_free_approved_kg); inv.v2_gap_kg = kg(g.demand.unallocated_demand_kg - inv.v2_candidate_cover_kg);
     const legacySection = g.legacy_reservations; legacySection.legacy_stock_overlap = legacySection.active_reserved_kg > 0; legacySection.conservative_free_kg = kg(inv.v2_free_approved_kg - legacySection.active_reserved_kg); legacySection.conservative_candidate_cover_kg = Math.min(g.demand.unallocated_demand_kg, legacySection.conservative_free_kg); legacySection.conservative_gap_kg = kg(g.demand.unallocated_demand_kg - legacySection.conservative_candidate_cover_kg);
     if (legacySection.active_reserved_kg > inv.v2_free_approved_kg) g.anomalies.push(anomaly('legacy_reservation_exceeds_v2_free_stock', 'warning'));
+    g.anomalies.sort(anomalySort);
   }
+  global.sort(anomalySort);
   return { projection: 'material_coverage_v2', mode: 'read_only', is_procurement_instruction: false, generated_at: new Date().toISOString(), identity_scope: 'diameter_material_type', identity_is_partial: true, groups: result, global_anomalies: global };
 }
 
