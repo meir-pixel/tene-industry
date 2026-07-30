@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pendingReceipts = require('../services/pendingRawMaterialReceiptV2');
 const { calculatePurchaseRecommendations } = require('../services/inventoryReservation');
+const { projectMaterialCoverageV2 } = require('../services/materialCoverageProjectionV2');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/procurement missing dependency: ${name}`);
@@ -62,6 +63,10 @@ module.exports = function createProcurementRouter(deps) {
     } catch (error) {
       res.status(error.statusCode || 400).json({ error: error.message || 'failed to calculate procurement recommendations' });
     }
+  });
+  router.get('/procurement/material-coverage-v2', requireAnyRole(['warehouse', 'office', 'finance', 'manager', 'admin']), (_req, res) => {
+    try { res.json(projectMaterialCoverageV2(db)); }
+    catch (error) { res.status(error.statusCode || 400).json({ error: error.code || 'material_coverage_projection_failed' }); }
   });
   router.get('/purchase-orders', requireAnyRole(['warehouse', 'office', 'finance', 'manager', 'admin']), (req, res) => {
     res.json(db.prepare(`
