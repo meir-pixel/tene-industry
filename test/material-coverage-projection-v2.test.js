@@ -6,6 +6,11 @@ const { ensureCoreSchema } = require('../db/coreSchema');
 const { projectMaterialCoverageV2, anomalySort } = require('../services/materialCoverageProjectionV2');
 
 function db() { const value = new Database(':memory:'); value.pragma('foreign_keys=ON'); ensureCoreSchema(value); return value; }
+function withIgnoredCheckConstraints(value, action) {
+  value.pragma('ignore_check_constraints=ON');
+  try { return action(); } finally { value.pragma('ignore_check_constraints=OFF'); }
+}
+function ignoresCheckConstraints(value) { return value.pragma('ignore_check_constraints', { simple: true }) === 1; }
 function requirement(value, id, { diameter = 12, material = 'coil', required = 1000, status = 'open', lifecycle = 2 } = {}) {
   value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(id, `O-${id}`, lifecycle);
   value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,?)').run(id,id,diameter,required);
@@ -83,11 +88,39 @@ test('B5A excludes bent V2 demand without mixing it into coil or straight', () =
   const value = db(); requirement(value, 1, { required: 40 });
   value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(2, 'BENT-2', 2);
   value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,?)').run(2, 2, 12, 70);
-  value.pragma('ignore_check_constraints=ON');
-  value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (2,'BENT-2',2,2,2,12,'bent',70,'unknown','open','manual')").run();
-  value.pragma('ignore_check_constraints=OFF');
+  withIgnoredCheckConstraints(value, () => value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (2,'BENT-2',2,2,2,12,'bent',70,'unknown','open','manual')").run());
   const result = projectMaterialCoverageV2(value); assert.equal(group(result).demand.remaining_required_kg, 40); assert.equal(group(result, 12, 'straight'), undefined);
   assert.deepEqual(result.global_anomalies.filter(entry => entry.code === 'invalid_requirement_identity').map(entry => entry.requirement_id), [2]); value.close();
+});
+
+test('B5A restores ignored check constraints after a fixture failure', () => {
+  const value = db(); assert.equal(ignoresCheckConstraints(value), false);
+  assert.throws(() => withIgnoredCheckConstraints(value, () => { throw new Error('fixture failure'); }), /fixture failure/);
+  assert.equal(ignoresCheckConstraints(value), false);
+  value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(1, 'CHECKS-1', 2);
+  value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,?)').run(1, 1, 12, 10);
+  assert.throws(() => value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (1,'BAD',1,1,2,12,'bent',10,'unknown','open','manual')").run()); value.close();
+});
+
+test('B5A anomaly sort keeps numeric source IDs in numeric order', () => {
+  const anomalies = [{ code:'same', requirement_id:10 }, { code:'same', requirement_id:2 }].sort(anomalySort);
+  assert.deepEqual(anomalies.map(anomaly => anomaly.requirement_id), [2,10]); assert.notEqual(anomalySort(anomalies[0], anomalies[1]), 0);
+});
+
+test('B5A anomaly sort distinguishes same-code requirement anomalies', () => {
+  const anomalies = [{ code:'requirement_overconsumed', requirement_id:10 }, { code:'requirement_overconsumed', requirement_id:2 }].sort(anomalySort);
+  assert.deepEqual(anomalies.map(anomaly => anomaly.requirement_id), [2,10]); assert.equal(anomalies.length, 2); assert.notEqual(anomalySort(anomalies[0], anomalies[1]), 0);
+});
+
+test('B5A anomaly sort orders global and group traceability deterministically', () => {
+  const anomalies = [{ code:'same', source_type:'group', diameter:12, material_type:'coil' }, { code:'same', source_type:'global', scope:'all' }].sort(anomalySort);
+  assert.deepEqual(anomalies.map(anomaly => anomaly.source_type), ['global','group']);
+});
+
+test('B5A anomaly sort uses canonical serialization only as the final tie-breaker', () => {
+  const equivalentLeft = { code:'same', source_type:'group', detail:{ b:1, a:2 } }; const equivalentRight = { source_type:'group', detail:{ a:2, b:1 }, code:'same' };
+  const distinct = [{ code:'same', source_type:'group', detail:{ key:'b' } }, { code:'same', source_type:'group', detail:{ key:'a' } }].sort(anomalySort);
+  assert.equal(anomalySort(equivalentLeft, equivalentRight), 0); assert.deepEqual(distinct.map(anomaly => anomaly.detail.key), ['a','b']);
 });
 
 test('B5A keeps legacy reservations out of V2 requirements and V2 gap', () => {
@@ -103,7 +136,7 @@ test('B5A has a total anomaly order and a full deterministic projection fixture'
     for (const [id, lifecycle] of ordered([[1, 2], [2, 2], [3, 2], [99, 2]])) value.prepare('INSERT INTO orders (id,order_num,inventory_lifecycle_version) VALUES (?,?,?)').run(id, `O-${id}`, lifecycle);
     for (const [id, diameter, total] of ordered([[1, 12, 100], [2, 12, 200], [3, 14, 50], [99, 12, 1]])) value.prepare('INSERT INTO items (id,order_id,diameter,total_weight) VALUES (?,?,?,?)').run(id, id, diameter, total);
     for (const [id, diameter, material, required] of ordered([[1, 12, 'coil', 100], [2, 12, 'coil', 200], [3, 14, 'straight', 50]])) value.prepare('INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source,source_revision) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id, `R-${id}`, id, id, 2, diameter, material, required, 'unknown', 'open', 'manual', 'r1');
-    value.pragma('ignore_check_constraints=ON'); value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (99,'R-BENT',99,99,2,12,'bent',1,'unknown','open','manual')").run(); value.pragma('ignore_check_constraints=OFF');
+    withIgnoredCheckConstraints(value, () => value.prepare("INSERT INTO material_requirements_v2 (id,requirement_uid,order_id,item_id,lifecycle_version,diameter,material_type,required_kg,need_by_source,status,source) VALUES (99,'R-BENT',99,99,2,12,'bent',1,'unknown','open','manual')").run());
     for (const [id, diameter, material, received, used, verification, catalog] of ordered([[1,12,'coil',100,0,'approved',null],[2,12,'coil',30,0,'pending_verification',null],[3,14,'straight',80,0,'approved',null],[4,12,'coil',10,20,'approved',null],[5,12,'coil',5,0,'approved',null]])) lot(value,id,{diameter,material,received,used,verification,catalog});
     for (const [id, requirementId, required, diameter, material] of ordered([[1,1,100,12,'coil'],[2,2,200,12,'coil']])) value.prepare('INSERT INTO allocation_plans_v2 (id,plan_uid,idempotency_key,payload_fingerprint,material_requirement_id,requirement_uid,required_kg,source_revision,spec_diameter,spec_material_type,status) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,`P-${id}`,`K-${id}`,`F-${id}`,requirementId,`R-${requirementId}`,required,'r1',diameter,material,'active');
     for (const [id, planId, lotId, amount] of ordered([[1,1,1,40],[2,2,1,30]])) value.prepare('INSERT INTO allocation_plan_lines_v2 (id,allocation_plan_id,raw_material_id,allocated_kg,status,allocation_sequence) VALUES (?,?,?,?,?,?)').run(id,planId,lotId,amount,'active',id);
