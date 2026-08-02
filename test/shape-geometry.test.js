@@ -774,7 +774,8 @@ test('round pile cage draws only alternating longitudinal bars with a head bend'
     hoopDiameter: 18, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
   }, 300, 260);
 
-  assert.equal((svg.match(/data-pile-head-hook="1"/g) || []).length, 5, 'five and only five longitudinal bars bend at the head');
+  assert.equal((svg.match(/class="pile-l-bar"[^>]*data-pile-head-hook="1"/g) || []).length, 5, 'five and only five longitudinal bars bend at the head in elevation');
+  assert.equal((svg.match(/class="pile-bent-head-hook"[^>]*data-pile-head-hook="1"/g) || []).length, 5, 'the same five head bends are drawn as short legs in section');
   assert.match(svg, /class="pile-l-bar"[^>]*data-pile-head-hook="1"[^>]*d="M [^"]+ H [^"]+ V [^"]+"/);
   assert.match(svg, /ראש הכלונס — כיפופי L/);
   assert.match(svg, /data-pile-alternating-legend="1"/);

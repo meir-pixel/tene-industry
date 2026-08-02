@@ -974,7 +974,12 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
       : '';
     const isBent = barPattern === 'l' || (barPattern === 'alternate' && i % 2 === 1);
     const fill = isBent ? accent : '#111827';
-    return `<circle class="pile-longitudinal-bar" data-pile-bar-type="${isBent ? 'bent' : 'straight'}" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.4, Math.min(4.8, longitudinalDiameter * 0.13)).toFixed(1)}" fill="${fill}"/>${labelText}`;
+    const hookEndX = x - Math.cos(a) * r * 0.16 + Math.cos(a + Math.PI / 2) * r * 0.32;
+    const hookEndY = y - Math.sin(a) * r * 0.16 + Math.sin(a + Math.PI / 2) * r * 0.32;
+    const hook = isBent
+      ? `<path class="pile-bent-head-hook" data-pile-head-hook="1" data-se-focus="pile-l-bars pile-l-hook pile-longitudinal-bars" d="M ${x.toFixed(1)} ${y.toFixed(1)} L ${hookEndX.toFixed(1)} ${hookEndY.toFixed(1)}" fill="none" stroke="${accent}" stroke-width="${Math.max(2.1, barStroke * 0.58).toFixed(1)}" stroke-linecap="round"/>`
+      : '';
+    return `${hook}<circle class="pile-longitudinal-bar" data-pile-bar-type="${isBent ? 'bent' : 'straight'}" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.4, Math.min(4.8, longitudinalDiameter * 0.13)).toFixed(1)}" fill="${fill}"/>${labelText}`;
   }).join('');
   const topHoop = hoopsEnabled
     ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${internalHoopRadius.toFixed(1)}" fill="none" stroke="#16a34a" stroke-width="${hoopStroke.toFixed(1)}" opacity=".75"/>`

@@ -61,6 +61,10 @@ test('order assembly guide shows each production component and its exact snapsho
   assert.match(html, /5 × Ø20 · L=12000 מ״מ/);
   assert.match(html, /5 × Ø20 · L=12200 מ״מ/);
   assert.match(html, /אורך הכיפוף 200 מ״מ/);
+  assert.match(html, /כיפוף בראש/);
+  assert.match(html, /L=12000 מ״מ/);
+  assert.match(html, /L=12200 מ״מ/);
+  assert.match(html, />200 מ״מ<\/text>/);
   assert.match(html, /Ø8 · קוטר 480 · פסיעה 150 מ״מ/);
   assert.match(html, /5 × Ø18 · קוטר 420 מ״מ/);
   assert.match(html, /הטבעת הראשונה 1500 מ״מ מראש הכלונס; מרווח 300 מ״מ/);
