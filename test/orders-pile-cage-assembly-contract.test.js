@@ -59,14 +59,14 @@ test('order assembly guide shows each production component and its exact snapsho
   }) });
 
   for (const component of ['straight', 'bent', 'spiral', 'hoop']) assert.match(html, new RegExp(`data-pile-component="${component}"`));
-  assert.match(html, /5 × Ø20 · L=12000 מ״מ/);
-  assert.match(html, /5 × Ø20 · L=12200 מ״מ/);
-  assert.match(html, /אורך הכיפוף 200 מ״מ/);
+  assert.match(html, /5 × Ø20 · L=12 מ׳/);
+  assert.match(html, /5 × Ø20 · L=12.2 מ׳/);
+  assert.match(html, /אורך הכיפוף 20 ס״מ/);
   assert.match(html, /כיפוף בראש/);
-  assert.match(html, /L=12000 מ״מ/);
-  assert.match(html, /L=12200 מ״מ/);
-  assert.match(html, />200 מ״מ<\/text>/);
-  assert.match(html, /Ø8 · קוטר 480 · פסיעה 150 מ״מ/);
-  assert.match(html, /5 × Ø18 · קוטר 420 מ״מ/);
-  assert.match(html, /הטבעת הראשונה 1500 מ״מ מראש הכלונס; מרווח 300 מ״מ/);
+  assert.match(html, /L=12 מ׳/);
+  assert.match(html, /L=12.2 מ׳/);
+  assert.match(html, />20 ס״מ<\/text>/);
+  assert.match(html, /Ø8 · קוטר 48 ס״מ · פסיעה 15 ס״מ/);
+  assert.match(html, /5 × Ø18 · קוטר 42 ס״מ/);
+  assert.match(html, /הטבעת הראשונה 150 ס״מ מראש הכלונס; מרווח 30 ס״מ/);
 });

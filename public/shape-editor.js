@@ -2301,6 +2301,9 @@ class ShapeEditorModal {
 #seModal .se-pile-elements{border:1px solid #d8e2ec;border-radius:7px;background:#fff;padding:5px;display:grid;gap:4px;width:100%;min-width:0;overflow:hidden;}
 #seModal .se-pile-elements-head{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;font-weight:900;color:#12315a;min-width:0;}
 #seModal .se-pile-elements-head span{font-size:9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#seModal .se-pile-cage-overview{display:grid;gap:3px;border:1px solid #c8dff3;border-radius:6px;background:#eff8ff;padding:6px 7px;color:#12315a;}
+#seModal .se-pile-cage-overview strong{font-size:11px;}
+#seModal .se-pile-cage-overview span{font-size:9px;font-weight:800;line-height:1.2;}
 #seModal .se-pile-element-row{display:grid;grid-template-columns:minmax(88px,1fr) repeat(4,minmax(38px,.48fr));gap:3px;align-items:center;direction:rtl;border:1px solid #edf1f6;border-radius:6px;background:#f8fafc;padding:3px;min-width:0;}
 #seModal .se-pile-element-row strong{font-size:10px;color:#0f2444;line-height:1.12;display:grid;min-width:0;}
 #seModal .se-pile-element-row span{font-size:9px;color:#64748b;font-weight:800;line-height:1.15;}
@@ -3535,6 +3538,20 @@ class ShapeEditorModal {
     const pile = this.current || {};
     const calc = PileCageEngine.calculate(pile);
     const parts = calc.manufacturingBreakdown || [];
+    const displayNumber = (value, digits = 1) => {
+      const number = Number(value || 0);
+      return Number.isInteger(number) ? String(number) : number.toFixed(digits).replace(/0+$/, '').replace(/\.$/, '');
+    };
+    const roundCage = pile.roundPileCage === true;
+    const spiralPart = parts.find(part => part.componentType === 'spiral_zone') || {};
+    const hoopPart = parts.find(part => part.componentType === 'hoop_ring') || {};
+    const cageDetails = roundCage ? `<div class="se-pile-cage-overview" data-pile-cage-overview>
+      <strong>פרטי הכלוב</strong>
+      <span>כלוב Ø${displayNumber((calc.data?.pileDiameter || 0) / 10)} ס״מ · אורך ${displayNumber((calc.data?.pileLength || 0) / 1000, 3)} מ׳</span>
+      <span>${calc.data?.longitudinalBars || 0} מוטות אורך Ø${displayNumber(calc.data?.longitudinalDiameter)} מ״מ · ${displayNumber(spiralPart.turns, 3)} ליפופי ספירלה</span>
+      <span>ספירלה Ø${displayNumber(spiralPart.diameterMm)} מ״מ / קוטר ${displayNumber((spiralPart.outerDiameterMm || 0) / 10)} ס״מ / פסיעה ${displayNumber((spiralPart.pitchMm || 0) / 10)} ס״מ</span>
+      <span>${hoopPart.quantity || 0} טבעות Ø${displayNumber(hoopPart.diameterMm)} מ״מ / קוטר ${displayNumber((hoopPart.hoopOuterDiameterMm || 0) / 10)} ס״מ</span>
+    </div>` : '';
     const rows = parts.map((part) => {
       const type = svgEscape(part.componentType || 'part');
       const label = svgEscape(this._pileElementLabel(part));
@@ -3543,16 +3560,18 @@ class ShapeEditorModal {
       const diameter = part.diameterMm ? `Ø${pileRound(Number(part.diameterMm || 0), 1)}` : '-';
       const qty = part.quantity ?? 1;
       let details = '';
+      if (part.componentType === 'longitudinal_straight_bar') details = `מוט ישר · L ${pileRound((part.lengthMm || 0) / 1000, 3)} מ׳`;
+      if (part.componentType === 'longitudinal_l_bar') details = `מוט עם כיפוף ראש · L ${pileRound((part.lengthMm || 0) / 1000, 3)} מ׳ · כיפוף ${pileRound((part.bendLengthMm || 0) / 10, 1)} ס״מ`;
       if (part.componentType === 'spiral_zone') {
         const turns = Number(part.turns || 0);
         const displayTurns = Number.isInteger(turns) ? String(turns) : turns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
         details = `@${pileRound((part.pitchMm || 0) / 10, 1)} ס״מ / L ${pileRound((part.zoneLengthMm || 0) / 10, 1)} ס״מ / ${displayTurns} ליפופים`;
       }
-      if (part.componentType === 'hoop_ring') details = `? ����� ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ��� | �-� ${pileRound((part.barCenterSpacingMm || 0) / 10, 1)} | ��� ${pileRound((part.barClearSpacingMm || 0) / 10, 1)}`;
+      if (part.componentType === 'hoop_ring') details = `קוטר טבעת ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ס״מ | מרכז-מרכז ${pileRound((part.barCenterSpacingMm || 0) / 10, 1)} ס״מ | מרווח נקי ${pileRound((part.barClearSpacingMm || 0) / 10, 1)} ס״מ`;
       return `<div class="se-pile-element-row" data-pile-element="${type}"><strong>${label}<span>${svgEscape(details)}</span></strong><span class="se-pile-element-value">${qty}</span><span class="se-pile-element-value">${diameter}</span><span class="se-pile-element-value">${lengthM} מ׳</span><span class="se-pile-element-value">${weightKg} ק״ג</span></div>`;
     }).join('');
     const overrides = normalizePileBarOverrides(pile.longitudinalBarOverrides || [], pile.longitudinalBars || 0).map(row => `<span data-pile-element-override>מוט ${row.barIndex} Ø${row.diameter} ${row.barPattern === 'l' ? 'L' : 'ישר'}</span>`).join('');
-    return `${rows || '<span class="se-pile-bar-note">אין אלמנטים מחושבים</span>'}${overrides ? `<div class="se-pile-element-overrides">${overrides}</div>` : ''}`;
+    return `${cageDetails}${rows || '<span class="se-pile-bar-note">אין אלמנטים מחושבים</span>'}${overrides ? `<div class="se-pile-element-overrides">${overrides}</div>` : ''}`;
   }
 
   _renderPileElementsSummary() {
@@ -3617,11 +3636,11 @@ class ShapeEditorModal {
     }
     if (centerOut) {
       if ('value' in centerOut) centerOut.value = centerCm;
-      centerOut.textContent = centerOut.classList && centerOut.classList.contains('se-derived-chip') ? `�-� ${centerCm}` : centerCm;
+      centerOut.textContent = centerOut.classList && centerOut.classList.contains('se-derived-chip') ? `מרכז-מרכז ${centerCm} ס״מ` : centerCm;
     }
     if (clearOut) {
       if ('value' in clearOut) clearOut.value = clearCm;
-      clearOut.textContent = clearOut.classList && clearOut.classList.contains('se-derived-chip') ? `��� ${clearCm}` : clearCm;
+      clearOut.textContent = clearOut.classList && clearOut.classList.contains('se-derived-chip') ? `מרווח נקי ${clearCm} ס״מ` : clearCm;
     }
     if (spiralTurnsOut && pile.roundPileCage) {
       const turns = Math.max(0, Number(pile.pileLength || 0) / Math.max(1, Number(pile.spiralPitch || 1)));
