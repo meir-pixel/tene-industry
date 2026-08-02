@@ -7,11 +7,12 @@ const vm = require('node:vm');
 const ordersHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'orders.html'), 'utf8');
 
 function assemblyRenderer() {
-  const block = ordersHtml.match(/function orderShapeSnapshot\(item\) \{[\s\S]*?\n\}\n\nfunction isSingleSegmentShape/);
-  assert.ok(block, 'order assembly renderer exists');
+  const start = ordersHtml.indexOf('function orderShapeSnapshot(item) {');
+  const end = ordersHtml.indexOf('function isSingleSegmentShape', start);
+  assert.ok(start >= 0 && end >= 0, 'order assembly renderer exists');
   const context = { escHtml: value => String(value) };
   vm.createContext(context);
-  vm.runInContext(block[0].replace(/\nfunction isSingleSegmentShape$/, ''), context);
+  vm.runInContext(ordersHtml.slice(start, end), context);
   return context.roundPileAssemblyHtml;
 }
 
