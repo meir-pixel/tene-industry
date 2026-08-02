@@ -153,6 +153,16 @@ test('shape editor one-screen edit layout keeps editing inside the viewport', ()
   assert.match(editor, /#seModal \.se-table\.se-table-3d tr\{[\s\S]*grid-template-columns:28px minmax\(0,1fr\) minmax\(0,.72fr\) minmax\(0,.66fr\) 22px/);
   assert.match(editor, /#seModal \.se-foot\{[\s\S]*height:68px/);
 });
+
+test('shape editor keeps selection and pile fields readable on a narrow phone', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /#seFamilyTabs\{justify-content:flex-start!important;[\s\S]*overflow-x:auto!important;[\s\S]*flex-wrap:nowrap!important/);
+  assert.match(editor, /#sePageSelect #sePresets\{[\s\S]*grid-template-columns:repeat\(auto-fill,minmax\(58px,1fr\)\)!important/);
+  assert.match(editor, /se-family-row>td\[colspan="2"\]\{grid-column:auto!important;width:auto!important;display:block;\}/);
+  assert.match(editor, /@media\(max-width:420px\)\{[\s\S]*se-pile-section \.se-family-row\{grid-template-columns:1fr!important;\}/);
+});
+
 test('shape editor keeps bend parameter rows compact and technical', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 

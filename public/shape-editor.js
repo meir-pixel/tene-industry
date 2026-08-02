@@ -2319,6 +2319,16 @@ class ShapeEditorModal {
   body.se-open{overflow:hidden;}
   #seOverlay{align-items:stretch!important;justify-content:stretch!important;padding:0!important;overflow:hidden!important;}
   #seModal{width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;border-radius:0!important;display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;overflow:hidden!important;}
+  /* Selection is a real mobile screen too: tabs may scroll intentionally, cards must not. */
+  #sePageCount>div{padding:24px 12px!important;}
+  #seCountBtns{gap:10px!important;}
+  #seFamilyTabs{justify-content:flex-start!important;gap:8px!important;padding:10px 12px 8px!important;overflow-x:auto!important;overflow-y:hidden!important;flex-wrap:nowrap!important;scroll-snap-type:x proximity;}
+  #seFamilyTabs .se-family-tab{flex:0 0 82px;scroll-snap-align:start;}
+  #seCategoryFilters{gap:7px!important;padding:10px 12px 5px!important;}
+  #seCategoryFilters .se-category-filter{min-width:68px!important;font-size:12px!important;}
+  #seSideFilters{gap:6px!important;padding:4px 12px 9px!important;}
+  #sePageSelect #sePresetsTitle{padding:8px 12px 10px!important;font-size:14px!important;}
+  #sePageSelect #sePresets{padding:0 12px 16px!important;grid-template-columns:repeat(auto-fill,minmax(58px,1fr))!important;gap:8px!important;}
   #seModal .se-head{min-height:auto!important;padding:8px 10px!important;display:grid!important;grid-template-columns:auto minmax(0,1fr)!important;grid-template-areas:'actions title'!important;gap:8px!important;}
   #seModal .se-brand{display:none!important;}
   #seModal .se-head-actions{grid-area:actions!important;justify-content:flex-start!important;gap:6px!important;}
@@ -2350,6 +2360,9 @@ class ShapeEditorModal {
   #seModal .se-table.se-table-3d tr{grid-template-columns:22px repeat(3,minmax(0,1fr)) 20px!important;gap:3px!important;}
   #seModal .se-table th{font-size:9px!important;padding:2px 3px!important;}
   #seModal .se-table td{padding:2px!important;}
+  /* The circular pile form uses colspan=2 for fields and colspan=5 for section wrappers. */
+  #seModal .se-pile-section .se-family-row>td[colspan="2"]{grid-column:auto!important;width:auto!important;display:block;}
+  #seModal .se-pile-section .se-family-row>td[colspan="5"]{grid-column:1/-1!important;width:100%!important;}
   #seModal .se-seg-label{width:24px!important;height:28px!important;font-size:10px!important;}
   #seModal .se-field-shell{grid-template-columns:12px minmax(0,1fr)!important;gap:0 2px!important;}
   #seModal .se-param-icon{width:12px!important;height:12px!important;font-size:7px!important;}
@@ -2377,6 +2390,7 @@ class ShapeEditorModal {
   #seModal .se-step-indicator{font-size:9px!important;padding-inline:6px!important;}
   #sePageEdit .se-family-card{flex-basis:90px!important;width:90px!important;min-width:90px!important;}
   #sePageEdit .se-family-card span{font-size:9px!important;}
+  #seModal .se-pile-section .se-family-row{grid-template-columns:1fr!important;}
 }
 
 </style>
