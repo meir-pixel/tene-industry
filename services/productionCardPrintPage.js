@@ -64,11 +64,15 @@ function pileComponentShapeSvg(card, fallbackLengthMm) {
   const componentType = card && (card.componentType || card.type);
   const source = card && card.source && typeof card.source === 'object' ? card.source : (card || {});
   if (componentType === 'spiral_zone') {
-    const zoneLengthMm = Number(source.zoneLengthMm || source.lengthMm || card.zoneLengthMm || fallbackLengthMm || 0);
-    const pitchMm = Number(source.pitchMm || source.pitch || card.pitchMm || 0);
-    const turns = Math.max(5, Math.min(13, Math.round(zoneLengthMm / Math.max(1, pitchMm || 300))));
+    const zoneLengthMm = Number(source.zoneLengthMm ?? source.lengthMm ?? source.totalLengthMm ?? card.zoneLengthMm ?? card.lengthMm ?? card.totalLengthMm);
+    const pitchMm = Number(source.pitchMm ?? source.pitch ?? card.pitchMm);
     const width = 240;
     const height = 118;
+    const hasGeometry = Number.isFinite(zoneLengthMm) && zoneLengthMm > 0 && Number.isFinite(pitchMm) && pitchMm > 0;
+    const turns = hasGeometry ? Math.min(13, Math.round(zoneLengthMm / pitchMm)) : 0;
+    if (turns < 1) {
+      return `<svg data-shape-kind="pile-spiral-component" data-component-type="spiral_zone" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible"><text x="120" y="48" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">SPIRAL</text><text x="120" y="72" text-anchor="middle" font-size="14" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">—</text></svg>`;
+    }
     const startX = 28;
     const endX = 212;
     const centerY = 58;
@@ -92,13 +96,14 @@ function pileComponentShapeSvg(card, fallbackLengthMm) {
   }
   if (componentType === 'hoop_ring') {
     const hoopDiameterMm = Number(source.hoopDiameterMm || source.innerDiameterMm || card.hoopDiameterMm || 0);
-    const quantity = Math.max(1, Math.round(Number(source.quantity || card.quantity || 1)));
+    const quantityValue = source.quantity ?? card.quantity;
+    const quantity = Number.isFinite(Number(quantityValue)) && Number(quantityValue) > 0 ? Math.round(Number(quantityValue)) : null;
     const width = 220;
     const height = 118;
     let svg = '<ellipse cx="110" cy="58" rx="62" ry="38" fill="none" stroke="#1a2332" stroke-width="4"/>';
     svg += '<ellipse cx="110" cy="58" rx="52" ry="31" fill="none" stroke="#3a5070" stroke-width="1.6"/>';
     svg += '<text x="110" y="19" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">HOOP RING</text>';
-    svg += `<text x="110" y="104" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">PCS ${quantity}${hoopDiameterMm > 0 ? ' · D ' + Math.round(hoopDiameterMm) + ' mm' : ''}</text>`;
+    svg += `<text x="110" y="104" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">PCS ${quantity ?? '—'}${hoopDiameterMm > 0 ? ' · D ' + Math.round(hoopDiameterMm) + ' mm' : ''}</text>`;
     return `<svg data-shape-kind="pile-hoop-component" data-component-type="hoop_ring" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
   }
   if (componentType === 'longitudinal_l_bar' || componentType === 'longitudinal_straight_bar') {
@@ -145,7 +150,10 @@ function expandPileCageProductionItems(allItems, tryParseJSON) {
     cards.forEach((card, index) => {
       const parentId = Number(item.id);
       const cardKey = `${parentId}-${card.scanCodeSuffix || 'P' + (index + 1)}`;
-      const quantity = Math.max(1, Math.round(Number(card.quantity) || 1));
+      const componentQuantity = card.cardType === 'pile_master'
+        ? 1
+        : (Number.isFinite(Number(card.quantity)) && Number(card.quantity) > 0 ? Math.round(Number(card.quantity)) : null);
+      const quantity = componentQuantity ?? 1;
       const totalWeight = Number.isFinite(Number(card.weightKg)) && Number(card.weightKg) > 0
         ? Number(card.weightKg)
         : (card.cardType === 'pile_master' ? (Number(item.total_weight || 0) / Math.max(1, Number(item.quantity) || 1)) : 0);
@@ -158,6 +166,7 @@ function expandPileCageProductionItems(allItems, tryParseJSON) {
         virtual_card: 1,
         pile_card_type: card.cardType,
         pile_component_type: card.componentType,
+        pile_component_quantity: componentQuantity,
         pile_unit_index: card.unitIndex,
         pile_unit_total: card.unitTotal,
         pile_component_index: card.componentIndex || 0,
@@ -455,6 +464,7 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   scan_suffix:    it.scan_suffix || '',
   pile_card_type: it.pile_card_type || '',
   pile_component_type: it.pile_component_type || '',
+  pile_component_quantity: it.pile_component_quantity == null ? null : it.pile_component_quantity,
   pile_cage_snapshot: pileSnapshotForItem(it, tryParseJSON),
   shape_name:     it.shape_name  || '',
   diameter:       it.diameter    || 12,
@@ -980,6 +990,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var workerUrl = '/worker-visual.html?scan=1&card=' + encodeURIComponent(barData);
   var segs    = item.segments || [];
   var wProp   = item.quantity > 0 ? (item.total_weight * subQty / item.quantity).toFixed(2) : '0.00';
+  var componentQuantityKnown = !item.pile_component_type || (Number.isFinite(Number(item.pile_component_quantity)) && Number(item.pile_component_quantity) > 0);
+  var displayQty = componentQuantityKnown ? subQty : '—';
   var title   = item.virtual_card ? item.shape_name : itemHumanTitle(item);
   var shapeSubtitle = item.pile_card_type === 'pile_master' ? 'כלוב זיון לכלונס עגול' : (item.shape_name ? ('כרטיס כיפוף – ' + item.shape_name) : 'כרטיס כיפוף');
   var badge   = cardNum ? '<span class="split-badge">'+cardNum+'</span>' : '';
@@ -1009,7 +1021,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-print-head"><b style="white-space:nowrap">'+escapeHtml(itemOrderLineLabel(item))+badge+'</b><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:9px;font-weight:700;opacity:0.85;letter-spacing:0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(headMeta)+'</span><b style="white-space:nowrap">Ø '+escapeHtml(item.diameter)+'</b></span></div>';
   h += '<div class="pc-print-ref">'+printRef+'</div>';
   h += '<div class="pc-print-shape">'+shapeSvg+'</div>';
-  h += '<div class="pc-print-bottom"><span>L = '+printLengthCm+' cm</span><span>PCS '+subQty+'</span><span>'+wProp+' kg</span></div>';
+  h += '<div class="pc-print-bottom"><span>L = '+printLengthCm+' cm</span><span>PCS '+displayQty+'</span><span>'+wProp+' kg</span></div>';
   h += '</div>';
   h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div><div class="pc-print-status">SCAN STATUS</div></div>';
   h += '</div>';
@@ -1026,7 +1038,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-wq-row">';
   h += '<div class="pc-wq-cell"><span class="wq-lbl">ק"ג:</span> <span class="wq-val">'+wProp+'</span></div>';
   h += '<div class="pc-wq-sep"></div>';
-  h += '<div class="pc-wq-cell"><span class="wq-lbl">כמות:</span> <span class="wq-val">'+subQty+'</span> יח</div>';
+  h += '<div class="pc-wq-cell"><span class="wq-lbl">כמות:</span> <span class="wq-val">'+displayQty+'</span> יח</div>';
   h += '<div class="pc-wq-sep"></div>';
   h += '<div class="pc-wq-cell"><span class="wq-lbl">לקוח:</span> <span class="wq-cust">'+escapeHtml(CUSTOMER)+'</span></div>';
   h += '</div>';

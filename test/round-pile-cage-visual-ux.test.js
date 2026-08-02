@@ -166,3 +166,46 @@ test('dynamic print keeps multiple cages independent and does not classify anoth
   assert.equal(otherCards.length, 1);
   assert.doesNotMatch(otherCards[0], /כלוב זיון לכלונס עגול|PILE CAGE|pile-cage-master-card/);
 });
+
+function componentPrintCard(component) {
+  const snapshot = pileSnapshot();
+  snapshot.manufacturingBreakdown = [component];
+  return dynamicPrintCards([pileItem(snapshot)]).find(card => card.includes(`data-component-type="${component.componentType}"`));
+}
+
+test('dynamic spiral component renders geometry only from valid length and pitch', () => {
+  const incompleteCases = [
+    { componentType: 'spiral_zone', totalLengthMm: 12000 },
+    { componentType: 'spiral_zone', pitchMm: 150 },
+    { componentType: 'spiral_zone' },
+    { componentType: 'spiral_zone', totalLengthMm: 12000, pitchMm: 0 },
+    { componentType: 'spiral_zone', totalLengthMm: 0, pitchMm: 150 },
+  ];
+  for (const component of incompleteCases) {
+    const card = componentPrintCard(component);
+    assert.match(card, /data-shape-kind="pile-spiral-component"/);
+    assert.match(card, />—</);
+    assert.doesNotMatch(card, /pitch 300 mm|<path/);
+    assert.doesNotMatch(card, /data-shape-kind="generic-bar"/);
+  }
+  const complete = componentPrintCard({ componentType: 'spiral_zone', totalLengthMm: 12000, pitchMm: 150 });
+  assert.match(complete, /data-shape-kind="pile-spiral-component"/);
+  assert.match(complete, /pitch 150 mm/);
+  assert.match(complete, /<path/);
+});
+
+test('dynamic hoop component never invents a quantity', () => {
+  for (const component of [
+    { componentType: 'hoop_ring' },
+    { componentType: 'hoop_ring', source: {} },
+    { componentType: 'hoop_ring', quantity: null },
+  ]) {
+    const card = componentPrintCard(component);
+    assert.match(card, /data-shape-kind="pile-hoop-component"/);
+    assert.match(card, /PCS —/);
+    assert.doesNotMatch(card, /PCS 1/);
+    assert.doesNotMatch(card, /data-shape-kind="generic-bar"/);
+  }
+  const complete = componentPrintCard({ componentType: 'hoop_ring', quantity: 5, hoopDiameterMm: 420 });
+  assert.match(complete, /PCS 5 · D 420 mm/);
+});
