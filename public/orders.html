@@ -158,6 +158,18 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .item-visual{background:#fff;border:1px solid rgba(2,26,72,0.08);border-radius:12px;min-height:150px;height:150px;
   display:flex;align-items:center;justify-content:center;overflow:hidden;padding:6px;}
 .item-visual svg{width:100%!important;height:100%!important;display:block;overflow:visible;}
+.pile-assembly{grid-column:1/-1;border-top:1px solid rgba(2,26,72,.10);padding-top:14px;margin-top:2px;}
+.pile-assembly-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+.pile-assembly-title{font-size:15px;font-weight:900;color:var(--text);}
+.pile-assembly-note{font-size:12px;color:var(--dim);line-height:1.45;max-width:540px;}
+.pile-component-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.pile-component{background:#fff;border:1px solid rgba(2,26,72,.12);border-radius:12px;padding:11px;min-width:0;display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;align-items:center;}
+.pile-component-diagram{height:98px;border-radius:9px;background:#f6f9fc;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.pile-component-diagram svg{width:100%;height:100%;display:block;}
+.pile-component-title{font-size:14px;font-weight:900;color:var(--text);margin-bottom:4px;}
+.pile-component-metric{font-size:13px;font-weight:900;color:var(--accent);line-height:1.45;}
+.pile-component-placement{font-size:11px;font-weight:700;color:var(--dim);line-height:1.45;margin-top:4px;}
+.pile-placement-list{font-size:11px;color:var(--dim);line-height:1.45;margin-top:3px;overflow-wrap:anywhere;}
 .item-main{display:flex;flex-direction:column;gap:8px;min-width:0;}
 .item-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .item-diameter{font-size:24px;font-weight:900;color:var(--accent);line-height:1;}
@@ -243,6 +255,10 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   .hero-metric{grid-template-columns:1fr 1fr;}
   .item-row{grid-template-columns:1fr;}
   .item-visual{min-height:170px;height:170px;}
+  .pile-component-grid{grid-template-columns:1fr;}
+  .pile-component{grid-template-columns:110px minmax(0,1fr);}
+  .pile-assembly-head{display:block;}
+  .pile-assembly-note{margin-top:4px;}
   .item-kpis{grid-template-columns:repeat(2,1fr);}
   .print-btns{flex-direction:column;}
   .print-btns{display:flex;}
@@ -724,6 +740,98 @@ function buildSpiralSvg(diameter, turns) {
   </svg>`;
 }
 
+function orderShapeSnapshot(item) {
+  const value = item?.shape_snapshot_json ?? item?.shapeSnapshot;
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch (_) { return null; }
+}
+
+function pileNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function pileMm(value) {
+  const number = pileNumber(value, 0);
+  return Number.isInteger(number) ? String(number) : number.toFixed(1).replace(/\.0$/, '');
+}
+
+function pilePart(snapshot, type) {
+  const parts = snapshot?.manufacturingBreakdown
+    || snapshot?.calculated?.manufacturingBreakdown
+    || snapshot?.machineOutput?.generic?.manufacturingBreakdown
+    || [];
+  return Array.isArray(parts) ? parts.find(part => part?.componentType === type) || null : null;
+}
+
+function pileComponentSvg(kind, label) {
+  const text = escHtml(label);
+  if (kind === 'straight') return `<svg viewBox="0 0 160 100" role="img" aria-label="מוט ישר">
+    <line x1="18" y1="45" x2="142" y2="45" stroke="#17356f" stroke-width="7" stroke-linecap="round"/>
+    <path d="M18 66H142M18 61v10M142 61v10" stroke="#7d8b99" stroke-width="1.5"/>
+    <text x="80" y="85" text-anchor="middle" font-size="12" font-weight="700" fill="#1a2533">${text}</text>
+  </svg>`;
+  if (kind === 'bent') return `<svg viewBox="0 0 160 100" role="img" aria-label="מוט עם כיפוף עליון">
+    <path d="M34 76V28H112" fill="none" stroke="#17356f" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M46 22H112M112 22v11" stroke="#7d8b99" stroke-width="1.5"/>
+    <text x="80" y="91" text-anchor="middle" font-size="12" font-weight="700" fill="#1a2533">${text}</text>
+  </svg>`;
+  if (kind === 'spiral') return `<svg viewBox="0 0 160 100" role="img" aria-label="ספירלה רציפה">
+    <path d="M15 52C25 20 39 20 49 52S73 84 83 52 107 20 117 52 135 84 145 52" fill="none" stroke="#c9621a" stroke-width="5" stroke-linecap="round"/>
+    <path d="M15 78H145M15 73v10M145 73v10" stroke="#7d8b99" stroke-width="1.5"/>
+    <text x="80" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#1a2533">${text}</text>
+  </svg>`;
+  return `<svg viewBox="0 0 160 100" role="img" aria-label="טבעת חיזוק">
+    <circle cx="80" cy="45" r="29" fill="none" stroke="#1a7a42" stroke-width="6"/>
+    <path d="M42 82H118M42 77v10M118 77v10" stroke="#7d8b99" stroke-width="1.5"/>
+    <text x="80" y="96" text-anchor="middle" font-size="11" font-weight="700" fill="#1a2533">${text}</text>
+  </svg>`;
+}
+
+function roundPileAssemblyHtml(item) {
+  const snapshot = orderShapeSnapshot(item);
+  if (!snapshot || (snapshot.shapeType !== 'round_pile_cage' && snapshot?.data?.roundPileCage !== true)) return '';
+  const data = snapshot.data || {};
+  const bars = Array.isArray(data.bars) ? data.bars : (Array.isArray(data.longitudinalBars?.bars) ? data.longitudinalBars.bars : []);
+  const straight = pilePart(snapshot, 'longitudinal_straight_bar');
+  const bent = pilePart(snapshot, 'longitudinal_l_bar');
+  const spiral = pilePart(snapshot, 'spiral_zone');
+  const hoops = pilePart(snapshot, 'hoop_ring');
+  const pileLength = pileNumber(data.pileLengthMm ?? data.pileLength ?? data.general?.pileLengthMm, 0);
+  const straightBar = bars.find(bar => String(bar.type || '').toLowerCase() === 'straight') || {};
+  const bentBar = bars.find(bar => ['l', 'bent'].includes(String(bar.type || '').toLowerCase())) || {};
+  const straightQty = pileNumber(straight?.quantity, bars.filter(bar => String(bar.type || '').toLowerCase() === 'straight').length);
+  const bentQty = pileNumber(bent?.quantity, bars.filter(bar => ['l', 'bent'].includes(String(bar.type || '').toLowerCase())).length);
+  const straightLength = pileNumber(straight?.lengthMm ?? straight?.mainLengthMm, pileNumber(straightBar.lengthMm ?? straightBar.mainLengthMm, straightQty ? pileNumber(straight?.totalLengthMm) / straightQty : 0));
+  const bentLength = pileNumber(bent?.lengthMm, pileNumber(bentBar.lengthMm, bentQty ? pileNumber(bent?.totalLengthMm) / bentQty : 0));
+  const bendLength = pileNumber(bent?.bendLengthMm ?? bentBar.bendLengthMm, 0);
+  const longDiameter = pileNumber(straight?.diameterMm ?? bent?.diameterMm ?? straightBar.diameterMm ?? bentBar.diameterMm ?? data.longitudinalDiameterMm ?? data.longitudinalDiameter, 0);
+  const spiralDiameter = pileNumber(spiral?.diameterMm ?? data.spiral?.barDiameterMm, 0);
+  const spiralOuterDiameter = pileNumber(spiral?.outerDiameterMm ?? data.spiral?.outerDiameterMm ?? data.spiral?.spiralDiameterMm, 0);
+  const spiralPitch = pileNumber(spiral?.pitchMm ?? data.spiral?.pitchMm ?? data.spiral?.uniformPitchMm, 0);
+  const spiralTurns = pileNumber(spiral?.turns ?? data.spiral?.turns, 0);
+  const hoopDiameter = pileNumber(hoops?.diameterMm ?? data.hoops?.hoopBarDiameterMm ?? data.hoops?.barDiameterMm, 0);
+  const hoopOuterDiameter = pileNumber(hoops?.hoopOuterDiameterMm ?? data.hoops?.outerDiameterMm ?? hoops?.hoopDiameterMm, 0);
+  const hoopQty = pileNumber(hoops?.quantity, data.hoops?.quantity);
+  const hoopStart = pileNumber(data.hoops?.firstOffsetMm ?? data.hoops?.firstHoopOffsetMm ?? hoops?.positionsMm?.[0], 0);
+  const hoopSpacing = pileNumber(hoops?.spacingMm ?? data.hoops?.spacingMm, 0);
+  const component = (kind, title, metric, placement, list = '') => `<article class="pile-component" data-pile-component="${kind}">
+    <div class="pile-component-diagram">${pileComponentSvg(kind, metric)}</div>
+    <div><div class="pile-component-title">${escHtml(title)}</div><div class="pile-component-metric">${escHtml(metric)}</div><div class="pile-component-placement">${escHtml(placement)}</div>${list ? `<div class="pile-placement-list">${escHtml(list)}</div>` : ''}</div>
+  </article>`;
+  const cards = [];
+  if (straightQty > 0) cards.push(component('straight', 'מוטות אורך ישרים', `${straightQty} × Ø${pileMm(longDiameter)} · L=${pileMm(straightLength)} מ״מ`, 'לפזר סביב ההיקף במקומות האי־זוגיים: 1, 3, 5…'));
+  if (bentQty > 0) cards.push(component('bent', 'מוטות אורך עם כיפוף עליון', `${bentQty} × Ø${pileMm(longDiameter)} · L=${pileMm(bentLength)} מ״מ`, bendLength > 0 ? `במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס; אורך הכיפוף ${pileMm(bendLength)} מ״מ.` : 'במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס.'));
+  if (spiralDiameter > 0) cards.push(component('spiral', 'ספירלה רציפה', `Ø${pileMm(spiralDiameter)} · קוטר ${pileMm(spiralOuterDiameter)} · פסיעה ${pileMm(spiralPitch)} מ״מ`, 'ללפף ברציפות לאורך הכלוב — סיבוב אחד בכל פסיעה.', spiralTurns > 0 ? `${pileMm(spiralTurns)} כריכות מחושבות לפי ה־snapshot.` : ''));
+  if (hoopQty > 0) cards.push(component('hoop', 'טבעות חיזוק', `${pileMm(hoopQty)} × Ø${pileMm(hoopDiameter)} · קוטר ${pileMm(hoopOuterDiameter)} מ״מ`, `הטבעת הראשונה ${pileMm(hoopStart)} מ״מ מראש הכלונס; מרווח ${pileMm(hoopSpacing)} מ״מ.`));
+  if (!cards.length) return '';
+  return `<section class="pile-assembly" data-round-pile-assembly="1" aria-label="הוראות הרכבה לכלוב כלונס">
+    <div class="pile-assembly-head"><div class="pile-assembly-title">🧩 הוראת הרכבה — כל חלק ומיקומו</div><div class="pile-assembly-note">כל המידות להלן נשאבות מה־snapshot שנשמר עם ההזמנה. אורך הכלוב: ${escHtml(pileMm(pileLength))} מ״מ.</div></div>
+    <div class="pile-component-grid">${cards.join('')}</div>
+  </section>`;
+}
+
 function isSingleSegmentShape(sides) {
   return !Array.isArray(sides) || sides.filter(n => Number.isFinite(Number(n)) && Number(n) > 0).length <= 1;
 }
@@ -898,6 +1006,7 @@ function buildDetailHTML(o, pkgs) {
       const measuredWeight = actualWeight(item);
       const deviationPct = weightDeviationPct(item);
       const canonicalShapeSvg = encodeURIComponent(item.shape_svg || '');
+      const pileAssembly = roundPileAssemblyHtml(item);
       const visualHtml = isRealSpiralItem(item)
         ? `<div class="item-visual" data-detail-shape="1" data-shape-svg="${canonicalShapeSvg}" data-spiral-shape="1" data-spiral-diameter="${escHtml(item.spiral_diameter_mm)}" data-spiral-turns="${escHtml(item.spiral_turns)}" onclick="openItemEdit(event, ${o.id}, ${item.id})" title="ערוך צורה"></div>`
         : `<div class="item-visual"
@@ -940,6 +1049,7 @@ function buildDetailHTML(o, pkgs) {
           ${item.status==='בייצור'&&qty>0?`<div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100,produced/qty*100).toFixed(0)}%"></div></div><div style="font-size:11px;color:var(--muted)">${produced}/${qty}</div>`:''}
         </div>
         <span class="item-status ${ic}">${escHtml(item.status)}</span>
+        ${pileAssembly}
       </div>`;
     }).join('');
     return `<div style="margin-bottom:12px">
