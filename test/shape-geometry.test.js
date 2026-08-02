@@ -312,6 +312,9 @@ test('round pile cage preset exposes a parametric form and engineering visualiza
   assert.match(editor, /מרווח נקי/);
   assert.match(editor, /data-pile-cage-overview/);
   assert.match(editor, /פרטי הכלוב/);
+  assert.match(editor, /data-pile-component-cards/);
+  assert.match(editor, /רכיבי הכלוב — כל פריט בנפרד/);
+  assert.match(editor, /@media\(max-width:640px\)\{#seModal \.se-pile-component-cards\{grid-template-columns:1fr;\}/);
   assert.doesNotMatch(editor, /�/);
   assert.match(editor, /calculateRoundPileCage/);
   assert.match(editor, /מוט שחור = ישר, מוט כחול = מכופף/);

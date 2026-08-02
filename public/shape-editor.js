@@ -2304,12 +2304,18 @@ class ShapeEditorModal {
 #seModal .se-pile-cage-overview{display:grid;gap:3px;border:1px solid #c8dff3;border-radius:6px;background:#eff8ff;padding:6px 7px;color:#12315a;}
 #seModal .se-pile-cage-overview strong{font-size:11px;}
 #seModal .se-pile-cage-overview span{font-size:9px;font-weight:800;line-height:1.2;}
+#seModal .se-pile-component-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;}
+#seModal .se-pile-component-card{display:grid;gap:3px;border:1px solid #cbd9e7;border-right:4px solid #3667a8;border-radius:7px;background:#fff;padding:7px;min-width:0;}
+#seModal .se-pile-component-card-title{font-size:11px;font-weight:900;color:#102d50;}
+#seModal .se-pile-component-card-metric{font-size:10px;font-weight:900;color:#1d4f8f;}
+#seModal .se-pile-component-card-placement{font-size:9px;font-weight:800;color:#526070;line-height:1.25;}
 #seModal .se-pile-element-row{display:grid;grid-template-columns:minmax(88px,1fr) repeat(4,minmax(38px,.48fr));gap:3px;align-items:center;direction:rtl;border:1px solid #edf1f6;border-radius:6px;background:#f8fafc;padding:3px;min-width:0;}
 #seModal .se-pile-element-row strong{font-size:10px;color:#0f2444;line-height:1.12;display:grid;min-width:0;}
 #seModal .se-pile-element-row span{font-size:9px;color:#64748b;font-weight:800;line-height:1.15;}
 #seModal .se-pile-element-value{border-radius:5px;background:#fff;border:1px solid #d8e2ec;padding:2px 3px;text-align:center;font-size:9px!important;color:#0f2444!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
 #seModal .se-pile-element-overrides{display:flex;flex-wrap:wrap;gap:4px;}
 #seModal .se-pile-element-overrides span{border:1px solid #bdd2ea;border-radius:999px;background:#eef6ff;color:#12315a;font-size:9px;font-weight:900;padding:2px 6px;}
+@media(max-width:640px){#seModal .se-pile-component-cards{grid-template-columns:1fr;}#seModal .se-pile-component-card{padding:8px;}}
 
 @media(max-width:980px){#seModal .se-head{grid-template-columns:1fr;gap:8px;min-height:112px;padding:10px 14px;}#seModal .se-brand{justify-content:center;}#seModal .se-head-actions{justify-content:center;}#sePageEdit{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) minmax(250px,38vh);}#sePageEdit .se-family-panel{order:1;flex-direction:row;overflow-x:auto;padding:10px;}#sePageEdit .se-family-card{min-width:132px;min-height:74px;}#sePageEdit .se-preview-panel{order:2;padding:10px;}#sePageEdit .se-data-panel{order:3;width:100%;border-top:1px solid #c5cbd4;}#seModal .se-svg-wrap{height:42vh;max-height:42vh;}#seModal .se-foot{height:auto;min-height:82px;}#seFootNormal{flex-wrap:wrap;}#seModal .se-bottom-summary{width:100%;overflow-x:auto;padding-bottom:2px;}#seModal .se-foot-actions{width:100%;}}
 
@@ -3571,12 +3577,35 @@ class ShapeEditorModal {
       if (part.componentType === 'hoop_ring') details = `קוטר טבעת ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ס״מ | מרכז-מרכז ${pileRound((part.barCenterSpacingMm || 0) / 10, 1)} ס״מ | מרווח נקי ${pileRound((part.barClearSpacingMm || 0) / 10, 1)} ס״מ`;
       return `<div class="se-pile-element-row" data-pile-element="${type}"><strong>${label}<span>${svgEscape(details)}</span></strong><span class="se-pile-element-value">${qty}</span><span class="se-pile-element-value">${diameter}</span><span class="se-pile-element-value">${lengthM} מ׳</span><span class="se-pile-element-value">${weightKg} ק״ג</span></div>`;
     }).join('');
+    const componentCards = parts.map((part) => {
+      const type = String(part.componentType || 'part');
+      const title = svgEscape(this._pileElementLabel(part));
+      const quantity = part.quantity ?? 1;
+      const diameter = part.diameterMm ? `Ø${displayNumber(part.diameterMm)} מ״מ` : '';
+      let metric = `${quantity} × ${diameter}`;
+      let placement = '';
+      if (type === 'longitudinal_straight_bar') {
+        metric += ` · L=${displayNumber((part.lengthMm || 0) / 1000, 3)} מ׳`;
+        placement = 'לפזר סביב ההיקף במקומות האי־זוגיים: 1, 3, 5, 7, 9.';
+      } else if (type === 'longitudinal_l_bar') {
+        metric += ` · L=${displayNumber((part.lengthMm || 0) / 1000, 3)} מ׳ · כיפוף ${displayNumber((part.bendLengthMm || 0) / 10)} ס״מ`;
+        placement = 'לפזר במקומות הזוגיים; הכיפוף נמצא בראש כלוב הכלונס.';
+      } else if (type === 'spiral_zone') {
+        metric = `${diameter} · קוטר ${displayNumber((part.outerDiameterMm || 0) / 10)} ס״מ · פסיעה ${displayNumber((part.pitchMm || 0) / 10)} ס״מ`;
+        placement = `ללפף ברציפות לאורך אזור של ${displayNumber((part.zoneLengthMm || 0) / 1000, 3)} מ׳ — ${displayNumber(part.turns, 3)} ליפופים.`;
+      } else if (type === 'hoop_ring') {
+        metric = `${quantity} × ${diameter} · קוטר ${displayNumber((part.hoopOuterDiameterMm || 0) / 10)} ס״מ`;
+        placement = `למקם מהראש במרווח ${displayNumber((part.spacingMm || 0) / 10)} ס״מ, לפי מיקומי הטבעות המחושבים.`;
+      }
+      return `<article class="se-pile-component-card" data-pile-component-card="${svgEscape(type)}"><div class="se-pile-component-card-title">${title}</div><div class="se-pile-component-card-metric">${svgEscape(metric)}</div><div class="se-pile-component-card-placement">${svgEscape(placement)}</div></article>`;
+    }).join('');
     const overrides = normalizePileBarOverrides(pile.longitudinalBarOverrides || [], pile.longitudinalBars || 0).map(row => `<span data-pile-element-override>מוט ${row.barIndex} Ø${row.diameter} ${row.barPattern === 'l' ? 'L' : 'ישר'}</span>`).join('');
-    return `${cageDetails}${rows || '<span class="se-pile-bar-note">אין אלמנטים מחושבים</span>'}${overrides ? `<div class="se-pile-element-overrides">${overrides}</div>` : ''}`;
+    const components = roundCage ? `<div class="se-pile-component-cards" data-pile-component-cards>${componentCards}</div>` : rows;
+    return `${cageDetails}${components || '<span class="se-pile-bar-note">אין אלמנטים מחושבים</span>'}${overrides ? `<div class="se-pile-element-overrides">${overrides}</div>` : ''}`;
   }
 
   _renderPileElementsSummary() {
-    return `<tr class="se-family-row se-pile-elements-row"><td colspan="5"><div class="se-pile-elements" data-pile-elements-summary><div class="se-pile-elements-head">רכיבי יסוד<span>כמות / קוטר / אורך / משקל</span></div><div data-pile-elements-body>${this._pileElementsSummaryHtml()}</div></div></td></tr>`;
+    return `<tr class="se-family-row se-pile-elements-row"><td colspan="5"><div class="se-pile-elements" data-pile-elements-summary><div class="se-pile-elements-head">רכיבי הכלוב — כל פריט בנפרד<span>כמות, מידה ומיקום</span></div><div data-pile-elements-body>${this._pileElementsSummaryHtml()}</div></div></td></tr>`;
   }
 
   _refreshPileElementsSummary() {
