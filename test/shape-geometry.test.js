@@ -306,6 +306,8 @@ test('round pile cage preset exposes a parametric form and engineering visualiza
   assert.match(editor, /קוטר כלונס \(ס״מ\)/);
   assert.match(editor, /קוטר ברזל מוטות \(מ״מ\)/);
   assert.match(editor, /מרווח טבעות \(ס״מ\)/);
+  assert.match(editor, /data-pile-derived="spiralTurns"/);
+  assert.match(editor, /ליפופים מחושבים/);
   assert.match(editor, /calculateRoundPileCage/);
   assert.match(editor, /מוט שחור = ישר, מוט כחול = מכופף/);
   assert.match(editor, /data-view="side"/);

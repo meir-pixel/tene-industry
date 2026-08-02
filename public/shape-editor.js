@@ -3433,11 +3433,13 @@ class ShapeEditorModal {
     };
     if (pile.roundPileCage) {
       const calc = PileCageEngine.calculate(pile);
+      const spiralTurns = Number(calc.data?.spiral?.turns || 0);
+      const displaySpiralTurns = Number.isInteger(spiralTurns) ? String(spiralTurns) : spiralTurns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
       const section = (title, rows, open = false) => `<tr class="se-pile-section-row"><td colspan="5"><details class="se-pile-section" ${open ? 'open' : ''}><summary><strong>${title}</strong></summary><table><tbody>${rows}</tbody></table></details></td></tr>`;
       body.innerHTML = `
         ${section('כלוב כלונס עגול — נתונים כלליים', `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true)}
         ${section('זיון אורכי — סידור לסירוגין ישר / מכופף', `<tr class="se-family-row se-pile-compact-row">${field('longitudinalDiameter', 1)}${field('straightBarCount', 0)}${field('bentBarCount', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('straightBarLength', 1)}${field('bentBarLength', 1)}${field('bendLength', 0)}</tr>`)}
-        ${section('ספירלה רציפה', `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${field('spiralOuterDiameter', 1)}${field('spiralPitch', 1)}</tr>`)}
+        ${section('ספירלה רציפה', `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${field('spiralOuterDiameter', 1)}${field('spiralPitch', 1)}</tr><tr class="se-family-row"><td colspan="5"><div class="se-derived-chip" data-pile-derived="spiralTurns">אורך ${pile.pileLength} ס״מ ÷ פסיעה ${pile.spiralPitch} ס״מ = ${displaySpiralTurns} ליפופים מחושבים</div></td></tr>`)}
         ${section('טבעות חיזוק', `<tr class="se-family-row se-pile-compact-row">${field('hoopDiameter', 1)}${field('hoopOuterDiameter', 1)}${field('hoopQuantity', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('hoopStart', 0)}${field('hoopSpacing', 1)}</tr>`)}
         ${section('פירוט ייצור / BOM', this._renderPileElementsSummary())}
         <tr class="se-family-row"><td colspan="5"><div class="se-pile-validation ok">חתך: מוט שחור = ישר, מוט כחול = מכופף. מבט אורך: הספירלה רציפה והטבעות בירוק.</div></td></tr>`;
@@ -3541,7 +3543,11 @@ class ShapeEditorModal {
       const diameter = part.diameterMm ? `Ø${pileRound(Number(part.diameterMm || 0), 1)}` : '-';
       const qty = part.quantity ?? 1;
       let details = '';
-      if (part.componentType === 'spiral_zone') details = `@${pileRound((part.pitchMm || 0) / 10, 1)} ס״מ / L ${pileRound((part.zoneLengthMm || 0) / 10, 1)} ס״מ`;
+      if (part.componentType === 'spiral_zone') {
+        const turns = Number(part.turns || 0);
+        const displayTurns = Number.isInteger(turns) ? String(turns) : turns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+        details = `@${pileRound((part.pitchMm || 0) / 10, 1)} ס״מ / L ${pileRound((part.zoneLengthMm || 0) / 10, 1)} ס״מ / ${displayTurns} ליפופים`;
+      }
       if (part.componentType === 'hoop_ring') details = `? ����� ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ��� | �-� ${pileRound((part.barCenterSpacingMm || 0) / 10, 1)} | ��� ${pileRound((part.barClearSpacingMm || 0) / 10, 1)}`;
       return `<div class="se-pile-element-row" data-pile-element="${type}"><strong>${label}<span>${svgEscape(details)}</span></strong><span class="se-pile-element-value">${qty}</span><span class="se-pile-element-value">${diameter}</span><span class="se-pile-element-value">${lengthM} מ׳</span><span class="se-pile-element-value">${weightKg} ק״ג</span></div>`;
     }).join('');
@@ -3595,7 +3601,8 @@ class ShapeEditorModal {
     const diameterOut = document.querySelector('[data-pile-derived="internalHoopDiameter"]');
     const centerOut = document.querySelector('[data-pile-derived="barCenterSpacing"]');
     const clearOut = document.querySelector('[data-pile-derived="barClearSpacing"]');
-    if (!diameterOut && !centerOut && !clearOut) return;
+    const spiralTurnsOut = document.querySelector('[data-pile-derived="spiralTurns"]');
+    if (!diameterOut && !centerOut && !clearOut && !spiralTurnsOut) return;
     const pile = this.current;
     const pileDiameterMm = pileCmToMm(pile.pileDiameter || 70, 700);
     const coverMm = pileCmToMm(pile.concreteCover || 0, 0);
@@ -3615,6 +3622,11 @@ class ShapeEditorModal {
     if (clearOut) {
       if ('value' in clearOut) clearOut.value = clearCm;
       clearOut.textContent = clearOut.classList && clearOut.classList.contains('se-derived-chip') ? `��� ${clearCm}` : clearCm;
+    }
+    if (spiralTurnsOut && pile.roundPileCage) {
+      const turns = Math.max(0, Number(pile.pileLength || 0) / Math.max(1, Number(pile.spiralPitch || 1)));
+      const displayTurns = Number.isInteger(turns) ? String(turns) : turns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+      spiralTurnsOut.textContent = `אורך ${pile.pileLength} ס״מ ÷ פסיעה ${pile.spiralPitch} ס״מ = ${displayTurns} ליפופים מחושבים`;
     }
   }
 
