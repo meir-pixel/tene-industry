@@ -35,7 +35,7 @@ const SHAPE_PRESETS = [
   { id: 's13', name: 'צורה 12', family: 'bars', category: 'פיגורה', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
   { id: 's14', name: 'צורה 13',    family: 'bars', category: 'פיגורה', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
   { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, edgeLeft: 0, edgeRight: 0, edgeTop: 0, edgeBottom: 0, emoji: '#', specialty: 'mesh' },
-  { id: 'round-pile-cage', name: 'כלוב כלונס עגול', family: 'piles', icon: 'pile', bends: 0, roundPileCage: true, pileDiameter: 60, pileLength: 1200, longitudinalBars: 10, longitudinalDiameter: 20, straightBarCount: 5, bentBarCount: 5, straightBarLength: 1200, bentBarLength: 1220, bendLength: 20, barPattern: 'alternate', spiralDiameter: 8, spiralOuterDiameter: 48, spiralPitch: 15, spiralZones: [{ length: 1200, pitch: 15 }], hoopsEnabled: true, hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30, emoji: '◎', specialty: 'pile' },
+  { id: 'round-pile-cage', name: 'כלוב כלונס עגול', family: 'piles', icon: 'pile', bends: 0, roundPileCage: true, pileDiameter: 60, pileLength: 1200, longitudinalBars: 10, longitudinalDiameter: 20, straightBarCount: 5, bentBarCount: 5, straightBarLength: 1200, bentBarLength: 1220, bendLength: 20, barPattern: 'alternate', spiralDiameter: 8, spiralOuterDiameter: 48, spiralPitch: 15, spiralZones: [{ length: 1180, pitch: 15 }], hoopsEnabled: true, hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30, emoji: '◎', specialty: 'pile' },
   { id: 'spiral1', name: 'ספיראלה', family: 'spirals', icon: 'spiral', bends: 0, barDiameter: 8, spiralDiameter: 400, turns: 20, emoji: '🌀', specialty: 'spiral' },
   { id: 'ring1',   name: 'טבעת',    family: 'spirals', icon: 'spiral', bends: 0, barDiameter: 8, spiralDiameter: 400, turns: 1,  emoji: '⭕', specialty: 'spiral' },
   { id: 's12', name: 'צורה מותאמת',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
@@ -776,15 +776,15 @@ function calculateRoundPileCage(shape = {}) {
   const straightCount = Math.max(0, Math.round(Number(shape.straightBarCount ?? 5))); const bentCount = Math.max(0, Math.round(Number(shape.bentBarCount ?? 5))); const barCount = straightCount + bentCount;
   const straightLengthMm = mm(shape.straightBarLength, pileLengthMm / 10); const bentLengthMm = mm(shape.bentBarLength, pileLengthMm / 10 + 20); const bendLengthMm = Math.max(0, Number(shape.bendLength ?? 20) * 10);
   const spiralBarDiameterMm = Math.max(1, Number(shape.spiralDiameter || 8)); const spiralOuterDiameterMm = mm(shape.spiralOuterDiameter, 48); const spiralCenterlineDiameterMm = spiralOuterDiameterMm - spiralBarDiameterMm; const pitchMm = mm(shape.spiralPitch, 15);
-  const turns = pileLengthMm / pitchMm; const helixPerTurnMm = Math.sqrt((Math.PI * spiralCenterlineDiameterMm) ** 2 + pitchMm ** 2); const spiralLengthMm = turns * helixPerTurnMm;
+  const spiralCoverageLengthMm = Math.max(0, Math.min(pileLengthMm, mm(shape.spiralZones?.[0]?.length, pileLengthMm / 10))); const turns = spiralCoverageLengthMm / pitchMm; const helixPerTurnMm = Math.sqrt((Math.PI * spiralCenterlineDiameterMm) ** 2 + pitchMm ** 2); const spiralLengthMm = turns * helixPerTurnMm;
   const hoopBarDiameterMm = Math.max(1, Number(shape.hoopDiameter || 18)); const hoopOuterDiameterMm = mm(shape.hoopOuterDiameter, 42); const hoopCenterlineDiameterMm = hoopOuterDiameterMm - hoopBarDiameterMm; const hoopQuantity = Math.max(0, Math.round(Number(shape.hoopQuantity ?? 5))); const firstHoopOffsetMm = Math.max(0, Number(shape.hoopStart ?? 150) * 10); const hoopSpacingMm = Math.max(1, Number(shape.hoopSpacing ?? 30) * 10); const hoopPositionsMm = Array.from({ length: hoopQuantity }, (_, index) => firstHoopOffsetMm + index * hoopSpacingMm);
   const bars = Array.from({ length: barCount }, (_, index) => { const type = index % 2 === 0 ? 'straight' : 'L'; return { barIndex: index + 1, positionAngleDeg: Number((index * 360 / Math.max(1, barCount)).toFixed(3)), type, diameterMm: barDiameterMm, mainLengthMm: type === 'straight' ? straightLengthMm : bentLengthMm - bendLengthMm, bendLengthMm: type === 'straight' ? 0 : bendLengthMm, lengthMm: type === 'straight' ? straightLengthMm : bentLengthMm }; });
   const group = (type, lengthMm) => { const quantity = bars.filter(bar => bar.type === type).length; return { componentType: type === 'straight' ? 'longitudinal_straight_bar' : 'longitudinal_l_bar', sourceSystem: 'longitudinalBars', description: type === 'straight' ? 'מוטות אורך ישרים' : 'מוטות אורך עם כיפוף עליון', diameterMm: barDiameterMm, lengthMm, bendLengthMm: type === 'straight' ? 0 : bendLengthMm, quantity, totalLengthMm: quantity * lengthMm, weightKg: pileRound((quantity * lengthMm / 1000) * sharedKgPerMeter(barDiameterMm), 3) }; };
   const straight = group('straight', straightLengthMm); const bent = group('L', bentLengthMm);
-  const spiral = { componentType: 'spiral_zone', sourceSystem: 'spiral', description: 'ספירלה רציפה', diameterMm: spiralBarDiameterMm, outerDiameterMm: spiralOuterDiameterMm, centerlineDiameterMm: spiralCenterlineDiameterMm, pitchMm, turns, helixPerTurnMm, quantity: 1, totalLengthMm: pileRound(spiralLengthMm, 1), weightKg: pileRound((spiralLengthMm / 1000) * sharedKgPerMeter(spiralBarDiameterMm), 3) };
+  const spiral = { componentType: 'spiral_zone', sourceSystem: 'spiral', description: 'ספירלה רציפה', diameterMm: spiralBarDiameterMm, outerDiameterMm: spiralOuterDiameterMm, centerlineDiameterMm: spiralCenterlineDiameterMm, pitchMm, turns, helixPerTurnMm, zoneLengthMm: spiralCoverageLengthMm, quantity: 1, totalLengthMm: pileRound(spiralLengthMm, 1), weightKg: pileRound((spiralLengthMm / 1000) * sharedKgPerMeter(spiralBarDiameterMm), 3) };
   const hoops = { componentType: 'hoop_ring', sourceSystem: 'hoops', description: 'טבעות חיזוק', diameterMm: hoopBarDiameterMm, hoopOuterDiameterMm, hoopDiameterMm: hoopCenterlineDiameterMm, quantity: hoopQuantity, spacingMm: hoopSpacingMm, positionsMm: hoopPositionsMm, lengthMm: pileRound(Math.PI * hoopCenterlineDiameterMm, 1), totalLengthMm: pileRound(Math.PI * hoopCenterlineDiameterMm * hoopQuantity, 1), weightKg: pileRound((Math.PI * hoopCenterlineDiameterMm * hoopQuantity / 1000) * sharedKgPerMeter(hoopBarDiameterMm), 3) };
   const manufacturingBreakdown = [straight, bent, spiral, hoops].filter(part => part.quantity > 0); const totalLongitudinalLengthMm = straight.totalLengthMm + bent.totalLengthMm; const totalLengthMm = totalLongitudinalLengthMm + spiral.totalLengthMm + hoops.totalLengthMm; const weightKg = pileRound(manufacturingBreakdown.reduce((sum, part) => sum + part.weightKg, 0), 3);
-  const data = { pileDiameter: pileDiameterMm, pileLength: pileLengthMm, roundPileCage: true, longitudinalBars: barCount, longitudinalDiameter: barDiameterMm, alternatingLayout: true, bars, spiral: { continuous: true, barDiameterMm: spiralBarDiameterMm, outerDiameterMm: spiralOuterDiameterMm, centerlineDiameterMm: spiralCenterlineDiameterMm, pitchMm, turns, helixPerTurnMm }, hoops: { barDiameterMm: hoopBarDiameterMm, outerDiameterMm: hoopOuterDiameterMm, centerlineDiameterMm: hoopCenterlineDiameterMm, quantity: hoopQuantity, firstOffsetMm: firstHoopOffsetMm, spacingMm: hoopSpacingMm, positionsMm: hoopPositionsMm } };
+  const data = { pileDiameter: pileDiameterMm, pileLength: pileLengthMm, roundPileCage: true, longitudinalBars: barCount, longitudinalDiameter: barDiameterMm, alternatingLayout: true, bars, spiral: { continuous: true, barDiameterMm: spiralBarDiameterMm, outerDiameterMm: spiralOuterDiameterMm, centerlineDiameterMm: spiralCenterlineDiameterMm, pitchMm, turns, coverageLengthMm: spiralCoverageLengthMm, helixPerTurnMm }, hoops: { barDiameterMm: hoopBarDiameterMm, outerDiameterMm: hoopOuterDiameterMm, centerlineDiameterMm: hoopCenterlineDiameterMm, quantity: hoopQuantity, firstOffsetMm: firstHoopOffsetMm, spacingMm: hoopSpacingMm, positionsMm: hoopPositionsMm } };
   const calculated = { totalLongitudinalLengthMm, totalSpiralLengthMm: spiral.totalLengthMm, totalHoopLengthMm: hoops.totalLengthMm, totalLengthMm, weightKg, manufacturingBreakdown };
   return { data, calculated, machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, manufacturingBreakdown }, machineProfiles: {} }, validation: { valid: barCount >= 3 && spiralCenterlineDiameterMm > 0 && hoopCenterlineDiameterMm > 0, errors: [], warnings: [] }, manufacturingBreakdown, productionCards: manufacturingBreakdown.map((part, index) => ({ cardType: 'pile_component', componentType: part.componentType, title: part.description, componentIndex: index + 1, quantity: part.quantity, diameterMm: part.diameterMm, totalLengthMm: part.totalLengthMm, weightKg: part.weightKg, source: part })) };
 }
@@ -890,6 +890,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const zones = Array.isArray(pile?.spiralZones) && pile.spiralZones.length
     ? pileZonesCmToMm(pile.spiralZones, pile?.spiralPitch || 20)
     : [{ name: 'Zone A', length: pileLength, pitch: pileCmToMm(pile?.spiralPitch || 20, 200) }];
+  const roundPile = Boolean(pile?.roundPileCage);
   const sideLeft = w * 0.08;
   const sideRight = w * 0.93;
   const sideTop = h * 0.13;
@@ -913,7 +914,6 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const labelBox = (x, y, value, cls = '', rotate = 0) => `<g class="pile-label ${cls}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rotate})"><rect x="-17" y="-8" width="34" height="16" rx="3" fill="#fff" stroke="#94a3b8" stroke-width=".9"/><text text-anchor="middle" dominant-baseline="central" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">${svgEscape(value)}</text></g>`;
   const dimLine = (x1, y1, x2, y2, cls = '', focus = '') => `<line class="pile-dimension-line ${cls}" data-se-focus="${focus}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>`;
 
-  const roundPile = Boolean(pile?.roundPileCage);
   const displayedLongitudinalBars = roundPile ? Math.max(1, longitudinalBars) : 2;
   const longitudinalLines = Array.from({ length: displayedLongitudinalBars }, (_, index) => {
     const y = displayedLongitudinalBars === 1
@@ -3437,12 +3437,13 @@ class ShapeEditorModal {
     if (pile.roundPileCage) {
       const calc = PileCageEngine.calculate(pile);
       const spiralTurns = Number(calc.data?.spiral?.turns || 0);
+      const spiralCoverageLengthCm = Number(calc.data?.spiral?.coverageLengthMm || 0) / 10;
       const displaySpiralTurns = Number.isInteger(spiralTurns) ? String(spiralTurns) : spiralTurns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
       const section = (title, rows, open = false) => `<tr class="se-pile-section-row"><td colspan="5"><details class="se-pile-section" ${open ? 'open' : ''}><summary><strong>${title}</strong></summary><table><tbody>${rows}</tbody></table></details></td></tr>`;
       body.innerHTML = `
         ${section('כלוב כלונס עגול — נתונים כלליים', `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true)}
         ${section('זיון אורכי — סידור לסירוגין ישר / מכופף', `<tr class="se-family-row se-pile-compact-row">${field('longitudinalDiameter', 1)}${field('straightBarCount', 0)}${field('bentBarCount', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('straightBarLength', 1)}${field('bentBarLength', 1)}${field('bendLength', 0)}</tr>`)}
-        ${section('ספירלה רציפה', `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${field('spiralOuterDiameter', 1)}${field('spiralPitch', 1)}</tr><tr class="se-family-row"><td colspan="5"><div class="se-derived-chip" data-pile-derived="spiralTurns">אורך ${pile.pileLength} ס״מ ÷ פסיעה ${pile.spiralPitch} ס״מ = ${displaySpiralTurns} ליפופים מחושבים</div></td></tr>`)}
+        ${section('ספירלה רציפה', `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${field('spiralOuterDiameter', 1)}${field('spiralPitch', 1)}</tr><tr class="se-family-row"><td colspan="5"><div class="se-derived-chip" data-pile-derived="spiralTurns">אורך אזור ספירלה ${spiralCoverageLengthCm} ס״מ ÷ פסיעה ${pile.spiralPitch} ס״מ = ${displaySpiralTurns} ליפופים מחושבים</div></td></tr>`)}
         ${section('טבעות חיזוק', `<tr class="se-family-row se-pile-compact-row">${field('hoopDiameter', 1)}${field('hoopOuterDiameter', 1)}${field('hoopQuantity', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('hoopStart', 0)}${field('hoopSpacing', 1)}</tr>`)}
         ${section('פירוט ייצור / BOM', this._renderPileElementsSummary())}
         <tr class="se-family-row"><td colspan="5"><div class="se-pile-validation ok">חתך: מוט שחור = ישר, מוט כחול = מכופף. מבט אורך: הספירלה רציפה והטבעות בירוק.</div></td></tr>`;
@@ -3643,9 +3644,10 @@ class ShapeEditorModal {
       clearOut.textContent = clearOut.classList && clearOut.classList.contains('se-derived-chip') ? `מרווח נקי ${clearCm} ס״מ` : clearCm;
     }
     if (spiralTurnsOut && pile.roundPileCage) {
-      const turns = Math.max(0, Number(pile.pileLength || 0) / Math.max(1, Number(pile.spiralPitch || 1)));
+      const coverageLength = Math.max(0, Number(pile.spiralZones?.[0]?.length || pile.pileLength || 0));
+      const turns = coverageLength / Math.max(1, Number(pile.spiralPitch || 1));
       const displayTurns = Number.isInteger(turns) ? String(turns) : turns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
-      spiralTurnsOut.textContent = `אורך ${pile.pileLength} ס״מ ÷ פסיעה ${pile.spiralPitch} ס״מ = ${displayTurns} ליפופים מחושבים`;
+      spiralTurnsOut.textContent = `אורך אזור ספירלה ${coverageLength} ס״מ ÷ פסיעה ${pile.spiralPitch} ס״מ = ${displayTurns} ליפופים מחושבים`;
     }
   }
 

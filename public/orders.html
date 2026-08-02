@@ -831,6 +831,7 @@ function roundPileAssemblyHtml(item) {
   const spiralOuterDiameter = pileNumber(spiral?.outerDiameterMm ?? data.spiral?.outerDiameterMm ?? data.spiral?.spiralDiameterMm, 0);
   const spiralPitch = pileNumber(spiral?.pitchMm ?? data.spiral?.pitchMm ?? data.spiral?.uniformPitchMm, 0);
   const spiralTurns = pileNumber(spiral?.turns ?? data.spiral?.turns, 0);
+  const spiralCoverageLength = pileNumber(spiral?.zoneLengthMm ?? data.spiral?.coverageLengthMm, pileLength);
   const hoopDiameter = pileNumber(hoops?.diameterMm ?? data.hoops?.hoopBarDiameterMm ?? data.hoops?.barDiameterMm, 0);
   const hoopOuterDiameter = pileNumber(hoops?.hoopOuterDiameterMm ?? data.hoops?.outerDiameterMm ?? hoops?.hoopDiameterMm, 0);
   const hoopQty = pileNumber(hoops?.quantity, data.hoops?.quantity);
@@ -843,7 +844,7 @@ function roundPileAssemblyHtml(item) {
   const cards = [];
   if (straightQty > 0) cards.push(component('straight', 'מוטות אורך ישרים', `${straightQty} × Ø${pileMm(longDiameter)} · L=${pileMeters(straightLength)} מ׳`, 'לפזר סביב ההיקף במקומות האי־זוגיים: 1, 3, 5…', '', { lengthMm: straightLength }));
   if (bentQty > 0) cards.push(component('bent', 'מוטות אורך עם כיפוף עליון', `${bentQty} × Ø${pileMm(longDiameter)} · L=${pileMeters(bentLength)} מ׳`, bendLength > 0 ? `במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס; אורך הכיפוף ${pileCm(bendLength)} ס״מ.` : 'במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס.', '', { lengthMm: bentLength, mainLengthMm: bentMainLength, bendLengthMm: bendLength }));
-  if (spiralDiameter > 0) cards.push(component('spiral', 'ספירלה רציפה', `Ø${pileMm(spiralDiameter)} · קוטר ${pileCm(spiralOuterDiameter)} ס״מ · פסיעה ${pileCm(spiralPitch)} ס״מ`, 'ללפף ברציפות לאורך הכלוב — סיבוב אחד בכל פסיעה.', spiralTurns > 0 ? `${pileMm(spiralTurns)} כריכות מחושבות לפי ה־snapshot.` : '', { outerDiameterMm: spiralOuterDiameter, pitchMm: spiralPitch }));
+  if (spiralDiameter > 0) cards.push(component('spiral', 'ספירלה רציפה', `Ø${pileMm(spiralDiameter)} · קוטר ${pileCm(spiralOuterDiameter)} ס״מ · פסיעה ${pileCm(spiralPitch)} ס״מ`, 'ללפף ברציפות לאורך אזור הספירלה — סיבוב אחד בכל פסיעה.', spiralTurns > 0 ? `אורך אזור ספירלה ${pileMeters(spiralCoverageLength)} מ׳ · ${pileMm(spiralTurns)} כריכות מחושבות לפי ה־snapshot.` : '', { outerDiameterMm: spiralOuterDiameter, pitchMm: spiralPitch }));
   if (hoopQty > 0) cards.push(component('hoop', 'טבעות חיזוק', `${pileMm(hoopQty)} × Ø${pileMm(hoopDiameter)} · קוטר ${pileCm(hoopOuterDiameter)} ס״מ`, `הטבעת הראשונה ${pileCm(hoopStart)} ס״מ מראש הכלונס; מרווח ${pileCm(hoopSpacing)} ס״מ.`, '', { outerDiameterMm: hoopOuterDiameter }));
   if (!cards.length) return '';
   return `<section class="pile-assembly" data-round-pile-assembly="1" aria-label="הוראות הרכבה לכלוב כלונס">

@@ -780,7 +780,7 @@ test('round pile cage draws only alternating longitudinal bars with a head bend'
     pileDiameter: 60, pileLength: 1200,
     longitudinalBars: 10, longitudinalDiameter: 20,
     barPattern: 'alternate', bendLength: 20,
-    spiralDiameter: 8, spiralPitch: 15, spiralZones: [{ length: 1200, pitch: 15 }],
+    spiralDiameter: 8, spiralPitch: 15, spiralZones: [{ length: 1180, pitch: 15 }],
     hoopDiameter: 18, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
   }, 300, 260);
 
@@ -790,6 +790,23 @@ test('round pile cage draws only alternating longitudinal bars with a head bend'
   assert.match(svg, /ראש הכלונס — כיפופי L/);
   assert.match(svg, /data-pile-alternating-legend="1"/);
   assert.equal((svg.match(/class="pile-hoop"/g) || []).length, 6, 'five side-view rings and one circular cross-section ring remain separate from bent bars');
+});
+
+test('round pile cage calculates the continuous spiral from its configured spiral zone', () => {
+  const { PileCageEngine } = loadShapeEditorGeometry();
+  const result = PileCageEngine.calculate({
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    spiralDiameter: 8, spiralOuterDiameter: 48, spiralPitch: 15, spiralZones: [{ length: 1180, pitch: 15 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  });
+
+  const spiral = result.manufacturingBreakdown.find(part => part.componentType === 'spiral_zone');
+  assert.equal(result.data.spiral.coverageLengthMm, 11800);
+  assert.equal(spiral.zoneLengthMm, 11800);
+  assert.equal(spiral.turns, 11800 / 150);
 });
 
 

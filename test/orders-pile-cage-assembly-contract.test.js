@@ -47,13 +47,13 @@ test('order assembly guide shows each production component and its exact snapsho
         { type: 'straight', diameterMm: 20, lengthMm: 12000 },
         { type: 'L', diameterMm: 20, lengthMm: 12200, bendLengthMm: 200 },
       ],
-      spiral: { barDiameterMm: 8, outerDiameterMm: 480, pitchMm: 150, turns: 80 },
+      spiral: { barDiameterMm: 8, outerDiameterMm: 480, pitchMm: 150, coverageLengthMm: 11800, turns: 78.6666666667 },
       hoops: { barDiameterMm: 18, outerDiameterMm: 420, quantity: 5, firstOffsetMm: 1500, spacingMm: 300 },
     },
     calculated: { manufacturingBreakdown: [
       { componentType: 'longitudinal_straight_bar', quantity: 5, diameterMm: 20, lengthMm: 12000, totalLengthMm: 60000 },
       { componentType: 'longitudinal_l_bar', quantity: 5, diameterMm: 20, lengthMm: 12200, bendLengthMm: 200, totalLengthMm: 61000 },
-      { componentType: 'spiral_zone', quantity: 1, diameterMm: 8, outerDiameterMm: 480, pitchMm: 150, turns: 80 },
+      { componentType: 'spiral_zone', quantity: 1, diameterMm: 8, outerDiameterMm: 480, pitchMm: 150, zoneLengthMm: 11800, turns: 78.6666666667 },
       { componentType: 'hoop_ring', quantity: 5, diameterMm: 18, hoopOuterDiameterMm: 420, spacingMm: 300 },
     ] },
   }) });
@@ -67,6 +67,7 @@ test('order assembly guide shows each production component and its exact snapsho
   assert.match(html, /L=12.2 מ׳/);
   assert.match(html, />20 ס״מ<\/text>/);
   assert.match(html, /Ø8 · קוטר 48 ס״מ · פסיעה 15 ס״מ/);
+  assert.match(html, /אורך אזור ספירלה 11.8 מ׳/);
   assert.match(html, /5 × Ø18 · קוטר 42 ס״מ/);
   assert.match(html, /הטבעת הראשונה 150 ס״מ מראש הכלונס; מרווח 30 ס״מ/);
 });
