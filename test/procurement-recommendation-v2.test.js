@@ -80,5 +80,28 @@ test('B5B1 refresh explicitly replaces only a stale draft snapshot before approv
   value.prepare("UPDATE material_requirements_v2 SET source_revision='r2' WHERE id=1").run();
   assert.throws(() => recommendations.approveRecommendation(value, { recommendation_id: draft.id, idempotency_key: 'blocked', decided_by: 9 }), /recommendation_stale/);
   const refreshed = recommendations.refreshDraft(value, input('refresh', { recommendation_id: draft.id, refreshed_by: 3 }));
-  assert.equal(refreshed.freshness_status, 'current'); assert.equal(recommendations.approveRecommendation(value, { recommendation_id: draft.id, idempotency_key: 'approved-after-refresh', decided_by: 9 }).status, 'approved'); value.close();
+  const event = value.prepare("SELECT details_json FROM procurement_recommendation_events_v2 WHERE recommendation_id=? AND event_type='refreshed'").get(draft.id);
+  const audit = JSON.parse(event.details_json);
+  assert.deepEqual(audit.before.spec_snapshot, draft.spec_snapshot); assert.deepEqual(audit.before.coverage_snapshot, draft.coverage_snapshot); assert.equal(audit.before.recommended_kg, draft.recommended_kg); assert.equal(audit.before.freshness_status, 'stale');
+  assert.deepEqual(audit.before.requirement_links, [{ material_requirement_id: 1, requirement_uid: 'REQ-1', requirement_revision_snapshot: 'r1', required_kg_snapshot: 100, recommended_kg: 100, spec_snapshot: { diameter: 12, material_type: 'coil', supply_form: 'coil', grade: null, standard_code: null, nominal_length_mm: null } }]);
+  assert.deepEqual(audit.after.spec_snapshot, refreshed.spec_snapshot); assert.deepEqual(audit.after.coverage_snapshot, refreshed.coverage_snapshot); assert.equal(audit.after.recommended_kg, refreshed.recommended_kg); assert.equal(audit.after.freshness_status, 'current'); assert.deepEqual(audit.after.requirement_links, refreshed.links.map(({ material_requirement_id, requirement_uid, requirement_revision_snapshot, required_kg_snapshot, recommended_kg, spec_snapshot }) => ({ material_requirement_id, requirement_uid, requirement_revision_snapshot, required_kg_snapshot, recommended_kg, spec_snapshot })));
+  assert.equal(recommendations.approveRecommendation(value, { recommendation_id: draft.id, idempotency_key: 'approved-after-refresh', decided_by: 9 }).status, 'approved'); value.close();
+});
+
+test('B5B1 reconciliation emits one stale event per stale cycle without timestamp collisions', () => {
+  const value = db(); seed(value); const draft = recommendations.createDraft(value, input('stale-cycle'));
+  value.prepare("UPDATE material_requirements_v2 SET source_revision='r2' WHERE id=1").run();
+  value.prepare("UPDATE procurement_recommendations_v2 SET updated_at='2026-01-01 00:00:00' WHERE id=?").run(draft.id);
+  recommendations.reconcileRecommendation(value, { recommendation_id: draft.id, idempotency_key: 'reconcile-first', reconciled_by: 9 });
+  assert.equal(value.prepare("SELECT COUNT(*) n FROM procurement_recommendation_events_v2 WHERE event_type='stale_detected'").get().n, 1);
+  const eventsBeforeReplay = value.prepare('SELECT COUNT(*) n FROM procurement_recommendation_events_v2').get().n;
+  recommendations.reconcileRecommendation(value, { recommendation_id: draft.id, idempotency_key: 'reconcile-first', reconciled_by: 9 });
+  assert.equal(value.prepare("SELECT COUNT(*) n FROM procurement_recommendation_events_v2 WHERE event_type='stale_detected'").get().n, 1);
+  assert.equal(value.prepare('SELECT COUNT(*) n FROM procurement_recommendation_events_v2').get().n, eventsBeforeReplay);
+  recommendations.refreshDraft(value, input('refresh-cycle', { recommendation_id: draft.id, refreshed_by: 9 }));
+  value.prepare("UPDATE material_requirements_v2 SET source_revision='r3' WHERE id=1").run();
+  value.prepare("UPDATE procurement_recommendations_v2 SET updated_at='2026-01-01 00:00:00' WHERE id=?").run(draft.id);
+  recommendations.reconcileRecommendation(value, { recommendation_id: draft.id, idempotency_key: 'reconcile-second', reconciled_by: 9 });
+  const staleEvents = value.prepare("SELECT idempotency_key FROM procurement_recommendation_events_v2 WHERE event_type='stale_detected' ORDER BY id").all();
+  assert.equal(staleEvents.length, 2); assert.notEqual(staleEvents[0].idempotency_key, staleEvents[1].idempotency_key); value.close();
 });

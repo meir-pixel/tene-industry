@@ -62,6 +62,22 @@ function getRecommendation(db, id, { projectFreshness = true } = {}) {
   const stale = projectFreshness && isStale(db, row, links);
   return { ...row, spec_snapshot: JSON.parse(row.spec_snapshot_json), coverage_snapshot: JSON.parse(row.coverage_snapshot_json), links: links.map(link => ({ ...link, spec_snapshot: JSON.parse(link.spec_snapshot_json) })), events, projected_freshness_status: stale ? 'stale' : row.freshness_status };
 }
+function auditSnapshot(row, links) {
+  return {
+    spec_snapshot: JSON.parse(row.spec_snapshot_json),
+    coverage_snapshot: JSON.parse(row.coverage_snapshot_json),
+    recommended_kg: Number(row.recommended_kg),
+    requirement_links: links.map(link => ({
+      material_requirement_id: Number(link.material_requirement_id),
+      requirement_uid: link.requirement_uid,
+      requirement_revision_snapshot: link.requirement_revision_snapshot ?? null,
+      required_kg_snapshot: Number(link.required_kg_snapshot),
+      recommended_kg: Number(link.recommended_kg),
+      spec_snapshot: JSON.parse(link.spec_snapshot_json),
+    })),
+    freshness_status: row.freshness_status,
+  };
+}
 function isStale(db, row, links) {
   const spec = JSON.parse(row.spec_snapshot_json);
   if (stable(projectionSnapshot(db, spec)) !== row.coverage_snapshot_json) return true;
@@ -80,11 +96,12 @@ function replayEvent(db, key, payload) {
 function event(db, recommendationId, type, key, payload, actorId, details) {
   db.prepare('INSERT INTO procurement_recommendation_events_v2 (recommendation_id,event_type,idempotency_key,payload_fingerprint,actor_id,details_json) VALUES (?,?,?,?,?,?)').run(recommendationId, type, key, fingerprint(payload), actorId ?? null, JSON.stringify(details));
 }
-function markStale(db, row, links, actorId = null) {
+function markStale(db, row, links, actorId = null, triggerKey) {
   if (!isStale(db, row, links)) return false;
   if (row.freshness_status === 'stale') return true;
   db.prepare("UPDATE procurement_recommendations_v2 SET freshness_status='stale',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(row.id);
-  event(db, row.id, 'stale_detected', `stale:${row.id}:${row.updated_at}`, { action: 'stale_detected', recommendation_id: row.id, snapshot: row.coverage_snapshot_json }, actorId, { reason: 'source_snapshot_changed' });
+  const eventKey = `stale:${fingerprint({ recommendation_id: row.id, trigger_key: triggerKey, snapshot: auditSnapshot(row, links) })}`;
+  event(db, row.id, 'stale_detected', eventKey, { action: 'stale_detected', recommendation_id: row.id, trigger_key: triggerKey }, actorId, { reason: 'source_snapshot_changed', examined: auditSnapshot(row, links) });
   return true;
 }
 function createDraft(db, input = {}) {
@@ -111,12 +128,16 @@ function refreshDraft(db, input = {}) {
   const tx = db.transaction(() => {
     const replay = replayEvent(db, key, payload); if (replay) return replay;
     const row = db.prepare("SELECT * FROM procurement_recommendations_v2 WHERE id=? AND status='draft'").get(id); if (!row) fail('draft_recommendation_required');
+    const previousLinks = db.prepare('SELECT * FROM procurement_recommendation_requirement_links_v2 WHERE recommendation_id=? ORDER BY id').all(id);
+    const before = auditSnapshot(row, previousLinks);
     const spec = normalizedSpec(input.specification ?? input.spec ?? JSON.parse(row.spec_snapshot_json)); const amount = positive(input.recommended_kg ?? input.recommendedKg, 'invalid_recommended_kg'); const links = normalizeLinks(db, input.links, amount, spec); const coverage = stable(projectionSnapshot(db, spec));
     db.prepare("UPDATE procurement_recommendations_v2 SET spec_snapshot_json=?,recommended_kg=?,coverage_snapshot_json=?,freshness_status='current',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(stable(spec), amount, coverage, id);
     db.prepare('DELETE FROM procurement_recommendation_requirement_links_v2 WHERE recommendation_id=?').run(id);
     const insert = db.prepare('INSERT INTO procurement_recommendation_requirement_links_v2 (recommendation_id,material_requirement_id,requirement_uid,requirement_revision_snapshot,required_kg_snapshot,recommended_kg,spec_snapshot_json) VALUES (?,?,?,?,?,?,?)');
     for (const link of links) insert.run(id, link.requirement.id, link.requirement.requirement_uid, link.requirement.source_revision ?? null, link.requirement.required_kg, link.amount, stable(link.spec));
-    event(db, id, 'refreshed', key, payload, input.refreshed_by ?? input.refreshedBy ?? null, { recommended_kg: amount }); return getRecommendation(db, id);
+    const afterRow = db.prepare('SELECT * FROM procurement_recommendations_v2 WHERE id=?').get(id);
+    const afterLinks = db.prepare('SELECT * FROM procurement_recommendation_requirement_links_v2 WHERE recommendation_id=? ORDER BY id').all(id);
+    event(db, id, 'refreshed', key, payload, input.refreshed_by ?? input.refreshedBy ?? null, { before, after: auditSnapshot(afterRow, afterLinks) }); return getRecommendation(db, id);
   }); return tx.immediate();
 }
 function transition(db, input, next) {
@@ -125,7 +146,7 @@ function transition(db, input, next) {
   const preflight = db.transaction(() => {
     const row = db.prepare("SELECT * FROM procurement_recommendations_v2 WHERE id=? AND status='draft'").get(id); if (!row) return false;
     const links = db.prepare('SELECT * FROM procurement_recommendation_requirement_links_v2 WHERE recommendation_id=? ORDER BY id').all(id);
-    return markStale(db, row, links, input.decided_by ?? input.decidedBy ?? null);
+    return markStale(db, row, links, input.decided_by ?? input.decidedBy ?? null, key);
   });
   if (preflight.immediate()) fail('recommendation_stale');
   const tx = db.transaction(() => {
@@ -137,7 +158,7 @@ function transition(db, input, next) {
 }
 function reconcileRecommendation(db, input = {}) {
   const id = Number(input.recommendation_id ?? input.recommendationId); const key = String(input.idempotency_key ?? input.idempotencyKey ?? '').trim(); if (!id || !key) fail('idempotency_key_required'); const payload = { action: 'reconcile', recommendation_id: id };
-  const tx = db.transaction(() => { const replay = replayEvent(db, key, payload); if (replay) return replay; const row = db.prepare('SELECT * FROM procurement_recommendations_v2 WHERE id=?').get(id); if (!row) fail('recommendation_not_found'); const links = db.prepare('SELECT * FROM procurement_recommendation_requirement_links_v2 WHERE recommendation_id=? ORDER BY id').all(id); const stale = markStale(db, row, links, input.reconciled_by ?? input.reconciledBy ?? null); event(db, id, 'updated', key, payload, input.reconciled_by ?? input.reconciledBy ?? null, { stale }); return getRecommendation(db, id); }); return tx.immediate();
+  const tx = db.transaction(() => { const replay = replayEvent(db, key, payload); if (replay) return replay; const row = db.prepare('SELECT * FROM procurement_recommendations_v2 WHERE id=?').get(id); if (!row) fail('recommendation_not_found'); const links = db.prepare('SELECT * FROM procurement_recommendation_requirement_links_v2 WHERE recommendation_id=? ORDER BY id').all(id); const stale = markStale(db, row, links, input.reconciled_by ?? input.reconciledBy ?? null, key); event(db, id, 'updated', key, payload, input.reconciled_by ?? input.reconciledBy ?? null, { stale }); return getRecommendation(db, id); }); return tx.immediate();
 }
 function listRecommendations(db) { return db.prepare('SELECT id FROM procurement_recommendations_v2 ORDER BY id DESC').all().map(row => getRecommendation(db, row.id)); }
 module.exports = { ProcurementRecommendationError, createDraft, refreshDraft, approveRecommendation: (db, input) => transition(db, input, 'approved'), rejectRecommendation: (db, input) => transition(db, input, 'rejected'), cancelRecommendation: (db, input) => transition(db, input, 'cancelled'), reconcileRecommendation, getRecommendation, listRecommendations };
