@@ -303,6 +303,9 @@ test('round pile cage preset exposes a parametric form and engineering visualiza
 
   assert.match(editor, /name: 'כלוב כלונס עגול'/);
   ['straightBarCount', 'bentBarCount', 'straightBarLength', 'bentBarLength', 'bendLength', 'spiralOuterDiameter', 'spiralPitch', 'hoopOuterDiameter', 'hoopQuantity'].forEach(field => assert.match(editor, new RegExp(field)));
+  assert.match(editor, /קוטר כלונס \(ס״מ\)/);
+  assert.match(editor, /קוטר ברזל מוטות \(מ״מ\)/);
+  assert.match(editor, /מרווח טבעות \(ס״מ\)/);
   assert.match(editor, /calculateRoundPileCage/);
   assert.match(editor, /מוט שחור = ישר, מוט כחול = מכופף/);
   assert.match(editor, /data-view="side"/);

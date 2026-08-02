@@ -3400,14 +3400,14 @@ class ShapeEditorModal {
     if (pile.lHookLength == null) pile.lHookLength = 25;
     if (!Array.isArray(pile.longitudinalBarOverrides)) pile.longitudinalBarOverrides = [];
     const meta = {
-      pileDiameter: ['Ø','קוטר כלונס','ס״מ','70'], pileLength: ['L','אורך כלונס','ס״מ','2200'],
-      longitudinalBars: ['N','מספר מוטות אורך','יח׳','26'], longitudinalDiameter: ['Ø','קוטר ברזל מוטות','מ״מ','22'],
-      spiralDiameter: ['Ø','קוטר ברזל ספיראלה','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
-      hoopsEnabled: ['H','טבעות פנימיות','','פעיל'], hoopDiameter: ['Ø','קוטר ברזל טבעת','מ״מ','14'],
-      hoopSpacing: ['@','מרווח טבעות','ס״מ','200'], hoopStart: ['↦','תחילת טבעות','ס״מ','0'], hoopEnd: ['↤','סוף טבעות','ס״מ','2200'],
+      pileDiameter: ['Ø','קוטר כלונס (ס״מ)','ס״מ','70'], pileLength: ['L','אורך כלונס (ס״מ)','ס״מ','2200'],
+      longitudinalBars: ['N','מספר מוטות אורך (יח׳)','יח׳','26'], longitudinalDiameter: ['Ø','קוטר ברזל מוטות (מ״מ)','מ״מ','22'],
+      spiralDiameter: ['Ø','קוטר ברזל ספירלה (מ״מ)','מ״מ','8'], spiralType: ['S','סוג ספירלה','','zoned'],
+      hoopsEnabled: ['H','טבעות פנימיות','','פעיל'], hoopDiameter: ['Ø','קוטר ברזל טבעת (מ״מ)','מ״מ','14'],
+      hoopSpacing: ['@','מרווח טבעות (ס״מ)','ס״מ','200'], hoopStart: ['↦','תחילת טבעות (ס״מ)','ס״מ','0'], hoopEnd: ['↤','סוף טבעות (ס״מ)','ס״מ','2200'],
       hoopStartSide: ['⇄','צד התחלה','','מהתחלה'], hoopShape: ['⬡','צורת טבעת','','עגול'], barPattern: ['L','צורת מוטות אורך','','straight'], lHookLength: ['L','אורך רגל L','ס״מ','25'],
-      straightBarCount: ['N','מוטות ישרים','יח׳','5'], bentBarCount: ['N','מוטות מכופפים','יח׳','5'], straightBarLength: ['L','אורך ישר','ס״מ','1200'], bentBarLength: ['L','אורך מכופף כולל','ס״מ','1220'], bendLength: ['↪','אורך כיפוף','ס״מ','20'],
-      spiralOuterDiameter: ['Ø','קוטר חיצוני ספירלה','ס״מ','48'], spiralPitch: ['@','פסיעת ספירלה','ס״מ','15'], hoopOuterDiameter: ['Ø','קוטר חיצוני טבעת','ס״מ','42'], hoopQuantity: ['N','כמות טבעות','יח׳','5'],
+      straightBarCount: ['N','מוטות ישרים (יח׳)','יח׳','5'], bentBarCount: ['N','מוטות מכופפים (יח׳)','יח׳','5'], straightBarLength: ['L','אורך ישר (ס״מ)','ס״מ','1200'], bentBarLength: ['L','אורך מכופף כולל (ס״מ)','ס״מ','1220'], bendLength: ['↪','אורך כיפוף (ס״מ)','ס״מ','20'],
+      spiralOuterDiameter: ['Ø','קוטר חיצוני ספירלה (ס״מ)','ס״מ','48'], spiralPitch: ['@','פסיעת ספירלה (ס״מ)','ס״מ','15'], hoopOuterDiameter: ['Ø','קוטר חיצוני טבעת (ס״מ)','ס״מ','42'], hoopQuantity: ['N','כמות טבעות (יח׳)','יח׳','5'],
     };
     const field = (key, min = 1) => {
       const m = meta[key] || ['•', key, 'מ״מ', '100'];
