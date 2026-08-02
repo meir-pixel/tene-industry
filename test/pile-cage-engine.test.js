@@ -215,3 +215,41 @@ test('production cards include one master and component cards per pile unit', ()
   assert.deepEqual(pile.productionCards.filter(card => card.cardType === 'pile_master').map(card => card.unitIndex), [1, 2]);
   assert.ok(pile.machineOutput.generic.productionCards.length === pile.productionCards.length);
 });
+
+test('round pile cage preserves alternating bars, external diameters and the complete production BOM', () => {
+  const pile = calculatePileCage({
+    shapeId: 'round-pile-600x12000',
+    roundPileCage: true,
+    pileDiameterMm: 600,
+    pileLengthMm: 12000,
+    longitudinalBars: {
+      totalBars: 10,
+      defaultDiameterMm: 20,
+      defaultLengthMm: 12000,
+      layoutMode: 'alternating',
+      pattern: [
+        { repeat: 1, type: 'straight', lengthMm: 12000 },
+        { repeat: 1, type: 'L', lengthMm: 12000, bendLengthMm: 200 },
+      ],
+    },
+    spiral: { barDiameterMm: 8, outerDiameterMm: 480, uniformPitchMm: 150 },
+    hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420, spacingMode: 'byQuantity', quantity: 5, firstHoopOffsetMm: 1500, spacingMm: 300 },
+  });
+  const straight = pile.manufacturingBreakdown.find(part => part.componentType === 'longitudinal_straight_bar');
+  const bent = pile.manufacturingBreakdown.find(part => part.componentType === 'longitudinal_l_bar');
+  const spiral = pile.manufacturingBreakdown.find(part => part.componentType === 'spiral_zone');
+  const rings = pile.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+
+  assert.equal(pile.validation.ok, true);
+  assert.deepEqual(pile.longitudinalBars.map(bar => bar.type), ['straight', 'L', 'straight', 'L', 'straight', 'L', 'straight', 'L', 'straight', 'L']);
+  assert.deepEqual(pile.longitudinalBars.map(bar => bar.positionAngleDeg), [0, 36, 72, 108, 144, 180, 216, 252, 288, 324]);
+  assert.equal(straight.quantity, 5); assert.equal(straight.lengthMm, 12000);
+  assert.equal(bent.quantity, 5); assert.equal(bent.lengthMm, 12200); assert.equal(bent.bendLengthMm, 200);
+  assert.equal(pile.calculated.totalLongitudinalLengthMm, 121000);
+  assert.equal(pile.data.spiral.outerDiameterMm, 480); assert.equal(pile.data.spiral.spiralDiameterMm, 472);
+  assert.equal(spiral.pitchMm, 150); assert.equal(spiral.turns, 80);
+  assert.equal(pile.data.hoops.outerDiameterMm, 420); assert.equal(rings.hoopDiameterMm, 402);
+  assert.deepEqual(rings.positionsMm, [1500, 1800, 2100, 2400, 2700]); assert.equal(rings.quantity, 5); assert.equal(rings.spacingMm, 300);
+  assert.equal(pile.shapeType, 'round_pile_cage'); assert.equal(pile.family, 'piles');
+  assert.equal(pile.data.longitudinalBars.bars.length, 10); assert.equal(pile.machineOutput.generic.manufacturingBreakdown.length, 4);
+});

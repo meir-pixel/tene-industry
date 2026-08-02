@@ -80,7 +80,9 @@ function normalizePileInput(input = {}) {
   pile.barOverrides = Array.isArray(barsInput.bars) ? barsInput.bars : (Array.isArray(input.barOverrides) ? input.barOverrides : []);
   pile.spiralEnabled = spiralInput.enabled !== false && input.spiralEnabled !== false;
   pile.spiralDiameterMm = number(spiralInput.barDiameterMm ?? input.spiralDiameterMm ?? input.spiralDiameter, DEFAULT_PILE.spiralDiameterMm, 1);
+  pile.spiralOuterDiameterMm = number(spiralInput.outerDiameterMm ?? input.spiralOuterDiameterMm, 0, 0);
   pile.spiralCenterlineDiameterMm = number(spiralInput.spiralDiameterMm ?? input.spiralCenterlineDiameterMm, 0, 0);
+  if (pile.spiralOuterDiameterMm > 0) pile.spiralCenterlineDiameterMm = Math.max(1, pile.spiralOuterDiameterMm - pile.spiralDiameterMm);
   pile.pitchMode = normalizePitchMode(spiralInput.pitchMode ?? input.pitchMode);
   pile.uniformPitchMm = number(spiralInput.uniformPitchMm ?? input.uniformPitchMm ?? input.pitch, DEFAULT_PILE.uniformPitchMm, 1);
   pile.noSpiralStartMm = number(spiralInput.startNoSpiralMm ?? input.noSpiralStartMm, DEFAULT_PILE.noSpiralStartMm, 0);
@@ -89,13 +91,16 @@ function normalizePileInput(input = {}) {
   pile.internalNoSpiralZones = Array.isArray(input.internalNoSpiralZones) ? input.internalNoSpiralZones : [];
   pile.hoopsEnabled = hoopsInput.enabled !== false && input.hoopsEnabled !== false;
   pile.hoopBarDiameterMm = Math.max(14, number(hoopsInput.hoopBarDiameterMm ?? input.hoopDiameterMm, DEFAULT_PILE.hoopDiameterMm, 1));
+  pile.hoopOuterDiameterMm = number(hoopsInput.outerDiameterMm ?? input.hoopOuterDiameterMm, 0, 0);
   pile.hoopDiameterMm = number(hoopsInput.hoopDiameterMm ?? input.hoopRingDiameterMm, 0, 0);
+  if (pile.hoopOuterDiameterMm > 0) pile.hoopDiameterMm = Math.max(1, pile.hoopOuterDiameterMm - pile.hoopBarDiameterMm);
   pile.hoopSpacingMode = hoopsInput.spacingMode === 'byQuantity' ? 'byQuantity' : 'bySpacing';
   pile.hoopSpacingMm = number(hoopsInput.spacingMm ?? input.hoopSpacingMm, DEFAULT_PILE.hoopSpacingMm, 1);
   pile.hoopQuantity = Math.max(0, Math.round(number(hoopsInput.quantity ?? input.hoopQuantity, 0, 0)));
   pile.firstHoopOffsetMm = number(hoopsInput.firstHoopOffsetMm ?? input.firstHoopOffsetMm ?? pile.noSpiralStartMm, pile.noSpiralStartMm, 0);
   pile.lastHoopOffsetMm = number(hoopsInput.lastHoopOffsetMm ?? input.lastHoopOffsetMm ?? pile.noSpiralEndMm, pile.noSpiralEndMm, 0);
   pile.hoopShape = hoopsInput.shape || input.hoopShape || 'round';
+  pile.roundPileCage = Boolean(input.roundPileCage);
   pile.productionQuantity = Math.max(1, Math.round(number(input.productionQuantity ?? input.quantity, 1, 1)));
   return pile;
 }
@@ -199,12 +204,10 @@ function enrichSpiralZones(pile, zones) {
 function defaultHoopPositions(pile) {
   if (!pile.hoopsEnabled) return [];
   const startMm = Math.min(pile.pileLengthMm, pile.firstHoopOffsetMm);
-  const endMm = Math.max(startMm, pile.pileLengthMm - pile.lastHoopOffsetMm);
-  if (pile.hoopSpacingMode === 'byQuantity' && pile.hoopQuantity > 0) {
-    if (pile.hoopQuantity === 1) return [round(startMm, 1)];
-    const step = (endMm - startMm) / (pile.hoopQuantity - 1);
-    return Array.from({ length: pile.hoopQuantity }, (_, i) => round(startMm + i * step, 1));
+  if (pile.hoopSpacingMode === 'byQuantity' && pile.hoopQuantity > 0 && pile.hoopSpacingMm > 0) {
+    return Array.from({ length: pile.hoopQuantity }, (_, index) => round(startMm + index * pile.hoopSpacingMm, 1));
   }
+  const endMm = Math.max(startMm, pile.pileLengthMm - pile.lastHoopOffsetMm);
   const positionsMm = [];
   for (let positionMm = startMm; positionMm <= endMm + 0.001; positionMm += pile.hoopSpacingMm) positionsMm.push(round(positionMm, 1));
   if (!positionsMm.length) positionsMm.push(round(startMm, 1));
@@ -219,7 +222,7 @@ function buildHoops(pile) {
   const lengthMm = hoopCutLengthMm(hoopDiameterMm, pile.hoopShape);
   const spacing = longitudinalBarSpacingMm(hoopDiameterMm, pile.longitudinalBarCount, pile.longitudinalDiameterMm);
   const weightKg = round((lengthMm * count / 1000) * rebarKgPerMeter(pile.hoopBarDiameterMm), 3);
-  return [{ index: 1, count, hoopCount: count, spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMode === 'bySpacing' ? pile.hoopSpacingMm : null, positionsMm, startFromMm: positionsMm[0] ?? 0, diameterMm: round(hoopDiameterMm, 1), hoopDiameterMm: round(hoopDiameterMm, 1), barDiameterMm: pile.hoopBarDiameterMm, hoopBarDiameterMm: pile.hoopBarDiameterMm, shape: pile.hoopShape, shapeSides: hoopShapeSides(pile.hoopShape), lengthMm: round(lengthMm, 1), hoopCutLengthMm: round(lengthMm, 1), barCenterSpacingMm: spacing.centerToCenterMm, barClearSpacingMm: spacing.clearMm, totalLengthMm: round(lengthMm * count, 1), totalHoopLengthMm: round(lengthMm * count, 1), weightKg, totalHoopWeightKg: weightKg }];
+  return [{ index: 1, count, hoopCount: count, spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMm, positionsMm, startFromMm: positionsMm[0] ?? 0, diameterMm: round(hoopDiameterMm, 1), hoopDiameterMm: round(hoopDiameterMm, 1), barDiameterMm: pile.hoopBarDiameterMm, hoopBarDiameterMm: pile.hoopBarDiameterMm, shape: pile.hoopShape, shapeSides: hoopShapeSides(pile.hoopShape), lengthMm: round(lengthMm, 1), hoopCutLengthMm: round(lengthMm, 1), barCenterSpacingMm: spacing.centerToCenterMm, barClearSpacingMm: spacing.clearMm, totalLengthMm: round(lengthMm * count, 1), totalHoopLengthMm: round(lengthMm * count, 1), weightKg, totalHoopWeightKg: weightKg }];
 }
 
 function validatePileCage(pile, spiralZones, bars = [], hoops = []) {
@@ -360,8 +363,8 @@ function buildDataContract(pile, bars, spiralZones, hoops) {
   return {
     general: { pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, concreteCoverMm: pile.concreteCoverMm, cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), shapeVersion: pile.shapeVersion, shapeId: pile.shapeId, family: 'piles' },
     longitudinalBars: { totalBars: pile.longitudinalBarCount, defaultDiameterMm: pile.longitudinalDiameterMm, defaultLengthMm: pile.longitudinalDefaultLengthMm, layoutMode: pile.longitudinalLayoutMode, bars },
-    spiral: { enabled: pile.spiralEnabled, barDiameterMm: pile.spiralDiameterMm, spiralDiameterMm: round(cageCenterlineDiameterMm(pile), 1), pitchMode: pile.pitchMode, uniformPitchMm: pile.uniformPitchMm, startNoSpiralMm: pile.noSpiralStartMm, endNoSpiralMm: pile.noSpiralEndMm, zones: spiralZones },
-    hoops: { enabled: pile.hoopsEnabled, hoopBarDiameterMm: pile.hoopBarDiameterMm, hoopDiameterMm: hoops[0]?.diameterMm ?? internalHoopDiameterMm(pile), spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMm, quantity: pile.hoopQuantity || hoops.reduce((sum, hoop) => sum + hoop.count, 0), firstHoopOffsetMm: pile.firstHoopOffsetMm, lastHoopOffsetMm: pile.lastHoopOffsetMm, shape: pile.hoopShape, barCenterSpacingMm: hoops[0]?.barCenterSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).centerToCenterMm, barClearSpacingMm: hoops[0]?.barClearSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).clearMm, rings: hoops },
+    spiral: { enabled: pile.spiralEnabled, barDiameterMm: pile.spiralDiameterMm, outerDiameterMm: pile.spiralOuterDiameterMm || null, spiralDiameterMm: round(cageCenterlineDiameterMm(pile), 1), pitchMode: pile.pitchMode, uniformPitchMm: pile.uniformPitchMm, startNoSpiralMm: pile.noSpiralStartMm, endNoSpiralMm: pile.noSpiralEndMm, zones: spiralZones },
+    hoops: { enabled: pile.hoopsEnabled, hoopBarDiameterMm: pile.hoopBarDiameterMm, outerDiameterMm: pile.hoopOuterDiameterMm || null, hoopDiameterMm: hoops[0]?.diameterMm ?? internalHoopDiameterMm(pile), spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMm, quantity: pile.hoopQuantity || hoops.reduce((sum, hoop) => sum + hoop.count, 0), firstHoopOffsetMm: pile.firstHoopOffsetMm, lastHoopOffsetMm: pile.lastHoopOffsetMm, shape: pile.hoopShape, barCenterSpacingMm: hoops[0]?.barCenterSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).centerToCenterMm, barClearSpacingMm: hoops[0]?.barClearSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).clearMm, rings: hoops },
   };
 }
 

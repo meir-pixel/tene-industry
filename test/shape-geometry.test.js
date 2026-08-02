@@ -269,7 +269,7 @@ test('shape editor has mesh and pile families with icon-only preset buttons', ()
 
   assert.match(editor, /const SHAPE_FAMILIES = \[/);
   assert.match(editor, /id: 'mesh1'/);
-  assert.match(editor, /id: 'pile1'/);
+  assert.match(editor, /id: 'round-pile-cage'/);
   assert.match(editor, /id="seFamilyTabs"/);
   const presetRender = editor.match(/_renderPresets\(countFilter\) \{[\s\S]*?_renderSavedShapes\(countFilter\) \{/);
   assert.ok(presetRender, 'expected preset renderer block');
@@ -284,8 +284,18 @@ test('shape editor built-in preset names stay neutral', () => {
   assert.ok(presetBlock, 'expected shape preset block');
   assert.match(presetBlock[0], /name: 'צורה 2'/);
   assert.match(presetBlock[0], /name: 'רשת'/);
-  assert.match(presetBlock[0], /name: 'כלונס'/);
+  assert.match(presetBlock[0], /name: 'כלוב כלונס עגול'/);
   assert.doesNotMatch(presetBlock[0], /אנקר|הזזה|כפול|אוברל|אסדה|אצבה|כיפופים|חמש צלעות|סימטרית|בסיס/);
+});
+test('round pile cage preset exposes a parametric form and engineering visualization', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /name: 'כלוב כלונס עגול'/);
+  ['straightBarCount', 'bentBarCount', 'straightBarLength', 'bentBarLength', 'bendLength', 'spiralOuterDiameter', 'spiralPitch', 'hoopOuterDiameter', 'hoopQuantity'].forEach(field => assert.match(editor, new RegExp(field)));
+  assert.match(editor, /calculateRoundPileCage/);
+  assert.match(editor, /מוט שחור = ישר, מוט כחול = מכופף/);
+  assert.match(editor, /data-view="side"/);
+  assert.match(editor, /data-view="top"/);
 });
 test('shape editor exposes the requested Easybar category filters', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
