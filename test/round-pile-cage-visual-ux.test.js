@@ -50,41 +50,6 @@ function pileItem(snapshot = pileSnapshot(), id = 501) {
   };
 }
 
-function loadNewOrderPileRowHelpers() {
-  const source = fs.readFileSync(path.join(root, 'public', 'new-order-editor.js'), 'utf8');
-  const start = source.indexOf('  function lineContract(item = {}) {');
-  const end = source.indexOf('  function updateLineQuantity(', start);
-  assert.ok(start >= 0 && end > start, 'new-order line helpers exist');
-  const context = {
-    window: {
-      itemShapeContract(item) { return item.shapeSnapshot || null; },
-      isRoundPileCageItem(item) { return item?.shapeSnapshot?.family === 'piles' && item.shapeSnapshot?.shapeType === 'round_pile_cage'; },
-      roundPileCageVisualData(item) {
-        const data = item.shapeSnapshot?.data || {};
-        return { pileDiameterMm: Number(data.pileDiameterMm || data.pileDiameter || 0), pileLengthMm: Number(data.pileLengthMm || data.pileLength || 0) };
-      },
-      calcItemWeight(item) { return Number(item.shapeSnapshot?.calculated?.weightKg || 0) * Number(item.qty || 1); },
-    },
-    numeric(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; },
-    formatMm(value) { return Number(value) > 0 ? `${Number(value)} mm` : '-'; },
-    formatMeters(value) { return Number(value) > 0 ? `${Number(value) / 1000} m` : '-'; },
-    formatKg(value) { return Number(value) > 0 ? `${Number(value)} kg` : '0 kg'; },
-  };
-  vm.createContext(context);
-  vm.runInContext(source.slice(start, end), context);
-  return context;
-}
-
-function loadIndexPileWeight() {
-  const start = indexHtml.indexOf('function itemShapeContract(item = {}) {');
-  const end = indexHtml.indexOf('function calcPalletWeight(pallet) {', start);
-  assert.ok(start >= 0 && end > start, 'index pile-weight helpers exist');
-  const context = { window: { IronBendRebar: { itemWeightKg() { return 0; } } } };
-  vm.createContext(context);
-  vm.runInContext(indexHtml.slice(start, end), context);
-  return context;
-}
-
 function dynamicPrintCards(items) {
   const html = printPage.renderPrintCardsPage({
     order: { id: 77, order_num: 'PC-77', customer_name: 'Test', status: 'approved' },
@@ -180,27 +145,6 @@ test('order surfaces require exact identity and retain the dedicated visual path
   assert.match(ordersHtml, /pile-cage-badge">PILE CAGE/);
 });
 
-test('new-order treats a round pile cage as an assembly, not an ordinary Ø12 bar', () => {
-  const snapshot = pileSnapshot({
-    pileDiameterMm: 600,
-    pileLengthMm: 12000,
-    spiralZones: [
-      { name: 'A', lengthMm: 3000, pitchMm: 100, startMm: 0, endMm: 3000 },
-      { name: 'gap', lengthMm: 500, noWrap: true, startMm: 3000, endMm: 3500 },
-      { name: 'B', lengthMm: 3000, pitchMm: 200, startMm: 3500, endMm: 6500 },
-    ],
-  });
-  snapshot.calculated = { totalLengthMm: 135000, weightKg: 211.25, manufacturingBreakdown: snapshot.manufacturingBreakdown };
-  const item = { shapeSnapshot: snapshot, qty: 2, diameter: 20 };
-  const row = loadNewOrderPileRowHelpers();
-  assert.equal(row.getLineUnitLengthMm(item), 12000);
-  assert.equal(row.formatLineTotalLength(item), '270 m');
-  assert.equal(row.formatLineWeight(item), '422.5 kg');
-  assert.match(row.formatLineShapeDims(item), /PILE CAGE · Ø60 · L 12\.00m · 2 SPIRAL ZONES/);
-  const index = loadIndexPileWeight();
-  assert.equal(index.calcItemWeight(item), 422.5);
-});
-
 test('dynamic print reconstruction retains dedicated master and component visuals', () => {
   const cards = dynamicPrintCards([pileItem()]);
   assert.equal(cards.length, 4);
@@ -221,31 +165,6 @@ test('dynamic print keeps multiple cages independent and does not classify anoth
   const otherCards = dynamicPrintCards([otherPile]);
   assert.equal(otherCards.length, 1);
   assert.doesNotMatch(otherCards[0], /כלוב זיון לכלונס עגול|PILE CAGE|pile-cage-master-card/);
-});
-
-test('print creates one card for every active spiral zone and none for an explicit gap', () => {
-  const snapshot = pileSnapshot({
-    spiralZones: [
-      { name: 'A', lengthMm: 3000, pitchMm: 100, startMm: 0, endMm: 3000 },
-      { name: 'gap', lengthMm: 500, noWrap: true, startMm: 3000, endMm: 3500 },
-      { name: 'B', lengthMm: 3000, pitchMm: 200, startMm: 3500, endMm: 6500 },
-    ],
-  });
-  delete snapshot.manufacturingBreakdown;
-  snapshot.calculated = {
-    manufacturingBreakdown: [
-      { componentType: 'longitudinal_straight_bar', diameterMm: 20, quantity: 5, totalLengthMm: 60000 },
-      { componentType: 'spiral_zone', name: 'A', zoneIndex: 1, diameterMm: 8, quantity: 1, zoneLengthMm: 3000, totalLengthMm: 45400, pitchMm: 100, startMm: 0, endMm: 3000 },
-      { componentType: 'spiral_zone', name: 'B', zoneIndex: 3, diameterMm: 8, quantity: 1, zoneLengthMm: 3000, totalLengthMm: 22700, pitchMm: 200, startMm: 3500, endMm: 6500 },
-      { componentType: 'hoop_ring', diameterMm: 18, quantity: 5, totalLengthMm: 6600 },
-    ],
-  };
-  const cards = dynamicPrintCards([pileItem(snapshot)]);
-  const spiralCards = cards.filter(card => card.includes('data-component-type="spiral_zone"'));
-  assert.equal(spiralCards.length, 2);
-  assert.match(spiralCards[0] + spiralCards[1], /ספירלה A/);
-  assert.match(spiralCards[0] + spiralCards[1], /ספירלה B/);
-  assert.doesNotMatch(spiralCards[0] + spiralCards[1], /pc-title">ספירלה gap/);
 });
 
 function componentPrintCard(component) {

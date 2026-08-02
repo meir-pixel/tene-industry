@@ -43,16 +43,7 @@ function pileMasterShapeSvg(snapshot = {}) {
   const hoopDiameter = n(data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter);
   const dotCount = bars > 0 && barDiameter > 0 ? Math.min(bars, 14) : 0;
   const dots = dotCount ? Array.from({ length: dotCount }, (_, index) => { const a = -Math.PI / 2 + Math.PI * 2 * index / dotCount; return `<circle cx="190" cy="40" r="2" transform="translate(${(Math.cos(a) * 15).toFixed(2)} ${(Math.sin(a) * 15).toFixed(2)})" fill="#102a43"/>`; }).join('') : '';
-  const zones = Array.isArray(data.spiralZones) ? data.spiralZones : (Array.isArray(snapshot.machineOutput?.generic?.spiralZones) ? snapshot.machineOutput.generic.spiralZones : []);
-  const sequenceLength = zones.reduce((sum, zone) => sum + n(zone.lengthMm ?? zone.length), 0);
-  const helix = zones.length && sequenceLength > 0
-    ? zones.filter(zone => !zone.noWrap && n(zone.pitchMm ?? zone.pitch) > 0).map(zone => {
-        const start = 14 + 146 * n(zone.startMm) / sequenceLength;
-        const end = 14 + 146 * n(zone.endMm ?? (n(zone.startMm) + n(zone.lengthMm ?? zone.length))) / sequenceLength;
-        const count = Math.max(1, Math.min(12, Math.round((end - start) / 10)));
-        return Array.from({ length: count }, (_, index) => { const x = start + (end - start) * index / count; const next = start + (end - start) * (index + 1) / count; return `<path d="M${x.toFixed(1)} 23L${next.toFixed(1)} 55" stroke="#2563eb" stroke-width="1.5"/>`; }).join('');
-      }).join('')
-    : (spiralDiameter > 0 && pitch > 0 ? Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#2563eb" stroke-width="1.5"/>`).join('') : '');
+  const helix = spiralDiameter > 0 && pitch > 0 ? Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#2563eb" stroke-width="1.5"/>`).join('') : '';
   const rods = bars > 0 && barDiameter > 0 ? Array.from({ length: 5 }, (_, index) => `<path d="M14 ${27 + index * 7}H160" stroke="#102a43" stroke-width="1.2"/>`).join('') : '';
   const lengthM = pileLength ? (pileLength / 1000).toFixed(2) : '—';
   const diameterCm = pileDiameter ? (pileDiameter / 10).toFixed(1).replace(/\.0$/, '') : '—';

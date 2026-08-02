@@ -775,43 +775,18 @@ function calculateRoundPileCage(shape = {}) {
   const barDiameterMm = Math.max(1, Number(shape.longitudinalDiameter || 20));
   const straightCount = Math.max(0, Math.round(Number(shape.straightBarCount ?? 5))); const bentCount = Math.max(0, Math.round(Number(shape.bentBarCount ?? 5))); const barCount = straightCount + bentCount;
   const straightLengthMm = mm(shape.straightBarLength, pileLengthMm / 10); const bentLengthMm = mm(shape.bentBarLength, pileLengthMm / 10 + 20); const bendLengthMm = Math.max(0, Number(shape.bendLength ?? 20) * 10);
-  const spiralBarDiameterMm = Math.max(1, Number(shape.spiralDiameter || 8)); const spiralOuterDiameterMm = mm(shape.spiralOuterDiameter, 48); const spiralCenterlineDiameterMm = spiralOuterDiameterMm - spiralBarDiameterMm;
-  const rawZones = Array.isArray(shape.spiralZones) && shape.spiralZones.length
-    ? shape.spiralZones
-    : [{ name: 'A', length: Number(shape.spiralCoverageLength || shape.spiralCoverageLengthCm || pileLengthMm / 10), pitch: Number(shape.spiralPitch || 15) }];
-  const spiralCoverageLengthMm = Math.max(0, Math.min(pileLengthMm, mm(shape.spiralCoverageLength ?? shape.spiralCoverageLengthCm, rawZones.reduce((sum, zone) => sum + Math.max(0, Number(zone?.length || 0)), 0))));
-  let zoneCursorMm = 0;
-  const spiralZones = rawZones.map((zone, index) => {
-    const lengthMm = Number(zone?.length) * 10;
-    const noWrap = zone?.noWrap === true || zone?.noWrap === 1 || zone?.noWrap === 'true';
-    const pitchMm = noWrap ? null : Number(zone?.pitch) * 10;
-    const startMm = zoneCursorMm;
-    zoneCursorMm += Number.isFinite(lengthMm) ? lengthMm : 0;
-    const endMm = zoneCursorMm;
-    const valid = Number.isFinite(lengthMm) && lengthMm > 0 && (noWrap || (Number.isFinite(pitchMm) && pitchMm > 0));
-    const turns = valid && !noWrap ? lengthMm / pitchMm : 0;
-    const helixPerTurnMm = valid && !noWrap ? Math.sqrt((Math.PI * spiralCenterlineDiameterMm) ** 2 + pitchMm ** 2) : 0;
-    const totalLengthMm = valid && !noWrap ? pileRound(turns * helixPerTurnMm, 1) : 0;
-    return { name: String(zone?.name || String.fromCharCode(65 + index)), zoneIndex: index + 1, noWrap, startMm, endMm, lengthMm, pitchMm, turns, helixPerTurnMm, totalLengthMm, weightKg: valid && !noWrap ? pileRound((totalLengthMm / 1000) * sharedKgPerMeter(spiralBarDiameterMm), 3) : 0, valid };
-  });
-  const zoneErrors = [];
-  if (spiralZones.some(zone => !Number.isFinite(zone.lengthMm) || zone.lengthMm <= 0)) zoneErrors.push('spiral_zone_length_invalid');
-  if (spiralZones.some(zone => !zone.noWrap && (!Number.isFinite(zone.pitchMm) || zone.pitchMm <= 0))) zoneErrors.push('spiral_zone_pitch_invalid');
-  if (Math.abs(zoneCursorMm - spiralCoverageLengthMm) > 0.001) zoneErrors.push(zoneCursorMm < spiralCoverageLengthMm ? 'spiral_zones_underfill' : 'spiral_zones_overflow');
-  const activeSpiralZones = spiralZones.filter(zone => !zone.noWrap && zone.valid);
-  const totalSpiralLengthMm = pileRound(activeSpiralZones.reduce((sum, zone) => sum + zone.totalLengthMm, 0), 1);
-  const totalSpiralWeightKg = pileRound(activeSpiralZones.reduce((sum, zone) => sum + zone.weightKg, 0), 3);
+  const spiralBarDiameterMm = Math.max(1, Number(shape.spiralDiameter || 8)); const spiralOuterDiameterMm = mm(shape.spiralOuterDiameter, 48); const spiralCenterlineDiameterMm = spiralOuterDiameterMm - spiralBarDiameterMm; const pitchMm = mm(shape.spiralPitch, 15);
+  const spiralCoverageLengthMm = Math.max(0, Math.min(pileLengthMm, mm(shape.spiralZones?.[0]?.length, pileLengthMm / 10))); const turns = spiralCoverageLengthMm / pitchMm; const helixPerTurnMm = Math.sqrt((Math.PI * spiralCenterlineDiameterMm) ** 2 + pitchMm ** 2); const spiralLengthMm = turns * helixPerTurnMm;
   const hoopBarDiameterMm = Math.max(1, Number(shape.hoopDiameter || 18)); const hoopOuterDiameterMm = mm(shape.hoopOuterDiameter, 42); const hoopCenterlineDiameterMm = hoopOuterDiameterMm - hoopBarDiameterMm; const hoopQuantity = Math.max(0, Math.round(Number(shape.hoopQuantity ?? 5))); const firstHoopOffsetMm = Math.max(0, Number(shape.hoopStart ?? 150) * 10); const hoopSpacingMm = Math.max(1, Number(shape.hoopSpacing ?? 30) * 10); const hoopPositionsMm = Array.from({ length: hoopQuantity }, (_, index) => firstHoopOffsetMm + index * hoopSpacingMm);
   const bars = Array.from({ length: barCount }, (_, index) => { const type = index % 2 === 0 ? 'straight' : 'L'; return { barIndex: index + 1, positionAngleDeg: Number((index * 360 / Math.max(1, barCount)).toFixed(3)), type, diameterMm: barDiameterMm, mainLengthMm: type === 'straight' ? straightLengthMm : bentLengthMm - bendLengthMm, bendLengthMm: type === 'straight' ? 0 : bendLengthMm, lengthMm: type === 'straight' ? straightLengthMm : bentLengthMm }; });
   const group = (type, lengthMm) => { const quantity = bars.filter(bar => bar.type === type).length; return { componentType: type === 'straight' ? 'longitudinal_straight_bar' : 'longitudinal_l_bar', sourceSystem: 'longitudinalBars', description: type === 'straight' ? 'מוטות אורך ישרים' : 'מוטות אורך עם כיפוף עליון', diameterMm: barDiameterMm, lengthMm, bendLengthMm: type === 'straight' ? 0 : bendLengthMm, quantity, totalLengthMm: quantity * lengthMm, weightKg: pileRound((quantity * lengthMm / 1000) * sharedKgPerMeter(barDiameterMm), 3) }; };
   const straight = group('straight', straightLengthMm); const bent = group('L', bentLengthMm);
-  const spiralParts = activeSpiralZones.map(zone => ({ componentType: 'spiral_zone', sourceSystem: 'spiral', description: `ספירלה אזור ${zone.name}`, name: zone.name, zoneIndex: zone.zoneIndex, diameterMm: spiralBarDiameterMm, outerDiameterMm: spiralOuterDiameterMm, centerlineDiameterMm: spiralCenterlineDiameterMm, pitchMm: zone.pitchMm, turns: zone.turns, helixPerTurnMm: zone.helixPerTurnMm, startMm: zone.startMm, endMm: zone.endMm, zoneLengthMm: zone.lengthMm, quantity: 1, totalLengthMm: zone.totalLengthMm, weightKg: zone.weightKg }));
+  const spiral = { componentType: 'spiral_zone', sourceSystem: 'spiral', description: 'ספירלה רציפה', diameterMm: spiralBarDiameterMm, outerDiameterMm: spiralOuterDiameterMm, centerlineDiameterMm: spiralCenterlineDiameterMm, pitchMm, turns, helixPerTurnMm, zoneLengthMm: spiralCoverageLengthMm, quantity: 1, totalLengthMm: pileRound(spiralLengthMm, 1), weightKg: pileRound((spiralLengthMm / 1000) * sharedKgPerMeter(spiralBarDiameterMm), 3) };
   const hoops = { componentType: 'hoop_ring', sourceSystem: 'hoops', description: 'טבעות חיזוק', diameterMm: hoopBarDiameterMm, hoopOuterDiameterMm, hoopDiameterMm: hoopCenterlineDiameterMm, quantity: hoopQuantity, spacingMm: hoopSpacingMm, positionsMm: hoopPositionsMm, lengthMm: pileRound(Math.PI * hoopCenterlineDiameterMm, 1), totalLengthMm: pileRound(Math.PI * hoopCenterlineDiameterMm * hoopQuantity, 1), weightKg: pileRound((Math.PI * hoopCenterlineDiameterMm * hoopQuantity / 1000) * sharedKgPerMeter(hoopBarDiameterMm), 3) };
-  const manufacturingBreakdown = [straight, bent, ...spiralParts, hoops].filter(part => part.quantity > 0); const totalLongitudinalLengthMm = straight.totalLengthMm + bent.totalLengthMm; const totalLengthMm = totalLongitudinalLengthMm + totalSpiralLengthMm + hoops.totalLengthMm; const weightKg = pileRound(manufacturingBreakdown.reduce((sum, part) => sum + part.weightKg, 0), 3);
-  const firstSpiral = activeSpiralZones[0] || {};
-  const data = { pileDiameter: pileDiameterMm, pileLength: pileLengthMm, roundPileCage: true, longitudinalBars: barCount, longitudinalDiameter: barDiameterMm, alternatingLayout: true, bars, spiralZones: spiralZones.map(zone => ({ name: zone.name, lengthMm: zone.lengthMm, pitchMm: zone.pitchMm, noWrap: zone.noWrap, startMm: zone.startMm, endMm: zone.endMm, turns: zone.turns })), spiral: { continuous: activeSpiralZones.length === 1 && spiralZones.length === 1, barDiameterMm: spiralBarDiameterMm, outerDiameterMm: spiralOuterDiameterMm, centerlineDiameterMm: spiralCenterlineDiameterMm, pitchMm: firstSpiral.pitchMm || null, turns: firstSpiral.turns || 0, coverageLengthMm: spiralCoverageLengthMm }, hoops: { barDiameterMm: hoopBarDiameterMm, outerDiameterMm: hoopOuterDiameterMm, centerlineDiameterMm: hoopCenterlineDiameterMm, quantity: hoopQuantity, firstOffsetMm: firstHoopOffsetMm, spacingMm: hoopSpacingMm, positionsMm: hoopPositionsMm } };
-  const calculated = { totalLongitudinalLengthMm, totalSpiralLengthMm, totalSpiralWeightKg, totalHoopLengthMm: hoops.totalLengthMm, totalLengthMm, weightKg, manufacturingBreakdown };
-  return { data, calculated, machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, spiralZones: data.spiralZones, manufacturingBreakdown }, machineProfiles: {} }, validation: { valid: barCount >= 3 && spiralCenterlineDiameterMm > 0 && hoopCenterlineDiameterMm > 0 && zoneErrors.length === 0, errors: zoneErrors, warnings: [] }, manufacturingBreakdown, productionCards: manufacturingBreakdown.map((part, index) => ({ cardType: 'pile_component', componentType: part.componentType, title: part.description, componentIndex: index + 1, quantity: part.quantity, diameterMm: part.diameterMm, totalLengthMm: part.totalLengthMm, weightKg: part.weightKg, source: part })) };
+  const manufacturingBreakdown = [straight, bent, spiral, hoops].filter(part => part.quantity > 0); const totalLongitudinalLengthMm = straight.totalLengthMm + bent.totalLengthMm; const totalLengthMm = totalLongitudinalLengthMm + spiral.totalLengthMm + hoops.totalLengthMm; const weightKg = pileRound(manufacturingBreakdown.reduce((sum, part) => sum + part.weightKg, 0), 3);
+  const data = { pileDiameter: pileDiameterMm, pileLength: pileLengthMm, roundPileCage: true, longitudinalBars: barCount, longitudinalDiameter: barDiameterMm, alternatingLayout: true, bars, spiral: { continuous: true, barDiameterMm: spiralBarDiameterMm, outerDiameterMm: spiralOuterDiameterMm, centerlineDiameterMm: spiralCenterlineDiameterMm, pitchMm, turns, coverageLengthMm: spiralCoverageLengthMm, helixPerTurnMm }, hoops: { barDiameterMm: hoopBarDiameterMm, outerDiameterMm: hoopOuterDiameterMm, centerlineDiameterMm: hoopCenterlineDiameterMm, quantity: hoopQuantity, firstOffsetMm: firstHoopOffsetMm, spacingMm: hoopSpacingMm, positionsMm: hoopPositionsMm } };
+  const calculated = { totalLongitudinalLengthMm, totalSpiralLengthMm: spiral.totalLengthMm, totalHoopLengthMm: hoops.totalLengthMm, totalLengthMm, weightKg, manufacturingBreakdown };
+  return { data, calculated, machineOutput: { generic: { family: 'piles', shapeType: 'round_pile_cage', ...data, manufacturingBreakdown }, machineProfiles: {} }, validation: { valid: barCount >= 3 && spiralCenterlineDiameterMm > 0 && hoopCenterlineDiameterMm > 0, errors: [], warnings: [] }, manufacturingBreakdown, productionCards: manufacturingBreakdown.map((part, index) => ({ cardType: 'pile_component', componentType: part.componentType, title: part.description, componentIndex: index + 1, quantity: part.quantity, diameterMm: part.diameterMm, totalLengthMm: part.totalLengthMm, weightKg: part.weightKg, source: part })) };
 }
 
 PileCageEngine.calculate = function(shape = {}) {
@@ -3469,20 +3444,14 @@ class ShapeEditorModal {
     };
     if (pile.roundPileCage) {
       const calc = PileCageEngine.calculate(pile);
+      const spiralTurns = Number(calc.data?.spiral?.turns || 0);
+      const spiralCoverageLengthCm = Number(calc.data?.spiral?.coverageLengthMm || 0) / 10;
+      const displaySpiralTurns = Number.isInteger(spiralTurns) ? String(spiralTurns) : spiralTurns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
       const section = (title, rows, open = false) => `<tr class="se-pile-section-row"><td colspan="5"><details class="se-pile-section" ${open ? 'open' : ''}><summary><strong>${title}</strong></summary><table><tbody>${rows}</tbody></table></details></td></tr>`;
-      const zoneRows = (pile.spiralZones || []).map((zone, index) => {
-        const derived = (calc.data?.spiralZones || [])[index] || {};
-        const range = `${pileRound((derived.startMm || 0) / 10, 1)}–${pileRound((derived.endMm || 0) / 10, 1)} ס״מ`;
-        const kind = zone.noWrap ? 'פער' : 'ספירלה';
-        return `<tr class="se-family-row se-zone-row"><td>${this._fieldShell({ icon:'Z', label:'שם', unit:'', example:'A', input:`<input class="se-input" type="text" value="${svgEscape(zone.name || kind + ' ' + (index + 1))}" data-zone-field="name" oninput="window._seEditor._setSpiralZoneField(${index}, 'name', this.value)">` })}</td><td>${this._fieldShell({ icon:'↔', label:'אורך', unit:'ס״מ', example:'100', input:`<input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" oninput="window._seEditor._setSpiralZoneField(${index}, 'length', this.value)">` })}</td><td>${zone.noWrap ? `<div class="se-derived-chip">פער — ללא פסיעה</div>` : this._fieldShell({ icon:'@', label:'פסיעה', unit:'ס״מ', example:'15', input:`<input class="se-input" type="number" min="1" value="${zone.pitch ?? 0}" data-zone-field="pitch" oninput="window._seEditor._setSpiralZoneField(${index}, 'pitch', this.value)">` })}</td><td><div class="se-derived-chip">${range}</div><button class="se-del-btn" onclick="window._seEditor._deleteSpiralZone(${index})">&times;</button></td></tr>`;
-      }).join('');
-      const zoneSumCm = (pile.spiralZones || []).reduce((sum, zone) => sum + Number(zone.length || 0), 0);
-      const effectiveCm = Number(calc.data?.spiral?.coverageLengthMm || 0) / 10;
-      const sequenceNote = calc.validation?.valid ? `רצף תקין: ${zoneSumCm} ס״מ` : `שגיאה: ${calc.validation?.errors?.join(', ') || 'רצף אזורים לא תקין'} (${zoneSumCm - effectiveCm > 0 ? 'חריגה' : 'חסר'} ${Math.abs(zoneSumCm - effectiveCm)} ס״מ)`;
       body.innerHTML = `
         ${section('כלוב כלונס עגול — נתונים כלליים', `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true)}
         ${section('זיון אורכי — סידור לסירוגין ישר / מכופף', `<tr class="se-family-row se-pile-compact-row">${field('longitudinalDiameter', 1)}${field('straightBarCount', 0)}${field('bentBarCount', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('straightBarLength', 1)}${field('bentBarLength', 1)}${field('bendLength', 0)}</tr>`)}
-        ${section('אזורי ספירלה ופערים', `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${field('spiralOuterDiameter', 1)}</tr>${zoneRows}<tr class="se-family-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone(false)">הוסף אזור ספירלה</button><button class="se-add-btn" onclick="window._seEditor._addSpiralZone(true)">הוסף פער</button><div class="se-derived-chip" data-pile-derived="spiralTurns">${sequenceNote}</div></td></tr>`)}
+        ${section('ספירלה רציפה', `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${field('spiralOuterDiameter', 1)}${field('spiralPitch', 1)}</tr><tr class="se-family-row"><td colspan="5"><div class="se-derived-chip" data-pile-derived="spiralTurns">אורך אזור ספירלה ${spiralCoverageLengthCm} ס״מ ÷ פסיעה ${pile.spiralPitch} ס״מ = ${displaySpiralTurns} ליפופים מחושבים</div></td></tr>`)}
         ${section('טבעות חיזוק', `<tr class="se-family-row se-pile-compact-row">${field('hoopDiameter', 1)}${field('hoopOuterDiameter', 1)}${field('hoopQuantity', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('hoopStart', 0)}${field('hoopSpacing', 1)}</tr>`)}
         ${section('פירוט ייצור / BOM', this._renderPileElementsSummary())}
         <tr class="se-family-row"><td colspan="5"><div class="se-pile-validation ok">חתך: מוט שחור = ישר, מוט כחול = מכופף. מבט אורך: הספירלה רציפה והטבעות בירוק.</div></td></tr>`;
@@ -3706,10 +3675,10 @@ class ShapeEditorModal {
       clearOut.textContent = clearOut.classList && clearOut.classList.contains('se-derived-chip') ? `מרווח נקי ${clearCm} ס״מ` : clearCm;
     }
     if (spiralTurnsOut && pile.roundPileCage) {
-      const zones = Array.isArray(pile.spiralZones) ? pile.spiralZones : [];
-      const turns = zones.reduce((sum, zone) => zone?.noWrap ? sum : sum + (Math.max(0, Number(zone?.length) || 0) / Math.max(1, Number(zone?.pitch) || 1)), 0);
+      const coverageLength = Math.max(0, Number(pile.spiralZones?.[0]?.length || pile.pileLength || 0));
+      const turns = coverageLength / Math.max(1, Number(pile.spiralPitch || 1));
       const displayTurns = Number.isInteger(turns) ? String(turns) : turns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
-      spiralTurnsOut.textContent = `${zones.filter(zone => !zone?.noWrap).length} אזורי ספירלה · ${displayTurns} ליפופים מחושבים`;
+      spiralTurnsOut.textContent = `אורך אזור ספירלה ${coverageLength} ס״מ ÷ פסיעה ${pile.spiralPitch} ס״מ = ${displayTurns} ליפופים מחושבים`;
     }
   }
 
@@ -3862,11 +3831,11 @@ class ShapeEditorModal {
     this._updatePreview();
   }
 
-  _addSpiralZone(noWrap = false) {
+  _addSpiralZone() {
     if (!this.current || this.current.family !== 'piles') return;
     if (!Array.isArray(this.current.spiralZones)) this.current.spiralZones = [];
     const name = 'Zone ' + String.fromCharCode(65 + this.current.spiralZones.length);
-    this.current.spiralZones.push(noWrap ? { name: `פער ${this.current.spiralZones.length + 1}`, length: 100, noWrap: true } : { name, length: 100, pitch: 20, noWrap: false });
+    this.current.spiralZones.push({ name, length: 100, pitch: 20 });
     this._renderPileCageEditor();
     this._updatePreview();
   }
