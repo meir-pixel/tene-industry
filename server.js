@@ -39,6 +39,7 @@ const createMaterialConsumptionRouter = require('./routes/materialConsumption');
 const createInventoryVisionRouter = require('./routes/inventoryVision');
 const createProcurementRouter = require('./routes/procurement');
 const createProcurementRecommendationsRouter = require('./routes/procurementRecommendationsV2');
+const createPurchaseOrdersV2Router = require('./routes/purchaseOrdersV2');
 const createOrdersRouter = require('./routes/orders');
 const createProductionCardsRouter = require('./routes/productionCards');
 const createOrderDocumentsRouter = require('./routes/orderDocuments');
@@ -258,7 +259,7 @@ app.use('/api', createBrandingRouter({ branding: brandingService }));
 const allRouteFactories = [
   createOrdersRouter, createCustomersRouter, createIntakeRouter, createProductionRouter,
   createProductionMachinesRouter, createProductionCardsRouter, createWarehouseRouter,
-  createInventoryRouter, createProcurementRouter, createProcurementRecommendationsRouter, createFleetRouter, createQualityRouter,
+  createInventoryRouter, createProcurementRouter, createProcurementRecommendationsRouter, createPurchaseOrdersV2Router, createFleetRouter, createQualityRouter,
   createMaterialAllocationPlanningRouter,
   createMaintenanceRouter, createReportsRouter, createFinanceRouter, createFinanceInvoicesRouter,
   createFinanceCostsRouter, createFinanceLedgerRouter, createFinanceCreditRouter,
@@ -318,6 +319,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/priorityExport.js', factory: createPriorityExportRouter },
     { file: 'routes/procurement.js', factory: createProcurementRouter },
     { file: 'routes/procurementRecommendationsV2.js', factory: createProcurementRecommendationsRouter },
+    { file: 'routes/purchaseOrdersV2.js', factory: createPurchaseOrdersV2Router },
     { file: 'routes/production.js', factory: createProductionRouter },
     { file: 'routes/productionCards.js', factory: createProductionCardsRouter },
     { file: 'routes/productionMachines.js', factory: createProductionMachinesRouter },
@@ -681,6 +683,7 @@ app.use('/api', requireModule('procurement'), createProcurementRouter({
   requireAnyRole,
 }));
 app.use('/api', requireModule('procurement'), createProcurementRecommendationsRouter({ db, requireAnyRole }));
+app.use('/api', requireModule('procurement'), createPurchaseOrdersV2Router({ db, requireAnyRole }));
 
 app.use('/api', requireModule('intake'), createIntakeTrainingRouter({
   db,

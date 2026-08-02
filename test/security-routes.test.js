@@ -1459,6 +1459,15 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
       const response = await request('/api/procurement/recommendations-v2', { method: 'POST', headers: authHeaders(role), body: recommendationWrite });
       assert.notEqual(response.status, 401); assert.notEqual(response.status, 403);
     }
+    assert.equal((await request('/api/procurement/purchase-orders-v2')).status, 401);
+    assert.equal((await request('/api/procurement/purchase-orders-v2', { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/procurement/purchase-orders-v2', { headers: authHeaders(warehouse) })).status, 200);
+    const purchaseOrderV2Write = JSON.stringify({ idempotency_key: 'security-b5b2', lines: [{ specification: { diameter: 12, material_type: 'coil' }, ordered_kg: 1, unit_price_per_kg: 1 }] });
+    assert.equal((await request('/api/procurement/purchase-orders-v2', { method: 'POST', headers: authHeaders(warehouse), body: purchaseOrderV2Write })).status, 403);
+    for (const role of [office, finance, manager, admin]) {
+      const response = await request('/api/procurement/purchase-orders-v2', { method: 'POST', headers: authHeaders(role), body: purchaseOrderV2Write });
+      assert.notEqual(response.status, 401); assert.notEqual(response.status, 403);
+    }
     assert.equal((await request('/api/purchase-orders', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
     assert.equal((await request('/api/purchase-orders', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 200);
     assert.equal((await request('/api/purchase-orders/1', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 403);

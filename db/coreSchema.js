@@ -282,6 +282,65 @@ function ensureProcurementRecommendationV2Schema(db) {
   `);
 }
 
+function ensurePurchaseOrderV2Schema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS purchase_orders_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      po_uid TEXT NOT NULL UNIQUE,
+      supplier_id INTEGER,
+      currency_code TEXT NOT NULL DEFAULT 'ILS' CHECK (currency_code GLOB '[A-Z][A-Z][A-Z]'),
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved','issued','cancelled')),
+      revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+      notes TEXT,
+      cancellation_reason TEXT,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      created_by INTEGER,
+      approved_by INTEGER,
+      issued_by INTEGER,
+      cancelled_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      approved_at DATETIME,
+      issued_at DATETIME,
+      cancelled_at DATETIME,
+      FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_purchase_orders_v2_status ON purchase_orders_v2(status, id);
+    CREATE TABLE IF NOT EXISTS purchase_order_lines_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      line_uid TEXT NOT NULL UNIQUE,
+      purchase_order_id INTEGER NOT NULL,
+      line_sequence INTEGER NOT NULL,
+      catalog_item_id INTEGER,
+      source_recommendation_id INTEGER,
+      spec_snapshot_json TEXT NOT NULL,
+      ordered_kg NUMERIC NOT NULL CHECK (typeof(ordered_kg) IN ('integer','real') AND ordered_kg > 0),
+      unit_price_per_kg NUMERIC NOT NULL CHECK (typeof(unit_price_per_kg) IN ('integer','real') AND unit_price_per_kg >= 0),
+      line_amount NUMERIC,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders_v2(id),
+      FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id),
+      FOREIGN KEY (source_recommendation_id) REFERENCES procurement_recommendations_v2(id),
+      UNIQUE(purchase_order_id, line_sequence)
+    );
+    CREATE INDEX IF NOT EXISTS idx_purchase_order_lines_v2_recommendation
+      ON purchase_order_lines_v2(source_recommendation_id, id);
+    CREATE TABLE IF NOT EXISTS purchase_order_events_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      purchase_order_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL CHECK (event_type IN ('created','updated','approved','issued','cancelled')),
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      actor_id INTEGER,
+      details_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders_v2(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_purchase_order_events_v2_order ON purchase_order_events_v2(purchase_order_id, id);
+  `);
+}
+
 function ensureMaterialRequirementV2Schema(db) {
   ensureColumn(
     db,
@@ -1338,6 +1397,7 @@ function ensureCoreSchema(db) {
   ensureMaterialConsumptionV2Schema(db);
   ensurePendingRawMaterialReceiptV2Schema(db);
   ensureProcurementRecommendationV2Schema(db);
+  ensurePurchaseOrderV2Schema(db);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)
@@ -1356,4 +1416,5 @@ module.exports = {
   ensureMaterialConsumptionV2Schema,
   ensurePendingRawMaterialReceiptV2Schema,
   ensureProcurementRecommendationV2Schema,
+  ensurePurchaseOrderV2Schema,
 };
