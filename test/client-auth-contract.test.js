@@ -68,7 +68,7 @@ test('production card preview mode shows cards but locks printing before approva
   assert.match(productionCardsPage, /if \(PREVIEW_ONLY\)/);
   assert.match(productionCardsPage, /orders\.html\?id=/);
 });
-test('production card split renders only production cards without a master card', () => {
+test('production card split does not add a generic split master card', () => {
   const productionCardsRoute = read('services/productionCardPrintPage.js');
   const orderPrintA4Route = read('routes/orderPrintA4.js');
 
@@ -76,7 +76,7 @@ test('production card split renders only production cards without a master card'
   assert.doesNotMatch(productionCardsRoute, /function buildSplitMaster\(\)/);
   assert.doesNotMatch(productionCardsRoute, /d\.innerHTML = buildSplitMaster\(\)/);
   assert.doesNotMatch(productionCardsRoute, /cards\.masterCard/);
-  assert.doesNotMatch(productionCardsRoute, /master-card/);
+  assert.match(productionCardsRoute, /pile-cage-master-card/);
   assert.doesNotMatch(productionCardsRoute, /setup-panel/);
   assert.doesNotMatch(productionCardsRoute, /setupBody/);
   assert.doesNotMatch(productionCardsRoute, /onSplitChange/);

@@ -158,6 +158,8 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .item-visual{background:#fff;border:1px solid rgba(2,26,72,0.08);border-radius:12px;min-height:150px;height:150px;
   display:flex;align-items:center;justify-content:center;overflow:hidden;padding:6px;}
 .item-visual svg{width:100%!important;height:100%!important;display:block;overflow:visible;}
+.pile-cage-detail-visual{border:2px solid #102a43;background:linear-gradient(135deg,#f8fbff,#fff)!important;}
+.pile-cage-badge{font-size:12px;font-weight:950;letter-spacing:1px;color:#102a43;border:2px solid #102a43;border-radius:999px;padding:3px 8px;background:#fff;white-space:nowrap;}
 .pile-assembly{grid-column:1/-1;border-top:1px solid rgba(2,26,72,.10);padding-top:14px;margin-top:2px;}
 .pile-assembly-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
 .pile-assembly-title{font-size:15px;font-weight:900;color:var(--text);}
@@ -752,6 +754,28 @@ function pileNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function isRoundPileCageItem(item) {
+  const snapshot = orderShapeSnapshot(item);
+  return !!snapshot && (snapshot.shapeType === 'round_pile_cage' || snapshot?.data?.roundPileCage === true);
+}
+
+function roundPileCageDetailSvg(item) {
+  const data = orderShapeSnapshot(item)?.data || {};
+  const pileDiameter = pileNumber(data.pileDiameterMm ?? data.pileDiameter ?? data.general?.pileDiameterMm, 0);
+  const pileLength = pileNumber(data.pileLengthMm ?? data.pileLength ?? data.general?.pileLengthMm, 0);
+  const barCount = Math.max(0, Math.round(pileNumber(data.longitudinalBars?.count ?? data.longitudinalBarCount ?? data.longitudinalBars, 0)));
+  const barDiameter = pileNumber(data.longitudinalBars?.diameterMm ?? data.longitudinalDiameterMm ?? data.longitudinalDiameter ?? item.diameter, 0);
+  const spiralDiameter = pileNumber(data.spiral?.barDiameterMm ?? data.spiralDiameterMm ?? data.spiralDiameter, 0);
+  const pitch = pileNumber(data.spiral?.pitchMm ?? data.spiralPitchMm ?? data.spiralPitch, 0);
+  const hoopCount = Math.max(0, Math.round(pileNumber(data.hoops?.quantity ?? data.hoopQuantity, 0)));
+  const hoopDiameter = pileNumber(data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter, 0);
+  const count = Math.min(barCount || 10, 14);
+  const dots = Array.from({ length: count }, (_, index) => { const a = -Math.PI / 2 + (Math.PI * 2 * index / count); return `<circle cx="206" cy="65" r="${2.5}" transform="translate(${(Math.cos(a) * 23).toFixed(2)} ${(Math.sin(a) * 23).toFixed(2)})" fill="#102a43"/>`; }).join('');
+  const spirals = Array.from({ length: 14 }, (_, index) => `<path d="M${18 + index * 12} 34L${30 + index * 12} 83" stroke="#2563eb" stroke-width="2"/>`).join('');
+  const bars = Array.from({ length: 6 }, (_, index) => `<path d="M18 ${38 + index * 8}H180" stroke="#102a43" stroke-width="1.4"/>`).join('');
+  return `<svg viewBox="0 0 250 110" role="img" aria-label="PILE CAGE"><rect x="14" y="31" width="170" height="58" rx="9" fill="#f8fafc" stroke="#102a43" stroke-width="2"/>${bars}${spirals}<circle cx="206" cy="65" r="29" fill="#fff" stroke="#102a43" stroke-width="2"/>${dots}<text x="99" y="18" text-anchor="middle" font-size="12" font-weight="900" fill="#102a43">L ${pileMeters(pileLength)}m</text><text x="206" y="105" text-anchor="middle" font-size="11" font-weight="900" fill="#102a43">Ø${pileCm(pileDiameter)}</text><text x="99" y="103" text-anchor="middle" font-size="10" font-weight="900" fill="#102a43">${barCount} × Ø${barDiameter} · Ø${spiralDiameter} @ ${pileCm(pitch)}cm · ${hoopCount} × Ø${hoopDiameter}</text></svg>`;
+}
+
 function pileMm(value) {
   const number = pileNumber(value, 0);
   return Number.isInteger(number) ? String(number) : number.toFixed(1).replace(/\.0$/, '');
@@ -847,8 +871,8 @@ function roundPileAssemblyHtml(item) {
   if (spiralDiameter > 0) cards.push(component('spiral', 'ספירלה רציפה', `Ø${pileMm(spiralDiameter)} · קוטר ${pileCm(spiralOuterDiameter)} ס״מ · פסיעה ${pileCm(spiralPitch)} ס״מ`, 'ללפף ברציפות לאורך אזור הספירלה — סיבוב אחד בכל פסיעה.', spiralTurns > 0 ? `אורך אזור ספירלה ${pileMeters(spiralCoverageLength)} מ׳ · ${pileMm(spiralTurns)} כריכות מחושבות לפי ה־snapshot.` : '', { outerDiameterMm: spiralOuterDiameter, pitchMm: spiralPitch }));
   if (hoopQty > 0) cards.push(component('hoop', 'טבעות חיזוק', `${pileMm(hoopQty)} × Ø${pileMm(hoopDiameter)} · קוטר ${pileCm(hoopOuterDiameter)} ס״מ`, `הטבעת הראשונה ${pileCm(hoopStart)} ס״מ מראש הכלונס; מרווח ${pileCm(hoopSpacing)} ס״מ.`, '', { outerDiameterMm: hoopOuterDiameter }));
   if (!cards.length) return '';
-  return `<section class="pile-assembly" data-round-pile-assembly="1" aria-label="הוראות הרכבה לכלוב כלונס">
-    <div class="pile-assembly-head"><div class="pile-assembly-title">🧩 הוראת הרכבה — כל חלק ומיקומו</div><div class="pile-assembly-note">כל המידות להלן נשאבות מה־snapshot שנשמר עם ההזמנה. אורך הכלוב: ${escHtml(pileMeters(pileLength))} מ׳.</div></div>
+  return `<section class="pile-assembly" data-round-pile-assembly="1" aria-label="כלוב זיון לכלונס עגול">
+    <div class="pile-assembly-head"><div class="pile-assembly-title">כלוב זיון לכלונס עגול</div><div class="pile-assembly-note">L ${escHtml(pileMeters(pileLength))}m · 1 / 3</div></div>
     <div class="pile-component-grid">${cards.join('')}</div>
   </section>`;
 }
@@ -869,6 +893,7 @@ function isRealSpiralItem(item) {
 }
 
 function shapeLabel(shapeName, sides, item = null) {
+  if (item && isRoundPileCageItem(item)) return 'PILE CAGE';
   if (item && isRealSpiralItem(item)) return 'ספיראלה';
   const name = String(shapeName || '').toLowerCase();
   if (isSingleSegmentShape(sides)) return 'מוט ישר';
@@ -1028,7 +1053,9 @@ function buildDetailHTML(o, pkgs) {
       const deviationPct = weightDeviationPct(item);
       const canonicalShapeSvg = encodeURIComponent(item.shape_svg || '');
       const pileAssembly = roundPileAssemblyHtml(item);
-      const visualHtml = isRealSpiralItem(item)
+      const visualHtml = isRoundPileCageItem(item)
+        ? `<div class="item-visual pile-cage-detail-visual" data-detail-pile-cage="1" onclick="openItemEdit(event, ${o.id}, ${item.id})" title="ערוך צורה">${roundPileCageDetailSvg(item)}</div>`
+        : isRealSpiralItem(item)
         ? `<div class="item-visual" data-detail-shape="1" data-shape-svg="${canonicalShapeSvg}" data-spiral-shape="1" data-spiral-diameter="${escHtml(item.spiral_diameter_mm)}" data-spiral-turns="${escHtml(item.spiral_turns)}" onclick="openItemEdit(event, ${o.id}, ${item.id})" title="ערוך צורה"></div>`
         : `<div class="item-visual"
           data-detail-shape="1"
@@ -1042,7 +1069,7 @@ function buildDetailHTML(o, pkgs) {
         <div class="item-main">
           <div class="item-head">
             <span style="background:#eef2f7;color:#1a2533;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap">פריט ${item._lineNo}/${_totalLines}</span>
-            <span class="item-diameter">⌀${escHtml(item.diameter)}</span>
+            ${isRoundPileCageItem(item) ? '<span class="pile-cage-badge">PILE CAGE</span>' : `<span class="item-diameter">⌀${escHtml(item.diameter)}</span>`}
             <span class="item-shape">${escHtml(shapeLabel(item.shape_name, sides, item))}</span>
             ${item.is_3d ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px">3D</span>' : ''}
             ${review || isReviewApproved(item) ? reviewStatusHtml(item) : ''}

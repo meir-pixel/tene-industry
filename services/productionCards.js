@@ -63,7 +63,34 @@ function itemOrderLineLabel(item = {}) {
   return 'פריט';
 }
 
+function isRoundPileCageItem(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item);
+  return snapshot?.shapeType === 'round_pile_cage' || snapshot?.data?.roundPileCage === true || item.pile_card_type === 'pile_master';
+}
+
+function pileCageProductionSvg(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item);
+  const data = snapshot.data || {};
+  const n = value => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 0;
+  const pileDiameter = n(data.pileDiameterMm ?? data.pileDiameter ?? data.general?.pileDiameterMm);
+  const pileLength = n(data.pileLengthMm ?? data.pileLength ?? data.general?.pileLengthMm);
+  const bars = Math.max(0, Math.round(n(data.longitudinalBars?.count ?? data.longitudinalBarCount ?? data.longitudinalBars)));
+  const barDiameter = n(data.longitudinalBars?.diameterMm ?? data.longitudinalDiameterMm ?? data.longitudinalDiameter ?? item.diameter);
+  const spiralDiameter = n(data.spiral?.barDiameterMm ?? data.spiralDiameterMm ?? data.spiralDiameter);
+  const pitch = n(data.spiral?.pitchMm ?? data.spiralPitchMm ?? data.spiralPitch);
+  const hoops = Math.max(0, Math.round(n(data.hoops?.quantity ?? data.hoopQuantity)));
+  const hoopDiameter = n(data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter);
+  const dotCount = Math.min(bars || 10, 14);
+  const dots = Array.from({ length: dotCount }, (_, index) => { const a = -Math.PI / 2 + Math.PI * 2 * index / dotCount; return `<circle cx="190" cy="40" r="2" transform="translate(${(Math.cos(a) * 15).toFixed(2)} ${(Math.sin(a) * 15).toFixed(2)})" fill="#102a43"/>`; }).join('');
+  const helix = Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#2563eb" stroke-width="1.5"/>`).join('');
+  const rods = Array.from({ length: 5 }, (_, index) => `<path d="M14 ${27 + index * 7}H160" stroke="#102a43" stroke-width="1.2"/>`).join('');
+  const lengthM = pileLength ? (pileLength / 1000).toFixed(2) : '—';
+  const diameterCm = pileDiameter ? (pileDiameter / 10).toFixed(1).replace(/\.0$/, '') : '—';
+  return `<svg viewBox="0 0 225 72" role="img" aria-label="PILE CAGE"><rect x="12" y="21" width="152" height="38" rx="7" fill="#f8fafc" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">L ${lengthM}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${diameterCm}</text><text x="88" y="70" text-anchor="middle" font-size="7" font-weight="800" fill="#102a43">${bars} × Ø${barDiameter || '—'} · Ø${spiralDiameter || '—'} @ ${pitch ? pitch / 10 : '—'}cm · ${hoops} × Ø${hoopDiameter || '—'}</text></svg>`;
+}
+
 function itemHumanTitle(item = {}) {
+  if (isRoundPileCageItem(item)) return 'PILE CAGE';
   const element = itemStructElement(item);
   const lineLabel = itemOrderLineLabel(item);
   return element ? `${lineLabel} — ${element}` : lineLabel;
@@ -377,6 +404,7 @@ function shapeSvgHasAngleLabels(svg) {
 }
 
 function shapeSvgForProductionCard(item = {}, segments = shapeSegmentsFromItem(item)) {
+  if (isRoundPileCageItem(item)) return pileCageProductionSvg(item);
   const cleanSegments = Array.isArray(segments) ? segments : [];
   const generated = itemShapeSvg({ ...item, segments: JSON.stringify(cleanSegments), shape_svg: '' });
   if (cleanSegments.length) return generated;
@@ -724,7 +752,7 @@ function itemCard(item, order, printDate, rebarWeights) {
   const segments = shapeSegmentsFromItem(item);
   const visualShapeSvg = shapeSvgForProductionCard(item, segments);
   const title = itemHumanTitle(item);
-  const shapeSubtitle = item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף';
+  const shapeSubtitle = isRoundPileCageItem(item) ? 'כלוב זיון לכלונס עגול' : (item.shape_name ? `כרטיס כיפוף - ${item.shape_name}` : 'כרטיס כיפוף');
   const note = printableItemNote(item.note);
   const structElement = itemStructElement(item);
   const diameter = shapeDiameterFromItem(item);
@@ -784,4 +812,7 @@ module.exports = {
   shapeTotalLengthMmFromItem,
   isPrintableBendAngle,
   shapeSvgHasAngleLabels,
+  isRoundPileCageItem,
+  pileCageProductionSvg,
+  shapeSvgForProductionCard,
 };

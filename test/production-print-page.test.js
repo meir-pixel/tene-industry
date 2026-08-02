@@ -97,7 +97,7 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.match(html, /Math\.min\(2, Number\(cardSplits\[item\.id\]/);
   assert.match(html, /grid-template-columns:repeat\(2,105mm\)/);
   assert.match(html, /width:210mm/);
-  assert.doesNotMatch(html, /master-card/);
+  assert.match(html, /pile-cage-master-card/);
   assert.doesNotMatch(html, /כרטיסיית מאסטר/);
   assert.doesNotMatch(html, /cards\.masterCard/);
   assert.match(html, /@page\{size:A4 portrait;margin:0!important;\}/);
@@ -174,16 +174,18 @@ test('production print page expands pile cages to master and component cards', (
     tryParseJSON,
   });
 
-  assert.match(html, /כלונס 1\/2/);
-  assert.match(html, /כלונס 2\/2/);
+  assert.match(html, /כלוב זיון לכלונס עגול 1\/2/);
+  assert.match(html, /כלוב זיון לכלונס עגול 2\/2/);
+  assert.match(html, /PILE CAGE/);
+  assert.match(html, /pile-cage-master-card/);
   assert.match(html, /מוטות אורך ישרים/);
   assert.match(html, /ספירלה A/);
   assert.match(html, /טבעות חיזוק פנימיות/);
   assert.match(html, /HZ-PILE-001-000501-P1-MASTER/);
   assert.match(html, /HZ-PILE-001-000501-P2-C3/);
-  assert.match(html, /data-shape-kind=\"pile-spiral-component\"/);
-  assert.match(html, /data-component-type=\"spiral_zone\"/);
-  assert.match(html, /data-shape-kind=\"pile-hoop-component\"/);
+  assert.match(html, /data-shape-kind=\\"pile-spiral-component\\"/);
+  assert.match(html, /data-component-type=\\"spiral_zone\\"/);
+  assert.match(html, /data-shape-kind=\\"pile-hoop-component\\"/);
   assert.equal(new Set(html.match(/HZ-PILE-001-000501-P[12]-(?:MASTER|C[123])/g) || []).size, 8);
   assert.equal((html.match(/class="cards-page"/g) || []).length, 1);
 });

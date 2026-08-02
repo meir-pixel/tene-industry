@@ -2890,7 +2890,60 @@ function spiralFieldsFromShapeData(data = {}) {
     barDiameter: Number(source.barDiameter || source.barDiameterMm || data.barDiameter || data.diameter || 0),
   };
 }
+function roundPileCageSnapshot(item = {}) {
+  const contract = itemShapeContract(item);
+  const snapshot = contract || (typeof item.shapeSnapshot === 'object' ? item.shapeSnapshot : null) || item;
+  const data = snapshot?.data || {};
+  const isCage = snapshot?.shapeType === 'round_pile_cage'
+    || data.roundPileCage === true
+    || item.shapeId === 'round-pile-cage';
+  return isCage ? { snapshot, data } : null;
+}
+function isRoundPileCageItem(item = {}) {
+  return !!roundPileCageSnapshot(item);
+}
+function roundPileCageVisualData(item = {}) {
+  const source = roundPileCageSnapshot(item);
+  const data = source?.data || {};
+  const n = (value, fallback = 0) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+  };
+  const pileDiameterMm = n(data.pileDiameterMm ?? data.pileDiameter ?? data.general?.pileDiameterMm);
+  const pileLengthMm = n(data.pileLengthMm ?? data.pileLength ?? data.general?.pileLengthMm);
+  const longitudinalCount = n(data.longitudinalBars?.count ?? data.longitudinalBarCount ?? data.longitudinalBars, 0);
+  const longitudinalDiameterMm = n(data.longitudinalBars?.diameterMm ?? data.longitudinalDiameterMm ?? data.longitudinalDiameter, n(item.diameter));
+  const spiralDiameterMm = n(data.spiral?.barDiameterMm ?? data.spiralDiameterMm ?? data.spiralDiameter);
+  const spiralPitchMm = n(data.spiral?.pitchMm ?? data.spiralPitchMm ?? data.spiralPitch);
+  const hoopCount = n(data.hoops?.quantity ?? data.hoopQuantity);
+  const hoopDiameterMm = n(data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter);
+  return { pileDiameterMm, pileLengthMm, longitudinalCount, longitudinalDiameterMm, spiralDiameterMm, spiralPitchMm, hoopCount, hoopDiameterMm };
+}
+function roundPileCagePreviewSvg(item = {}) {
+  const d = roundPileCageVisualData(item);
+  const pileDiameterCm = d.pileDiameterMm ? (d.pileDiameterMm / 10).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—';
+  const pileLengthM = d.pileLengthMm ? (d.pileLengthMm / 1000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const bars = Math.max(0, Math.round(d.longitudinalCount));
+  const dots = Array.from({ length: Math.min(bars || 10, 14) }, (_, index) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * index / Math.min(bars || 10, 14));
+    return `<circle cx="${202 + Math.cos(angle) * 17}" cy="${44 + Math.sin(angle) * 17}" r="2.2" fill="#102a43"/>`;
+  }).join('');
+  const spiral = Array.from({ length: 12 }, (_, index) => {
+    const x = 18 + index * 13;
+    return `<path d="M${x} 25 L${x + 13} 57" stroke="#2563eb" stroke-width="1.8"/>`;
+  }).join('');
+  const barsSvg = Array.from({ length: 5 }, (_, index) => `<path d="M18 ${29 + index * 7}H174" stroke="#102a43" stroke-width="1.25"/>`).join('');
+  return `<svg class="pile-cage-preview-svg" viewBox="0 0 240 78" role="img" aria-label="PILE CAGE: Ø${pileDiameterCm}, L ${pileLengthM}m">
+    <rect x="15" y="23" width="162" height="38" rx="8" fill="#f8fafc" stroke="#102a43" stroke-width="1.5"/>
+    ${barsSvg}${spiral}
+    <circle cx="202" cy="44" r="22" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}
+    <text x="96" y="14" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">L ${pileLengthM}m</text>
+    <text x="202" y="74" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${pileDiameterCm}</text>
+    <text x="96" y="72" text-anchor="middle" font-size="8" font-weight="800" fill="#102a43">${bars} × Ø${d.longitudinalDiameterMm || '—'} · Ø${d.spiralDiameterMm || '—'} @ ${(d.spiralPitchMm ? d.spiralPitchMm / 10 : '—')}cm · ${d.hoopCount || '—'} × Ø${d.hoopDiameterMm || '—'}</text>
+  </svg>`;
+}
 function itemPreviewSvg(item, sides, angles) {
+  if (isRoundPileCageItem(item)) return roundPileCagePreviewSvg(item);
   if (sides.length) {
     if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false }) + '</svg>';
     const W = 130, H = 42, pad = 16;
