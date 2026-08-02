@@ -2356,7 +2356,9 @@ class ShapeEditorModal {
   #seModal .se-step-indicator{font-size:10px!important;padding:5px 7px!important;}
   #seModal .se-close{width:34px!important;height:34px!important;}
   #seModal .se-back-btn{min-height:34px!important;padding:6px 10px!important;font-size:12px!important;}
-  #sePageEdit{height:auto!important;max-height:none!important;min-height:0!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto minmax(220px,32dvh) minmax(0,1fr)!important;overflow:hidden!important;padding:0!important;direction:rtl!important;}
+  /* On phones the editor is one vertical workspace: the BOM must remain reachable
+     below the cage fields instead of being hidden inside a second short scroller. */
+  #sePageEdit{height:auto!important;max-height:none!important;min-height:0!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto minmax(220px,32dvh) auto!important;overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch;padding:0!important;direction:rtl!important;}
   #sePageEdit .se-family-panel{order:1!important;width:100%!important;min-width:0!important;display:flex!important;flex-direction:row!important;gap:8px!important;overflow-x:auto!important;overflow-y:hidden!important;padding:8px!important;scroll-snap-type:x proximity!important;border-left:0!important;border-bottom:1px solid #c5cbd4!important;}
   #sePageEdit .se-family-panel-title{display:none!important;}
   #sePageEdit .se-family-card{flex:0 0 96px!important;width:96px!important;min-width:96px!important;min-height:58px!important;height:58px!important;padding:4px 2px!important;gap:3px!important;border-radius:7px!important;scroll-snap-align:start!important;}
@@ -2370,10 +2372,10 @@ class ShapeEditorModal {
   #se3DOrbitCtrl{display:none!important;}
   #seModal .se-svg-wrap{min-height:220px!important;height:100%!important;max-height:none!important;overflow:hidden!important;}
   #seModal .se-svg-wrap svg{width:100%!important;height:100%!important;min-height:0!important;max-height:100%!important;}
-  #sePageEdit .se-data-panel{order:3!important;width:100%!important;min-width:0!important;min-height:0!important;overflow:hidden!important;border-right:0!important;border-top:1px solid #c5cbd4!important;}
+  #sePageEdit .se-data-panel{order:3!important;width:100%!important;min-width:0!important;min-height:auto!important;overflow:visible!important;border-right:0!important;border-top:1px solid #c5cbd4!important;}
   #seModal .se-data-panel-head{min-height:32px!important;padding:6px 10px!important;font-size:14px!important;}
   #seModal .se-mode-note{display:none!important;}
-  #seModal .se-table-wrap{height:100%!important;max-height:100%!important;overflow-y:auto!important;overflow-x:hidden!important;padding:6px 8px 8px!important;}
+  #seModal .se-table-wrap{height:auto!important;max-height:none!important;overflow:visible!important;padding:6px 8px 18px!important;}
   #seModal .se-table{width:100%!important;min-width:0!important;}
   #seModal .se-table tr,#seModal .se-table.se-table-2d tr{grid-template-columns:24px minmax(0,1fr) minmax(0,.72fr) 22px!important;gap:4px!important;}
   #seModal .se-table.se-table-3d tr{grid-template-columns:22px repeat(3,minmax(0,1fr)) 20px!important;gap:3px!important;}

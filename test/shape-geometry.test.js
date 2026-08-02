@@ -162,6 +162,9 @@ test('shape editor keeps selection and pile fields readable on a narrow phone', 
   assert.match(editor, /\.se-pile-section-row td\{grid-column:1\/-1!important;width:100%!important;min-width:0!important;display:block/);
   assert.match(editor, /se-family-row>td\[colspan="2"\]\{grid-column:auto!important;width:auto!important;display:block;\}/);
   assert.match(editor, /@media\(max-width:420px\)\{[\s\S]*se-pile-section \.se-family-row\{grid-template-columns:1fr!important;\}/);
+  assert.match(editor, /#sePageEdit\{[\s\S]*grid-template-rows:auto minmax\(220px,32dvh\) auto!important;[\s\S]*overflow-y:auto!important/);
+  assert.match(editor, /#sePageEdit \.se-data-panel\{[\s\S]*overflow:visible!important/);
+  assert.match(editor, /#seModal \.se-table-wrap\{[\s\S]*height:auto!important;[\s\S]*overflow:visible!important/);
 });
 
 test('shape editor keeps bend parameter rows compact and technical', () => {
@@ -386,8 +389,8 @@ test('shape editor active segment selection does not recolor the drawn bar', () 
 test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
-  assert.match(index, /shape-editor\.js\?v=58/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=57/);
+  assert.match(index, /shape-editor\.js\?v=59/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=58/);
 });
 
 
