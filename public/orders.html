@@ -756,7 +756,7 @@ function pileNumber(value, fallback = 0) {
 
 function isRoundPileCageItem(item) {
   const snapshot = orderShapeSnapshot(item);
-  return !!snapshot && (snapshot.shapeType === 'round_pile_cage' || snapshot?.data?.roundPileCage === true);
+  return !!snapshot && snapshot.family === 'piles' && snapshot.shapeType === 'round_pile_cage';
 }
 
 function roundPileCageDetailSvg(item) {
@@ -769,11 +769,14 @@ function roundPileCageDetailSvg(item) {
   const pitch = pileNumber(data.spiral?.pitchMm ?? data.spiralPitchMm ?? data.spiralPitch, 0);
   const hoopCount = Math.max(0, Math.round(pileNumber(data.hoops?.quantity ?? data.hoopQuantity, 0)));
   const hoopDiameter = pileNumber(data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter, 0);
-  const count = Math.min(barCount || 10, 14);
+  const count = barCount > 0 && barDiameter > 0 ? Math.min(barCount, 14) : 0;
   const dots = Array.from({ length: count }, (_, index) => { const a = -Math.PI / 2 + (Math.PI * 2 * index / count); return `<circle cx="206" cy="65" r="${2.5}" transform="translate(${(Math.cos(a) * 23).toFixed(2)} ${(Math.sin(a) * 23).toFixed(2)})" fill="#102a43"/>`; }).join('');
-  const spirals = Array.from({ length: 14 }, (_, index) => `<path d="M${18 + index * 12} 34L${30 + index * 12} 83" stroke="#2563eb" stroke-width="2"/>`).join('');
-  const bars = Array.from({ length: 6 }, (_, index) => `<path d="M18 ${38 + index * 8}H180" stroke="#102a43" stroke-width="1.4"/>`).join('');
-  return `<svg viewBox="0 0 250 110" role="img" aria-label="PILE CAGE"><rect x="14" y="31" width="170" height="58" rx="9" fill="#f8fafc" stroke="#102a43" stroke-width="2"/>${bars}${spirals}<circle cx="206" cy="65" r="29" fill="#fff" stroke="#102a43" stroke-width="2"/>${dots}<text x="99" y="18" text-anchor="middle" font-size="12" font-weight="900" fill="#102a43">L ${pileMeters(pileLength)}m</text><text x="206" y="105" text-anchor="middle" font-size="11" font-weight="900" fill="#102a43">Ø${pileCm(pileDiameter)}</text><text x="99" y="103" text-anchor="middle" font-size="10" font-weight="900" fill="#102a43">${barCount} × Ø${barDiameter} · Ø${spiralDiameter} @ ${pileCm(pitch)}cm · ${hoopCount} × Ø${hoopDiameter}</text></svg>`;
+  const spirals = spiralDiameter > 0 && pitch > 0 ? Array.from({ length: 14 }, (_, index) => `<path d="M${18 + index * 12} 34L${30 + index * 12} 83" stroke="#2563eb" stroke-width="2"/>`).join('') : '';
+  const bars = barCount > 0 && barDiameter > 0 ? Array.from({ length: 6 }, (_, index) => `<path d="M18 ${38 + index * 8}H180" stroke="#102a43" stroke-width="1.4"/>`).join('') : '';
+  const barLabel = barCount > 0 && barDiameter > 0 ? `${barCount} × Ø${barDiameter}` : '—';
+  const spiralLabel = spiralDiameter > 0 && pitch > 0 ? `Ø${spiralDiameter} @ ${pileCm(pitch)}cm` : '—';
+  const hoopLabel = hoopCount > 0 && hoopDiameter > 0 ? `${hoopCount} × Ø${hoopDiameter}` : '—';
+  return `<svg viewBox="0 0 250 110" role="img" aria-label="PILE CAGE"><rect x="14" y="31" width="170" height="58" rx="9" fill="#f8fafc" stroke="#102a43" stroke-width="2"/>${bars}${spirals}<circle cx="206" cy="65" r="29" fill="#fff" stroke="#102a43" stroke-width="2"/>${dots}<text x="99" y="18" text-anchor="middle" font-size="12" font-weight="900" fill="#102a43">L ${pileLength > 0 ? pileMeters(pileLength) : '—'}m</text><text x="206" y="105" text-anchor="middle" font-size="11" font-weight="900" fill="#102a43">Ø${pileDiameter > 0 ? pileCm(pileDiameter) : '—'}</text><text x="99" y="103" text-anchor="middle" font-size="10" font-weight="900" fill="#102a43">${barLabel} · ${spiralLabel} · ${hoopLabel}</text></svg>`;
 }
 
 function pileMm(value) {
@@ -834,7 +837,7 @@ function pileComponentSvg(kind, dimensions = {}) {
 
 function roundPileAssemblyHtml(item) {
   const snapshot = orderShapeSnapshot(item);
-  if (!snapshot || (snapshot.shapeType !== 'round_pile_cage' && snapshot?.data?.roundPileCage !== true)) return '';
+  if (!snapshot || snapshot.family !== 'piles' || snapshot.shapeType !== 'round_pile_cage') return '';
   const data = snapshot.data || {};
   const bars = Array.isArray(data.bars) ? data.bars : (Array.isArray(data.longitudinalBars?.bars) ? data.longitudinalBars.bars : []);
   const straight = pilePart(snapshot, 'longitudinal_straight_bar');

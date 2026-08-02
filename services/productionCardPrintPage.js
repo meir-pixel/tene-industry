@@ -18,10 +18,7 @@ function pileSnapshotForItem(item, tryParseJSON) {
   const direct = parseCardSnapshot(item.shape_snapshot_json, tryParseJSON)
     || parseCardSnapshot(item.shapeSnapshot, tryParseJSON)
     || parseCardSnapshot(item.shape_data_json, tryParseJSON);
-  if (direct && (direct.family === 'piles' || direct.shapeType === 'round_pile_cage')) return direct;
-  const text = [item.shape_id, item.shape_name, item.note].map(value => String(value || '').toLowerCase()).join(' ');
-  if (/pile|cage|כלונס|כלונסאות|כלוב|כלובי/.test(text)) return direct || { family: 'piles' };
-  return null;
+  return direct && direct.family === 'piles' && direct.shapeType === 'round_pile_cage' ? direct : null;
 }
 
 function pileCardTitle(card) {
@@ -44,13 +41,16 @@ function pileMasterShapeSvg(snapshot = {}) {
   const pitch = n(data.spiral?.pitchMm ?? data.spiralPitchMm ?? data.spiralPitch);
   const hoops = Math.max(0, Math.round(n(data.hoops?.quantity ?? data.hoopQuantity)));
   const hoopDiameter = n(data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter);
-  const dotCount = Math.min(bars || 10, 14);
-  const dots = Array.from({ length: dotCount }, (_, index) => { const a = -Math.PI / 2 + Math.PI * 2 * index / dotCount; return `<circle cx="190" cy="40" r="2" transform="translate(${(Math.cos(a) * 15).toFixed(2)} ${(Math.sin(a) * 15).toFixed(2)})" fill="#102a43"/>`; }).join('');
-  const helix = Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#2563eb" stroke-width="1.5"/>`).join('');
-  const rods = Array.from({ length: 5 }, (_, index) => `<path d="M14 ${27 + index * 7}H160" stroke="#102a43" stroke-width="1.2"/>`).join('');
+  const dotCount = bars > 0 && barDiameter > 0 ? Math.min(bars, 14) : 0;
+  const dots = dotCount ? Array.from({ length: dotCount }, (_, index) => { const a = -Math.PI / 2 + Math.PI * 2 * index / dotCount; return `<circle cx="190" cy="40" r="2" transform="translate(${(Math.cos(a) * 15).toFixed(2)} ${(Math.sin(a) * 15).toFixed(2)})" fill="#102a43"/>`; }).join('') : '';
+  const helix = spiralDiameter > 0 && pitch > 0 ? Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#2563eb" stroke-width="1.5"/>`).join('') : '';
+  const rods = bars > 0 && barDiameter > 0 ? Array.from({ length: 5 }, (_, index) => `<path d="M14 ${27 + index * 7}H160" stroke="#102a43" stroke-width="1.2"/>`).join('') : '';
   const lengthM = pileLength ? (pileLength / 1000).toFixed(2) : '—';
   const diameterCm = pileDiameter ? (pileDiameter / 10).toFixed(1).replace(/\.0$/, '') : '—';
-  return `<svg viewBox="0 0 225 72" role="img" aria-label="PILE CAGE"><rect x="12" y="21" width="152" height="38" rx="7" fill="#f8fafc" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">L ${lengthM}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${diameterCm}</text><text x="88" y="70" text-anchor="middle" font-size="7" font-weight="800" fill="#102a43">${bars} × Ø${barDiameter || '—'} · Ø${spiralDiameter || '—'} @ ${pitch ? pitch / 10 : '—'}cm · ${hoops} × Ø${hoopDiameter || '—'}</text></svg>`;
+  const barLabel = bars > 0 && barDiameter > 0 ? `${bars} × Ø${barDiameter}` : '—';
+  const spiralLabel = spiralDiameter > 0 && pitch > 0 ? `Ø${spiralDiameter} @ ${pitch / 10}cm` : '—';
+  const hoopLabel = hoops > 0 && hoopDiameter > 0 ? `${hoops} × Ø${hoopDiameter}` : '—';
+  return `<svg viewBox="0 0 225 72" role="img" aria-label="PILE CAGE"><rect x="12" y="21" width="152" height="38" rx="7" fill="#f8fafc" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">L ${lengthM}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${diameterCm}</text><text x="88" y="70" text-anchor="middle" font-size="7" font-weight="800" fill="#102a43">${barLabel} · ${spiralLabel} · ${hoopLabel}</text></svg>`;
 }
 
 
@@ -100,6 +100,15 @@ function pileComponentShapeSvg(card, fallbackLengthMm) {
     svg += '<text x="110" y="19" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">HOOP RING</text>';
     svg += `<text x="110" y="104" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">PCS ${quantity}${hoopDiameterMm > 0 ? ' · D ' + Math.round(hoopDiameterMm) + ' mm' : ''}</text>`;
     return `<svg data-shape-kind="pile-hoop-component" data-component-type="hoop_ring" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
+  }
+  if (componentType === 'longitudinal_l_bar' || componentType === 'longitudinal_straight_bar') {
+    const lengthMm = Number(source.lengthMm || source.totalLengthMm || card.totalLengthMm || fallbackLengthMm || 0);
+    const diameterMm = Number(source.diameterMm || card.diameterMm || 0);
+    const isBent = componentType === 'longitudinal_l_bar';
+    const path = isBent ? 'M64 94V27H156V46' : 'M50 58H174';
+    const label = isBent ? 'LONGITUDINAL L' : 'LONGITUDINAL BARS';
+    const detail = [lengthMm > 0 ? 'L ' + formatPileMm(lengthMm) : '', diameterMm > 0 ? 'Ø' + Math.round(diameterMm) : ''].filter(Boolean).join(' · ') || '—';
+    return `<svg data-shape-kind="pile-longitudinal-component" data-component-type="${componentType}" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 220 118" style="width:100%;height:100%;max-height:112px;overflow:visible"><path d="${path}" fill="none" stroke="#1a2332" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><text x="110" y="18" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">${label}</text><text x="110" y="108" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#1a2332">${detail}</text></svg>`;
   }
   return '';
 }
@@ -445,6 +454,8 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   virtual_card:   it.virtual_card || 0,
   scan_suffix:    it.scan_suffix || '',
   pile_card_type: it.pile_card_type || '',
+  pile_component_type: it.pile_component_type || '',
+  pile_cage_snapshot: pileSnapshotForItem(it, tryParseJSON),
   shape_name:     it.shape_name  || '',
   diameter:       it.diameter    || 12,
   quantity:       it.quantity    || 1,
@@ -452,7 +463,7 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
   segments:       cards.shapeSegmentsFromItem(it),
-  shape_svg:      cards.shapeSegmentsFromItem(it).length ? '' : ((it.virtual_card ? '' : cards.spiralShapeSvg(it)) || it.shape_svg || ''),
+  shape_svg:      it.shape_svg || cards.spiralShapeSvg(it) || '',
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   orderLineNo:    it.orderLineNo || it.order_line_no || it.line_no || it.lineNo || it.position || null,
@@ -952,7 +963,9 @@ function hasPrintableBends(segments) {
 function shapeSvgForCard(item, segments) {
   var cleanSegments = Array.isArray(segments) ? segments : [];
   var generated = buildShapeSVG(cleanSegments);
-  if (item.pile_card_type === 'pile_master' && item.shape_svg) return item.shape_svg;
+  var snapshot = item.pile_cage_snapshot || {};
+  var isRoundPileCage = snapshot.family === 'piles' && snapshot.shapeType === 'round_pile_cage';
+  if (isRoundPileCage && item.shape_svg) return item.shape_svg;
   if (cleanSegments.length) return generated;
   return item.shape_svg || generated;
 }

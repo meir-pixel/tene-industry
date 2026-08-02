@@ -40,6 +40,7 @@ test('pile assembly placement directions remain snapshot-derived and responsive'
 test('order assembly guide shows each production component and its exact snapshot placement', () => {
   const render = assemblyRenderer();
   const html = render({ shape_snapshot_json: JSON.stringify({
+    family: 'piles',
     shapeType: 'round_pile_cage',
     data: {
       pileLength: 12000,
