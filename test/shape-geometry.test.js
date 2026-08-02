@@ -386,8 +386,8 @@ test('shape editor active segment selection does not recolor the drawn bar', () 
 test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
-  assert.match(index, /shape-editor\.js\?v=57/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=55/);
+  assert.match(index, /shape-editor\.js\?v=58/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=57/);
 });
 
 
