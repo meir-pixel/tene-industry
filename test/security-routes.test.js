@@ -1450,6 +1450,15 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     const projectionBody = await projectionResponse.json(); const afterProjection = snapshotProjectionSources();
     assert.equal(projectionResponse.status, 200); assert.equal(projectionBody.mode, 'read_only'); assert.equal(projectionBody.is_procurement_instruction, false);
     assert.deepEqual(afterProjection, beforeProjection); assert.equal(db.totalChanges, beforeProjectionChanges);
+    assert.equal((await request('/api/procurement/recommendations-v2')).status, 401);
+    assert.equal((await request('/api/procurement/recommendations-v2', { headers: authHeaders(production) })).status, 403);
+    for (const role of [warehouse, office, finance, manager, admin]) assert.equal((await request('/api/procurement/recommendations-v2', { headers: authHeaders(role) })).status, 200);
+    const recommendationWrite = JSON.stringify({ idempotency_key: 'security-b5b1', specification: { diameter: 12, material_type: 'coil' }, recommended_kg: 1, links: [{ material_requirement_id: 999999, recommended_kg: 1 }] });
+    assert.equal((await request('/api/procurement/recommendations-v2', { method: 'POST', headers: authHeaders(warehouse), body: recommendationWrite })).status, 403);
+    for (const role of [office, manager, admin]) {
+      const response = await request('/api/procurement/recommendations-v2', { method: 'POST', headers: authHeaders(role), body: recommendationWrite });
+      assert.notEqual(response.status, 401); assert.notEqual(response.status, 403);
+    }
     assert.equal((await request('/api/purchase-orders', { method: 'POST', headers: authHeaders(production), body: emptyBody })).status, 403);
     assert.equal((await request('/api/purchase-orders', { method: 'POST', headers: authHeaders(office), body: emptyBody })).status, 200);
     assert.equal((await request('/api/purchase-orders/1', { method: 'PATCH', headers: authHeaders(office), body: emptyBody })).status, 403);

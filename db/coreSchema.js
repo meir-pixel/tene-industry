@@ -226,6 +226,62 @@ function ensurePendingRawMaterialReceiptV2Schema(db) {
   ensureColumn(db, 'pending_raw_material_receipt_lines_v2', 'spec_exceptions_json', 'TEXT');
 }
 
+function ensureProcurementRecommendationV2Schema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS procurement_recommendations_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recommendation_uid TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved','rejected','cancelled')),
+      freshness_status TEXT NOT NULL DEFAULT 'current' CHECK (freshness_status IN ('current','stale')),
+      catalog_item_id INTEGER,
+      spec_snapshot_json TEXT NOT NULL,
+      spec_identity_status TEXT NOT NULL CHECK (spec_identity_status IN ('complete','partial','review_required')),
+      recommended_kg NUMERIC NOT NULL CHECK (typeof(recommended_kg) IN ('integer','real') AND recommended_kg>0),
+      coverage_snapshot_json TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      created_by INTEGER,
+      approved_by INTEGER,
+      decision_notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      decided_at DATETIME,
+      FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_procurement_recommendations_v2_status
+      ON procurement_recommendations_v2(status, freshness_status, id);
+    CREATE TABLE IF NOT EXISTS procurement_recommendation_requirement_links_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recommendation_id INTEGER NOT NULL,
+      material_requirement_id INTEGER NOT NULL,
+      requirement_uid TEXT NOT NULL,
+      requirement_revision_snapshot TEXT,
+      required_kg_snapshot NUMERIC NOT NULL,
+      recommended_kg NUMERIC NOT NULL CHECK (typeof(recommended_kg) IN ('integer','real') AND recommended_kg>0),
+      spec_snapshot_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (recommendation_id) REFERENCES procurement_recommendations_v2(id),
+      FOREIGN KEY (material_requirement_id) REFERENCES material_requirements_v2(id),
+      UNIQUE(recommendation_id, material_requirement_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_procurement_recommendation_links_requirement
+      ON procurement_recommendation_requirement_links_v2(material_requirement_id, id);
+    CREATE TABLE IF NOT EXISTS procurement_recommendation_events_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recommendation_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL CHECK (event_type IN ('created','updated','refreshed','approved','rejected','cancelled','stale_detected')),
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      actor_id INTEGER,
+      details_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (recommendation_id) REFERENCES procurement_recommendations_v2(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_procurement_recommendation_events_v2_recommendation
+      ON procurement_recommendation_events_v2(recommendation_id, id);
+  `);
+}
+
 function ensureMaterialRequirementV2Schema(db) {
   ensureColumn(
     db,
@@ -1281,6 +1337,7 @@ function ensureCoreSchema(db) {
   ensureMaterialAllocationPlanningV2Schema(db);
   ensureMaterialConsumptionV2Schema(db);
   ensurePendingRawMaterialReceiptV2Schema(db);
+  ensureProcurementRecommendationV2Schema(db);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)
@@ -1298,4 +1355,5 @@ module.exports = {
   ensureMaterialAllocationPlanningV2Schema,
   ensureMaterialConsumptionV2Schema,
   ensurePendingRawMaterialReceiptV2Schema,
+  ensureProcurementRecommendationV2Schema,
 };
