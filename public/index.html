@@ -2992,6 +2992,46 @@ function openShapeEditor(palletId, itemId) {
   const sides = itemShapeSides(item || {});
   const angles = itemShapeAngles(item || {});
   const contract = itemShapeContract(item || {});
+  if (contract?.family === 'piles' && contract?.shapeType === 'round_pile_cage') {
+    const pile = contract.data || {};
+    const bars = Array.isArray(pile.bars) ? pile.bars : [];
+    const zones = Array.isArray(pile.spiralZones)
+      ? pile.spiralZones
+      : (Array.isArray(contract.machineOutput?.generic?.spiralZones) ? contract.machineOutput.generic.spiralZones : []);
+    shapeEditor.open({
+      family: 'piles',
+      shapeType: 'round_pile_cage',
+      roundPileCage: true,
+      presetId: item.shapeId || contract.shapeId || 'round-pile-cage',
+      presetName: item.shapeName || contract.displayName || 'כלוב כלונס עגול',
+      pileDiameter: Number(pile.pileDiameter || pile.pileDiameterMm || 0) / 10,
+      pileLength: Number(pile.pileLength || pile.pileLengthMm || 0) / 10,
+      longitudinalBars: Number(pile.longitudinalBars || bars.length || 0),
+      longitudinalDiameter: Number(pile.longitudinalDiameter || pile.longitudinalDiameterMm || item.diameter || 0),
+      straightBarCount: bars.filter(bar => bar.type === 'straight').length,
+      bentBarCount: bars.filter(bar => ['L', 'l', 'bent'].includes(bar.type)).length,
+      straightBarLength: Number(bars.find(bar => bar.type === 'straight')?.lengthMm || 0) / 10,
+      bentBarLength: Number(bars.find(bar => ['L', 'l', 'bent'].includes(bar.type))?.lengthMm || 0) / 10,
+      bendLength: Number(bars.find(bar => ['L', 'l', 'bent'].includes(bar.type))?.bendLengthMm || 0) / 10,
+      spiralDiameter: Number(pile.spiral?.barDiameterMm || 0),
+      spiralOuterDiameter: Number(pile.spiral?.outerDiameterMm || 0) / 10,
+      spiralCoverageLength: Number(pile.spiral?.coverageLengthMm || 0) / 10,
+      spiralZones: zones.map((zone, index) => ({
+        name: String(zone.name || `Zone ${index + 1}`),
+        length: Number(zone.lengthMm ?? zone.length ?? 0) / 10,
+        pitch: zone.noWrap ? undefined : Number(zone.pitchMm ?? zone.pitch ?? 0) / 10,
+        noWrap: zone.noWrap === true,
+      })),
+      hoopsEnabled: true,
+      hoopDiameter: Number(pile.hoops?.barDiameterMm || 0),
+      hoopOuterDiameter: Number(pile.hoops?.outerDiameterMm || 0) / 10,
+      hoopQuantity: Number(pile.hoops?.quantity || 0),
+      hoopStart: Number(pile.hoops?.firstOffsetMm || 0) / 10,
+      hoopSpacing: Number(pile.hoops?.spacingMm || 0) / 10,
+      quantity: item.qty || 1,
+    });
+    return;
+  }
   if (contract?.family === 'spirals') {
     const spiral = spiralFieldsFromShapeData({ ...item, shapeSnapshot: contract });
     shapeEditor.open({
@@ -3027,24 +3067,30 @@ function shapeSelected(data) {
     pallet.items.push(item);
   }
   if (!item) return;
-  item.shapeId     = data.presetId;
-  item.shapeName   = data.presetName;
+  const isPileCage = data?.family === 'piles' && data?.shapeType === 'round_pile_cage';
+  const pileData = isPileCage ? (data.data || {}) : null;
+  item.shapeId     = data.shapeId || data.presetId;
+  item.shapeName   = data.displayName || data.presetName;
   item.shapeEmoji  = data.presetEmoji;
   item.family      = data.family || 'bars';
   item.shapeSnapshot = approvedShapeContract(data);
   const spiral = spiralFieldsFromShapeData(data);
   const isSpiral = item.family === 'spirals' || (spiral.spiralDiameterMm > 0 && spiral.spiralTurns > 0);
-  item.shapeSides  = isSpiral ? [] : (data.sides || []);
+  item.shapeSides  = (isSpiral || isPileCage) ? [] : (data.sides || []);
   item.shapeAngles = isSpiral ? [] : (data.angles || []);
   item.is3d       = data.is3d ? 1 : 0;
   item.azAngles   = item.is3d ? (data.azAngles || []) : null;
   item.elAngles   = item.is3d ? (data.elAngles || []) : null;
-  item.diameter   = isSpiral ? (spiral.barDiameter || item.diameter || 8) : (item.diameter || data.diameter || 12);
+  item.diameter   = isPileCage
+    ? (Number(pileData.longitudinalDiameter || pileData.longitudinalDiameterMm) || item.diameter || 12)
+    : (isSpiral ? (spiral.barDiameter || item.diameter || 8) : (item.diameter || data.diameter || 12));
   item.spiral_diameter_mm = isSpiral ? (spiral.spiralDiameterMm || null) : null;
   item.spiral_turns = isSpiral ? (spiral.spiralTurns || null) : null;
-  item.length      = isSpiral
+  item.length      = isPileCage
+    ? (Number(pileData.pileLength || pileData.pileLengthMm) || 0)
+    : (isSpiral
     ? (data.calculated?.totalLengthMm || data.total_length_mm || spiralLengthMm(spiral.spiralDiameterMm, spiral.spiralTurns))
-    : (Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0));
+    : (Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0)));
   item.qty         = item.qty || Math.max(1, Number(data.orderItemQuantity || 1) || 1);
   _shapeTarget = null;
   renderPallets();
@@ -3211,6 +3257,19 @@ function isSpiralOrderItem(item = {}) {
 }
 
 function calcItemWeight(item) {
+  const pileCage = roundPileCageSnapshot(item);
+  if (pileCage) {
+    const calculated = pileCage.snapshot?.calculated || {};
+    const components = Array.isArray(calculated.manufacturingBreakdown)
+      ? calculated.manufacturingBreakdown
+      : (Array.isArray(pileCage.snapshot?.machineOutput?.generic?.manufacturingBreakdown)
+        ? pileCage.snapshot.machineOutput.generic.manufacturingBreakdown
+        : []);
+    const oneCageWeightKg = Number(calculated.weightKg) > 0
+      ? Number(calculated.weightKg)
+      : components.reduce((sum, component) => sum + (Number(component?.weightKg) || 0), 0);
+    return oneCageWeightKg > 0 ? oneCageWeightKg * Math.max(1, Number(item.qty || item.quantity || 1) || 1) : 0;
+  }
   if (!item.diameter || !item.qty) return 0;
   const spiralDiameter = Number(item.spiral_diameter_mm || item.spiralDiameterMm || 0);
   const spiralTurns = Number(item.spiral_turns || item.spiralTurns || 0);

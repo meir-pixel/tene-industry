@@ -1166,3 +1166,23 @@ test('reported length surplus is assigned to the two physical end legs', () => {
   assert.equal(result.totalLength, 4200);
 });
 
+test('round pile cage preserves segmented spiral zones and excludes explicit gaps from steel', () => {
+  const { PileCageEngine } = loadShapeEditorGeometry();
+  const cage = PileCageEngine.calculate({ family: 'piles', roundPileCage: true, pileDiameter: 60, pileLength: 1200, longitudinalBars: 10, longitudinalDiameter: 20, straightBarCount: 5, bentBarCount: 5, straightBarLength: 1200, bentBarLength: 1220, bendLength: 20, spiralDiameter: 8, spiralOuterDiameter: 48, spiralCoverageLength: 300, spiralZones: [{ name: 'A', length: 100, pitch: 10 }, { name: 'gap', length: 50, noWrap: true }, { name: 'B', length: 150, pitch: 20 }], hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30 });
+  assert.equal(cage.validation.valid, true);
+  assert.deepEqual(cage.data.spiralZones.map(zone => [zone.name, zone.startMm, zone.endMm, zone.noWrap]), [['A', 0, 1000, false], ['gap', 1000, 1500, true], ['B', 1500, 3000, false]]);
+  const parts = cage.manufacturingBreakdown.filter(part => part.componentType === 'spiral_zone');
+  assert.equal(parts.length, 2);
+  assert.equal(parts[0].turns, 10);
+  assert.equal(parts[1].turns, 7.5);
+  assert.ok(cage.calculated.totalSpiralLengthMm > 0);
+});
+
+test('round pile cage rejects underfilled, overfilled, and invalid spiral sequences', () => {
+  const { PileCageEngine } = loadShapeEditorGeometry();
+  const base = { family: 'piles', roundPileCage: true, pileDiameter: 60, pileLength: 1200, longitudinalBars: 10, longitudinalDiameter: 20, straightBarCount: 5, bentBarCount: 5, spiralDiameter: 8, spiralOuterDiameter: 48, spiralCoverageLength: 300 };
+  assert.ok(PileCageEngine.calculate({ ...base, spiralZones: [{ length: 200, pitch: 15 }] }).validation.errors.includes('spiral_zones_underfill'));
+  assert.ok(PileCageEngine.calculate({ ...base, spiralZones: [{ length: 310, pitch: 15 }] }).validation.errors.includes('spiral_zones_overflow'));
+  assert.ok(PileCageEngine.calculate({ ...base, spiralZones: [{ length: 300, pitch: 0 }] }).validation.errors.includes('spiral_zone_pitch_invalid'));
+});
+

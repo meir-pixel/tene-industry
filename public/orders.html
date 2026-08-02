@@ -842,7 +842,9 @@ function roundPileAssemblyHtml(item) {
   const bars = Array.isArray(data.bars) ? data.bars : (Array.isArray(data.longitudinalBars?.bars) ? data.longitudinalBars.bars : []);
   const straight = pilePart(snapshot, 'longitudinal_straight_bar');
   const bent = pilePart(snapshot, 'longitudinal_l_bar');
-  const spiral = pilePart(snapshot, 'spiral_zone');
+  const allParts = snapshot?.manufacturingBreakdown || snapshot?.calculated?.manufacturingBreakdown || snapshot?.machineOutput?.generic?.manufacturingBreakdown || [];
+  const spiralParts = Array.isArray(allParts) ? allParts.filter(part => part?.componentType === 'spiral_zone') : [];
+  const spiral = spiralParts[0] || null;
   const hoops = pilePart(snapshot, 'hoop_ring');
   const pileLength = pileNumber(data.pileLengthMm ?? data.pileLength ?? data.general?.pileLengthMm, 0);
   const straightBar = bars.find(bar => String(bar.type || '').toLowerCase() === 'straight') || {};
@@ -871,7 +873,14 @@ function roundPileAssemblyHtml(item) {
   const cards = [];
   if (straightQty > 0) cards.push(component('straight', 'מוטות אורך ישרים', `${straightQty} × Ø${pileMm(longDiameter)} · L=${pileMeters(straightLength)} מ׳`, 'לפזר סביב ההיקף במקומות האי־זוגיים: 1, 3, 5…', '', { lengthMm: straightLength }));
   if (bentQty > 0) cards.push(component('bent', 'מוטות אורך עם כיפוף עליון', `${bentQty} × Ø${pileMm(longDiameter)} · L=${pileMeters(bentLength)} מ׳`, bendLength > 0 ? `במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס; אורך הכיפוף ${pileCm(bendLength)} ס״מ.` : 'במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס.', '', { lengthMm: bentLength, mainLengthMm: bentMainLength, bendLengthMm: bendLength }));
-  if (spiralDiameter > 0) cards.push(component('spiral', 'ספירלה רציפה', `Ø${pileMm(spiralDiameter)} · קוטר ${pileCm(spiralOuterDiameter)} ס״מ · פסיעה ${pileCm(spiralPitch)} ס״מ`, 'ללפף ברציפות לאורך אזור הספירלה — סיבוב אחד בכל פסיעה.', spiralTurns > 0 ? `אורך אזור ספירלה ${pileMeters(spiralCoverageLength)} מ׳ · ${pileMm(spiralTurns)} כריכות מחושבות לפי ה־snapshot.` : '', { outerDiameterMm: spiralOuterDiameter, pitchMm: spiralPitch }));
+  const sequenceZones = Array.isArray(data.spiralZones) ? data.spiralZones : (Array.isArray(snapshot.machineOutput?.generic?.spiralZones) ? snapshot.machineOutput.generic.spiralZones : []);
+  if (sequenceZones.length) sequenceZones.forEach((zone, index) => {
+    const part = spiralParts.find(entry => Number(entry.zoneIndex) === index + 1) || {};
+    const zoneLength = pileNumber(zone.lengthMm ?? zone.length, 0);
+    if (zone.noWrap) cards.push(component('spiral-gap', `פער ${zone.name || index + 1}`, `L=${pileMeters(zoneLength)} מ׳`, 'ללא כריכות באזור זה.'));
+    else cards.push(component('spiral', `ספירלה ${zone.name || index + 1}`, `Ø${pileMm(part.diameterMm ?? spiralDiameter)} · פסיעה ${pileCm(part.pitchMm ?? zone.pitchMm ?? spiralPitch)} ס״מ`, 'ללפף רק באזור המסומן.', `מ־${pileMeters(part.startMm ?? zone.startMm)} עד ${pileMeters(part.endMm ?? zone.endMm)} מ׳`, { outerDiameterMm: part.outerDiameterMm ?? spiralOuterDiameter, pitchMm: part.pitchMm ?? zone.pitchMm }));
+  });
+  else if (spiralDiameter > 0) cards.push(component('spiral', 'ספירלה רציפה', `Ø${pileMm(spiralDiameter)} · קוטר ${pileCm(spiralOuterDiameter)} ס״מ · פסיעה ${pileCm(spiralPitch)} ס״מ`, 'ללפף ברציפות לאורך אזור הספירלה — סיבוב אחד בכל פסיעה.', spiralTurns > 0 ? `אורך אזור ספירלה ${pileMeters(spiralCoverageLength)} מ׳ · ${pileMm(spiralTurns)} כריכות מחושבות לפי ה־snapshot.` : '', { outerDiameterMm: spiralOuterDiameter, pitchMm: spiralPitch }));
   if (hoopQty > 0) cards.push(component('hoop', 'טבעות חיזוק', `${pileMm(hoopQty)} × Ø${pileMm(hoopDiameter)} · קוטר ${pileCm(hoopOuterDiameter)} ס״מ`, `הטבעת הראשונה ${pileCm(hoopStart)} ס״מ מראש הכלונס; מרווח ${pileCm(hoopSpacing)} ס״מ.`, '', { outerDiameterMm: hoopOuterDiameter }));
   if (!cards.length) return '';
   return `<section class="pile-assembly" data-round-pile-assembly="1" aria-label="כלוב זיון לכלונס עגול">
@@ -1290,6 +1299,16 @@ function orderShapeSegmentsFromEditor(data) {
 }
 
 function orderShapeDataFromItem(item) {
+  const snapshot = orderShapeSnapshot(item);
+  if (snapshot?.family === 'piles' && snapshot?.shapeType === 'round_pile_cage') {
+    const data = snapshot.data || {};
+    const machineZones = snapshot.machineOutput?.generic?.spiralZones;
+    const snapshotZones = Array.isArray(data.spiralZones) ? data.spiralZones : (Array.isArray(machineZones) ? machineZones : null);
+    const zones = Array.isArray(snapshotZones) && snapshotZones.length
+      ? snapshotZones.map((zone, index) => ({ name: zone.name || String.fromCharCode(65 + index), length: Number(zone.length ?? zone.lengthMm ?? 0) / (zone.lengthMm != null ? 10 : 1), pitch: zone.noWrap ? undefined : Number(zone.pitch ?? zone.pitchMm ?? 0) / (zone.pitchMm != null ? 10 : 1), noWrap: zone.noWrap === true }))
+      : [{ name: 'A', length: Number(data.spiral?.coverageLengthMm || data.pileLength || 0) / 10, pitch: Number(data.spiral?.pitchMm || 0) / 10, noWrap: false }];
+    return { family: 'piles', roundPileCage: true, presetId: 'round-pile-cage', presetName: 'כלוב כלונס עגול', shapeName: 'כלוב כלונס עגול', pileDiameter: Number(data.pileDiameter || 0) / 10, pileLength: Number(data.pileLength || 0) / 10, longitudinalBars: Number(data.longitudinalBars || 0), longitudinalDiameter: Number(data.longitudinalDiameter || 0), bars: data.bars || [], straightBarCount: (data.bars || []).filter(bar => bar.type === 'straight').length, bentBarCount: (data.bars || []).filter(bar => ['L', 'l', 'bent'].includes(bar.type)).length, straightBarLength: Number((data.bars || []).find(bar => bar.type === 'straight')?.lengthMm || 0) / 10, bentBarLength: Number((data.bars || []).find(bar => ['L', 'l', 'bent'].includes(bar.type))?.lengthMm || 0) / 10, bendLength: Number((data.bars || []).find(bar => ['L', 'l', 'bent'].includes(bar.type))?.bendLengthMm || 0) / 10, barPattern: 'alternate', spiralDiameter: Number(data.spiral?.barDiameterMm || 0), spiralOuterDiameter: Number(data.spiral?.outerDiameterMm || 0) / 10, spiralCoverageLength: Number(data.spiral?.coverageLengthMm || 0) / 10, spiralZones: zones, hoopsEnabled: true, hoopDiameter: Number(data.hoops?.barDiameterMm || 0), hoopOuterDiameter: Number(data.hoops?.outerDiameterMm || 0) / 10, hoopQuantity: Number(data.hoops?.quantity || 0), hoopStart: Number(data.hoops?.firstOffsetMm || 0) / 10, hoopSpacing: Number(data.hoops?.spacingMm || 0) / 10, quantity: Number(item?.quantity) || 1, note: item?.note || '' };
+  }
   const segments = rawItemSegments(item);
   return {
     sides: segments.length ? segments.map(segment => Math.round(segment.length_mm)) : [1000],
