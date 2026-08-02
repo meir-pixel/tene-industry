@@ -2242,7 +2242,7 @@ class ShapeEditorModal {
 #seModal .se-family-editor-table .se-param-unit{display:none!important;}
 #seModal .se-family-editor-table .se-field-shell{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:'label' 'input'!important;gap:0;min-width:0;}
 #seModal .se-family-editor-table .se-param-label{justify-self:center;text-align:center;}
-#seModal .se-pile-section-row td{background:transparent!important;border:0!important;padding:3px 0!important;}
+#seModal .se-pile-section-row td{grid-column:1/-1!important;width:100%!important;min-width:0!important;display:block;background:transparent!important;border:0!important;padding:3px 0!important;}
 #seModal .se-pile-section{border:1px solid #d8e2ec;border-radius:7px;background:#fff;overflow:hidden;}
 #seModal .se-pile-section summary{cursor:pointer;list-style:none;padding:7px 10px;background:#f8fafc;color:#12315a;font-size:12px;font-weight:900;border-bottom:1px solid #e2e8f0;}
 #seModal .se-pile-section summary::-webkit-details-marker{display:none;}

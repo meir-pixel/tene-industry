@@ -159,6 +159,7 @@ test('shape editor keeps selection and pile fields readable on a narrow phone', 
 
   assert.match(editor, /#seFamilyTabs\{justify-content:flex-start!important;[\s\S]*overflow-x:auto!important;[\s\S]*flex-wrap:nowrap!important/);
   assert.match(editor, /#sePageSelect #sePresets\{[\s\S]*grid-template-columns:repeat\(auto-fill,minmax\(58px,1fr\)\)!important/);
+  assert.match(editor, /\.se-pile-section-row td\{grid-column:1\/-1!important;width:100%!important;min-width:0!important;display:block/);
   assert.match(editor, /se-family-row>td\[colspan="2"\]\{grid-column:auto!important;width:auto!important;display:block;\}/);
   assert.match(editor, /@media\(max-width:420px\)\{[\s\S]*se-pile-section \.se-family-row\{grid-template-columns:1fr!important;\}/);
 });
