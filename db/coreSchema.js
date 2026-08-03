@@ -282,6 +282,190 @@ function ensureProcurementRecommendationV2Schema(db) {
   `);
 }
 
+function ensureQuotationFoundationV1Schema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS quotation_sequences (
+      prefix TEXT PRIMARY KEY,
+      next_value INTEGER NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS customer_quotations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quotation_uid TEXT NOT NULL UNIQUE,
+      quotation_num TEXT UNIQUE,
+      current_revision_number INTEGER NOT NULL DEFAULT 1 CHECK (current_revision_number > 0),
+      lifecycle_status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (lifecycle_status IN ('draft','issued','accepted','rejected','expired','cancelled')),
+      customer_id INTEGER,
+      prospect_display_name TEXT,
+      project_id INTEGER,
+      site_id INTEGER,
+      owner_id INTEGER,
+      created_by INTEGER,
+      create_idempotency_key TEXT NOT NULL UNIQUE,
+      create_payload_fingerprint TEXT NOT NULL,
+      accepted_at TEXT,
+      accepted_by INTEGER,
+      rejected_at TEXT,
+      rejected_by INTEGER,
+      expired_at TEXT,
+      expired_by INTEGER,
+      cancelled_at TEXT,
+      cancelled_by INTEGER,
+      cancellation_reason TEXT,
+      archived_at TEXT,
+      archived_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (project_id) REFERENCES projects(id),
+      FOREIGN KEY (site_id) REFERENCES customer_sites(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_quotations_status
+      ON customer_quotations(lifecycle_status, archived_at, id);
+    CREATE INDEX IF NOT EXISTS idx_customer_quotations_customer
+      ON customer_quotations(customer_id, id);
+
+    CREATE TABLE IF NOT EXISTS customer_quotation_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      revision_uid TEXT NOT NULL UNIQUE,
+      quotation_id INTEGER NOT NULL,
+      revision_number INTEGER NOT NULL CHECK (revision_number > 0),
+      version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','issued')),
+      customer_snapshot_json TEXT NOT NULL,
+      project_site_snapshot_json TEXT NOT NULL,
+      currency_code TEXT NOT NULL DEFAULT 'ILS' CHECK (length(currency_code) = 3),
+      vat_rate NUMERIC NOT NULL DEFAULT 0.18
+        CHECK (typeof(vat_rate) IN ('integer','real') AND vat_rate >= 0 AND vat_rate <= 1),
+      subtotal NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(subtotal) IN ('integer','real') AND subtotal >= 0),
+      discount_total NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(discount_total) IN ('integer','real') AND discount_total >= 0),
+      vat_total NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(vat_total) IN ('integer','real') AND vat_total >= 0),
+      grand_total NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(grand_total) IN ('integer','real') AND grand_total >= 0),
+      validity_date TEXT,
+      commercial_notes TEXT,
+      pricing_snapshot_json TEXT NOT NULL DEFAULT '{}',
+      payload_json TEXT NOT NULL,
+      payload_hash TEXT NOT NULL,
+      issued_payload_json TEXT,
+      issued_payload_hash TEXT,
+      issued_at TEXT,
+      issued_by INTEGER,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (quotation_id, revision_number),
+      FOREIGN KEY (quotation_id) REFERENCES customer_quotations(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_quotation_revisions_quote
+      ON customer_quotation_revisions(quotation_id, revision_number);
+
+    CREATE TABLE IF NOT EXISTS customer_quotation_lines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      revision_id INTEGER NOT NULL,
+      sequence INTEGER NOT NULL CHECK (sequence > 0),
+      item_description TEXT NOT NULL,
+      catalog_item_id INTEGER,
+      product_master_id INTEGER,
+      quantity NUMERIC NOT NULL CHECK (typeof(quantity) IN ('integer','real') AND quantity > 0),
+      unit TEXT NOT NULL,
+      pricing_quantity NUMERIC NOT NULL CHECK (typeof(pricing_quantity) IN ('integer','real') AND pricing_quantity >= 0),
+      pricing_unit TEXT NOT NULL,
+      unit_price NUMERIC NOT NULL CHECK (typeof(unit_price) IN ('integer','real') AND unit_price >= 0),
+      discount_pct NUMERIC NOT NULL DEFAULT 0
+        CHECK (typeof(discount_pct) IN ('integer','real') AND discount_pct >= 0 AND discount_pct <= 100),
+      discount_amount NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(discount_amount) IN ('integer','real') AND discount_amount >= 0),
+      line_subtotal NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(line_subtotal) IN ('integer','real') AND line_subtotal >= 0),
+      vat_treatment TEXT NOT NULL DEFAULT 'standard'
+        CHECK (vat_treatment IN ('standard','exempt','out_of_scope')),
+      line_vat_amount NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(line_vat_amount) IN ('integer','real') AND line_vat_amount >= 0),
+      line_total NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(line_total) IN ('integer','real') AND line_total >= 0),
+      line_grand_total NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(line_grand_total) IN ('integer','real') AND line_grand_total >= 0),
+      calculated_unit_weight_kg NUMERIC,
+      total_weight_kg NUMERIC,
+      pricing_source TEXT,
+      pricing_snapshot_json TEXT NOT NULL DEFAULT '{}',
+      shape_snapshot_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (revision_id, sequence),
+      FOREIGN KEY (revision_id) REFERENCES customer_quotation_revisions(id),
+      FOREIGN KEY (catalog_item_id) REFERENCES catalog_items(id),
+      FOREIGN KEY (product_master_id) REFERENCES product_masters(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_quotation_lines_revision
+      ON customer_quotation_lines(revision_id, sequence);
+
+    CREATE TABLE IF NOT EXISTS customer_quotation_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_uid TEXT NOT NULL UNIQUE,
+      quotation_id INTEGER,
+      quotation_uid TEXT NOT NULL,
+      quotation_num TEXT,
+      revision_id INTEGER,
+      revision_number INTEGER,
+      event_type TEXT NOT NULL CHECK (event_type IN (
+        'draft_created','draft_updated','issued','new_revision_created',
+        'accepted','rejected','expired','cancelled','archived','unused_draft_deleted'
+      )),
+      idempotency_key TEXT NOT NULL UNIQUE,
+      payload_fingerprint TEXT NOT NULL,
+      actor_id INTEGER,
+      details_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_quotation_events_quote
+      ON customer_quotation_events(quotation_uid, id);
+
+    CREATE TRIGGER IF NOT EXISTS trg_customer_quotation_events_no_update
+    BEFORE UPDATE ON customer_quotation_events
+    BEGIN
+      SELECT RAISE(ABORT, 'customer_quotation_events_append_only');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_customer_quotation_events_no_delete
+    BEFORE DELETE ON customer_quotation_events
+    BEGIN
+      SELECT RAISE(ABORT, 'customer_quotation_events_append_only');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_customer_quotation_issued_revision_no_update
+    BEFORE UPDATE ON customer_quotation_revisions
+    WHEN OLD.status = 'issued'
+    BEGIN
+      SELECT RAISE(ABORT, 'issued_quotation_revision_immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_customer_quotation_issued_revision_no_delete
+    BEFORE DELETE ON customer_quotation_revisions
+    WHEN OLD.status = 'issued'
+    BEGIN
+      SELECT RAISE(ABORT, 'issued_quotation_revision_immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_customer_quotation_issued_line_no_insert
+    BEFORE INSERT ON customer_quotation_lines
+    WHEN (SELECT status FROM customer_quotation_revisions WHERE id = NEW.revision_id) = 'issued'
+    BEGIN
+      SELECT RAISE(ABORT, 'issued_quotation_revision_immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_customer_quotation_issued_line_no_update
+    BEFORE UPDATE ON customer_quotation_lines
+    WHEN (SELECT status FROM customer_quotation_revisions WHERE id = OLD.revision_id) = 'issued'
+    BEGIN
+      SELECT RAISE(ABORT, 'issued_quotation_revision_immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_customer_quotation_issued_line_no_delete
+    BEFORE DELETE ON customer_quotation_lines
+    WHEN (SELECT status FROM customer_quotation_revisions WHERE id = OLD.revision_id) = 'issued'
+    BEGIN
+      SELECT RAISE(ABORT, 'issued_quotation_revision_immutable');
+    END;
+  `);
+}
+
 function ensureMaterialRequirementV2Schema(db) {
   ensureColumn(
     db,
@@ -1338,6 +1522,7 @@ function ensureCoreSchema(db) {
   ensureMaterialConsumptionV2Schema(db);
   ensurePendingRawMaterialReceiptV2Schema(db);
   ensureProcurementRecommendationV2Schema(db);
+  ensureQuotationFoundationV1Schema(db);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)
@@ -1356,4 +1541,5 @@ module.exports = {
   ensureMaterialConsumptionV2Schema,
   ensurePendingRawMaterialReceiptV2Schema,
   ensureProcurementRecommendationV2Schema,
+  ensureQuotationFoundationV1Schema,
 };

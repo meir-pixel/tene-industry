@@ -26,6 +26,8 @@ const statusContracts = require('./status-contracts');
 const constants = require('./constants');
 const productionCards = require('./services/productionCards');
 const { createOrderNumberAllocator } = require('./services/orderNumbers');
+const { createQuotationNumberAllocator } = require('./services/quotationNumbers');
+const { createCustomerQuotationService } = require('./services/customerQuotationV1');
 const { ensureCoreSchema, runCoreMigrations, seedCoreData } = require('./db/startup');
 const { createRealtimeServer } = require('./realtime/ws');
 const { createAuthMiddleware } = require('./middleware/auth');
@@ -58,6 +60,7 @@ const createProductionShiftsRouter = require('./routes/productionShifts');
 const createQualityRouter = require('./routes/quality');
 const createMaintenanceRouter = require('./routes/maintenance');
 const createCustomersRouter = require('./routes/customers');
+const createQuotationsRouter = require('./routes/quotations');
 const createAuthRouter = require('./routes/auth');
 const createAdminRouter = require('./routes/admin');
 const createPortalRouter = require('./routes/portal');
@@ -166,6 +169,11 @@ ensureCoreSchema(db);
 runCoreMigrations(db);
 ensureAuthSchema(db);
 
+const quotationService = createCustomerQuotationService(db, {
+  pricer,
+  generateQuotationNumber: createQuotationNumberAllocator(db),
+});
+
 const moduleLoader = createModuleLoader(settingsService);
 const industry = moduleLoader.active();
 const {
@@ -259,7 +267,7 @@ app.use('/api', createBrandingRouter({ branding: brandingService }));
 
 // Collect all route manifests for access control
 const allRouteFactories = [
-  createOrdersRouter, createCustomersRouter, createIntakeRouter, createProductionRouter,
+  createOrdersRouter, createCustomersRouter, createQuotationsRouter, createIntakeRouter, createProductionRouter,
   createProductionMachinesRouter, createProductionCardsRouter, createWarehouseRouter,
   createInventoryRouter, createProcurementRouter, createProcurementRecommendationsRouter, createFleetRouter, createQualityRouter,
   createMaterialAllocationPlanningRouter,
@@ -294,6 +302,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/catalog.js', factory: createCatalogRouter },
     { file: 'routes/companies.js', factory: createCompaniesRouter },
     { file: 'routes/customers.js', factory: createCustomersRouter },
+    { file: 'routes/quotations.js', factory: createQuotationsRouter },
     { file: 'routes/finance.js', factory: createFinanceRouter },
     { file: 'routes/financeCredit.js', factory: createFinanceCreditRouter },
     { file: 'routes/financeInvoices.js', factory: createFinanceInvoicesRouter },
@@ -569,6 +578,10 @@ app.use('/api', requireModule('maintenance'), createMaintenanceRouter({
 
 app.use('/api', requireModule('customers'), createCustomersRouter({
   db,
+  requireAnyRole,
+}));
+app.use('/api', requireModule('customers'), createQuotationsRouter({
+  quotationService,
   requireAnyRole,
 }));
 app.use('/api', createAuthRouter({
