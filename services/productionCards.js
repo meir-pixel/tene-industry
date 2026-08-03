@@ -68,28 +68,79 @@ function isRoundPileCageItem(item = {}) {
   return snapshot?.family === 'piles' && snapshot?.shapeType === 'round_pile_cage';
 }
 
+function exactPileMetric(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return '';
+  return numeric.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
+
+function pileAssemblyComponentLabel(component = {}) {
+  const labels = {
+    longitudinal_straight_bar: 'STRAIGHT',
+    longitudinal_l_bar: 'L-BAR',
+    spiral_consolidated: 'SPIRAL',
+    hoop_ring: 'RINGS',
+  };
+  const label = labels[component.componentType];
+  const quantity = Number(component.quantity);
+  const diameter = Number(component.diameterMm);
+  const totalLengthMm = Number(component.totalLengthMm);
+  if (!label || !(quantity > 0) || !(diameter > 0) || !(totalLengthMm > 0)) return '';
+  return `${label} ${exactPileMetric(quantity)} × Ø${exactPileMetric(diameter)} · ${exactPileMetric(totalLengthMm)} mm`;
+}
+
 function pileCageProductionSvg(item = {}) {
   const snapshot = shapeSnapshotFromItem(item);
   const data = snapshot.data || {};
   const n = value => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 0;
   const pileDiameter = n(data.pileDiameterMm ?? data.pileDiameter ?? data.general?.pileDiameterMm);
   const pileLength = n(data.pileLengthMm ?? data.pileLength ?? data.general?.pileLengthMm);
-  const bars = Math.max(0, Math.round(n(data.longitudinalBars?.count ?? data.longitudinalBarCount ?? data.longitudinalBars)));
-  const barDiameter = n(data.longitudinalBars?.diameterMm ?? data.longitudinalDiameterMm ?? data.longitudinalDiameter ?? item.diameter);
+  const bars = Math.max(0, Math.round(n(data.longitudinalBars?.totalBars ?? data.longitudinalBars?.count ?? data.longitudinalBarCount ?? data.longitudinalBars)));
+  const barDiameter = n(data.longitudinalBars?.defaultDiameterMm ?? data.longitudinalBars?.diameterMm ?? data.longitudinalDiameterMm ?? data.longitudinalDiameter ?? item.diameter);
   const spiralDiameter = n(data.spiral?.barDiameterMm ?? data.spiralDiameterMm ?? data.spiralDiameter);
-  const pitch = n(data.spiral?.pitchMm ?? data.spiralPitchMm ?? data.spiralPitch);
+  const schedule = Array.isArray(data.spiral?.schedule) ? data.spiral.schedule
+    : (Array.isArray(data.spiral?.zones) ? data.spiral.zones : (Array.isArray(data.spiralZones) ? data.spiralZones : []));
+  const wrappedSchedule = schedule.filter(zone => !zone.noWrap);
+  const pitch = n(wrappedSchedule[0]?.pitchMm ?? data.spiral?.pitchMm ?? data.spiralPitchMm ?? data.spiralPitch);
   const hoops = Math.max(0, Math.round(n(data.hoops?.quantity ?? data.hoopQuantity)));
-  const hoopDiameter = n(data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter);
+  const hoopDiameter = n(data.hoops?.hoopBarDiameterMm ?? data.hoops?.barDiameterMm ?? data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter);
   const dotCount = bars > 0 && barDiameter > 0 ? Math.min(bars, 14) : 0;
   const dots = Array.from({ length: dotCount }, (_, index) => { const a = -Math.PI / 2 + Math.PI * 2 * index / dotCount; return `<circle cx="190" cy="40" r="2" transform="translate(${(Math.cos(a) * 15).toFixed(2)} ${(Math.sin(a) * 15).toFixed(2)})" fill="#102a43"/>`; }).join('');
-  const helix = spiralDiameter > 0 && pitch > 0 ? Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#2563eb" stroke-width="1.5"/>`).join('') : '';
+  const totalAxisMm = schedule.reduce((sum, zone) => sum + n(zone.axialLengthMm ?? zone.lengthMm ?? zone.length), 0) || pileLength;
+  let scheduleCursorMm = 0;
+  const helix = spiralDiameter > 0 && (wrappedSchedule.length || pitch > 0) ? (schedule.length ? schedule.map(zone => {
+    const lengthMm = n(zone.axialLengthMm ?? zone.lengthMm ?? zone.length);
+    const explicitStartMm = Number(zone.startMm);
+    const startMm = Number.isFinite(explicitStartMm) && explicitStartMm >= 0 ? explicitStartMm : scheduleCursorMm;
+    scheduleCursorMm = startMm + lengthMm;
+    if (zone.noWrap) return `<g data-no-wrap="1" data-start-mm="${startMm}" data-end-mm="${startMm + lengthMm}"></g>`;
+    const startX = 14 + 146 * startMm / Math.max(1, totalAxisMm);
+    const endX = startX + 146 * lengthMm / Math.max(1, totalAxisMm);
+    const turns = Math.max(2, Math.min(14, Math.round(n(zone.turns) || lengthMm / Math.max(1, n(zone.pitchMm ?? zone.pitch)))));
+    return Array.from({ length: turns }, (_, index) => { const x = startX + (index + 0.5) * Math.max(1, endX - startX) / turns; return `<path d="M${(x - 4).toFixed(1)} 23L${(x + 4).toFixed(1)} 55" stroke="#102a43" stroke-width="1.3"/>`; }).join('');
+  }).join('') : Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#102a43" stroke-width="1.3"/>`).join('')) : '';
   const rods = bars > 0 && barDiameter > 0 ? Array.from({ length: 5 }, (_, index) => `<path d="M14 ${27 + index * 7}H160" stroke="#102a43" stroke-width="1.2"/>`).join('') : '';
   const lengthM = pileLength ? (pileLength / 1000).toFixed(2) : '—';
   const diameterCm = pileDiameter ? (pileDiameter / 10).toFixed(1).replace(/\.0$/, '') : '—';
   const barLabel = bars > 0 && barDiameter > 0 ? `${bars} × Ø${barDiameter}` : '—';
-  const spiralLabel = spiralDiameter > 0 && pitch > 0 ? `Ø${spiralDiameter} @ ${pitch / 10}cm` : '—';
+  const pitches = [...new Set(wrappedSchedule.map(zone => n(zone.pitchMm ?? zone.pitch)).filter(Boolean))];
+  const spiralLabel = spiralDiameter > 0 && (pitches.length || pitch > 0) ? `Ø${spiralDiameter} @ ${(pitches.length ? pitches : [pitch]).map(value => value / 10).join('/')}cm` : '—';
   const hoopLabel = hoops > 0 && hoopDiameter > 0 ? `${hoops} × Ø${hoopDiameter}` : '—';
-  return `<svg viewBox="0 0 225 72" role="img" aria-label="PILE CAGE"><rect x="12" y="21" width="152" height="38" rx="7" fill="#f8fafc" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">L ${lengthM}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${diameterCm}</text><text x="88" y="70" text-anchor="middle" font-size="7" font-weight="800" fill="#102a43">${barLabel} · ${spiralLabel} · ${hoopLabel}</text></svg>`;
+  const isAssemblyCard = item.pile_card_type === 'pile_assembly';
+  const sourceSummary = Array.isArray(item.pile_component_summary)
+    ? item.pile_component_summary
+    : (Array.isArray(snapshot.calculated?.manufacturingBreakdown) ? snapshot.calculated.manufacturingBreakdown : []);
+  const summaryByType = new Map(sourceSummary.map(component => [component.componentType, component]));
+  const requiredTypes = ['longitudinal_straight_bar', 'longitudinal_l_bar', 'spiral_consolidated', 'hoop_ring'];
+  const componentLines = requiredTypes.map(type => pileAssemblyComponentLabel(summaryByType.get(type))).filter(Boolean);
+  const totalSteelLengthMm = Number(item.pile_total_steel_length_mm ?? snapshot.calculated?.totalSteelLengthMm ?? snapshot.calculated?.totalLengthMm);
+  const hasAssemblySummary = isAssemblyCard && componentLines.length === 4 && totalSteelLengthMm > 0;
+  const compactFooter = `<text x="88" y="70" text-anchor="middle" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(barLabel)} · ${escapeHtml(spiralLabel)} · ${escapeHtml(hoopLabel)}</text>`;
+  const assemblyRows = hasAssemblySummary
+    ? `<g data-assembly-component-summary="4">${componentLines.map((line, index) => `<text x="12" y="${82 + index * 10}" text-anchor="start" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(line)}</text>`).join('')}<text data-assembly-total-steel="${escapeHtml(exactPileMetric(totalSteelLengthMm))}" x="213" y="122" text-anchor="end" font-size="8" font-weight="900" fill="#102a43">STEEL ${escapeHtml(exactPileMetric(totalSteelLengthMm))} mm</text></g>`
+    : '';
+  const viewHeight = hasAssemblySummary ? 128 : 72;
+  return `<svg viewBox="0 0 225 ${viewHeight}" role="img" aria-label="PILE CAGE"><rect x="12" y="21" width="152" height="38" rx="7" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">PILE CAGE · L ${escapeHtml(lengthM)}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${escapeHtml(diameterCm)}</text>${hasAssemblySummary ? assemblyRows : compactFooter}</svg>`;
 }
 
 function itemHumanTitle(item = {}) {
@@ -516,6 +567,7 @@ function spiralShapeSvg(item = {}) {
 }
 
 function itemShapeSvg(item = {}) {
+  if (isRoundPileCageItem(item)) return pileCageProductionSvg(item);
   const spiralSvg = spiralShapeSvg(item);
   return spiralSvg || shapeSvg(shapeSegmentsFromItem(item));
 }

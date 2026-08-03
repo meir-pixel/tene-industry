@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 
 const ordersHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'orders.html'), 'utf8');
 
@@ -24,7 +25,7 @@ test('order detail renders a snapshot-derived round pile cage assembly guide', (
   assert.match(ordersHtml, /data-round-pile-assembly="1"/);
   assert.match(ordersHtml, /component\('straight', 'מוטות אורך ישרים'/);
   assert.match(ordersHtml, /component\('bent', 'מוטות אורך עם כיפוף עליון'/);
-  assert.match(ordersHtml, /component\('spiral', 'ספירלה רציפה'/);
+  assert.match(ordersHtml, /component\('spiral', 'ספירלה מאוחדת'/);
   assert.match(ordersHtml, /component\('hoop', 'טבעות חיזוק'/);
   assert.match(ordersHtml, /const pileAssembly = roundPileAssemblyHtml\(item\)/);
 });
@@ -39,25 +40,13 @@ test('pile assembly placement directions remain snapshot-derived and responsive'
 
 test('order assembly guide shows each production component and its exact snapshot placement', () => {
   const render = assemblyRenderer();
-  const html = render({ shape_snapshot_json: JSON.stringify({
-    family: 'piles',
-    shapeType: 'round_pile_cage',
-    data: {
-      pileLength: 12000,
-      bars: [
-        { type: 'straight', diameterMm: 20, lengthMm: 12000 },
-        { type: 'L', diameterMm: 20, lengthMm: 12200, bendLengthMm: 200 },
-      ],
-      spiral: { barDiameterMm: 8, outerDiameterMm: 480, pitchMm: 150, coverageLengthMm: 11800, turns: 78.6666666667 },
-      hoops: { barDiameterMm: 18, outerDiameterMm: 420, quantity: 5, firstOffsetMm: 1500, spacingMm: 300 },
-    },
-    calculated: { manufacturingBreakdown: [
-      { componentType: 'longitudinal_straight_bar', quantity: 5, diameterMm: 20, lengthMm: 12000, totalLengthMm: 60000 },
-      { componentType: 'longitudinal_l_bar', quantity: 5, diameterMm: 20, lengthMm: 12200, bendLengthMm: 200, totalLengthMm: 61000 },
-      { componentType: 'spiral_zone', quantity: 1, diameterMm: 8, outerDiameterMm: 480, pitchMm: 150, zoneLengthMm: 11800, turns: 78.6666666667 },
-      { componentType: 'hoop_ring', quantity: 5, diameterMm: 18, hoopOuterDiameterMm: 420, spacingMm: 300 },
-    ] },
-  }) });
+  const snapshot = calculatePileCage({
+    roundPileCage: true, pileDiameterMm: 600, pileLengthMm: 12000,
+    longitudinalBars: { totalBars: 10, defaultDiameterMm: 20, defaultLengthMm: 12000, pattern: [{ type: 'straight', lengthMm: 12000 }, { type: 'L', lengthMm: 12000, bendLengthMm: 200 }] },
+    spiral: { barDiameterMm: 8, outerDiameterMm: 480, pitchMode: 'zones', zones: [{ name: 'A', lengthMm: 3000, pitchMm: 150 }, { name: 'B', lengthMm: 2000, noWrap: true }, { name: 'C', lengthMm: 7000, pitchMm: 200 }] },
+    hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420, spacingMode: 'byQuantity', quantity: 5, firstHoopOffsetMm: 1500, spacingMm: 300 },
+  });
+  const html = render({ shape_snapshot_json: JSON.stringify(snapshot) });
 
   for (const component of ['straight', 'bent', 'spiral', 'hoop']) assert.match(html, new RegExp(`data-pile-component="${component}"`));
   assert.match(html, /5 × Ø20 · L=12 מ׳/);
@@ -67,8 +56,10 @@ test('order assembly guide shows each production component and its exact snapsho
   assert.match(html, /L=12 מ׳/);
   assert.match(html, /L=12.2 מ׳/);
   assert.match(html, />20 ס״מ<\/text>/);
-  assert.match(html, /Ø8 · קוטר 48 ס״מ · פסיעה 15 ס״מ/);
-  assert.match(html, /אורך אזור ספירלה 11.8 מ׳/);
+  assert.match(html, /Ø8 · קוטר 48 ס״מ · פסיעות 15 \/ 20 ס״מ/);
+  assert.match(html, /A: 3m @ 15cm · 20 כריכות/);
+  assert.match(html, /B: 2m ללא כריכות/);
+  assert.match(html, /C: 7m @ 20cm · 35 כריכות/);
   assert.match(html, /5 × Ø18 · קוטר 42 ס״מ/);
   assert.match(html, /הטבעת הראשונה 150 ס״מ מראש הכלונס; מרווח 30 ס״מ/);
 });

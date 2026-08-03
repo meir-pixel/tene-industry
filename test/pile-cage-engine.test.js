@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
+const { buildBarsShapeContract, buildRingShapeContract, calculateHelicalSpiral } = require('../modules/steel-rebar/shapes');
 const { buildFullShapeSnapshot } = require('../services/shapeSnapshot');
 
 function codes(result) {
@@ -11,6 +12,17 @@ function codes(result) {
 
 function componentTypes(result) {
   return new Set(result.manufacturingBreakdown.map(part => part.componentType));
+}
+
+function completeRoundPileInput() {
+  return {
+    roundPileCage: true,
+    pileDiameterMm: 600,
+    pileLengthMm: 12000,
+    longitudinalBars: { totalBars: 10, defaultDiameterMm: 20, defaultLengthMm: 12000, layoutMode: 'alternating', pattern: [{ type: 'straight', lengthMm: 12000 }, { type: 'L', lengthMm: 12000, bendLengthMm: 200 }] },
+    spiral: { barDiameterMm: 8, outerDiameterMm: 480, pitchMode: 'zones', zones: [{ name: 'A', lengthMm: 3000, pitchMm: 150 }, { name: 'B', lengthMm: 2000, noWrap: true }, { name: 'C', lengthMm: 7000, pitchMm: 200 }] },
+    hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420, spacingMode: 'byQuantity', quantity: 5, firstHoopOffsetMm: 1500, spacingMm: 300 },
+  };
 }
 
 test('uniform spiral pile cage calculates active length correctly', () => {
@@ -131,7 +143,7 @@ test('hoops by spacing calculate hoop count', () => {
     hoops: { spacingMode: 'bySpacing', spacingMm: 3000, hoopBarDiameterMm: 8 },
   });
 
-  assert.equal(pile.hoops[0].barDiameterMm, 14);
+  assert.equal(pile.hoops[0].barDiameterMm, 8);
   assert.deepEqual(pile.hoops[0].positionsMm, [1000, 4000, 7000, 10000]);
   assert.equal(pile.hoops[0].count, 4);
 });
@@ -149,7 +161,7 @@ test('internal hoops calculate weld spacing from internal diameter', () => {
 
   assert.equal(pile.calculated.internalHoopDiameterMm, 352);
   assert.equal(hoop.hoopDiameterMm, 352);
-  assert.equal(hoop.hoopCutLengthMm, 1105.8);
+  assert.equal(hoop.hoopCutLengthMm, 1106);
   assert.equal(hoop.barCenterSpacingMm, 176);
   assert.equal(hoop.barClearSpacingMm, 160);
   assert.equal(pile.views.topView.barCenterSpacingMm, 176);
@@ -232,12 +244,16 @@ test('round pile cage preserves alternating bars, external diameters and the com
         { repeat: 1, type: 'L', lengthMm: 12000, bendLengthMm: 200 },
       ],
     },
-    spiral: { barDiameterMm: 8, outerDiameterMm: 480, uniformPitchMm: 150 },
+    spiral: { barDiameterMm: 8, outerDiameterMm: 480, pitchMode: 'zones', zones: [
+      { name: 'A', lengthMm: 3000, pitchMm: 150 },
+      { name: 'B', lengthMm: 2000, noWrap: true },
+      { name: 'C', lengthMm: 7000, pitchMm: 200 },
+    ] },
     hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420, spacingMode: 'byQuantity', quantity: 5, firstHoopOffsetMm: 1500, spacingMm: 300 },
   });
   const straight = pile.manufacturingBreakdown.find(part => part.componentType === 'longitudinal_straight_bar');
   const bent = pile.manufacturingBreakdown.find(part => part.componentType === 'longitudinal_l_bar');
-  const spiral = pile.manufacturingBreakdown.find(part => part.componentType === 'spiral_zone');
+  const spiral = pile.manufacturingBreakdown.find(part => part.componentType === 'spiral_consolidated');
   const rings = pile.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
 
   assert.equal(pile.validation.ok, true);
@@ -247,9 +263,87 @@ test('round pile cage preserves alternating bars, external diameters and the com
   assert.equal(bent.quantity, 5); assert.equal(bent.lengthMm, 12200); assert.equal(bent.bendLengthMm, 200);
   assert.equal(pile.calculated.totalLongitudinalLengthMm, 121000);
   assert.equal(pile.data.spiral.outerDiameterMm, 480); assert.equal(pile.data.spiral.spiralDiameterMm, 472);
-  assert.equal(spiral.pitchMm, 150); assert.equal(spiral.turns, 80);
-  assert.equal(pile.data.hoops.outerDiameterMm, 420); assert.equal(rings.hoopDiameterMm, 402);
+  assert.deepEqual(spiral.schedule.map(zone => ({ noWrap: zone.noWrap, startMm: zone.startMm, endMm: zone.endMm, pitchMm: zone.pitchMm, turns: zone.turns, cut: zone.helicalCutLengthMm })), [
+    { noWrap: false, startMm: 0, endMm: 3000, pitchMm: 150, turns: 20, cut: 29808 },
+    { noWrap: true, startMm: 3000, endMm: 5000, pitchMm: null, turns: 0, cut: 0 },
+    { noWrap: false, startMm: 5000, endMm: 12000, pitchMm: 200, turns: 35, cut: 52369.1 },
+  ]);
+  assert.equal(spiral.totalLengthMm, 82177.1);
+  assert.equal(pile.data.hoops.outerDiameterMm, 420); assert.equal(rings.hoopDiameterMm, 420); assert.equal(rings.bendingDiameterMm, 420);
   assert.deepEqual(rings.positionsMm, [1500, 1800, 2100, 2400, 2700]); assert.equal(rings.quantity, 5); assert.equal(rings.spacingMm, 300);
   assert.equal(pile.shapeType, 'round_pile_cage'); assert.equal(pile.family, 'piles');
   assert.equal(pile.data.longitudinalBars.bars.length, 10); assert.equal(pile.machineOutput.generic.manufacturingBreakdown.length, 4);
+  assert.deepEqual(pile.productionCards.map(card => card.componentType), ['longitudinal_straight_bar', 'longitudinal_l_bar', 'spiral_consolidated', 'hoop_ring', 'pile_assembly']);
+  assert.equal(pile.productionCards.filter(card => card.cardType === 'pile_component').length, 4);
+  assert.equal(pile.productionCards.filter(card => card.cardType === 'pile_assembly').length, 1);
+  assert.equal(pile.productionCards[4].weightKg, pile.calculated.totalWeightKg);
+  assert.equal(pile.productionCards[4].totalSteelCutLengthMm, 209772.1);
+  assert.equal(pile.productionCards[4].componentSummary.length, 4);
+  assert.equal(pile.assemblySummary.productionCardCount, 5);
+  assert.equal(pile.calculated.totalWeightKg, 344.52);
+});
+
+test('round pile cage components have parity with standalone canonical engines', () => {
+  const pile = calculatePileCage({
+    roundPileCage: true,
+    pileDiameterMm: 600,
+    pileLengthMm: 12000,
+    longitudinalBars: { totalBars: 10, defaultDiameterMm: 20, defaultLengthMm: 12000, layoutMode: 'alternating', pattern: [{ repeat: 1, type: 'straight', lengthMm: 12000 }, { repeat: 1, type: 'L', lengthMm: 12000, bendLengthMm: 200 }] },
+    spiral: { barDiameterMm: 8, outerDiameterMm: 480, pitchMode: 'zones', zones: [{ name: 'A', lengthMm: 3000, pitchMm: 150 }, { name: 'B', lengthMm: 2000, noWrap: true }, { name: 'C', lengthMm: 7000, pitchMm: 200 }] },
+    hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420, spacingMode: 'byQuantity', quantity: 5, firstHoopOffsetMm: 1500, spacingMm: 300 },
+  });
+  const straight = pile.manufacturingBreakdown.find(part => part.componentType === 'longitudinal_straight_bar');
+  const bent = pile.manufacturingBreakdown.find(part => part.componentType === 'longitudinal_l_bar');
+  const spiral = pile.manufacturingBreakdown.find(part => part.componentType === 'spiral_consolidated');
+  const ring = pile.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+  assert.deepEqual({ unit: straight.unitLengthMm, total: straight.totalLengthMm, weight: straight.weightKg, segments: straight.segments }, (() => { const c = buildBarsShapeContract({ shapeType: 'straight_bar', diameter: 20, sides: [12000], angles: [] }, { quantity: 5 }); return { unit: c.component.unitLengthMm, total: c.component.totalLengthMm, weight: c.component.weightKg, segments: c.component.segments }; })());
+  assert.deepEqual({ unit: bent.unitLengthMm, total: bent.totalLengthMm, weight: bent.weightKg, segments: bent.segments }, (() => { const c = buildBarsShapeContract({ shapeType: 'l_bar', diameter: 20, sides: [12000, 200], angles: [90] }, { quantity: 5 }); return { unit: c.component.unitLengthMm, total: c.component.totalLengthMm, weight: c.component.weightKg, segments: c.component.segments }; })());
+  const expectedWrapped = [calculateHelicalSpiral({ axialLengthMm: 3000, pitchMm: 150, effectiveDiameterMm: 472, barDiameterMm: 8 }), calculateHelicalSpiral({ axialLengthMm: 7000, pitchMm: 200, effectiveDiameterMm: 472, barDiameterMm: 8 })];
+  assert.deepEqual(spiral.schedule.filter(zone => !zone.noWrap).map(zone => ({ turns: zone.turns, cut: zone.helicalCutLengthMm, weight: zone.weightKg })), expectedWrapped.map(zone => ({ turns: zone.turns, cut: zone.helicalCutLengthMm, weight: zone.barWeightKg })));
+  const standaloneRing = buildRingShapeContract({ barDiameterMm: 18, bendingDiameterMm: 420, quantity: 5 });
+  assert.deepEqual({ diameter: ring.bendingDiameterMm, unit: ring.unitLengthMm, total: ring.totalLengthMm, weight: ring.weightKg }, { diameter: standaloneRing.component.bendingDiameterMm, unit: standaloneRing.component.unitLengthMm, total: standaloneRing.component.totalLengthMm, weight: standaloneRing.component.weightKg });
+});
+
+test('round pile cage blocks production cards when explicit hoop quantity is missing', () => {
+  const pile = calculatePileCage({ roundPileCage: true, pileLengthMm: 12000, longitudinalBars: { totalBars: 10, layoutMode: 'alternating', pattern: [{ type: 'straight' }, { type: 'L', bendLengthMm: 200 }] }, spiral: { barDiameterMm: 8, outerDiameterMm: 480, uniformPitchMm: 150 }, hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420 } });
+  assert.equal(pile.validation.ok, false);
+  assert.ok(pile.validation.errorCodes.includes('missing_hoop_quantity'));
+  assert.deepEqual(pile.productionCards, []);
+});
+
+test('historical round pile snapshot derives hoop quantity only from authoritative saved positions', () => {
+  const historical = completeRoundPileInput();
+  delete historical.hoops.quantity;
+  historical.hoops.positionsMm = [1500, 1800, 2100, 2400, 2700];
+  const pile = calculatePileCage(historical);
+  const rings = pile.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+  assert.equal(pile.validation.ok, true);
+  assert.equal(rings.quantity, 5);
+  assert.deepEqual(rings.positionsMm, historical.hoops.positionsMm);
+  assert.equal(pile.productionCards.find(card => card.componentType === 'hoop_ring').quantity, 5);
+});
+
+test('round pile cage fails closed when wrapped pitch is missing instead of using the uniform default', () => {
+  const input = completeRoundPileInput();
+  delete input.spiral.zones[0].pitchMm;
+  const pile = calculatePileCage(input);
+  assert.equal(pile.validation.ok, false);
+  assert.ok(pile.validation.errorCodes.includes('missing_spiral_pitch'));
+  assert.deepEqual(pile.productionCards, []);
+  assert.deepEqual(pile.manufacturingBreakdown, []);
+  assert.equal(pile.calculated.totalSteelLengthMm, 0);
+  assert.equal(pile.calculated.totalWeightKg, 0);
+});
+
+test('round pile cage fails closed when longitudinal sources are absent instead of fabricating default bars', () => {
+  const input = completeRoundPileInput();
+  input.longitudinalBars = { pattern: [{ type: 'straight' }, { type: 'L', bendLengthMm: 200 }] };
+  const pile = calculatePileCage(input);
+  assert.equal(pile.validation.ok, false);
+  assert.ok(pile.validation.errorCodes.includes('missing_longitudinal_bar_count'));
+  assert.ok(pile.validation.errorCodes.includes('missing_longitudinal_bar_diameter'));
+  assert.ok(pile.validation.errorCodes.includes('missing_longitudinal_bar_length'));
+  assert.deepEqual(pile.productionCards, []);
+  assert.deepEqual(pile.manufacturingBreakdown, []);
+  assert.equal(pile.calculated.totalWeightKg, 0);
 });

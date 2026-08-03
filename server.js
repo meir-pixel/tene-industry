@@ -143,6 +143,9 @@ app.use((req, res, next) => {
 app.get('/shapeSnapshot.js', (_req, res) => {
   res.type('application/javascript').sendFile(path.join(__dirname, 'services', 'shapeSnapshot.js'));
 });
+app.get('/steelRebarShapes.js', (_req, res) => {
+  res.type('application/javascript').sendFile(path.join(__dirname, 'modules', 'steel-rebar', 'shapes.js'));
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 const {

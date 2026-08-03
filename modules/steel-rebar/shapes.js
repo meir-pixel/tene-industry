@@ -1,5 +1,24 @@
 'use strict';
 
+(function initSteelRebarShapes(root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('./weights').rebarKgPerMeter);
+    return;
+  }
+  const kgPerMeter = root.IronBendRebar && root.IronBendRebar.kgPerMeter;
+  root.IronBendSteelRebarShapes = Object.freeze(factory(kgPerMeter));
+})(typeof globalThis !== 'undefined' ? globalThis : this, function steelRebarShapesFactory(rebarKgPerMeter) {
+
+function round(value, digits = 3) {
+  const factor = 10 ** digits;
+  return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
+}
+
+function requireWeightCalculator() {
+  if (typeof rebarKgPerMeter !== 'function') throw new Error('steel_rebar_weight_calculator_unavailable');
+  return rebarKgPerMeter;
+}
+
 function shapeText(value) {
   return String(value || '').toLowerCase();
 }
@@ -62,6 +81,148 @@ function spiralCutLengthMm(spiralDiameterMm, turns) {
   const diameter = Number(spiralDiameterMm) || 0;
   const wrapCount = Number(turns) || 0;
   return Math.round(Math.PI * diameter * wrapCount);
+}
+
+function normalizeBarShapeType(input, sides, angles) {
+  const explicit = String(input.shapeType || input.shape_type || '').trim();
+  if (explicit) return explicit;
+  return sides.length === 1 && angles.length === 0 ? 'straight_bar' : 'custom_bent_bar';
+}
+
+function buildBarsShapeContract(input = {}, options = {}) {
+  const sides = Array.isArray(input.sides) ? input.sides.map(value => Number(value) || 0) : [];
+  const angles = Array.isArray(input.angles) ? input.angles.map(value => Number(value) || 0) : [];
+  const diameter = positiveNumber(input.diameter, input.diameterMm, input.barDiameterMm);
+  const quantity = Math.max(1, Math.round(positiveNumber(options.quantity, input.quantity, 1)));
+  const unitLengthMm = sides.reduce((sum, value) => sum + value, 0);
+  const unitWeightKg = round((unitLengthMm / 1000) * requireWeightCalculator()(diameter), 3);
+  const totalLengthMm = round(unitLengthMm * quantity, 1);
+  const totalWeightKg = round(unitWeightKg * quantity, 3);
+  const shapeType = normalizeBarShapeType(input, sides, angles);
+  const segments = sides.map((lengthMm, index) => ({
+    index: index + 1,
+    lengthMm,
+    length_mm: lengthMm,
+    bendAfterDeg: index < angles.length ? angles[index] : null,
+    angle_deg: index < angles.length ? angles[index] : null,
+  }));
+  return {
+    data: { sides, angles, diameter },
+    calculated: {
+      totalLengthMm: unitLengthMm,
+      weightKg: unitWeightKg,
+      unitLengthMm,
+      unitWeightKg,
+      quantity,
+      componentTotalLengthMm: totalLengthMm,
+      totalWeightKg,
+      bendCount: angles.length,
+    },
+    generic: { family: 'bars', shapeType, diameter, segments, totalLengthMm: unitLengthMm, bendCount: angles.length },
+    component: {
+      family: 'bars',
+      shapeType,
+      diameterMm: diameter,
+      quantity,
+      unitLengthMm,
+      totalLengthMm,
+      unitWeightKg,
+      weightKg: totalWeightKg,
+      sides,
+      angles,
+      segments,
+    },
+  };
+}
+
+function calculateHelicalSpiral(input = {}) {
+  const axialLengthMm = positiveNumber(input.axialLengthMm, input.axial_length_mm);
+  const pitchMm = positiveNumber(input.pitchMm, input.pitch_mm);
+  const effectiveDiameterMm = positiveNumber(
+    input.effectiveDiameterMm,
+    input.spiralDiameterMm,
+    input.spiral_diameter_mm,
+  );
+  const barDiameterMm = positiveNumber(input.barDiameterMm, input.bar_diameter_mm, input.diameterMm, input.diameter);
+  if (!(axialLengthMm > 0)) throw new Error('invalid_spiral_axial_length');
+  if (!(pitchMm > 0)) throw new Error('invalid_spiral_pitch');
+  if (!(effectiveDiameterMm > 0)) throw new Error('invalid_spiral_diameter');
+  if (!(barDiameterMm > 0)) throw new Error('invalid_spiral_bar_diameter');
+
+  const circumferenceRawMm = Math.PI * effectiveDiameterMm;
+  const turnsRaw = axialLengthMm / pitchMm;
+  const helicalLengthPerTurnRawMm = Math.sqrt(circumferenceRawMm ** 2 + pitchMm ** 2);
+  const helicalCutLengthRawMm = turnsRaw * helicalLengthPerTurnRawMm;
+  const helicalCutLengthMm = round(helicalCutLengthRawMm, 1);
+  const barWeightKg = round((helicalCutLengthMm / 1000) * requireWeightCalculator()(barDiameterMm), 3);
+  return {
+    axialLengthMm: round(axialLengthMm, 1),
+    pitchMm: round(pitchMm, 1),
+    effectiveDiameterMm: round(effectiveDiameterMm, 1),
+    barDiameterMm: round(barDiameterMm, 1),
+    circumferenceMm: round(circumferenceRawMm, 1),
+    turns: round(turnsRaw, 2),
+    turnsRaw,
+    helicalLengthPerTurnMm: round(helicalLengthPerTurnRawMm, 1),
+    helicalCutLengthMm,
+    barWeightKg,
+    calculation: Object.freeze({
+      mode: 'helical_axial_pitch',
+      units: 'mm',
+      formula: 'turns=axialLength/pitch; cut=turns*sqrt((pi*diameter)^2+pitch^2)',
+      precision: Object.freeze({ turns: 2, lengthMm: 1, weightKg: 3 }),
+    }),
+  };
+}
+
+function buildSpiralShapeContract(input = {}) {
+  const barDiameter = positiveNumber(input.barDiameter, input.barDiameterMm, input.diameter, input.diameterMm);
+  const spiralDiameter = positiveNumber(input.spiralDiameter, input.spiralDiameterMm, input.spiral_diameter_mm);
+  const turns = positiveNumber(input.turns, input.spiralTurns, input.spiral_turns);
+  const totalLengthMm = spiralCutLengthMm(spiralDiameter, turns);
+  const weightKg = round((totalLengthMm / 1000) * requireWeightCalculator()(barDiameter), 3);
+  return {
+    data: { barDiameter, spiralDiameter, turns },
+    calculated: { totalLengthMm, weightKg, unitLengthMm: totalLengthMm, unitWeightKg: weightKg },
+    generic: { family: 'spirals', shapeType: input.shapeType || 'spiral', barDiameter, spiralDiameter, turns, totalLengthMm },
+  };
+}
+
+function buildRingShapeContract(input = {}) {
+  const barDiameterMm = positiveNumber(input.barDiameterMm, input.barDiameter, input.diameterMm, input.diameter);
+  const bendingDiameterMm = positiveNumber(
+    input.bendingDiameterMm,
+    input.spiralDiameterMm,
+    input.ringDiameterMm,
+    input.ring_diameter_mm,
+  );
+  const quantity = Math.max(1, Math.round(positiveNumber(input.quantity, 1)));
+  const standalone = buildSpiralShapeContract({
+    shapeType: 'ring',
+    barDiameter: barDiameterMm,
+    spiralDiameter: bendingDiameterMm,
+    turns: 1,
+  });
+  const unitLengthMm = standalone.calculated.totalLengthMm;
+  const unitWeightKg = standalone.calculated.weightKg;
+  return {
+    ...standalone,
+    data: { ...standalone.data, bendingDiameterMm, quantity },
+    generic: { ...standalone.generic, shapeType: 'ring', bendingDiameterMm, quantity },
+    component: {
+      family: 'spirals',
+      shapeType: 'ring',
+      diameterMm: barDiameterMm,
+      bendingDiameterMm,
+      spiralDiameterMm: bendingDiameterMm,
+      turns: 1,
+      quantity,
+      unitLengthMm,
+      totalLengthMm: round(unitLengthMm * quantity, 1),
+      unitWeightKg,
+      weightKg: round(unitWeightKg * quantity, 3),
+    },
+  };
 }
 
 function normalizeOpenU(segments) {
@@ -140,10 +301,15 @@ function normalizeFactoryShapeName(shapeName, segments, options = {}) {
   return shape;
 }
 
-module.exports = {
+return {
   isSpiralName,
   normalizeSpiralParams,
   spiralCutLengthMm,
+  buildBarsShapeContract,
+  buildSpiralShapeContract,
+  calculateHelicalSpiral,
+  buildRingShapeContract,
   normalizeFactorySegments,
   normalizeFactoryShapeName,
 };
+});

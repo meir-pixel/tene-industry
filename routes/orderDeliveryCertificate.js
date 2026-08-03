@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { isTechnicalRecognitionNote } = require('../services/intakeWorkflow');
 const productionCards = require('../services/productionCards');
 const { itemShapeMetrics } = require('../services/shapeSnapshot');
+const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 
 const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
 
@@ -21,7 +22,30 @@ function isSixOrTwelveMeterStraight(lengthMm) {
   return Math.abs(mm - 6000) <= 5 || Math.abs(mm - 12000) <= 5;
 }
 
+function parseSnapshot(value) {
+  if (!value) return null;
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+function roundPileCageDeliveryMetrics(item = {}) {
+  if (!productionCards.isRoundPileCageItem(item)) return null;
+  const snapshot = parseSnapshot(item.shape_snapshot_json || item.shapeSnapshot || item.shape_snapshot || item.shapeData || item.shape_data) || {};
+  if (snapshot.validation && (snapshot.validation.ok === false || snapshot.validation.valid === false)) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 422 });
+  const canonical = calculatePileCage(snapshot);
+  if (!canonical.validation?.ok || canonical.productionCards?.length !== 5) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 422 });
+  const quantity = Math.max(1, Number(item.quantity) || 1);
+  const unitWeightKg = Number(canonical.calculated?.totalWeightKg);
+  const physicalLengthMm = Number(canonical.assemblySummary?.pileLengthMm);
+  const pileDiameterMm = Number(canonical.assemblySummary?.pileDiameterMm);
+  if (!(unitWeightKg > 0) || !(physicalLengthMm > 0) || !(pileDiameterMm > 0)) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 422 });
+  return { isRoundPileCage: true, totalLengthMm: physicalLengthMm, totalWeightKg: unitWeightKg * quantity, unitWeightKg, pileDiameterMm, quantity };
+}
+
 function deliveryItemMetrics(item, industry = null) {
+  const pileCage = roundPileCageDeliveryMetrics(item);
+  if (pileCage) return pileCage;
   const metrics = itemShapeMetrics(item || {});
   const totalLengthMm = metrics.totalLengthMm || Number(item && item.total_length_mm) || 0;
   // The certificate must match the A4 sheet and billing_weight, which are all
@@ -44,6 +68,7 @@ function deliveryItemMetrics(item, industry = null) {
 }
 
 function deliverySectionKey(item, segs) {
+  if (productionCards.isRoundPileCageItem(item)) return 'cage';
   const text = [item.shape_name, item.shape_id, item.struct_element, item.note]
     .filter(Boolean)
     .join(' ')
@@ -197,18 +222,19 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
     const segs   = parseSegs(item.segments);
     const itemMetrics = deliveryItemMetrics(item, industry);
     const posNum = idx + 1;
-    const diam   = item.diameter || '–';
+    const pileCageMetrics = roundPileCageDeliveryMetrics(item);
+    const diam   = pileCageMetrics ? `${(pileCageMetrics.pileDiameterMm / 10).toFixed(1).replace(/\.0$/, '')} cm` : (item.diameter || '–');
     const lenCm  = itemMetrics.totalLengthMm ? Math.round(itemMetrics.totalLengthMm / 10) : '–';
     const qty    = item.quantity || 1;
     const wt     = fmt1(calcItemWeight(item));
-    const notes  = [item.struct_element, item.struct_floor, item.sheet_num, printableItemNote(item.note)].filter(Boolean).join(' · ') || '–';
+    const notes  = [pileCageMetrics ? 'PILE CAGE · כלוב זיון לכלונס עגול' : '', item.struct_element, item.struct_floor, item.sheet_num, printableItemNote(item.note)].filter(Boolean).join(' · ') || '–';
 
     const shapeSvg = productionCards.itemShapeSvg(item);
 
     rows += `
       <tr>
         <td class="c">${posNum}</td>
-        <td class="c"><b>Ø${diam}</b></td>
+        <td class="c"><b>${pileCageMetrics ? 'CAGE Ø' : 'Ø'}${diam}</b></td>
         <td class="c">${lenCm}</td>
         <td class="c">${qty}</td>
         <td class="c"><b>${wt}</b></td>
@@ -497,3 +523,4 @@ module.exports.manifest = {
   ],
   "produces": []
 };
+module.exports._test = { roundPileCageDeliveryMetrics, deliveryItemMetrics, deliverySectionKey };

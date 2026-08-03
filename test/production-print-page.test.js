@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const printPage = require('../services/productionCardPrintPage');
 const cards = require('../services/productionCards');
 const industry = require('../constants');
+const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 
 function tryParseJSON(value, fallback) {
   try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
@@ -141,32 +142,26 @@ test('production card shape renderer keeps angled open stirrups inside a print-f
 
 
 test('production print page expands pile cages to master and component cards', () => {
-  const pileSnapshot = {
-    family: 'piles',
-    shapeType: 'round_pile_cage',
-    manufacturingBreakdown: [
-      { componentType: 'longitudinal_straight_bar', description: 'Longitudinal straight bars', diameterMm: 20, quantity: 4, totalLengthMm: 12000, weightKg: 118.4 },
-      { componentType: 'spiral_zone', description: 'Spiral zone A', name: 'A', diameterMm: 8, quantity: 1, totalLengthMm: 30000, weightKg: 11.8 },
-      { componentType: 'hoop_ring', description: 'Internal hoop ring', diameterMm: 14, quantity: 4, totalLengthMm: 7000, weightKg: 8.5 },
-    ],
+  const pileSnapshot = calculatePileCage({
+    roundPileCage: true, pileDiameterMm: 600, pileLengthMm: 12000,
+    longitudinalBars: { totalBars: 10, defaultDiameterMm: 20, defaultLengthMm: 12000, pattern: [{ type: 'straight', lengthMm: 12000 }, { type: 'L', lengthMm: 12000, bendLengthMm: 200 }] },
+    spiral: { barDiameterMm: 8, outerDiameterMm: 480, pitchMode: 'zones', zones: [{ name: 'A', lengthMm: 3000, pitchMm: 150 }, { name: 'B', lengthMm: 2000, noWrap: true }, { name: 'C', lengthMm: 7000, pitchMm: 200 }] },
+    hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420, spacingMode: 'byQuantity', quantity: 5, firstHoopOffsetMm: 1500, spacingMm: 300 },
+  });
+  const pileItem = {
+    id: 501, shape_name: 'כלונס', diameter: 20, quantity: 2, total_length_mm: 12000,
+    total_weight: 689.04, segments: JSON.stringify([]), note: '', pallet_num: 1,
+    material_grade: 'B500B', card_weights: [], shape_snapshot_json: JSON.stringify(pileSnapshot),
   };
+  const expanded = printPage._test.expandPileCageProductionItems([pileItem], tryParseJSON);
+  assert.deepEqual(expanded.map(item => item.pile_component_type), ['longitudinal_straight_bar', 'longitudinal_l_bar', 'spiral_consolidated', 'hoop_ring', 'pile_assembly']);
+  assert.deepEqual(expanded.map(item => item.quantity), [10, 10, 2, 10, 2]);
+  assert.deepEqual(expanded.map(item => item.total_weight), [296.4, 301.34, 64.92, 26.38, 689.04]);
+  assert.deepEqual(expanded.map(item => item.scan_suffix), ['C1', 'C2', 'C3', 'C4', 'ASSEMBLY']);
   const html = printPage.renderPrintCardsPage({
     order: { id: 77, order_num: 'HZ-PILE-001', customer_name: 'Pile Customer', status: 'approved' },
     pallets: [{ id: 1, pallet_num: 1 }],
-    allItems: [{
-      id: 501,
-      shape_name: 'כלונס',
-      diameter: 20,
-      quantity: 2,
-      total_length_mm: 12000,
-      total_weight: 280,
-      segments: JSON.stringify([]),
-      note: '',
-      pallet_num: 1,
-      material_grade: 'B500B',
-      card_weights: [],
-      shape_snapshot_json: JSON.stringify(pileSnapshot),
-    }],
+    allItems: [pileItem],
     printDate: '05-07-2026',
     delivDate: '10-07-2026',
     cards,
@@ -174,20 +169,16 @@ test('production print page expands pile cages to master and component cards', (
     tryParseJSON,
   });
 
-  assert.match(html, /כלוב זיון לכלונס עגול 1\/2/);
-  assert.match(html, /כלוב זיון לכלונס עגול 2\/2/);
   assert.match(html, /PILE CAGE/);
   assert.match(html, /pile-cage-master-card/);
   assert.match(html, /מוטות אורך ישרים/);
-  assert.match(html, /ספירלה A/);
+  assert.match(html, /ספירלה מאוחדת/);
   assert.match(html, /טבעות חיזוק פנימיות/);
-  assert.match(html, /HZ-PILE-001-000501-P1-MASTER/);
-  assert.match(html, /HZ-PILE-001-000501-P2-C3/);
   assert.match(html, /data-shape-kind=\\"pile-spiral-component\\"/);
-  assert.match(html, /data-component-type=\\"spiral_zone\\"/);
+  assert.match(html, /data-component-type=\\"spiral_consolidated\\"/);
   assert.match(html, /data-shape-kind=\\"pile-hoop-component\\"/);
-  assert.equal(new Set(html.match(/HZ-PILE-001-000501-P[12]-(?:MASTER|C[123])/g) || []).size, 8);
-  assert.equal((html.match(/class="cards-page"/g) || []).length, 1);
+  assert.match(html, /AXIS 12000 mm/);
+  assert.match(html, /CUT 82,177\.1 mm/);
 });
 test('production card renderer prefers Shape V2 snapshot segments over legacy item segments', () => {
   const item = {

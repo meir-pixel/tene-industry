@@ -19,6 +19,7 @@ const {
   reserveMaterialForOrder,
 } = require('../services/inventoryReservation');
 const { createPricer } = require('../services/pricer');
+const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -45,6 +46,18 @@ function shapeSnapshotCandidate(item = {}) {
     ?? item.shape_contract
     ?? item.shape_snapshot_json
     ?? null;
+}
+
+function roundPileCageOrderMetrics(item = {}) {
+  const snapshot = parseJsonObject(shapeSnapshotCandidate(item));
+  if (snapshot?.family !== 'piles' || snapshot?.shapeType !== 'round_pile_cage') return null;
+  if (snapshot.validation && (snapshot.validation.ok === false || snapshot.validation.valid === false)) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 400 });
+  const canonical = calculatePileCage(snapshot);
+  if (!canonical.validation?.ok || canonical.productionCards?.length !== 5) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 400 });
+  const weightKg = Number(canonical.calculated?.totalWeightKg);
+  const physicalLengthMm = Number(canonical.assemblySummary?.pileLengthMm);
+  if (!(weightKg > 0) || !(physicalLengthMm > 0)) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 400 });
+  return { snapshot, weightKg, physicalLengthMm };
 }
 
 function buildOrderItemShapeSnapshotJson(rawItem = {}, fallback = {}) {
@@ -120,6 +133,7 @@ module.exports = function createOrdersRouter(deps) {
   }
 
   function cleanItemPayload(body, existingItem = {}) {
+    const pileCageMetrics = roundPileCageOrderMetrics({ ...existingItem, ...body });
     body = withShapeContractLegacyFields(body || {});
     let segments = existingItem.segments || '[]';
     if (body.segments !== undefined) {
@@ -135,10 +149,10 @@ module.exports = function createOrdersRouter(deps) {
       segments = JSON.stringify(clean);
     }
 
-    const shapeName = body.shape_name !== undefined ? String(body.shape_name || '').trim() : existingItem.shape_name;
+    const shapeName = pileCageMetrics ? 'PILE CAGE' : (body.shape_name !== undefined ? String(body.shape_name || '').trim() : existingItem.shape_name);
     const diameter = body.diameter !== undefined ? Number(body.diameter) : Number(existingItem.diameter);
     const quantity = body.quantity !== undefined ? Number(body.quantity) : Number(existingItem.quantity);
-    const totalLengthMm = body.total_length_mm !== undefined
+    const totalLengthMm = pileCageMetrics ? pileCageMetrics.physicalLengthMm : body.total_length_mm !== undefined
       ? Number(body.total_length_mm)
       : (Array.isArray(body.segments)
         ? body.segments.reduce((sum, segment) => sum + Number(segment?.length_mm ?? segment?.length ?? 0), 0)
@@ -161,7 +175,8 @@ module.exports = function createOrdersRouter(deps) {
     if (!Number.isFinite(quantity) || quantity <= 0) throw Object.assign(new Error('invalid quantity'), { statusCode: 400 });
     if (!Number.isFinite(totalLengthMm) || totalLengthMm < 0) throw Object.assign(new Error('invalid total_length_mm'), { statusCode: 400 });
 
-    const weightPerUnit = industry.weightPerUnit({ diameter, total_length_mm: totalLengthMm });
+    if (pileCageMetrics) segments = '[]';
+    const weightPerUnit = pileCageMetrics ? pileCageMetrics.weightKg : industry.weightPerUnit({ diameter, total_length_mm: totalLengthMm });
     const totalWeight = weightPerUnit * quantity;
     return { shapeName, diameter, quantity, totalLengthMm, segments, spiralDiameter, spiralTurns, note, structElement, structFloor, sheetNum, weightPerUnit, totalWeight };
   }

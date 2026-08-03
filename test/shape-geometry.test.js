@@ -4,7 +4,8 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 const { shapeSvg, itemShapeSvg } = require('../services/productionCards');
-const { normalizeFactorySegments, normalizeFactoryShapeName, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
+const steelRebarShapes = require('../modules/steel-rebar/shapes');
+const { normalizeFactorySegments, normalizeFactoryShapeName, spiralCutLengthMm } = steelRebarShapes;
 const { distributeSurplusToEndSegments } = require('../services/intakeWorkflow');
 
 function loadShapeEditorGeometry() {
@@ -12,6 +13,7 @@ function loadShapeEditorGeometry() {
   const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const context = {
     window: {},
+    IronBendSteelRebarShapes: steelRebarShapes,
     console,
     localStorage: {
       getItem: () => null,
@@ -19,6 +21,7 @@ function loadShapeEditorGeometry() {
       removeItem: () => {},
     },
   };
+  context.window.IronBendSteelRebarShapes = steelRebarShapes;
   vm.createContext(context);
   vm.runInContext(snapshotSource, context);
   vm.runInContext(source, context);
@@ -311,6 +314,9 @@ test('round pile cage preset exposes a parametric form and engineering visualiza
   assert.match(editor, /מרווח טבעות \(ס״מ\)/);
   assert.match(editor, /data-pile-derived="spiralTurns"/);
   assert.match(editor, /ליפופים מחושבים/);
+  assert.match(editor, /componentType === 'spiral_consolidated'/);
+  assert.match(editor, /consolidatedSpiral\?\.schedule/);
+  assert.match(editor, /_setSpiralZoneField\(index, key, val\)[\s\S]*?_refreshPileDerived\(\)/);
   assert.match(editor, /קוטר טבעת/);
   assert.match(editor, /מרווח נקי/);
   assert.match(editor, /data-pile-cage-overview/);
@@ -320,7 +326,10 @@ test('round pile cage preset exposes a parametric form and engineering visualiza
   assert.match(editor, /@media\(max-width:640px\)\{#seModal \.se-pile-component-cards\{grid-template-columns:1fr;\}/);
   assert.doesNotMatch(editor, /�/);
   assert.match(editor, /calculateRoundPileCage/);
-  assert.match(editor, /מוט שחור = ישר, מוט כחול = מכופף/);
+  assert.match(editor, /מקטעי ספירלה/);
+  assert.match(editor, /data-zone-field="noWrap"/);
+  assert.match(editor, /הוסף מקטע/);
+  assert.doesNotMatch(editor, /הוסף פער|אזורי ספירלה ופערים/);
   assert.match(editor, /data-view="side"/);
   assert.match(editor, /data-view="top"/);
 });
@@ -389,8 +398,9 @@ test('shape editor active segment selection does not recolor the drawn bar', () 
 test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
-  assert.match(index, /shape-editor\.js\?v=59/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=58/);
+  assert.match(index, /steelRebarShapes\.js\?v=1/);
+  assert.match(index, /shape-editor\.js\?v=60/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=59/);
 });
 
 
@@ -805,14 +815,83 @@ test('round pile cage calculates the continuous spiral from its configured spira
     pileDiameter: 60, pileLength: 1200,
     longitudinalBars: 10, longitudinalDiameter: 20,
     straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
     spiralDiameter: 8, spiralOuterDiameter: 48, spiralPitch: 15, spiralZones: [{ length: 1180, pitch: 15 }],
     hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
   });
 
-  const spiral = result.manufacturingBreakdown.find(part => part.componentType === 'spiral_zone');
+  const spiral = result.manufacturingBreakdown.find(part => part.componentType === 'spiral_consolidated');
   assert.equal(result.data.spiral.coverageLengthMm, 11800);
-  assert.equal(spiral.zoneLengthMm, 11800);
-  assert.equal(spiral.turns, 11800 / 150);
+  assert.equal(spiral.schedule[0].axialLengthMm, 11800);
+  assert.equal(spiral.schedule[0].turns, Number((11800 / 150).toFixed(2)));
+});
+
+test('round pile cage calculates every wrapping segment and excludes no-wrap steel', () => {
+  const { PileCageEngine } = loadShapeEditorGeometry();
+  const result = PileCageEngine.calculate({
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [
+      { name: 'A', length: 300, pitch: 15 },
+      { name: 'B', length: 200, pitch: 15, noWrap: true },
+      { name: 'C', length: 700, pitch: 20 },
+    ],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  });
+
+  const spiral = result.manufacturingBreakdown.find(part => part.componentType === 'spiral_consolidated');
+  assert.deepEqual(spiral.schedule.map(part => part.name), ['A', 'B', 'C']);
+  assert.deepEqual(spiral.schedule.map(part => part.noWrap), [false, true, false]);
+  assert.equal(result.data.spiralZones[1].noWrap, true);
+  assert.equal(result.data.spiralZones[1].pitchMm, null);
+  assert.equal(spiral.schedule[1].turns, 0);
+  assert.equal(spiral.schedule[1].helicalCutLengthMm, 0);
+  assert.equal(spiral.schedule[1].weightKg, 0);
+  assert.equal(result.calculated.totalSpiralLengthMm, spiral.totalLengthMm);
+  assert.equal(result.calculated.weightKg, Number(result.manufacturingBreakdown.reduce((sum, part) => sum + part.weightKg, 0).toFixed(3)));
+  assert.deepEqual(result.productionCards.map(card => card.componentType), ['longitudinal_straight_bar', 'longitudinal_l_bar', 'spiral_consolidated', 'hoop_ring', 'pile_assembly']);
+});
+
+test('round pile cage Shape V2 keeps component quantities but never stores order quantity', () => {
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'piles', roundPileCage: true, quantity: 9,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [{ name: 'A', length: 300, pitch: 15 }, { name: 'B', length: 200, noWrap: true }, { name: 'C', length: 700, pitch: 20 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  });
+
+  assert.equal('quantity' in contract, false);
+  assert.equal('quantity' in contract.data, false);
+  assert.equal(contract.data.hoops.quantity, 5);
+  assert.deepEqual(contract.calculated.manufacturingBreakdown.map(part => part.quantity), [5, 5, 1, 5]);
+  assert.deepEqual(contract.machineOutput.generic.productionCards.map(card => card.quantity), [5, 5, 1, 5, 1]);
+});
+
+test('round pile cage drawing leaves a no-wrap segment empty and stays monochrome', () => {
+  const { ShapeEngineRouter } = loadShapeEditorGeometry();
+  const svg = ShapeEngineRouter.render({
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    barPattern: 'alternate', bendLength: 20,
+    spiralDiameter: 8, spiralPitch: 15,
+    spiralZones: [{ name: 'A', length: 300, pitch: 15 }, { name: 'B', length: 200, noWrap: true }, { name: 'C', length: 700, pitch: 20 }],
+    hoopDiameter: 18, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  }, 300, 260);
+
+  assert.match(svg, /class="pile-no-wrap-zone" data-zone="1"/);
+  assert.match(svg, /ללא כריכות/);
+  assert.doesNotMatch(svg, /#16a34a|#1d4ed8/);
+  assert.match(svg, /ראש הכלונס — כיפופי L/);
 });
 
 

@@ -25,6 +25,7 @@ function validateShapeGeometry(segments) {
 
 const steelModule = require('../modules/steel-rebar');
 const { normalizeSpiralParams, spiralCutLengthMm } = require('../modules/steel-rebar/shapes');
+const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 const {
   allocateOrderItemStock,
   openProcurementForStockShortages,
@@ -33,6 +34,30 @@ const {
 } = require('./inventory');
 const { createStableOrderId, buildOrderItemUid, shapeSnapshotJson, isShapeDataContractV2, withShapeContractLegacyFields } = require('./orderContracts');
 const { reserveMaterialForOrder } = require('./inventoryReservation');
+
+function parseShapeSnapshotObject(value) {
+  if (!value) return null;
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function roundPileCageOrderMetrics(item = {}) {
+  const snapshot = parseShapeSnapshotObject(item.shapeSnapshot ?? item.shape_snapshot ?? item.shapeData ?? item.shape_data ?? item.shapeContract ?? item.shape_contract ?? item.shape_snapshot_json);
+  if (snapshot?.family !== 'piles' || snapshot?.shapeType !== 'round_pile_cage') return null;
+  if (snapshot.validation && (snapshot.validation.ok === false || snapshot.validation.valid === false)) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 400 });
+  const canonical = calculatePileCage(snapshot);
+  if (!canonical.validation?.ok || canonical.productionCards?.length !== 5) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 400 });
+  const weightKg = Number(canonical.calculated?.totalWeightKg);
+  const physicalLengthMm = Number(canonical.assemblySummary?.pileLengthMm);
+  if (!(weightKg > 0) || !(physicalLengthMm > 0)) throw Object.assign(new Error('invalid_round_pile_cage_assembly_metrics'), { statusCode: 400 });
+  return { snapshot, weightKg, physicalLengthMm };
+}
 
 function createOrderFactory(db, { generateOrderNum, industry, settingsService = null }) {
   if (!db) throw new Error('services/orders missing dependency: db');
@@ -128,6 +153,7 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
 
       (pallet.items || []).forEach(rawItem => {
         const item = withShapeContractLegacyFields(rawItem);
+        const pileCageMetrics = roundPileCageOrderMetrics(rawItem);
         const spiral = normalizeSpiralParams(item);
         const sourceLengthMm = Number(item.length ?? item.total_length_mm ?? 0) || 0;
         const sourceSides = Array.isArray(item.sides) ? item.sides : [];
@@ -136,11 +162,11 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
         const sides = isSpiralLike
           ? []
           : ((item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []));
-        const totalLengthMm = isSpiralLike
+        const totalLengthMm = pileCageMetrics ? pileCageMetrics.physicalLengthMm : isSpiralLike
           ? (sourceLengthMm || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns))
           : (sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0);
         const angles = item.angles || [];
-        const segmentsArr = isSpiralLike
+        const segmentsArr = pileCageMetrics || isSpiralLike
           ? []
           : normalizeSegments(
               item.shapeName,
@@ -154,14 +180,14 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
               spiral_turns: spiral.turns || null,
             })
           : normalizeShapeName(item.shapeName, segmentsArr);
-        if (!isSpiralLike) {
+        if (!isSpiralLike && !pileCageMetrics) {
           const geoCheck = validateShapeGeometry(segmentsArr);
           if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
         }
         const segments = JSON.stringify(segmentsArr);
         const hasShapeV2Envelope = isShapeDataContractV2(item.shapeSnapshot ?? item.shape_snapshot ?? item.shapeData ?? item.shape_data ?? item.shapeContract ?? item.shape_contract ?? item.shape_snapshot_json);
-        const persistedShapeName = hasShapeV2Envelope ? item.shapeName : shapeName;
-        const weightPerUnit = calcWeightPerUnit(item.diameter, totalLengthMm);
+        const persistedShapeName = pileCageMetrics ? 'PILE CAGE' : (hasShapeV2Envelope ? item.shapeName : shapeName);
+        const weightPerUnit = pileCageMetrics ? pileCageMetrics.weightKg : calcWeightPerUnit(item.diameter, totalLengthMm);
         const productionQty = Math.ceil((item.qty || 1) * (1 + wastePct / 100));
         const machine = assignResource(item.diameter);
 
