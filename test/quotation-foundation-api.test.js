@@ -7,6 +7,7 @@ const express = require('express');
 const Database = require('better-sqlite3');
 const { ensureCoreSchema } = require('../db/coreSchema');
 const { requireAnyRole } = require('../permissions');
+const { createSettingsService } = require('../services/settings');
 const { createQuotationNumberAllocator } = require('../services/quotationNumbers');
 const { createCustomerQuotationService } = require('../services/customerQuotationV1');
 const createQuotationsRouter = require('../routes/quotations');
@@ -15,8 +16,10 @@ function setup() {
   const db = new Database(':memory:');
   db.pragma('foreign_keys=ON');
   ensureCoreSchema(db);
+  const settings = createSettingsService(db);
   const quotationService = createCustomerQuotationService(db, {
     generateQuotationNumber: createQuotationNumberAllocator(db),
+    getVatRate: () => settings.getVatRate(),
   });
   const app = express();
   app.use(express.json());
@@ -25,7 +28,7 @@ function setup() {
     next();
   });
   app.use('/api', createQuotationsRouter({ quotationService, requireAnyRole }));
-  return { db, app };
+  return { db, app, settings };
 }
 
 function request(port, method, path, role, body) {
@@ -91,7 +94,7 @@ test('quotation HTTP routes enforce read, draft, issue and decision authority', 
   }
 });
 
-test('quotation PDF endpoint exposes issued revision only and does not create an order', async () => {
+test('quotation PDF endpoint renders marked drafts and immutable issued revisions without creating an order', async () => {
   const { db, app } = setup();
   const server = await new Promise(resolve => { const running = app.listen(0, () => resolve(running)); });
   const port = server.address().port;
@@ -99,7 +102,9 @@ test('quotation PDF endpoint exposes issued revision only and does not create an
     const created = await request(port, 'POST', '/api/quotations', 'office', payload('pdf-create'));
     const id = created.body.id;
     const draftPdf = await request(port, 'GET', `/api/quotations/${id}/pdf`, 'finance');
-    assert.equal(draftPdf.status, 409);
+    assert.equal(draftPdf.status, 200);
+    assert.match(draftPdf.raw, /טיוטה — לא נשלח ללקוח/);
+    assert.match(draftPdf.raw, /data-revision-status="draft"/);
     const issued = await request(port, 'POST', `/api/quotations/${id}/issue`, 'manager', { idempotency_key: 'pdf-issue', expected_version: 1 });
     const pdf = await request(port, 'GET', `/api/quotations/${id}/pdf?revision=1`, 'finance');
     assert.equal(pdf.status, 200);
@@ -109,6 +114,33 @@ test('quotation PDF endpoint exposes issued revision only and does not create an
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM items').get().count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM pallets').get().count, 0);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    db.close();
+  }
+});
+
+test('invalid canonical VAT returns a configuration error and leaves issue atomic', async () => {
+  const { db, app, settings } = setup();
+  const server = await new Promise(resolve => { const running = app.listen(0, () => resolve(running)); });
+  const port = server.address().port;
+  try {
+    const created = await request(port, 'POST', '/api/quotations', 'office', payload('invalid-http-vat-create'));
+    assert.equal(created.status, 201);
+    const beforeEvents = db.prepare('SELECT COUNT(*) AS count FROM customer_quotation_events').get().count;
+    settings.set('VAT_RATE', '18');
+    const issue = await request(port, 'POST', `/api/quotations/${created.body.id}/issue`, 'manager', {
+      idempotency_key: 'invalid-http-vat-issue',
+      expected_version: 1,
+    });
+    assert.equal(issue.status, 500);
+    assert.deepEqual(issue.body, { error: 'invalid_vat_rate_configuration' });
+    const quotation = db.prepare('SELECT quotation_num,lifecycle_status FROM customer_quotations WHERE id=?').get(created.body.id);
+    const revision = db.prepare('SELECT status,issued_payload_hash FROM customer_quotation_revisions WHERE quotation_id=?').get(created.body.id);
+    assert.deepEqual(quotation, { quotation_num: null, lifecycle_status: 'draft' });
+    assert.deepEqual(revision, { status: 'draft', issued_payload_hash: null });
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM customer_quotation_events').get().count, beforeEvents);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM quotation_sequences').get().count, 0);
   } finally {
     await new Promise(resolve => server.close(resolve));
     db.close();

@@ -64,11 +64,12 @@ function normalizeCurrency(value) {
   return currency;
 }
 
-function normalizeVatRate(value) {
-  const raw = value === undefined || value === null || value === '' ? 0.18 : Number(value);
-  const rate = raw > 1 && raw <= 100 ? raw / 100 : raw;
-  if (!Number.isFinite(rate) || rate < 0 || rate > 1) fail('invalid_vat_rate', 400);
-  return round(rate, 6);
+function readCanonicalVatRate(getVatRate) {
+  const rate = Number(getVatRate());
+  if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
+    fail('invalid_vat_rate_configuration', 500);
+  }
+  return rate;
 }
 
 function shapeDiameter(snapshot, line = {}) {
@@ -277,7 +278,7 @@ function buildDraftContent(db, input, context) {
   const customer = resolveCustomerSnapshot(db, input);
   const projectSite = resolveProjectSiteSnapshot(db, input, customer.customerId);
   const currencyCode = normalizeCurrency(input.currency_code ?? input.currencyCode);
-  const vatRate = normalizeVatRate(input.vat_rate ?? input.vatRate);
+  const vatRate = context.vatRate;
   const rawLines = Array.isArray(input.lines) ? input.lines : [];
   const lines = rawLines.map((line, index) => normalizeQuotationLine(db, line || {}, index, { ...context, vatRate, priceContext: customer.priceContext }));
   const subtotal = round(lines.reduce((sum, line) => sum + line.line_subtotal, 0));
@@ -381,6 +382,73 @@ function getRevision(db, quotationId, revisionNumber = null) {
   };
 }
 
+function refreshDraftVatSnapshot(db, revision, vatRate) {
+  if (!revision || revision.status !== 'draft') fail('draft_revision_required');
+  const payloadLines = Array.isArray(revision.payload?.lines) ? revision.payload.lines : [];
+  if (payloadLines.length !== revision.lines.length) fail('quotation_payload_lines_mismatch', 500);
+
+  const recalculatedLines = revision.lines.map(line => {
+    const lineTotal = round(line.line_total);
+    const lineVatAmount = line.vat_treatment === 'standard' ? round(lineTotal * vatRate) : 0;
+    return {
+      ...line,
+      line_vat_amount: lineVatAmount,
+      line_grand_total: round(lineTotal + lineVatAmount),
+    };
+  });
+  const bySequence = new Map(recalculatedLines.map(line => [Number(line.sequence), line]));
+  const contentLines = payloadLines.map(line => {
+    const recalculated = bySequence.get(Number(line.sequence));
+    if (!recalculated) fail('quotation_payload_lines_mismatch', 500);
+    return {
+      ...line,
+      line_vat_amount: recalculated.line_vat_amount,
+      line_grand_total: recalculated.line_grand_total,
+    };
+  });
+  const subtotal = round(recalculatedLines.reduce((sum, line) => sum + Number(line.line_subtotal), 0));
+  const discountTotal = round(recalculatedLines.reduce((sum, line) => sum + Number(line.discount_amount), 0));
+  const vatTotal = round(recalculatedLines.reduce((sum, line) => sum + Number(line.line_vat_amount), 0));
+  const grandTotal = round(recalculatedLines.reduce((sum, line) => sum + Number(line.line_grand_total), 0));
+  const pricingSnapshot = {
+    ...(revision.pricing_snapshot || {}),
+    currency_code: revision.currency_code,
+    vat_rate: vatRate,
+  };
+  const content = {
+    ...(revision.payload || {}),
+    vat_rate: vatRate,
+    subtotal,
+    discount_total: discountTotal,
+    vat_total: vatTotal,
+    grand_total: grandTotal,
+    pricing_snapshot: pricingSnapshot,
+    lines: contentLines,
+  };
+  const payloadJson = stable(content);
+  const payloadHash = fingerprint(content);
+
+  const updateLine = db.prepare(`
+    UPDATE customer_quotation_lines
+    SET line_vat_amount=?,line_grand_total=?
+    WHERE id=? AND revision_id=?
+  `);
+  for (const line of recalculatedLines) {
+    updateLine.run(line.line_vat_amount, line.line_grand_total, line.id, revision.id);
+  }
+  const result = db.prepare(`
+    UPDATE customer_quotation_revisions
+    SET vat_rate=?,subtotal=?,discount_total=?,vat_total=?,grand_total=?,
+        pricing_snapshot_json=?,payload_json=?,payload_hash=?,updated_at=CURRENT_TIMESTAMP
+    WHERE id=? AND status='draft'
+  `).run(
+    vatRate, subtotal, discountTotal, vatTotal, grandTotal,
+    stable(pricingSnapshot), payloadJson, payloadHash, revision.id
+  );
+  if (result.changes !== 1) fail('draft_revision_required');
+  return getRevision(db, revision.quotation_id, revision.revision_number);
+}
+
 function getQuotation(db, id) {
   const quote = db.prepare('SELECT * FROM customer_quotations WHERE id=?').get(Number(id));
   if (!quote) return null;
@@ -478,9 +546,10 @@ function inputFromRevision(quote, revision) {
   };
 }
 
-function createCustomerQuotationService(db, { pricer = null, generateQuotationNumber } = {}) {
+function createCustomerQuotationService(db, { pricer = null, generateQuotationNumber, getVatRate } = {}) {
   if (!db) throw new Error('services/customerQuotationV1 missing dependency: db');
   if (!generateQuotationNumber) throw new Error('services/customerQuotationV1 missing dependency: generateQuotationNumber');
+  if (typeof getVatRate !== 'function') throw new Error('services/customerQuotationV1 missing dependency: getVatRate');
 
   function createDraft(input = {}) {
     const key = text(input.idempotency_key ?? input.idempotencyKey);
@@ -492,7 +561,8 @@ function createCustomerQuotationService(db, { pricer = null, generateQuotationNu
         if (existing.create_payload_fingerprint !== fingerprint(actionPayload)) fail('idempotency_key_conflict');
         return getQuotation(db, existing.id);
       }
-      const built = buildDraftContent(db, input, { pricer });
+      const vatRate = readCanonicalVatRate(getVatRate);
+      const built = buildDraftContent(db, input, { pricer, vatRate });
       const quoteResult = db.prepare(`
         INSERT INTO customer_quotations (
           quotation_uid,current_revision_number,lifecycle_status,customer_id,prospect_display_name,
@@ -540,7 +610,8 @@ function createCustomerQuotationService(db, { pricer = null, generateQuotationNu
       const before = auditSnapshot(db, quote);
       const base = inputFromRevision(quote, revision);
       const merged = { ...base, ...input, lines: hasOwn(input, 'lines') ? input.lines : base.lines };
-      const built = buildDraftContent(db, merged, { pricer });
+      const vatRate = readCanonicalVatRate(getVatRate);
+      const built = buildDraftContent(db, merged, { pricer, vatRate });
       db.prepare(`
         UPDATE customer_quotations SET customer_id=?,prospect_display_name=?,project_id=?,site_id=?,
           owner_id=COALESCE(?,owner_id),updated_at=CURRENT_TIMESTAMP WHERE id=?
@@ -571,12 +642,14 @@ function createCustomerQuotationService(db, { pricer = null, generateQuotationNu
       if (replay) return replay;
       const quote = db.prepare("SELECT * FROM customer_quotations WHERE id=? AND lifecycle_status='draft' AND archived_at IS NULL").get(quotationId);
       if (!quote) fail('draft_quotation_required');
-      const revision = getRevision(db, quotationId);
+      let revision = getRevision(db, quotationId);
       if (!revision || revision.status !== 'draft') fail('draft_revision_required');
       const expectedVersion = Number(input.expected_version ?? input.expectedVersion);
       if (!Number.isSafeInteger(expectedVersion) || expectedVersion !== Number(revision.version)) fail('quotation_revision_conflict');
       if (!revision.lines.length) fail('quotation_lines_required', 400);
       if (!text(revision.customer_snapshot?.name)) fail('customer_or_prospect_required', 400);
+      const vatRate = readCanonicalVatRate(getVatRate);
+      revision = refreshDraftVatSnapshot(db, revision, vatRate);
       const quotationNum = quote.quotation_num || generateQuotationNumber();
       const now = new Date().toISOString();
       db.prepare(`
@@ -607,6 +680,7 @@ function createCustomerQuotationService(db, { pricer = null, generateQuotationNu
       if (!['issued', 'accepted', 'rejected', 'expired'].includes(quote.lifecycle_status)) fail('issued_revision_required');
       const source = getRevision(db, quotationId);
       if (!source || source.status !== 'issued') fail('issued_revision_required');
+      const vatRate = readCanonicalVatRate(getVatRate);
       const nextNumber = Number(quote.current_revision_number) + 1;
       const revisionResult = db.prepare(`
         INSERT INTO customer_quotation_revisions (
@@ -629,6 +703,8 @@ function createCustomerQuotationService(db, { pricer = null, generateQuotationNu
           total_weight_kg,pricing_source,pricing_snapshot_json,shape_snapshot_json
         FROM customer_quotation_lines WHERE revision_id=? ORDER BY sequence
       `).run(revisionResult.lastInsertRowid, source.id);
+      const draftRevision = getRevision(db, quotationId, nextNumber);
+      refreshDraftVatSnapshot(db, draftRevision, vatRate);
       db.prepare(`
         UPDATE customer_quotations SET current_revision_number=?,lifecycle_status='draft',
           accepted_at=NULL,accepted_by=NULL,rejected_at=NULL,rejected_by=NULL,expired_at=NULL,expired_by=NULL,

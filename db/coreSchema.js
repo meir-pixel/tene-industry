@@ -337,7 +337,7 @@ function ensureQuotationFoundationV1Schema(db) {
       customer_snapshot_json TEXT NOT NULL,
       project_site_snapshot_json TEXT NOT NULL,
       currency_code TEXT NOT NULL DEFAULT 'ILS' CHECK (length(currency_code) = 3),
-      vat_rate NUMERIC NOT NULL DEFAULT 0.18
+      vat_rate NUMERIC NOT NULL
         CHECK (typeof(vat_rate) IN ('integer','real') AND vat_rate >= 0 AND vat_rate <= 1),
       subtotal NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(subtotal) IN ('integer','real') AND subtotal >= 0),
       discount_total NUMERIC NOT NULL DEFAULT 0 CHECK (typeof(discount_total) IN ('integer','real') AND discount_total >= 0),

@@ -6,6 +6,7 @@ const Database = require('better-sqlite3');
 const { ensureCoreSchema } = require('../db/coreSchema');
 const { ensureFinanceSchema } = require('../db/financeSchema');
 const { createPricer } = require('../services/pricer');
+const { createSettingsService } = require('../services/settings');
 const { buildFullShapeSnapshot } = require('../services/shapeSnapshot');
 const { createQuotationNumberAllocator } = require('../services/quotationNumbers');
 const { createCustomerQuotationService } = require('../services/customerQuotationV1');
@@ -16,6 +17,7 @@ function setup() {
   db.pragma('foreign_keys=ON');
   ensureCoreSchema(db);
   ensureFinanceSchema(db);
+  const settings = createSettingsService(db);
   const bookId = db.prepare(`
     INSERT INTO pricing_price_books (code,name,price_type,status,currency)
     VALUES ('Q-GENERAL','Quotation General','general','active','ILS')
@@ -27,8 +29,9 @@ function setup() {
   const service = createCustomerQuotationService(db, {
     pricer: createPricer(db),
     generateQuotationNumber: createQuotationNumberAllocator(db),
+    getVatRate: () => settings.getVatRate(),
   });
-  return { db, service };
+  return { db, service, settings };
 }
 
 function shapeSnapshot() {
@@ -63,9 +66,42 @@ function draftInput(key = 'quotation-create-1', overrides = {}) {
 }
 
 function counts(db) {
-  const names = ['orders', 'items', 'pallets', 'inventory_reservations', 'purchase_orders'];
+  const names = [
+    'orders', 'items', 'pallets', 'production_card_weights', 'production_events', 'scan_log',
+    'material_requirements_v2', 'allocation_plans_v2', 'allocation_plan_lines_v2',
+    'allocation_plan_events_v2', 'inventory_reservations', 'material_consumption_reports_v2',
+    'material_consumption_report_lines_v2', 'material_consumption_report_audit_v2',
+    'material_consumption_events_v2', 'material_consumption_event_lines_v2',
+    'pending_raw_material_receipts_v2', 'pending_raw_material_receipt_lines_v2',
+    'pending_raw_material_receipt_events_v2', 'procurement_recommendations_v2',
+    'procurement_recommendation_requirement_links_v2', 'procurement_recommendation_events_v2',
+    'purchase_orders', 'delivery_notes', 'raw_material', 'raw_material_usage', 'order_billing',
+    'order_costs',
+  ];
   return Object.fromEntries(names.map(name => [name, db.prepare(`SELECT COUNT(*) AS count FROM ${name}`).get().count]));
 }
+
+test('canonical VAT accessor defaults once, accepts decimals and rejects malformed configuration', () => {
+  const { db, settings } = setup();
+  try {
+    assert.equal(settings.getVatRate(), 0.18);
+    const definition = db.prepare("SELECT default_value,min_value,max_value FROM setting_definitions WHERE key='VAT_RATE'").get();
+    assert.deepEqual(definition, { default_value: '0.18', min_value: 0, max_value: 1 });
+    const vatColumn = db.prepare("PRAGMA table_info(customer_quotation_revisions)").all().find(column => column.name === 'vat_rate');
+    assert.equal(vatColumn.dflt_value, null);
+
+    settings.set('VAT_RATE', '0.25');
+    assert.equal(settings.getVatRate(), 0.25);
+    for (const invalid of ['18', '-0.01', '1.01', 'not-a-number', '']) {
+      settings.set('VAT_RATE', invalid);
+      assert.throws(
+        () => settings.getVatRate(),
+        error => error.code === 'invalid_vat_rate_configuration' && error.statusCode === 500,
+        String(invalid)
+      );
+    }
+  } finally { db.close(); }
+});
 
 test('quotation draft persists canonical shape and price snapshots without creating operational rows', () => {
   const { db, service } = setup();
@@ -86,6 +122,74 @@ test('quotation draft persists canonical shape and price snapshots without creat
     assert.equal(quote.current_revision.grand_total, 118);
     assert.deepEqual(counts(db), before);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM customer_quotation_events').get().count, 1);
+  } finally { db.close(); }
+});
+
+test('draft and issue use the canonical VAT rate while issued revisions and PDFs remain frozen', () => {
+  const { db, service, settings } = setup();
+  try {
+    settings.set('VAT_RATE', '0.20');
+    const draft = service.createDraft(draftInput('vat-create', { vat_rate: 0.99 }));
+    assert.equal(draft.current_revision.vat_rate, 0.2);
+    assert.equal(draft.current_revision.vat_total, 20);
+    assert.equal(draft.current_revision.grand_total, 120);
+
+    settings.set('VAT_RATE', '0.25');
+    const issued = service.issue({ quotation_id: draft.id, idempotency_key: 'vat-issue', expected_version: 1 });
+    assert.equal(issued.current_revision.vat_rate, 0.25);
+    assert.equal(issued.current_revision.lines[0].line_vat_amount, 25);
+    assert.equal(issued.current_revision.vat_total, 25);
+    assert.equal(issued.current_revision.grand_total, 125);
+    assert.equal(issued.current_revision.issued_payload.vat_rate, 0.25);
+    assert.equal(issued.current_revision.issued_payload.vat_total, 25);
+
+    const issuedHash = issued.current_revision.issued_payload_hash;
+    const issuedHtml = renderQuotationPrintPage({ quotation: issued, revision: issued.current_revision });
+    assert.match(issuedHtml, /\u05de\u05e2\u05f4\u05de \(25%\)/);
+    assert.match(issuedHtml, /25\.00 ILS/);
+
+    settings.set('VAT_RATE', '0.30');
+    const historical = service.getRevision(draft.id, 1);
+    assert.equal(historical.vat_rate, 0.25);
+    assert.equal(historical.vat_total, 25);
+    assert.equal(historical.grand_total, 125);
+    assert.equal(historical.issued_payload_hash, issuedHash);
+    assert.equal(
+      renderQuotationPrintPage({ quotation: service.getQuotation(draft.id), revision: historical }),
+      issuedHtml
+    );
+
+    const next = service.createNewRevision({ quotation_id: draft.id, idempotency_key: 'vat-revision-2' });
+    assert.equal(next.current_revision.status, 'draft');
+    assert.equal(next.current_revision.vat_rate, 0.3);
+    assert.equal(next.current_revision.vat_total, 30);
+    assert.equal(next.current_revision.grand_total, 130);
+    assert.equal(service.getRevision(draft.id, 1).issued_payload_hash, issuedHash);
+    assert.equal(service.getRevision(draft.id, 1).vat_rate, 0.25);
+  } finally { db.close(); }
+});
+
+test('invalid canonical VAT prevents issue without partial revision, number or audit mutation', () => {
+  const { db, service, settings } = setup();
+  try {
+    const draft = service.createDraft(draftInput('invalid-vat-create'));
+    const before = service.getQuotation(draft.id);
+    const beforeEvents = db.prepare('SELECT COUNT(*) AS count FROM customer_quotation_events').get().count;
+    const beforeNumbers = db.prepare('SELECT COUNT(*) AS count FROM quotation_sequences').get().count;
+    settings.set('VAT_RATE', '18');
+
+    assert.throws(
+      () => service.issue({ quotation_id: draft.id, idempotency_key: 'invalid-vat-issue', expected_version: 1 }),
+      error => error.code === 'invalid_vat_rate_configuration' && error.statusCode === 500
+    );
+    const after = service.getQuotation(draft.id);
+    assert.equal(after.lifecycle_status, 'draft');
+    assert.equal(after.quotation_num, null);
+    assert.equal(after.current_revision.status, 'draft');
+    assert.equal(after.current_revision.payload_hash, before.current_revision.payload_hash);
+    assert.deepEqual(after.current_revision.lines, before.current_revision.lines);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM customer_quotation_events').get().count, beforeEvents);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM quotation_sequences').get().count, beforeNumbers);
   } finally { db.close(); }
 });
 
@@ -184,10 +288,14 @@ test('invalid shape snapshots and mismatched weight snapshots fail closed', () =
   } finally { db.close(); }
 });
 
-test('issued quotation print page renders immutable commercial revision and escapes content', () => {
+test('draft preview is marked and issued print renders immutable commercial revision', () => {
   const { db, service } = setup();
   try {
     const draft = service.createDraft(draftInput());
+    const draftHtml = renderQuotationPrintPage({ quotation: draft, revision: draft.current_revision });
+    assert.match(draftHtml, /data-revision-status="draft"/);
+    assert.match(draftHtml, /טיוטה — לא נשלח ללקוח/);
+    assert.doesNotMatch(draftHtml, /Issued payload SHA-256/);
     const quote = service.issue({ quotation_id: draft.id, idempotency_key: 'issue', expected_version: 1 });
     const html = renderQuotationPrintPage({ quotation: quote, revision: quote.current_revision });
     assert.match(html, /data-document-kind="customer-quotation"/);
@@ -196,7 +304,27 @@ test('issued quotation print page renders immutable commercial revision and esca
     assert.match(html, /הדפס \/ שמור PDF/);
     assert.doesNotMatch(html, /Prospect <Safe>/);
     assert.match(html, /Prospect &lt;Safe&gt;/);
-    assert.throws(() => renderQuotationPrintPage({ quotation: draft, revision: draft.current_revision }), /issued_quotation_revision_required/);
+  } finally { db.close(); }
+});
+
+test('quotation lifecycle remains isolated from all operational tables', () => {
+  const { db, service } = setup();
+  try {
+    const before = counts(db);
+    const created = service.createDraft(draftInput('isolation-create'));
+    const updated = service.updateDraft({
+      quotation_id: created.id,
+      idempotency_key: 'isolation-update',
+      expected_version: 1,
+      commercial_notes: 'Pricing refresh',
+    });
+    renderQuotationPrintPage({ quotation: updated, revision: updated.current_revision });
+    service.issue({ quotation_id: created.id, idempotency_key: 'isolation-issue-1', expected_version: 2 });
+    const revision = service.createNewRevision({ quotation_id: created.id, idempotency_key: 'isolation-revision-2' });
+    service.issue({ quotation_id: created.id, idempotency_key: 'isolation-issue-2', expected_version: revision.current_revision.version });
+    service.cancel({ quotation_id: created.id, idempotency_key: 'isolation-cancel', reason: 'Test closure' });
+    service.archive({ quotation_id: created.id, idempotency_key: 'isolation-archive' });
+    assert.deepEqual(counts(db), before);
   } finally { db.close(); }
 });
 

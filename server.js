@@ -172,6 +172,7 @@ ensureAuthSchema(db);
 const quotationService = createCustomerQuotationService(db, {
   pricer,
   generateQuotationNumber: createQuotationNumberAllocator(db),
+  getVatRate: () => settingsService.getVatRate(),
 });
 
 const moduleLoader = createModuleLoader(settingsService);

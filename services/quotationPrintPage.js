@@ -22,7 +22,9 @@ function number(value, digits = 3) {
 }
 
 function renderQuotationPrintPage({ quotation, revision }) {
-  if (!quotation || !revision || revision.status !== 'issued' || !revision.issued_payload_hash) {
+  const isDraft = Boolean(quotation && revision && revision.status === 'draft');
+  const isIssued = Boolean(quotation && revision && revision.status === 'issued' && revision.issued_payload_hash);
+  if (!isDraft && !isIssued) {
     const error = new Error('issued_quotation_revision_required');
     error.code = 'issued_quotation_revision_required';
     error.statusCode = 409;
@@ -30,6 +32,8 @@ function renderQuotationPrintPage({ quotation, revision }) {
   }
   const customer = revision.customer_snapshot || {};
   const projectSite = revision.project_site_snapshot || {};
+  const documentStatus = isDraft ? 'טיוטה — לא נשלח ללקוח' : 'הצעת מחיר';
+  const documentIdentity = isDraft ? 'טיוטה' : quotation.quotation_num;
   const rows = revision.lines.map(line => `
     <tr>
       <td>${number(line.sequence, 0)}</td>
@@ -41,13 +45,13 @@ function renderQuotationPrintPage({ quotation, revision }) {
       <td>${number(line.discount_pct)}%</td>
       <td>${money(line.line_grand_total, revision.currency_code)}</td>
     </tr>`).join('');
-  const issuedDate = revision.issued_at ? new Date(revision.issued_at).toLocaleDateString('he-IL') : '—';
+  const issuedDate = isIssued && revision.issued_at ? new Date(revision.issued_at).toLocaleDateString('he-IL') : null;
   return `<!doctype html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>הצעת מחיר ${escapeHtml(quotation.quotation_num)} / ${revision.revision_number}</title>
+  <title>${escapeHtml(documentStatus)} / ${revision.revision_number}</title>
   <style>
     *{box-sizing:border-box}body{margin:0;background:#eef1f5;color:#172033;font-family:Arial,"Heebo",sans-serif}
     .toolbar{max-width:210mm;margin:12px auto;display:flex;gap:10px;align-items:center}.toolbar button{padding:9px 18px;border:0;border-radius:6px;background:#172033;color:#fff;font-weight:700;cursor:pointer}
@@ -63,16 +67,16 @@ function renderQuotationPrintPage({ quotation, revision }) {
   </style>
 </head>
 <body>
-  <div class="toolbar"><button onclick="window.print()">הדפס / שמור PDF</button><span>הצעת מחיר שהופקה מגרסה בלתי־ניתנת לשינוי</span></div>
-  <main class="page" data-document-kind="customer-quotation" data-revision-status="issued">
+  <div class="toolbar"><button onclick="window.print()">הדפס / שמור PDF</button><span>${escapeHtml(isDraft ? documentStatus : 'הצעת מחיר שהופקה מגרסה בלתי־ניתנת לשינוי')}</span></div>
+  <main class="page" data-document-kind="customer-quotation" data-revision-status="${isDraft ? 'draft' : 'issued'}">
     <header>
       <img src="/brand/tene-pdf-logo.jpg" alt="TENE">
-      <div class="title"><h1>הצעת מחיר</h1><p>Customer Quotation</p></div>
-      <div class="number">${escapeHtml(quotation.quotation_num)}<br><small>REV ${revision.revision_number}</small></div>
+      <div class="title"><h1>${escapeHtml(documentStatus)}</h1><p>Customer Quotation</p></div>
+      <div class="number">${escapeHtml(documentIdentity)}<br><small>REV ${revision.revision_number}</small></div>
     </header>
     <section class="meta">
       <div class="box"><h2>לקוח / לקוח פוטנציאלי</h2><p><b>${escapeHtml(customer.name || quotation.prospect_display_name || '—')}</b></p><p>${escapeHtml(customer.contact_name || '')} ${escapeHtml(customer.phone || customer.contact_phone || '')}</p><p>${escapeHtml(customer.address || '')}</p></div>
-      <div class="box"><h2>פרטי ההצעה</h2><p>הופקה: <b>${escapeHtml(issuedDate)}</b></p><p>בתוקף עד: <b>${escapeHtml(revision.validity_date || '—')}</b></p><p>פרויקט: <b>${escapeHtml(projectSite.project?.name || '—')}</b></p><p>אתר: <b>${escapeHtml(projectSite.site?.name || '—')}</b></p></div>
+      <div class="box"><h2>פרטי ההצעה</h2>${isIssued ? `<p>הופקה: <b>${escapeHtml(issuedDate)}</b></p>` : `<p><b>${escapeHtml(documentStatus)}</b></p>`}<p>בתוקף עד: <b>${escapeHtml(revision.validity_date || '—')}</b></p><p>פרויקט: <b>${escapeHtml(projectSite.project?.name || '—')}</b></p><p>אתר: <b>${escapeHtml(projectSite.site?.name || '—')}</b></p></div>
     </section>
     <table>
       <thead><tr><th>#</th><th>תיאור</th><th>כמות</th><th>משקל</th><th>כמות לחיוב</th><th>מחיר יחידה</th><th>הנחה</th><th>סה״כ כולל מע״מ</th></tr></thead>
@@ -85,8 +89,8 @@ function renderQuotationPrintPage({ quotation, revision }) {
       <div class="grand"><span>סה״כ</span><b>${money(revision.grand_total, revision.currency_code)}</b></div>
     </section>
     <section class="notes"><b>הערות מסחריות</b><br>${escapeHtml(revision.commercial_notes || '—')}</section>
-    <div class="proof">Issued payload SHA-256: ${escapeHtml(revision.issued_payload_hash)}</div>
-    <footer><span>מסמך הצעת מחיר — אינו הזמנה ואינו מסמך ייצור</span><span>${escapeHtml(quotation.quotation_num)} / REV ${revision.revision_number}</span></footer>
+    ${isIssued ? `<div class="proof">Issued payload SHA-256: ${escapeHtml(revision.issued_payload_hash)}</div>` : ''}
+    <footer><span>מסמך הצעת מחיר — אינו הזמנה ואינו מסמך ייצור</span><span>${escapeHtml(documentIdentity)} / REV ${revision.revision_number}</span></footer>
   </main>
 </body>
 </html>`;

@@ -94,6 +94,7 @@ function createSettingsService(db) {
     ['LABOR_COST_PER_HOUR',            2, 'עלות עבודה לשעה',           'עלות עובד לשעת עבודה',                      'currency', '120',  0, 9999, '₪',    0, 'edit',   1],
     ['OVERHEAD_COST_FACTOR',           2, 'מקדם תקורה',                'מקדם עלויות תקורה (0–1)',                    'number',   '0.15', 0,    1, null,   0, 'edit',   2],
     ['SCRAP_COST_PCT',                 2, 'אחוז עלות פסולת',           'אחוז מהחומר שנחשב כפסולת לעלות',            'percent',  '3',    0,   20, '%',     0, 'edit',   3],
+    ['VAT_RATE',                       2, 'שיעור מע״מ',                'שיעור מע״מ עשרוני קנוני לחישובי שרת',          'number',   '0.18', 0,    1, null,   1, 'hidden', 4],
 
     // ── התראות ───────────────────────────────────────────────────
     ['WEIGHT_TOLERANCE_WARNING_PCT',   3, 'סף אזהרת משקל',             'חריגת משקל באחוזים — רמת אזהרה',            'percent',  '5',    1,   50, '%',     0, 'edit',   1],
@@ -161,6 +162,26 @@ function createSettingsService(db) {
     return v === 'true' || v === '1';
   }
 
+  /**
+   * Canonical server VAT rate. The stored representation is a decimal in the
+   * inclusive range 0..1. An explicit malformed value is a configuration
+   * error; it is never reinterpreted as a percentage and never falls back.
+   */
+  function getVatRate() {
+    const raw = get('VAT_RATE', null);
+    const normalized = typeof raw === 'string' ? raw.trim() : raw;
+    const rate = normalized === '' || normalized === null || normalized === undefined
+      ? Number.NaN
+      : Number(normalized);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
+      const error = new Error('invalid_vat_rate_configuration');
+      error.code = 'invalid_vat_rate_configuration';
+      error.statusCode = 500;
+      throw error;
+    }
+    return rate;
+  }
+
   /** שמור ערך עם audit */
   function set(key, value, { updatedBy = null } = {}) {
     db.prepare(`
@@ -214,7 +235,7 @@ function createSettingsService(db) {
     db.prepare('UPDATE setting_definitions SET customer_permission=? WHERE key=?').run(permission, key);
   }
 
-  return { get, getNum, getBool, set, listForCustomer, listAll, setPermission };
+  return { get, getNum, getBool, getVatRate, set, listForCustomer, listAll, setPermission };
 }
 
 module.exports = { createSettingsService };
