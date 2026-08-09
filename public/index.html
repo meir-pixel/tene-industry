@@ -2807,7 +2807,7 @@ function renderPallets() {
   let focusSave = null;
   if (active && active.closest) {
     const rowEl = active.closest('[id^="item-row-"]');
-    const cls = ['line-element', 'line-diameter-select', 'line-len-cm', 'line-qty']
+    const cls = ['line-element', 'line-diameter-select', 'line-qty']
       .find(c => active.classList && active.classList.contains(c));
     if (rowEl && cls) {
       focusSave = { rowId: rowEl.id, cls,
