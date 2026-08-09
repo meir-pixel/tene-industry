@@ -3488,6 +3488,17 @@ async function submitOrder() {
     });
     const result = await response.json().catch(() => ({}));
 
+    // A non-JSON response (413 too-large, 502/504) leaves result empty; surface
+    // the real reason instead of a dead-end generic message.
+    if (!response.ok && !result.error) {
+      if (response.status === 413) {
+        alert('ההזמנה גדולה מדי לשמירה בבת אחת. פצל אותה לשתי הזמנות או פנה לתמיכה.');
+      } else {
+        alert('שמירת ההזמנה נכשלה (שגיאת שרת ' + response.status + '). נסה שוב או פנה לתמיכה.');
+      }
+      return;
+    }
+
     if (result.success) {
       document.getElementById('successOrderNum').textContent = result.orderNum;
       document.getElementById('successSubText').textContent = 'ההזמנה נוצרה וממתינה לאישור לפני ייצור';
