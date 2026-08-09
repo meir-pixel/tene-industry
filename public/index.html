@@ -2801,6 +2801,20 @@ function renderEmptyItemsState() {
 function renderPallets() {
   const container = document.getElementById('palletsContainer');
   if (!container) return;
+  // Preserve keyboard focus + caret across the rebuild so an order can be typed
+  // end-to-end without a mouse (the row DOM is fully replaced below).
+  const active = document.activeElement;
+  let focusSave = null;
+  if (active && active.closest) {
+    const rowEl = active.closest('[id^="item-row-"]');
+    const cls = ['line-element', 'line-diameter-select', 'line-len-cm', 'line-qty']
+      .find(c => active.classList && active.classList.contains(c));
+    if (rowEl && cls) {
+      focusSave = { rowId: rowEl.id, cls,
+        s: (typeof active.selectionStart === 'number') ? active.selectionStart : null,
+        e: (typeof active.selectionEnd === 'number') ? active.selectionEnd : null };
+    }
+  }
   ensureDefaultPallet();
   const visibleItems = getAllVisibleOrderItems();
   if (!visibleItems.length) {
@@ -2809,6 +2823,16 @@ function renderPallets() {
     container.innerHTML = '<div class="order-items-list">' + visibleItems.map(({ palletId, item }, index) => renderItemCard(palletId, item, index)).join('') + '</div>';
   }
   updateSummary();
+  if (focusSave) {
+    const rowEl = document.getElementById(focusSave.rowId);
+    const field = rowEl && rowEl.querySelector('.' + focusSave.cls);
+    if (field) {
+      field.focus();
+      if (focusSave.s != null && typeof field.setSelectionRange === 'function') {
+        try { field.setSelectionRange(focusSave.s, focusSave.e); } catch (_) {}
+      }
+    }
+  }
 }
 
 function renderPalletHTML(p, idx) {
