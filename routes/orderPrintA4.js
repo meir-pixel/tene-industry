@@ -143,6 +143,10 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
     shape_svg:      productionCards.itemShapeSvg(it),
   })));
 
+  // Split the item table so each diameter starts on its own printed page —
+  // one sheet per bending machine / operator. Default on; ?split_by_diameter=0
+  // renders the classic continuous table.
+  const splitByDiameter = String(req.query.split_by_diameter ?? '1') !== '0';
   const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const totalWeight  = (order.total_weight || 0).toFixed(1);
   const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON });
@@ -233,6 +237,17 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
   border-top:2px solid #1a2332;padding-top:8px;font-size:10px;color:#888;}
 .footer-brand{font-weight:900;color:#c9621a;font-size:13px;}
 
+/* Diameter grouping */
+.items-table thead{display:table-header-group;}
+tbody.diam-group .group-head td{background:#1a2332;color:#fff;font-weight:900;font-size:12.5px;
+  padding:7px 10px;text-align:right;letter-spacing:.02em;}
+tbody.diam-group .group-head td .gh-count{font-weight:700;opacity:.8;font-size:11px;}
+tbody.diam-group .group-sub td{background:#eef2f7;color:#1a2332;font-weight:900;font-size:11.5px;
+  padding:6px 6px;border-top:1.5px solid #1a2332;}
+tbody.diam-split{break-before:page;page-break-before:always;}
+tbody.diam-split.first{break-before:auto;page-break-before:auto;}
+tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
+
 @media print{
   body{background:#fff;padding:0;}
   .no-print{display:none!important;}
@@ -246,6 +261,10 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 
 <div class="no-print">
   <button class="btn-print" onclick="window.print()">🖨️ הדפס A4</button>
+  <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#1a2332;cursor:pointer;">
+    <input type="checkbox" ${splitByDiameter ? 'checked' : ''} onchange="toggleDiamSplit(this)">
+    כל קוטר בעמוד נפרד
+  </label>
   <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${safeCustomer} · ${allItems.length} פריטים</span>
 </div>
 
@@ -321,6 +340,15 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 
 <script>
 var allItems = ${allItemsJson};
+var splitByDiameter = ${splitByDiameter ? 'true' : 'false'};
+
+// window.URL is used explicitly: inline handlers resolve identifiers against
+// document first, where document.URL is a string that shadows the constructor.
+function toggleDiamSplit(input){
+  var u = new window.URL(window.location.href);
+  u.searchParams.set('split_by_diameter', input.checked ? '1' : '0');
+  window.location.href = u.href;
+}
 
 function renderOrderQrCodes() {
   document.querySelectorAll('[data-order-url]').forEach(function(node) {
@@ -354,43 +382,84 @@ function buildDimsHtml(segments) {
   return html;
 }
 
-function buildTable() {
-  var tbody = document.getElementById('tableBody');
-  var totalQty = 0, totalWt = 0;
-  for (var i=0; i<allItems.length; i++) {
-    var it = allItems[i];
-    totalQty += it.quantity;
-    totalWt  += it.total_weight;
-    var SVG_W = 130, SVG_H = 68;
-    var uid = 'sv'+i;
-    var row = document.createElement('tr');
-    row.innerHTML =
-      '<td class="row-num">'+it.rowNum+'</td>'+
-      '<td class="diam">Ø'+it.diameter+'</td>'+
-      '<td class="shape-td"><div class="shape-svg" id="'+uid+'">'+(it.shape_svg||'')+'</div></td>'+
-      '<td class="dims-td">'+buildDimsHtml(it.segments)+'</td>'+
-      '<td><span class="len-val">'+it.total_length_cm+'</span></td>'+
-      '<td><span class="qty-val">'+it.quantity+'</span></td>'+
-      '<td><span class="wt-val">'+(it.total_weight||0).toFixed(1)+'</span></td>'+
-      '<td><span class="check-box"></span></td>';
-    tbody.appendChild(row);
-    if (it.note) {
-      var noteRow = document.createElement('tr');
-      noteRow.className = 'note-row';
-      noteRow.innerHTML = '<td colspan="8">⚠ '+it.note+'</td>';
-      tbody.appendChild(noteRow);
-    }
-  }
-  // Totals row
-  var totRow = document.createElement('tr');
-  totRow.className = 'totals-row';
-  totRow.innerHTML =
-    '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ</td>'+
-    '<td>'+totalQty+'</td>'+
-    '<td>'+totalWt.toFixed(1)+'</td>'+
-    '<td></td>';
-  tbody.appendChild(totRow);
+function itemRowHtml(it, uid) {
+  return '<td class="row-num">'+it.rowNum+'</td>'+
+    '<td class="diam">Ø'+it.diameter+'</td>'+
+    '<td class="shape-td"><div class="shape-svg" id="'+uid+'">'+(it.shape_svg||'')+'</div></td>'+
+    '<td class="dims-td">'+buildDimsHtml(it.segments)+'</td>'+
+    '<td><span class="len-val">'+it.total_length_cm+'</span></td>'+
+    '<td><span class="qty-val">'+it.quantity+'</span></td>'+
+    '<td><span class="wt-val">'+(it.total_weight||0).toFixed(1)+'</span></td>'+
+    '<td><span class="check-box"></span></td>';
+}
 
+function buildTable() {
+  var table = document.getElementById('itemsTable');
+  var oldBody = document.getElementById('tableBody');
+  if (oldBody) oldBody.remove();
+
+  // Group items by diameter, ascending. Each group becomes its own <tbody> so
+  // it can start on a fresh printed page while the header row repeats.
+  var groups = {};
+  var order = [];
+  for (var i=0; i<allItems.length; i++) {
+    var d = Number(allItems[i].diameter) || 0;
+    if (!groups[d]) { groups[d] = []; order.push(d); }
+    groups[d].push(allItems[i]);
+  }
+  order.sort(function(a,b){ return a-b; });
+
+  var totalQty = 0, totalWt = 0, uidN = 0;
+  order.forEach(function(d, gi) {
+    var items = groups[d];
+    var gQty = 0, gWt = 0;
+    var body = document.createElement('tbody');
+    body.className = 'diam-group' + (splitByDiameter ? ' diam-split' : '') + (gi === 0 ? ' first' : '');
+
+    var head = document.createElement('tr');
+    head.className = 'group-head';
+    head.innerHTML = '<td colspan="8">קוטר Ø'+d+' <span class="gh-count">· '+items.length+' פריטים</span></td>';
+    body.appendChild(head);
+
+    items.forEach(function(it) {
+      gQty += it.quantity; gWt += (it.total_weight||0);
+      totalQty += it.quantity; totalWt += (it.total_weight||0);
+      var row = document.createElement('tr');
+      row.innerHTML = itemRowHtml(it, 'sv'+(uidN++));
+      body.appendChild(row);
+      if (it.note) {
+        var noteRow = document.createElement('tr');
+        noteRow.className = 'note-row';
+        noteRow.innerHTML = '<td colspan="8">⚠ '+it.note+'</td>';
+        body.appendChild(noteRow);
+      }
+    });
+
+    var sub = document.createElement('tr');
+    sub.className = 'group-sub';
+    sub.innerHTML =
+      '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ Ø'+d+'</td>'+
+      '<td>'+gQty+'</td>'+
+      '<td>'+gWt.toFixed(1)+'</td>'+
+      '<td></td>';
+    body.appendChild(sub);
+    table.appendChild(body);
+  });
+
+  // Grand total (only when more than one diameter — otherwise the group
+  // subtotal already is the total).
+  if (order.length > 1) {
+    var totBody = document.createElement('tbody');
+    var totRow = document.createElement('tr');
+    totRow.className = 'totals-row';
+    totRow.innerHTML =
+      '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ כללי</td>'+
+      '<td>'+totalQty+'</td>'+
+      '<td>'+totalWt.toFixed(1)+'</td>'+
+      '<td></td>';
+    totBody.appendChild(totRow);
+    table.appendChild(totBody);
+  }
 }
 
 buildTable();
