@@ -1125,24 +1125,17 @@
     const rows = Array.from(container.querySelectorAll('.order-line-row'));
     const rowIdx = rows.indexOf(row);
 
+    // In the list, Enter adds a new item and opens the shape editor — the whole
+    // item is entered there.
     if (event.key === 'Enter') {
       event.preventDefault();
-      const start = KBD_SEQUENCE.indexOf(cls);
-      for (let i = start + 1; i < KBD_SEQUENCE.length; i++) {
-        if (kbdFocus(row, KBD_SEQUENCE[i])) return;
-      }
-      if (rowIdx < rows.length - 1) { kbdFocusFirst(rows[rowIdx + 1]); return; }
       const pallet = (pallets || []).find(p => (p.items || []).some(it => String(it.id) === row.dataset.itemId))
         || (pallets || [])[0];
-      if (pallet && typeof window.addEmptyRow === 'function') {
-        window.addEmptyRow(pallet.id);
-        const fresh = document.querySelectorAll('.order-lines-body .order-line-row');
-        kbdFocusFirst(fresh[fresh.length - 1]);
-      }
+      if (pallet && typeof window.addItem === 'function') window.addItem(pallet.id);
       return;
     }
-    // Row navigation with arrows (the diameter <select> keeps arrows for values)
-    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && cls !== 'line-diameter-select') {
+    // Arrows only move between rows — they never change a select/number value.
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       const target = event.key === 'ArrowDown' ? rows[rowIdx + 1] : rows[rowIdx - 1];
       if (target) { event.preventDefault(); if (!kbdFocus(target, cls)) kbdFocusFirst(target); }
     }
