@@ -2285,6 +2285,9 @@ class ShapeEditorModal {
 #seModal .se-summary-item small{font-size:10px;color:#647083;font-weight:800;margin-inline-start:3px;}
 #seModal .se-quantity-input{width:54px;border:0;background:transparent;color:#243047;font-family:'Heebo',sans-serif;font-size:18px;font-weight:900;line-height:1.1;text-align:center;direction:ltr;padding:0;outline:none;}
 #seModal .se-quantity-input:focus{background:#fff;border:1px solid #cfd6df;border-radius:5px;box-shadow:0 0 0 2px rgba(255,64,71,.12);}
+#seModal .se-invalid,#seModal .se-invalid:focus{border:1.5px solid #c0392b!important;background:#fdecea!important;color:#c0392b!important;box-shadow:0 0 0 2px rgba(192,57,43,.25)!important;border-radius:5px;}
+#seModal .se-summary-item.se-invalid-wrap{outline:1.5px solid #c0392b;outline-offset:2px;border-radius:6px;}
+#seModal .se-ok-btn.se-blocked{background:#c0392b!important;opacity:.85;}
 #seModal .se-straight-bar-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:4px;}
 #seModal .se-straight-bar-row td{padding:8px 10px;}
 #seModal .se-straight-bar-fields .se-field-shell{min-height:66px;}
@@ -2567,7 +2570,14 @@ class ShapeEditorModal {
     </div>
     <!-- Right: dimension table -->
     <div class="se-data-panel">
-      <div class="se-data-panel-head">מידות צלעות וזוויות</div>
+      <div class="se-data-panel-head" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>מידות צלעות וזוויות</span>
+        <span id="seItemNumber" style="color:#c9621a;font-weight:900;font-size:12px;"></span>
+      </div>
+      <div class="se-element-name-row" style="padding:10px 14px;border-bottom:1px solid #e2e8ef;">
+        <label for="seElementName" style="display:block;font-size:11px;font-weight:800;color:#7a93ab;letter-spacing:.3px;margin-bottom:5px">שם הפריט (אלמנט)</label>
+        <input id="seElementName" class="se-input" type="text" placeholder="קורה / קומה / ציר" autocomplete="off" style="width:100%;box-sizing:border-box;text-align:right" oninput="window._seEditor._setElementName(this.value)">
+      </div>
       <div class="se-mode-note">
         <label class="se-3d-toggle">
           <span>
@@ -2629,7 +2639,7 @@ class ShapeEditorModal {
         <div class="se-summary-item"><span>אורך במטר</span><div><strong id="seBarLength">0.00</strong><small>מטר</small></div></div>
         <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
         <div class="se-summary-item se-quantity-item" style="display:none"><span>כמות</span><div><input id="seQuantityInput" class="se-quantity-input" type="number" min="1" step="1" value="1" onfocus="this.select()" oninput="window._seEditor?._setQuantity(this.value)"><small>יח׳</small></div></div>
-        <div class="se-summary-item" id="seDiameterItem" style="display:none"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)">${[6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d=>`<option value="${d}">${d}</option>`).join('')}</select><small>מ״מ</small></div></div>
+        <div class="se-summary-item" id="seDiameterItem" style="display:none"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)"><option value="0">—</option>${[6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d=>`<option value="${d}">${d}</option>`).join('')}</select><small>מ״מ</small></div></div>
         <div class="se-summary-item"><span>כיפופים</span><strong id="seBends">0</strong></div>
       </div>
       <div class="se-foot-actions">
@@ -3294,7 +3304,9 @@ class ShapeEditorModal {
     const contract = buildShapeDataContractV2(this.current);
     const totalMm = Number(contract.calculated?.totalLengthMm || 0);
     const weightKg = Number(contract.calculated?.weightKg || 0);
-    const qty = Math.max(1, Number(this.current.quantity || this.current.qty || 1) || 1);
+    // Quantity may legitimately be 0 (not entered yet) — confirm is blocked
+    // until it is filled, so don't force a minimum here.
+    const qty = Math.max(0, Number(this.current.quantity ?? this.current.qty ?? 0) || 0);
     this.current.quantity = qty;
     const bends = Array.isArray(this.current.angles) ? this.current.angles.length : (Array.isArray(this.current.spiralZones) ? this.current.spiralZones.length : 0);
     const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
@@ -3302,9 +3314,9 @@ class ShapeEditorModal {
     set('seBarLength', (totalMm / 1000).toFixed(2));
     set('seTotalWeight', weightKg.toFixed(2));
     const qtyInput = document.getElementById('seQuantityInput');
-    if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = String(qty);
+    if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = qty > 0 ? String(qty) : '';
     const diaSelect = document.getElementById('seDiameterSelect');
-    if (diaSelect && document.activeElement !== diaSelect) diaSelect.value = String(this.current.diameter || 12);
+    if (diaSelect && document.activeElement !== diaSelect) diaSelect.value = String(this.current.diameter || 0);
     const straightLengthInput = document.getElementById('seStraightLengthInput');
     if (straightLengthInput && document.activeElement !== straightLengthInput) straightLengthInput.value = String(this.current.sides?.[0] || 1000);
     const straightDiameterInput = document.getElementById('seStraightDiameterInput');
@@ -3319,14 +3331,18 @@ class ShapeEditorModal {
 
   _setQuantity(value) {
     if (!this.current) return;
-    const qty = Math.max(1, Math.round(Number(value) || 1));
+    const qty = Math.max(0, Math.round(Number(value) || 0));
     this.current.quantity = qty;
+    const el = document.getElementById('seQuantityInput');
+    if (el) el.classList.toggle('se-invalid', !(qty >= 1));
     this._updateSummaryValues();
   }
 
   _setDiameter(value) {
     if (!this.current) return;
-    this.current.diameter = Number(value) || 12;
+    this.current.diameter = Number(value) || 0;
+    const el = document.getElementById('seDiameterSelect');
+    if (el) el.classList.toggle('se-invalid', !(this.current.diameter >= 6));
     this._updatePreview();
   }
 
@@ -3364,7 +3380,11 @@ class ShapeEditorModal {
     if (addRow) addRow.style.display = isBars ? '' : 'none';
     if (modeNote) modeNote.style.display = isBars ? '' : 'none';
     if (summary) summary.style.display = isBars ? '' : 'none';
-    if (title) title.textContent = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : 'מידות צלעות וזוויות';
+    if (title) {
+      const titleText = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : 'מידות צלעות וזוויות';
+      const titleSpan = title.querySelector('span:first-child');
+      if (titleSpan) titleSpan.textContent = titleText; else title.textContent = titleText;
+    }
     // Diameter and quantity live in the footer for bar shapes so every bar —
     // straight or bent — is edited the same way.
     const diaItem = document.getElementById('seDiameterItem');
@@ -3795,8 +3815,10 @@ class ShapeEditorModal {
     // diameter and quantity field in the footer. A straight bar is simply a
     // one-side bar, so it renders here too (no separate English mini-form).
     this.current.family = 'bars';
-    this.current.diameter = Number(this.current.diameter) || 12;
-    this.current.quantity = Math.max(1, Number(this.current.quantity || this._pendingQuantity || 1) || 1);
+    // Diameter and quantity start empty (0) so the operator must enter them;
+    // confirm is blocked while either is 0.
+    this.current.diameter = Number(this.current.diameter) || 0;
+    this.current.quantity = Math.max(0, Number(this.current.quantity ?? this._pendingQuantity ?? 0) || 0);
     if (!Array.isArray(sides) || !sides.length) {
       this.current.sides = [1000];
       this.current.angles = [];
@@ -3948,14 +3970,21 @@ class ShapeEditorModal {
     this._updatePreview();
   }
 
-  // Focus the first side length input once the editor is open. Tried through a
-  // couple of timers so it lands regardless of render/paint timing.
+  _setElementName(val) {
+    if (!this.current) return;
+    this.current.structElement = String(val || '');
+  }
+
+  // Focus the element-name field once the editor is open (falls back to the
+  // first side). Tried through a couple of timers so it lands regardless of
+  // render/paint timing.
   _focusFirstSideSoon() {
     const focus = () => {
-      const first = this._el && this._el.querySelector('#seTableBody .se-input[data-side]');
-      if (first && document.activeElement !== first) {
-        first.focus();
-        if (typeof first.select === 'function') { try { first.select(); } catch (_) {} }
+      const target = (this._el && this._el.querySelector('#seElementName'))
+        || (this._el && this._el.querySelector('#seTableBody .se-input[data-side]'));
+      if (target && document.activeElement !== target) {
+        target.focus();
+        if (typeof target.select === 'function') { try { target.select(); } catch (_) {} }
       }
     };
     requestAnimationFrame(focus);
@@ -3969,18 +3998,33 @@ class ShapeEditorModal {
   _focusSide(input) {
     if (input) { input.focus(); if (typeof input.select === 'function') input.select(); }
   }
+  // The ordered list of fields the arrows walk through: name, each side, then
+  // diameter and quantity. Arrows only move between fields — never change a value.
+  _fieldChain() {
+    const chain = [];
+    const name = this._el && this._el.querySelector('#seElementName');
+    if (name) chain.push(name);
+    this._sideInputs().forEach(i => chain.push(i));
+    const dia = document.getElementById('seDiameterSelect');
+    if (dia && dia.offsetParent !== null) chain.push(dia);
+    const qty = document.getElementById('seQuantityInput');
+    if (qty && qty.offsetParent !== null) chain.push(qty);
+    return chain;
+  }
 
-  // One keyboard rhythm for building a shape: type a side length, Enter adds
-  // the next side; Shift+Enter jumps to the diameter; Enter there moves to the
-  // quantity; Enter there confirms. Up/Down move between side rows to fix.
+  // One keyboard rhythm to build a whole item: type the item name, Enter moves
+  // to the first side; type a side length, Enter adds the next side; Shift+Enter
+  // jumps to the diameter; Enter there moves to the quantity; Enter there
+  // confirms. Up/Down (and Left/Right) move between fields without changing values.
   _handleShapeKbd(e) {
     if (!this.current) return;
     const t = e.target;
+    const isName = t && t.id === 'seElementName';
     const isSide = t && t.hasAttribute && t.hasAttribute('data-side');
     const isAngle = t && t.hasAttribute && (t.hasAttribute('data-angle') || t.hasAttribute('data-az') || t.hasAttribute('data-el'));
     const isDia = t && t.id === 'seDiameterSelect';
     const isQty = t && t.id === 'seQuantityInput';
-    if (!isSide && !isAngle && !isDia && !isQty) return;
+    if (!isName && !isSide && !isAngle && !isDia && !isQty) return;
 
     if (e.key === 'Enter' && e.shiftKey) {
       const dia = document.getElementById('seDiameterSelect');
@@ -3988,6 +4032,11 @@ class ShapeEditorModal {
       return;
     }
     if (e.key === 'Enter') {
+      if (isName) {
+        e.preventDefault();
+        this._focusSide(this._sideInputs()[0]);
+        return;
+      }
       if (isSide) {
         e.preventDefault();
         this._addSide();
@@ -4010,11 +4059,25 @@ class ShapeEditorModal {
       }
       if (isQty) { e.preventDefault(); this._confirm(); return; }
     }
-    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && isSide) {
+    // Delete removes the focused side row (an accidental extra side).
+    if (e.key === 'Delete' && isSide) {
       const inputs = this._sideInputs();
-      const i = inputs.indexOf(t);
-      const target = e.key === 'ArrowDown' ? inputs[i + 1] : inputs[i - 1];
-      if (target) { e.preventDefault(); this._focusSide(target); }
+      if (inputs.length > 1) {
+        e.preventDefault();
+        const idx = Number(t.getAttribute('data-side'));
+        this._deleteSide(idx);
+        const after = this._sideInputs();
+        this._focusSide(after[Math.min(idx, after.length - 1)]);
+      }
+      return;
+    }
+    // Arrows move between fields only (never change a number/select value).
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const chain = this._fieldChain();
+      const i = chain.indexOf(t);
+      if (i === -1) return;
+      const target = e.key === 'ArrowDown' ? chain[i + 1] : chain[i - 1];
+      if (target) { e.preventDefault(); target.focus(); if (typeof target.select === 'function') { try { target.select(); } catch (_) {} } }
     }
   }
 
@@ -4423,6 +4486,23 @@ class ShapeEditorModal {
 
   _confirm() {
     if (!this.current || !this.onSelect) return;
+    // Bar shapes must have a diameter and a quantity. Block confirm and flag the
+    // missing fields in red instead of saving an item with 0.
+    if (this.current.family === 'bars') {
+      const diaEl = document.getElementById('seDiameterSelect');
+      const qtyEl = document.getElementById('seQuantityInput');
+      const diaOk = Number(this.current.diameter) >= 6;
+      const qtyOk = Math.max(0, Number(this.current.quantity || this.current.qty || 0) || 0) >= 1;
+      if (diaEl && diaEl.offsetParent !== null && (!diaOk || !qtyOk)) {
+        if (diaEl) diaEl.classList.toggle('se-invalid', !diaOk);
+        if (qtyEl) qtyEl.classList.toggle('se-invalid', !qtyOk);
+        const okBtn = document.getElementById('seOk');
+        if (okBtn) { okBtn.classList.add('se-blocked'); setTimeout(() => okBtn.classList.remove('se-blocked'), 900); }
+        const focusEl = !diaOk ? diaEl : qtyEl;
+        if (focusEl) focusEl.focus();
+        return;
+      }
+    }
     const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
     const orderItemQuantity = Math.max(1, Number(this.current.quantity || this.current.qty || 1) || 1);
     const normalized = {
@@ -4438,6 +4518,7 @@ class ShapeEditorModal {
       ...legacyApprovedShapeFields(normalized, contract),
       ...contract,
       orderItemQuantity,
+      structElement: (document.getElementById('seElementName')?.value ?? this.current.structElement ?? '').trim(),
     });
     this.close();
   }
@@ -4449,13 +4530,24 @@ class ShapeEditorModal {
     this._backdropPress = false;
     this._hideSaveBar?.();
     this._el.classList.remove('show');
+    // Seed the item-name field from the row (empty for a brand-new item).
+    this._pendingElementName = String(existingData?.structElement || existingData?.elementName || '');
+    const nameInput = this._el.querySelector('#seElementName');
+    if (nameInput) nameInput.value = this._pendingElementName;
+    // Show which item is being edited so the operator never loses their place.
+    const itemNumEl = this._el.querySelector('#seItemNumber');
+    if (itemNumEl) {
+      const n = Number(existingData?.itemNumber || 0);
+      const total = Number(existingData?.itemTotal || 0);
+      itemNumEl.textContent = n > 0 ? ('פריט ' + n + (total > 0 ? '/' + total : '')) : '';
+    }
     // Sync orbit controls and cursor to current view mode on open
     const orbitCtrl = document.getElementById('se3DOrbitCtrl');
     const svgWrap   = document.getElementById('seSvgWrap');
     const is3D = window._seViewMode !== '2d';
     if (orbitCtrl) orbitCtrl.style.display = is3D ? 'flex' : 'none';
     if (svgWrap)   svgWrap.classList.toggle('grab-mode', is3D);
-    this._pendingQuantity = Math.max(1, Number(existingData?.quantity || existingData?.qty || 1) || 1);
+    this._pendingQuantity = Math.max(0, Number(existingData?.quantity ?? existingData?.qty ?? 0) || 0);
     this._previewRotation = 0;
     seSyncRotateButton();
     if (existingData?.family === 'mesh' || existingData?.family === 'piles' || existingData?.family === 'spirals') {
@@ -4492,6 +4584,13 @@ class ShapeEditorModal {
       this._selectedCount = null;
       this._selectedSideCount = null;
       this._startDefaultEdit('bars');
+    }
+    // Apply the requested quantity/name once (presets seed quantity=1, which
+    // would otherwise hide that a new item still needs a quantity).
+    if (this.current && this.current.family === 'bars') {
+      this.current.quantity = this._pendingQuantity;
+      this.current.structElement = this._pendingElementName || this.current.structElement || '';
+      this._updateSummaryValues();
     }
     this._el.classList.add('show');
     document.body.classList.add('se-open');

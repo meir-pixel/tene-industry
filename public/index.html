@@ -3123,6 +3123,10 @@ function openShapeEditor(palletId, itemId) {
     });
     return;
   }
+  const elementName = item?.structElement || item?.struct_element || item?.elementName || '';
+  const allItems = pallets.flatMap(p => p.items || []);
+  const itemNumber = allItems.findIndex(i => i.id == itemId) + 1;
+  const itemTotal = allItems.length;
   shapeEditor.open(sides.length ? {
     presetId: item.shapeId,
     sides,
@@ -3130,9 +3134,11 @@ function openShapeEditor(palletId, itemId) {
     azAngles: item.azAngles || null,
     elAngles: item.elAngles || null,
     is3d: item.is3d || 0,
-    quantity: item.qty || 1,
-    diameter: item.diameter || 12,
-  } : { quantity: item?.qty || 1, diameter: item?.diameter || 12 });
+    quantity: item.qty || 0,
+    diameter: item.diameter || 0,
+    structElement: elementName,
+    itemNumber, itemTotal,
+  } : { quantity: item?.qty || 0, diameter: item?.diameter || 0, structElement: elementName, itemNumber, itemTotal });
 }
 
 function shapeSelected(data) {
@@ -3183,9 +3189,15 @@ function shapeSelected(data) {
   item.length      = isSpiral
     ? (data.calculated?.totalLengthMm || data.total_length_mm || spiralLengthMm(spiral.spiralDiameterMm, spiral.spiralTurns))
     : (Array.isArray(data.sides) ? data.sides.reduce((s, l) => s + Number(l), 0) : (data.total_length_mm || 0));
-  // Diameter and quantity are now entered inside the shape editor, so the
-  // editor's values win over whatever the row had.
+  // Diameter, quantity and the item name are now entered inside the shape
+  // editor, so the editor's values win over whatever the row had.
   item.qty         = Math.max(1, Number(data.orderItemQuantity || item.qty || 1) || 1);
+  if (data.structElement !== undefined) {
+    const name = String(data.structElement || '').trim();
+    item.structElement = name;
+    item.struct_element = name;
+    item.elementName = name;
+  }
   _shapeTarget = null;
   renderPallets();
 }
@@ -3232,9 +3244,11 @@ async function loadInventoryBatches() {
 function addItem(palletId) {
   const pallet = pallets.find(p => p.id === palletId);
   if (!pallet) return;
-  const pendingItem = { id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' };
+  // New item: diameter and quantity start empty (0) so the editor requires them.
+  const pendingItem = { id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 0, length: 0, qty: 0, note: '', raw_material_id: 'auto' };
   _shapeTarget = { palletId, itemId: pendingItem.id, isNew: true, pendingItem };
-  shapeEditor.open({ quantity: pendingItem.qty, diameter: pendingItem.diameter });
+  const nextNumber = pallets.flatMap(p => p.items || []).length + 1;
+  shapeEditor.open({ quantity: 0, diameter: 0, itemNumber: nextNumber, itemTotal: nextNumber });
 }
 
 function addEmptyRow(palletId) {

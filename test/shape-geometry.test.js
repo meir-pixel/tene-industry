@@ -468,7 +468,9 @@ test('manual add item opens the shape editor before creating an empty order row'
   assert.ok(addItemBlock, 'expected addItem body');
   assert.ok(shapeSelectedBlock, 'expected shapeSelected body');
   assert.match(addItemBlock[0], /pendingItem/);
-  assert.match(addItemBlock[0], /shapeEditor\.open\(\{ quantity: pendingItem\.qty, diameter: pendingItem\.diameter \}\)/);
+  // New items open the editor with diameter and quantity empty (0) so the
+  // editor requires them, and carry the item number for context.
+  assert.match(addItemBlock[0], /shapeEditor\.open\(\{ quantity: 0, diameter: 0, itemNumber/);
   assert.doesNotMatch(addItemBlock[0], /pallet\.items\.push/);
   assert.match(shapeSelectedBlock[0], /pallet\.items\.push\(item\)/);
   assert.match(shapeSelectedBlock[0], /data\.orderItemQuantity/);
