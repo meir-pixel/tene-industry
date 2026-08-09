@@ -1098,7 +1098,7 @@
 
   // Keyboard-only entry across the item grid: Enter walks the fields and adds a
   // fresh row at the end; Up/Down move between rows in the same column.
-  const KBD_SEQUENCE = ['line-element', 'line-diameter-select', 'line-len-cm', 'line-qty'];
+  const KBD_SEQUENCE = ['line-element', 'line-diameter-select', 'line-qty'];
   function kbdFieldClass(el) {
     return el && el.classList ? KBD_SEQUENCE.find(c => el.classList.contains(c)) : null;
   }
@@ -1151,13 +1151,12 @@
     const isPileCage = isRoundPileCageLine(item);
     const hasShape = !!(isPileCage || item.shapeId || (item.shapeSides && item.shapeSides.length));
     const emptyDash = '<span class="line-val-empty">\u2014</span>';
-    // Straight and simple bent bars accept length/sides in cm right in the row,
-    // so an operator never needs the mouse or the shape modal for them.
-    const inlineLen = !isPileCage && !isLineSpiral(item);
-    const updateLenCall = 'updateLineLengthCm(' + palletArg + ',' + itemArg + ',this)';
-    const lengthCell = inlineLen
-      ? '<input class="line-length-input line-len-cm" type="text" inputmode="decimal" value="' + escapeHtml(sidesToCmString(item)) + '" placeholder="\u05e1\u05f4\u05de" aria-label="\u05d0\u05d5\u05e8\u05da \u05d1\u05e1\u05e0\u05d8\u05d9\u05de\u05d8\u05e8\u05d9\u05dd" title="\u05d0\u05d5\u05e8\u05da \u05d1\u05e1\u05f4\u05de \u00b7 \u05dc\u05de\u05db\u05d5\u05e4\u05e3 \u05e4\u05e9\u05d5\u05d8 \u05d4\u05d6\u05df \u05e6\u05dc\u05e2\u05d5\u05ea, \u05dc\u05de\u05e9\u05dc 20/670/20" onfocus="this.select()" onchange="' + updateLenCall + '" onblur="' + updateLenCall + '">'
-      : (hasShape ? escapeHtml(length) : emptyDash);
+    // The length column shows the cut length of one piece as a single number in
+    // cm (not the per-side breakdown); sides are entered in the shape editor.
+    const unitLenCm = Math.round((getLineUnitLengthMm(item) || 0) / 10);
+    const lengthCell = hasShape && unitLenCm > 0
+      ? '<b>' + unitLenCm.toLocaleString('he-IL') + '</b>'
+      : emptyDash;
     const totalLengthCell = hasShape ? escapeHtml(totalLength) : emptyDash;
     const weightCell = hasShape ? escapeHtml(weight) : emptyDash;
     return `<article class="order-line-row${hasShape ? '' : ' no-shape-yet'}${isPileCage ? ' line-round-pile-cage' : ''}" id="item-row-${escapeHtml(id)}" data-item-id="${escapeHtml(id)}"${isPileCage ? ' data-shape-kind="round_pile_cage"' : ''}><div class="line-index">${escapeHtml(lineLabel)}</div><input class="line-element" type="text" value="${escapeHtml(elementName)}" placeholder="\u05e7\u05d5\u05e8\u05d4 / \u05e7\u05d5\u05de\u05d4 / \u05e6\u05d9\u05e8" aria-label="\u05d0\u05dc\u05de\u05e0\u05d8" onchange="${updateElementCall}" onblur="${updateElementCall}"><button type="button" class="line-shape" onclick="${openCall}" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4"><span class="line-shape-sketch">${renderLineShapeSketch(item)}</span>${isPileCage ? '<span class="line-pile-cage-tag">PILE CAGE</span>' : ''}</button><select class="line-diameter-select" onchange="${updateDiamCall}" aria-label="\u05e7\u05d5\u05d8\u05e8"><option value="" disabled>\u00d8</option>${diaOptions}</select><input class="line-qty" type="number" min="1" step="1" value="${escapeHtml(qty)}" inputmode="numeric" aria-label="\u05db\u05de\u05d5\u05ea" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onchange="${updateQtyCall}" onblur="${updateQtyCall}" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"><div class="line-length desktop-only-cell">${lengthCell}</div><div class="line-total-length desktop-only-cell">${totalLengthCell}</div><div class="line-weight">${weightCell}</div><button type="button" class="line-delete" onclick="removeItem(${palletArg},${itemArg})" title="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8" aria-label="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8">&times;</button><div class="line-mobile-meta"><span>${isPileCage ? 'PILE CAGE' : escapeHtml(elementName || '\u05dc\u05dc\u05d0 \u05d0\u05dc\u05de\u05e0\u05d8')}</span><span>\u00d8${escapeHtml(diameter.toLocaleString('he-IL', { maximumFractionDigits: 0 }))}</span><span>${hasShape ? escapeHtml(totalLength) : '\u2014'}</span><span>${hasShape ? escapeHtml(weight) : '\u2014'}</span></div></article>`;
