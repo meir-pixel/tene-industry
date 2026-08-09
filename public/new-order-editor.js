@@ -33,11 +33,26 @@
     table.className = 'order-lines-table';
     const head = document.createElement('div');
     head.className = 'order-lines-head';
-    head.innerHTML = '<span>\u05de\u05e1\u05f3</span><span>\u05d0\u05dc\u05de\u05e0\u05d8</span><span>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</span><span>\u05e7\u05d5\u05d8\u05e8</span><span>\u05db\u05de\u05d5\u05ea</span><span class="desktop-only-cell">\u05d0\u05d5\u05e8\u05da</span><span class="desktop-only-cell">\u05e1\u05d4\u05f4\u05db \u05d0\u05d5\u05e8\u05da</span><span>\u05de\u05e9\u05e7\u05dc</span><span></span>';
+    head.innerHTML = '<span>\u05de\u05e1\u05f3</span><span>\u05d0\u05dc\u05de\u05e0\u05d8</span><span>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</span><span>\u05e7\u05d5\u05d8\u05e8 <small style="opacity:.7;font-weight:800">\u05de\u05f4\u05de</small></span><span>\u05db\u05de\u05d5\u05ea</span><span class="desktop-only-cell">\u05d0\u05d5\u05e8\u05da <small style="opacity:.7;font-weight:800">\u05e1\u05f4\u05de</small></span><span class="desktop-only-cell">\u05e1\u05d4\u05f4\u05db <small style="opacity:.7;font-weight:800">\u05de\u05f3</small></span><span>\u05de\u05e9\u05e7\u05dc</span><span></span>';
     container.parentNode.insertBefore(table, container);
     table.append(head, container);
   }
+  function injectKbdEntryStyles() {
+    if (document.getElementById('kbd-entry-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'kbd-entry-styles';
+    style.textContent =
+      'body[data-page="new"] .line-len-cm{width:100%!important;max-width:76px!important;height:30px!important;' +
+      'border:1.5px solid #d0dcea!important;border-radius:7px!important;text-align:center!important;' +
+      'font-weight:900!important;font-size:13px!important;font-family:inherit!important;color:var(--text,#0f234b)!important;' +
+      'background:#f7fafd!important;padding:0 4px!important;box-sizing:border-box!important;direction:ltr!important}' +
+      'body[data-page="new"] .line-len-cm::placeholder{color:#aebfce!important;font-weight:700!important;font-size:11px!important}' +
+      'body[data-page="new"] .line-len-cm:focus{outline:none!important;border-color:#4a90d9!important;background:#fff!important;box-shadow:0 0 0 2px rgba(74,144,217,.18)!important}' +
+      'body[data-page="new"] .line-diameter-select:focus,body[data-page="new"] .line-qty:focus{box-shadow:0 0 0 2px rgba(74,144,217,.18)!important}';
+    document.head.appendChild(style);
+  }
   function setupDom() {
+    injectKbdEntryStyles();
     const main = document.querySelector('body[data-page="new"] .main');
     if (main) main.classList.add('order-min-page');
     document.querySelector('.order-pro-header')?.classList.add('order-min-header');
@@ -1033,13 +1048,116 @@
     scheduleDraftAutosave();
   }
 
+  // Sides are stored in mm; the row edits them in cm. Empty when no shape yet.
+  function sidesToCmString(item = {}) {
+    const sides = Array.isArray(item.shapeSides) && item.shapeSides.length
+      ? item.shapeSides
+      : (Number(item.length) > 0 ? [Number(item.length)] : []);
+    if (!sides.length) return '';
+    return sides.map(mm => {
+      const cm = Number(mm) / 10;
+      return Math.abs(cm - Math.round(cm)) < 0.001 ? String(Math.round(cm)) : cm.toFixed(1);
+    }).join('/');
+  }
+
+  // Reads a cm length (single number = straight bar) or a cm sides list like
+  // "20/670/20" (simple bent, 90° bends) and stores it back in mm.
+  function updateLineLengthCm(palletId, itemId, input) {
+    if (input && !input.isConnected) return;
+    const pallet = (pallets || []).find(entry => String(entry.id) === String(palletId));
+    const item = (pallet?.items || []).find(entry => String(entry.id) === String(itemId));
+    if (!item) return;
+    const cmParts = String(input?.value || '').split(/[\/,\s]+/).map(v => parseFloat(v)).filter(v => Number.isFinite(v) && v > 0);
+    if (!cmParts.length) {
+      item.shapeSides = []; item.shapeAngles = []; item.length = 0;
+      item.shapeId = null; item.shapeName = ''; item.shapeSnapshot = null;
+      if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'length', 0);
+      scheduleDraftAutosave();
+      return;
+    }
+    const mmSides = cmParts.map(cm => Math.round(cm * 10));
+    const total = mmSides.reduce((sum, v) => sum + v, 0);
+    const diameter = Number(item.diameter) || 12;
+    const qty = Math.max(1, Number(item.qty) || 1);
+    item.family = 'bars';
+    item.shapeSides = mmSides;
+    item.length = total;
+    if (mmSides.length === 1) {
+      item.shapeId = 'straight_bar'; item.shapeName = 'מוט ישר'; item.shapeAngles = [];
+      item.shapeSnapshot = typeof window.buildStraightBarSnapshot === 'function'
+        ? window.buildStraightBarSnapshot({ length: total, diameter, qty })
+        : null;
+    } else {
+      item.shapeId = 'bent_bar'; item.shapeName = 'מוט מכופף';
+      item.shapeAngles = mmSides.slice(0, -1).map(() => 90);
+      item.shapeSnapshot = null; // sides + angles carry the geometry to the server
+    }
+    if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'length', total);
+    scheduleDraftAutosave();
+  }
+
+  // Keyboard-only entry across the item grid: Enter walks the fields and adds a
+  // fresh row at the end; Up/Down move between rows in the same column.
+  const KBD_SEQUENCE = ['line-element', 'line-diameter-select', 'line-len-cm', 'line-qty'];
+  function kbdFieldClass(el) {
+    return el && el.classList ? KBD_SEQUENCE.find(c => el.classList.contains(c)) : null;
+  }
+  function kbdFocus(row, cls) {
+    const f = row && row.querySelector('.' + cls);
+    if (!f) return false;
+    f.focus();
+    if (typeof f.select === 'function') { try { f.select(); } catch (_) {} }
+    return true;
+  }
+  function kbdFocusFirst(row) {
+    for (const c of KBD_SEQUENCE) { if (kbdFocus(row, c)) return true; }
+    return false;
+  }
+  function handleGridKeydown(event) {
+    const cls = kbdFieldClass(event.target);
+    if (!cls) return;
+    const row = event.target.closest('.order-line-row');
+    const container = event.target.closest('.order-lines-body');
+    if (!row || !container) return;
+    const rows = Array.from(container.querySelectorAll('.order-line-row'));
+    const rowIdx = rows.indexOf(row);
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const start = KBD_SEQUENCE.indexOf(cls);
+      for (let i = start + 1; i < KBD_SEQUENCE.length; i++) {
+        if (kbdFocus(row, KBD_SEQUENCE[i])) return;
+      }
+      if (rowIdx < rows.length - 1) { kbdFocusFirst(rows[rowIdx + 1]); return; }
+      const pallet = (pallets || []).find(p => (p.items || []).some(it => String(it.id) === row.dataset.itemId))
+        || (pallets || [])[0];
+      if (pallet && typeof window.addEmptyRow === 'function') {
+        window.addEmptyRow(pallet.id);
+        const fresh = document.querySelectorAll('.order-lines-body .order-line-row');
+        kbdFocusFirst(fresh[fresh.length - 1]);
+      }
+      return;
+    }
+    // Row navigation with arrows (the diameter <select> keeps arrows for values)
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && cls !== 'line-diameter-select') {
+      const target = event.key === 'ArrowDown' ? rows[rowIdx + 1] : rows[rowIdx - 1];
+      if (target) { event.preventDefault(); if (!kbdFocus(target, cls)) kbdFocusFirst(target); }
+    }
+  }
+
   function renderCompactOrderLine(palletId, item, itemIndex = 0, orderTotalLines = 1) {
     const id = String(item.id); const palletArg = jsArg(palletId); const itemArg = jsArg(id); const qty = lineQty(item); const diameter = lineDiameter(item); const dims = formatLineShapeDims(item); const length = formatLineLength(item); const totalLength = formatLineTotalLength(item); const weight = formatLineWeight(item); const elementName = lineElementName(item); const openCall = 'openShapeEditor(' + palletArg + ',' + itemArg + ')'; const updateQtyCall = 'updateLineQuantity(' + palletArg + ',' + itemArg + ',this)'; const updateElementCall = 'updateLineElementName(' + palletArg + ',' + itemArg + ',this)'; const updateDiamCall = 'updateLineDiameter(' + palletArg + ',' + itemArg + ',this)'; const lineLabel = orderTotalLines > 0 ? (itemIndex + 1) + '/' + orderTotalLines : String(itemIndex + 1);
     const diaOptions = [6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d => `<option value="${d}"${d === diameter ? ' selected' : ''}>\u00d8${d}</option>`).join('');
     const isPileCage = isRoundPileCageLine(item);
     const hasShape = !!(isPileCage || item.shapeId || (item.shapeSides && item.shapeSides.length));
     const emptyDash = '<span class="line-val-empty">\u2014</span>';
-    const lengthCell = hasShape ? escapeHtml(length) : emptyDash;
+    // Straight and simple bent bars accept length/sides in cm right in the row,
+    // so an operator never needs the mouse or the shape modal for them.
+    const inlineLen = !isPileCage && !isLineSpiral(item);
+    const updateLenCall = 'updateLineLengthCm(' + palletArg + ',' + itemArg + ',this)';
+    const lengthCell = inlineLen
+      ? '<input class="line-length-input line-len-cm" type="text" inputmode="decimal" value="' + escapeHtml(sidesToCmString(item)) + '" placeholder="\u05e1\u05f4\u05de" aria-label="\u05d0\u05d5\u05e8\u05da \u05d1\u05e1\u05e0\u05d8\u05d9\u05de\u05d8\u05e8\u05d9\u05dd" title="\u05d0\u05d5\u05e8\u05da \u05d1\u05e1\u05f4\u05de \u00b7 \u05dc\u05de\u05db\u05d5\u05e4\u05e3 \u05e4\u05e9\u05d5\u05d8 \u05d4\u05d6\u05df \u05e6\u05dc\u05e2\u05d5\u05ea, \u05dc\u05de\u05e9\u05dc 20/670/20" onfocus="this.select()" onchange="' + updateLenCall + '" onblur="' + updateLenCall + '">'
+      : (hasShape ? escapeHtml(length) : emptyDash);
     const totalLengthCell = hasShape ? escapeHtml(totalLength) : emptyDash;
     const weightCell = hasShape ? escapeHtml(weight) : emptyDash;
     return `<article class="order-line-row${hasShape ? '' : ' no-shape-yet'}${isPileCage ? ' line-round-pile-cage' : ''}" id="item-row-${escapeHtml(id)}" data-item-id="${escapeHtml(id)}"${isPileCage ? ' data-shape-kind="round_pile_cage"' : ''}><div class="line-index">${escapeHtml(lineLabel)}</div><input class="line-element" type="text" value="${escapeHtml(elementName)}" placeholder="\u05e7\u05d5\u05e8\u05d4 / \u05e7\u05d5\u05de\u05d4 / \u05e6\u05d9\u05e8" aria-label="\u05d0\u05dc\u05de\u05e0\u05d8" onchange="${updateElementCall}" onblur="${updateElementCall}"><button type="button" class="line-shape" onclick="${openCall}" title="\u05e4\u05ea\u05d7 \u05e2\u05d5\u05e8\u05da \u05e6\u05d5\u05e8\u05d4"><span class="line-shape-sketch">${renderLineShapeSketch(item)}</span>${isPileCage ? '<span class="line-pile-cage-tag">PILE CAGE</span>' : ''}</button><select class="line-diameter-select" onchange="${updateDiamCall}" aria-label="\u05e7\u05d5\u05d8\u05e8"><option value="" disabled>\u00d8</option>${diaOptions}</select><input class="line-qty" type="number" min="1" step="1" value="${escapeHtml(qty)}" inputmode="numeric" aria-label="\u05db\u05de\u05d5\u05ea" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onchange="${updateQtyCall}" onblur="${updateQtyCall}" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"><div class="line-length desktop-only-cell">${lengthCell}</div><div class="line-total-length desktop-only-cell">${totalLengthCell}</div><div class="line-weight">${weightCell}</div><button type="button" class="line-delete" onclick="removeItem(${palletArg},${itemArg})" title="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8" aria-label="\u05de\u05d7\u05e7 \u05e4\u05e8\u05d9\u05d8">&times;</button><div class="line-mobile-meta"><span>${isPileCage ? 'PILE CAGE' : escapeHtml(elementName || '\u05dc\u05dc\u05d0 \u05d0\u05dc\u05de\u05e0\u05d8')}</span><span>\u00d8${escapeHtml(diameter.toLocaleString('he-IL', { maximumFractionDigits: 0 }))}</span><span>${hasShape ? escapeHtml(totalLength) : '\u2014'}</span><span>${hasShape ? escapeHtml(weight) : '\u2014'}</span></div></article>`;
@@ -1050,6 +1168,19 @@
     setupOrderLinesTable();
     const container = document.getElementById('palletsContainer');
     if (!container) return;
+    // Preserve keyboard focus + caret across the row rebuild, so a full order
+    // can be typed without touching the mouse.
+    const active = document.activeElement;
+    let focusSave = null;
+    if (active && active.closest) {
+      const rowEl = active.closest('.order-line-row');
+      const cls = kbdFieldClass(active);
+      if (rowEl && cls && rowEl.dataset.itemId) {
+        focusSave = { itemId: rowEl.dataset.itemId, cls,
+          s: (typeof active.selectionStart === 'number') ? active.selectionStart : null,
+          e: (typeof active.selectionEnd === 'number') ? active.selectionEnd : null };
+      }
+    }
     minEnsureDefaultPallet();
     const rows = minGetAllVisibleOrderItems();
     const nextNum = rows.length + 1;
@@ -1057,6 +1188,16 @@
     setTextSafe('itemsCountPill', rows.length + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd');
     setTextSafe('noItemsCount', rows.length);
     if (typeof window.updateSummary === 'function') window.updateSummary();
+    if (focusSave) {
+      const rowEl = container.querySelector('.order-line-row[data-item-id="' + focusSave.itemId + '"]');
+      const field = rowEl && rowEl.querySelector('.' + focusSave.cls);
+      if (field) {
+        field.focus();
+        if (focusSave.s != null && typeof field.setSelectionRange === 'function') {
+          try { field.setSelectionRange(focusSave.s, focusSave.e); } catch (_) {}
+        }
+      }
+    }
     scheduleDraftAutosave();
   }
   function minRenderOrderSummary() { if (typeof window.updateSummary === 'function') window.updateSummary(); }
@@ -1144,6 +1285,11 @@
       el.addEventListener('input', scheduleDraftAutosave);
       el.addEventListener('change', scheduleDraftAutosave);
     });
+    // Keyboard-only grid navigation (delegated once; survives row re-renders).
+    if (!document.body.dataset.gridKbdBound) {
+      document.body.dataset.gridKbdBound = '1';
+      document.addEventListener('keydown', handleGridKeydown);
+    }
   }
 
   function wrapDraftAwareGlobals() {
@@ -1231,6 +1377,7 @@
     window.renderLineShapeSketch = renderLineShapeSketch;
     window.updateLineQuantity = updateLineQuantity;
     window.updateLineDiameter = updateLineDiameter;
+    window.updateLineLengthCm = updateLineLengthCm;
     window.lineElementName = lineElementName;
     window.updateLineElementName = updateLineElementName;
     window.renderItemCard = minRenderItemCard;
