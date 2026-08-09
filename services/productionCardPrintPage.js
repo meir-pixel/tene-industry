@@ -311,8 +311,8 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
 .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
 .pc-print-bottom span:first-child{border-left:0;}
-.pc-print-qr-panel{display:grid;grid-template-rows:minmax(0,1fr) 22.25mm;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:#f5f7fa;}
-.pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;transform:translate(-1.5mm,11mm);}
+.pc-print-qr-panel{display:grid;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:transparent;}
+.pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;transform:translate(-1.5mm,0);}
 .pc-print-qr-code canvas,.pc-print-qr-code img{width:22mm!important;height:22mm!important;display:block;}
 .pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:9px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;background:#1a2332;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .pc-head{display:flex;justify-content:space-between;align-items:flex-start;
@@ -408,8 +408,8 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:13px;font-weight:900;text-align:center;}
   .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
   .pc-print-bottom span:first-child{border-left:0;}
-  .pc-print-qr-panel{display:grid;grid-template-rows:minmax(0,1fr) 22.25mm;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:#f5f7fa!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;transform:translate(-1.5mm,11mm);}
+  .pc-print-qr-panel{display:grid;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:transparent!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .pc-print-qr-code{width:22mm;height:22mm;display:flex;align-items:center;justify-content:center;transform:translate(-1.5mm,0);}
   .pc-print-qr-code canvas,.pc-print-qr-code img{width:22mm!important;height:22mm!important;display:block;}
   .pc-print-status{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #1a2332;font-size:10px;font-weight:900;letter-spacing:0;text-align:center;line-height:1.1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .prod-card{
@@ -1046,7 +1046,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
 
   var shapeSvg = shapeSvgForCard(item, segs);
   var elementName = String(item.struct_element || item.structElement || item.element_name || item.elementName || item.element || '').trim();
-  var printRef = escapeHtml(elementName || SHORT_REF || CUSTOMER || ORDER_NUM);
+  var refExtra = elementName || SHORT_REF || CUSTOMER || '';
+  var printRef = escapeHtml(itemOrderLineLabel(item)) + (refExtra ? ' · ' + escapeHtml(refExtra) : '');
   var useExactPileDimensions = Boolean(item.pile_component_type || item.pile_card_type === 'pile_assembly');
   var unitLengthCm = useExactPileDimensions
     ? displayPileLengthCmExact(Number(item.unit_length_mm || item.total_length_mm || 0))
@@ -1063,16 +1064,17 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += splitTools;
   h += '<div class="pc-print-face">';
   h += '<div class="pc-print-main">';
-  var orderShort = (ORDER_NUM.match(/\d/g) || []).join('').slice(-3);
-  var headMeta = [orderShort ? '#' + orderShort : '', CUSTOMER].filter(Boolean).join(' · ');
-  h += '<div class="pc-print-head"><b style="white-space:nowrap">'+escapeHtml(itemOrderLineLabel(item))+badge+'</b><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:9px;font-weight:700;opacity:0.85;letter-spacing:0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(headMeta)+'</span><b style="white-space:nowrap">Ø '+escapeHtml(diameterLabel)+'</b></span></div>';
+  var orderShort = (ORDER_NUM.match(/[0-9]/g) || []).join('').slice(-3);
+  var orderLabel = orderShort ? '#' + orderShort : ORDER_NUM;
+  // Header leads with the order number; the item number moves to the line below.
+  h += '<div class="pc-print-head"><b style="white-space:nowrap">'+escapeHtml(orderLabel)+badge+'</b><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:9px;font-weight:700;opacity:0.85;letter-spacing:0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(CUSTOMER)+'</span><b style="white-space:nowrap">Ø '+escapeHtml(diameterLabel)+'</b></span></div>';
   h += '<div class="pc-print-ref">'+printRef+'</div>';
   h += '<div class="pc-print-shape">'+shapeSvg+'</div>';
   h += isPileAssembly
     ? '<div class="pc-print-bottom"><span>L = '+unitLengthCm+' cm</span><span>CAGES '+displayQty+'</span><span>'+wProp+' kg</span></div>'
     : '<div class="pc-print-bottom"><span>UNIT '+unitLengthCm+' cm</span><span>PCS '+displayQty+'</span><span>TOTAL '+totalLengthCm+' cm</span><span>'+wProp+' kg</span></div>';
   h += '</div>';
-  h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div><div class="pc-print-status">SCAN STATUS</div></div>';
+  h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div></div>';
   h += '</div>';
   h += '<div class="pc-head">';
   h += '<div><div class="pc-title">'+badge+escapeHtml(title)+'</div><div class="pc-date">'+escapeHtml(shapeSubtitle)+' · '+PRINT_DATE+'</div></div>';

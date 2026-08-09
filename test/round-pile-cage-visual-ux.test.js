@@ -214,7 +214,6 @@ test('dynamic print renders exactly five QR/status cards with canonical componen
   assert.match(hoop, /data-shape-kind="pile-hoop-component"/); assert.match(hoop, /PCS 5/); assert.match(hoop, /UNIT 131\.9 cm/); assert.match(hoop, /TOTAL 659\.5 cm/); assert.match(hoop, /data-spiral-diameter-mm="420"/); assert.match(hoop, /Ø 420 מ"מ/);
   for (const card of cards) {
     assert.match(card, /data-worker-card-url=/);
-    assert.match(card, /SCAN STATUS/);
     assert.doesNotMatch(card, /#2563eb|#c9621a|#9a4b10/i);
   }
 });
