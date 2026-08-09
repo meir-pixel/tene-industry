@@ -2586,7 +2586,7 @@ class ShapeEditorModal {
           <span>סה״כ אורך</span>
           <div>
             <strong id="sePanelTotalMm">0</strong>
-            <small>מ״מ</small>
+            <small>ס״מ</small>
           </div>
         </div>
         <div class="se-panel-summary-item">
@@ -2606,7 +2606,7 @@ class ShapeEditorModal {
           <thead id="seTableHead">
             <tr>
               <th style="width:32px">#</th>
-              <th>אורך (מ"מ)</th>
+              <th>אורך (ס"מ)</th>
               <th>זווית כיפוף</th>
               <th style="width:32px"></th>
             </tr>
@@ -2625,7 +2625,7 @@ class ShapeEditorModal {
     <!-- Normal footer -->
     <div id="seFootNormal" style="display:flex;width:100%;justify-content:space-between;gap:12px;align-items:center;">
       <div class="se-bottom-summary" aria-live="polite">
-        <div class="se-summary-item primary"><span>סה״כ אורך</span><div><strong id="sePerimeter">0</strong><small>מ״מ</small></div></div>
+        <div class="se-summary-item primary"><span>סה״כ אורך</span><div><strong id="sePerimeter">0</strong><small>ס״מ</small></div></div>
         <div class="se-summary-item"><span>אורך במטר</span><div><strong id="seBarLength">0.00</strong><small>מטר</small></div></div>
         <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
         <div class="se-summary-item se-quantity-item" style="display:none"><span>כמות</span><div><input id="seQuantityInput" class="se-quantity-input" type="number" min="1" step="1" value="1" onfocus="this.select()" oninput="window._seEditor?._setQuantity(this.value)"><small>יח׳</small></div></div>
@@ -3296,7 +3296,7 @@ class ShapeEditorModal {
     this.current.quantity = qty;
     const bends = Array.isArray(this.current.angles) ? this.current.angles.length : (Array.isArray(this.current.spiralZones) ? this.current.spiralZones.length : 0);
     const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
-    set('sePerimeter', totalMm.toLocaleString('he-IL'));
+    set('sePerimeter', (totalMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }));
     set('seBarLength', (totalMm / 1000).toFixed(2));
     set('seTotalWeight', weightKg.toFixed(2));
     const qtyInput = document.getElementById('seQuantityInput');
@@ -3310,7 +3310,7 @@ class ShapeEditorModal {
     const straightQuantityInput = document.getElementById('seStraightQuantityInput');
     if (straightQuantityInput && document.activeElement !== straightQuantityInput) straightQuantityInput.value = String(qty);
     set('seBends', bends);
-    set('sePanelTotalMm', totalMm.toLocaleString('he-IL'));
+    set('sePanelTotalMm', (totalMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }));
     set('sePanelTotalM', (totalMm / 1000).toFixed(2));
     set('sePanelBends', bends);
   }
@@ -3330,7 +3330,8 @@ class ShapeEditorModal {
 
   _setStraightLength(value) {
     if (!this.current) return;
-    this.current.sides = [Math.max(1, Number(value) || 1)];
+    // Input is centimeters; sides are stored in millimeters.
+    this.current.sides = [Math.max(1, Math.round((Number(value) || 0) * 10)) || 10];
     this.current.angles = [];
     this.current.is3d = 0;
     this.current.azAngles = [0];
@@ -3802,7 +3803,7 @@ class ShapeEditorModal {
           <tr class="se-family-row se-straight-bar-row" data-straight-bar-editor>
             <td colspan="4">
               <div class="se-straight-bar-fields">
-                ${this._fieldShell({ icon:'L', label:'Length', unit:'mm', example:'1000', focusKey:'bar-side-0', code:'L', input:`<input id="seStraightLengthInput" class="se-input" type="number" min="1" max="20000" value="${this.current.sides[0]}" data-side="0" onfocus="window._seEditor._focusRow(0, false)" oninput="window._seEditor._setStraightLength(this.value)">` })}
+                ${this._fieldShell({ icon:'L', label:'אורך', unit:'ס״מ', example:'100', focusKey:'bar-side-0', code:'L', input:`<input id="seStraightLengthInput" class="se-input" type="number" min="1" max="2000" value="${this.current.sides[0] / 10}" data-side="0" onfocus="window._seEditor._focusRow(0, false)" oninput="window._seEditor._setStraightLength(this.value)">` })}
                 ${this._fieldShell({ icon:'Ø', label:'Diameter', unit:'mm', example:'12', focusKey:'bar-diameter', code:'D', input:`<input id="seStraightDiameterInput" class="se-input" type="number" min="1" max="40" value="${this.current.diameter}" oninput="window._seEditor._setStraightDiameter(this.value)">` })}
                 ${this._fieldShell({ icon:'N', label:'Quantity', unit:'units', example:'1', focusKey:'bar-quantity', code:'Q', input:`<input id="seStraightQuantityInput" class="se-input" type="number" min="1" step="1" value="${this.current.quantity}" oninput="window._seEditor._setStraightQuantity(this.value)">` })}
               </div>
@@ -3855,7 +3856,7 @@ class ShapeEditorModal {
         html += `
           <tr>
             <td><span class="se-seg-label">${i + 1}</span></td>
-            <td>${this._fieldShell({ icon:'📏', label:'אורך', unit:'מ״מ', example:'לדוגמה 300', input:`<input class="se-input" type="number" min="1" max="20000" value="${sides[i]}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
+            <td>${this._fieldShell({ icon:'📏', label:'אורך', unit:'ס״מ', example:'לדוגמה 30', input:`<input class="se-input" type="number" min="1" max="2000" value="${sides[i] / 10}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
             <td>
               ${i === 0
                 ? `<span class="se-no-bend">&mdash;</span>`
@@ -3870,7 +3871,7 @@ class ShapeEditorModal {
         html += `
           <tr class="se-side-row">
             <td><span class="se-seg-label">${letter}</span></td>
-            <td class="se-length-cell">${this._fieldShell({ icon:'📏', label:'אורך', unit:'מ״מ', example:'לדוגמה 300', input:`<input class="se-input" type="number" min="1" max="20000" value="${sides[i]}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
+            <td class="se-length-cell">${this._fieldShell({ icon:'📏', label:'אורך', unit:'ס״מ', example:'לדוגמה 30', input:`<input class="se-input" type="number" min="1" max="2000" value="${sides[i] / 10}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
             <td class="se-angle-cell ${i < angles.length ? '' : 'se-empty-cell'}">${i < angles.length
               ? this._fieldShell({ icon:'∠', label:'זווית', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" data-angle="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAngle(${i}, this.value)">` })
               : '<span class="se-no-bend">&mdash;</span>'}</td>
@@ -3953,7 +3954,8 @@ class ShapeEditorModal {
 
   _setSide(i, val) {
     if (!this.current) return;
-    this.current.sides[i] = Math.max(1, Number(val) || 1);
+    // Input is centimeters; sides are stored in millimeters.
+    this.current.sides[i] = Math.max(1, Math.round((Number(val) || 0) * 10)) || 10;
     this._updatePreview();
   }
 
