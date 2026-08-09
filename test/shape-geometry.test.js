@@ -422,7 +422,7 @@ test('shape editor exposes editable order item quantity outside the shape contra
 });
 
 
-test('shape editor has a simple Straight Bar mode that saves Shape V2 straight_bar', () => {
+test('shape editor edits a straight bar with the unified bar layout and saves Shape V2 straight_bar', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
   const contract = buildShapeDataContractV2({
@@ -433,11 +433,13 @@ test('shape editor has a simple Straight Bar mode that saves Shape V2 straight_b
     quantity: 7,
   });
 
-  assert.match(editor, /data-straight-bar-editor/);
-  assert.match(editor, /id="seStraightLengthInput"/);
-  assert.match(editor, /id="seStraightDiameterInput"/);
-  assert.match(editor, /id="seStraightQuantityInput"/);
-  assert.match(editor, /_setStraightLength\(value\)/);
+  // Straight and bent bars share one layout: the side table (in cm) plus a
+  // diameter and quantity field in the footer — no separate straight-bar form.
+  assert.match(editor, /data-side="\$\{i\}"/);
+  assert.match(editor, /id="seDiameterSelect"/);
+  assert.match(editor, /id="seQuantityInput"/);
+  assert.match(editor, /_setSide\(i, val\)/);
+  assert.doesNotMatch(editor, /id="seStraightLengthInput"/);
   assert.equal(contract.contractVersion, 2);
   assert.equal(contract.family, 'bars');
   assert.equal(contract.shapeType, 'straight_bar');

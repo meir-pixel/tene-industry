@@ -3363,8 +3363,12 @@ class ShapeEditorModal {
     if (modeNote) modeNote.style.display = isBars ? '' : 'none';
     if (summary) summary.style.display = isBars ? '' : 'none';
     if (title) title.textContent = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : 'מידות צלעות וזוויות';
+    // Diameter and quantity live in the footer for bar shapes so every bar —
+    // straight or bent — is edited the same way.
     const diaItem = document.getElementById('seDiameterItem');
-    if (diaItem) diaItem.style.display = 'none';
+    if (diaItem) diaItem.style.display = isBars ? '' : 'none';
+    const qtyItem = document.querySelector('#seModal .se-quantity-item');
+    if (qtyItem) qtyItem.style.display = isBars ? '' : 'none';
   }
 
   _renderMeshEditor() {
@@ -3785,33 +3789,16 @@ class ShapeEditorModal {
     const addButton = document.getElementById('seAddSide');
     if (addRow) addRow.style.display = '';
     if (addButton) addButton.textContent = isStraightBar ? '+ \u05d4\u05d5\u05e1\u05e3 \u05e6\u05dc\u05e2 / \u05db\u05d9\u05e4\u05d5\u05e3' : '+ \u05d4\u05d5\u05e1\u05e3 \u05e6\u05dc\u05e2';
-    if (isStraightBar) {
-      this.current.family = 'bars';
-      this.current.shapeType = 'straight_bar';
-      this.current.sides = [Math.max(1, Number(sides[0]) || 1000)];
+    // All bars — straight or bent — use one layout: the side table plus a
+    // diameter and quantity field in the footer. A straight bar is simply a
+    // one-side bar, so it renders here too (no separate English mini-form).
+    this.current.family = 'bars';
+    this.current.diameter = Number(this.current.diameter) || 12;
+    this.current.quantity = Math.max(1, Number(this.current.quantity || this._pendingQuantity || 1) || 1);
+    if (!Array.isArray(sides) || !sides.length) {
+      this.current.sides = [1000];
       this.current.angles = [];
-      this.current.diameter = Number(this.current.diameter) || 12;
-      this.current.quantity = Math.max(1, Number(this.current.quantity || this._pendingQuantity || 1) || 1);
-      const thead = document.getElementById('seTableHead');
-      if (thead) {
-        thead.style.display = '';
-        thead.innerHTML = '<tr><th colspan="4">Straight Bar</th></tr>';
-      }
-      const body = document.getElementById('seTableBody');
-      if (body) {
-        body.innerHTML = `
-          <tr class="se-family-row se-straight-bar-row" data-straight-bar-editor>
-            <td colspan="4">
-              <div class="se-straight-bar-fields">
-                ${this._fieldShell({ icon:'L', label:'אורך', unit:'ס״מ', example:'100', focusKey:'bar-side-0', code:'L', input:`<input id="seStraightLengthInput" class="se-input" type="number" min="1" max="2000" value="${this.current.sides[0] / 10}" data-side="0" onfocus="window._seEditor._focusRow(0, false)" oninput="window._seEditor._setStraightLength(this.value)">` })}
-                ${this._fieldShell({ icon:'Ø', label:'Diameter', unit:'mm', example:'12', focusKey:'bar-diameter', code:'D', input:`<input id="seStraightDiameterInput" class="se-input" type="number" min="1" max="40" value="${this.current.diameter}" oninput="window._seEditor._setStraightDiameter(this.value)">` })}
-                ${this._fieldShell({ icon:'N', label:'Quantity', unit:'units', example:'1', focusKey:'bar-quantity', code:'Q', input:`<input id="seStraightQuantityInput" class="se-input" type="number" min="1" step="1" value="${this.current.quantity}" oninput="window._seEditor._setStraightQuantity(this.value)">` })}
-              </div>
-            </td>
-          </tr>`;
-      }
-      this._updateSummaryValues();
-      return;
+      ({ sides, angles } = this.current);
     }
     const toggle = document.getElementById('seReal3DToggle');
     if (toggle) toggle.checked = isReal3D;
@@ -3839,7 +3826,7 @@ class ShapeEditorModal {
       } else {
         thead.innerHTML = `<tr>
           <th style="width:32px">#</th>
-          <th>אורך צלע</th>
+          <th>אורך צלע (ס״מ)</th>
           <th>זווית כיפוף</th>
           <th style="width:32px"></th>
         </tr>`;
