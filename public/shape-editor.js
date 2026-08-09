@@ -2670,6 +2670,8 @@ class ShapeEditorModal {
       if (e.target === this._el && this._backdropPress && Date.now() - (this._openedAt || 0) > 400) this.close();
       this._backdropPress = false;
     });
+    // Keyboard-only shape entry (delegated; survives side-row rebuilds).
+    this._el.addEventListener('keydown', e => this._handleShapeKbd(e));
     this._bindDragRotation();
     this._bindWheelZoom();
     this._initShapeTooltip();
@@ -3946,6 +3948,76 @@ class ShapeEditorModal {
     this._updatePreview();
   }
 
+  // Focus the first side length input once the editor is open. Tried through a
+  // couple of timers so it lands regardless of render/paint timing.
+  _focusFirstSideSoon() {
+    const focus = () => {
+      const first = this._el && this._el.querySelector('#seTableBody .se-input[data-side]');
+      if (first && document.activeElement !== first) {
+        first.focus();
+        if (typeof first.select === 'function') { try { first.select(); } catch (_) {} }
+      }
+    };
+    requestAnimationFrame(focus);
+    setTimeout(focus, 40);
+    setTimeout(focus, 160);
+  }
+
+  _sideInputs() {
+    return this._el ? Array.from(this._el.querySelectorAll('#seTableBody .se-input[data-side]')) : [];
+  }
+  _focusSide(input) {
+    if (input) { input.focus(); if (typeof input.select === 'function') input.select(); }
+  }
+
+  // One keyboard rhythm for building a shape: type a side length, Enter adds
+  // the next side; Shift+Enter jumps to the diameter; Enter there moves to the
+  // quantity; Enter there confirms. Up/Down move between side rows to fix.
+  _handleShapeKbd(e) {
+    if (!this.current) return;
+    const t = e.target;
+    const isSide = t && t.hasAttribute && t.hasAttribute('data-side');
+    const isAngle = t && t.hasAttribute && (t.hasAttribute('data-angle') || t.hasAttribute('data-az') || t.hasAttribute('data-el'));
+    const isDia = t && t.id === 'seDiameterSelect';
+    const isQty = t && t.id === 'seQuantityInput';
+    if (!isSide && !isAngle && !isDia && !isQty) return;
+
+    if (e.key === 'Enter' && e.shiftKey) {
+      const dia = document.getElementById('seDiameterSelect');
+      if (dia && dia.offsetParent !== null) { e.preventDefault(); dia.focus(); }
+      return;
+    }
+    if (e.key === 'Enter') {
+      if (isSide) {
+        e.preventDefault();
+        this._addSide();
+        const inputs = this._sideInputs();
+        this._focusSide(inputs[inputs.length - 1]);
+        return;
+      }
+      if (isAngle) {
+        e.preventDefault();
+        const idx = Number(t.getAttribute('data-angle') ?? t.getAttribute('data-az') ?? t.getAttribute('data-el'));
+        const next = this._el.querySelector(`#seTableBody .se-input[data-side="${idx + 1}"]`);
+        if (next) { this._focusSide(next); }
+        else { this._addSide(); const inputs = this._sideInputs(); this._focusSide(inputs[inputs.length - 1]); }
+        return;
+      }
+      if (isDia) {
+        const q = document.getElementById('seQuantityInput');
+        if (q && q.offsetParent !== null) { e.preventDefault(); q.focus(); if (q.select) q.select(); }
+        return;
+      }
+      if (isQty) { e.preventDefault(); this._confirm(); return; }
+    }
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && isSide) {
+      const inputs = this._sideInputs();
+      const i = inputs.indexOf(t);
+      const target = e.key === 'ArrowDown' ? inputs[i + 1] : inputs[i - 1];
+      if (target) { e.preventDefault(); this._focusSide(target); }
+    }
+  }
+
   _setAngle(i, val) {
     if (!this.current) return;
     const raw = Math.min(360, Math.max(-360, Number(val) || 90));
@@ -4423,6 +4495,7 @@ class ShapeEditorModal {
     }
     this._el.classList.add('show');
     document.body.classList.add('se-open');
+    this._focusFirstSideSoon();
   }
 
   close() {
