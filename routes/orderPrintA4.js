@@ -143,10 +143,11 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
     shape_svg:      productionCards.itemShapeSvg(it),
   })));
 
-  // Split the item table so each diameter starts on its own printed page —
-  // one sheet per bending machine / operator. Default on; ?split_by_diameter=0
-  // renders the classic continuous table.
-  const splitByDiameter = String(req.query.split_by_diameter ?? '1') !== '0';
+  // Optional mode: split the item table so each diameter starts on its own
+  // printed page — one sheet per bending machine / operator. Default OFF: the
+  // classic sheet keeps items in their entered order. ?split_by_diameter=1
+  // (or the toolbar toggle) turns grouping on.
+  const splitByDiameter = String(req.query.split_by_diameter || '') === '1';
   const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const totalWeight  = (order.total_weight || 0).toFixed(1);
   const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON });
@@ -393,13 +394,43 @@ function itemRowHtml(it, uid) {
     '<td><span class="check-box"></span></td>';
 }
 
+function buildFlatTable() {
+  // Original mode: items in their entered order, one table, one total row.
+  var tbody = document.getElementById('tableBody');
+  var totalQty = 0, totalWt = 0;
+  for (var i=0; i<allItems.length; i++) {
+    var it = allItems[i];
+    totalQty += it.quantity; totalWt += (it.total_weight||0);
+    var row = document.createElement('tr');
+    row.innerHTML = itemRowHtml(it, 'sv'+i);
+    tbody.appendChild(row);
+    if (it.note) {
+      var noteRow = document.createElement('tr');
+      noteRow.className = 'note-row';
+      noteRow.innerHTML = '<td colspan="8">⚠ '+it.note+'</td>';
+      tbody.appendChild(noteRow);
+    }
+  }
+  var totRow = document.createElement('tr');
+  totRow.className = 'totals-row';
+  totRow.innerHTML =
+    '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ</td>'+
+    '<td>'+totalQty+'</td>'+
+    '<td>'+totalWt.toFixed(1)+'</td>'+
+    '<td></td>';
+  tbody.appendChild(totRow);
+}
+
 function buildTable() {
+  if (!splitByDiameter) { buildFlatTable(); return; }
+
   var table = document.getElementById('itemsTable');
   var oldBody = document.getElementById('tableBody');
   if (oldBody) oldBody.remove();
 
-  // Group items by diameter, ascending. Each group becomes its own <tbody> so
-  // it can start on a fresh printed page while the header row repeats.
+  // By-diameter mode: group items by diameter (ascending). Each group becomes
+  // its own <tbody> so it can start on a fresh printed page while the header
+  // row repeats.
   var groups = {};
   var order = [];
   for (var i=0; i<allItems.length; i++) {
