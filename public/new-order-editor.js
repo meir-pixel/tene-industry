@@ -980,7 +980,10 @@
 
   function minRenderAddRow(nextNum) {
     const palletId = (pallets && pallets[0]) ? pallets[0].id : 0;
-    return '<div class="order-line-add-row"><button type="button" class="line-add-btn" onclick="window.addEmptyRow(' + palletId + ')" title="\u05d4\u05d5\u05e1\u05e3 \u05e9\u05d5\u05e8\u05d4">+ \u05d4\u05d5\u05e1\u05e3</button></div>';
+    // Adding an item opens the shape editor directly \u2014 the whole item (sides,
+    // diameter, quantity) is entered there with the keyboard.
+    const addCall = (typeof window.addItem === 'function' ? 'window.addItem(' : 'window.addEmptyRow(') + palletId + ')';
+    return '<div class="order-line-add-row"><button type="button" class="line-add-btn" onclick="' + addCall + '" title="\u05d4\u05d5\u05e1\u05e3 \u05e4\u05e8\u05d9\u05d8">+ \u05d4\u05d5\u05e1\u05e3 \u05e4\u05e8\u05d9\u05d8</button></div>';
   }
 
   function lineContract(item = {}) { return typeof window.itemShapeContract === 'function' ? window.itemShapeContract(item) : null; }
