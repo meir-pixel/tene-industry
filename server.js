@@ -25,6 +25,7 @@ const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = req
 const statusContracts = require('./status-contracts');
 const constants = require('./constants');
 const productionCards = require('./services/productionCards');
+const productionActuals = require('./services/productionActuals');
 const { createOrderNumberAllocator } = require('./services/orderNumbers');
 const { ensureCoreSchema, runCoreMigrations, seedCoreData } = require('./db/startup');
 const { createRealtimeServer } = require('./realtime/ws');
@@ -470,6 +471,7 @@ app.use('/api', requireModule('production'), createProductionCardsRouter({
   normalizeFactorySegments,
   normalizeFactoryShapeName,
   statusContracts,
+  productionActuals,
 }));
 
 app.use('/api', requireModule('production'), createOrderDocumentsRouter({
@@ -548,6 +550,7 @@ app.use('/api', requireModule('production'), createProductionRouter({
   STATE_TRANSITIONS,
   checkOrderComplete,
   tryParseJSON,
+  productionActuals,
 }));
 
 app.use('/api', requireModule('production'), createProductionMetricsRouter({
@@ -555,6 +558,7 @@ app.use('/api', requireModule('production'), createProductionMetricsRouter({
   requireAnyRole,
   requireRole,
   statusContracts,
+  productionActuals,
 }));
 
 app.use('/api', requireModule('production'), createProductionShiftsRouter({
@@ -766,6 +770,7 @@ app.use('/api', requireModule('reports'), createReportsRouter({
   requireAnyRole,
   statusContracts,
   ai,
+  productionActuals,
 }));
 
 app.use('/api', requireModule('production'), createCatalogRouter({

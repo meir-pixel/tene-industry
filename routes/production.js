@@ -19,6 +19,7 @@ module.exports = function createProductionRouter(deps) {
   const STATE_TRANSITIONS = required('STATE_TRANSITIONS', deps.STATE_TRANSITIONS);
   const checkOrderComplete = required('checkOrderComplete', deps.checkOrderComplete);
   const tryParseJSON = required('tryParseJSON', deps.tryParseJSON);
+  const productionActuals = required('productionActuals', deps.productionActuals);
   const { ORDER_STATUS, ITEM_STATUS } = statusContracts;
 
   const productionOrderGateStatuses = new Set([
@@ -240,6 +241,7 @@ module.exports = function createProductionRouter(deps) {
     if (!item) return;
     const { produced_qty, actual_weight_kg, note } = req.body || {};
     const fields = [], vals = [];
+    let previousActualWeight = null;
     let nextItemStatus = null;
     function addStatusUpdate(nextStatus) {
       if (nextStatus === ITEM_STATUS.IN_PRODUCTION && !isProductionGateOpen(item)) {
@@ -266,6 +268,7 @@ module.exports = function createProductionRouter(deps) {
     if (actual_weight_kg !== undefined) {
       const actualWeight = Number(actual_weight_kg);
       if (!Number.isFinite(actualWeight) || actualWeight < 0) return res.status(400).json({ error: 'invalid actual_weight_kg' });
+      previousActualWeight = Number(item.actual_weight_kg) || 0;
       const targetWeight = Number(item.total_weight) || 0;
       const deviationPct = targetWeight > 0 ? ((actualWeight - targetWeight) / targetWeight) * 100 : null;
       fields.push('actual_weight_kg=?'); vals.push(actualWeight);
@@ -274,7 +277,19 @@ module.exports = function createProductionRouter(deps) {
     if (note !== undefined) { fields.push('note=?'); vals.push(note); }
     if (!fields.length) return res.json({ ok: true });
     vals.push(req.params.id);
-    db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);
+    db.transaction(() => {
+      db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);
+      if (actual_weight_kg !== undefined) {
+        productionActuals.recordActualWeightChange(db, {
+          itemId: Number(req.params.id),
+          orderId: item.order_id,
+          beforeKg: previousActualWeight,
+          afterKg: Number(actual_weight_kg),
+          source: 'public_worker_card',
+          metadata: { worker_card: true },
+        });
+      }
+    })();
     if (nextItemStatus) {
       const savedItem = db.prepare(`
         SELECT i.*, p.order_id, o.order_num, o.status AS order_status
@@ -427,6 +442,7 @@ module.exports = function createProductionRouter(deps) {
     const fields = [], vals = [];
     let loadedItem = null;
     let nextItemStatus = null;
+    let previousActualWeight = null;
 
     function loadProductionItem() {
       if (!loadedItem) {
@@ -491,6 +507,7 @@ module.exports = function createProductionRouter(deps) {
       if (!Number.isFinite(actualWeight) || actualWeight < 0) return res.status(400).json({ error: 'invalid actual_weight_kg' });
       const item = loadProductionItem();
       if (!item) return res.status(404).json({ error: 'not found' });
+      previousActualWeight = Number(item.actual_weight_kg) || 0;
       const targetWeight = Number(item.total_weight) || 0;
       const deviationPct = targetWeight > 0 ? ((actualWeight - targetWeight) / targetWeight) * 100 : null;
       fields.push('actual_weight_kg=?'); vals.push(actualWeight);
@@ -504,7 +521,20 @@ module.exports = function createProductionRouter(deps) {
     }
     if (!fields.length) return res.json({ ok: true });
     vals.push(req.params.id);
-    db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);
+    db.transaction(() => {
+      db.prepare(`UPDATE items SET ${fields.join(',')} WHERE id=?`).run(...vals);
+      if (actual_weight_kg !== undefined) {
+        productionActuals.recordActualWeightChange(db, {
+          itemId: Number(req.params.id),
+          orderId: loadedItem?.order_id,
+          beforeKg: previousActualWeight,
+          afterKg: Number(actual_weight_kg),
+          source: 'production_item_patch',
+          actorId: req.auth?.sub || null,
+          metadata: { status: nextItemStatus || loadedItem?.status || null },
+        });
+      }
+    })();
 
     const savedItem = nextItemStatus ? db.prepare(`
       SELECT i.*, p.order_id, o.order_num, o.status AS order_status

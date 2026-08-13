@@ -156,6 +156,29 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.equal(item.weight_deviation_pct, null);
   });
 
+  await t.test('production card measured weight writes one daily actual-output delta', async () => {
+    const approved = seedOrderWithItem('PB-ACTUAL-CARD-WEIGHT', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
+    const response = await request(`/api/orders/${approved.orderId}/production-card-weight`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ item_id: approved.itemId, card_index: 1, card_total: 1, card_qty: 5, actual_weight_kg: 12.75 }),
+    });
+    assert.equal(response.status, 200);
+    const item = db.prepare('SELECT actual_weight_kg FROM items WHERE id=?').get(approved.itemId);
+    assert.equal(item.actual_weight_kg, 12.75);
+    const event = db.prepare(`
+      SELECT source,before_weight_kg,after_weight_kg,delta_weight_kg,production_day
+      FROM production_output_events WHERE item_id=?
+    `).get(approved.itemId);
+    assert.deepEqual({
+      source: event.source,
+      before: event.before_weight_kg,
+      after: event.after_weight_kg,
+      delta: event.delta_weight_kg,
+    }, { source: 'production_card_weight', before: 0, after: 12.75, delta: 12.75 });
+    assert.match(event.production_day, /^\d{4}-\d{2}-\d{2}$/);
+  });
+
   await t.test('production item patch rejects non-production fields and preserves owned data', async () => {
     const approved = seedOrderWithItem('PB-APPROVED-PATCH', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
     const before = db.prepare('SELECT quantity,segments,shape_snapshot_json,total_weight,package_id,zone FROM items WHERE id=?').get(approved.itemId);
@@ -263,6 +286,8 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.equal(item.actual_weight_kg, 10);
     assert.equal(item.note, 'public scan update');
     assert.equal(item.status, statusContracts.ITEM_STATUS.IN_PRODUCTION);
+    const event = db.prepare('SELECT source,delta_weight_kg FROM production_output_events WHERE item_id=?').get(approved.itemId);
+    assert.deepEqual(event, { source: 'public_worker_card', delta_weight_kg: 10 });
   });
 
   await t.test('public scanned worker card rejects mismatched tokens and non-production fields', async () => {

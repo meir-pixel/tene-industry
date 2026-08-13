@@ -1068,7 +1068,8 @@ test('production KPI routes are split out of production execution', () => {
     assert.ok(route.includes(routeSnippet), routeSnippet);
     assert.ok(!production.includes(routeSnippet), routeSnippet);
   }
-  assert.match(route, /statusContracts[.]ITEM_STATUS[.]DONE/);
+  assert.match(route, /productionActuals[.]getDailyProductionActuals/);
+  assert.doesNotMatch(route, /SUM\(i[.]total_weight\)/);
   assert.match(server, /createProductionMetricsRouter/);
   assert.ok(server.includes("app.use('/api', requireModule('production'), createProductionMetricsRouter"));
   assert.doesNotMatch(server, /app\.(get|post|patch|delete)\('\/api\/(?:kpi\/tons-today|kpi\/shift-summary|machines\/oee)/);

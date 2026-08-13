@@ -15,6 +15,7 @@ module.exports = function createProductionCardsRouter(deps) {
   const normalizeFactorySegments = required('normalizeFactorySegments', deps.normalizeFactorySegments);
   const normalizeFactoryShapeName = required('normalizeFactoryShapeName', deps.normalizeFactoryShapeName);
   const statusContracts = required('statusContracts', deps.statusContracts);
+  const productionActuals = required('productionActuals', deps.productionActuals);
   const { ORDER_STATUS } = statusContracts;
   const productionCardOrderGateStatuses = new Set([
     ORDER_STATUS.APPROVED_WAITING_PRODUCTION,
@@ -127,31 +128,45 @@ router.patch('/orders/:orderId/production-card-weight', requireAnyRole(['product
     : targetWeight / cardTotal;
   const deviationPct = targetCardWeight > 0 ? ((actualWeight - targetCardWeight) / targetCardWeight) * 100 : null;
 
-  db.prepare('DELETE FROM production_card_weights WHERE item_id=? AND card_total<>?').run(itemId, cardTotal);
-  db.prepare(`
-    INSERT INTO production_card_weights
-      (order_id,item_id,card_index,card_total,card_qty,target_weight_kg,actual_weight_kg,weight_deviation_pct,updated_by,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
-    ON CONFLICT(item_id, card_index, card_total) DO UPDATE SET
-      order_id=excluded.order_id,
-      card_qty=excluded.card_qty,
-      target_weight_kg=excluded.target_weight_kg,
-      actual_weight_kg=excluded.actual_weight_kg,
-      weight_deviation_pct=excluded.weight_deviation_pct,
-      updated_by=excluded.updated_by,
-      updated_at=CURRENT_TIMESTAMP
-  `).run(orderId, itemId, cardIndex, cardTotal, cardQty, targetCardWeight, actualWeight, deviationPct, req.auth?.sub || null);
+  const saveCardWeight = db.transaction(() => {
+    const previousItemActualWeight = Number(item.actual_weight_kg) || 0;
+    db.prepare('DELETE FROM production_card_weights WHERE item_id=? AND card_total<>?').run(itemId, cardTotal);
+    db.prepare(`
+      INSERT INTO production_card_weights
+        (order_id,item_id,card_index,card_total,card_qty,target_weight_kg,actual_weight_kg,weight_deviation_pct,updated_by,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+      ON CONFLICT(item_id, card_index, card_total) DO UPDATE SET
+        order_id=excluded.order_id,
+        card_qty=excluded.card_qty,
+        target_weight_kg=excluded.target_weight_kg,
+        actual_weight_kg=excluded.actual_weight_kg,
+        weight_deviation_pct=excluded.weight_deviation_pct,
+        updated_by=excluded.updated_by,
+        updated_at=CURRENT_TIMESTAMP
+    `).run(orderId, itemId, cardIndex, cardTotal, cardQty, targetCardWeight, actualWeight, deviationPct, req.auth?.sub || null);
 
-  const summary = db.prepare(`
-    SELECT COUNT(*) AS saved_cards, COALESCE(SUM(actual_weight_kg),0) AS actual_weight_kg
-    FROM production_card_weights
-    WHERE item_id=? AND card_total=?
-  `).get(itemId, cardTotal);
-  const itemActualWeight = Number(summary.actual_weight_kg) || 0;
-  const itemDeviationPct = targetWeight > 0 ? ((itemActualWeight - targetWeight) / targetWeight) * 100 : null;
-  db.prepare('UPDATE items SET actual_weight_kg=?, weight_deviation_pct=? WHERE id=?').run(itemActualWeight, itemDeviationPct, itemId);
+    const summary = db.prepare(`
+      SELECT COUNT(*) AS saved_cards, COALESCE(SUM(actual_weight_kg),0) AS actual_weight_kg
+      FROM production_card_weights
+      WHERE item_id=? AND card_total=?
+    `).get(itemId, cardTotal);
+    const itemActualWeight = Number(summary.actual_weight_kg) || 0;
+    const itemDeviationPct = targetWeight > 0 ? ((itemActualWeight - targetWeight) / targetWeight) * 100 : null;
+    db.prepare('UPDATE items SET actual_weight_kg=?, weight_deviation_pct=? WHERE id=?').run(itemActualWeight, itemDeviationPct, itemId);
+    productionActuals.recordActualWeightChange(db, {
+      itemId,
+      orderId,
+      beforeKg: previousItemActualWeight,
+      afterKg: itemActualWeight,
+      source: 'production_card_weight',
+      actorId: req.auth?.sub || null,
+      metadata: { card_index: cardIndex, card_total: cardTotal, card_qty: cardQty },
+    });
+    return { saved_cards: Number(summary.saved_cards) || 0, item_actual_weight_kg: itemActualWeight, item_deviation_pct: itemDeviationPct };
+  });
+  const summary = saveCardWeight();
 
-  res.json({ success: true, card_target_weight_kg: targetCardWeight, card_deviation_pct: deviationPct, item_actual_weight_kg: itemActualWeight, item_deviation_pct: itemDeviationPct, saved_cards: Number(summary.saved_cards) || 0, expected_cards: cardTotal });
+  res.json({ success: true, card_target_weight_kg: targetCardWeight, card_deviation_pct: deviationPct, item_actual_weight_kg: summary.item_actual_weight_kg, item_deviation_pct: summary.item_deviation_pct, saved_cards: summary.saved_cards, expected_cards: cardTotal });
 });
 
   return router;

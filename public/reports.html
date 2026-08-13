@@ -124,7 +124,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
     <div class="section-title">📊 סיכום תקופה</div>
     <div class="kpi-row" id="kpiRow">
       <div class="kpi"><div class="kpi-val">—</div><div class="kpi-lbl">הזמנות</div></div>
-      <div class="kpi"><div class="kpi-val">—</div><div class="kpi-lbl">טון ברזל</div></div>
+      <div class="kpi"><div class="kpi-val">—</div><div class="kpi-lbl">טון שיוצרו בפועל</div></div>
       <div class="kpi"><div class="kpi-val">—</div><div class="kpi-lbl">פחת ממוצע %</div></div>
       <div class="kpi"><div class="kpi-val">—</div><div class="kpi-lbl">לקוחות פעילים</div></div>
     </div>
@@ -137,7 +137,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
       <div class="chart-wrap"><canvas id="ordersChart"></canvas></div>
     </div>
     <div class="chart-card">
-      <div class="chart-title">⚖️ טון ברזל לפי יום</div>
+      <div class="chart-title">⚙️ ייצור בפועל לפי יום</div>
       <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
     </div>
     <div class="chart-card">
@@ -240,7 +240,7 @@ async function loadAll() {
   loadMarginTable();
   loadOEE();
   renderOrdersChart(summary.orders || []);
-  renderWeightChart(summary.orders || []);
+  renderWeightChart(summary.production || []);
   renderStatusChart(summary.byStatus || []);
   renderWasteChart(summary.waste || []);
   renderMachineEfficiency(summary.machineEfficiency || []);
@@ -253,13 +253,14 @@ function renderKPIs(data) {
   const waste = Array.isArray(data.waste) ? data.waste : [];
   const topCustomers = Array.isArray(data.topCustomers) ? data.topCustomers : [];
   const totalOrders   = orders.reduce((s, d) => s + num(d.count), 0);
-  const totalWeight   = orders.reduce((s, d) => s + num(d.weight), 0);
+  const production    = Array.isArray(data.production) ? data.production : [];
+  const totalWeight   = production.reduce((s, d) => s + num(d.actual_weight_kg), 0);
   const avgWaste      = waste.length ? (waste.reduce((s, w) => s + num(w.waste_pct), 0) / waste.length).toFixed(1) : 0;
   const customers     = topCustomers.length;
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi"><div class="kpi-val">${totalOrders}</div><div class="kpi-lbl">הזמנות</div></div>
-    <div class="kpi"><div class="kpi-val">${(totalWeight / 1000).toFixed(1)}</div><div class="kpi-lbl">טון ברזל</div></div>
+    <div class="kpi"><div class="kpi-val">${(totalWeight / 1000).toFixed(1)}</div><div class="kpi-lbl">טון ייצור</div></div>
     <div class="kpi"><div class="kpi-val">${avgWaste}%</div><div class="kpi-lbl">פחת ממוצע</div></div>
     <div class="kpi"><div class="kpi-val">${customers}</div><div class="kpi-lbl">לקוחות פעילים</div></div>
   `;
@@ -287,11 +288,11 @@ function renderOrdersChart(orders) {
   });
 }
 
-function renderWeightChart(orders) {
-  orders = Array.isArray(orders) ? orders : [];
+function renderWeightChart(production) {
+  production = Array.isArray(production) ? production : [];
   makeChart('weightChart', 'line', {
-    labels: orders.map(d => String(d.date || '').slice(5)),
-    datasets: [{ label: 'ק"ג', data: orders.map(d => Math.round(num(d.weight))), borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,0.1)', tension: 0.3, fill: true }],
+    labels: production.map(d => String(d.date || '').slice(5)),
+    datasets: [{ label: 'ק"ג ייצור (מדוד או תאורטי)', data: production.map(d => Math.round(num(d.actual_weight_kg))), borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,0.1)', tension: 0.3, fill: true }],
   });
 }
 

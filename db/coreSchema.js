@@ -608,6 +608,29 @@ function ensureCoreSchema(db) {
       FOREIGN KEY (item_id) REFERENCES items(id)
     );
 
+    -- Append-only measured-output ledger. Item and card records retain their
+    -- current value; this table preserves the real daily change that was
+    -- reported so a later correction cannot rewrite a past production day.
+    CREATE TABLE IF NOT EXISTS production_output_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_uid TEXT NOT NULL UNIQUE,
+      item_id INTEGER NOT NULL,
+      order_id INTEGER,
+      source TEXT NOT NULL,
+      before_weight_kg REAL NOT NULL,
+      after_weight_kg REAL NOT NULL,
+      delta_weight_kg REAL NOT NULL,
+      production_day TEXT NOT NULL,
+      occurred_at DATETIME NOT NULL,
+      actor_id INTEGER,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (item_id) REFERENCES items(id),
+      FOREIGN KEY (order_id) REFERENCES orders(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_production_output_events_day_item
+      ON production_output_events(production_day, item_id, id);
+
     CREATE TABLE IF NOT EXISTS machines (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,

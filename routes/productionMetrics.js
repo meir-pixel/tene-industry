@@ -10,19 +10,36 @@ module.exports = function createProductionMetricsRouter(deps) {
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const requireRole = required('requireRole', deps.requireRole);
   const statusContracts = required('statusContracts', deps.statusContracts);
+  const productionActuals = required('productionActuals', deps.productionActuals);
+
+  function selectedDay(req, res) {
+    const day = String(req.query?.date || productionActuals.israelDay()).trim();
+    if (!productionActuals.validDay(day)) {
+      res.status(400).json({ error: 'invalid_production_date' });
+      return null;
+    }
+    return day;
+  }
 
   router.get('/kpi/tons-today', requireRole('viewer'), (req, res) => {
-    const today = new Date().toISOString().slice(0,10);
-    const r = db.prepare(`
-      SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons
-      FROM items i
-      WHERE i.status=? AND DATE(i.completed_at)=?
-    `).get(statusContracts.ITEM_STATUS.DONE, today);
-    res.json({ tons: Math.round((r.tons || 0) * 10) / 10, date: today });
+    const day = selectedDay(req, res);
+    if (!day) return;
+    const actual = productionActuals.getDailyProductionActuals(db, day);
+    res.json({
+      tons: Math.round((actual.actual_tons || 0) * 10) / 10,
+      actual_weight_kg: actual.actual_weight_kg,
+      item_count: actual.item_count,
+      estimated_completed_items: actual.estimated_completed_items,
+      unweighed_completed_items: actual.unweighed_completed_items,
+      source_breakdown: actual.source_breakdown,
+      date: day,
+    });
   });
 
   router.get('/machines/oee', requireAnyRole(['production', 'maintenance', 'manager', 'admin']), (req, res) => {
-    const today = new Date().toISOString().slice(0,10);
+    const today = selectedDay(req, res);
+    if (!today) return;
+    const actualByMachine = new Map(productionActuals.getDailyProductionActuals(db, today).machines.map(row => [row.machine, row]));
     const machines = db.prepare('SELECT * FROM machines').all();
     const result = machines.map(m => {
       // Availability: 1 - downtime / shift_hours (assume 8h shift = 480 min)
@@ -42,10 +59,9 @@ module.exports = function createProductionMetricsRouter(deps) {
       ).get(today);
       const quality = qc && qc.t > 0 ? qc.p / qc.t : 1;
 
-      // Tons today
-      const tonsToday = db.prepare(
-        `SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons FROM items i WHERE i.machine=? AND DATE(i.completed_at)=?`
-      ).get(m.name, today).tons;
+      // Prefer measured output; completed items without a measurement use their
+      // saved theoretical weight and are exposed separately as estimates.
+      const tonsToday = Number(actualByMachine.get(m.name)?.tons) || 0;
 
       const oee = Math.round(availability * 1 * quality * 100); // simplified (no performance factor)
       return { ...m, availability: Math.round(availability*100), quality: Math.round(quality*100), oee, pieces_today: pieces, tons_today: tonsToday, downtime_min: stopMins };
@@ -54,7 +70,8 @@ module.exports = function createProductionMetricsRouter(deps) {
   });
 
   router.get('/kpi/shift-summary', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
-    const today = new Date().toISOString().slice(0,10);
+    const today = selectedDay(req, res);
+    if (!today) return;
     const now = new Date();
     const h = now.getHours();
     let shiftType = h >= 6 && h < 14 ? 'morning' : h >= 14 && h < 22 ? 'afternoon' : 'night';
@@ -83,10 +100,7 @@ module.exports = function createProductionMetricsRouter(deps) {
       LIMIT 20
     `).all(statusContracts.ITEM_STATUS.IN_PRODUCTION, statusContracts.ITEM_STATUS.WAITING);
 
-    const todayTons = db.prepare(`
-      SELECT COALESCE(SUM(i.total_weight),0)/1000 as tons
-      FROM items i WHERE i.status=? AND DATE(i.completed_at)=?
-    `).get(statusContracts.ITEM_STATUS.DONE, today);
+    const todayActual = productionActuals.getDailyProductionActuals(db, today);
 
     const stops = db.prepare(`
       SELECT ms.*, dr.label as reason_label, m.name as machine_name
@@ -100,7 +114,10 @@ module.exports = function createProductionMetricsRouter(deps) {
       shiftType,
       activeShifts,
       itemsInProd,
-      todayTons: Math.round((todayTons.tons || 0) * 10) / 10,
+      todayTons: Math.round((todayActual.actual_tons || 0) * 10) / 10,
+      todayActualWeightKg: todayActual.actual_weight_kg,
+      estimatedCompletedItems: todayActual.estimated_completed_items,
+      unweighedCompletedItems: todayActual.unweighed_completed_items,
       activeStops: stops
     });
   });

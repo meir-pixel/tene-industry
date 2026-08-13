@@ -356,19 +356,26 @@ module.exports = function createReportsRouter(deps) {
   const requireRole = required('requireRole', deps.requireRole);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const statusContracts = required('statusContracts', deps.statusContracts);
+  const productionActuals = required('productionActuals', deps.productionActuals);
 
   router.get('/dashboard', requireRole('viewer'), (req, res) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = productionActuals.israelDay();
+    const todayRange = productionActuals.dayRange(today);
+    const productionActual = productionActuals.getDailyProductionActuals(db, today);
     const doneItemStatus = statusContracts.ITEM_STATUS.DONE;
     const completedOrderStatus = statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP;
     const wasteData = db.prepare(`
       SELECT SUM(actual_waste) as totalWaste, SUM(quantity) as totalQty,
              COUNT(*) as completedItems
-      FROM items WHERE DATE(completed_at)=? AND status=?
-    `).get(today, doneItemStatus);
+      FROM items
+      WHERE datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?) AND status=?
+    `).get(todayRange.start, todayRange.end, doneItemStatus);
 
-    const completedItemsToday = db.prepare('SELECT * FROM items WHERE DATE(completed_at)=? AND status=?').all(today, doneItemStatus);
-    const producedWeightToday = sumShapeWeight(completedItemsToday);
+    const completedItemsToday = db.prepare(`
+      SELECT * FROM items
+      WHERE datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?) AND status=?
+    `).all(todayRange.start, todayRange.end, doneItemStatus);
+    const producedWeightToday = productionActual.actual_weight_kg;
     const productionToday = {
       completedItems: completedItemsToday.length,
       producedWeightToday,
@@ -377,9 +384,10 @@ module.exports = function createReportsRouter(deps) {
 
     const wasteByMachine = db.prepare(`
       SELECT i.machine, SUM(i.actual_waste) as waste, SUM(i.quantity) as qty
-      FROM items i WHERE DATE(i.completed_at)=? AND i.status=?
+      FROM items i
+      WHERE datetime(i.completed_at) >= datetime(?) AND datetime(i.completed_at) < datetime(?) AND i.status=?
       GROUP BY i.machine
-    `).all(today, doneItemStatus);
+    `).all(todayRange.start, todayRange.end, doneItemStatus);
 
     res.json({
       ordersToday:      db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=?").get(today).c,
@@ -391,6 +399,10 @@ module.exports = function createReportsRouter(deps) {
       totalWeightToday: shapeWeightForOrdersCreatedBetween(db, today, today),
       producedWeightToday: productionToday.producedWeightToday || 0,
       producedTonsToday: Math.round((productionToday.producedTonsToday || 0) * 10) / 10,
+      productionActualDate: today,
+      productionActualSources: productionActual.source_breakdown,
+      estimatedCompletedItems: productionActual.estimated_completed_items,
+      unweighedCompletedItems: productionActual.unweighed_completed_items,
       itemsInProduction:db.prepare("SELECT COUNT(*) as c FROM items WHERE status=?").get(statusContracts.ITEM_STATUS.IN_PRODUCTION).c,
       itemsDone:        productionToday.completedItems || 0,
       wasteAvgPct:      wasteData.totalQty > 0 ? ((wasteData.totalWaste / wasteData.totalQty) * 100).toFixed(1) : '0',
@@ -412,6 +424,7 @@ module.exports = function createReportsRouter(deps) {
       period: { from: fromDate, to: toDate },
       dataQuality: reportDataQuality(db, fromDate, toDate),
       orders: orderCreatedWeightByDate(db, fromDate, toDate),
+      production: productionActuals.getProductionActualSeries(db, fromDate, toDate),
       byStatus: db.prepare(`
         SELECT status, COUNT(*) as count FROM orders
         WHERE DATE(created_at) BETWEEN ? AND ? GROUP BY status

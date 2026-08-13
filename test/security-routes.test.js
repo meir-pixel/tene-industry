@@ -1014,9 +1014,9 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     reportShape.machineOutput.generic.totalLengthMm = 1000;
     reportShape.machineOutput.generic.weightKg = 0.888;
     db.prepare(`
-      INSERT INTO items (pallet_id,shape_id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,status,completed_at,machine,shape_snapshot_json)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(palletId, 's1', 'straight', 12, 1000, 3, 0.888, 25, statusContracts.ITEM_STATUS.DONE, new Date().toISOString(), 'A', JSON.stringify(reportShape));
+      INSERT INTO items (pallet_id,shape_id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,actual_weight_kg,status,completed_at,machine,shape_snapshot_json)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(palletId, 's1', 'straight', 12, 1000, 3, 0.888, 25, 2.664, statusContracts.ITEM_STATUS.DONE, new Date().toISOString(), 'A', JSON.stringify(reportShape));
 
     const dashboardResponse = await request('/api/dashboard', { headers: authHeaders(production) });
     assert.equal(dashboardResponse.status, 200);
