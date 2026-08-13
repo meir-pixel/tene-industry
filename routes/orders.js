@@ -441,6 +441,197 @@ module.exports = function createOrdersRouter(deps) {
     }
   });
 
+  function hasOrderProductionActivity(orderId) {
+    return Boolean(db.prepare(`
+      SELECT 1
+      FROM items i
+      JOIN pallets p ON p.id=i.pallet_id
+      WHERE p.order_id=?
+        AND (
+          COALESCE(i.produced_qty, 0) > 0
+          OR i.started_at IS NOT NULL
+          OR i.completed_at IS NOT NULL
+          OR i.status IN ('בייצור', 'הושלם', 'סופק')
+        )
+      LIMIT 1
+    `).get(orderId));
+  }
+
+  function correctionReason(value) {
+    const reason = String(value || '').trim();
+    return reason.length >= 3 && reason.length <= 1000 ? reason : null;
+  }
+
+  function canCorrectStartedProduction(permission) {
+    // The permission engine, not a browser role string, is authoritative.
+    // Its current management tier is level 90+; production staff are level 50.
+    return Number(permission?.level || 0) >= 90 && permission?.canApprove === true;
+  }
+
+  function baseOrderEditError(order) {
+    if (order.locked) {
+      return { statusCode: 403, message: 'לא ניתן לערוך הזמנה נעולה' };
+    }
+    if (hasOrderLeftFactory(order)) {
+      return { statusCode: 409, message: 'לא ניתן לערוך הזמנה אחרי שיצאה מהמפעל' };
+    }
+    return null;
+  }
+
+  function orderHeaderEditError(order, { permission, correctionReason: reason } = {}) {
+    const baseError = baseOrderEditError(order);
+    if (baseError) return baseError;
+    if (hasOrderProductionActivity(order.id || order.order_id)) {
+      if (!canCorrectStartedProduction(permission)) {
+        return { statusCode: 403, message: 'לאחר תחילת ייצור רק מנהל מורשה יכול לערוך את ההזמנה' };
+      }
+      if (!correctionReason(reason)) {
+        return { statusCode: 400, message: 'נדרשת סיבת תיקון לאחר תחילת ייצור' };
+      }
+    }
+    return null;
+  }
+
+  function orderDeleteError(order) {
+    const baseError = baseOrderEditError(order);
+    // Preserve the established delete-route contract for dispatched orders.
+    if (baseError) return baseError.statusCode === 409
+      ? { ...baseError, statusCode: 403 }
+      : baseError;
+    if (hasOrderProductionActivity(order.id || order.order_id)) {
+      return { statusCode: 409, message: 'לא ניתן למחוק הזמנה לאחר שהחלה ייצור באחת הכרטיסיות' };
+    }
+    return null;
+  }
+
+  function itemUpdateError(item, { permission, correctionReason: reason } = {}) {
+    const baseError = baseOrderEditError({ id: item.order_id, locked: item.locked, status: item.order_status });
+    if (baseError) return baseError;
+    const itemStarted = Number(item.produced_qty || 0) > 0
+      || item.started_at !== null
+      || item.completed_at !== null
+      || ['בייצור', 'הושלם', 'סופק'].includes(item.status);
+    if (itemStarted) {
+      if (!canCorrectStartedProduction(permission)) {
+        return { statusCode: 403, message: 'לאחר תחילת ייצור של הכרטיסייה רק מנהל מורשה יכול לתקן אותה' };
+      }
+      if (!correctionReason(reason)) {
+        return { statusCode: 400, message: 'נדרשת סיבת תיקון לכרטיסייה שכבר החלה ייצור' };
+      }
+    }
+    return null;
+  }
+
+  function itemDeleteError(item) {
+    const baseError = baseOrderEditError({ id: item.order_id, locked: item.locked, status: item.order_status });
+    if (baseError) return baseError;
+    const itemStarted = Number(item.produced_qty || 0) > 0
+      || item.started_at !== null
+      || item.completed_at !== null
+      || ['בייצור', 'הושלם', 'סופק'].includes(item.status);
+    return itemStarted
+      ? { statusCode: 409, message: 'לא ניתן למחוק כרטיסייה שכבר החלה ייצור; מנהל יכול לבצע תיקון מתועד בלבד' }
+      : null;
+  }
+
+  function trimOptionalText(value, field, maxLength = 2000) {
+    if (value === undefined) return undefined;
+    const text = String(value || '').trim();
+    if (text.length > maxLength) throw Object.assign(new Error(`invalid ${field}`), { statusCode: 400 });
+    return text || null;
+  }
+
+  function orderHeaderSnapshot(order) {
+    return {
+      customer_id: order.customer_id || null,
+      delivery_date: order.delivery_date || null,
+      delivery_time: order.delivery_time || null,
+      delivery_address: order.delivery_address || null,
+      priority: order.priority || 'רגיל',
+      channel: order.channel || null,
+      driver_notes: order.driver_notes || null,
+      general_notes: order.general_notes || null,
+    };
+  }
+
+  router.patch('/orders/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+    if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
+    const blocked = orderHeaderEditError(order, {
+      permission: req.userPerm,
+      correctionReason: req.body?.correction_reason ?? req.body?.correctionReason,
+    });
+    if (blocked) return res.status(blocked.statusCode).json({ error: blocked.message });
+
+    try {
+      const customerInput = req.body?.customer_id ?? req.body?.customerId;
+      let customerId = order.customer_id || null;
+      if (customerInput !== undefined) {
+        if (customerInput === null || customerInput === '') {
+          customerId = null;
+        } else {
+          customerId = Number(customerInput);
+          if (!Number.isInteger(customerId) || customerId <= 0 || !db.prepare('SELECT 1 FROM customers WHERE id=?').get(customerId)) {
+            throw Object.assign(new Error('לקוח לא נמצא'), { statusCode: 400 });
+          }
+        }
+      }
+
+      const deliveryDate = trimOptionalText(req.body?.delivery_date ?? req.body?.deliveryDate, 'delivery_date', 30);
+      if (deliveryDate !== undefined && deliveryDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) {
+        throw Object.assign(new Error('invalid delivery_date'), { statusCode: 400 });
+      }
+      const deliveryTime = trimOptionalText(req.body?.delivery_time ?? req.body?.deliveryTime, 'delivery_time', 10);
+      if (deliveryTime !== undefined && deliveryTime !== null && !/^\d{2}:\d{2}$/.test(deliveryTime)) {
+        throw Object.assign(new Error('invalid delivery_time'), { statusCode: 400 });
+      }
+      const priority = req.body?.priority === undefined ? order.priority : String(req.body.priority || '').trim();
+      if (!['רגיל', 'דחוף'].includes(priority)) {
+        throw Object.assign(new Error('invalid priority'), { statusCode: 400 });
+      }
+
+      const next = {
+        customer_id: customerId,
+        delivery_date: deliveryDate === undefined ? order.delivery_date || null : deliveryDate,
+        delivery_time: deliveryTime === undefined ? order.delivery_time || null : deliveryTime,
+        delivery_address: trimOptionalText(req.body?.delivery_address ?? req.body?.deliveryAddress, 'delivery_address') ?? (req.body?.delivery_address === undefined && req.body?.deliveryAddress === undefined ? order.delivery_address || null : null),
+        priority,
+        channel: trimOptionalText(req.body?.channel, 'channel', 80) ?? (req.body?.channel === undefined ? order.channel || null : null),
+        driver_notes: trimOptionalText(req.body?.driver_notes ?? req.body?.driverNotes, 'driver_notes') ?? (req.body?.driver_notes === undefined && req.body?.driverNotes === undefined ? order.driver_notes || null : null),
+        general_notes: trimOptionalText(req.body?.general_notes ?? req.body?.generalNotes, 'general_notes') ?? (req.body?.general_notes === undefined && req.body?.generalNotes === undefined ? order.general_notes || null : null),
+      };
+      const before = orderHeaderSnapshot(order);
+      const customerChanged = Number(before.customer_id || 0) !== Number(next.customer_id || 0);
+
+      db.prepare(`
+        UPDATE orders
+        SET customer_id=?, delivery_date=?, delivery_time=?, delivery_address=?, priority=?, channel=?,
+            driver_notes=?, general_notes=?, site_id=CASE WHEN ? THEN NULL ELSE site_id END
+        WHERE id=?
+      `).run(
+        next.customer_id,
+        next.delivery_date,
+        next.delivery_time,
+        next.delivery_address,
+        next.priority,
+        next.channel,
+        next.driver_notes,
+        next.general_notes,
+        customerChanged ? 1 : 0,
+        order.id,
+      );
+
+      const updated = db.prepare(`SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+        FROM orders o LEFT JOIN customers c ON c.id=o.customer_id WHERE o.id=?`).get(order.id);
+      const auditReason = correctionReason(req.body?.correction_reason ?? req.body?.correctionReason);
+      auditLog('order', order.id, order.order_num, 'order_update', 'order_header', JSON.stringify(before), JSON.stringify(orderHeaderSnapshot(updated)), auditReason, req.auth?.sub || req.userId || null, req.auth?.display_name || null);
+      wsBroadcast('order_updated', { id: Number(order.id), orderNum: order.order_num });
+      res.json({ success: true, order: updated });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+  });
+
   router.patch('/orders/:id/status', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
     const { status, userId, userName } = req.body;
     if (!status) return res.status(400).json({ error: 'חסר סטטוס' });
@@ -482,8 +673,8 @@ module.exports = function createOrdersRouter(deps) {
   router.post('/orders/:orderId/items', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.orderId);
     if (!order) return res.status(404).json({ error: 'order not found' });
-    if (order.locked) return res.status(403).json({ error: 'הזמנה נעולה' });
-    if (hasOrderLeftFactory(order)) return res.status(409).json({ error: 'לא ניתן להוסיף פריט אחרי שההזמנה יצאה מהמפעל' });
+    const blocked = baseOrderEditError(order);
+    if (blocked) return res.status(blocked.statusCode).json({ error: blocked.message });
 
     try {
       const item = cleanItemPayload(req.body, { shape_name: '', diameter: 12, quantity: 1, total_length_mm: 0, segments: '[]' });
@@ -517,10 +708,11 @@ module.exports = function createOrdersRouter(deps) {
       WHERE i.id=? AND p.order_id=?
     `).get(req.params.itemId, req.params.orderId);
     if (!item) return res.status(404).json({ error: 'item not found' });
-    if (item.locked) return res.status(403).json({ error: 'order is locked' });
-    if (hasOrderLeftFactory({ status: item.order_status })) {
-      return res.status(409).json({ error: 'לא ניתן לערוך פריט אחרי שההזמנה יצאה מהמפעל' });
-    }
+    const blocked = itemUpdateError(item, {
+      permission: req.userPerm,
+      correctionReason: req.body?.correction_reason ?? req.body?.correctionReason,
+    });
+    if (blocked) return res.status(blocked.statusCode).json({ error: blocked.message });
 
     let cleanItem;
     try {
@@ -529,6 +721,10 @@ module.exports = function createOrdersRouter(deps) {
       return res.status(error.statusCode || 400).json({ error: error.message });
     }
     const { shapeName, diameter, quantity, totalLengthMm, segments, spiralDiameter, spiralTurns, note, structElement, structFloor, sheetNum, weightPerUnit, totalWeight } = cleanItem;
+    const alreadyProduced = Math.max(0, Number(item.produced_qty || 0));
+    if (alreadyProduced > 0 && quantity < alreadyProduced) {
+      return res.status(409).json({ error: 'לא ניתן להקטין כמות מתחת לכמות שכבר יוצרה' });
+    }
     const before = JSON.stringify({
       shape_name: item.shape_name,
       diameter: item.diameter,
@@ -536,14 +732,16 @@ module.exports = function createOrdersRouter(deps) {
       total_length_mm: item.total_length_mm,
       segments: item.segments,
     });
-    const nextShapeSnapshot = buildOrderItemShapeSnapshotJson(req.body, { shapeId: req.body.shapeId || req.body.shape_id || item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null, note, structElement, structFloor, sheetNum });
+    const nextShapeSnapshot = shapeSnapshotCandidate(req.body) != null
+      ? buildOrderItemShapeSnapshotJson(req.body, { shapeId: req.body.shapeId || req.body.shape_id || item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null, note, structElement, structFloor, sheetNum })
+      : (item.shape_snapshot_json || buildOrderItemShapeSnapshotJson(req.body, { shapeId: req.body.shapeId || req.body.shape_id || item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null, note, structElement, structFloor, sheetNum }));
     const updateResult = db.transaction(() => {
       const releasedReservations = releaseReservationsForItems(db, { item_ids: [item.id] });
       db.prepare(`
         UPDATE items
         SET shape_name=?, diameter=?, quantity=?, production_qty=?, total_length_mm=?,
             segments=?, spiral_diameter_mm=?, spiral_turns=?, weight_per_unit=?, total_weight=?,
-            item_uid=COALESCE(item_uid, ?), shape_snapshot_json=COALESCE(shape_snapshot_json, ?),
+            item_uid=COALESCE(item_uid, ?), shape_snapshot_json=?,
             note=?, struct_element=?, struct_floor=?, sheet_num=?, review_status='pending', reviewed_by=NULL, reviewed_at=NULL
         WHERE id=?
       `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, buildOrderItemUid(req.params.orderId, item.id), nextShapeSnapshot, note, structElement || null, structFloor || null, sheetNum || null, item.id);
@@ -566,7 +764,8 @@ module.exports = function createOrdersRouter(deps) {
     const { releasedReservations, inventoryReservations, orderTotal } = updateResult;
 
 
-    auditLog('item', item.id, item.order_num, 'item_update', 'shape_payload', before, JSON.stringify(req.body), note || null, req.auth?.sub || null, req.auth?.display_name || null);
+    const auditReason = correctionReason(req.body?.correction_reason ?? req.body?.correctionReason);
+    auditLog('item', item.id, item.order_num, 'item_update', 'shape_payload', before, JSON.stringify(req.body), auditReason || note || null, req.auth?.sub || null, req.auth?.display_name || null);
     wsBroadcast('order_item_updated', { orderId: Number(req.params.orderId), itemId: Number(item.id), orderNum: item.order_num });
     res.json({ success: true, itemId: Number(item.id), total_weight: totalWeight, order_total_weight: orderTotal, releasedReservations, inventoryReservations });
   });
@@ -580,10 +779,8 @@ module.exports = function createOrdersRouter(deps) {
       WHERE i.id=? AND p.order_id=?
     `).get(req.params.itemId, req.params.orderId);
     if (!item) return res.status(404).json({ error: 'item not found' });
-    if (item.locked) return res.status(403).json({ error: 'order is locked' });
-    if (hasOrderLeftFactory({ status: item.order_status })) {
-      return res.status(409).json({ error: 'לא ניתן למחוק פריט אחרי שההזמנה יצאה מהמפעל' });
-    }
+    const blocked = itemDeleteError(item);
+    if (blocked) return res.status(blocked.statusCode).json({ error: blocked.message });
 
     const before = JSON.stringify({
       shape_name: item.shape_name,
@@ -658,31 +855,27 @@ module.exports = function createOrdersRouter(deps) {
     ].includes(status);
   }
 
-  function canDeleteOrder(order, role) {
-    if (!['office', 'manager', 'admin'].includes(role)) return false;
-    return !hasOrderLeftFactory(order);
-  }
-
   router.delete('/orders/:id', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
     if (!order) return res.status(404).json({ error: 'הזמנה לא נמצאה' });
-    if (order.locked) return res.status(403).json({ error: 'לא ניתן למחוק הזמנה נעולה' });
-    if (!canDeleteOrder(order, req.userRole)) {
-      return res.status(403).json({ error: 'לא ניתן למחוק הזמנה אחרי שיצאה מהמפעל' });
-    }
+    const blocked = orderDeleteError(order);
+    if (blocked) return res.status(blocked.statusCode).json({ error: blocked.message });
 
     const before = JSON.stringify({ order_num: order.order_num, status: order.status });
-    db.transaction(() => {
+    const deletion = db.transaction(() => {
+      const releasedReservations = releaseAllReservationsForOrder(db, { order_id: order.id });
       db.prepare('DELETE FROM production_card_weights WHERE order_id=?').run(order.id);
       db.prepare('DELETE FROM scan_log WHERE order_num=?').run(order.order_num);
       db.prepare('DELETE FROM items WHERE pallet_id IN (SELECT id FROM pallets WHERE order_id=?)').run(order.id);
       db.prepare('DELETE FROM pallets WHERE order_id=?').run(order.id);
       db.prepare('DELETE FROM orders WHERE id=?').run(order.id);
-    })();
+      return releasedReservations;
+    });
+    const releasedReservations = deletion();
 
     auditLog('order', order.id, order.order_num, 'order_delete', 'status', before, null, 'מחיקת הזמנה', req.auth?.sub || null, req.auth?.display_name || null);
     wsBroadcast('order_deleted', { orderId: Number(order.id), orderNum: order.order_num });
-    res.json({ success: true, orderNum: order.order_num });
+    res.json({ success: true, orderNum: order.order_num, releasedReservations });
   });
 
   return router;
@@ -703,6 +896,7 @@ module.exports.manifest = {
   produces: [
     { event: 'new_order' },
     { event: 'order_status' },
+    { event: 'order_updated' },
     { event: 'order_review' },
     { event: 'order_item_updated' },
     { event: 'order_item_added' },

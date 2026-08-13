@@ -215,8 +215,9 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .edit-body{padding:16px;overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .edit-field{display:flex;flex-direction:column;gap:5px}
 .edit-field label{font-size:11px;font-weight:900;color:var(--dim)}
-.edit-field input,.edit-field textarea{border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-family:inherit;font-size:14px;background:#f8fafc;color:var(--text)}
+.edit-field input,.edit-field textarea,.edit-field select{border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-family:inherit;font-size:14px;background:#f8fafc;color:var(--text)}
 .edit-field textarea{min-height:110px;resize:vertical;direction:ltr;text-align:left}
+.edit-note{grid-column:1/-1;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:9px 10px;font-size:12px;line-height:1.45;color:#9a3412}
 .edit-wide{grid-column:1/-1}
 .edit-actions{padding:14px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-start;background:#fff}
 .edit-save{background:linear-gradient(135deg,var(--accent),var(--accent-light));color:#fff;border:0;border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:900;cursor:pointer}
@@ -325,6 +326,43 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   </div>
 </div>
 
+<!-- ORDER EDIT: server authorization remains the source of truth. -->
+<div class="edit-overlay" id="orderEditOverlay" onclick="closeOrderEdit(event)">
+  <form class="edit-panel" onsubmit="saveOrderEdit(event)">
+    <div class="edit-head">
+      <div>
+        <div class="edit-title">עריכת הזמנה</div>
+        <div class="detail-customer" id="orderEditMeta"></div>
+      </div>
+      <button type="button" class="detail-close" onclick="closeOrderEditPanel()">✕</button>
+    </div>
+    <div class="edit-body">
+      <div class="edit-field edit-wide"><label for="orderEditCustomer">לקוח</label><select id="orderEditCustomer"></select></div>
+      <div class="edit-field"><label for="orderEditDate">תאריך אספקה</label><input id="orderEditDate" type="date"></div>
+      <div class="edit-field"><label for="orderEditTime">שעת אספקה</label><input id="orderEditTime" type="time"></div>
+      <div class="edit-field"><label for="orderEditPriority">עדיפות</label><select id="orderEditPriority"><option value="רגיל">רגיל</option><option value="דחוף">דחוף</option></select></div>
+      <div class="edit-field edit-wide"><label for="orderEditAddress">כתובת אספקה</label><input id="orderEditAddress" maxlength="2000"></div>
+      <div class="edit-field"><label for="orderEditChannel">ערוץ</label><input id="orderEditChannel" maxlength="80"></div>
+      <div class="edit-field edit-wide"><label for="orderEditDriverNotes">הערות לנהג</label><textarea id="orderEditDriverNotes" maxlength="2000"></textarea></div>
+      <div class="edit-field edit-wide"><label for="orderEditGeneralNotes">הערות כלליות</label><textarea id="orderEditGeneralNotes" maxlength="2000"></textarea></div>
+      <div class="edit-note" id="orderEditProductionNote" hidden>לאחר תחילת ייצור נדרש תיקון מתועד והרשאת ניהול. כרטיסייה שלא התחילה ייצור נשארת ניתנת לעריכה בנפרד.</div>
+      <div class="edit-field edit-wide" id="orderEditCorrectionField" hidden><label for="orderEditCorrectionReason">סיבת תיקון</label><textarea id="orderEditCorrectionReason" maxlength="1000" placeholder="נדרשת לאחר תחילת ייצור"></textarea></div>
+    </div>
+    <div class="edit-actions"><button type="submit" class="edit-save">שמור שינויים</button><button type="button" class="edit-cancel" onclick="closeOrderEditPanel()">ביטול</button></div>
+  </form>
+</div>
+
+<div class="edit-overlay" id="correctionReasonOverlay" onclick="closeCorrectionReason(event)">
+  <form class="edit-panel" onsubmit="submitCorrectionReason(event)">
+    <div class="edit-head"><div class="edit-title">סיבת תיקון לאחר תחילת ייצור</div><button type="button" class="detail-close" onclick="cancelCorrectionReason()">✕</button></div>
+    <div class="edit-body">
+      <div class="edit-note">הפעולה תישלח לשרת לבדיקה מול הרשאת הניהול הקיימת ותירשם ביומן הביקורת.</div>
+      <div class="edit-field edit-wide"><label for="correctionReasonInput">סיבת התיקון</label><textarea id="correctionReasonInput" minlength="3" maxlength="1000" required></textarea></div>
+    </div>
+    <div class="edit-actions"><button type="submit" class="edit-save">המשך לתיקון</button><button type="button" class="edit-cancel" onclick="cancelCorrectionReason()">ביטול</button></div>
+  </form>
+</div>
+
 <div class="add-choice-overlay" id="addChoiceOverlay" onclick="closeAddChoiceOverlay(event)">
   <div class="add-choice-panel">
     <div class="add-choice-head">
@@ -364,7 +402,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 </div>
 
 <script>
-let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null, addChoiceOrderId = null, ocrAddItems = [];
+let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [];
 let orderShapeEditor = null, pendingShapeEdit = null;
 const STATUS_CONTRACT = window.IronBendStatus || {};
 const ORDER_STATUS = STATUS_CONTRACT.ORDER_STATUS || {};
@@ -416,7 +454,7 @@ function connectWS() {
   };
   ws.onmessage = e => {
     const { type } = JSON.parse(e.data);
-    if (['new_order','order_status','order_complete'].includes(type)) fetchOrders();
+    if (['new_order','order_status','order_complete','order_updated','order_item_added','order_item_updated','order_item_deleted'].includes(type)) fetchOrders();
   };
 }
 
@@ -488,9 +526,11 @@ function actionBtns(o, stopProp = true, includePrints = true) {
     <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" title="תעודת משלוח">📋</a>
   ` : '';
   const deleteBtn = `<button class="btn-sm danger" onclick="event.stopPropagation();deleteOrder(${o.id},${jsAttr(o.order_num)})" title="מחק הזמנה">🗑️</button>`;
+  const editBtn = `<button class="btn-sm" onclick="event.stopPropagation();openOrderEdit(event,${o.id})" title="ערוך הזמנה">✎ ערוך</button>`;
   return `<div class="actions" ${sp}>
     ${transitionButtons}
     ${printButtons}
+    ${editBtn}
     ${deleteBtn}
   </div>`;
 }
@@ -582,6 +622,125 @@ async function openDetail(id) {
   document.getElementById('detailOverlay').classList.add('show');
   requestAnimationFrame(renderDetailShapes);
   history.replaceState(null, '', `?id=${id}`);
+}
+
+function orderHasStartedProduction(order) {
+  return (order?.pallets || []).some(pallet => (pallet?.items || []).some(item => itemHasStartedProduction(item)));
+}
+
+function itemHasStartedProduction(item) {
+  return Number(item?.produced_qty || 0) > 0
+    || item?.started_at != null
+    || item?.completed_at != null
+    || ['בייצור', 'הושלם', 'סופק'].includes(String(item?.status || ''));
+}
+
+function closeOrderEdit(event) {
+  if (event?.target === document.getElementById('orderEditOverlay')) closeOrderEditPanel();
+}
+
+function closeOrderEditPanel() {
+  document.getElementById('orderEditOverlay').classList.remove('show');
+  orderEditOrder = null;
+}
+
+function requestCorrectionReason() {
+  const overlay = document.getElementById('correctionReasonOverlay');
+  const input = document.getElementById('correctionReasonInput');
+  input.value = '';
+  overlay.classList.add('show');
+  requestAnimationFrame(() => input.focus());
+  return new Promise(resolve => { correctionReasonResolve = resolve; });
+}
+
+function resolveCorrectionReason(value) {
+  document.getElementById('correctionReasonOverlay').classList.remove('show');
+  const resolve = correctionReasonResolve;
+  correctionReasonResolve = null;
+  if (resolve) resolve(value);
+}
+
+function submitCorrectionReason(event) {
+  event.preventDefault();
+  const value = document.getElementById('correctionReasonInput').value.trim();
+  if (value.length < 3) return;
+  resolveCorrectionReason(value);
+}
+
+function cancelCorrectionReason() { resolveCorrectionReason(null); }
+function closeCorrectionReason(event) {
+  if (event?.target === document.getElementById('correctionReasonOverlay')) cancelCorrectionReason();
+}
+
+function setOrderEditValue(id, value) {
+  const field = document.getElementById(id);
+  if (field) field.value = value == null ? '' : String(value);
+}
+
+async function openOrderEdit(event, orderId) {
+  event?.stopPropagation?.();
+  try {
+    const order = currentDetailOrder && Number(currentDetailOrder.id) === Number(orderId)
+      ? currentDetailOrder
+      : await (await fetch(`/api/orders/${orderId}`)).json();
+    if (!order?.id) throw new Error('לא ניתן לטעון את ההזמנה לעריכה');
+    orderEditOrder = order;
+    const customersResponse = await fetch('/api/customers?limit=200');
+    const customers = customersResponse.ok ? await customersResponse.json() : [];
+    const select = document.getElementById('orderEditCustomer');
+    const currentCustomerId = Number(order.customer_id || 0);
+    const customerOptions = Array.isArray(customers) ? customers : [];
+    select.innerHTML = `<option value="">ללא לקוח</option>${customerOptions.map(customer => `<option value="${Number(customer.id)}">${escHtml(customer.name || `לקוח #${customer.id}`)}</option>`).join('')}`;
+    if (currentCustomerId && !customerOptions.some(customer => Number(customer.id) === currentCustomerId)) {
+      select.insertAdjacentHTML('beforeend', `<option value="${currentCustomerId}">${escHtml(order.customer_name || `לקוח #${currentCustomerId}`)}</option>`);
+    }
+    select.value = currentCustomerId ? String(currentCustomerId) : '';
+    setOrderEditValue('orderEditDate', order.delivery_date);
+    setOrderEditValue('orderEditTime', order.delivery_time);
+    setOrderEditValue('orderEditPriority', order.priority || 'רגיל');
+    setOrderEditValue('orderEditAddress', order.delivery_address);
+    setOrderEditValue('orderEditChannel', order.channel);
+    setOrderEditValue('orderEditDriverNotes', order.driver_notes);
+    setOrderEditValue('orderEditGeneralNotes', order.general_notes);
+    const hasStarted = orderHasStartedProduction(order);
+    document.getElementById('orderEditProductionNote').hidden = !hasStarted;
+    document.getElementById('orderEditCorrectionField').hidden = !hasStarted;
+    document.getElementById('orderEditCorrectionReason').value = '';
+    document.getElementById('orderEditMeta').textContent = `הזמנה ${order.order_num || ''}`;
+    document.getElementById('orderEditOverlay').classList.add('show');
+  } catch (error) {
+    alert(error.message || 'פתיחת עריכת ההזמנה נכשלה');
+  }
+}
+
+async function saveOrderEdit(event) {
+  event.preventDefault();
+  if (!orderEditOrder?.id) return;
+  const body = {
+    customer_id: document.getElementById('orderEditCustomer').value || null,
+    delivery_date: document.getElementById('orderEditDate').value || null,
+    delivery_time: document.getElementById('orderEditTime').value || null,
+    priority: document.getElementById('orderEditPriority').value,
+    delivery_address: document.getElementById('orderEditAddress').value,
+    channel: document.getElementById('orderEditChannel').value,
+    driver_notes: document.getElementById('orderEditDriverNotes').value,
+    general_notes: document.getElementById('orderEditGeneralNotes').value,
+    correction_reason: document.getElementById('orderEditCorrectionReason').value,
+  };
+  const response = await fetch(`/api/orders/${orderEditOrder.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    alert(result.error || 'עדכון ההזמנה נכשל');
+    return;
+  }
+  const orderId = orderEditOrder.id;
+  closeOrderEditPanel();
+  await fetchOrders();
+  await openDetail(orderId);
 }
 
 function safeJson(value, fallback = []) {
@@ -1040,6 +1199,16 @@ function buildDetailHTML(o, pkgs) {
     </div>
   </div>`; // BUG-25: added struct_element / struct_floor / sheet_num
 
+  const hasStartedProduction = orderHasStartedProduction(o);
+  const orderActions = `<div class="d-section">
+    <div class="d-title">✎ תיקון הזמנה</div>
+    <div class="review-actions">
+      <button class="review-btn primary" onclick="openOrderEdit(event, ${o.id})">ערוך פרטי הזמנה</button>
+      <button class="review-btn danger" ${hasStartedProduction ? 'disabled title="לא מוחקים הזמנה לאחר תחילת ייצור באחת הכרטיסיות"' : ''} onclick="deleteOrder(${o.id},${jsAttr(o.order_num)})">מחק הזמנה</button>
+    </div>
+    <div class="detail-customer" style="margin-top:8px">${hasStartedProduction ? 'החל ייצור בכרטיסייה אחת או יותר: תיקון פרטי ההזמנה דורש הרשאת ניהול וסיבת תיקון. כרטיסייה שכבר החלה ייצור אינה ניתנת למחיקה.' : 'אפשר לערוך או למחוק לפני תחילת ייצור.'}</div>
+  </div>`;
+
   // ── Status
   const statuses = [o.status, ...allowedOrderTransitions(o.status)]
     .filter((status, index, list) => status && list.indexOf(status) === index);
@@ -1061,6 +1230,7 @@ function buildDetailHTML(o, pkgs) {
     const pct  = p.items?.length ? Math.round(done / p.items.length * 100) : 0;
     const totalW = (p.items||[]).reduce((s,i) => s + itemWeight(i), 0);
     const items = (p.items||[]).map(item => {
+      const itemStarted = itemHasStartedProduction(item);
       const ic = item.status==='הושלם' ? 'is-done' : item.status==='בייצור' ? 'is-prod' : 'is-wait';
       const qty = item.quantity||0;
       const produced = item.produced_qty||0;
@@ -1111,11 +1281,11 @@ function buildDetailHTML(o, pkgs) {
           ${shapeMismatch && !isReviewApproved(item) ? `<div class="note-chip">⚠ שם הצורה המקורי היה "${escHtml(item.shape_name)}", אבל הגיאומטריה כוללת צלע אחת בלבד ולכן מוצג כמוט ישר.</div>` : ''}
           ${displayNote ? `<div class="note-chip">⚠ ${escHtml(displayNote)}</div>` : ''}
           <div class="review-actions">
-            <button class="review-btn danger" onclick="deleteOrderItem(event, ${o.id}, ${item.id})">מחק פריט</button>
+            <button class="review-btn" onclick="openItemEdit(event, ${o.id}, ${item.id})">ערוך פריט</button>
+            <button class="review-btn danger" ${itemStarted ? 'disabled title="לא מוחקים כרטיסייה שכבר התחילה ייצור"' : ''} onclick="deleteOrderItem(event, ${o.id}, ${item.id})">מחק פריט</button>
           </div>
           ${review ? `<div class="review-actions">
             <button class="review-btn" onclick="openOrderIntakeSource(event, ${o.id})">פתח מקור להשוואה</button>
-            <button class="review-btn" onclick="openItemEdit(event, ${o.id}, ${item.id})">ערוך פריט</button>
             <button class="review-btn primary" onclick="approveItemReview(event, ${o.id}, ${item.id})">אשר הערה</button>
           </div>` : ''}
           ${item.status==='בייצור'&&qty>0?`<div class="prog-bar"><div class="prog-fill" style="width:${Math.min(100,produced/qty*100).toFixed(0)}%"></div></div><div style="font-size:11px;color:var(--muted)">${produced}/${qty}</div>`:''}
@@ -1156,7 +1326,7 @@ function buildDetailHTML(o, pkgs) {
     pkgSec = `<div class="d-section"><div class="d-title">🏷️ חבילות</div>${pkgRows}</div>`;
   }
 
-  return hero + prints + info + statusSec + itemsSec + pkgSec;
+  return hero + prints + info + orderActions + statusSec + itemsSec + pkgSec;
 }
 
 function closeDetail(e) { if (e.target===document.getElementById('detailOverlay')) closeDetailPanel(); }
@@ -1366,6 +1536,7 @@ async function shapeSelectedFromOrder(data) {
     note: ctx.note || '',
     shapeSnapshot: data && data.contractVersion === 2 ? data : null,
   };
+  if (ctx.correctionReason) payload.correction_reason = ctx.correctionReason;
   const isNewItem = ctx.mode === 'add';
   const url = isNewItem ? `/api/orders/${ctx.orderId}/items` : `/api/orders/${ctx.orderId}/items/${ctx.itemId}`;
   const response = await fetch(url, {
@@ -1380,7 +1551,7 @@ async function shapeSelectedFromOrder(data) {
   }
   await openDetail(ctx.orderId);
 }
-function openItemEdit(event, orderId, itemId) {
+async function openItemEdit(event, orderId, itemId) {
   event?.stopPropagation?.();
   const item = findDetailItem(orderId, itemId);
   if (!item) {
@@ -1391,6 +1562,11 @@ function openItemEdit(event, orderId, itemId) {
     alert('\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4 \u05e2\u05d3\u05d9\u05d9\u05df \u05e0\u05e2\u05e8\u05db\u05ea \u05d3\u05e8\u05da \u05e0\u05ea\u05d5\u05e0\u05d9 \u05d4\u05e4\u05e8\u05d9\u05d8 \u05d4\u05e9\u05de\u05d5\u05e8\u05d9\u05dd, \u05dc\u05d0 \u05d3\u05e8\u05da \u05e2\u05d5\u05e8\u05da \u05d4\u05e6\u05d5\u05e8\u05d5\u05ea.');
     return;
   }
+  let correction = null;
+  if (itemHasStartedProduction(item)) {
+    correction = await requestCorrectionReason();
+    if (correction === null) return;
+  }
   const editor = ensureOrderShapeEditor();
   if (!editor) return;
   pendingShapeEdit = {
@@ -1399,6 +1575,7 @@ function openItemEdit(event, orderId, itemId) {
     itemId: Number(itemId),
     quantity: Number(item.quantity) || 1,
     note: item.note || '',
+    correctionReason: correction,
   };
   editor.open({ ...orderShapeDataFromItem(item), quantity: Number(item.quantity) || 1 });
 }
@@ -1470,10 +1647,10 @@ async function deleteOrder(orderId, orderNum) {
     return;
   }
   if (currentDetailOrder && Number(currentDetailOrder.id) === Number(orderId)) {
-    document.getElementById('detailPanel')?.classList?.remove('open');
+    closeDetailPanel();
     currentDetailOrder = null;
   }
-  fetchOrders();
+  await fetchOrders();
 }
 
 function startQtyEdit(event, orderId, itemId, current) {
@@ -1496,10 +1673,16 @@ async function saveQtyEdit(event, orderId, itemId) {
   const input = document.getElementById(`qtyInp-${itemId}`);
   const quantity = Number(input?.value);
   if (!Number.isInteger(quantity) || quantity < 1) { alert('כמות חייבת להיות מספר שלם חיובי'); return; }
+  const item = findDetailItem(orderId, itemId);
+  let correctionReason = null;
+  if (itemHasStartedProduction(item)) {
+    correctionReason = await requestCorrectionReason();
+    if (correctionReason === null) return;
+  }
   const response = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quantity }),
+    body: JSON.stringify({ quantity, ...(correctionReason ? { correction_reason: correctionReason } : {}) }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.success) {

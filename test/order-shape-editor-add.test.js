@@ -41,6 +41,18 @@ test('orders items can be deleted from the order detail screen', () => {
   assert.match(html, /confirm\('/);
 });
 
+test('orders expose explicit edit controls and a non-browser correction-reason dialog', () => {
+  const html = orders();
+  assert.match(html, /id="orderEditOverlay"/);
+  assert.match(html, /function openOrderEdit\(event, orderId\)/);
+  assert.match(html, /fetch\(`\/api\/orders\/\$\{orderEditOrder\.id\}`, \{[\s\S]*method: 'PATCH'/);
+  assert.match(html, /function requestCorrectionReason\(\)/);
+  assert.match(html, /itemHasStartedProduction\(item\)/);
+  assert.match(html, /סיבת תיקון לאחר תחילת ייצור/);
+  assert.match(html, /disabled title="לא מוחקים כרטיסייה שכבר התחילה ייצור"/);
+  assert.doesNotMatch(html, /prompt\('/);
+});
+
 test('new order CSV import maps location aliases to struct element state', () => {
   const js = newOrderEditor();
   assert.match(js, /STRUCT_ELEMENT_ALIASES/);

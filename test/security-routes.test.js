@@ -293,6 +293,73 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request(`/api/orders/${departedOrderId}`, { method: 'DELETE', headers: authHeaders(manager) })).status, 403);
   });
 
+  await t.test('order and individual-card corrections follow the real management hierarchy', async () => {
+    const customerId = seedCustomer();
+    const headerOrderId = seedInternalOrder(customerId, 'ORDER-HEADER-EDIT');
+    const headerUpdate = await request(`/api/orders/${headerOrderId}`, {
+      method: 'PATCH',
+      headers: authHeaders(office),
+      body: JSON.stringify({ delivery_date: '2026-08-20', delivery_time: '09:30', delivery_address: 'רחוב הבדיקה 1', priority: 'דחוף', general_notes: 'תיקון לפני ייצור' }),
+    });
+    assert.equal(headerUpdate.status, 200);
+    const header = db.prepare('SELECT delivery_date,delivery_time,delivery_address,priority,general_notes FROM orders WHERE id=?').get(headerOrderId);
+    assert.deepEqual(header, { delivery_date: '2026-08-20', delivery_time: '09:30', delivery_address: 'רחוב הבדיקה 1', priority: 'דחוף', general_notes: 'תיקון לפני ייצור' });
+    assert.ok(db.prepare("SELECT 1 FROM audit_log WHERE entity_type='order' AND entity_id=? AND action='order_update'").get(headerOrderId));
+    assert.equal((await request(`/api/orders/${headerOrderId}`, { method: 'PATCH', headers: authHeaders(production), body: JSON.stringify({ priority: 'רגיל' }) })).status, 403);
+
+    const orderId = seedInternalOrder(customerId, 'ORDER-CARD-CORRECTION');
+    const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,?,?)').run(orderId, 1, 0).lastInsertRowid;
+    const insertItem = db.prepare(`
+      INSERT INTO items (pallet_id,order_id,shape_id,shape_name,diameter,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,status,produced_qty,started_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `);
+    const unstartedId = insertItem.run(palletId, orderId, 'straight-1', 'straight', 12, 1000, 2, 2, 0.888, 1.776, 'ממתין', 0, null).lastInsertRowid;
+    const startedId = insertItem.run(palletId, orderId, 'straight-2', 'straight', 12, 1000, 2, 2, 0.888, 1.776, 'בייצור', 1, '2026-08-13T08:00:00.000Z').lastInsertRowid;
+
+    // Starting one card does not lock another card in the same order.
+    const officeUnstarted = await request(`/api/orders/${orderId}/items/${unstartedId}`, {
+      method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ quantity: 3 }),
+    });
+    assert.equal(officeUnstarted.status, 200);
+    assert.equal(db.prepare('SELECT quantity FROM items WHERE id=?').get(unstartedId).quantity, 3);
+
+    // The started card is protected by the server's permission tier, not a client role value.
+    assert.equal((await request(`/api/orders/${orderId}/items/${startedId}`, {
+      method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ quantity: 3, correction_reason: 'ניסיון משרד' }),
+    })).status, 403);
+    assert.equal((await request(`/api/orders/${orderId}/items/${startedId}`, {
+      method: 'PATCH', headers: authHeaders(manager), body: JSON.stringify({ quantity: 3 }),
+    })).status, 400);
+    assert.equal((await request(`/api/orders/${orderId}/items/${startedId}`, {
+      method: 'PATCH', headers: authHeaders(manager), body: JSON.stringify({ quantity: 0.5, correction_reason: 'ניסיון הקטנה מתחת לייצור' }),
+    })).status, 409);
+    const managerCorrection = await request(`/api/orders/${orderId}/items/${startedId}`, {
+      method: 'PATCH', headers: authHeaders(manager), body: JSON.stringify({ quantity: 3, correction_reason: 'תיקון כמות לאחר תחילת ייצור' }),
+    });
+    assert.equal(managerCorrection.status, 200);
+    assert.equal(db.prepare('SELECT quantity FROM items WHERE id=?').get(startedId).quantity, 3);
+    assert.equal(db.prepare("SELECT notes FROM audit_log WHERE entity_type='item' AND entity_id=? AND action='item_update' ORDER BY id DESC LIMIT 1").get(startedId).notes, 'תיקון כמות לאחר תחילת ייצור');
+
+    // Header edits after any card started use the same real management tier and require an audit reason.
+    assert.equal((await request(`/api/orders/${orderId}`, {
+      method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ priority: 'דחוף' }),
+    })).status, 403);
+    assert.equal((await request(`/api/orders/${orderId}`, {
+      method: 'PATCH', headers: authHeaders(manager), body: JSON.stringify({ priority: 'דחוף' }),
+    })).status, 400);
+    assert.equal((await request(`/api/orders/${orderId}`, {
+      method: 'PATCH', headers: authHeaders(manager), body: JSON.stringify({ priority: 'דחוף', correction_reason: 'עדיפות לקוח לאחר התחלה' }),
+    })).status, 200);
+
+    // A started card and its containing order are never deleted, so production history remains intact.
+    assert.equal((await request(`/api/orders/${orderId}/items/${startedId}`, { method: 'DELETE', headers: authHeaders(manager) })).status, 409);
+    assert.equal((await request(`/api/orders/${orderId}`, { method: 'DELETE', headers: authHeaders(admin) })).status, 409);
+
+    // An unstarted card can still be removed even while another card is in production.
+    assert.equal((await request(`/api/orders/${orderId}/items/${unstartedId}`, { method: 'DELETE', headers: authHeaders(office) })).status, 200);
+    assert.equal(db.prepare('SELECT 1 FROM items WHERE id=?').get(unstartedId), undefined);
+  });
+
   await t.test('order creation stores selected customer site only for that customer', async () => {
     const customerId = seedCustomer();
     const siteId = db.prepare('INSERT INTO customer_sites (customer_id,name,address,status) VALUES (?,?,?,?)')
