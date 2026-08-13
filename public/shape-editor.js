@@ -2639,7 +2639,7 @@ class ShapeEditorModal {
         <div class="se-summary-item"><span>אורך במטר</span><div><strong id="seBarLength">0.00</strong><small>מטר</small></div></div>
         <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
         <div class="se-summary-item se-quantity-item" style="display:none"><span>כמות</span><div><input id="seQuantityInput" class="se-quantity-input" type="number" min="1" step="1" value="1" onfocus="this.select()" oninput="window._seEditor?._setQuantity(this.value)"><small>יח׳</small></div></div>
-        <div class="se-summary-item" id="seDiameterItem" style="display:none"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)"><option value="0">—</option>${[6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d=>`<option value="${d}">${d}</option>`).join('')}</select><small>מ״מ</small></div></div>
+        <div class="se-summary-item" id="seDiameterItem" style="display:none"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)"><option value="0">—</option>${[5.5,6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d=>`<option value="${d}">${d}</option>`).join('')}</select><small>מ״מ</small></div></div>
         <div class="se-summary-item"><span>כיפופים</span><strong id="seBends">0</strong></div>
       </div>
       <div class="se-foot-actions">
@@ -3342,7 +3342,7 @@ class ShapeEditorModal {
     if (!this.current) return;
     this.current.diameter = Number(value) || 0;
     const el = document.getElementById('seDiameterSelect');
-    if (el) el.classList.toggle('se-invalid', !(this.current.diameter >= 6));
+    if (el) el.classList.toggle('se-invalid', !(this.current.diameter >= 5.5));
     this._updatePreview();
   }
 
@@ -4491,7 +4491,7 @@ class ShapeEditorModal {
     if (this.current.family === 'bars') {
       const diaEl = document.getElementById('seDiameterSelect');
       const qtyEl = document.getElementById('seQuantityInput');
-      const diaOk = Number(this.current.diameter) >= 6;
+      const diaOk = Number(this.current.diameter) >= 5.5;
       const qtyOk = Math.max(0, Number(this.current.quantity || this.current.qty || 0) || 0) >= 1;
       if (diaEl && diaEl.offsetParent !== null && (!diaOk || !qtyOk)) {
         if (diaEl) diaEl.classList.toggle('se-invalid', !diaOk);

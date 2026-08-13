@@ -3,6 +3,7 @@
 
   const REBAR_KG_PER_M = Object.freeze({
     5: 0.154,
+    5.5: 0.187,
     6: 0.222,
     8: 0.395,
     10: 0.617,
