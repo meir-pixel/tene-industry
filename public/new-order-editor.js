@@ -1117,6 +1117,19 @@
     return false;
   }
   function handleGridKeydown(event) {
+    // Shift+Enter opens the shape editor for a new item — from anywhere on the
+    // order page, as long as the editor itself isn't open (it uses Shift+Enter
+    // internally to jump to the diameter).
+    if (event.key === 'Enter' && event.shiftKey) {
+      if (document.getElementById('seOverlay') && document.getElementById('seOverlay').classList.contains('show')) return;
+      if (!document.querySelector('.order-lines-body')) return;
+      event.preventDefault();
+      const focusedRow = event.target.closest && event.target.closest('.order-line-row');
+      const pallet = (focusedRow ? (pallets || []).find(p => (p.items || []).some(it => String(it.id) === focusedRow.dataset.itemId)) : null)
+        || (pallets || [])[0];
+      if (pallet && typeof window.addItem === 'function') window.addItem(pallet.id);
+      return;
+    }
     const cls = kbdFieldClass(event.target);
     if (!cls) return;
     const row = event.target.closest('.order-line-row');
@@ -1125,15 +1138,6 @@
     const rows = Array.from(container.querySelectorAll('.order-line-row'));
     const rowIdx = rows.indexOf(row);
 
-    // In the list, Enter adds a new item and opens the shape editor — the whole
-    // item is entered there.
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const pallet = (pallets || []).find(p => (p.items || []).some(it => String(it.id) === row.dataset.itemId))
-        || (pallets || [])[0];
-      if (pallet && typeof window.addItem === 'function') window.addItem(pallet.id);
-      return;
-    }
     // Arrows only move between rows — they never change a select/number value.
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       const target = event.key === 'ArrowDown' ? rows[rowIdx + 1] : rows[rowIdx - 1];
