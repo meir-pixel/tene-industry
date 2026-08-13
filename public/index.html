@@ -3199,13 +3199,12 @@ function shapeSelected(data) {
     item.elementName = name;
   }
   const addedNew = isNew;
-  const addedPalletId = palletId;
   _shapeTarget = null;
   renderPallets();
-  // After confirming a NEW item, open the editor for the next one automatically
-  // so items can be entered back-to-back without the mouse. Esc / × / ביטול ends it.
-  if (addedNew && typeof addItem === 'function') {
-    setTimeout(() => addItem(addedPalletId), 0);
+  // After confirming a new item, return to the list and put focus on the add
+  // button, so Shift+Enter (or Enter on the button) opens the next item.
+  if (addedNew) {
+    setTimeout(() => { const b = document.querySelector('.line-add-btn'); if (b) b.focus(); }, 0);
   }
 }
 
