@@ -25,6 +25,7 @@ module.exports = function createProductionMetricsRouter(deps) {
     const day = selectedDay(req, res);
     if (!day) return;
     const actual = productionActuals.getDailyProductionActuals(db, day);
+    const includeItems = String(req.query?.details || '').trim().toLowerCase() === '1';
     res.json({
       tons: Math.round((actual.actual_tons || 0) * 10) / 10,
       actual_weight_kg: actual.actual_weight_kg,
@@ -32,6 +33,7 @@ module.exports = function createProductionMetricsRouter(deps) {
       estimated_completed_items: actual.estimated_completed_items,
       unweighed_completed_items: actual.unweighed_completed_items,
       source_breakdown: actual.source_breakdown,
+      ...(includeItems ? { items: actual.items } : {}),
       date: day,
     });
   });

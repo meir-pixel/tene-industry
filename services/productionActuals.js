@@ -201,6 +201,43 @@ function getDailyProductionActuals(db, day = israelDay()) {
     }
   }
   const actualWeightKg = roundKg(rows.reduce((sum, row) => sum + (Number(row.weight_kg) || 0), 0));
+  const itemIds = [...accountedItemIds];
+  const itemMetadata = new Map();
+  if (itemIds.length) {
+    const placeholders = itemIds.map(() => '?').join(',');
+    const metadataRows = db.prepare(`
+      SELECT i.id AS item_id, i.shape_name, i.diameter, i.status,
+             COALESCE(i.machine, '') AS machine,
+             o.id AS order_id, o.order_num
+      FROM items i
+      LEFT JOIN pallets p ON p.id=i.pallet_id
+      LEFT JOIN orders o ON o.id=COALESCE(i.order_id, p.order_id)
+      WHERE i.id IN (${placeholders})
+    `).all(...itemIds);
+    for (const row of metadataRows) itemMetadata.set(Number(row.item_id), row);
+  }
+  const sourceLabels = {
+    production_event: 'דיווח משקל בפועל',
+    legacy_card_snapshot: 'משקל שמור בכרטיס ייצור',
+    completed_item_actual: 'משקל בפועל שמור בפריט',
+    completed_item_theoretical: 'משקל תאורטי לפריט שהושלם',
+  };
+  const itemDetails = rows.map(row => {
+    const metadata = itemMetadata.get(Number(row.item_id)) || {};
+    return {
+      item_id: Number(row.item_id),
+      order_id: metadata.order_id == null ? null : Number(metadata.order_id),
+      order_num: metadata.order_num || null,
+      shape_name: metadata.shape_name || null,
+      diameter: metadata.diameter == null ? null : Number(metadata.diameter),
+      machine: metadata.machine || row.machine || '',
+      status: metadata.status || null,
+      weight_kg: roundKg(row.weight_kg),
+      source: row.source,
+      source_label: sourceLabels[row.source] || 'מקור ייצור',
+      estimated: row.source === 'completed_item_theoretical',
+    };
+  }).sort((a, b) => b.weight_kg - a.weight_kg || a.item_id - b.item_id);
   return {
     date: day,
     actual_weight_kg: actualWeightKg,
@@ -209,6 +246,7 @@ function getDailyProductionActuals(db, day = israelDay()) {
     estimated_completed_items: estimatedCompletedItems,
     unweighed_completed_items: unweighedCompletedItems,
     source_breakdown: bySource,
+    items: itemDetails,
     machines: [...byMachine.entries()].map(([machine, weight_kg]) => ({ machine, weight_kg, tons: roundKg(weight_kg / 1000) }))
       .sort((a, b) => b.weight_kg - a.weight_kg || a.machine.localeCompare(b.machine)),
   };

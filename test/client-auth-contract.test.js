@@ -517,6 +517,22 @@ test('dashboard production KPIs use completed production weight, not order-creat
   assert.doesNotMatch(dashboard, /qsWeight'\)\.textContent = \(d\.totalWeightToday\|\|0\)/);
 });
 
+test('dashboard metrics expose accessible drilldowns instead of dead summary numbers', () => {
+  const html = read('public/dashboard.html');
+  const dashboard = html + read('public/dashboard.js');
+
+  assert.match(html, /id="dashboardDetailDialog"/);
+  assert.match(html, /data-drilldown="production"/);
+  assert.match(html, /data-drilldown="deliveries"/);
+  assert.match(html, /data-drilldown="pending"/);
+  assert.match(html, /data-drilldown="shortages"/);
+  assert.match(html, /tabindex="0"/);
+  assert.match(dashboard, /function openDashboardDrilldown\(kind\)/);
+  assert.match(dashboard, /\/api\/kpi\/tons-today\?date=.*details=1/);
+  assert.match(dashboard, /function productionDetailBody\(/);
+  assert.match(dashboard, /function bindDashboardDrilldowns\(/);
+});
+
 test('dashboard business widgets have data identity contracts', () => {
   const dashboard = read('public/dashboard.html') + read('public/dashboard.js');
   const contracts = require(path.join(root, 'public', 'data-contracts-client.js')).WIDGET_CONTRACTS;

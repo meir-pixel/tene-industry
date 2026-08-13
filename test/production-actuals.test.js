@@ -44,6 +44,9 @@ test('daily actual production uses the append-only reported-weight ledger and ne
     assert.equal(august13.source_breakdown.production_event_kg, 70);
     assert.equal(august13.machines[0].machine, 'A');
     assert.equal(august13.machines[0].weight_kg, 70);
+    assert.equal(august13.items.length, 1);
+    assert.equal(august13.items[0].source, 'production_event');
+    assert.equal(august13.items[0].estimated, false);
 
     // A later correction is recorded on the date it was reported; it does not
     // silently rewrite the amount reported on 13/8.
@@ -93,6 +96,8 @@ test('completed items without a measured weight use their saved theoretical weig
     assert.equal(august13.item_count, 1);
     assert.equal(august13.estimated_completed_items, 1);
     assert.equal(august13.source_breakdown.completed_item_theoretical_kg, 12000);
+    assert.equal(august13.items[0].source, 'completed_item_theoretical');
+    assert.equal(august13.items[0].estimated, true);
     assert.equal(august13.unweighed_completed_items, 0);
   } finally {
     db.close();

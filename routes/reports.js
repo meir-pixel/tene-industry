@@ -204,7 +204,31 @@ function orderCreatedWeightByDate(db, fromDate, toDate) {
     }));
 }
 
-function shapeWeightForOrdersCreatedBetween(db, fromDate, toDate) {
+function shapeWeightForOrdersCreatedBetween(db, fromDate, toDate, timeRange = null) {
+  if (timeRange?.start && timeRange?.end) {
+    const orders = db.prepare(`
+      SELECT o.id, COALESCE(o.billing_weight, o.total_weight, 0) AS legacy_weight
+      FROM orders o
+      WHERE datetime(o.created_at) >= datetime(?) AND datetime(o.created_at) < datetime(?)
+    `).all(timeRange.start, timeRange.end);
+    const itemRows = reportItemRows(
+      db,
+      'datetime(o.created_at) >= datetime(?) AND datetime(o.created_at) < datetime(?)',
+      [timeRange.start, timeRange.end],
+    );
+    const weightByOrder = new Map();
+    for (const item of itemRows) {
+      const orderId = Number(item.report_order_id);
+      const current = weightByOrder.get(orderId) || { count: 0, weight: 0 };
+      current.count += 1;
+      current.weight += itemReportMetrics(item).totalWeightKg;
+      weightByOrder.set(orderId, current);
+    }
+    return roundMetric(orders.reduce((sum, order) => {
+      const itemWeight = weightByOrder.get(Number(order.id));
+      return sum + (itemWeight?.count ? itemWeight.weight : Number(order.legacy_weight) || 0);
+    }, 0));
+  }
   const rows = orderCreatedWeightByDate(db, fromDate, toDate);
   return roundMetric(rows.reduce((sum, row) => sum + (Number(row.weight) || 0), 0));
 }
@@ -396,7 +420,7 @@ module.exports = function createReportsRouter(deps) {
       inProduction:     db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.IN_PRODUCTION).c,
       pending:          db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.PENDING_APPROVAL).c,
       urgentOpen:       db.prepare("SELECT COUNT(*) as c FROM orders WHERE priority='דחוף' AND status NOT IN (?,?)").get(statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED, statusContracts.ORDER_STATUS.CANCELLED).c,
-      totalWeightToday: shapeWeightForOrdersCreatedBetween(db, today, today),
+      totalWeightToday: shapeWeightForOrdersCreatedBetween(db, today, today, todayRange),
       producedWeightToday: productionToday.producedWeightToday || 0,
       producedTonsToday: Math.round((productionToday.producedTonsToday || 0) * 10) / 10,
       productionActualDate: today,

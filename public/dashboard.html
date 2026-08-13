@@ -30,27 +30,27 @@
   </header>
 
   <section class="kpi-strip" aria-label="מדדי יום">
-    <article class="kpi-tile">
+    <article class="kpi-tile dashboard-drilldown" data-drilldown="deliveries" role="button" tabindex="0" aria-label="פתח פירוט אספקות היום">
       <div class="kpi-label">צפי יציאה היום</div>
       <div class="kpi-value" id="kpiOrdersToday">—</div>
       <div class="kpi-sub" id="todayDeliveryWeight">טוען...</div>
     </article>
-    <article class="kpi-tile is-good">
+    <article class="kpi-tile is-good dashboard-drilldown" data-drilldown="production" role="button" tabindex="0" aria-label="פתח פירוט ייצור בפועל">
       <div class="kpi-label">יוצר בפועל</div>
       <div class="kpi-value" id="kpiTonsToday">—</div>
       <div class="kpi-sub" id="kpiWeightToday">טוען...</div>
     </article>
-    <article class="kpi-tile is-warn">
+    <article class="kpi-tile is-warn dashboard-drilldown" data-drilldown="pending" role="button" tabindex="0" aria-label="פתח פירוט הזמנות ממתינות לאישור">
       <div class="kpi-label">ממתינות לאישור</div>
       <div class="kpi-value" id="kpiPending">—</div>
       <div class="kpi-sub">דורשות החלטה</div>
     </article>
-    <article class="kpi-tile is-danger">
+    <article class="kpi-tile is-danger dashboard-drilldown" data-drilldown="shortages" role="button" tabindex="0" aria-label="פתח פירוט חוסרי מלאי">
       <div class="kpi-label">חסרות מלאי</div>
       <div class="kpi-value" id="stockShortageKpi">—</div>
       <div class="kpi-sub">קטרים רלוונטיים</div>
     </article>
-    <article class="kpi-tile">
+    <article class="kpi-tile dashboard-drilldown" data-drilldown="deliveries" role="button" tabindex="0" aria-label="פתח פירוט אספקות היום">
       <div class="kpi-label">לאספקה היום</div>
       <div class="kpi-value" id="deliveriesTodayKpi">—</div>
       <div class="kpi-sub" id="deliveriesTodaySub">הזמנות</div>
@@ -59,7 +59,7 @@
 
   <div class="command-layout">
     <section class="main-column">
-      <section class="panel daily-production-plan" id="dailyProductionPlan">
+      <section class="panel daily-production-plan dashboard-drilldown" id="dailyProductionPlan" data-drilldown="production-plan" role="button" tabindex="0" aria-label="פתח פירוט תוכנית הייצור היום">
         <div class="section-head">
           <div>
             <h2>תוכנית ייצור היום</h2>
@@ -81,7 +81,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" id="actionCenterPanel">
         <div class="section-head">
           <div><h2>דורש טיפול עכשיו</h2><p>חריגות שמונעות יציאה או ייצור</p></div>
           <span class="count-pill" id="actionCountPill">0</span>
@@ -89,7 +89,7 @@
         <div class="action-list" id="actionCenterList"><div class="muted-state">טוען פעולות נדרשות...</div></div>
       </section>
 
-      <section class="panel">
+      <section class="panel" id="todayDeliveriesPanel">
         <div class="section-head">
           <div><h2>אספקות היום</h2><p>הזמנות שאמורות לצאת היום</p></div>
           <span class="count-pill" id="todayDeliveriesCount">0</span>
@@ -102,7 +102,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" id="productionQueuePanel">
         <div class="section-head">
           <div><h2>תור ייצור קומפקטי</h2><p>מה מוכן, מה חסר ומה כבר בעבודה</p></div>
           <span class="count-pill" id="prodQueueCount">0</span>
@@ -112,7 +112,7 @@
     </section>
 
     <aside class="side-column">
-      <section class="panel">
+      <section class="panel" id="stockShortagesSection">
         <div class="section-head"><div><h2>חוסרי מלאי</h2><p>רק קטרים שמופיעים בתור או חורגים בתחזית</p></div></div>
         <div class="panel-body" id="stockShortagesPanel"><div class="muted-state">מלאי ייבדק מול הזמנות פתוחות</div></div>
       </section>
@@ -134,11 +134,11 @@
       <section class="panel">
         <div class="section-head"><div><h2>סיכום תפעולי</h2><p>מדדים משניים</p></div></div>
         <div class="panel-body compact-list">
-          <div class="compact-row"><span>בייצור כעת</span><strong id="kpiInProd">—</strong></div>
-          <div class="compact-row"><span>פריטים שהושלמו</span><strong id="kpiDone">—</strong></div>
-          <div class="compact-row"><span>דחופות פתוחות</span><strong id="kpiUrgent">—</strong></div>
-          <div class="compact-row"><span>פחת היום</span><strong id="kpiWaste">—</strong></div>
-          <div class="compact-row"><span>משקל ייצור היום</span><strong id="qsWeight">—</strong></div>
+          <button type="button" class="compact-row dashboard-drilldown" data-drilldown="queue"><span>בייצור כעת</span><strong id="kpiInProd">—</strong></button>
+          <button type="button" class="compact-row dashboard-drilldown" data-drilldown="production"><span>פריטים שהושלמו</span><strong id="kpiDone">—</strong></button>
+          <button type="button" class="compact-row dashboard-drilldown" data-drilldown="urgent"><span>דחופות פתוחות</span><strong id="kpiUrgent">—</strong></button>
+          <button type="button" class="compact-row dashboard-drilldown" data-drilldown="waste"><span>פחת היום</span><strong id="kpiWaste">—</strong></button>
+          <button type="button" class="compact-row dashboard-drilldown" data-drilldown="production"><span>משקל ייצור היום</span><strong id="qsWeight">—</strong></button>
         </div>
       </section>
     </aside>
@@ -148,6 +148,14 @@
     <span id="kpiItemsProd"></span><span id="kpiItemsDone"></span><span id="kpiDoneBar"></span><span id="kpiWasteBar"></span><span id="ordersTableBody"></span><span id="alertCountPill"></span><span id="urgentCount"></span>
   </div>
 </main>
+<dialog class="dashboard-detail-dialog" id="dashboardDetailDialog" aria-labelledby="dashboardDetailTitle">
+  <div class="dashboard-detail-head">
+    <div><h2 id="dashboardDetailTitle">פירוט נתון</h2><p id="dashboardDetailSubtitle"></p></div>
+    <button type="button" class="dashboard-detail-close" id="dashboardDetailClose" aria-label="סגור פירוט">×</button>
+  </div>
+  <div class="dashboard-detail-body" id="dashboardDetailBody"></div>
+  <a class="dashboard-detail-link" id="dashboardDetailLink" hidden>פתח מסך מלא</a>
+</dialog>
 <script src="/dashboard.js"></script>
 </body>
 </html>

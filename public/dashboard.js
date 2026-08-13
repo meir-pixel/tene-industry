@@ -26,6 +26,171 @@ function statusBadgeClass(status) {
   return '';
 }
 
+const PRODUCTION_SOURCE_LABELS = {
+  production_event_kg: 'דיווחי משקל בפועל',
+  legacy_card_snapshot_kg: 'כרטיסיות ייצור שמורות',
+  completed_item_actual_kg: 'משקל בפועל השמור בפריט',
+  completed_item_theoretical_kg: 'משקל תאורטי לפריטים שהושלמו',
+};
+
+function dashboardDetailTable(headers, rows) {
+  if (!rows.length) return '<div class="muted-state">אין רשומות להצגה.</div>';
+  return `<div class="dashboard-detail-table-wrap"><table class="data-table dashboard-detail-table"><thead><tr>${headers.map(header => `<th>${escHtml(header)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(value => `<td>${value}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+function dashboardDetailLink(href) {
+  const link = document.getElementById('dashboardDetailLink');
+  if (!href) {
+    link.hidden = true;
+    link.removeAttribute('href');
+    return;
+  }
+  link.href = href;
+  link.hidden = false;
+}
+
+function showDashboardDetail({ title, subtitle = '', body = '<div class="muted-state">טוען...</div>', href = null }) {
+  const dialog = document.getElementById('dashboardDetailDialog');
+  setText('dashboardDetailTitle', title);
+  setText('dashboardDetailSubtitle', subtitle);
+  document.getElementById('dashboardDetailBody').innerHTML = body;
+  dashboardDetailLink(href);
+  if (dialog.open) return;
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+}
+
+function closeDashboardDetail() {
+  const dialog = document.getElementById('dashboardDetailDialog');
+  if (dialog?.open && typeof dialog.close === 'function') dialog.close();
+  else dialog?.removeAttribute('open');
+}
+
+function orderDetailLink(orderId, text) {
+  const id = Number(orderId);
+  return Number.isInteger(id) && id > 0
+    ? `<a class="dashboard-inline-link" href="/orders.html?id=${id}">${escHtml(text)}</a>`
+    : escHtml(text);
+}
+
+async function getOrdersForDashboardDrilldown(query) {
+  const response = await fetch('/api/orders?' + query);
+  if (!response.ok) throw new Error('orders_drilldown_failed');
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+function productionDetailBody(production, includePlan = false) {
+  const sources = Object.entries(production.source_breakdown || {})
+    .filter(([, kg]) => Number(kg) !== 0)
+    .map(([source, kg]) => [escHtml(PRODUCTION_SOURCE_LABELS[source] || source), escHtml(formatKg(kg))]);
+  const items = Array.isArray(production.items) ? production.items : [];
+  const itemRows = items.map(item => [
+    orderDetailLink(item.order_id, item.order_num || `פריט #${item.item_id}`),
+    escHtml([item.shape_name || 'פריט', item.diameter ? `Ø${item.diameter}` : ''].filter(Boolean).join(' · ')),
+    escHtml(item.machine || 'ללא מכונה'),
+    `<strong>${escHtml(formatKg(item.weight_kg))}</strong>`,
+    escHtml(item.source_label || 'מקור ייצור'),
+  ]);
+  const plan = includePlan ? productionReference() : null;
+  const planHtml = plan ? `<div class="dashboard-detail-summary"><div><span>ביצוע</span><strong>${escHtml(formatKg(production.actual_weight_kg))}</strong></div><div><span>${escHtml(plan.label)}</span><strong>${escHtml(formatKg(plan.kg))}</strong></div></div>` : '';
+  const estimateNote = Number(production.estimated_completed_items || 0) > 0
+    ? `<div class="dashboard-detail-note">${Number(production.estimated_completed_items)} פריטים הושלמו ללא שקילה ולכן חושבו לפי המשקל התאורטי השמור.</div>`
+    : '';
+  return `${planHtml}<section><h3>מקורות המשקל</h3>${dashboardDetailTable(['מקור', 'משקל'], sources)}</section>${estimateNote}<section><h3>פריטים שמרכיבים את הייצור</h3>${dashboardDetailTable(['הזמנה / פריט', 'צורה', 'מכונה', 'משקל', 'מקור'], itemRows)}</section>`;
+}
+
+async function openDashboardDrilldown(kind) {
+  const day = dashData?.productionActualDate || TODAY;
+  const definitions = {
+    deliveries: { title: 'אספקות היום', subtitle: 'הזמנות המתוכננות לצאת היום', href: `/orders.html?date=${encodeURIComponent(TODAY)}` },
+    pending: { title: 'ממתינות לאישור', subtitle: 'הזמנות שלא שוחררו עדיין לייצור', href: `/orders.html?status=${encodeURIComponent('ממתינה לאישור')}` },
+    urgent: { title: 'הזמנות דחופות פתוחות', subtitle: 'הזמנות בעדיפות דחוף שאינן סגורות', href: `/orders.html?priority=${encodeURIComponent('דחוף')}` },
+    shortages: { title: 'חוסרי מלאי', subtitle: 'חוסרים רלוונטיים לתור הייצור', href: '/inventory.html' },
+    queue: { title: 'תור הייצור', subtitle: 'פריטים ממתינים או בייצור', href: '/production-queue.html' },
+    waste: { title: 'פחת היום', subtitle: 'פחת מדווח לפי מכונה', href: '/reports.html' },
+    production: { title: 'ייצור היום', subtitle: `פירוט משקל ליום ${day}`, href: `/reports.html?from=${encodeURIComponent(day)}&to=${encodeURIComponent(day)}` },
+    'production-plan': { title: 'תוכנית ייצור היום', subtitle: `יעד מול ביצוע ליום ${day}`, href: `/reports.html?from=${encodeURIComponent(day)}&to=${encodeURIComponent(day)}` },
+  };
+  const definition = definitions[kind];
+  if (!definition) return;
+  showDashboardDetail({ ...definition });
+  try {
+    let body;
+    if (kind === 'production' || kind === 'production-plan') {
+      const response = await fetch(`/api/kpi/tons-today?date=${encodeURIComponent(day)}&details=1`);
+      if (!response.ok) throw new Error('production_drilldown_failed');
+      body = productionDetailBody(await response.json(), kind === 'production-plan');
+    } else if (kind === 'deliveries') {
+      body = dashboardDetailTable(['הזמנה', 'לקוח', 'אתר', 'משקל', 'סטטוס'], todayDeliveries.map(order => [
+        orderDetailLink(order.id, order.order_num || String(order.id)),
+        escHtml(order.customer_name || '—'),
+        escHtml(order.delivery_address || order.site_name || order.project_name || '—'),
+        `<strong>${escHtml(formatKg(order.total_weight || order.billing_weight || 0))}</strong>`,
+        escHtml(order.status || '—'),
+      ]));
+    } else if (kind === 'pending' || kind === 'urgent') {
+      const query = kind === 'pending'
+        ? 'status=' + encodeURIComponent('ממתינה לאישור')
+        : 'priority=' + encodeURIComponent('דחוף');
+      const orders = await getOrdersForDashboardDrilldown(query);
+      body = dashboardDetailTable(['הזמנה', 'לקוח', 'אספקה', 'משקל', 'סטטוס'], orders.map(order => [
+        orderDetailLink(order.id, order.order_num || String(order.id)),
+        escHtml(order.customer_name || '—'),
+        escHtml(order.delivery_date || '—'),
+        `<strong>${escHtml(formatKg(order.total_weight || order.billing_weight || 0))}</strong>`,
+        escHtml(order.status || '—'),
+      ]));
+    } else if (kind === 'shortages') {
+      body = dashboardDetailTable(['קוטר', 'מצב', 'מלאי זמין', 'נדרש'], relevantShortages().map(row => [
+        escHtml(`Ø${row.diameter || '—'}`),
+        escHtml(row.alert === 'critical' ? 'חוסר קריטי' : 'אזהרה'),
+        `<strong>${escHtml(formatKg(row.on_hand_kg || 0))}</strong>`,
+        escHtml(row.required_kg == null ? '—' : formatKg(row.required_kg)),
+      ]));
+    } else if (kind === 'queue') {
+      body = dashboardDetailTable(['הזמנה', 'לקוח', 'צורה', 'משקל', 'סטטוס'], productionQueueItems.map(item => [
+        orderDetailLink(item.order_id, item.order_num || '—'),
+        escHtml(item.customer_name || '—'),
+        escHtml([item.shape_name || 'פריט', item.diameter ? `Ø${item.diameter}` : ''].filter(Boolean).join(' · ')),
+        `<strong>${escHtml(formatKg(item.weight || 0))}</strong>`,
+        escHtml(item.status || '—'),
+      ]));
+    } else if (kind === 'waste') {
+      body = dashboardDetailTable(['מכונה', 'פחת מדווח', 'כמות שהושלמה'], (dashData?.wasteByMachine || []).map(row => [
+        escHtml(row.machine || 'ללא מכונה'),
+        escHtml(String(Number(row.waste || 0))),
+        escHtml(String(Number(row.qty || 0))),
+      ]));
+    }
+    showDashboardDetail({ ...definition, body });
+  } catch {
+    showDashboardDetail({ ...definition, body: '<div class="muted-state">לא ניתן לטעון את הפירוט כרגע. נסה שוב.</div>' });
+  }
+}
+
+function bindDashboardDrilldowns() {
+  document.querySelectorAll('[data-drilldown]').forEach(element => {
+    if (element.dataset.drilldownBound === '1') return;
+    element.dataset.drilldownBound = '1';
+    const open = () => openDashboardDrilldown(element.dataset.drilldown);
+    element.addEventListener('click', event => {
+      if (event.target.closest('a')) return;
+      open();
+    });
+    element.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      open();
+    });
+  });
+  const closeButton = document.getElementById('dashboardDetailClose');
+  if (closeButton && closeButton.dataset.bound !== '1') {
+    closeButton.dataset.bound = '1';
+    closeButton.addEventListener('click', closeDashboardDetail);
+  }
+}
+
 function updateTime() {
   const now = new Date();
   const time = now.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
@@ -207,13 +372,14 @@ function renderStockShortages() {
   const shortages = relevantShortages();
   const host = document.getElementById('stockShortagesPanel');
   if (!shortages.length) { host.innerHTML = '<div class="muted-state">אין חוסרי מלאי רלוונטיים כרגע.</div>'; return; }
-  host.innerHTML = `<div class="compact-list">${shortages.map(row => `<div class="compact-row"><span>Ø${escHtml(row.diameter)} · ${row.alert === 'critical' ? 'חוסר קריטי' : 'אזהרה'}</span><strong>${formatKg(row.on_hand_kg || 0)}</strong></div>`).join('')}</div><a class="action-link" href="/procurement.html" style="margin-top:12px">פתח רכש/מלאי</a>`;
+  host.innerHTML = `<div class="compact-list">${shortages.map(row => `<button type="button" class="compact-row dashboard-drilldown" data-drilldown="shortages"><span>Ø${escHtml(row.diameter)} · ${row.alert === 'critical' ? 'חוסר קריטי' : 'אזהרה'}</span><strong>${formatKg(row.on_hand_kg || 0)}</strong></button>`).join('')}</div><a class="action-link" href="/procurement.html" style="margin-top:12px">פתח רכש/מלאי</a>`;
 }
 function renderProductionCardsSummary() {
   const waiting = productionQueueItems.filter(item => String(item.status || '').includes('ממתין')).length;
   const inProd = productionQueueItems.filter(item => String(item.status || '').includes('ייצור')).length;
   const weight = productionQueueItems.reduce((sum, item) => sum + Number(item.weight || 0), 0);
-  document.getElementById('productionCardsSummary').innerHTML = `<div class="compact-list"><div class="compact-row"><span>פריטים בתור</span><strong>${productionQueueItems.length}</strong></div><div class="compact-row"><span>ממתינים</span><strong>${waiting}</strong></div><div class="compact-row"><span>בייצור</span><strong>${inProd}</strong></div><div class="compact-row"><span>משקל בתור</span><strong>${formatKg(weight)}</strong></div></div>${productionQueueItems.length ? '<a class="action-link" href="/production-queue.html" style="margin-top:12px">פתח תור ייצור</a>' : ''}`;
+  document.getElementById('productionCardsSummary').innerHTML = `<div class="compact-list"><button type="button" class="compact-row dashboard-drilldown" data-drilldown="queue"><span>פריטים בתור</span><strong>${productionQueueItems.length}</strong></button><button type="button" class="compact-row dashboard-drilldown" data-drilldown="queue"><span>ממתינים</span><strong>${waiting}</strong></button><button type="button" class="compact-row dashboard-drilldown" data-drilldown="queue"><span>בייצור</span><strong>${inProd}</strong></button><button type="button" class="compact-row dashboard-drilldown" data-drilldown="queue"><span>משקל בתור</span><strong>${formatKg(weight)}</strong></button></div>${productionQueueItems.length ? '<a class="action-link" href="/production-queue.html" style="margin-top:12px">פתח תור ייצור</a>' : ''}`;
+  bindDashboardDrilldowns();
 }
 function machineStateClass(m) {
   if (m.status === 'בייצור') return 'running';
@@ -243,6 +409,7 @@ function bootDashboard() {
   updateTime();
   applyDataContractBadges();
   connectWS();
+  bindDashboardDrilldowns();
   fetchDashboard();
   setInterval(updateTime, 1000);
   setInterval(fetchDashboard, 15000);
