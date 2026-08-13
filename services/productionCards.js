@@ -812,7 +812,10 @@ function itemCard(item, order, printDate, rebarWeights) {
   const structElement = itemStructElement(item);
   const diameter = shapeDiameterFromItem(item);
   const totalLengthMm = shapeTotalLengthMmFromItem(item);
-  const kgPerMeter = rebarWeights[Math.round(diameter || 0)];
+  const diaNum = Number(diameter) || 0;
+  // Fractional diameters (e.g. 5.5) are not integer table keys — try the exact
+  // value, then the rounded key, then the round-bar formula d² × 0.00617.
+  const kgPerMeter = rebarWeights[diaNum] ?? rebarWeights[Math.round(diaNum)] ?? (diaNum > 0 ? diaNum * diaNum * 0.00617 : 0);
   const weight = item.total_weight && item.total_weight > 0
     ? Number(item.total_weight).toFixed(2)
     : (kgPerMeter ? (Math.round((totalLengthMm || 0) / 1000 * kgPerMeter * (item.quantity || 1) * 10) / 10).toFixed(2) : '0.00');
