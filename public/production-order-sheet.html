@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>טופס ייצור חי</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/theme.css">
+  <style>
+    :root{--ink:#172a45;--muted:#60748a;--line:#d9e3ec;--surface:#fff;--page:#f1f5f9;--green:#197548;--yellow:#a56b00;--red:#b33228;--gray:#64748b}
+    *{box-sizing:border-box} body{margin:0;background:var(--page);color:var(--ink);font-family:Heebo,Arial,sans-serif}
+    .page{max-width:1120px;margin:auto;padding:20px 14px 44px}.head{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:14px;grid-template-columns:1fr auto;align-items:center}.eyebrow{font-size:12px;font-weight:800;color:var(--muted)}h1{margin:0;font-size:26px}.sub{margin:3px 0 0;color:var(--muted);font-weight:700}.loading-action{display:grid;gap:7px;justify-items:end}.btn{border:0;border-radius:11px;background:#cf650f;color:#fff;padding:11px 17px;font:800 15px Heebo,Arial;cursor:pointer;text-decoration:none}.btn[aria-disabled="true"]{background:#cbd5e1;color:#475569;cursor:not-allowed}.notice{font-size:12px;color:var(--muted);font-weight:700;max-width:290px}.legend{display:flex;gap:8px;flex-wrap:wrap;margin:17px 0 10px}.legend span,.state{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:900}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:currentColor}.green{background:#e8f8ee;color:var(--green)}.yellow{background:#fff4d8;color:var(--yellow)}.red{background:#fff0ee;color:var(--red)}.gray{background:#edf2f7;color:var(--gray)}.cards{display:grid;gap:12px}.card{background:var(--surface);border:1px solid var(--line);border-right:7px solid var(--gray);border-radius:15px;padding:14px;display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:16px;align-items:center}.card.green{border-right-color:var(--green)}.card.yellow{border-right-color:var(--yellow)}.card.red{border-right-color:var(--red)}.thumb{height:92px;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:5px;background:#fff}.thumb svg{width:100%;height:100%;max-height:82px}.title{font-size:18px;font-weight:900}.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px;color:var(--muted);font-size:13px;font-weight:800}.meta b{color:var(--ink)}.material{font-size:12px;font-weight:800;color:var(--muted);margin-top:6px}.material.shortage{color:var(--red)}.state-column{display:grid;justify-items:end;gap:8px;text-align:left;min-width:130px}.qty{font-size:12px;color:var(--muted);font-weight:800}.empty,.error{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;text-align:center;color:var(--muted);font-weight:800;margin-top:16px}.error{color:var(--red)}
+    @media(max-width:700px){.page{padding:12px}.head{grid-template-columns:1fr}.loading-action{justify-items:stretch}.loading-action .btn{text-align:center}.card{grid-template-columns:90px minmax(0,1fr);gap:10px}.state-column{grid-column:1/-1;justify-items:start;grid-auto-flow:column;justify-content:space-between;min-width:0}.thumb{height:74px}.title{font-size:16px}h1{font-size:22px}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="head">
+      <div><div class="eyebrow">טופס ייצור חי</div><h1 id="orderTitle">טוען הזמנה…</h1><p id="orderSub" class="sub"></p></div>
+      <div class="loading-action"><a id="startLoading" class="btn" href="#" hidden>התחל העמסה</a><div id="loadingNotice" class="notice"></div></div>
+    </header>
+    <div class="legend" aria-label="מקרא סטטוסים"><span class="green"><i class="dot"></i>הושלם</span><span class="yellow"><i class="dot"></i>בייצור</span><span class="red"><i class="dot"></i>חסר חומר גלם</span><span class="gray"><i class="dot"></i>ממתין</span></div>
+    <section id="cards" class="cards" aria-live="polite"></section>
+  </main>
+  <script src="/auth-client.js"></script>
+  <script>
+    (function(){
+      const params=new URLSearchParams(location.search);const orderId=Number(params.get('order'));
+      const cardsEl=document.getElementById('cards');const escape=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      const kg=value=>Number(value||0).toLocaleString('he-IL',{maximumFractionDigits:3});
+      function materialText(card){const material=card.material;if(!material)return 'כרטיס הרכבה — אינו צורך רכיב פלדה נוסף';const parts=['Ø'+material.diameter+' '+material.material_type];if(material.physical_stock_kg!==null)parts.push('מלאי מאומת '+kg(material.physical_stock_kg)+' ק״ג');if(material.shortage_kg>0)parts.push('חוסר '+kg(material.shortage_kg)+' ק״ג');return parts.join(' · ')}
+      function render(data){document.getElementById('orderTitle').textContent='הזמנה '+data.order.order_num;document.getElementById('orderSub').textContent=[data.order.customer_name,data.order.status].filter(Boolean).join(' · ');const button=document.getElementById('startLoading');const notice=document.getElementById('loadingNotice');if(data.may_start_loading){button.href=data.loading_entry_url;button.hidden=false;notice.textContent='פתיחת ההעמסה תעבור לבדיקת החבילות ולאישור התחלה.'}else{notice.textContent='העמסה נפתחת רק בהרשאת מחסן, מנהל או אדמין.'}if(!data.cards.length){cardsEl.innerHTML='<div class="empty">אין כרטיסי ייצור בהזמנה זו.</div>';return}cardsEl.innerHTML=data.cards.map(card=>{const tone=escape(card.state.tone||'gray');const material=materialText(card);const isShortage=card.state.code==='material_shortage';return '<article class="card '+tone+'"><div class="thumb">'+(card.shape_svg||'')+'</div><div><div class="title">'+escape(card.title)+'</div><div class="meta"><span>כמות <b>'+escape(card.quantity)+'</b></span><span>Ø <b>'+escape(card.diameter_mm??'—')+'</b></span><span>משקל <b>'+kg(card.total_weight_kg)+' ק״ג</b></span>' +(card.pallet_number?'<span>משטח <b>'+escape(card.pallet_number)+'</b></span>':'')+'</div><div class="material '+(isShortage?'shortage':'')+'">'+escape(material)+'</div></div><div class="state-column"><span class="state '+tone+'"><i class="dot"></i>'+escape(card.state.label)+'</span><span class="qty">יוצר '+escape(card.produced_quantity)+' / '+escape(card.quantity)+'</span></div></article>'}).join('')}
+      async function load(){if(!Number.isInteger(orderId)||orderId<=0){cardsEl.innerHTML='<div class="error">מספר הזמנה לא תקין.</div>';return}try{const response=await fetch('/api/production/orders/'+encodeURIComponent(orderId)+'/live-sheet');const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'load_failed');render(data)}catch(error){document.getElementById('orderTitle').textContent='לא ניתן לפתוח טופס ייצור';cardsEl.innerHTML='<div class="error">נדרשת התחברות והרשאה מתאימה להצגת ההזמנה.</div>'}}
+      load();
+    })();
+  </script>
+  <script src="/nav.js"></script>
+</body>
+</html>

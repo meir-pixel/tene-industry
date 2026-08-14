@@ -56,7 +56,7 @@ function authHeaders(accessToken) {
   return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 }
 
-test('order-sheet QR starts a server-authoritative package loading session without touching production', async (t) => {
+test('order-sheet QR opens the live production sheet while package loading remains server-authoritative', async (t) => {
   seedUser('load-warehouse', 'warehouse', '3011');
   seedUser('load-office', 'office', '3012');
   seedUser('load-production', 'production', '3013');
@@ -87,7 +87,7 @@ test('order-sheet QR starts a server-authoritative package loading session witho
   const printResponse = await request(`/api/orders/${orderId}/print-a4`, { headers: authHeaders(office) });
   assert.equal(printResponse.status, 200);
   const printHtml = await printResponse.text();
-  assert.match(printHtml, new RegExp(`warehouse[.]html[?]load_order=${orderId}`));
+  assert.match(printHtml, new RegExp(`production-order-sheet[.]html[?]order=${orderId}`));
   assert.match(printHtml, /<img src="data:image\/png;base64,/);
   assert.doesNotMatch(printHtml, /cdn[.]jsdelivr[.]net\/npm\/qrcode/);
   assert.doesNotMatch(printHtml, />QR<\/div>/);

@@ -1,7 +1,8 @@
 const router = require('express').Router();
 const createProductionMachinesRouter = require('./productionMachines');
 const productionCards = require('../services/productionCards');
-const { consumeReservationsForProduction } = require('../services/inventoryReservation');
+const { consumeReservationsForProduction, calculateMaterialStockPosition, normalizeMaterialType } = require('../services/inventoryReservation');
+const { expandProductionCardsForOrder } = require('../services/productionCardPrintPage');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/production missing dependency: ${name}`);
@@ -176,6 +177,146 @@ module.exports = function createProductionRouter(deps) {
       actual_weight_kg: actualWeightKg,
     });
   }
+
+  function cardMaterialRequirement(card, reservationRows) {
+    // The assembly card is a real production card but does not consume a fifth
+    // material. Its live state is derived from its source item only.
+    if (card.pile_card_type === 'pile_assembly') return null;
+    const diameter = Number(card.diameter);
+    if (!(diameter > 0)) return null;
+    const matchingReservation = reservationRows.find(row => Number(row.diameter) === diameter);
+    return {
+      diameter,
+      material_type: normalizeMaterialType(matchingReservation?.material_type),
+      source: matchingReservation ? 'reservation' : 'default_coil',
+    };
+  }
+
+  function liveCardState(card, materialRequirement) {
+    const status = String(card.status || '');
+    const requestedQty = Number(card.quantity || 0);
+    const producedQty = Number(card.produced_qty || 0);
+    if (status === ITEM_STATUS.DONE || status === ITEM_STATUS.DELIVERED || (requestedQty > 0 && producedQty >= requestedQty)) {
+      return { code: 'completed', label: 'הושלם', tone: 'green' };
+    }
+    if (status === ITEM_STATUS.IN_PRODUCTION || producedQty > 0) {
+      return { code: 'in_production', label: 'בייצור', tone: 'yellow' };
+    }
+    if (status === ITEM_STATUS.CANCELLED) {
+      return { code: 'cancelled', label: 'בוטל', tone: 'gray' };
+    }
+    if (status === ITEM_STATUS.ON_HOLD) {
+      return { code: 'on_hold', label: 'בהמתנה', tone: 'gray' };
+    }
+    if (!materialRequirement) {
+      return { code: 'waiting_assembly', label: 'ממתין להרכבה', tone: 'gray' };
+    }
+    try {
+      const position = calculateMaterialStockPosition(db, materialRequirement);
+      if (Number(position.physicalStockKg) <= 0 || Number(position.availableKg) < 0) {
+        return {
+          code: 'material_shortage',
+          label: 'חסר חומר גלם',
+          tone: 'red',
+          stock: position,
+        };
+      }
+      return { code: 'waiting', label: 'ממתין לייצור', tone: 'gray', stock: position };
+    } catch {
+      // A malformed legacy item is not proof of a material shortage. Keep it
+      // neutral instead of fabricating a stock conclusion.
+      return { code: 'stock_unknown', label: 'ממתין לאימות חומר', tone: 'gray' };
+    }
+  }
+
+  function liveProductionCardDto(card, reservationRowsByItem) {
+    const parentItemId = Number(card.parent_item_id || card.id);
+    const material = cardMaterialRequirement(card, reservationRowsByItem.get(parentItemId) || []);
+    const state = liveCardState(card, material);
+    return {
+      card_key: card.card_key || `item-${parentItemId}`,
+      item_id: parentItemId,
+      card_type: card.pile_card_type || 'item',
+      component_type: card.pile_component_type || null,
+      title: card.shape_name || productionCards.itemHumanTitle(card),
+      quantity: Number(card.quantity || 0),
+      produced_quantity: Number(card.produced_qty || 0),
+      diameter_mm: Number(card.diameter || 0) || null,
+      total_weight_kg: Number(card.total_weight || 0),
+      total_length_mm: Number(card.total_length_mm || 0),
+      pallet_number: Number(card._palletNum || 0) || null,
+      source_item_status: card.status || null,
+      state,
+      material: material ? {
+        ...material,
+        physical_stock_kg: state.stock?.physicalStockKg ?? null,
+        reserved_kg: state.stock?.reservedKg ?? null,
+        available_kg: state.stock?.availableKg ?? null,
+        shortage_kg: state.stock?.shortageKg ?? null,
+      } : null,
+      shape_svg: card.shape_svg || productionCards.itemShapeSvg(card),
+    };
+  }
+
+  // ── LIVE ORDER PRODUCTION SHEET ──────────────────────────────────
+  // This read-only projection is the order-QR landing point. Production-card
+  // status remains sourced from items; inventory status is calculated from the
+  // existing verified-stock and active-reservation ledger.
+  router.get('/production/orders/:orderId/live-sheet', requireAnyRole(['production', 'kiosk', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
+    const orderId = Number(req.params.orderId);
+    if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'invalid_order_id' });
+    const order = db.prepare(`
+      SELECT o.id,o.order_num,o.status,o.total_weight,o.delivery_date,c.name AS customer_name
+      FROM orders o
+      LEFT JOIN customers c ON c.id=o.customer_id
+      WHERE o.id=?
+    `).get(orderId);
+    if (!order) return res.status(404).json({ error: 'order_not_found' });
+
+    const sourceItems = db.prepare(`
+      SELECT i.*, p.pallet_num AS _palletNum
+      FROM items i
+      JOIN pallets p ON p.id=i.pallet_id
+      WHERE p.order_id=?
+      ORDER BY p.pallet_num, i.id
+    `).all(orderId);
+    const reservationRowsByItem = new Map();
+    const reservations = db.prepare(`
+      SELECT item_id,diameter,material_type,reserved_kg
+      FROM inventory_reservations
+      WHERE order_id=? AND status='active' AND item_id IS NOT NULL
+      ORDER BY id
+    `).all(orderId);
+    for (const reservation of reservations) {
+      const itemId = Number(reservation.item_id);
+      if (!reservationRowsByItem.has(itemId)) reservationRowsByItem.set(itemId, []);
+      reservationRowsByItem.get(itemId).push(reservation);
+    }
+
+    const expandedCards = expandProductionCardsForOrder(sourceItems, tryParseJSON);
+    const cards = expandedCards.map(card => liveProductionCardDto(card, reservationRowsByItem));
+    const stateCounts = cards.reduce((counts, card) => {
+      counts[card.state.code] = (counts[card.state.code] || 0) + 1;
+      return counts;
+    }, {});
+    const role = String(req.userRole || req.auth?.role || '');
+    const mayStartLoading = ['warehouse', 'manager', 'admin'].includes(role);
+
+    return res.json({
+      order: {
+        id: order.id,
+        order_num: order.order_num,
+        status: order.status,
+        customer_name: order.customer_name || null,
+        total_weight_kg: Number(order.total_weight || 0),
+        delivery_date: order.delivery_date || null,
+      },
+      cards,
+      state_counts: stateCounts,
+      may_start_loading: mayStartLoading,
+      loading_entry_url: `/warehouse.html?load_order=${encodeURIComponent(order.id)}`,
+    });
+  });
 
   router.get('/workers', requireAnyRole(['production', 'office', 'manager', 'admin']), (req, res) => {
     res.json(db.prepare('SELECT * FROM workers WHERE active=1 ORDER BY name').all());

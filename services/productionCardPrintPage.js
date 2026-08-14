@@ -220,6 +220,13 @@ function expandPileCageProductionItems(allItems, tryParseJSON) {
   return expanded;
 }
 
+// The live order-production sheet uses the same canonical expansion as the
+// printed production cards.  This is intentionally a projection only: it
+// never creates cards or writes a production state.
+function expandProductionCardsForOrder(allItems, tryParseJSON) {
+  return expandPileCageProductionItems(allItems, tryParseJSON);
+}
+
 function renderPrintCardsPage({
   order,
   pallets,
@@ -1237,6 +1244,7 @@ function printCards() {
 
 module.exports = {
   renderPrintCardsPage,
+  expandProductionCardsForOrder,
   _test: {
     pileSnapshotForItem,
     pileMasterShapeSvg,
