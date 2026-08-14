@@ -127,7 +127,7 @@ function addLoadingEvent(db, { sessionId, type, packageId = null, scannedValue =
   `).run(sessionId, type, packageId, scannedValue, actorId, safeJson(details));
 }
 
-function addOrderLoadingStatusAudit(db, { order, from, to, actorId }) {
+function addOrderLoadingStatusAudit(db, { order, from, to, actorId, note }) {
   db.prepare(`
     INSERT INTO audit_log (entity_type,entity_id,entity_ref,action,field_name,old_value,new_value,notes,user_id,user_name)
     VALUES (?,?,?,?,?,?,?,?,?,?)
@@ -139,7 +139,7 @@ function addOrderLoadingStatusAudit(db, { order, from, to, actorId }) {
     'status',
     from,
     to,
-    'תחילת העמסה מסשן מחסן',
+    note,
     actorId,
     null,
   );
@@ -245,7 +245,7 @@ module.exports = function createWarehouseRouter(deps) {
 
         if (normalizedOrderStatus !== ORDER_STATUS.LOADING) {
           db.prepare('UPDATE orders SET status=? WHERE id=?').run(ORDER_STATUS.LOADING, order.id);
-          addOrderLoadingStatusAudit(db, { order, from: order.status, to: ORDER_STATUS.LOADING, actorId });
+          addOrderLoadingStatusAudit(db, { order, from: order.status, to: ORDER_STATUS.LOADING, actorId, note: 'תחילת העמסה מסשן מחסן' });
         }
 
         const sessionUid = loadingSessionUid();
@@ -366,17 +366,32 @@ module.exports = function createWarehouseRouter(deps) {
     const sessionUid = String(req.params.sessionUid || '');
     const actorId = loadingActorId(req);
     const result = db.transaction(() => {
-      const session = db.prepare(`SELECT id,status FROM order_loading_sessions WHERE session_uid=?`).get(sessionUid);
+      const session = db.prepare(`
+        SELECT s.id,s.status,s.order_id,o.order_num,o.status AS order_status
+        FROM order_loading_sessions s
+        JOIN orders o ON o.id=s.order_id
+        WHERE s.session_uid=?
+      `).get(sessionUid);
       if (!session) return { error: 'loading_session_not_found', status: 404 };
       if (session.status === 'completed') return { completed: true, replay: true };
       if (session.status !== 'active') return { error: 'loading_session_not_active', status: 409 };
+      if (normalizeOrderStatus(session.order_status) !== ORDER_STATUS.LOADING) return { error: 'order_not_in_loading', status: 409 };
       const missing = db.prepare(`SELECT COUNT(*) AS count FROM order_loading_session_packages WHERE session_id=? AND state='pending'`).get(session.id).count;
       if (missing > 0) return { error: 'packages_missing', status: 409, missing_count: missing };
       db.prepare(`UPDATE order_loading_sessions SET status='completed',completed_by=?,completed_at=CURRENT_TIMESTAMP WHERE id=?`).run(actorId, session.id);
       addLoadingEvent(db, { sessionId: session.id, type: 'completed', actorId });
-      return { completed: true, replay: false };
+      db.prepare('UPDATE orders SET status=? WHERE id=? AND status=?').run(ORDER_STATUS.ON_THE_WAY, session.order_id, ORDER_STATUS.LOADING);
+      addOrderLoadingStatusAudit(db, {
+        order: { id: session.order_id, order_num: session.order_num },
+        from: session.order_status,
+        to: ORDER_STATUS.ON_THE_WAY,
+        actorId,
+        note: 'יציאה לאחר השלמת העמסה',
+      });
+      return { completed: true, replay: false, status_changed: true, order_id: session.order_id, order_num: session.order_num };
     })();
     if (result.error) return res.status(result.status).json({ error: result.error, missing_count: result.missing_count || 0 });
+    if (result.status_changed) wsBroadcast('order_status', { id: result.order_id, status: ORDER_STATUS.ON_THE_WAY, orderNum: result.order_num });
     res.json({ ...loadingSessionState(db, sessionUid), replay: result.replay });
   });
 

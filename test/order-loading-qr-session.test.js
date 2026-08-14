@@ -193,7 +193,8 @@ test('order-sheet QR opens the live production sheet while package loading remai
   assert.equal(db.prepare('SELECT status FROM packages WHERE id=?').get(packageB).status, 'loaded');
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM scan_log').get().count, productionScanCountBefore);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM deliveries').get().count, deliveriesBefore);
-  assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(orderId).status, 'בהעמסה');
+  assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(orderId).status, 'בדרך ללקוח');
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM audit_log WHERE entity_type='order' AND entity_id=? AND new_value='בדרך ללקוח'").get(orderId).count, 1);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM order_loading_events WHERE event_type='wrong_order_scan'").get().count, 1);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM order_loading_events WHERE event_type='duplicate_scan'").get().count, 1);
 });

@@ -639,7 +639,7 @@ async function startOrderLoadingSession(){
     document.getElementById('scannerCard').style.display='block';
     document.getElementById('deliveryInfo').style.display='none';
     document.getElementById('loadingScannerTitle').textContent=`📷 העמסת הזמנה ${data.order_num}`;
-    document.getElementById('btnConfirmShip').textContent='סיים העמסה';
+    document.getElementById('btnConfirmShip').textContent='אשר יציאה';
     updateLoadingUI();
     document.getElementById('scanInput').focus();
   }catch(error){
@@ -659,7 +659,7 @@ async function loadOrderLoadingSession(sessionUid){
     document.getElementById('scannerCard').style.display='block';
     document.getElementById('deliveryInfo').style.display='none';
     document.getElementById('loadingScannerTitle').textContent=`📷 העמסת הזמנה ${data.order_num}`;
-    document.getElementById('btnConfirmShip').textContent=data.status==='completed'?'העמסה הושלמה':'סיים העמסה';
+    document.getElementById('btnConfirmShip').textContent=data.status==='completed'?'העמסה הושלמה':'אשר יציאה';
     updateLoadingUI();
     if(data.status==='active')document.getElementById('scanInput').focus();
   }catch(error){
