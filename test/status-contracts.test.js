@@ -37,6 +37,14 @@ test('order status transitions accept valid moves and reject invalid skips', () 
     allowedOrderTransitions(ORDER_STATUS.SENT),
     [ORDER_STATUS.DELIVERED_CONFIRMED]
   );
+  assert.equal(
+    isValidOrderTransition(ORDER_STATUS.DONE_WAITING_PICKUP, ORDER_STATUS.LOADING),
+    true
+  );
+  assert.equal(
+    isValidOrderTransition(ORDER_STATUS.LOADING, ORDER_STATUS.ON_THE_WAY),
+    true
+  );
 });
 
 test('production item statuses are centralized', () => {

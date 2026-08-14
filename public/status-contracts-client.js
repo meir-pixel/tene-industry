@@ -6,6 +6,7 @@
     PRODUCTION_QUEUE: 'בתור ייצור',
     IN_PRODUCTION: 'בייצור',
     DONE_WAITING_PICKUP: 'הושלם – ממתין לאיסוף',
+    LOADING: 'בהעמסה',
     ON_THE_WAY: 'בדרך ללקוח',
     DELIVERY_PROBLEM: 'בעיה באספקה',
     DELIVERED_CONFIRMED: 'סופק – אושר',
@@ -36,6 +37,11 @@
       ORDER_STATUS.CANCELLED,
     ],
     [ORDER_STATUS.DONE_WAITING_PICKUP]: [
+      ORDER_STATUS.LOADING,
+      ORDER_STATUS.ON_THE_WAY,
+      ORDER_STATUS.SENT,
+    ],
+    [ORDER_STATUS.LOADING]: [
       ORDER_STATUS.ON_THE_WAY,
       ORDER_STATUS.SENT,
     ],

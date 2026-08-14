@@ -413,6 +413,7 @@ const ORDER_ACTION_LABELS = new Map([
   [ORDER_STATUS.PRODUCTION_QUEUE, '▶ לתור'],
   [ORDER_STATUS.IN_PRODUCTION, '▶ ייצור'],
   [ORDER_STATUS.DONE_WAITING_PICKUP, '✓ הושלם'],
+  [ORDER_STATUS.LOADING, '🚛 העמסה'],
   [ORDER_STATUS.ON_THE_WAY, '🚚 בדרך'],
   [ORDER_STATUS.SENT, '📤 נשלחה'],
   [ORDER_STATUS.DELIVERED_CONFIRMED, '✓ סופק'],
@@ -424,6 +425,7 @@ const ORDER_STATUS_FILTERS = [
   { label: 'אושרו', status: ORDER_STATUS.APPROVED_WAITING_PRODUCTION },
   { label: 'בייצור', status: ORDER_STATUS.IN_PRODUCTION },
   { label: 'הושלמו', status: ORDER_STATUS.DONE_WAITING_PICKUP },
+  { label: 'בהעמסה', status: ORDER_STATUS.LOADING },
 ];
 
 function escHtml(value) {
@@ -505,7 +507,7 @@ function renderStatusFilters() {
 function sBadgeClass(s) {
   if (!s) return 's-wait';
   if (s.includes('הושלם') || s.includes('נמסרה') || s.includes('סופק')) return 's-done';
-  if (s === 'בייצור') return 's-prod';
+  if (s === 'בייצור' || s === ORDER_STATUS.LOADING) return 's-prod';
   if (s.includes('אושרה'))  return 's-approved';
   return 's-wait';
 }

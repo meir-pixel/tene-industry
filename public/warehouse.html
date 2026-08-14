@@ -596,12 +596,12 @@ function renderOrderLoadingStart(info){
     startInfo.textContent=`הזמנה ${info.order.order_num}: קיימת העמסה פעילה. אפשר להמשיך לסרוק.`;
     startBtn.textContent='המשך העמסה';
     startBtn.onclick=()=>loadOrderLoadingSession(info.active_session_uid);
-  }else if(Number(info.eligible_package_count||0)>0){
-    startInfo.textContent=`הזמנה ${info.order.order_num}: ${info.eligible_package_count} חבילות, ${fmt1(info.eligible_package_weight||0)} ק״ג. להתחיל העמסה?`;
-    startBtn.textContent='כן, התחל העמסה';
+  }else if(info.loading_state==='ready_to_start'||info.loading_state==='ready_to_resume'){
+    startInfo.textContent=`הזמנה ${info.order.order_num} מוכנה לאיסוף. לחיצה תעביר אותה למצב בהעמסה ותפתח סריקה.`;
+    startBtn.textContent='התחל העמסה';
     startBtn.onclick=()=>startOrderLoadingSession();
   }else{
-    startInfo.textContent=`הזמנה ${info.order.order_num}: אין חבילות פיזיות זמינות להעמסה. יש להדפיס/לארוז חבילות לפני התחלת ההעמסה.`;
+    startInfo.textContent=`הזמנה ${info.order.order_num} אינה במצב שמאפשר העמסה.`;
     startBtn.disabled=true;
   }
 }

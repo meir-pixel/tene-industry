@@ -5,6 +5,7 @@ const ORDER_STATUS = Object.freeze({
   PRODUCTION_QUEUE: 'בתור ייצור',
   IN_PRODUCTION: 'בייצור',
   DONE_WAITING_PICKUP: 'הושלם – ממתין לאיסוף',
+  LOADING: 'בהעמסה',
   ON_THE_WAY: 'בדרך ללקוח',
   DELIVERY_PROBLEM: 'בעיה באספקה',
   DELIVERED_CONFIRMED: 'סופק – אושר',
@@ -49,6 +50,11 @@ const VALID_ORDER_TRANSITIONS = Object.freeze({
     ORDER_STATUS.CANCELLED
   ],
   [ORDER_STATUS.DONE_WAITING_PICKUP]: [
+    ORDER_STATUS.LOADING,
+    ORDER_STATUS.ON_THE_WAY,
+    ORDER_STATUS.SENT
+  ],
+  [ORDER_STATUS.LOADING]: [
     ORDER_STATUS.ON_THE_WAY,
     ORDER_STATUS.SENT
   ],

@@ -62,6 +62,8 @@ test('order-sheet QR opens the live production sheet while package loading remai
   seedUser('load-production', 'production', '3013');
   const orderId = seedOrder('LOAD-ORDER-1');
   const otherOrderId = seedOrder('LOAD-ORDER-2');
+  const blockedOrderId = db.prepare('INSERT INTO orders (order_num,customer_id,channel,status,total_weight) VALUES (?,?,?,?,?)')
+    .run('LOAD-BLOCKED', db.prepare('SELECT customer_id FROM orders WHERE id=?').get(orderId).customer_id, 'משרד', 'בייצור', 10).lastInsertRowid;
   const packageA = seedPackage({ code: 'PKG-LOAD-A', orderId, orderNum: 'LOAD-ORDER-1', weight: 12.5 });
   const packageB = seedPackage({ code: 'PKG-LOAD-B', orderId, orderNum: 'LOAD-ORDER-1', weight: 8.75 });
   seedPackage({ code: 'PKG-OTHER', orderId: otherOrderId, orderNum: 'LOAD-ORDER-2', weight: 7 });
@@ -83,6 +85,15 @@ test('order-sheet QR opens the live production sheet while package loading remai
   assert.equal((await request(`/api/loading/orders/${orderId}`)).status, 401);
   assert.equal((await request(`/api/loading/orders/${orderId}`, { headers: authHeaders(office) })).status, 403);
   assert.equal((await request(`/api/loading/orders/${orderId}`, { headers: authHeaders(production) })).status, 403);
+  assert.equal((await request('/api/loading/sessions', {
+    method: 'POST', headers: authHeaders(office), body: JSON.stringify({ order_id: orderId }),
+  })).status, 403);
+  const blockedStart = await request('/api/loading/sessions', {
+    method: 'POST', headers: authHeaders(warehouse), body: JSON.stringify({ order_id: blockedOrderId }),
+  });
+  assert.equal(blockedStart.status, 409);
+  assert.equal((await blockedStart.json()).error, 'order_not_ready_for_loading');
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM order_loading_sessions WHERE order_id=?').get(blockedOrderId).count, 0);
 
   const printResponse = await request(`/api/orders/${orderId}/print-a4`, { headers: authHeaders(office) });
   assert.equal(printResponse.status, 200);
@@ -117,6 +128,19 @@ test('order-sheet QR opens the live production sheet while package loading remai
   assert.equal(session.loaded_count, 0);
   assert.equal(session.missing_count, 2);
   assert.equal(session.expected_weight, 21.25);
+  assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(orderId).status, 'בהעמסה');
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM audit_log WHERE entity_type='order' AND entity_id=? AND new_value='בהעמסה'").get(orderId).count, 1);
+
+  // The package scanner is fail-closed if the order has left the loading
+  // state, even when an old active session URL is still open on a device.
+  db.prepare('UPDATE orders SET status=? WHERE id=?').run('הושלם – ממתין לאיסוף', orderId);
+  const blockedScan = await request(`/api/loading/sessions/${session.session_uid}/scan`, {
+    method: 'POST', headers: authHeaders(warehouse), body: JSON.stringify({ qr_data: 'PKG-LOAD-A' }),
+  });
+  assert.equal(blockedScan.status, 409);
+  assert.equal((await blockedScan.json()).error, 'order_not_in_loading');
+  assert.equal(db.prepare('SELECT status FROM packages WHERE id=?').get(packageA).status, 'packed');
+  db.prepare('UPDATE orders SET status=? WHERE id=?').run('בהעמסה', orderId);
 
   const resumed = await request('/api/loading/sessions', {
     method: 'POST', headers: authHeaders(warehouse), body: JSON.stringify({ order_id: orderId }),
@@ -169,7 +193,7 @@ test('order-sheet QR opens the live production sheet while package loading remai
   assert.equal(db.prepare('SELECT status FROM packages WHERE id=?').get(packageB).status, 'loaded');
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM scan_log').get().count, productionScanCountBefore);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM deliveries').get().count, deliveriesBefore);
-  assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(orderId).status, 'הושלם – ממתין לאיסוף');
+  assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(orderId).status, 'בהעמסה');
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM order_loading_events WHERE event_type='wrong_order_scan'").get().count, 1);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM order_loading_events WHERE event_type='duplicate_scan'").get().count, 1);
 });

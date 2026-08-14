@@ -16,7 +16,7 @@ process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
 const { closeServer, db, server } = require('../server');
 const { hashPin } = require('../auth-core');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
-const { ITEM_STATUS } = require('../status-contracts');
+const { ITEM_STATUS, ORDER_STATUS } = require('../status-contracts');
 
 let baseUrl;
 
@@ -32,7 +32,7 @@ function seedOrder() {
   const orderId = db.prepare(`
     INSERT INTO orders (order_num,customer_id,channel,status,total_weight)
     VALUES (?,?,?,?,?)
-  `).run('LIVE-PROD-1', customerId, 'משרד', 'בייצור', 500).lastInsertRowid;
+  `).run('LIVE-PROD-1', customerId, 'משרד', ORDER_STATUS.DONE_WAITING_PICKUP, 500).lastInsertRowid;
   const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num) VALUES (?,?)').run(orderId, 1).lastInsertRowid;
   return { orderId, palletId };
 }
@@ -153,6 +153,7 @@ test('live order production sheet projects real item, material and canonical pil
   const sheet = await warehouseResponse.json();
   assert.equal(sheet.order.order_num, 'LIVE-PROD-1');
   assert.equal(sheet.may_start_loading, true);
+  assert.equal(sheet.loading_state, 'ready_to_start');
   assert.equal(sheet.loading_entry_url, `/warehouse.html?load_order=${orderId}`);
   assert.ok(sheet.cards.some(card => card.state.code === 'completed'));
   assert.ok(sheet.cards.some(card => card.state.code === 'in_production'));

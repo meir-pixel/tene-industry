@@ -305,6 +305,9 @@ function assertOrderStatusTransition({ from, to, role }) {
   if (isOrderApprovalTransition(normalizedFrom, normalizedTo) && !canManagerApproveOrder(role)) {
     throw Object.assign(new Error('manager approval required'), { statusCode: 403 });
   }
+  if (normalizedTo === ORDER_STATUS.LOADING && !['manager', 'admin'].includes(String(role || ''))) {
+    throw Object.assign(new Error('manager or admin loading status required'), { statusCode: 403 });
+  }
   return { from: normalizedFrom, to: normalizedTo, isApproval: isOrderApprovalTransition(normalizedFrom, normalizedTo) };
 }
 

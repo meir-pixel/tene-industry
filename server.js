@@ -763,6 +763,7 @@ app.use('/api', requireModule('portal'), createPortalRouter({
 app.use('/api', requireModule('warehouse'), createWarehouseRouter({
   db,
   requireAnyRole,
+  wsBroadcast,
 }));
 app.use('/api', requireModule('reports'), createReportsRouter({
   db,

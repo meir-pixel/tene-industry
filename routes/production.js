@@ -300,7 +300,19 @@ module.exports = function createProductionRouter(deps) {
       return counts;
     }, {});
     const role = String(req.userRole || req.auth?.role || '');
-    const mayStartLoading = ['warehouse', 'manager', 'admin'].includes(role);
+    const mayManageLoading = ['warehouse', 'manager', 'admin'].includes(role);
+    const orderStatus = statusContracts.normalizeOrderStatus(order.status);
+    const activeLoadingSession = db.prepare(`
+      SELECT session_uid FROM order_loading_sessions WHERE order_id=? AND status='active'
+    `).get(order.id);
+    const loadingState = activeLoadingSession
+      ? 'active'
+      : orderStatus === ORDER_STATUS.DONE_WAITING_PICKUP
+        ? 'ready_to_start'
+        : orderStatus === ORDER_STATUS.LOADING
+          ? 'ready_to_resume'
+          : 'not_ready';
+    const mayOpenLoading = mayManageLoading && loadingState !== 'not_ready';
 
     return res.json({
       order: {
@@ -313,7 +325,8 @@ module.exports = function createProductionRouter(deps) {
       },
       cards,
       state_counts: stateCounts,
-      may_start_loading: mayStartLoading,
+      may_start_loading: mayOpenLoading,
+      loading_state: loadingState,
       loading_entry_url: `/warehouse.html?load_order=${encodeURIComponent(order.id)}`,
     });
   });

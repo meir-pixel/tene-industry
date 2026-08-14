@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { itemShapeMetrics } = require('../services/shapeSnapshot');
+const { ORDER_STATUS, normalizeOrderStatus } = require('../status-contracts');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/warehouse missing dependency: ${name}`);
@@ -126,6 +127,24 @@ function addLoadingEvent(db, { sessionId, type, packageId = null, scannedValue =
   `).run(sessionId, type, packageId, scannedValue, actorId, safeJson(details));
 }
 
+function addOrderLoadingStatusAudit(db, { order, from, to, actorId }) {
+  db.prepare(`
+    INSERT INTO audit_log (entity_type,entity_id,entity_ref,action,field_name,old_value,new_value,notes,user_id,user_name)
+    VALUES (?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    'order',
+    order.id,
+    order.order_num,
+    'status_change',
+    'status',
+    from,
+    to,
+    'תחילת העמסה מסשן מחסן',
+    actorId,
+    null,
+  );
+}
+
 function eligibleOrderPackages(db, orderId) {
   return db.prepare(`
     SELECT id, package_code, item_ids, quantity, weight
@@ -138,6 +157,7 @@ function eligibleOrderPackages(db, orderId) {
 module.exports = function createWarehouseRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
+  const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
 
   router.get('/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
     const { order_id, status, zone } = req.query;
@@ -192,9 +212,12 @@ module.exports = function createWarehouseRouter(deps) {
     if (!order) return res.status(404).json({ error: 'order_not_found' });
     const active = db.prepare(`SELECT session_uid FROM order_loading_sessions WHERE order_id=? AND status='active'`).get(orderId);
     const packages = eligibleOrderPackages(db, orderId);
+    const orderStatus = normalizeOrderStatus(order.status);
     res.json({
       order: { id: order.id, order_num: order.order_num, status: order.status, total_weight: order.total_weight },
       active_session_uid: active?.session_uid || null,
+      loading_available: Boolean(active) || orderStatus === ORDER_STATUS.DONE_WAITING_PICKUP || orderStatus === ORDER_STATUS.LOADING,
+      loading_state: active ? 'active' : orderStatus === ORDER_STATUS.DONE_WAITING_PICKUP ? 'ready_to_start' : orderStatus === ORDER_STATUS.LOADING ? 'ready_to_resume' : 'not_ready',
       eligible_package_count: packages.length,
       eligible_package_weight: Math.round(packages.reduce((sum, row) => sum + Number(row.weight || 0), 0) * 1000) / 1000,
     });
@@ -207,13 +230,23 @@ module.exports = function createWarehouseRouter(deps) {
 
     try {
       const result = db.transaction(() => {
-        const order = db.prepare('SELECT id,order_num FROM orders WHERE id=?').get(orderId);
+        const order = db.prepare('SELECT id,order_num,status FROM orders WHERE id=?').get(orderId);
         if (!order) return { error: 'order_not_found', status: 404 };
+        const normalizedOrderStatus = normalizeOrderStatus(order.status);
         const active = db.prepare(`SELECT session_uid FROM order_loading_sessions WHERE order_id=? AND status='active'`).get(orderId);
         if (active) return { session_uid: active.session_uid, resumed: true };
 
+        if (![ORDER_STATUS.DONE_WAITING_PICKUP, ORDER_STATUS.LOADING].includes(normalizedOrderStatus)) {
+          return { error: 'order_not_ready_for_loading', status: 409, order_status: order.status };
+        }
+
         const packages = eligibleOrderPackages(db, orderId);
         if (!packages.length) return { error: 'no_loadable_packages', status: 409 };
+
+        if (normalizedOrderStatus !== ORDER_STATUS.LOADING) {
+          db.prepare('UPDATE orders SET status=? WHERE id=?').run(ORDER_STATUS.LOADING, order.id);
+          addOrderLoadingStatusAudit(db, { order, from: order.status, to: ORDER_STATUS.LOADING, actorId });
+        }
 
         const sessionUid = loadingSessionUid();
         const expectedWeight = Math.round(packages.reduce((sum, row) => sum + Number(row.weight || 0), 0) * 1000) / 1000;
@@ -235,10 +268,11 @@ module.exports = function createWarehouseRouter(deps) {
           actorId,
           details: { expected_count: packages.length, expected_weight: expectedWeight },
         });
-        return { session_uid: sessionUid, resumed: false };
+        return { session_uid: sessionUid, resumed: false, status_changed: normalizedOrderStatus !== ORDER_STATUS.LOADING, order_num: order.order_num };
       })();
 
-      if (result.error) return res.status(result.status).json({ error: result.error });
+      if (result.error) return res.status(result.status).json({ error: result.error, order_status: result.order_status || null });
+      if (result.status_changed) wsBroadcast('order_status', { id: orderId, status: ORDER_STATUS.LOADING, orderNum: result.order_num });
       return res.status(result.resumed ? 200 : 201).json({ ...loadingSessionState(db, result.session_uid), resumed: result.resumed });
     } catch (error) {
       if (String(error.message || '').includes('idx_loading_session_one_active_order')) {
@@ -262,9 +296,15 @@ module.exports = function createWarehouseRouter(deps) {
     const sessionUid = String(req.params.sessionUid || '');
 
     const result = db.transaction(() => {
-      const session = db.prepare(`SELECT id,order_id,status FROM order_loading_sessions WHERE session_uid=?`).get(sessionUid);
+      const session = db.prepare(`
+        SELECT s.id,s.order_id,s.status,o.status AS order_status
+        FROM order_loading_sessions s
+        JOIN orders o ON o.id=s.order_id
+        WHERE s.session_uid=?
+      `).get(sessionUid);
       if (!session) return { error: 'loading_session_not_found', status: 404 };
       if (session.status !== 'active') return { error: 'loading_session_not_active', status: 409 };
+      if (normalizeOrderStatus(session.order_status) !== ORDER_STATUS.LOADING) return { error: 'order_not_in_loading', status: 409 };
 
       const expected = db.prepare(`
         SELECT id,package_id,state FROM order_loading_session_packages
