@@ -76,6 +76,24 @@ function safeJson(value) {
   return JSON.stringify(value == null ? {} : value);
 }
 
+function safeJsonArray(value) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function scannedPackageCode(rawValue) {
   let value = String(rawValue == null ? '' : rawValue).trim();
   if (!value || value.length > 512) return '';
@@ -97,7 +115,8 @@ function scannedPackageCode(rawValue) {
 function loadingSessionState(db, sessionUid) {
   const session = db.prepare(`
     SELECT id, session_uid, order_id, order_num, status, expected_count,
-           expected_weight, started_by, started_at, completed_by, completed_at
+           expected_weight, started_by, started_at, completed_by, completed_at,
+           departure_type, departure_reason, delivery_note_id
     FROM order_loading_sessions WHERE session_uid=?
   `).get(sessionUid);
   if (!session) return null;
@@ -152,6 +171,78 @@ function eligibleOrderPackages(db, orderId) {
     WHERE order_id=? AND status IN ('packed','ready','staged')
     ORDER BY id
   `).all(orderId);
+}
+
+function sessionLoadedPackages(db, sessionId) {
+  return db.prepare(`
+    SELECT package_id, package_code, item_ids_json, quantity, weight
+    FROM order_loading_session_packages
+    WHERE session_id=? AND state='loaded'
+    ORDER BY id
+  `).all(sessionId);
+}
+
+function linkedDeliveryNote(db, deliveryNoteId) {
+  const id = Number(deliveryNoteId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const note = db.prepare('SELECT id,note_num,total_weight FROM delivery_notes WHERE id=?').get(id);
+  return note ? { ...note, print_url: `/api/delivery-notes/${note.id}/print` } : null;
+}
+
+// A note is created from the packages actually on this truck, not from the
+// complete order. The session id makes the note reference deterministic and
+// protects a retry from issuing a second note for the same departure.
+function createLoadingDeliveryNote(db, { session, departureType, departureReason = null }) {
+  const existing = Number(session.delivery_note_id);
+  if (Number.isInteger(existing) && existing > 0) {
+    return linkedDeliveryNote(db, existing);
+  }
+
+  const packages = sessionLoadedPackages(db, session.id);
+  if (!packages.length) {
+    const error = new Error('no_loaded_packages');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const packageSnapshot = packages.map(row => ({
+    id: row.package_id,
+    package_code: row.package_code,
+    item_ids: (() => { try { return JSON.parse(row.item_ids_json || '[]'); } catch (_) { return []; } })(),
+    quantity: Number(row.quantity || 0),
+    weight: Number(row.weight || 0),
+  }));
+  const itemIds = [...new Set(packageSnapshot.flatMap(row => itemIdsList(row.item_ids)))];
+  const items = itemIds.length
+    ? db.prepare(`SELECT * FROM items WHERE id IN (${placeholders(itemIds.length)}) ORDER BY id`).all(...itemIds)
+    : [];
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const noteNum = `DN-${dateStr}-L${session.id}`;
+  const totalWeight = deliveryNoteWeightFromPayload({ packagesJson: packageSnapshot, itemsJson: items });
+  const inserted = db.prepare(`
+    INSERT INTO delivery_notes (note_num,order_id,order_num,customer_id,packages_json,items_json,total_weight)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(
+    noteNum,
+    session.order_id,
+    session.order_num,
+    session.customer_id || null,
+    JSON.stringify(packageSnapshot),
+    JSON.stringify(items),
+    totalWeight,
+  );
+  const noteId = Number(inserted.lastInsertRowid);
+  db.prepare(`
+    UPDATE order_loading_sessions
+    SET delivery_note_id=?,departure_type=?,departure_reason=?
+    WHERE id=? AND delivery_note_id IS NULL
+  `).run(noteId, departureType, departureReason || null, session.id);
+  return {
+    id: noteId,
+    note_num: noteNum,
+    total_weight: totalWeight,
+    print_url: `/api/delivery-notes/${noteId}/print`,
+  };
 }
 
 module.exports = function createWarehouseRouter(deps) {
@@ -216,8 +307,8 @@ module.exports = function createWarehouseRouter(deps) {
     res.json({
       order: { id: order.id, order_num: order.order_num, status: order.status, total_weight: order.total_weight },
       active_session_uid: active?.session_uid || null,
-      loading_available: Boolean(active) || orderStatus === ORDER_STATUS.DONE_WAITING_PICKUP || orderStatus === ORDER_STATUS.LOADING,
-      loading_state: active ? 'active' : orderStatus === ORDER_STATUS.DONE_WAITING_PICKUP ? 'ready_to_start' : orderStatus === ORDER_STATUS.LOADING ? 'ready_to_resume' : 'not_ready',
+      loading_available: Boolean(active) || [ORDER_STATUS.DONE_WAITING_PICKUP, ORDER_STATUS.LOADING, ORDER_STATUS.PARTIAL_DELIVERY].includes(orderStatus),
+      loading_state: active ? 'active' : orderStatus === ORDER_STATUS.DONE_WAITING_PICKUP ? 'ready_to_start' : orderStatus === ORDER_STATUS.PARTIAL_DELIVERY ? 'ready_for_next_truck' : orderStatus === ORDER_STATUS.LOADING ? 'ready_to_resume' : 'not_ready',
       eligible_package_count: packages.length,
       eligible_package_weight: Math.round(packages.reduce((sum, row) => sum + Number(row.weight || 0), 0) * 1000) / 1000,
     });
@@ -236,7 +327,7 @@ module.exports = function createWarehouseRouter(deps) {
         const active = db.prepare(`SELECT session_uid FROM order_loading_sessions WHERE order_id=? AND status='active'`).get(orderId);
         if (active) return { session_uid: active.session_uid, resumed: true };
 
-        if (![ORDER_STATUS.DONE_WAITING_PICKUP, ORDER_STATUS.LOADING].includes(normalizedOrderStatus)) {
+        if (![ORDER_STATUS.DONE_WAITING_PICKUP, ORDER_STATUS.LOADING, ORDER_STATUS.PARTIAL_DELIVERY].includes(normalizedOrderStatus)) {
           return { error: 'order_not_ready_for_loading', status: 409, order_status: order.status };
         }
 
@@ -367,32 +458,139 @@ module.exports = function createWarehouseRouter(deps) {
     const actorId = loadingActorId(req);
     const result = db.transaction(() => {
       const session = db.prepare(`
-        SELECT s.id,s.status,s.order_id,o.order_num,o.status AS order_status
+        SELECT s.id,s.status,s.order_id,s.order_num,s.delivery_note_id,
+               o.customer_id,o.status AS order_status
         FROM order_loading_sessions s
         JOIN orders o ON o.id=s.order_id
         WHERE s.session_uid=?
       `).get(sessionUid);
       if (!session) return { error: 'loading_session_not_found', status: 404 };
-      if (session.status === 'completed') return { completed: true, replay: true };
+      if (session.status === 'completed') return {
+        completed: true,
+        replay: true,
+        delivery_note: linkedDeliveryNote(db, session.delivery_note_id),
+        order_id: session.order_id,
+        order_num: session.order_num,
+      };
       if (session.status !== 'active') return { error: 'loading_session_not_active', status: 409 };
       if (normalizeOrderStatus(session.order_status) !== ORDER_STATUS.LOADING) return { error: 'order_not_in_loading', status: 409 };
       const missing = db.prepare(`SELECT COUNT(*) AS count FROM order_loading_session_packages WHERE session_id=? AND state='pending'`).get(session.id).count;
       if (missing > 0) return { error: 'packages_missing', status: 409, missing_count: missing };
-      db.prepare(`UPDATE order_loading_sessions SET status='completed',completed_by=?,completed_at=CURRENT_TIMESTAMP WHERE id=?`).run(actorId, session.id);
-      addLoadingEvent(db, { sessionId: session.id, type: 'completed', actorId });
-      db.prepare('UPDATE orders SET status=? WHERE id=? AND status=?').run(ORDER_STATUS.ON_THE_WAY, session.order_id, ORDER_STATUS.LOADING);
+
+      // A package can be added after the session froze its expected set. Do
+      // not silently send the whole order in that case: this departure is
+      // partial and the new package remains eligible for the next truck.
+      const remainingPackages = eligibleOrderPackages(db, session.order_id);
+      const departureType = remainingPackages.length ? 'partial' : 'full';
+      const nextOrderStatus = departureType === 'full'
+        ? ORDER_STATUS.ON_THE_WAY
+        : ORDER_STATUS.PARTIAL_DELIVERY;
+      const deliveryNote = createLoadingDeliveryNote(db, { session, departureType });
+      db.prepare(`
+        UPDATE order_loading_sessions
+        SET status='completed',completed_by=?,completed_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(actorId, session.id);
+      addLoadingEvent(db, {
+        sessionId: session.id,
+        type: 'completed',
+        actorId,
+        details: { departure_type: departureType, delivery_note_id: deliveryNote.id, delivery_note_num: deliveryNote.note_num },
+      });
+      db.prepare('UPDATE orders SET status=? WHERE id=? AND status=?').run(nextOrderStatus, session.order_id, ORDER_STATUS.LOADING);
       addOrderLoadingStatusAudit(db, {
         order: { id: session.order_id, order_num: session.order_num },
         from: session.order_status,
-        to: ORDER_STATUS.ON_THE_WAY,
+        to: nextOrderStatus,
         actorId,
-        note: 'יציאה לאחר השלמת העמסה',
+        note: departureType === 'full'
+          ? `יציאה מלאה לאחר העמסה · תעודת משלוח ${deliveryNote.note_num}`
+          : `יציאה חלקית לאחר העמסה · תעודת משלוח ${deliveryNote.note_num}`,
       });
-      return { completed: true, replay: false, status_changed: true, order_id: session.order_id, order_num: session.order_num };
+      return {
+        completed: true,
+        replay: false,
+        status_changed: true,
+        next_order_status: nextOrderStatus,
+        departure_type: departureType,
+        delivery_note: deliveryNote,
+        order_id: session.order_id,
+        order_num: session.order_num,
+      };
     })();
     if (result.error) return res.status(result.status).json({ error: result.error, missing_count: result.missing_count || 0 });
-    if (result.status_changed) wsBroadcast('order_status', { id: result.order_id, status: ORDER_STATUS.ON_THE_WAY, orderNum: result.order_num });
-    res.json({ ...loadingSessionState(db, sessionUid), replay: result.replay });
+    if (result.status_changed) wsBroadcast('order_status', { id: result.order_id, status: result.next_order_status, orderNum: result.order_num });
+    res.json({ ...loadingSessionState(db, sessionUid), replay: result.replay, delivery_note: result.delivery_note || null });
+  });
+
+  router.post('/loading/sessions/:sessionUid/partial-departure', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    const sessionUid = String(req.params.sessionUid || '');
+    const reason = String(req.body?.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'partial_departure_reason_required' });
+    const actorId = loadingActorId(req);
+    const result = db.transaction(() => {
+      const session = db.prepare(`
+        SELECT s.id,s.status,s.order_id,s.order_num,s.delivery_note_id,
+               o.customer_id,o.status AS order_status
+        FROM order_loading_sessions s
+        JOIN orders o ON o.id=s.order_id
+        WHERE s.session_uid=?
+      `).get(sessionUid);
+      if (!session) return { error: 'loading_session_not_found', status: 404 };
+      if (session.status === 'completed') return {
+        completed: true,
+        replay: true,
+        delivery_note: linkedDeliveryNote(db, session.delivery_note_id),
+        order_id: session.order_id,
+        order_num: session.order_num,
+      };
+      if (session.status !== 'active') return { error: 'loading_session_not_active', status: 409 };
+      if (normalizeOrderStatus(session.order_status) !== ORDER_STATUS.LOADING) return { error: 'order_not_in_loading', status: 409 };
+      const missing = Number(db.prepare(`SELECT COUNT(*) AS count FROM order_loading_session_packages WHERE session_id=? AND state='pending'`).get(session.id).count || 0);
+      const loaded = Number(db.prepare(`SELECT COUNT(*) AS count FROM order_loading_session_packages WHERE session_id=? AND state='loaded'`).get(session.id).count || 0);
+      if (!loaded) return { error: 'no_loaded_packages', status: 409 };
+      if (!missing) return { error: 'all_packages_loaded_use_complete', status: 409 };
+
+      const deliveryNote = createLoadingDeliveryNote(db, { session, departureType: 'partial', departureReason: reason });
+      db.prepare(`
+        UPDATE order_loading_sessions
+        SET status='completed',completed_by=?,completed_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(actorId, session.id);
+      addLoadingEvent(db, {
+        sessionId: session.id,
+        type: 'completed',
+        actorId,
+        details: {
+          departure_type: 'partial',
+          departure_reason: reason,
+          delivery_note_id: deliveryNote.id,
+          delivery_note_num: deliveryNote.note_num,
+          loaded_count: loaded,
+          remaining_count: missing,
+        },
+      });
+      db.prepare('UPDATE orders SET status=? WHERE id=? AND status=?').run(ORDER_STATUS.PARTIAL_DELIVERY, session.order_id, ORDER_STATUS.LOADING);
+      addOrderLoadingStatusAudit(db, {
+        order: { id: session.order_id, order_num: session.order_num },
+        from: session.order_status,
+        to: ORDER_STATUS.PARTIAL_DELIVERY,
+        actorId,
+        note: `יציאה חלקית: ${reason} · תעודת משלוח ${deliveryNote.note_num}`,
+      });
+      return {
+        completed: true,
+        replay: false,
+        status_changed: true,
+        next_order_status: ORDER_STATUS.PARTIAL_DELIVERY,
+        delivery_note: deliveryNote,
+        order_id: session.order_id,
+        order_num: session.order_num,
+      };
+    })();
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    if (result.status_changed) wsBroadcast('order_status', { id: result.order_id, status: result.next_order_status, orderNum: result.order_num });
+    res.json({ ...loadingSessionState(db, sessionUid), replay: result.replay, delivery_note: result.delivery_note || null });
   });
 
   router.get('/delivery-notes', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
@@ -401,6 +599,32 @@ module.exports = function createWarehouseRouter(deps) {
       ? db.prepare('SELECT * FROM delivery_notes WHERE order_id=? ORDER BY issued_at DESC').all(order_id)
       : db.prepare('SELECT * FROM delivery_notes ORDER BY issued_at DESC LIMIT 50').all();
     res.json(rows);
+  });
+
+  // A loading-session note is a truck-specific document.  It renders only
+  // the package snapshot frozen at departure, so a later truck cannot change
+  // an earlier delivery note by loading the rest of the order.
+  router.get('/delivery-notes/:id/print', requireAnyRole(['driver', 'warehouse', 'office', 'manager', 'admin']), (req, res) => {
+    const note = db.prepare(`
+      SELECT dn.*,o.delivery_address,c.name AS customer_name,c.phone AS customer_phone
+      FROM delivery_notes dn
+      LEFT JOIN orders o ON o.id=dn.order_id
+      LEFT JOIN customers c ON c.id=dn.customer_id
+      WHERE dn.id=?
+    `).get(req.params.id);
+    if (!note) return res.status(404).send('תעודת המשלוח לא נמצאה');
+    const packages = safeJsonArray(note.packages_json);
+    const packageRows = packages.map((pkg, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(pkg.package_code || '—')}</td>
+        <td>${escapeHtml(pkg.quantity || '—')}</td>
+        <td>${Number(pkg.weight || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 })} ק"ג</td>
+      </tr>`).join('');
+    const issuedAt = note.issued_at ? new Date(note.issued_at).toLocaleString('he-IL') : '—';
+    res.type('html').send(`<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>תעודת משלוח ${escapeHtml(note.note_num)}</title><style>
+      body{font-family:Arial,sans-serif;color:#111;margin:0;padding:24mm;background:#fff}h1{margin:0 0 5mm;font-size:24px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin:0 0 8mm}.meta div{border:1px solid #222;padding:3mm}table{width:100%;border-collapse:collapse}th,td{border:1px solid #222;padding:3mm;text-align:right}th{background:#eee}.total{font-size:18px;font-weight:bold;margin-top:7mm}@media print{body{padding:12mm}}
+    </style></head><body><h1>תעודת משלוח</h1><div class="meta"><div><b>מספר תעודה:</b> ${escapeHtml(note.note_num)}</div><div><b>הזמנה:</b> ${escapeHtml(note.order_num)}</div><div><b>לקוח:</b> ${escapeHtml(note.customer_name || '—')}</div><div><b>תאריך יציאה:</b> ${escapeHtml(issuedAt)}</div><div><b>כתובת:</b> ${escapeHtml(note.delivery_address || '—')}</div><div><b>טלפון:</b> ${escapeHtml(note.customer_phone || '—')}</div></div><table><thead><tr><th>#</th><th>חבילה</th><th>כמות</th><th>משקל</th></tr></thead><tbody>${packageRows || '<tr><td colspan="4">אין חבילות בתעודה</td></tr>'}</tbody></table><p class="total">סה"כ למשאית זו: ${Number(note.total_weight || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 })} ק"ג</p></body></html>`);
   });
 
   router.post('/delivery-notes', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {

@@ -177,20 +177,64 @@ test('order-sheet QR opens the live production sheet while package loading remai
   assert.equal(incompleteBody.error, 'packages_missing');
   assert.equal(incompleteBody.missing_count, 1);
 
-  const lastPackage = await scan('PKG-LOAD-B');
-  assert.equal(lastPackage.outcome, 'loaded');
-  assert.equal(lastPackage.state.loaded_count, 2);
-  assert.equal(lastPackage.state.missing_count, 0);
+  // A truck may depart with the package scanned so far. Its delivery note
+  // must contain only that package; the remaining package stays available to
+  // the next loading session for the same order.
+  const noReason = await request(`/api/loading/sessions/${session.session_uid}/partial-departure`, {
+    method: 'POST', headers: authHeaders(warehouse), body: '{}',
+  });
+  assert.equal(noReason.status, 400);
+  assert.equal((await noReason.json()).error, 'partial_departure_reason_required');
 
-  const completed = await request(`/api/loading/sessions/${session.session_uid}/complete`, {
+  const partial = await request(`/api/loading/sessions/${session.session_uid}/partial-departure`, {
+    method: 'POST', headers: authHeaders(warehouse), body: JSON.stringify({ reason: 'משאית מלאה' }),
+  });
+  assert.equal(partial.status, 200);
+  const partialState = await partial.json();
+  assert.equal(partialState.status, 'completed');
+  assert.equal(partialState.departure_type, 'partial');
+  assert.equal(partialState.delivery_note.total_weight, 12.5);
+  assert.match(partialState.delivery_note.note_num, /^DN-\d{8}-L\d+$/);
+  assert.match(partialState.delivery_note.print_url, /\/api\/delivery-notes\/\d+\/print$/);
+  assert.equal(db.prepare('SELECT status FROM packages WHERE id=?').get(packageA).status, 'loaded');
+  assert.equal(db.prepare('SELECT status FROM packages WHERE id=?').get(packageB).status, 'packed');
+  assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(orderId).status, 'אספקה חלקית');
+  const firstNote = db.prepare('SELECT * FROM delivery_notes WHERE id=?').get(partialState.delivery_note.id);
+  assert.equal(JSON.parse(firstNote.packages_json).length, 1);
+  assert.equal(JSON.parse(firstNote.packages_json)[0].package_code, 'PKG-LOAD-A');
+  assert.equal(firstNote.total_weight, 12.5);
+  const notePrint = await request(partialState.delivery_note.print_url, { headers: authHeaders(warehouse) });
+  assert.equal(notePrint.status, 200);
+  const notePrintHtml = await notePrint.text();
+  assert.match(notePrintHtml, /PKG-LOAD-A/);
+  assert.doesNotMatch(notePrintHtml, /PKG-LOAD-B/);
+
+  const secondStarted = await request('/api/loading/sessions', {
+    method: 'POST', headers: authHeaders(warehouse), body: JSON.stringify({ order_id: orderId }),
+  });
+  assert.equal(secondStarted.status, 201);
+  const secondSession = await secondStarted.json();
+  assert.equal(secondSession.expected_count, 1);
+  assert.equal(secondSession.packages[0].package_code, 'PKG-LOAD-B');
+  const secondScan = await request(`/api/loading/sessions/${secondSession.session_uid}/scan`, {
+    method: 'POST', headers: authHeaders(warehouse), body: JSON.stringify({ qr_data: 'PKG-LOAD-B' }),
+  });
+  assert.equal(secondScan.status, 200);
+  assert.equal((await secondScan.json()).outcome, 'loaded');
+
+  const completed = await request(`/api/loading/sessions/${secondSession.session_uid}/complete`, {
     method: 'POST', headers: authHeaders(warehouse), body: '{}',
   });
   assert.equal(completed.status, 200);
   const completedState = await completed.json();
   assert.equal(completedState.status, 'completed');
-  assert.equal(completedState.loaded_weight, 21.25);
+  assert.equal(completedState.departure_type, 'full');
+  assert.equal(completedState.loaded_weight, 8.75);
+  assert.equal(completedState.delivery_note.total_weight, 8.75);
+  assert.notEqual(completedState.delivery_note.id, partialState.delivery_note.id);
   assert.equal(db.prepare('SELECT status FROM packages WHERE id=?').get(packageA).status, 'loaded');
   assert.equal(db.prepare('SELECT status FROM packages WHERE id=?').get(packageB).status, 'loaded');
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM delivery_notes WHERE order_id=?').get(orderId).count, 2);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM scan_log').get().count, productionScanCountBefore);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM deliveries').get().count, deliveriesBefore);
   assert.equal(db.prepare('SELECT status FROM orders WHERE id=?').get(orderId).status, 'בדרך ללקוח');

@@ -414,6 +414,7 @@ const ORDER_ACTION_LABELS = new Map([
   [ORDER_STATUS.IN_PRODUCTION, '▶ ייצור'],
   [ORDER_STATUS.DONE_WAITING_PICKUP, '✓ הושלם'],
   [ORDER_STATUS.LOADING, '🚛 העמסה'],
+  [ORDER_STATUS.PARTIAL_DELIVERY, '🚚 אספקה חלקית'],
   [ORDER_STATUS.ON_THE_WAY, '🚚 בדרך'],
   [ORDER_STATUS.SENT, '📤 נשלחה'],
   [ORDER_STATUS.DELIVERED_CONFIRMED, '✓ סופק'],
@@ -426,6 +427,7 @@ const ORDER_STATUS_FILTERS = [
   { label: 'בייצור', status: ORDER_STATUS.IN_PRODUCTION },
   { label: 'הושלמו', status: ORDER_STATUS.DONE_WAITING_PICKUP },
   { label: 'בהעמסה', status: ORDER_STATUS.LOADING },
+  { label: 'אספקה חלקית', status: ORDER_STATUS.PARTIAL_DELIVERY },
 ];
 
 function escHtml(value) {

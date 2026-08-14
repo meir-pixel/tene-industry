@@ -364,6 +364,13 @@ tr:hover td{background:rgba(0,0,0,0.015);}
         <div class="confirm-row">
           <button class="btn btn-success" id="btnConfirmShip" disabled onclick="confirmShipment()">אשר יציאה</button>
         </div>
+        <div id="partialDepartureControls" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <label for="partialDepartureReason" style="display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:6px">יציאה חלקית — סיבה לתיעוד</label>
+          <div class="scan-input-wrap" style="margin-bottom:0">
+            <input id="partialDepartureReason" type="text" maxlength="240" placeholder="לדוגמה: משאית מלאה, היתרה תצא בהמשך" style="font-family:'Heebo',sans-serif;font-size:14px;text-align:right">
+            <button class="btn btn-outline" id="btnPartialDeparture" onclick="confirmPartialDeparture()">הנפק תעודה חלקית</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -438,6 +445,19 @@ function showAlert(id, msg, ms=4000){
   const el=document.getElementById(id);
   el.textContent=msg;el.classList.add('show');
   if(ms>0)setTimeout(()=>el.classList.remove('show'),ms);
+}
+function showDeliveryNoteSuccess(message, note){
+  const el=document.getElementById('scanSuccess');
+  el.textContent='';
+  el.append(document.createTextNode(message));
+  if(note&&note.print_url){
+    const link=document.createElement('a');
+    link.href=note.print_url;link.target='_blank';link.rel='noopener';
+    link.textContent=' פתח תעודת משלוח להדפסה';
+    link.style.cssText='display:inline-block;margin-inline-start:8px;color:inherit;text-decoration:underline;font-weight:900';
+    el.append(link);
+  }
+  el.classList.add('show');
 }
 function hideAlert(id){document.getElementById(id).classList.remove('show');}
 
@@ -596,9 +616,12 @@ function renderOrderLoadingStart(info){
     startInfo.textContent=`הזמנה ${info.order.order_num}: קיימת העמסה פעילה. אפשר להמשיך לסרוק.`;
     startBtn.textContent='המשך העמסה';
     startBtn.onclick=()=>loadOrderLoadingSession(info.active_session_uid);
-  }else if(info.loading_state==='ready_to_start'||info.loading_state==='ready_to_resume'){
-    startInfo.textContent=`הזמנה ${info.order.order_num} מוכנה לאיסוף. לחיצה תעביר אותה למצב בהעמסה ותפתח סריקה.`;
-    startBtn.textContent='התחל העמסה';
+  }else if(info.loading_state==='ready_to_start'||info.loading_state==='ready_to_resume'||info.loading_state==='ready_for_next_truck'){
+    const nextTruck=info.loading_state==='ready_for_next_truck';
+    startInfo.textContent=nextTruck
+      ? `הזמנה ${info.order.order_num}: בוצעה אספקה חלקית. הסשן הבא יכלול רק את החבילות שנותרו.`
+      : `הזמנה ${info.order.order_num} מוכנה לאיסוף. לחיצה תעביר אותה למצב בהעמסה ותפתח סריקה.`;
+    startBtn.textContent=nextTruck?'התחל העמסה למשאית הבאה':'התחל העמסה';
     startBtn.onclick=()=>startOrderLoadingSession();
   }else{
     startInfo.textContent=`הזמנה ${info.order.order_num} אינה במצב שמאפשר העמסה.`;
@@ -758,6 +781,18 @@ function updateLoadingUI(){
   btn.disabled=currentLoadingSession
     ? currentLoadingSession.status!=='active'||done<total
     : !(done>0 && done>=total);
+
+  // A truck may leave with only the packages scanned in this session.  This
+  // remains unavailable until at least one package is actually on the truck;
+  // the server is still the final authority for the partial departure.
+  const partialControls=document.getElementById('partialDepartureControls');
+  const partialButton=document.getElementById('btnPartialDeparture');
+  const canPartiallyDepart=Boolean(currentLoadingSession)
+    && currentLoadingSession.status==='active'
+    && done>0
+    && missingCount>0;
+  partialControls.style.display=canPartiallyDepart?'block':'none';
+  partialButton.disabled=!canPartiallyDepart;
 }
 
 async function doScan(){
@@ -823,7 +858,11 @@ async function confirmShipment(){
       }
       currentLoadingSession=data;
       document.getElementById('btnConfirmShip').textContent='העמסה הושלמה';
-      showAlert('scanSuccess',`✅ ההעמסה להזמנה ${data.order_num} הושלמה.`,0);
+      const note=data.delivery_note?.note_num?` תעודת משלוח: ${data.delivery_note.note_num}.`:'';
+      const partial=data.departure_type==='partial';
+      showDeliveryNoteSuccess(partial
+        ? `✅ יצאה משאית חלקית להזמנה ${data.order_num}.${note}`
+        : `✅ ההעמסה להזמנה ${data.order_num} הושלמה.${note}`,data.delivery_note);
       updateLoadingUI();
       loadKPI();
     }catch(error){
@@ -849,6 +888,46 @@ async function confirmShipment(){
   scannedCodes=[];
   updateLoadingUI();
   loadKPI();
+}
+
+async function confirmPartialDeparture(){
+  if(!currentLoadingSession)return;
+  const reason=(document.getElementById('partialDepartureReason').value||'').trim();
+  if(!reason){
+    showAlert('scanAlert','יש לציין סיבה ליציאה החלקית לפני הנפקת תעודת משלוח.',0);
+    document.getElementById('partialDepartureReason').focus();
+    return;
+  }
+  if(!confirm(`להוציא משאית עם ${currentLoadingSession.loaded_count||0} חבילות בלבד? יתרת ההזמנה תישאר למשאית הבאה.`))return;
+  const button=document.getElementById('btnPartialDeparture');
+  button.disabled=true;
+  try{
+    const response=await fetch(`/api/loading/sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/partial-departure`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reason}),
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok){
+      const messages={
+        partial_departure_reason_required:'יש לציין סיבה ליציאה החלקית.',
+        no_loaded_packages:'לא נסרקה אף חבילה למשאית זו.',
+        all_packages_loaded_use_complete:'כל החבילות נסרקו — יש לאשר יציאה מלאה.',
+      };
+      showAlert('scanAlert',messages[data.error]||'לא ניתן לאשר יציאה חלקית.',0);
+      return;
+    }
+    currentLoadingSession=data;
+    document.getElementById('btnConfirmShip').textContent='העמסה הושלמה';
+    const note=data.delivery_note?.note_num||'—';
+    showDeliveryNoteSuccess(`✅ יציאה חלקית אושרה. הונפקה תעודת משלוח ${note}; היתרה נשארה למשאית הבאה.`,data.delivery_note);
+    updateLoadingUI();
+    loadKPI();
+  }catch(error){
+    showAlert('scanAlert','לא ניתן לאשר יציאה חלקית.',0);
+  }finally{
+    button.disabled=false;
+  }
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────

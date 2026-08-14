@@ -1173,6 +1173,9 @@ function ensureCoreSchema(db) {
       started_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
       completed_by       INTEGER,
       completed_at       DATETIME,
+      departure_type     TEXT CHECK (departure_type IN ('full','partial')),
+      departure_reason   TEXT,
+      delivery_note_id   INTEGER,
       cancelled_by       INTEGER,
       cancelled_at       DATETIME,
       cancel_reason      TEXT,
@@ -1426,6 +1429,15 @@ function ensureCoreSchema(db) {
   ensureMaterialConsumptionV2Schema(db);
   ensurePendingRawMaterialReceiptV2Schema(db);
   ensureProcurementRecommendationV2Schema(db);
+
+  // A completed loading session is one physical truck departure.  These
+  // additive columns keep the delivery note and partial/full outcome
+  // immutable without changing the legacy deliveries table.
+  ensureColumn(db, 'order_loading_sessions', 'departure_type', "TEXT CHECK (departure_type IN ('full','partial'))");
+  ensureColumn(db, 'order_loading_sessions', 'departure_reason', 'TEXT');
+  ensureColumn(db, 'order_loading_sessions', 'delivery_note_id', 'INTEGER');
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_loading_session_delivery_note
+    ON order_loading_sessions(delivery_note_id) WHERE delivery_note_id IS NOT NULL`);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)

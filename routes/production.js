@@ -309,6 +309,8 @@ module.exports = function createProductionRouter(deps) {
       ? 'active'
       : orderStatus === ORDER_STATUS.DONE_WAITING_PICKUP
         ? 'ready_to_start'
+        : orderStatus === ORDER_STATUS.PARTIAL_DELIVERY
+          ? 'ready_for_next_truck'
         : orderStatus === ORDER_STATUS.LOADING
           ? 'ready_to_resume'
           : 'not_ready';
