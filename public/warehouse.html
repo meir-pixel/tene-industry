@@ -143,6 +143,19 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .progress-bar{height:12px;background:var(--border);border-radius:6px;overflow:hidden;}
 .progress-fill{height:100%;border-radius:6px;background:var(--success);transition:width 0.4s;}
 
+/* LOADING STATUS — the text and counts carry the meaning; color is only a
+   fast secondary cue for the warehouse worker. */
+.loading-status-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 14px;text-align:right;}
+.loading-status-card{min-height:72px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;display:flex;flex-direction:column;justify-content:center;gap:3px;}
+.loading-status-card .loading-status-label{font-size:12px;font-weight:700;color:var(--text-dim);}
+.loading-status-card .loading-status-value{font-size:21px;font-weight:900;line-height:1.1;}
+.loading-status-card .loading-status-detail{font-size:12px;font-weight:700;}
+.loading-status-card.loaded{background:var(--success-dim);border-color:var(--success);color:var(--success);}
+.loading-status-card.missing{background:var(--danger-dim);border-color:var(--danger);color:var(--danger);}
+.loading-status-card.active{background:var(--warning-dim);border-color:var(--warning);color:var(--warning);}
+.loading-status-card.completed{background:var(--success-dim);border-color:var(--success);color:var(--success);}
+@media(max-width:520px){.loading-status-summary{grid-template-columns:1fr;}.loading-status-card{min-height:58px;display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;}.loading-status-card .loading-status-label{grid-column:1;grid-row:1;}.loading-status-card .loading-status-detail{grid-column:1;grid-row:2;}.loading-status-card .loading-status-value{grid-column:2;grid-row:1 / span 2;text-align:left;}}
+
 /* ALERT */
 .alert{padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;margin-bottom:12px;display:none;}
 .alert.show{display:block;}
@@ -310,6 +323,23 @@ tr:hover td{background:rgba(0,0,0,0.015);}
             <input type="text" id="scanInput" placeholder="סרוק ברקוד או הקלד קוד חבילה..." autocomplete="off" onkeydown="if(event.key==='Enter')doScan()">
             <span class="scan-icon" title="מצלמה" onclick="focusScan()">📷</span>
             <button class="btn btn-primary" onclick="doScan()">סרוק</button>
+          </div>
+          <div class="loading-status-summary" id="loadingStatusSummary" aria-live="polite" style="display:none">
+            <div class="loading-status-card loaded">
+              <span class="loading-status-label">✓ הועמסו</span>
+              <strong class="loading-status-value" id="loadingLoadedCount">0</strong>
+              <span class="loading-status-detail" id="loadingLoadedDetail">מתוך 0 חבילות</span>
+            </div>
+            <div class="loading-status-card missing">
+              <span class="loading-status-label">! חסרות</span>
+              <strong class="loading-status-value" id="loadingMissingCount">0</strong>
+              <span class="loading-status-detail" id="loadingMissingDetail">יש לסרוק לפני יציאה</span>
+            </div>
+            <div class="loading-status-card active" id="loadingPhaseCard">
+              <span class="loading-status-label">סטטוס העמסה</span>
+              <strong class="loading-status-value" id="loadingPhaseValue">בהעמסה</strong>
+              <span class="loading-status-detail" id="loadingPhaseDetail">סרוק כל חבילה</span>
+            </div>
           </div>
           <div class="progress-wrap" id="progressWrap" style="display:none;">
             <div class="progress-label">
@@ -683,6 +713,19 @@ function updateLoadingUI(){
     ? Number(currentLoadingSession.loaded_count||0)
     : scannedCodes.length;
   const pct=total>0?Math.round(done/total*100):0;
+  const missingCount=Math.max(0,total-done);
+  const loadingCompleted=currentLoadingSession&&currentLoadingSession.status==='completed';
+
+  const statusSummary=document.getElementById('loadingStatusSummary');
+  statusSummary.style.display=total>0?'grid':'none';
+  document.getElementById('loadingLoadedCount').textContent=String(done);
+  document.getElementById('loadingLoadedDetail').textContent=`מתוך ${total} חבילות`;
+  document.getElementById('loadingMissingCount').textContent=String(missingCount);
+  document.getElementById('loadingMissingDetail').textContent=missingCount===0?'כל החבילות נסרקו':'יש לסרוק לפני יציאה';
+  const phaseCard=document.getElementById('loadingPhaseCard');
+  phaseCard.className=`loading-status-card ${loadingCompleted||missingCount===0?'completed':'active'}`;
+  document.getElementById('loadingPhaseValue').textContent=loadingCompleted?'הושלמה':missingCount===0?'מוכנה ליציאה':'בהעמסה';
+  document.getElementById('loadingPhaseDetail').textContent=loadingCompleted?'החבילות סומנו כהועמסו':missingCount===0?'אפשר לאשר יציאה':'סרוק רק חבילות של הזמנה זו';
 
   document.getElementById('progressWrap').style.display=total>0?'block':'none';
   document.getElementById('progressText').textContent=`${done} / ${total}`;
