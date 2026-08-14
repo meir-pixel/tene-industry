@@ -151,7 +151,10 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
   const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const totalWeight  = (order.total_weight || 0).toFixed(1);
   const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON });
-  const fullOrderUrl = '/orders.html?order=' + encodeURIComponent(order.id);
+  // This QR is the explicit entry point for outbound loading.  It does not
+  // trigger production and it does not start loading until the warehouse user
+  // confirms the action on the destination screen.
+  const fullOrderUrl = '/warehouse.html?load_order=' + encodeURIComponent(order.id);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>

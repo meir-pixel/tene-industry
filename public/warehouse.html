@@ -87,6 +87,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
 .badge-ready{background:var(--success-dim);color:var(--success);}
 .badge-packed{background:var(--info-dim);color:var(--info);}
+.badge-loaded{background:var(--success-dim);color:var(--success);}
 .badge-shipped{background:rgba(0,0,0,0.06);color:var(--text-dim);}
 .badge-warn{background:var(--warning-dim);color:var(--warning);}
 .badge-danger{background:var(--danger-dim);color:var(--danger);}
@@ -270,8 +271,20 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
   <!-- ══ TAB: LOADING ════════════════════════════════════════════════ -->
   <div id="tab-loading" class="tab-panel">
+    <!-- Entered from the QR printed on the A4 order sheet.  A scan never
+         starts loading by itself: the warehouse user must explicitly confirm. -->
+    <div class="card" id="orderLoadingStartCard" style="display:none">
+      <div class="card-header"><span class="card-title">🚛 העמסת הזמנה</span></div>
+      <div class="card-body">
+        <div id="orderLoadingStartInfo" class="delivery-info"></div>
+        <div class="confirm-row" style="margin-top:14px">
+          <button class="btn btn-success" id="btnStartOrderLoading" onclick="startOrderLoadingSession()">התחל העמסה</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Delivery selector -->
-    <div class="card">
+    <div class="card" id="deliverySelectorCard">
       <div class="card-header">
         <span class="card-title">🚛 בחר משלוח / משאית</span>
         <div class="select-actions">
@@ -286,7 +299,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
     <!-- Scanner -->
     <div class="card hidden-card" id="scannerCard">
       <div class="card-header">
-        <span class="card-title">📷 סריקת חבילות</span>
+            <span class="card-title" id="loadingScannerTitle">📷 סריקת חבילות</span>
       </div>
       <div class="card-body">
         <div class="alert alert-danger" id="scanAlert"></div>
@@ -460,6 +473,7 @@ function renderPackages(rows){
     const statusBadge={
       ready:  '<span class="badge badge-ready">מוכן</span>',
       packed: '<span class="badge badge-packed">נארז</span>',
+      loaded:'<span class="badge badge-loaded">הועמס</span>',
       shipped:'<span class="badge badge-shipped">נשלח</span>',
     }[p.status]||'<span class="badge">—</span>';
     const canShip=p.status!=='shipped';
@@ -533,6 +547,95 @@ async function markShipped(id){
 // ─── LOADING TAB ──────────────────────────────────────────────────────
 let currentDelivery=null;
 let scannedCodes=[];
+let currentLoadingSession=null;
+let qrLoadingOrderId=null;
+
+function currentLoadingExpected(){
+  return currentLoadingSession ? (currentLoadingSession.packages||[]) : (currentDelivery?.packages||[]);
+}
+
+function renderOrderLoadingStart(info){
+  const startCard=document.getElementById('orderLoadingStartCard');
+  const deliveryCard=document.getElementById('deliverySelectorCard');
+  const startInfo=document.getElementById('orderLoadingStartInfo');
+  const startBtn=document.getElementById('btnStartOrderLoading');
+  startCard.style.display='block';
+  deliveryCard.style.display='none';
+  startBtn.disabled=false;
+  if(info.active_session_uid){
+    startInfo.textContent=`הזמנה ${info.order.order_num}: קיימת העמסה פעילה. אפשר להמשיך לסרוק.`;
+    startBtn.textContent='המשך העמסה';
+    startBtn.onclick=()=>loadOrderLoadingSession(info.active_session_uid);
+  }else if(Number(info.eligible_package_count||0)>0){
+    startInfo.textContent=`הזמנה ${info.order.order_num}: ${info.eligible_package_count} חבילות, ${fmt1(info.eligible_package_weight||0)} ק״ג. להתחיל העמסה?`;
+    startBtn.textContent='כן, התחל העמסה';
+    startBtn.onclick=()=>startOrderLoadingSession();
+  }else{
+    startInfo.textContent=`הזמנה ${info.order.order_num}: אין חבילות פיזיות זמינות להעמסה. יש להדפיס/לארוז חבילות לפני התחלת ההעמסה.`;
+    startBtn.disabled=true;
+  }
+}
+
+async function initOrderLoadingFromQr(orderId){
+  qrLoadingOrderId=Number(orderId);
+  if(!Number.isInteger(qrLoadingOrderId)||qrLoadingOrderId<=0)return;
+  const startCard=document.getElementById('orderLoadingStartCard');
+  const startInfo=document.getElementById('orderLoadingStartInfo');
+  startCard.style.display='block';
+  document.getElementById('deliverySelectorCard').style.display='none';
+  startInfo.textContent='בודק את ההזמנה…';
+  try{
+    const response=await fetch(`/api/loading/orders/${qrLoadingOrderId}`);
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'loading_order_unavailable');
+    renderOrderLoadingStart(data);
+  }catch(error){
+    startInfo.textContent='לא ניתן לפתוח העמסה: נדרשת הרשאת מחסן, מנהל או אדמין.';
+    document.getElementById('btnStartOrderLoading').disabled=true;
+  }
+}
+
+async function startOrderLoadingSession(){
+  if(!qrLoadingOrderId)return;
+  const btn=document.getElementById('btnStartOrderLoading');
+  btn.disabled=true;
+  try{
+    const response=await fetch('/api/loading/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:qrLoadingOrderId})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'loading_session_failed');
+    currentLoadingSession=data;
+    currentDelivery=null;
+    document.getElementById('orderLoadingStartCard').style.display='none';
+    document.getElementById('scannerCard').style.display='block';
+    document.getElementById('deliveryInfo').style.display='none';
+    document.getElementById('loadingScannerTitle').textContent=`📷 העמסת הזמנה ${data.order_num}`;
+    document.getElementById('btnConfirmShip').textContent='סיים העמסה';
+    updateLoadingUI();
+    document.getElementById('scanInput').focus();
+  }catch(error){
+    btn.disabled=false;
+    document.getElementById('orderLoadingStartInfo').textContent='לא ניתן להתחיל העמסה. ודא שיש חבילות מוכנות ונסה שוב.';
+  }
+}
+
+async function loadOrderLoadingSession(sessionUid){
+  try{
+    const response=await fetch(`/api/loading/sessions/${encodeURIComponent(sessionUid)}`);
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'loading_session_unavailable');
+    currentLoadingSession=data;
+    currentDelivery=null;
+    document.getElementById('orderLoadingStartCard').style.display='none';
+    document.getElementById('scannerCard').style.display='block';
+    document.getElementById('deliveryInfo').style.display='none';
+    document.getElementById('loadingScannerTitle').textContent=`📷 העמסת הזמנה ${data.order_num}`;
+    document.getElementById('btnConfirmShip').textContent=data.status==='completed'?'העמסה הושלמה':'סיים העמסה';
+    updateLoadingUI();
+    if(data.status==='active')document.getElementById('scanInput').focus();
+  }catch(error){
+    showAlert('scanAlert','לא ניתן להמשיך את סשן ההעמסה.',0);
+  }
+}
 
 async function loadDeliveries(){
   let deliveries=[];
@@ -554,6 +657,7 @@ function selectDelivery(){
   const id=sel.value;
   const deliveries=sel._deliveries||[];
   currentDelivery=deliveries.find(d=>String(d.id)===String(id))||null;
+  currentLoadingSession=null;
   scannedCodes=[];
 
   const card=document.getElementById('scannerCard');
@@ -572,10 +676,12 @@ function selectDelivery(){
 }
 
 function updateLoadingUI(){
-  if(!currentDelivery)return;
-  const expected=currentDelivery.packages||[];
+  if(!currentDelivery&&!currentLoadingSession)return;
+  const expected=currentLoadingExpected();
   const total=expected.length;
-  const done=scannedCodes.length;
+  const done=currentLoadingSession
+    ? Number(currentLoadingSession.loaded_count||0)
+    : scannedCodes.length;
   const pct=total>0?Math.round(done/total*100):0;
 
   document.getElementById('progressWrap').style.display=total>0?'block':'none';
@@ -584,50 +690,76 @@ function updateLoadingUI(){
 
   // Scanned list
   const sl=document.getElementById('scannedList');
-  if(scannedCodes.length===0){
+  const loadedRows=currentLoadingSession
+    ? expected.filter(row=>row.state==='loaded')
+    : scannedCodes.map(code=>({package_code:code}));
+  if(loadedRows.length===0){
     sl.innerHTML='<div style="color:var(--text-muted);font-size:13px;padding:8px">אין חבילות עדיין</div>';
   } else {
-    sl.innerHTML=scannedCodes.map(code=>`<div class="scanned-item"><span class="code">${escH(code)}</span><span>✓</span></div>`).join('');
+    sl.innerHTML=loadedRows.map(row=>`<div class="scanned-item"><span class="code">${escH(row.package_code||row)}</span><span>✓</span></div>`).join('');
   }
 
   // Missing list
-  const missing=expected.filter(c=>!scannedCodes.includes(c));
+  const missing=currentLoadingSession
+    ? expected.filter(row=>row.state!=='loaded')
+    : expected.filter(code=>!scannedCodes.includes(code));
   const ml=document.getElementById('missingList');
   if(missing.length===0){
     ml.innerHTML='<div style="color:var(--success);font-size:13px;padding:8px;font-weight:700">כל החבילות נטענו ✓</div>';
   } else {
-    ml.innerHTML=missing.map(c=>`<div class="missing-item">${escH(c)}</div>`).join('');
+    ml.innerHTML=missing.map(row=>`<div class="missing-item">${escH(row.package_code||row)}</div>`).join('');
   }
 
   // Enable confirm button
   const btn=document.getElementById('btnConfirmShip');
-  btn.disabled=!(done>0 && done>=total);
+  btn.disabled=currentLoadingSession
+    ? currentLoadingSession.status!=='active'||done<total
+    : !(done>0 && done>=total);
 }
 
-function doScan(){
+async function doScan(){
   const input=document.getElementById('scanInput');
-  const code=(input.value||'').trim().toUpperCase();
+  const code=(input.value||'').trim();
   if(!code)return;
   input.value='';
   input.focus();
   hideAlert('scanAlert');
   hideAlert('scanSuccess');
 
+  if(currentLoadingSession){
+    try{
+      const response=await fetch(`/api/loading/sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/scan`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_data:code})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'loading_scan_failed');
+      currentLoadingSession=data.state;
+      const isGood=data.outcome==='loaded';
+      if(isGood)showAlert('scanSuccess',`✓ ${data.message}`,2500);
+      else showAlert('scanAlert',`⚠️ ${data.message}`,4000);
+      input.style.borderColor=isGood?'var(--success)':'var(--danger)';
+      setTimeout(()=>{input.style.borderColor='var(--accent)';},1600);
+      updateLoadingUI();
+    }catch(error){
+      showAlert('scanAlert','לא ניתן לרשום את סריקת ההעמסה.',4000);
+    }
+    return;
+  }
+
   if(!currentDelivery){return;}
+  const normalizedCode=code.toUpperCase();
   const expected=(currentDelivery.packages||[]).map(c=>c.toUpperCase());
 
-  if(!expected.includes(code)){
-    showAlert('scanAlert',`⚠️ חבילה "${code}" אינה שייכת למשלוח זה!`,5000);
+  if(!expected.includes(normalizedCode)){
+    showAlert('scanAlert',`⚠️ חבילה "${normalizedCode}" אינה שייכת למשלוח זה!`,5000);
     input.style.borderColor='var(--danger)';
     setTimeout(()=>{input.style.borderColor='var(--accent)';},2000);
     return;
   }
-  if(scannedCodes.map(c=>c.toUpperCase()).includes(code)){
-    showAlert('scanAlert',`חבילה "${code}" כבר נסרקה.`,3000);
+  if(scannedCodes.map(c=>c.toUpperCase()).includes(normalizedCode)){
+    showAlert('scanAlert',`חבילה "${normalizedCode}" כבר נסרקה.`,3000);
     return;
   }
-  scannedCodes.push(code);
-  showAlert('scanSuccess',`✓ חבילה "${code}" נסרקה בהצלחה`,2000);
+  scannedCodes.push(normalizedCode);
+  showAlert('scanSuccess',`✓ חבילה "${normalizedCode}" נסרקה בהצלחה`,2000);
   updateLoadingUI();
 }
 
@@ -636,6 +768,26 @@ function focusScan(){
 }
 
 async function confirmShipment(){
+  if(currentLoadingSession){
+    if(!confirm(`לסיים העמסה להזמנה ${currentLoadingSession.order_num}?`))return;
+    try{
+      const response=await fetch(`/api/loading/sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){
+        if(data.error==='packages_missing')showAlert('scanAlert',`חסרות עדיין ${data.missing_count} חבילות — אי אפשר לסיים העמסה.`,0);
+        else showAlert('scanAlert','לא ניתן לסיים את ההעמסה.',0);
+        return;
+      }
+      currentLoadingSession=data;
+      document.getElementById('btnConfirmShip').textContent='העמסה הושלמה';
+      showAlert('scanSuccess',`✅ ההעמסה להזמנה ${data.order_num} הושלמה.`,0);
+      updateLoadingUI();
+      loadKPI();
+    }catch(error){
+      showAlert('scanAlert','לא ניתן לסיים את ההעמסה.',0);
+    }
+    return;
+  }
   if(!currentDelivery)return;
   if(!confirm(`לאשר יציאת משלוח ${currentDelivery.delivery_num}?\nכל החבילות ישומנו כנשלחו.`))return;
 
@@ -658,6 +810,11 @@ async function confirmShipment(){
 
 // ─── INIT ─────────────────────────────────────────────────────────────
 loadKPI();
+const loadingOrderFromQr=new URLSearchParams(location.search).get('load_order');
+if(loadingOrderFromQr){
+  showTab('loading');
+  initOrderLoadingFromQr(loadingOrderFromQr);
+}
 </script>
 
 <script src="/nav.js"></script>

@@ -1157,6 +1157,71 @@ function ensureCoreSchema(db) {
       FOREIGN KEY (order_id) REFERENCES orders(id)
     );
 
+    -- ── ORDER LOADING SESSIONS (outbound package verification) ────────
+    -- A loading session freezes the list of physical package labels that
+    -- must be loaded for one order.  It deliberately does not alter the
+    -- production scan flow or the order/delivery lifecycle.
+    CREATE TABLE IF NOT EXISTS order_loading_sessions (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_uid        TEXT NOT NULL UNIQUE,
+      order_id           INTEGER NOT NULL,
+      order_num          TEXT NOT NULL,
+      status             TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','completed','cancelled')),
+      expected_count     INTEGER NOT NULL DEFAULT 0,
+      expected_weight    REAL NOT NULL DEFAULT 0,
+      started_by         INTEGER,
+      started_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_by       INTEGER,
+      completed_at       DATETIME,
+      cancelled_by       INTEGER,
+      cancelled_at       DATETIME,
+      cancel_reason      TEXT,
+      FOREIGN KEY (order_id) REFERENCES orders(id),
+      FOREIGN KEY (started_by) REFERENCES users(id),
+      FOREIGN KEY (completed_by) REFERENCES users(id),
+      FOREIGN KEY (cancelled_by) REFERENCES users(id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_loading_session_one_active_order
+      ON order_loading_sessions(order_id) WHERE status='active';
+
+    CREATE TABLE IF NOT EXISTS order_loading_session_packages (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id         INTEGER NOT NULL,
+      package_id         INTEGER NOT NULL,
+      package_code       TEXT NOT NULL,
+      item_ids_json      JSON,
+      quantity           REAL NOT NULL DEFAULT 0,
+      weight             REAL NOT NULL DEFAULT 0,
+      state              TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','loaded')),
+      loaded_by          INTEGER,
+      loaded_at          DATETIME,
+      UNIQUE(session_id, package_id),
+      UNIQUE(session_id, package_code),
+      FOREIGN KEY (session_id) REFERENCES order_loading_sessions(id),
+      FOREIGN KEY (package_id) REFERENCES packages(id),
+      FOREIGN KEY (loaded_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS order_loading_events (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id         INTEGER NOT NULL,
+      event_type         TEXT NOT NULL CHECK (event_type IN ('started','package_loaded','duplicate_scan','wrong_order_scan','unknown_scan','completed','cancelled')),
+      package_id         INTEGER,
+      scanned_value      TEXT,
+      actor_id           INTEGER,
+      details_json       JSON,
+      created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (session_id) REFERENCES order_loading_sessions(id),
+      FOREIGN KEY (package_id) REFERENCES packages(id),
+      FOREIGN KEY (actor_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_loading_session_packages_session
+      ON order_loading_session_packages(session_id, state);
+    CREATE INDEX IF NOT EXISTS idx_loading_events_session
+      ON order_loading_events(session_id, created_at);
+
     -- ── INVOICES (Israeli standard, כרך ט) ───────────────────────
     CREATE TABLE IF NOT EXISTS invoices (
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
