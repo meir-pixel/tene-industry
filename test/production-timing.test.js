@@ -136,6 +136,24 @@ test('production timing reports net time, cut metres, rates and coil loading wit
     assert.equal(order.cut_length_mm, 10000);
     assert.equal(order.weight_kg, 12);
     assert.deepEqual(order.profiles, ['L · Ø12 מ״מ']);
+
+    const dailyDiameter = report.daily_diameters.find(row => row.date === '2026-08-13' && row.diameter_mm === 12);
+    assert.ok(dailyDiameter);
+    assert.equal(dailyDiameter.completed_cards, 3);
+    assert.equal(dailyDiameter.measured_cards, 2);
+    assert.equal(dailyDiameter.unmeasured_cards, 1);
+    assert.equal(dailyDiameter.quantity, 30);
+    assert.equal(dailyDiameter.cut_length_mm, 30000);
+    assert.equal(dailyDiameter.weight_kg, 27);
+    assert.equal(dailyDiameter.measured_weight_kg, 27);
+    assert.equal(dailyDiameter.estimated_weight_kg, 0);
+    assert.equal(dailyDiameter.net_minutes, 290);
+    assert.equal(dailyDiameter.measured_cut_length_mm, 20000);
+    assert.equal(dailyDiameter.timed_weight_kg, 20);
+    assert.equal(dailyDiameter.meters_per_min, 0.069);
+    assert.equal(dailyDiameter.kg_per_min, 0.069);
+    assert.equal(dailyDiameter.coil_load_minutes, 15);
+    assert.equal(dailyDiameter.weight_source, 'measured');
   } finally {
     db.close();
   }

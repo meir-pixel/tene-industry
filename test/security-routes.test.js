@@ -1252,6 +1252,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(timingResponse.status, 200);
     const timing = await timingResponse.json();
     assert.ok(Array.isArray(timing.cards));
+    assert.ok(Array.isArray(timing.daily_diameters));
     assert.ok(Array.isArray(timing.orders));
     assert.ok(Array.isArray(timing.machines));
     assert.ok(Array.isArray(timing.transitions));

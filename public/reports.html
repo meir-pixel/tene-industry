@@ -87,6 +87,8 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .timing-status{font-weight:800;font-size:11px;white-space:nowrap;}
 .timing-status.normal{color:var(--success)}.timing-status.watch{color:var(--warning)}.timing-status.slow{color:var(--danger)}.timing-status.missing{color:var(--text-muted)}
 .timing-chart-hint{font-size:11px;color:var(--text-muted);margin-top:8px;}
+.timing-filter{font-size:12px;color:var(--info);font-weight:700;}
+.timing-filter[hidden]{display:none;}
 </style>
 <link rel="stylesheet" href="/theme.css">
 <script src="/auth-client.js"></script>
@@ -188,6 +190,11 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
       <div class="chart-wrap"><canvas id="timingTransitionChart"></canvas></div>
       <div class="timing-chart-hint">כחול: הכנה/מעבר · כתום: טעינת גליל · אפור: צהריים · אדום: עצירה אחרת.</div>
     </div>
+    <div class="chart-card">
+      <div class="chart-title">📆 משקל ייצור לפי יום וקוטר</div>
+      <div class="chart-wrap"><canvas id="dailyDiameterChart"></canvas></div>
+      <div class="timing-chart-hint">כל צבע הוא קוטר אחר. לחיצה על עמודה פותחת למטה את הכרטיסים שמרכיבים את אותו יום וקוטר.</div>
+    </div>
     <div class="chart-card" style="grid-column:1/-1">
       <div class="chart-title">🧾 ביצוע לפי כרטיס</div>
       <div class="chart-wrap"><canvas id="timingCardChart"></canvas></div>
@@ -202,6 +209,17 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
       <table class="data-table">
         <thead><tr><th>הזמנה</th><th>צורות וקטרים</th><th>כרטיסים מדודים</th><th>חסרי מדידה</th><th>זמן נטו</th><th>אורך חיתוך</th><th>משקל</th><th>מ׳/דק׳</th><th>ק״ג/דק׳</th></tr></thead>
         <tbody id="timingOrderTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">📆 ייצור יומי לפי קוטר</div>
+    <div class="timing-note">המשקל כולל כרטיסים שהושלמו גם אם חסר להם זמן התחלה; קצב מחושב רק מכרטיסים עם זמן נטו מדוד. לחיצה על „פתח כרטיסים” מסננת את הפירוט למטה.</div>
+    <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
+      <table class="data-table">
+        <thead><tr><th>יום</th><th>קוטר</th><th>כרטיסים</th><th>יחידות</th><th>אורך חיתוך</th><th>משקל</th><th>זמן נטו</th><th>מ׳/דק׳</th><th>ק״ג/דק׳</th><th>טעינת גליל</th><th></th></tr></thead>
+        <tbody id="dailyDiameterTable"></tbody>
       </table>
     </div>
   </div>
@@ -229,7 +247,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
   </div>
 
   <div>
-    <div class="section-title">🧾 פירוט זמני כרטיסים</div>
+    <div class="section-title">🧾 פירוט זמני כרטיסים <span class="timing-filter" id="timingCardFilter" hidden></span><button class="btn-export timing-filter" id="clearTimingCardFilter" type="button" onclick="clearTimingCardFilter()" hidden>נקה סינון</button></div>
     <div class="timing-note">כרטיס ללא התחלה או סיום תקינים אינו נכנס למדדי המהירות, כדי שלא ייווצר נתון מומצא.</div>
     <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
       <table class="data-table">
@@ -294,6 +312,8 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 let charts = {};
 let reportData = null;
 let timingData = null;
+let timingCardFilter = null;
+let dailyDiameterRows = [];
 
 function escH(value) {
   if (window.IronBendSafe?.escapeHtml) return window.IronBendSafe.escapeHtml(value);
@@ -310,6 +330,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const from  = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000); // last 30 days
   document.getElementById('fromDate').value = from.toISOString().split('T')[0];
   document.getElementById('toDate').value   = today.toISOString().split('T')[0];
+  document.getElementById('dailyDiameterTable').addEventListener('click', event => {
+    const button = event.target.closest('[data-daily-diameter-index]');
+    const row = button ? dailyDiameterRows[Number(button.dataset.dailyDiameterIndex)] : null;
+    if (row) setTimingCardFilter(row.date, row.diameter_mm);
+  });
   loadAll();
 });
 
@@ -334,14 +359,16 @@ async function loadAll() {
 }
 
 async function loadProductionTiming(from, to) {
-  const empty = { cards: [], orders: [], machines: [], recipes: [], transitions: [], data_quality: {} };
+  const empty = { cards: [], orders: [], machines: [], recipes: [], daily_diameters: [], transitions: [], data_quality: {} };
   const data = await fetch(`/api/reports/production-timing?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
     .then(response => response.ok ? response.json() : empty)
     .catch(() => empty);
   timingData = data;
+  timingCardFilter = null;
   renderTimingMachines(data.machines || []);
   renderTimingCharts(data);
   renderTimingOrders(data.orders || []);
+  renderDailyDiameters(data.daily_diameters || []);
   renderTimingRecipes(data.recipes || []);
   renderTimingTransitions(data.transitions || []);
   renderTimingCards(data.cards || []);
@@ -456,6 +483,7 @@ function formatMinutes(value) {
 }
 
 function formatRate(value, digits = 2) {
+  if (value === null || value === undefined || value === '') return '—';
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed.toFixed(digits) : '—';
 }
@@ -500,6 +528,7 @@ function renderTimingCharts(data) {
     .slice().sort((a, b) => num(b.gross_gap_minutes) - num(a.gross_gap_minutes)).slice(0, 12);
   const cards = (Array.isArray(data?.cards) ? data.cards : [])
     .filter(row => row.measurement_status === 'measured').slice(0, 24);
+  const dailyDiameters = Array.isArray(data?.daily_diameters) ? data.daily_diameters : [];
 
   makeChart('timingPaceChart', 'bar', {
     labels: machines.map(row => `מכונה ${row.machine || '—'}`),
@@ -529,6 +558,41 @@ function renderTimingCharts(data) {
     ],
   }, timingChartOptions('דקות', { scales: { ...CHART_DEFAULTS.scales, x: { ...CHART_DEFAULTS.scales.x, stacked: true }, y: { ...CHART_DEFAULTS.scales.y, stacked: true, beginAtZero: true, title: { display: true, text: 'דקות', color: '#526070', font: { family: 'Heebo', size: 11 } } } } }));
 
+  const dayLabels = [...new Set(dailyDiameters.map(row => row.date))].sort();
+  const diameterGroups = [...new Map(dailyDiameters.map(row => {
+    const diameter = row.diameter_mm == null ? null : num(row.diameter_mm);
+    return [diameter === null ? 'unknown' : String(diameter), diameter];
+  })).entries()];
+  const diameterColors = ['#1560a8', '#1a7a42', '#c9621a', '#7057b8', '#b83227', '#007c91', '#a86b00'];
+  makeChart('dailyDiameterChart', 'bar', {
+    labels: dayLabels.map(day => String(day).slice(5)),
+    datasets: diameterGroups.map(([key, diameter], index) => ({
+      label: diameter === null ? 'קוטר לא ידוע' : `Ø${diameter} מ״מ`,
+      unit: 'ק״ג',
+      data: dayLabels.map(day => {
+        const row = dailyDiameters.find(candidate => candidate.date === day
+          && (diameter === null ? candidate.diameter_mm == null : num(candidate.diameter_mm) === diameter));
+        return row ? num(row.weight_kg) : 0;
+      }),
+      backgroundColor: diameterColors[index % diameterColors.length],
+      borderRadius: 4,
+      dailyDiameter: diameter,
+      dailyDiameterKey: key,
+    })),
+  }, timingChartOptions('ק״ג', {
+    scales: {
+      ...CHART_DEFAULTS.scales,
+      x: { ...CHART_DEFAULTS.scales.x, stacked: true },
+      y: { ...CHART_DEFAULTS.scales.y, stacked: true, beginAtZero: true, title: { display: true, text: 'ק״ג', color: '#526070', font: { family: 'Heebo', size: 11 } } },
+    },
+    onClick(_event, elements) {
+      if (!elements.length) return;
+      const selected = elements[0];
+      const dataset = selected.chart.data.datasets[selected.datasetIndex];
+      setTimingCardFilter(dayLabels[selected.index], dataset.dailyDiameter);
+    },
+  }));
+
   makeChart('timingCardChart', 'bar', {
     labels: cards.map(row => `${row.order_num || '—'} · ${row.shapeName || '—'} Ø${row.diameterMm || '—'}`),
     datasets: [
@@ -557,6 +621,32 @@ function renderTimingOrders(orders) {
       <td>${num(order.cut_length_mm) ? `${num(order.cut_length_mm).toLocaleString()} מ״מ` : '—'}</td><td>${formatRate(order.weight_kg)} ק״ג</td>
       <td>${formatRate(order.meters_per_min)} מ׳/דק׳</td><td>${formatRate(order.kg_per_min)} ק״ג/דק׳</td>
     </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-dim);padding:20px">אין הזמנות עם זמן ייצור מדוד בתקופה שנבחרה.</td></tr>';
+}
+
+function dailyDiameterLabel(row) {
+  return row.diameter_mm == null ? 'קוטר לא ידוע' : `Ø${num(row.diameter_mm)} מ״מ`;
+}
+
+function dailyWeightSourceLabel(row) {
+  if (row.weight_source === 'measured') return 'מדוד';
+  if (row.weight_source === 'mixed') return 'מדוד + תאורטי';
+  return 'תאורטי';
+}
+
+function renderDailyDiameters(rows) {
+  dailyDiameterRows = Array.isArray(rows) ? rows : [];
+  document.getElementById('dailyDiameterTable').innerHTML = dailyDiameterRows.map((row, index) => `
+    <tr>
+      <td>${escH(row.date || '—')}</td><td><strong>${dailyDiameterLabel(row)}</strong></td>
+      <td>${num(row.completed_cards)} <span style="color:var(--text-muted)">(${num(row.measured_cards)} מדודים)</span></td>
+      <td>${num(row.quantity)}</td>
+      <td>${num(row.cut_length_mm) ? `${num(row.cut_length_mm).toLocaleString()} מ״מ` : row.missing_cut_length_cards ? 'חסר נתון אורך' : '—'}</td>
+      <td>${formatRate(row.weight_kg)} ק״ג <span style="color:var(--text-muted)">(${dailyWeightSourceLabel(row)})</span></td>
+      <td>${formatMinutes(row.net_minutes)}</td>
+      <td>${formatRate(row.meters_per_min)} מ׳/דק׳</td><td>${formatRate(row.kg_per_min)} ק״ג/דק׳</td>
+      <td>${formatMinutes(row.coil_load_minutes)}</td>
+      <td><button class="btn-export" type="button" data-daily-diameter-index="${index}">פתח כרטיסים</button></td>
+    </tr>`).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--text-dim);padding:20px">אין כרטיסים שהושלמו בתקופה שנבחרה.</td></tr>';
 }
 
 function renderTimingRecipes(recipes) {
@@ -599,8 +689,35 @@ function formatTimingDate(value) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Jerusalem' });
 }
 
-function renderTimingCards(cards) {
-  cards = Array.isArray(cards) ? cards : [];
+function setTimingCardFilter(day, diameterMm) {
+  timingCardFilter = { day, diameter_mm: diameterMm == null ? null : num(diameterMm) };
+  renderTimingCards(timingData?.cards || []);
+  document.getElementById('timingCardTable').closest('div').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function clearTimingCardFilter() {
+  timingCardFilter = null;
+  renderTimingCards(timingData?.cards || []);
+}
+
+function renderTimingCards(sourceCards) {
+  const allCards = Array.isArray(sourceCards) ? sourceCards : [];
+  const cards = timingCardFilter ? allCards.filter(card => {
+    if (card.production_day !== timingCardFilter.day) return false;
+    const diameter = Number.isFinite(Number(card.diameterMm)) && Number(card.diameterMm) > 0 ? Number(card.diameterMm) : null;
+    return diameter === timingCardFilter.diameter_mm;
+  }) : allCards;
+  const filter = document.getElementById('timingCardFilter');
+  const clearButton = document.getElementById('clearTimingCardFilter');
+  if (timingCardFilter) {
+    filter.hidden = false;
+    clearButton.hidden = false;
+    filter.textContent = `— ${timingCardFilter.day} · ${timingCardFilter.diameter_mm == null ? 'קוטר לא ידוע' : `Ø${timingCardFilter.diameter_mm} מ״מ`}`;
+  } else {
+    filter.hidden = true;
+    clearButton.hidden = true;
+    filter.textContent = '';
+  }
   document.getElementById('timingCardTable').innerHTML = cards.map(card => {
     const status = timingStatus(card);
     return `<tr>

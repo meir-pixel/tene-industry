@@ -405,6 +405,64 @@ function reportProductionTiming(db, { fromDate, toDate } = {}) {
 
   const machineSummaries = new Map();
   const orderSummaries = new Map();
+  // The daily/diameter projection is deliberately built from every completed
+  // card, including cards whose timing is incomplete. This keeps the daily
+  // production quantity and weight truthful while keeping pace metrics limited
+  // to the subset with a valid measured duration.
+  const dailyDiameterSummaries = new Map();
+  const dailyDiameterKeyByItemId = new Map();
+  for (const item of items) {
+    const diameter = Number.isFinite(Number(item.diameterMm)) && Number(item.diameterMm) > 0
+      ? Number(item.diameterMm)
+      : null;
+    const key = `${item.production_day}|${diameter === null ? 'unknown' : diameter}`;
+    const current = dailyDiameterSummaries.get(key) || {
+      date: item.production_day,
+      diameter_mm: diameter,
+      completed_cards: 0,
+      measured_cards: 0,
+      unmeasured_cards: 0,
+      quantity: 0,
+      cut_length_mm: 0,
+      missing_cut_length_cards: 0,
+      weight_kg: 0,
+      measured_weight_kg: 0,
+      estimated_weight_kg: 0,
+      measured_weight_cards: 0,
+      estimated_weight_cards: 0,
+      net_minutes: 0,
+      measured_cut_length_mm: 0,
+      timed_weight_kg: 0,
+      coil_load_minutes: 0,
+    };
+    current.completed_cards += 1;
+    current.quantity += item.quantity;
+    current.weight_kg += item.weight_kg;
+    if (item.weight_source === 'measured') {
+      current.measured_weight_kg += item.weight_kg;
+      current.measured_weight_cards += 1;
+    } else {
+      current.estimated_weight_kg += item.weight_kg;
+      current.estimated_weight_cards += 1;
+    }
+
+    const cardCutLength = Number(item.unitCutLengthMm) > 0
+      ? Number(item.unitCutLengthMm) * item.quantity
+      : null;
+    if (cardCutLength === null) current.missing_cut_length_cards += 1;
+    else current.cut_length_mm += cardCutLength;
+
+    if (item.measurement_status === 'measured') {
+      current.measured_cards += 1;
+      current.net_minutes += item.net_minutes;
+      current.measured_cut_length_mm += item.cut_length_mm;
+      current.timed_weight_kg += item.weight_kg;
+    } else {
+      current.unmeasured_cards += 1;
+    }
+    dailyDiameterSummaries.set(key, current);
+    dailyDiameterKeyByItemId.set(item.item_id, key);
+  }
   for (const item of measured) {
     const key = item.machine;
     const current = machineSummaries.get(key) || {
@@ -475,9 +533,15 @@ function reportProductionTiming(db, { fromDate, toDate } = {}) {
   for (const transition of transitions) {
     if (transition.gap_status !== 'measured') continue;
     const current = machineSummaries.get(transition.machine);
-    if (!current) continue;
-    current.transition_minutes += transition.transition_minutes;
-    current.coil_load_minutes += transition.coil_load_minutes;
+    if (current) {
+      current.transition_minutes += transition.transition_minutes;
+      current.coil_load_minutes += transition.coil_load_minutes;
+    }
+    // A coil-load interval belongs to the card that follows the interval.
+    // That makes day/diameter totals traceable without changing any source
+    // production record.
+    const daily = dailyDiameterSummaries.get(dailyDiameterKeyByItemId.get(transition.item_id));
+    if (daily) daily.coil_load_minutes += transition.coil_load_minutes;
   }
   const machines = [...machineSummaries.values()].map(row => ({
     ...row,
@@ -532,12 +596,32 @@ function reportProductionTiming(db, { fromDate, toDate } = {}) {
     kg_per_min: order.net_minutes > 0 ? round(order.weight_kg / order.net_minutes, 4) : null,
   })).sort((a, b) => b.net_minutes - a.net_minutes || String(a.order_num).localeCompare(String(b.order_num), 'he'));
 
+  const daily_diameters = [...dailyDiameterSummaries.values()].map(row => ({
+    ...row,
+    quantity: round(row.quantity, 3),
+    cut_length_mm: round(row.cut_length_mm, 3),
+    weight_kg: round(row.weight_kg, 3),
+    measured_weight_kg: round(row.measured_weight_kg, 3),
+    estimated_weight_kg: round(row.estimated_weight_kg, 3),
+    net_minutes: round(row.net_minutes, 3),
+    measured_cut_length_mm: round(row.measured_cut_length_mm, 3),
+    timed_weight_kg: round(row.timed_weight_kg, 3),
+    coil_load_minutes: round(row.coil_load_minutes, 3),
+    meters_per_min: row.net_minutes > 0 ? round(row.measured_cut_length_mm / 1000 / row.net_minutes, 4) : null,
+    kg_per_min: row.net_minutes > 0 ? round(row.timed_weight_kg / row.net_minutes, 4) : null,
+    weight_source: row.measured_weight_cards && row.estimated_weight_cards
+      ? 'mixed'
+      : row.estimated_weight_cards ? 'theoretical' : 'measured',
+  })).sort((a, b) => String(b.date).localeCompare(String(a.date))
+    || (a.diameter_mm === null ? 1 : b.diameter_mm === null ? -1 : a.diameter_mm - b.diameter_mm));
+
   return {
     period: { from: fromDate, to: toDate, time_zone: FACTORY_TIME_ZONE, lunch: { start: '12:00', end: '12:45' } },
     cards: items.sort((a, b) => String(b.completed_at).localeCompare(String(a.completed_at)) || b.item_id - a.item_id),
     orders,
     machines,
     recipes: recipeSummaries,
+    daily_diameters,
     transitions: transitions.sort((a, b) => b.transition_minutes - a.transition_minutes || b.item_id - a.item_id),
     data_quality: {
       completed_cards: items.length,

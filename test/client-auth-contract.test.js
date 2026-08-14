@@ -592,6 +592,9 @@ test('reports screen uses authenticated APIs and escapes API-sourced table field
   assert.match(reports, /timingRecipeChart/);
   assert.match(reports, /timingTransitionChart/);
   assert.match(reports, /timingCardChart/);
+  assert.match(reports, /dailyDiameterChart/);
+  assert.match(reports, /dailyDiameterTable/);
+  assert.match(reports, /renderDailyDiameters/);
   assert.match(reports, /escH\(w\.shape_name/);
   assert.match(reports, /escH\(c\.name/);
   assert.match(reports, /escH\(m\.order_num/);
