@@ -128,7 +128,8 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .detail-header{padding:18px 22px;border-bottom:1px solid rgba(2,26,72,0.10);position:sticky;top:0;
   background:rgba(255,255,255,0.94);backdrop-filter:blur(10px);z-index:10;
   display:flex;align-items:center;justify-content:space-between;gap:12px;}
-.detail-order-num{font-size:24px;font-weight:900;color:var(--accent);line-height:1.15;overflow-wrap:anywhere;padding-inline-end:6px;}
+.detail-heading{min-width:0;flex:1;}
+.detail-order-num{font-size:24px;font-weight:900;color:var(--accent);line-height:1.15;overflow-wrap:anywhere;padding-inline-end:6px;direction:ltr;text-align:right;}
 .detail-customer{font-size:13px;color:var(--dim);margin-top:2px;}
 .detail-close{width:38px;height:38px;background:rgba(0,0,0,0.04);border:1px solid var(--border);
   border-radius:8px;color:var(--text);cursor:pointer;font-size:18px;
@@ -316,7 +317,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 <div class="detail-overlay" id="detailOverlay" onclick="closeDetail(event)">
   <div class="detail-panel" id="detailPanel">
     <div class="detail-header">
-      <div>
+      <div class="detail-heading">
         <div class="detail-order-num" id="detailOrderNum">—</div>
         <div class="detail-customer" id="detailCustomer"></div>
       </div>

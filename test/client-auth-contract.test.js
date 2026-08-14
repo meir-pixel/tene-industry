@@ -484,6 +484,17 @@ test('shared window back control only closes the active app window', () => {
   assert.doesNotMatch(nav, /\.btn-outline, \[data-close\], button, a/);
 });
 
+test('order detail keeps its sticky identifier clear of the generic window-back control', () => {
+  const nav = read('public/nav.js');
+  const orders = read('public/orders.html');
+
+  assert.match(nav, /if \(panel\.matches\('\.detail-panel'\)\) return/);
+  assert.match(orders, /\.detail-heading\{min-width:0;flex:1;\}/);
+  assert.match(orders, /\.detail-order-num\{[\s\S]*direction:ltr;text-align:right/);
+  assert.match(orders, /<div class="detail-heading">[\s\S]*id="detailOrderNum"/);
+  assert.match(orders, /class="detail-close"/);
+});
+
 test('shared navigation hides modules excluded by license entitlements', () => {
   const nav = read('public/nav.js');
 

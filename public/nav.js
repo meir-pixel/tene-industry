@@ -527,6 +527,10 @@
   function enhanceWindowBackControls(root) {
     const scope = root && root.querySelectorAll ? root : document;
     scope.querySelectorAll(windowPanelSelector).forEach(panel => {
+      // Order detail already owns a sticky header with an explicit close control.
+      // Adding the generic sticky "back" row here overlaps its order identifier
+      // while scrolling on narrow screens.
+      if (panel.matches('.detail-panel')) return;
       if (panel.querySelector(':scope > .ib-window-back-row')) return;
       const row = document.createElement('div');
       row.className = 'ib-window-back-row';
