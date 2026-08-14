@@ -86,7 +86,11 @@ test('order-sheet QR starts a server-authoritative package loading session witho
 
   const printResponse = await request(`/api/orders/${orderId}/print-a4`, { headers: authHeaders(office) });
   assert.equal(printResponse.status, 200);
-  assert.match(await printResponse.text(), new RegExp(`warehouse[.]html[?]load_order=${orderId}`));
+  const printHtml = await printResponse.text();
+  assert.match(printHtml, new RegExp(`warehouse[.]html[?]load_order=${orderId}`));
+  assert.match(printHtml, /<img src="data:image\/png;base64,/);
+  assert.doesNotMatch(printHtml, /cdn[.]jsdelivr[.]net\/npm\/qrcode/);
+  assert.doesNotMatch(printHtml, />QR<\/div>/);
 
   const preflight = await request(`/api/loading/orders/${orderId}`, { headers: authHeaders(warehouse) });
   assert.equal(preflight.status, 200);

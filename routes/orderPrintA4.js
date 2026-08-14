@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const QRCode = require('qrcode');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orderPrintA4 missing dependency: ${name}`);
@@ -102,7 +103,7 @@ module.exports = function createOrderPrintA4Router(deps) {
   const productionCards = deps.productionCards || require('../services/productionCards');
 
 // ── PRINT A4 ──────────────────────────────────────────────────────
-router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
+router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'manager', 'admin']), async (req, res) => {
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone,
       p.name as project_name, COALESCE(cs.name, legacy_site.name) as site_name
     FROM orders o
@@ -154,7 +155,15 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
   // This QR is the explicit entry point for outbound loading.  It does not
   // trigger production and it does not start loading until the warehouse user
   // confirms the action on the destination screen.
-  const fullOrderUrl = '/warehouse.html?load_order=' + encodeURIComponent(order.id);
+  const fullOrderPath = '/warehouse.html?load_order=' + encodeURIComponent(order.id);
+  const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
+  const protocol = forwardedProto || req.protocol || 'https';
+  const fullOrderUrl = `${protocol}://${req.get('host')}${fullOrderPath}`;
+  const orderQrDataUrl = await QRCode.toDataURL(fullOrderUrl, {
+    errorCorrectionLevel: 'M',
+    margin: 0,
+    width: 224,
+  });
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
@@ -162,7 +171,6 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
 <head>
 <meta charset="UTF-8">
 <title>הדפסת A4 – ${order.order_num}</title>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -289,7 +297,9 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
         תאריך מסירה: <b>${delivDate}</b>
       </div>
     </div>
-      <div class="order-qr" data-order-url="${fullOrderUrl}"></div>
+      <div class="order-qr" data-order-url="${fullOrderPath}">
+        <img src="${orderQrDataUrl}" alt="QR – פתיחת העמסת הזמנה">
+      </div>
   </div>
 
   <!-- Summary -->
@@ -352,21 +362,6 @@ function toggleDiamSplit(input){
   var u = new window.URL(window.location.href);
   u.searchParams.set('split_by_diameter', input.checked ? '1' : '0');
   window.location.href = u.href;
-}
-
-function renderOrderQrCodes() {
-  document.querySelectorAll('[data-order-url]').forEach(function(node) {
-    var target = new URL(node.getAttribute('data-order-url'), window.location.origin).href;
-    node.innerHTML = '';
-    if (window.QRCode && window.QRCode.toCanvas) {
-      var canvas = document.createElement('canvas');
-      node.appendChild(canvas);
-      window.QRCode.toCanvas(canvas, target, { width: 112, margin: 0 }, function(){});
-    } else {
-      node.textContent = 'QR';
-      node.title = target;
-    }
-  });
 }
 
 function buildDimsHtml(segments) {
@@ -497,7 +492,6 @@ function buildTable() {
 }
 
 buildTable();
-renderOrderQrCodes();
 </script>
 </body>
 </html>`);
