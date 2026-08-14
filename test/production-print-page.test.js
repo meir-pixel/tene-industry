@@ -274,7 +274,7 @@ test('production cards do not print bogus bend angles for straight bars', () => 
   assert.doesNotMatch(html, /class="dim-ang"/);
 });
 
-test('production cards prefer Shape V2 snapshot angles over legacy segments', () => {
+test('production cards use current item geometry when an old snapshot conflicts', () => {
   const item = {
     id: 804,
     shape_name: 'snapshot wins',
@@ -306,13 +306,48 @@ test('production cards prefer Shape V2 snapshot angles over legacy segments', ()
     }),
   };
   assert.deepEqual(cards.shapeSegmentsFromItem(item), [
-    { length_mm: 200, angle_deg: 90 },
-    { length_mm: 600, angle_deg: 90 },
-    { length_mm: 200, angle_deg: null },
+    { length_mm: 300, angle_deg: 0 },
+    { length_mm: 300, angle_deg: 0 },
+    { length_mm: 300, angle_deg: null },
   ]);
   const html = cards.itemCard(item, { order_num: 'HZ-SNAPSHOT', customer_name: 'Snapshot Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
-  assert.equal((html.match(/stroke-linecap="square"/g) || []).length >= 2, true);
+  assert.equal((html.match(/stroke-linecap="square"/g) || []).length, 0);
   assert.doesNotMatch(html, />0\u00b0</);
+});
+
+test('production cards retain an asymmetric closed stirrup side from the item geometry', () => {
+  const currentSegments = [
+    { length_mm: 80, angle_deg: 90 },
+    { length_mm: 550, angle_deg: 90 },
+    { length_mm: 150, angle_deg: 90 },
+    { length_mm: 550, angle_deg: 90 },
+    { length_mm: 120, angle_deg: 90 },
+    { length_mm: 80, angle_deg: 0 },
+  ];
+  const item = {
+    shape_name: 'חישוק', diameter: 8, total_length_mm: 1530,
+    segments: JSON.stringify(currentSegments),
+    // Existing orders can still have this pre-correction copy.  The actual
+    // order geometry above is the live source used by every projection.
+    shape_snapshot_json: JSON.stringify({
+      contract: 'SHAPE_DATA_CONTRACT_V2', contractVersion: '2.0', shapeVersion: '1.0',
+      shapeId: 'stale-15-by-15', shapeType: 'closed_stirrup', family: 'bars',
+      data: { diameter: 8, sides: [80, 550, 150, 550, 150, 80], angles: [90, 90, 90, 90, 90] },
+      calculated: { totalLengthMm: 1560 },
+      machineOutput: { generic: { segments: [
+        { lengthMm: 80, bendAfterDeg: 90 }, { lengthMm: 550, bendAfterDeg: 90 },
+        { lengthMm: 150, bendAfterDeg: 90 }, { lengthMm: 550, bendAfterDeg: 90 },
+        { lengthMm: 150, bendAfterDeg: 90 }, { lengthMm: 80, bendAfterDeg: null },
+      ] } },
+      validation: { valid: true },
+    }),
+  };
+
+  assert.deepEqual(cards.shapeSegmentsFromItem(item), currentSegments);
+  const svg = cards.itemShapeSvg(item);
+  assert.match(svg, /data-shape-kind="generic-bar"/);
+  assert.match(svg, />12</);
+  assert.doesNotMatch(svg, />156</);
 });
 
 test('production cards suppress legacy zero-degree bend labels', () => {

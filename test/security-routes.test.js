@@ -342,7 +342,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(db.prepare("SELECT notes FROM audit_log WHERE entity_type='item' AND entity_id=? AND action='item_update' ORDER BY id DESC LIMIT 1").get(startedId).notes, 'תיקון כמות לאחר תחילת ייצור');
 
     // A manager correction after production has started must replace the
-    // canonical snapshot used by the production-card renderer. The editor
+    // persisted shape contract and its live item geometry. The editor
     // serializes the current contract as "2.0", not numeric 2.
     const correctedShape = shapeV2Envelope();
     correctedShape.contractVersion = '2.0';
@@ -372,7 +372,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(JSON.parse(correctedItem.shape_snapshot_json).shapeId, 'shape-v2-post-start-correction');
     assert.deepEqual(productionCards.shapeSegmentsFromItem(correctedItem), [
       { length_mm: 1200, angle_deg: 90 },
-      { length_mm: 200, angle_deg: null },
+      { length_mm: 200, angle_deg: 0 },
     ]);
 
     // Geometry edits made by legacy/order-detail controls do not always carry
@@ -427,7 +427,17 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(legacyEditedItem.total_length_mm, 540);
     assert.deepEqual(productionCards.shapeSegmentsFromItem(legacyEditedItem), [
       { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: 90 },
-      { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: null },
+      { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: 0 },
+    ]);
+
+    // A saved order from before snapshot synchronization may still contain a
+    // stale V2 copy.  Every rendered path must choose the live item geometry,
+    // so a documented 120 mm side cannot become a 150 mm side on a card.
+    db.prepare('UPDATE items SET shape_snapshot_json=? WHERE id=?').run(JSON.stringify(staleShape), legacyEditId);
+    const outOfSyncItem = db.prepare('SELECT * FROM items WHERE id=?').get(legacyEditId);
+    assert.deepEqual(productionCards.shapeSegmentsFromItem(outOfSyncItem), [
+      { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: 90 },
+      { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: 0 },
     ]);
 
     const detailAfterGeometryEdit = await request(`/api/orders/${orderId}`, { headers: authHeaders(manager) });
@@ -435,14 +445,16 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     const detailOrder = await detailAfterGeometryEdit.json();
     const detailItem = detailOrder.pallets.flatMap(pallet => pallet.items).find(row => Number(row.id) === Number(legacyEditId));
     assert.ok(detailItem);
-    assert.deepEqual(productionCards.shapeSegmentsFromItem(detailItem), productionCards.shapeSegmentsFromItem(legacyEditedItem));
+    assert.deepEqual(productionCards.shapeSegmentsFromItem(detailItem), productionCards.shapeSegmentsFromItem(outOfSyncItem));
     assert.match(detailItem.shape_svg, /data-shape-kind=/);
+    assert.match(detailItem.shape_svg, />12</);
 
     const scanAfterGeometryEdit = await request(`/api/worker-card?card=${encodeURIComponent(`${'ORDER-CARD-CORRECTION'}|${legacyEditId}`)}`);
     assert.equal(scanAfterGeometryEdit.status, 200);
     const scannedItem = (await scanAfterGeometryEdit.json()).items[0];
-    assert.deepEqual(productionCards.shapeSegmentsFromItem(scannedItem), productionCards.shapeSegmentsFromItem(legacyEditedItem));
+    assert.deepEqual(productionCards.shapeSegmentsFromItem(scannedItem), productionCards.shapeSegmentsFromItem(outOfSyncItem));
     assert.match(scannedItem.shape_svg, /data-shape-kind=/);
+    assert.match(scannedItem.shape_svg, />12</);
 
     const printedAfterGeometryEdit = await request(`/api/orders/${orderId}/print-cards`, { headers: authHeaders(manager) });
     assert.equal(printedAfterGeometryEdit.status, 200);

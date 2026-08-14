@@ -445,8 +445,14 @@ function snapshotSegments(snapshot = {}) {
 }
 
 function shapeSegmentsFromItem(item = {}) {
-  const fromSnapshot = snapshotSegments(shapeSnapshotFromItem(item));
-  return fromSnapshot.length ? fromSnapshot : normalizeSnapshotSegments(parseSegments(item.segments));
+  // `items.segments` is the live geometry of the order item.  A Shape V2
+  // snapshot is retained for history and for records that predate segments,
+  // but it must not override a newer saved item definition.  Otherwise an
+  // old snapshot can make the QR card/print show 15 cm after the item was
+  // corrected to 12 cm in the order.
+  const fromItem = normalizeSnapshotSegments(parseSegments(item.segments));
+  if (fromItem.length) return fromItem;
+  return snapshotSegments(shapeSnapshotFromItem(item));
 }
 
 function hasPrintableBends(segments) {
