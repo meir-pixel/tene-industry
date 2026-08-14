@@ -68,6 +68,156 @@ function buildOrderItemShapeSnapshotJson(rawItem = {}, fallback = {}) {
   return JSON.stringify(buildFullShapeSnapshot({ ...rawItem, ...fallback }));
 }
 
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// These fields define the geometry that every consumer (order detail, print,
+// production queue and QR/scan card) must see.  Quantity-only edits keep the
+// approved geometry snapshot untouched; a geometry edit must never leave an
+// older snapshot behind for another renderer to pick up.
+function hasShapeDefinitionChange(body = {}) {
+  return [
+    'shape_name', 'shapeName', 'shape_id', 'shapeId', 'shapeType', 'family',
+    'diameter', 'diameterMm', 'total_length_mm', 'totalLengthMm',
+    'segments', 'sides', 'angles',
+    'spiral_diameter_mm', 'spiralDiameterMm', 'spiralDiameter',
+    'spiral_turns', 'spiralTurns', 'turns',
+  ].some(field => Object.prototype.hasOwnProperty.call(body, field));
+}
+
+function synchronizedShapeSnapshotForItem(existingItem = {}, body = {}, cleanItem = {}) {
+  // A complete editor envelope is already the current canonical snapshot.
+  // It is validated and normalized by the existing order-contract helpers.
+  if (shapeSnapshotCandidate(body) != null) {
+    return buildOrderItemShapeSnapshotJson(body, {
+      shapeId: body.shapeId || body.shape_id || existingItem.shape_id || cleanItem.shapeName,
+      shapeName: cleanItem.shapeName,
+      diameter: cleanItem.diameter,
+      segments: cleanItem.segments,
+      totalLengthMm: cleanItem.totalLengthMm,
+      spiralDiameterMm: cleanItem.spiralDiameter || null,
+      spiralTurns: cleanItem.spiralTurns || null,
+      note: cleanItem.note,
+      structElement: cleanItem.structElement,
+      structFloor: cleanItem.structFloor,
+      sheetNum: cleanItem.sheetNum,
+    });
+  }
+
+  // A non-geometric edit (for example quantity or note) must not manufacture
+  // a new geometry snapshot.
+  if (!hasShapeDefinitionChange(body)) {
+    return existingItem.shape_snapshot_json || buildOrderItemShapeSnapshotJson(body, {
+      shapeId: existingItem.shape_id || cleanItem.shapeName,
+      shapeName: cleanItem.shapeName,
+      diameter: cleanItem.diameter,
+      segments: cleanItem.segments,
+      totalLengthMm: cleanItem.totalLengthMm,
+      spiralDiameterMm: cleanItem.spiralDiameter || null,
+      spiralTurns: cleanItem.spiralTurns || null,
+      note: cleanItem.note,
+      structElement: cleanItem.structElement,
+      structFloor: cleanItem.structFloor,
+      sheetNum: cleanItem.sheetNum,
+    });
+  }
+
+  const prior = parseJsonObject(existingItem.shape_snapshot_json) || {};
+  const priorData = prior.data && typeof prior.data === 'object' ? prior.data : {};
+  const priorGeneric = prior.machineOutput?.generic && typeof prior.machineOutput.generic === 'object'
+    ? prior.machineOutput.generic
+    : {};
+  const segments = parseJsonArray(cleanItem.segments).map((segment, index, all) => ({
+    length_mm: Number(segment?.length_mm ?? segment?.length ?? 0),
+    angle_deg: Number(segment?.angle_deg ?? segment?.angle ?? (index < all.length - 1 ? 180 : 0)),
+  })).filter(segment => Number.isFinite(segment.length_mm) && segment.length_mm > 0);
+  const genericSegments = segments.map((segment, index) => ({
+    index: index + 1,
+    lengthMm: segment.length_mm,
+    bendAfterDeg: index < segments.length - 1 ? segment.angle_deg : null,
+  }));
+  const isSpiral = cleanItem.spiralDiameter != null || cleanItem.spiralTurns != null
+    || prior.family === 'spirals' || prior.shapeType === 'spiral';
+  const shapeId = String(body.shapeId || body.shape_id || prior.shapeId || existingItem.shape_id || cleanItem.shapeName);
+  const shapeType = String(body.shapeType || (body.shape_name !== undefined || body.shapeName !== undefined
+    ? cleanItem.shapeName
+    : prior.shapeType || existingItem.shape_id || 'custom_bar'));
+  const family = String(body.family || prior.family || (isSpiral ? 'spirals' : 'bars'));
+
+  // Keep any existing family-specific metadata, but project the authoritative
+  // item fields into both the readable data and generic machine output.  The
+  // two representations are consumed by legacy and V2 renderers respectively.
+  // Do not pass this object through the legacy snapshot builder: that builder
+  // intentionally accepts flat inputs and would discard the V2 data we are
+  // synchronizing here.
+  return JSON.stringify({
+    ...prior,
+    contract: prior.contract || 'SHAPE_DATA_CONTRACT_V2',
+    contractVersion: prior.contractVersion || '2.0',
+    shapeVersion: prior.shapeVersion || '1.0',
+    shapeId,
+    shapeType,
+    family,
+    source: prior.source || 'order-item-update',
+    approvedAt: prior.approvedAt || new Date().toISOString(),
+    displayName: cleanItem.shapeName,
+    shapeName: cleanItem.shapeName,
+    data: {
+      ...priorData,
+      diameter: cleanItem.diameter,
+      segments,
+      sides: segments.map(segment => segment.length_mm),
+      angles: segments.slice(0, -1).map(segment => segment.angle_deg),
+      ...(isSpiral ? {
+        spiral: {
+          ...(priorData.spiral && typeof priorData.spiral === 'object' ? priorData.spiral : {}),
+          diameterMm: cleanItem.spiralDiameter || null,
+          turns: cleanItem.spiralTurns || null,
+        },
+      } : {}),
+    },
+    calculated: {
+      ...(prior.calculated && typeof prior.calculated === 'object' ? prior.calculated : {}),
+      totalLengthMm: cleanItem.totalLengthMm,
+      weightKg: cleanItem.weightPerUnit,
+      totalWeightKg: cleanItem.totalWeight,
+    },
+    machineOutput: {
+      ...(prior.machineOutput && typeof prior.machineOutput === 'object' ? prior.machineOutput : {}),
+      generic: {
+        ...priorGeneric,
+        diameter: cleanItem.diameter,
+        segments: genericSegments,
+        totalLengthMm: cleanItem.totalLengthMm,
+        lengthMm: cleanItem.totalLengthMm,
+        weightKg: cleanItem.weightPerUnit,
+        totalWeightKg: cleanItem.totalWeight,
+        ...(isSpiral ? {
+          spiralDiameterMm: cleanItem.spiralDiameter || null,
+          turns: cleanItem.spiralTurns || null,
+        } : {}),
+      },
+    },
+    validation: prior.validation && typeof prior.validation === 'object'
+      ? prior.validation
+      : { valid: true, errors: [], warnings: [] },
+  });
+}
+
+function shapeIdFromSnapshotJson(value, fallback) {
+  const snapshot = parseJsonObject(value);
+  const shapeId = snapshot?.shapeId;
+  return String(shapeId || fallback || '').trim() || null;
+}
+
 
 module.exports = function createOrdersRouter(deps) {
   const db = required('db', deps.db);
@@ -732,19 +882,18 @@ module.exports = function createOrdersRouter(deps) {
       total_length_mm: item.total_length_mm,
       segments: item.segments,
     });
-    const nextShapeSnapshot = shapeSnapshotCandidate(req.body) != null
-      ? buildOrderItemShapeSnapshotJson(req.body, { shapeId: req.body.shapeId || req.body.shape_id || item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null, note, structElement, structFloor, sheetNum })
-      : (item.shape_snapshot_json || buildOrderItemShapeSnapshotJson(req.body, { shapeId: req.body.shapeId || req.body.shape_id || item.shape_id || shapeName, shapeName, diameter, segments, totalLengthMm, spiralDiameterMm: spiralDiameter || null, spiralTurns: spiralTurns || null, note, structElement, structFloor, sheetNum }));
+    const nextShapeSnapshot = synchronizedShapeSnapshotForItem(item, req.body, cleanItem);
+    const nextShapeId = shapeIdFromSnapshotJson(nextShapeSnapshot, req.body.shapeId || req.body.shape_id || item.shape_id || shapeName);
     const updateResult = db.transaction(() => {
       const releasedReservations = releaseReservationsForItems(db, { item_ids: [item.id] });
       db.prepare(`
         UPDATE items
-        SET shape_name=?, diameter=?, quantity=?, production_qty=?, total_length_mm=?,
+        SET shape_id=?, shape_name=?, diameter=?, quantity=?, production_qty=?, total_length_mm=?,
             segments=?, spiral_diameter_mm=?, spiral_turns=?, weight_per_unit=?, total_weight=?,
             item_uid=COALESCE(item_uid, ?), shape_snapshot_json=?,
             note=?, struct_element=?, struct_floor=?, sheet_num=?, review_status='pending', reviewed_by=NULL, reviewed_at=NULL
         WHERE id=?
-      `).run(shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, buildOrderItemUid(req.params.orderId, item.id), nextShapeSnapshot, note, structElement || null, structFloor || null, sheetNum || null, item.id);
+      `).run(nextShapeId, shapeName, diameter, quantity, quantity, totalLengthMm, segments, spiralDiameter || null, spiralTurns || null, weightPerUnit, totalWeight, buildOrderItemUid(req.params.orderId, item.id), nextShapeSnapshot, note, structElement || null, structFloor || null, sheetNum || null, item.id);
       const inventoryReservations = reserveMaterialForOrder(db, {
         order_id: Number(req.params.orderId),
         items: [{

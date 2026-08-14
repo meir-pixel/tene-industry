@@ -375,6 +375,85 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
       { length_mm: 200, angle_deg: null },
     ]);
 
+    // Geometry edits made by legacy/order-detail controls do not always carry
+    // a complete editor envelope.  They must still replace the old V2
+    // snapshot: the order detail, print and QR/scan card all intentionally
+    // render from that snapshot rather than a stale cached shape.
+    const staleShape = shapeV2Envelope();
+    staleShape.shapeId = 'stale-stirrup-shape';
+    staleShape.shapeType = 'closed_stirrup';
+    staleShape.displayName = 'Old 15 x 15 stirrup';
+    staleShape.data = { diameter: 8, sides: [150, 150, 150, 150], angles: [90, 90, 90] };
+    staleShape.calculated = { totalLengthMm: 600, weightKg: 0.2376, bendCount: 3 };
+    staleShape.machineOutput.generic = {
+      diameter: 8,
+      totalLengthMm: 600,
+      segments: [
+        { index: 1, lengthMm: 150, bendAfterDeg: 90 },
+        { index: 2, lengthMm: 150, bendAfterDeg: 90 },
+        { index: 3, lengthMm: 150, bendAfterDeg: 90 },
+        { index: 4, lengthMm: 150, bendAfterDeg: null },
+      ],
+    };
+    const legacyEditId = db.prepare(`
+      INSERT INTO items
+        (pallet_id,order_id,shape_id,shape_name,diameter,segments,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,status,shape_snapshot_json)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(
+      palletId, orderId, 'stale-stirrup-shape', 'חישוק סגור', 8,
+      JSON.stringify([
+        { length_mm: 150, angle_deg: 90 }, { length_mm: 150, angle_deg: 90 },
+        { length_mm: 150, angle_deg: 90 }, { length_mm: 150, angle_deg: 0 },
+      ]),
+      600, 1, 1, 0.2376, 0.2376, 'ממתין', JSON.stringify(staleShape),
+    ).lastInsertRowid;
+    const legacyEdit = await request(`/api/orders/${orderId}/items/${legacyEditId}`, {
+      method: 'PATCH',
+      headers: authHeaders(office),
+      body: JSON.stringify({
+        segments: [
+          { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: 90 },
+          { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: 0 },
+        ],
+        total_length_mm: 540,
+      }),
+    });
+    assert.equal(legacyEdit.status, 200);
+    const legacyEditedItem = db.prepare('SELECT * FROM items WHERE id=?').get(legacyEditId);
+    const synchronizedSnapshot = JSON.parse(legacyEditedItem.shape_snapshot_json);
+    assert.deepEqual(synchronizedSnapshot.data.sides, [120, 150, 120, 150]);
+    assert.deepEqual(synchronizedSnapshot.machineOutput.generic.segments.map(segment => segment.lengthMm), [120, 150, 120, 150]);
+    assert.equal(synchronizedSnapshot.calculated.totalLengthMm, 540);
+    assert.equal(legacyEditedItem.total_length_mm, 540);
+    assert.deepEqual(productionCards.shapeSegmentsFromItem(legacyEditedItem), [
+      { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: 90 },
+      { length_mm: 120, angle_deg: 90 }, { length_mm: 150, angle_deg: null },
+    ]);
+
+    const detailAfterGeometryEdit = await request(`/api/orders/${orderId}`, { headers: authHeaders(manager) });
+    assert.equal(detailAfterGeometryEdit.status, 200);
+    const detailOrder = await detailAfterGeometryEdit.json();
+    const detailItem = detailOrder.pallets.flatMap(pallet => pallet.items).find(row => Number(row.id) === Number(legacyEditId));
+    assert.ok(detailItem);
+    assert.deepEqual(productionCards.shapeSegmentsFromItem(detailItem), productionCards.shapeSegmentsFromItem(legacyEditedItem));
+    assert.match(detailItem.shape_svg, /data-shape-kind=/);
+
+    const scanAfterGeometryEdit = await request(`/api/worker-card?card=${encodeURIComponent(`${'ORDER-CARD-CORRECTION'}|${legacyEditId}`)}`);
+    assert.equal(scanAfterGeometryEdit.status, 200);
+    const scannedItem = (await scanAfterGeometryEdit.json()).items[0];
+    assert.deepEqual(productionCards.shapeSegmentsFromItem(scannedItem), productionCards.shapeSegmentsFromItem(legacyEditedItem));
+    assert.match(scannedItem.shape_svg, /data-shape-kind=/);
+
+    const printedAfterGeometryEdit = await request(`/api/orders/${orderId}/print-cards`, { headers: authHeaders(manager) });
+    assert.equal(printedAfterGeometryEdit.status, 200);
+    const printedHtml = await printedAfterGeometryEdit.text();
+    const printItemsMatch = printedHtml.match(/var allItems\s*=\s*(\[[\s\S]*?\]);\n/);
+    assert.ok(printItemsMatch, 'print page should receive its current items from the server');
+    const printedItem = JSON.parse(printItemsMatch[1]).find(row => Number(row.id) === Number(legacyEditId));
+    assert.ok(printedItem);
+    assert.equal(printedItem.total_length_mm, 540);
+    assert.deepEqual(printedItem.segments.map(segment => segment.length_mm), [120, 150, 120, 150]);
+
     // Header edits after any card started use the same real management tier and require an audit reason.
     assert.equal((await request(`/api/orders/${orderId}`, {
       method: 'PATCH', headers: authHeaders(office), body: JSON.stringify({ priority: 'דחוף' }),
@@ -601,7 +680,11 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     const updated = db.prepare('SELECT quantity,shape_name,shape_snapshot_json FROM items WHERE id=?').get(created.itemId);
     assert.equal(updated.quantity, 7);
     assert.equal(updated.shape_name, 'contract-updated');
-    assert.equal(updated.shape_snapshot_json, item.shape_snapshot_json);
+    const updatedSnapshot = JSON.parse(updated.shape_snapshot_json);
+    assert.equal(updatedSnapshot.shapeName, 'contract-updated');
+    assert.equal(updatedSnapshot.calculated.totalLengthMm, 1500);
+    assert.deepEqual(updatedSnapshot.data.segments, [{ length_mm: 1500, angle_deg: 0 }]);
+    assert.deepEqual(updatedSnapshot.machineOutput.generic.segments, [{ index: 1, lengthMm: 1500, bendAfterDeg: null }]);
     const reservationStatuses = db.prepare('SELECT status FROM inventory_reservations WHERE item_id=? ORDER BY id').all(created.itemId).map(row => row.status);
     assert.deepEqual(reservationStatuses, ['released', 'active']);
   });
