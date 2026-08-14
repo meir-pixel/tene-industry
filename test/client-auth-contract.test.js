@@ -584,7 +584,14 @@ test('reports screen uses authenticated APIs and escapes API-sourced table field
   assert.match(reports, /src="\/auth-client\.js"/);
   assert.match(reports, /src="\/safe-dom\.js"/);
   assert.match(reports, /\/api\/reports\/summary/);
+  assert.match(reports, /\/api\/reports\/production-timing/);
   assert.match(reports, /\/api\/machines\/oee/);
+  assert.match(reports, /renderTimingCharts/);
+  assert.match(reports, /timingPaceChart/);
+  assert.match(reports, /timingOrderChart/);
+  assert.match(reports, /timingRecipeChart/);
+  assert.match(reports, /timingTransitionChart/);
+  assert.match(reports, /timingCardChart/);
   assert.match(reports, /escH\(w\.shape_name/);
   assert.match(reports, /escH\(c\.name/);
   assert.match(reports, /escH\(m\.order_num/);
