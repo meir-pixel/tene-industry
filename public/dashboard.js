@@ -1,6 +1,7 @@
 const WS_URL = () => window.IronBendAuth?.webSocketUrl?.('/') || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
 const TODAY = new Date().toISOString().slice(0, 10);
 let ws, dashData = null, alertsData = [], inventoryForecast = [], productionQueueItems = [], todayDeliveries = [], shiftSummary = null, _wsDelay = 1000;
+let dashboardDrilldownData = null, dashboardDrilldownRequest = 0, dashboardDrilldownTrigger = null;
 
 function applyDataContractBadges() {
   if (window.IronBendDataContracts) window.IronBendDataContracts.applyDataContracts(document);
@@ -25,6 +26,23 @@ function statusBadgeClass(status) {
   if (s.includes('חסר') || s.includes('בוטל')) return 's-risk';
   return '';
 }
+
+function drillWeightSourceLabel(source) {
+  const labels = {
+    production_event: 'דיווח ייצור',
+    legacy_card_snapshot: 'משקל כרטיס שמור',
+    completed_item_actual: 'משקל בפועל בכרטיס',
+    completed_item_theoretical: 'משקל תאורטי בהשלמה',
+    current_item_actual: 'משקל בפועל בכרטיס',
+    theoretical: 'משקל תאורטי',
+  };
+  return labels[source] || 'ללא משקל זמין';
+}
+function dashboardNumber(value, digits = 1) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toLocaleString('he-IL', { maximumFractionDigits: digits, minimumFractionDigits: 0 }) : '—';
+}
+function formatDrillKg(value) { return `${dashboardNumber(value, 3)} ק"ג`; }
 
 function updateTime() {
   const now = new Date();
@@ -192,8 +210,8 @@ function renderActionCenter() {
 function renderTodayDeliveries() {
   setText('todayDeliveriesCount', todayDeliveries.length);
   const tbody = document.getElementById('todayDeliveriesBody');
-  if (!todayDeliveries.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted-state">אין אספקות מתוכננות להיום.</td></tr>'; return; }
-  tbody.innerHTML = todayDeliveries.map(o => `<tr onclick="location.href='/orders.html?id=${Number(o.id)}'" style="cursor:pointer"><td><span class="order-num">${escHtml(o.order_num || o.id)}</span></td><td>${escHtml(o.customer_name || '—')}</td><td>${escHtml(o.delivery_address || o.site_name || o.project_name || '—')}</td><td><span class="weight-val">${formatKg(o.total_weight || o.billing_weight || 0)}</span></td><td><span class="status-badge ${statusBadgeClass(o.status)}">${escHtml(o.status || '—')}</span></td></tr>`).join('');
+  if (!todayDeliveries.length) { tbody.innerHTML = '<tr><td colspan="6" class="muted-state">אין אספקות מתוכננות להיום.</td></tr>'; return; }
+  tbody.innerHTML = todayDeliveries.map(o => `<tr><td><span class="order-num">${escHtml(o.order_num || o.id)}</span></td><td>${escHtml(o.customer_name || '—')}</td><td>${escHtml(o.delivery_address || o.site_name || o.project_name || '—')}</td><td><span class="weight-val">${formatKg(o.total_weight || o.billing_weight || 0)}</span></td><td><span class="status-badge ${statusBadgeClass(o.status)}">${escHtml(o.status || '—')}</span></td><td><button class="inline-detail-btn" type="button" data-dashboard-drilldown="order" data-dashboard-order-id="${Number(o.id)}">כרטיסים</button></td></tr>`).join('');
 }
 function renderProdQueue(items) {
   const queueItems = items || [];
@@ -201,13 +219,13 @@ function renderProdQueue(items) {
   const host = document.getElementById('prodQueueBody');
   if (!queueItems.length) { host.innerHTML = '<div class="muted-state">אין פריטים בתור ייצור.</div>'; return; }
   const shortages = relevantShortages();
-  host.innerHTML = `<table class="data-table"><thead><tr><th>הזמנה</th><th>לקוח</th><th>משקל</th><th>סטטוס</th></tr></thead><tbody>${queueItems.slice(0, 18).map(item => { const risk = shortages.some(s => String(s.diameter) === String(item.diameter)); return `<tr onclick="location.href='/orders.html?id=${Number(item.order_id)}'" style="cursor:pointer"><td><span class="order-num">${escHtml(item.order_num || '—')}</span></td><td>${escHtml(item.customer_name || '—')} ${item.diameter ? `<span style="color:var(--dim);font-weight:800">Ø${escHtml(item.diameter)}</span>` : ''}</td><td><span class="weight-val">${formatKg(item.weight || 0)}</span></td><td><span class="status-badge ${risk ? 's-risk' : statusBadgeClass(item.status)}">${risk ? 'חסר מלאי' : escHtml(item.status || '—')}</span></td></tr>`; }).join('')}</tbody></table>`;
+  host.innerHTML = `<table class="data-table"><thead><tr><th>הזמנה</th><th>לקוח</th><th>משקל</th><th>סטטוס</th><th></th></tr></thead><tbody>${queueItems.slice(0, 18).map(item => { const risk = shortages.some(s => String(s.diameter) === String(item.diameter)); return `<tr><td><span class="order-num">${escHtml(item.order_num || '—')}</span></td><td>${escHtml(item.customer_name || '—')} ${item.diameter ? `<span style="color:var(--dim);font-weight:800">Ø${escHtml(item.diameter)}</span>` : ''}</td><td><span class="weight-val">${formatKg(item.weight || 0)}</span></td><td><span class="status-badge ${risk ? 's-risk' : statusBadgeClass(item.status)}">${risk ? 'חסר מלאי' : escHtml(item.status || '—')}</span></td><td><button class="inline-detail-btn" type="button" data-dashboard-drilldown="card" data-dashboard-item-id="${Number(item.id)}">פירוט</button></td></tr>`; }).join('')}</tbody></table>`;
 }
 function renderStockShortages() {
   const shortages = relevantShortages();
   const host = document.getElementById('stockShortagesPanel');
   if (!shortages.length) { host.innerHTML = '<div class="muted-state">אין חוסרי מלאי רלוונטיים כרגע.</div>'; return; }
-  host.innerHTML = `<div class="compact-list">${shortages.map(row => `<div class="compact-row"><span>Ø${escHtml(row.diameter)} · ${row.alert === 'critical' ? 'חוסר קריטי' : 'אזהרה'}</span><strong>${formatKg(row.on_hand_kg || 0)}</strong></div>`).join('')}</div><a class="action-link" href="/procurement.html" style="margin-top:12px">פתח רכש/מלאי</a>`;
+  host.innerHTML = `<div class="compact-list">${shortages.map(row => { const diameter = Number(row.diameter); const canDrill = Number.isFinite(diameter) && diameter > 0; return `<div class="compact-row"><span>Ø${escHtml(row.diameter)} · ${row.alert === 'critical' ? 'חוסר קריטי' : 'אזהרה'} ${canDrill ? `<button class="inline-detail-btn" type="button" data-dashboard-drilldown="shortage" data-dashboard-diameter="${diameter}">כרטיסים</button>` : ''}</span><strong>${formatKg(row.on_hand_kg || 0)}</strong></div>`; }).join('')}</div><a class="action-link" href="/procurement.html" style="margin-top:12px">פתח רכש/מלאי</a>`;
 }
 function renderProductionCardsSummary() {
   const waiting = productionQueueItems.filter(item => String(item.status || '').includes('ממתין')).length;
@@ -239,6 +257,128 @@ async function fetchTonsToday() {
 async function fetchInventoryForecast() {
   try { inventoryForecast = await fetch('/api/inventory/forecast').then(r => r.json()); renderStockShortages(); renderActionCenter(); } catch {}
 }
+
+function drillSummaryCells(summary = {}) {
+  const cells = [];
+  if (Number.isFinite(Number(summary.order_count))) cells.push(['הזמנות', dashboardNumber(summary.order_count, 0)]);
+  if (Number.isFinite(Number(summary.card_count))) cells.push(['כרטיסים', dashboardNumber(summary.card_count, 0)]);
+  if (Number.isFinite(Number(summary.quantity))) cells.push(['כמות כוללת', dashboardNumber(summary.quantity, 2)]);
+  if (Number.isFinite(Number(summary.ledger_weight_kg))) cells.push(['משקל מדווח', formatDrillKg(summary.ledger_weight_kg)]);
+  else if (Number.isFinite(Number(summary.displayed_weight_kg))) cells.push(['משקל', formatDrillKg(summary.displayed_weight_kg)]);
+  if (Number.isFinite(Number(summary.actual_waste))) cells.push(['פחת בפועל', dashboardNumber(summary.actual_waste, 2)]);
+  if (Number.isFinite(Number(summary.unweighed_completed_items)) && summary.unweighed_completed_items > 0) cells.push(['ללא משקל', dashboardNumber(summary.unweighed_completed_items, 0)]);
+  return cells.slice(0, 4).map(([label, value]) => `<div class="drill-summary-cell"><span>${escHtml(label)}</span><strong>${escHtml(value)}</strong></div>`).join('');
+}
+
+function cardDrillHtml(card, { detail = false } = {}) {
+  const title = `${card.shape_name || 'פריט ייצור'}${card.diameter_mm ? ` · Ø${dashboardNumber(card.diameter_mm, 1)}` : ''}`;
+  const quantity = Number.isFinite(Number(card.quantity)) ? `כמות ${dashboardNumber(card.quantity, 2)}` : 'כמות לא זמינה';
+  const produced = Number(card.produced_quantity || 0);
+  const production = produced > 0 ? `יוצר ${dashboardNumber(produced, 2)}` : (card.status || 'ללא מצב');
+  const weight = Number.isFinite(Number(card.display_weight_kg)) ? formatDrillKg(card.display_weight_kg) : 'ללא משקל זמין';
+  const source = drillWeightSourceLabel(card.weight_source);
+  const length = Number.isFinite(Number(card.total_length_mm)) ? `אורך כולל ${dashboardNumber(card.total_length_mm, 1)} מ״מ` : 'אורך לא זמין';
+  const order = card.order_num ? `הזמנה ${card.order_num}` : 'ללא הזמנה';
+  const geometry = Array.isArray(card.geometry) && card.geometry.length
+    ? card.geometry.map((segment, index) => `צלע ${index + 1}: ${Number.isFinite(Number(segment.length_mm)) ? `${dashboardNumber(segment.length_mm, 1)} מ״מ` : '—'}${Number.isFinite(Number(segment.angle_deg)) ? ` · ${dashboardNumber(segment.angle_deg, 1)}°` : ''}`).join(' | ')
+    : '';
+  if (!detail) {
+    return `<button class="drill-entry" type="button" data-dashboard-drill-entry="${Number(card.item_id)}"><span class="drill-entry-main"><span class="drill-entry-title">${escHtml(title)} <span class="status-badge ${statusBadgeClass(card.status)}">${escHtml(card.status || '—')}</span></span><span class="drill-entry-sub">${escHtml(order)} · ${escHtml(quantity)} · ${escHtml(production)}</span><span class="drill-entry-meta"><span class="drill-data-pill">${escHtml(length)}</span><span class="drill-data-pill">${escHtml(weight)} · ${escHtml(source)}</span></span></span><span class="drill-entry-arrow" aria-hidden="true">‹</span></button>`;
+  }
+  return `<article class="drill-card-detail"><h3>${escHtml(title)}</h3><div class="drill-detail-grid"><div><span>הזמנה</span><strong>${escHtml(order)}</strong></div><div><span>מצב</span><strong>${escHtml(card.status || '—')}</strong></div><div><span>כמות</span><strong>${escHtml(quantity)}</strong></div><div><span>אורך כולל</span><strong>${escHtml(length)}</strong></div><div><span>משקל מוצג</span><strong>${escHtml(weight)}</strong></div><div><span>מקור משקל</span><strong>${escHtml(source)}</strong></div>${Number.isFinite(Number(card.theoretical_weight_kg)) ? `<div><span>משקל תאורטי</span><strong>${escHtml(formatKg(card.theoretical_weight_kg))}</strong></div>` : ''}${Number.isFinite(Number(card.actual_waste)) && card.actual_waste > 0 ? `<div><span>פחת בפועל</span><strong>${escHtml(dashboardNumber(card.actual_waste, 2))}</strong></div>` : ''}</div>${geometry ? `<p class="drill-geometry"><strong>גאומטריה שמורה:</strong> ${escHtml(geometry)}</p>` : ''}${card.order_url ? `<a class="drill-order-link" href="${escHtml(card.order_url)}">פתח הזמנה מלאה</a>` : ''}</article>`;
+}
+
+function orderDrillHtml(order) {
+  const title = `הזמנה ${order.order_num || `#${order.order_id}`}`;
+  const customer = order.customer_name || 'לקוח לא מזוהה';
+  const weight = Number.isFinite(Number(order.display_weight_kg)) ? formatDrillKg(order.display_weight_kg) : 'ללא משקל זמין';
+  return `<button class="drill-entry" type="button" data-dashboard-drill-entry="${Number(order.order_id)}"><span class="drill-entry-main"><span class="drill-entry-title">${escHtml(title)} <span class="status-badge ${statusBadgeClass(order.status)}">${escHtml(order.status || '—')}</span></span><span class="drill-entry-sub">${escHtml(customer)}${order.delivery_date ? ` · אספקה ${escHtml(order.delivery_date)}` : ''}</span><span class="drill-entry-meta"><span class="drill-data-pill">${escHtml(weight)}</span>${order.priority ? `<span class="drill-data-pill">${escHtml(order.priority)}</span>` : ''}</span></span><span class="drill-entry-arrow" aria-hidden="true">‹</span></button>`;
+}
+
+function renderDashboardDrilldown(data) {
+  const overlay = document.getElementById('dashboardDrilldown');
+  const list = document.getElementById('dashboardDrilldownList');
+  setText('dashboardDrilldownTitle', data.title || 'פירוט נתון');
+  setText('dashboardDrilldownSubtitle', data.subtitle || '');
+  document.getElementById('dashboardDrilldownSummary').innerHTML = drillSummaryCells(data.summary || '');
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  if (!entries.length) {
+    list.innerHTML = '<div class="muted-state">אין כרגע רשומות להצגה.</div>';
+  } else if (data.metric === 'card') {
+    list.innerHTML = entries.map(card => cardDrillHtml(card, { detail: true })).join('');
+  } else {
+    list.innerHTML = entries.map(entry => entry.kind === 'order' ? orderDrillHtml(entry) : cardDrillHtml(entry)).join('');
+  }
+  overlay.hidden = false;
+  overlay.setAttribute('aria-hidden', 'false');
+  document.querySelector('[data-dashboard-drilldown-close]')?.focus();
+}
+
+function closeDashboardDrilldown() {
+  const overlay = document.getElementById('dashboardDrilldown');
+  if (!overlay || overlay.hidden) return;
+  overlay.hidden = true;
+  overlay.setAttribute('aria-hidden', 'true');
+  dashboardDrilldownData = null;
+  dashboardDrilldownTrigger?.focus?.();
+  dashboardDrilldownTrigger = null;
+}
+
+async function openDashboardDrilldown(metric, params = {}, trigger = null) {
+  const overlay = document.getElementById('dashboardDrilldown');
+  const list = document.getElementById('dashboardDrilldownList');
+  if (!overlay || !list) return;
+  dashboardDrilldownTrigger = trigger;
+  const requestId = ++dashboardDrilldownRequest;
+  overlay.hidden = false;
+  overlay.setAttribute('aria-hidden', 'false');
+  setText('dashboardDrilldownTitle', 'טוען פירוט…');
+  setText('dashboardDrilldownSubtitle', 'הנתונים נמשכים ממקור המידע של המדד.');
+  document.getElementById('dashboardDrilldownSummary').innerHTML = '';
+  list.innerHTML = '<div class="muted-state">טוען רשומות…</div>';
+  const query = new URLSearchParams({ metric });
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') query.set(key, String(value));
+  });
+  try {
+    const response = await fetch(`/api/dashboard/drilldown?${query.toString()}`);
+    const data = await response.json().catch(() => ({}));
+    if (requestId !== dashboardDrilldownRequest) return;
+    if (!response.ok) throw new Error(data.error || 'dashboard_drilldown_failed');
+    dashboardDrilldownData = data;
+    renderDashboardDrilldown(data);
+  } catch (error) {
+    if (requestId !== dashboardDrilldownRequest) return;
+    setText('dashboardDrilldownTitle', 'לא ניתן להציג פירוט');
+    setText('dashboardDrilldownSubtitle', 'לא בוצע שינוי בנתונים. נסה שוב או פנה למנהל המערכת.');
+    list.innerHTML = `<div class="muted-state">${escHtml(error.message || 'שגיאה בטעינת הפירוט')}</div>`;
+  }
+}
+
+document.addEventListener('click', event => {
+  const closeButton = event.target.closest('[data-dashboard-drilldown-close]');
+  if (closeButton) { closeDashboardDrilldown(); return; }
+  const trigger = event.target.closest('[data-dashboard-drilldown]');
+  if (trigger) {
+    event.preventDefault();
+    openDashboardDrilldown(trigger.dataset.dashboardDrilldown, {
+      order_id: trigger.dataset.dashboardOrderId,
+      item_id: trigger.dataset.dashboardItemId,
+      diameter: trigger.dataset.dashboardDiameter,
+    }, trigger);
+    return;
+  }
+  const entryButton = event.target.closest('[data-dashboard-drill-entry]');
+  if (entryButton && dashboardDrilldownData) {
+    const id = Number(entryButton.dataset.dashboardDrillEntry);
+    const entry = (dashboardDrilldownData.entries || []).find(candidate => Number(candidate.kind === 'order' ? candidate.order_id : candidate.item_id) === id);
+    if (entry) openDashboardDrilldown(entry.kind === 'order' ? 'order' : 'card', entry.kind === 'order' ? { order_id: entry.order_id } : { item_id: entry.item_id }, entryButton);
+    return;
+  }
+  if (event.target.id === 'dashboardDrilldown') closeDashboardDrilldown();
+});
+document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDashboardDrilldown(); });
+
 function bootDashboard() {
   updateTime();
   applyDataContractBadges();

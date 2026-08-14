@@ -34,26 +34,31 @@
       <div class="kpi-label">צפי יציאה היום</div>
       <div class="kpi-value" id="kpiOrdersToday">—</div>
       <div class="kpi-sub" id="todayDeliveryWeight">טוען...</div>
+      <button class="dashboard-detail-btn" type="button" data-dashboard-drilldown="deliveries_today">פירוט</button>
     </article>
     <article class="kpi-tile is-good">
       <div class="kpi-label">יוצר בפועל</div>
       <div class="kpi-value" id="kpiTonsToday">—</div>
       <div class="kpi-sub" id="kpiWeightToday">טוען...</div>
+      <button class="dashboard-detail-btn" type="button" data-dashboard-drilldown="produced_today">פירוט כרטיסים</button>
     </article>
     <article class="kpi-tile is-warn">
       <div class="kpi-label">ממתינות לאישור</div>
       <div class="kpi-value" id="kpiPending">—</div>
       <div class="kpi-sub">דורשות החלטה</div>
+      <button class="dashboard-detail-btn" type="button" data-dashboard-drilldown="pending_approval">פירוט הזמנות</button>
     </article>
     <article class="kpi-tile is-danger">
       <div class="kpi-label">חסרות מלאי</div>
       <div class="kpi-value" id="stockShortageKpi">—</div>
       <div class="kpi-sub">קטרים רלוונטיים</div>
+      <a class="dashboard-detail-btn" href="#stockShortagesPanel">ראה קטרים</a>
     </article>
     <article class="kpi-tile">
       <div class="kpi-label">לאספקה היום</div>
       <div class="kpi-value" id="deliveriesTodayKpi">—</div>
       <div class="kpi-sub" id="deliveriesTodaySub">הזמנות</div>
+      <button class="dashboard-detail-btn" type="button" data-dashboard-drilldown="deliveries_today">פירוט הזמנות</button>
     </article>
   </section>
 
@@ -65,7 +70,7 @@
             <h2>תוכנית ייצור היום</h2>
             <p id="productionPlanSubtitle">יעד מול ביצוע בפועל</p>
           </div>
-          <span class="pace-badge is-muted" id="productionPaceBadge">טוען</span>
+          <div class="section-actions"><button class="dashboard-detail-btn" type="button" data-dashboard-drilldown="produced_today">פירוט כרטיסים</button><span class="pace-badge is-muted" id="productionPaceBadge">טוען</span></div>
         </div>
         <div class="production-progress-main">
           <strong id="productionActualTons">0</strong>
@@ -96,8 +101,8 @@
         </div>
         <div class="table-scroll">
           <table class="data-table">
-            <thead><tr><th>הזמנה</th><th>לקוח</th><th>אתר</th><th>משקל</th><th>סטטוס</th></tr></thead>
-            <tbody id="todayDeliveriesBody"><tr><td colspan="5" class="muted-state">טוען...</td></tr></tbody>
+            <thead><tr><th>הזמנה</th><th>לקוח</th><th>אתר</th><th>משקל</th><th>סטטוס</th><th></th></tr></thead>
+            <tbody id="todayDeliveriesBody"><tr><td colspan="6" class="muted-state">טוען...</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -118,7 +123,7 @@
       </section>
 
       <section class="panel">
-        <div class="section-head"><div><h2>כרטיסיות ייצור</h2><p>סיכום קטן, לא מסך מלא</p></div></div>
+        <div class="section-head"><div><h2>כרטיסיות ייצור</h2><p>סיכום קטן, לא מסך מלא</p></div><button class="dashboard-detail-btn" type="button" data-dashboard-drilldown="queue">פירוט</button></div>
         <div class="panel-body" id="productionCardsSummary"><div class="muted-state">טוען...</div></div>
       </section>
 
@@ -134,11 +139,11 @@
       <section class="panel">
         <div class="section-head"><div><h2>סיכום תפעולי</h2><p>מדדים משניים</p></div></div>
         <div class="panel-body compact-list">
-          <div class="compact-row"><span>בייצור כעת</span><strong id="kpiInProd">—</strong></div>
-          <div class="compact-row"><span>פריטים שהושלמו</span><strong id="kpiDone">—</strong></div>
-          <div class="compact-row"><span>דחופות פתוחות</span><strong id="kpiUrgent">—</strong></div>
-          <div class="compact-row"><span>פחת היום</span><strong id="kpiWaste">—</strong></div>
-          <div class="compact-row"><span>משקל ייצור היום</span><strong id="qsWeight">—</strong></div>
+          <div class="compact-row"><span>בייצור כעת <button class="inline-detail-btn" type="button" data-dashboard-drilldown="in_production">פירוט</button></span><strong id="kpiInProd">—</strong></div>
+          <div class="compact-row"><span>פריטים שהושלמו <button class="inline-detail-btn" type="button" data-dashboard-drilldown="done_today">פירוט</button></span><strong id="kpiDone">—</strong></div>
+          <div class="compact-row"><span>דחופות פתוחות <button class="inline-detail-btn" type="button" data-dashboard-drilldown="urgent_open">פירוט</button></span><strong id="kpiUrgent">—</strong></div>
+          <div class="compact-row"><span>פחת היום <button class="inline-detail-btn" type="button" data-dashboard-drilldown="waste_today">פירוט</button></span><strong id="kpiWaste">—</strong></div>
+          <div class="compact-row"><span>משקל ייצור היום <button class="inline-detail-btn" type="button" data-dashboard-drilldown="produced_today">פירוט</button></span><strong id="qsWeight">—</strong></div>
         </div>
       </section>
     </aside>
@@ -148,6 +153,16 @@
     <span id="kpiItemsProd"></span><span id="kpiItemsDone"></span><span id="kpiDoneBar"></span><span id="kpiWasteBar"></span><span id="ordersTableBody"></span><span id="alertCountPill"></span><span id="urgentCount"></span>
   </div>
 </main>
+<div class="dashboard-drilldown" id="dashboardDrilldown" hidden aria-hidden="true">
+  <section class="dashboard-drilldown-dialog" role="dialog" aria-modal="true" aria-labelledby="dashboardDrilldownTitle">
+    <header class="dashboard-drilldown-head">
+      <div><h2 id="dashboardDrilldownTitle">פירוט נתון</h2><p id="dashboardDrilldownSubtitle"></p></div>
+      <button class="dashboard-drilldown-close" type="button" data-dashboard-drilldown-close aria-label="סגור">×</button>
+    </header>
+    <div class="dashboard-drilldown-summary" id="dashboardDrilldownSummary"></div>
+    <div class="dashboard-drilldown-list" id="dashboardDrilldownList"></div>
+  </section>
+</div>
 <script src="/dashboard.js"></script>
 </body>
 </html>

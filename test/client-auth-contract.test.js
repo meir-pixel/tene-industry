@@ -517,6 +517,19 @@ test('dashboard production queue uses production queue API source', () => {
   assert.match(dashboard, /renderProdQueue\(productionQueue\.items \|\| \[\]\)/);
 });
 
+test('dashboard metric drilldowns use the server source and permit card-level traceability', () => {
+  const dashboard = read('public/dashboard.html') + read('public/dashboard.js');
+
+  assert.match(dashboard, /\/api\/dashboard\/drilldown/);
+  assert.match(dashboard, /data-dashboard-drilldown="produced_today"/);
+  assert.match(dashboard, /data-dashboard-drilldown="in_production"/);
+  assert.match(dashboard, /data-dashboard-drilldown="done_today"/);
+  assert.match(dashboard, /data-dashboard-drilldown="waste_today"/);
+  assert.match(dashboard, /data-dashboard-drill-entry/);
+  assert.match(dashboard, /openDashboardDrilldown/);
+  assert.match(dashboard, /metric === 'card'/);
+});
+
 test('dashboard production KPIs use completed production weight, not order-created weight', () => {
   const dashboard = read('public/dashboard.html') + read('public/dashboard.js');
 

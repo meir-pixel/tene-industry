@@ -359,6 +359,201 @@ module.exports = function createReportsRouter(deps) {
   const statusContracts = required('statusContracts', deps.statusContracts);
   const productionActuals = required('productionActuals', deps.productionActuals);
 
+  function parsedSegments(value) {
+    if (!value) return [];
+    try {
+      const segments = typeof value === 'string' ? JSON.parse(value) : value;
+      if (!Array.isArray(segments)) return [];
+      return segments.map(segment => {
+        const lengthMm = Number(segment?.length_mm ?? segment?.lengthMm ?? segment?.length);
+        const angleDeg = Number(segment?.angle_deg ?? segment?.angleDeg ?? segment?.angle);
+        return {
+          length_mm: Number.isFinite(lengthMm) && lengthMm > 0 ? roundMetric(lengthMm) : null,
+          angle_deg: Number.isFinite(angleDeg) ? roundMetric(angleDeg) : null,
+        };
+      }).filter(segment => segment.length_mm !== null || segment.angle_deg !== null);
+    } catch {
+      return [];
+    }
+  }
+
+  function dashboardCardDto(item, outputEvidence = null) {
+    const metrics = itemReportMetrics(item);
+    const theoreticalWeightKg = Number(metrics.totalWeightKg);
+    const hasTheoreticalWeight = Number.isFinite(theoreticalWeightKg) && theoreticalWeightKg > 0;
+    const outputKg = outputEvidence && Number.isFinite(Number(outputEvidence.weight_kg))
+      ? roundMetric(outputEvidence.weight_kg)
+      : null;
+    const actualWeightKg = Number(item.actual_weight_kg);
+    const fallbackWeightKg = Number.isFinite(actualWeightKg) && actualWeightKg >= 0
+      ? roundMetric(actualWeightKg)
+      : hasTheoreticalWeight ? roundMetric(theoreticalWeightKg) : null;
+    return {
+      kind: 'card',
+      item_id: Number(item.id),
+      order_id: Number(item.report_order_id) || null,
+      order_num: item.report_order_num || 'ללא הזמנה',
+      customer_name: item.report_customer_name || null,
+      order_status: item.order_status || null,
+      status: item.status || null,
+      shape_name: item.shape_name || item.shape_id || 'פריט ייצור',
+      diameter_mm: Number(item.diameter) || null,
+      quantity: metrics.quantity,
+      produced_quantity: Number(item.produced_qty) || 0,
+      total_length_mm: Number.isFinite(Number(metrics.totalLengthMm)) && Number(metrics.totalLengthMm) > 0 ? roundMetric(metrics.totalLengthMm) : null,
+      theoretical_weight_kg: hasTheoreticalWeight ? roundMetric(theoreticalWeightKg) : null,
+      display_weight_kg: outputKg ?? fallbackWeightKg,
+      weight_source: outputEvidence?.source || (Number.isFinite(actualWeightKg) && actualWeightKg >= 0 ? 'current_item_actual' : hasTheoreticalWeight ? 'theoretical' : null),
+      actual_waste: Number.isFinite(Number(item.actual_waste)) ? roundMetric(item.actual_waste) : null,
+      machine: item.machine || null,
+      completed_at: item.completed_at || null,
+      geometry: parsedSegments(item.segments),
+      order_url: Number(item.report_order_id) > 0 ? `/orders.html?id=${Number(item.report_order_id)}` : null,
+    };
+  }
+
+  function dashboardOrderDto(order) {
+    return {
+      kind: 'order',
+      order_id: Number(order.id),
+      order_num: order.order_num || `#${order.id}`,
+      customer_name: order.customer_name || null,
+      status: order.status || null,
+      priority: order.priority || null,
+      delivery_date: order.delivery_date || null,
+      display_weight_kg: Number.isFinite(Number(order.billing_weight)) && Number(order.billing_weight) > 0
+        ? roundMetric(order.billing_weight)
+        : Number.isFinite(Number(order.total_weight)) ? roundMetric(order.total_weight) : null,
+    };
+  }
+
+  function dashboardCardSummary(cards) {
+    return {
+      card_count: cards.length,
+      quantity: roundMetric(cards.reduce((sum, card) => sum + (Number(card.quantity) || 0), 0)),
+      displayed_weight_kg: roundMetric(cards.reduce((sum, card) => sum + (Number(card.display_weight_kg) || 0), 0)),
+      theoretical_weight_kg: roundMetric(cards.reduce((sum, card) => sum + (Number(card.theoretical_weight_kg) || 0), 0)),
+    };
+  }
+
+  function dashboardOrders(whereSql, params = []) {
+    return db.prepare(`
+      SELECT o.*, c.name AS customer_name
+      FROM orders o
+      LEFT JOIN customers c ON c.id=o.customer_id
+      WHERE ${whereSql}
+      ORDER BY o.delivery_date ASC, o.created_at DESC, o.id DESC
+      LIMIT 250
+    `).all(...params);
+  }
+
+  function dashboardCards(whereSql, params = []) {
+    return reportItemRows(db, whereSql, params)
+      .map(item => dashboardCardDto(item))
+      .sort((a, b) => String(b.completed_at || '').localeCompare(String(a.completed_at || '')) || b.item_id - a.item_id);
+  }
+
+  router.get('/dashboard/drilldown', requireRole('viewer'), (req, res) => {
+    const metric = String(req.query.metric || '').trim();
+    const today = productionActuals.israelDay();
+    const todayRange = productionActuals.dayRange(today);
+    const doneStatus = statusContracts.ITEM_STATUS.DONE;
+    const queueOrderStatuses = [
+      statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION,
+      statusContracts.ORDER_STATUS.PRODUCTION_QUEUE,
+      statusContracts.ORDER_STATUS.IN_PRODUCTION,
+    ];
+    const response = (title, subtitle, entries, summary = {}) => res.json({
+      metric,
+      title,
+      subtitle,
+      entries,
+      summary,
+    });
+
+    if (metric === 'produced_today') {
+      const evidence = productionActuals.getDailyProductionActualRows(db, today);
+      const evidenceByItem = new Map(evidence.rows.map(row => [Number(row.item_id), row]));
+      const ids = [...evidenceByItem.keys()].filter(id => Number.isInteger(id) && id > 0);
+      const itemsById = new Map(ids.length
+        ? reportItemRows(db, `i.id IN (${ids.map(() => '?').join(',')})`, ids).map(item => [Number(item.id), item])
+        : []);
+      const cards = evidence.rows.map(row => itemsById.get(Number(row.item_id)))
+        .filter(Boolean)
+        .map(item => dashboardCardDto(item, evidenceByItem.get(Number(item.id))));
+      return response('יוצר בפועל היום', 'כל משקל מגיע מרישום ייצור, משקל כרטיס שמור או משקל תאורטי מסומן.', cards, {
+        ...dashboardCardSummary(cards),
+        ledger_weight_kg: roundMetric(evidence.rows.reduce((sum, row) => sum + (Number(row.weight_kg) || 0), 0)),
+        unresolved_evidence_count: evidence.rows.length - cards.length,
+        unweighed_completed_items: evidence.unweighed_completed_items,
+      });
+    }
+
+    if (metric === 'done_today') {
+      const cards = dashboardCards('datetime(i.completed_at) >= datetime(?) AND datetime(i.completed_at) < datetime(?) AND i.status=?', [todayRange.start, todayRange.end, doneStatus]);
+      return response('כרטיסים שהושלמו היום', 'כרטיסים שהושלמו היום; כרטיס ללא משקל מסומן כך ואינו מקבל משקל מומצא.', cards, dashboardCardSummary(cards));
+    }
+
+    if (metric === 'in_production') {
+      const cards = dashboardCards('i.status=?', [statusContracts.ITEM_STATUS.IN_PRODUCTION]);
+      return response('כרטיסים בייצור כעת', 'מצב הכרטיסים הפעילים לפי מקור הנתונים של תור הייצור.', cards, dashboardCardSummary(cards));
+    }
+
+    if (metric === 'queue') {
+      const cards = dashboardCards(`i.status IN ('ממתין','בייצור') AND o.status IN (${queueOrderStatuses.map(() => '?').join(',')})`, queueOrderStatuses);
+      return response('כרטיסיות בתור הייצור', 'כל כרטיס ניתן לפתיחה לפרטי צורה, כמות, משקל והזמנה.', cards, dashboardCardSummary(cards));
+    }
+
+    if (metric === 'waste_today') {
+      const cards = dashboardCards('datetime(i.completed_at) >= datetime(?) AND datetime(i.completed_at) < datetime(?) AND i.status=? AND COALESCE(i.actual_waste,0)>0', [todayRange.start, todayRange.end, doneStatus]);
+      return response('כרטיסים עם פחת היום', 'פחת שמור בפועל בכרטיס; אין חישוב או הערכה חדשה במסך הפירוט.', cards, {
+        ...dashboardCardSummary(cards),
+        actual_waste: roundMetric(cards.reduce((sum, card) => sum + (Number(card.actual_waste) || 0), 0)),
+      });
+    }
+
+    if (metric === 'shortage') {
+      const diameter = Number(req.query.diameter);
+      if (!Number.isFinite(diameter) || diameter <= 0 || diameter > 200) return res.status(400).json({ error: 'invalid_shortage_diameter' });
+      const cards = dashboardCards(`i.diameter=? AND i.status IN ('ממתין','בייצור') AND o.status IN (${queueOrderStatuses.map(() => '?').join(',')})`, [diameter, ...queueOrderStatuses]);
+      return response(`כרטיסים מושפעים מחוסר Ø${diameter}`, 'אלה הכרטיסים הפעילים בקוטר שנבחר; מצב המלאי עצמו נשאר במודול המלאי.', cards, dashboardCardSummary(cards));
+    }
+
+    if (metric === 'pending_approval') {
+      const orders = dashboardOrders('o.status=?', [statusContracts.ORDER_STATUS.PENDING_APPROVAL]).map(dashboardOrderDto);
+      return response('הזמנות ממתינות לאישור', 'לחיצה על הזמנה מציגה את הכרטיסים והפריטים שבה.', orders, { order_count: orders.length });
+    }
+
+    if (metric === 'urgent_open') {
+      const orders = dashboardOrders('o.priority=? AND o.status NOT IN (?,?)', ['דחוף', statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED, statusContracts.ORDER_STATUS.CANCELLED]).map(dashboardOrderDto);
+      return response('הזמנות דחופות פתוחות', 'לחיצה על הזמנה מציגה את הכרטיסים והפריטים שבה.', orders, { order_count: orders.length });
+    }
+
+    if (metric === 'deliveries_today') {
+      const orders = dashboardOrders('DATE(o.delivery_date)=?', [today]).map(dashboardOrderDto);
+      return response('אספקות היום', 'לחיצה על הזמנה מציגה את הכרטיסים והפריטים שמרכיבים אותה.', orders, { order_count: orders.length, displayed_weight_kg: roundMetric(orders.reduce((sum, order) => sum + (Number(order.display_weight_kg) || 0), 0)) });
+    }
+
+    if (metric === 'order') {
+      const orderId = Number(req.query.order_id);
+      if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'invalid_order_id' });
+      const order = dashboardOrders('o.id=?', [orderId])[0];
+      if (!order) return res.status(404).json({ error: 'order_not_found' });
+      const cards = dashboardCards('COALESCE(i.order_id,p.order_id)=?', [orderId]);
+      return response(`הזמנה ${order.order_num || `#${order.id}`}`, 'לחיצה על כרטיס מציגה את כל הנתונים השמורים שלו.', cards, { ...dashboardCardSummary(cards), order: dashboardOrderDto(order) });
+    }
+
+    if (metric === 'card') {
+      const itemId = Number(req.query.item_id);
+      if (!Number.isInteger(itemId) || itemId <= 0) return res.status(400).json({ error: 'invalid_item_id' });
+      const item = reportItemRows(db, 'i.id=?', [itemId])[0];
+      if (!item) return res.status(404).json({ error: 'item_not_found' });
+      return response(`כרטיס ${item.id}`, 'פרטי הכרטיס נשמרים כפי שהם; ניתן לפתוח גם את ההזמנה המלאה.', [dashboardCardDto(item)], dashboardCardSummary([dashboardCardDto(item)]));
+    }
+
+    return res.status(400).json({ error: 'invalid_dashboard_drilldown_metric' });
+  });
+
   router.get('/dashboard', requireRole('viewer'), (req, res) => {
     const today = productionActuals.israelDay();
     const todayRange = productionActuals.dayRange(today);

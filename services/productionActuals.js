@@ -114,7 +114,9 @@ function recordActualWeightChange(db, {
   return event;
 }
 
-function getDailyProductionActuals(db, day = israelDay()) {
+// Canonical per-card output evidence. Aggregates must be built from these
+// rows so a dashboard number can always be traced back to its cards.
+function getDailyProductionActualRows(db, day = israelDay()) {
   if (!validDay(day)) throw new Error('invalid production date');
   const { start, end } = dayRange(day);
   const rows = [];
@@ -180,6 +182,17 @@ function getDailyProductionActuals(db, day = israelDay()) {
     }
   }
 
+  return {
+    date: day,
+    rows: rows.map(row => ({ ...row, weight_kg: roundKg(row.weight_kg) })),
+    accounted_item_count: accountedItemIds.size,
+    unweighed_completed_items: unweighedCompletedItems,
+  };
+}
+
+function getDailyProductionActuals(db, day = israelDay()) {
+  const evidence = getDailyProductionActualRows(db, day);
+  const rows = evidence.rows;
   const byMachine = new Map();
   const bySource = {
     production_event_kg: 0,
@@ -202,12 +215,12 @@ function getDailyProductionActuals(db, day = israelDay()) {
   }
   const actualWeightKg = roundKg(rows.reduce((sum, row) => sum + (Number(row.weight_kg) || 0), 0));
   return {
-    date: day,
+    date: evidence.date,
     actual_weight_kg: actualWeightKg,
     actual_tons: roundKg(actualWeightKg / 1000),
-    item_count: accountedItemIds.size,
+    item_count: evidence.accounted_item_count,
     estimated_completed_items: estimatedCompletedItems,
-    unweighed_completed_items: unweighedCompletedItems,
+    unweighed_completed_items: evidence.unweighed_completed_items,
     source_breakdown: bySource,
     machines: [...byMachine.entries()].map(([machine, weight_kg]) => ({ machine, weight_kg, tons: roundKg(weight_kg / 1000) }))
       .sort((a, b) => b.weight_kg - a.weight_kg || a.machine.localeCompare(b.machine)),
@@ -233,6 +246,7 @@ module.exports = {
   validDay,
   dayRange,
   recordActualWeightChange,
+  getDailyProductionActualRows,
   getDailyProductionActuals,
   getProductionActualSeries,
 };

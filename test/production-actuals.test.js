@@ -38,12 +38,16 @@ test('daily actual production uses the append-only reported-weight ledger and ne
     });
 
     const august13 = productionActuals.getDailyProductionActuals(db, '2026-08-13');
+    const evidence = productionActuals.getDailyProductionActualRows(db, '2026-08-13');
     assert.equal(august13.actual_weight_kg, 70);
     assert.equal(august13.actual_tons, 0.07);
     assert.equal(august13.item_count, 1);
     assert.equal(august13.source_breakdown.production_event_kg, 70);
     assert.equal(august13.machines[0].machine, 'A');
     assert.equal(august13.machines[0].weight_kg, 70);
+    assert.deepEqual(evidence.rows.map(row => ({ item_id: row.item_id, weight_kg: row.weight_kg, source: row.source })), [
+      { item_id: 1, weight_kg: 70, source: 'production_event' },
+    ]);
 
     // A later correction is recorded on the date it was reported; it does not
     // silently rewrite the amount reported on 13/8.

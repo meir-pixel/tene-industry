@@ -1198,6 +1198,7 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
   await t.test('dashboard reports and KPI routes require internal reporting roles', async () => {
     assert.equal((await request('/api/dashboard')).status, 401);
     assert.equal((await request('/api/dashboard', { headers: authHeaders(production) })).status, 200);
+    assert.equal((await request('/api/dashboard/drilldown?metric=produced_today')).status, 401);
 
     const customerId = seedCustomer();
     const orderId = seedInternalOrder(customerId, 'DASH-KPI-CONSISTENCY');
@@ -1210,10 +1211,10 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     reportShape.calculated.weightKg = 0.888;
     reportShape.machineOutput.generic.totalLengthMm = 1000;
     reportShape.machineOutput.generic.weightKg = 0.888;
-    db.prepare(`
+    const reportItemId = db.prepare(`
       INSERT INTO items (pallet_id,shape_id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,actual_weight_kg,status,completed_at,machine,shape_snapshot_json)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(palletId, 's1', 'straight', 12, 1000, 3, 0.888, 25, 2.664, statusContracts.ITEM_STATUS.DONE, new Date().toISOString(), 'A', JSON.stringify(reportShape));
+    `).run(palletId, 's1', 'straight', 12, 1000, 3, 0.888, 25, 2.664, statusContracts.ITEM_STATUS.DONE, new Date().toISOString(), 'A', JSON.stringify(reportShape)).lastInsertRowid;
 
     const dashboardResponse = await request('/api/dashboard', { headers: authHeaders(production) });
     assert.equal(dashboardResponse.status, 200);
@@ -1222,6 +1223,33 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(dashboard.producedTonsToday, 0);
     assert.ok(dashboard.totalWeightToday >= 2.664);
     assert.ok(dashboard.totalWeightToday < 9999);
+
+    const producedDrilldownResponse = await request('/api/dashboard/drilldown?metric=produced_today', { headers: authHeaders(production) });
+    assert.equal(producedDrilldownResponse.status, 200);
+    const producedDrilldown = await producedDrilldownResponse.json();
+    assert.equal(producedDrilldown.metric, 'produced_today');
+    assert.equal(producedDrilldown.summary.ledger_weight_kg, 2.664);
+    assert.equal(producedDrilldown.entries.length, 1);
+    assert.equal(producedDrilldown.entries[0].item_id, Number(reportItemId));
+    assert.equal(producedDrilldown.entries[0].display_weight_kg, 2.664);
+    assert.equal(producedDrilldown.entries[0].weight_source, 'completed_item_actual');
+    assert.equal(producedDrilldown.entries[0].order_id, Number(orderId));
+
+    const orderDrilldownResponse = await request(`/api/dashboard/drilldown?metric=order&order_id=${orderId}`, { headers: authHeaders(production) });
+    assert.equal(orderDrilldownResponse.status, 200);
+    const orderDrilldown = await orderDrilldownResponse.json();
+    assert.equal(orderDrilldown.entries.length, 1);
+    assert.equal(orderDrilldown.entries[0].item_id, Number(reportItemId));
+    assert.equal(orderDrilldown.summary.order.order_id, Number(orderId));
+
+    const cardDrilldownResponse = await request(`/api/dashboard/drilldown?metric=card&item_id=${reportItemId}`, { headers: authHeaders(production) });
+    assert.equal(cardDrilldownResponse.status, 200);
+    const cardDrilldown = await cardDrilldownResponse.json();
+    assert.equal(cardDrilldown.entries[0].shape_name, 'straight');
+    assert.equal(cardDrilldown.entries[0].quantity, 3);
+    assert.equal(cardDrilldown.entries[0].total_length_mm, 1000);
+    assert.match(cardDrilldown.entries[0].order_url, new RegExp(`orders\\.html\\?id=${orderId}`));
+    assert.equal((await request('/api/dashboard/drilldown?metric=not-a-metric', { headers: authHeaders(production) })).status, 400);
 
     const dashboardContracts = Object.values(dataContracts.WIDGET_CONTRACTS)
       .filter(contract => contract.source.api === '/api/dashboard');
