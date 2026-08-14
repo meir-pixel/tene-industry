@@ -1519,6 +1519,12 @@ async function shapeSelectedFromOrder(data) {
   if (!pendingShapeEdit) return;
   const ctx = pendingShapeEdit;
   pendingShapeEdit = null;
+  // Shape editor contracts use the canonical version value "2.0".  Do not
+  // compare it to the number 2: doing so drops a newly edited snapshot and
+  // leaves an already-issued production card rendering the previous geometry.
+  // The server remains the authority that validates the complete envelope.
+  const isShapeContractV2 = Number(data?.contractVersion) === 2
+    && data?.data && data?.calculated && data?.machineOutput;
   const isSpiral = data?.family === 'spirals';
   const segments = isSpiral ? [] : orderShapeSegmentsFromEditor(data);
   const totalLength = isSpiral
@@ -1534,7 +1540,7 @@ async function shapeSelectedFromOrder(data) {
     spiral_turns: isSpiral ? (Number(data?.turns) || null) : null,
     segments,
     note: ctx.note || '',
-    shapeSnapshot: data && data.contractVersion === 2 ? data : null,
+    shapeSnapshot: isShapeContractV2 ? data : null,
   };
   if (ctx.correctionReason) payload.correction_reason = ctx.correctionReason;
   const isNewItem = ctx.mode === 'add';

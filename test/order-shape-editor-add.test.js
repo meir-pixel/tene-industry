@@ -25,7 +25,8 @@ test('orders item shape edits go through the shared shape editor', () => {
   assert.match(html, /function openItemEdit\(event, orderId, itemId\) \{[\s\S]*ensureOrderShapeEditor\(\)[\s\S]*editor\.open\(\{ \.\.\.orderShapeDataFromItem\(item\), quantity: Number\(item\.quantity\) \|\| 1 \}\);[\s\S]*?\n\}/);
   assert.match(html, /async function shapeSelectedFromOrder\(data\) \{[\s\S]*method: isNewItem \? 'POST' : 'PATCH'[\s\S]*openDetail\(ctx\.orderId\)/);
   assert.match(html, /orderItemQuantity = Math\.max\(1, Number\(data\?\.orderItemQuantity/);
-  assert.match(html, /shapeSnapshot: data && data\.contractVersion === 2 \? data : null/);
+  assert.match(html, /const isShapeContractV2 = Number\(data\?\.contractVersion\) === 2[\s\S]*data\?\.data && data\?\.calculated && data\?\.machineOutput/);
+  assert.match(html, /shapeSnapshot: isShapeContractV2 \? data : null/);
 });
 
 test('orders missing intake source add flow offers a manual shape editor fallback', () => {

@@ -16,6 +16,7 @@ const { closeServer, db, server } = require('../server');
 const { hashPin } = require('../auth-core');
 const statusContracts = require('../status-contracts');
 const dataContracts = require('../public/data-contracts-client.js');
+const productionCards = require('../services/productionCards');
 
 let baseUrl;
 
@@ -339,6 +340,40 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(managerCorrection.status, 200);
     assert.equal(db.prepare('SELECT quantity FROM items WHERE id=?').get(startedId).quantity, 3);
     assert.equal(db.prepare("SELECT notes FROM audit_log WHERE entity_type='item' AND entity_id=? AND action='item_update' ORDER BY id DESC LIMIT 1").get(startedId).notes, 'תיקון כמות לאחר תחילת ייצור');
+
+    // A manager correction after production has started must replace the
+    // canonical snapshot used by the production-card renderer. The editor
+    // serializes the current contract as "2.0", not numeric 2.
+    const correctedShape = shapeV2Envelope();
+    correctedShape.contractVersion = '2.0';
+    correctedShape.shapeId = 'shape-v2-post-start-correction';
+    correctedShape.shapeType = 'l_bar';
+    correctedShape.displayName = 'Corrected L bar';
+    correctedShape.data = { diameter: 16, sides: [1200, 200], angles: [90] };
+    correctedShape.calculated = { totalLengthMm: 1400, weightKg: 2.211, bendCount: 1 };
+    correctedShape.machineOutput.generic = {
+      diameter: 16,
+      totalLengthMm: 1400,
+      bendCount: 1,
+      segments: [
+        { index: 1, lengthMm: 1200, bendAfterDeg: 90 },
+        { index: 2, lengthMm: 200, bendAfterDeg: null },
+      ],
+    };
+    const geometryCorrection = await request(`/api/orders/${orderId}/items/${startedId}`, {
+      method: 'PATCH',
+      headers: authHeaders(manager),
+      body: JSON.stringify({ shapeSnapshot: correctedShape, quantity: 3, correction_reason: 'תיקון מידה לאחר תחילת ייצור' }),
+    });
+    assert.equal(geometryCorrection.status, 200);
+    const correctedItem = db.prepare('SELECT * FROM items WHERE id=?').get(startedId);
+    assert.equal(correctedItem.diameter, 16);
+    assert.equal(correctedItem.total_length_mm, 1400);
+    assert.equal(JSON.parse(correctedItem.shape_snapshot_json).shapeId, 'shape-v2-post-start-correction');
+    assert.deepEqual(productionCards.shapeSegmentsFromItem(correctedItem), [
+      { length_mm: 1200, angle_deg: 90 },
+      { length_mm: 200, angle_deg: null },
+    ]);
 
     // Header edits after any card started use the same real management tier and require an audit reason.
     assert.equal((await request(`/api/orders/${orderId}`, {
