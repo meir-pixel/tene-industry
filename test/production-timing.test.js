@@ -1,0 +1,163 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const Database = require('better-sqlite3');
+const { ensureCoreSchema } = require('../db/coreSchema');
+const { deductIntervals, shapeProfile, reportProductionTiming } = require('../services/productionTiming');
+
+function createDb() {
+  const db = new Database(':memory:');
+  db.pragma('foreign_keys=ON');
+  ensureCoreSchema(db);
+  return db;
+}
+
+function seedBase(db) {
+  db.prepare("INSERT INTO orders (id,order_num) VALUES (1,'TIME-001'),(2,'TIME-002')").run();
+  db.prepare('INSERT INTO pallets (id,order_id,pallet_num) VALUES (1,1,1),(2,2,1)').run();
+  db.prepare("INSERT INTO machines (id,name,label) VALUES (1,'A','A')").run();
+}
+
+function seedItem(db, values = {}) {
+  const snapshot = values.snapshot || null;
+  db.prepare(`
+    INSERT INTO items
+      (id,pallet_id,order_id,shape_id,shape_name,diameter,total_length_mm,quantity,produced_qty,total_weight,actual_weight_kg,status,machine,segments,shape_snapshot_json,started_at,completed_at)
+    VALUES (@id,@pallet_id,@order_id,@shape_id,@shape_name,@diameter,@total_length_mm,@quantity,@produced_qty,@total_weight,@actual_weight_kg,'הושלם',@machine,@segments,@shape_snapshot_json,@started_at,@completed_at)
+  `).run({
+    id: values.id,
+    pallet_id: values.pallet_id || 1,
+    order_id: values.order_id || 1,
+    shape_id: values.shape_id || 's2',
+    shape_name: values.shape_name || 'L',
+    diameter: values.diameter || 12,
+    total_length_mm: values.total_length_mm || 1000,
+    quantity: values.quantity || 10,
+    produced_qty: values.produced_qty ?? values.quantity ?? 10,
+    total_weight: values.total_weight || 10,
+    actual_weight_kg: values.actual_weight_kg ?? null,
+    machine: values.machine || 'A',
+    segments: values.segments || JSON.stringify([{ length_mm: 800, angle_deg: 90 }, { length_mm: 200 }]),
+    shape_snapshot_json: snapshot ? JSON.stringify(snapshot) : null,
+    started_at: values.started_at || null,
+    completed_at: values.completed_at,
+  });
+}
+
+test('production timing deducts only the actual lunch overlap and avoids double-deducting documented stops', () => {
+  const start = new Date('2026-08-13T08:50:00.000Z'); // 11:50 in Israel
+  const end = new Date('2026-08-13T10:00:00.000Z');   // 13:00 in Israel
+  const result = deductIntervals(start, end, [
+    { start: new Date('2026-08-13T09:10:00.000Z'), end: new Date('2026-08-13T09:50:00.000Z') }, // 12:10–12:50
+  ]);
+  assert.equal(result.lunchMinutes, 45);
+  assert.equal(result.documentedStopMinutes, 5);
+  assert.equal(result.deductedMinutes, 50);
+});
+
+test('production timing keeps the complete canonical geometry in its recipe fingerprint', () => {
+  const first = shapeProfile({
+    shape_id: 's2', shape_name: 'L', diameter: 12, total_length_mm: 1000,
+    segments: JSON.stringify([{ length_mm: 800, angle_deg: 90 }, { length_mm: 200 }]),
+  });
+  const second = shapeProfile({
+    shape_id: 's2', shape_name: 'L', diameter: 12, total_length_mm: 1000,
+    segments: JSON.stringify([{ length_mm: 800, angle_deg: 135 }, { length_mm: 200 }]),
+  });
+  assert.equal(first.bendCount, 1);
+  assert.deepEqual(first.bendAngles, [90]);
+  assert.notEqual(first.fingerprint, second.fingerprint);
+});
+
+test('production timing reports net time, cut metres, rates and coil loading without inventing incomplete timing', () => {
+  const db = createDb();
+  try {
+    seedBase(db);
+    seedItem(db, {
+      id: 1, started_at: '2026-08-13T05:00:00.000Z', completed_at: '2026-08-13T09:30:00.000Z',
+      actual_weight_kg: 12,
+    });
+    seedItem(db, {
+      id: 2, pallet_id: 2, order_id: 2, started_at: '2026-08-13T10:15:00.000Z', completed_at: '2026-08-13T11:15:00.000Z',
+      actual_weight_kg: 8,
+    });
+    seedItem(db, {
+      id: 3, pallet_id: 2, order_id: 2, completed_at: '2026-08-13T12:00:00.000Z',
+      actual_weight_kg: 7,
+    });
+    // Breakdown during card 1: 10 minutes. Coil loading occurs between cards,
+    // partly during the fixed lunch break and partly after it.
+    db.prepare(`INSERT INTO machine_stops (machine_id,reason_code,started_at,ended_at,duration_min) VALUES
+      (1,'BREAKDOWN','2026-08-13T06:00:00.000Z','2026-08-13T06:10:00.000Z',10),
+      (1,'COIL_LOAD','2026-08-13T09:40:00.000Z','2026-08-13T09:55:00.000Z',15)
+    `).run();
+
+    const report = reportProductionTiming(db, { fromDate: '2026-08-13', toDate: '2026-08-13' });
+    const card1 = report.cards.find(card => card.item_id === 1);
+    assert.equal(card1.measurement_status, 'measured');
+    assert.equal(card1.gross_minutes, 270);
+    assert.equal(card1.lunch_minutes, 30);
+    assert.equal(card1.documented_stop_minutes, 10);
+    assert.equal(card1.net_minutes, 230);
+    assert.equal(card1.cut_length_mm, 10000);
+    assert.equal(card1.total_bends, 10);
+    assert.equal(card1.meters_per_min, 0.0435);
+    assert.equal(card1.kg_per_min, 0.0522);
+    assert.equal(card1.weight_source, 'measured');
+
+    const missing = report.cards.find(card => card.item_id === 3);
+    assert.equal(missing.measurement_status, 'missing_start');
+    assert.equal(missing.net_minutes, null);
+    assert.equal(missing.meters_per_min, null);
+
+    assert.equal(report.transitions.length, 1);
+    const transition = report.transitions[0];
+    assert.equal(transition.previous_item_id, 1);
+    assert.equal(transition.item_id, 2);
+    assert.equal(transition.gross_gap_minutes, 45);
+    assert.equal(transition.lunch_minutes, 15);
+    assert.equal(transition.documented_stop_minutes, 10);
+    assert.equal(transition.coil_load_minutes, 15);
+    assert.equal(transition.transition_minutes, 20);
+
+    const machine = report.machines.find(row => row.machine === 'A');
+    assert.equal(machine.measured_cards, 2);
+    assert.equal(machine.unmeasured_cards, 1);
+    assert.equal(machine.coil_load_minutes, 15);
+    assert.equal(machine.transition_minutes, 20);
+    assert.ok(machine.meters_per_min > 0);
+    assert.ok(machine.kg_per_min > 0);
+
+    const order = report.orders.find(row => row.order_num === 'TIME-001');
+    assert.equal(order.measured_cards, 1);
+    assert.equal(order.unmeasured_cards, 0);
+    assert.equal(order.net_minutes, 230);
+    assert.equal(order.cut_length_mm, 10000);
+    assert.equal(order.weight_kg, 12);
+    assert.deepEqual(order.profiles, ['L · Ø12 מ״מ']);
+  } finally {
+    db.close();
+  }
+});
+
+test('production timing subtracts lunch separately on every Israel calendar day', () => {
+  const db = createDb();
+  try {
+    seedBase(db);
+    seedItem(db, {
+      id: 1,
+      // 11:50 on 13/8 Israel through 12:50 on 14/8 Israel.
+      started_at: '2026-08-13T08:50:00.000Z',
+      completed_at: '2026-08-14T09:50:00.000Z',
+      actual_weight_kg: 10,
+    });
+    const report = reportProductionTiming(db, { fromDate: '2026-08-14', toDate: '2026-08-14' });
+    const card = report.cards[0];
+    assert.equal(card.lunch_minutes, 90);
+    assert.equal(card.gross_minutes, 1500);
+    assert.equal(card.net_minutes, 1410);
+  } finally {
+    db.close();
+  }
+});

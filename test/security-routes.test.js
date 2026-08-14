@@ -1246,6 +1246,16 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.ok(summary.machineEfficiency.some(row => row.machine === 'A' && row.total_weight_kg >= 2.664));
     assert.ok(Array.isArray(summary.waste));
 
+    assert.equal((await request('/api/reports/production-timing')).status, 401);
+    assert.equal((await request(`/api/reports/production-timing?from=${today}&to=${today}`, { headers: authHeaders(production) })).status, 403);
+    const timingResponse = await request(`/api/reports/production-timing?from=${today}&to=${today}`, { headers: authHeaders(finance) });
+    assert.equal(timingResponse.status, 200);
+    const timing = await timingResponse.json();
+    assert.ok(Array.isArray(timing.cards));
+    assert.ok(Array.isArray(timing.orders));
+    assert.ok(Array.isArray(timing.machines));
+    assert.ok(Array.isArray(timing.transitions));
+
     assert.equal((await request('/api/waste/summary')).status, 401);
     assert.equal((await request('/api/waste/summary', { headers: authHeaders(production) })).status, 200);
 

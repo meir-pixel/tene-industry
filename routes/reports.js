@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { itemShapeMetrics, isShapeDataContractV2 } = require('../services/shapeSnapshot');
+const { reportProductionTiming } = require('../services/productionTiming');
 
 function roundMetric(value, digits = 3) {
   const numeric = Number(value) || 0;
@@ -433,6 +434,19 @@ module.exports = function createReportsRouter(deps) {
       machineEfficiency: machineEfficiencyByPeriod(db, fromDate, toDate, doneItemStatus),
       topCustomers: topCustomersByShapeWeight(db, fromDate, toDate),
     });
+  });
+
+  // Timing is a separate, read-only projection.  Keeping it out of the
+  // summary payload lets the dashboard stay fast while the timing report can
+  // include the per-card timeline, recipe metrics and card-to-card gaps.
+  router.get('/reports/production-timing', requireAnyRole(['office', 'finance', 'manager', 'admin']), (req, res) => {
+    const period = reportPeriod(req.query);
+    if (period.error) return res.status(400).json({ error: period.error });
+    try {
+      return res.json(reportProductionTiming(db, period));
+    } catch (error) {
+      return res.status(400).json({ error: error.message === 'invalid production date range' ? 'invalid_date_range' : 'production_timing_unavailable' });
+    }
   });
 
 

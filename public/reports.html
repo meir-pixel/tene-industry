@@ -83,6 +83,9 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 .btn-export{padding:9px 16px;border-radius:8px;border:1px solid var(--border);background:var(--card);
   color:var(--text-dim);cursor:pointer;font-family:'Heebo',sans-serif;font-size:13px;font-weight:600;}
 .btn-export:hover{border-color:var(--accent);color:var(--accent);}
+.timing-note{font-size:12px;color:var(--text-dim);line-height:1.55;margin:-4px 0 10px;}
+.timing-status{font-weight:800;font-size:11px;white-space:nowrap;}
+.timing-status.normal{color:var(--success)}.timing-status.watch{color:var(--warning)}.timing-status.slow{color:var(--danger)}.timing-status.missing{color:var(--text-muted)}
 </style>
 <link rel="stylesheet" href="/theme.css">
 <script src="/auth-client.js"></script>
@@ -156,6 +159,57 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
     <div class="machine-grid" id="machineGrid"></div>
   </div>
 
+  <!-- Production timing: read-only projection from card/item timestamps. -->
+  <div>
+    <div class="section-title">⏱️ זמן וקצב ייצור</div>
+    <div class="timing-note">זמן נטו = התחלה עד סיום, פחות הפסקת צהריים 12:00–12:45 ופסקי מכונה מתועדים. טעינת גליל מוצגת בנפרד ואינה נחשבת לזמן כיפוף.</div>
+    <div class="machine-grid" id="timingMachineGrid"></div>
+  </div>
+
+  <div>
+    <div class="section-title">📦 זמן לפי הזמנה</div>
+    <div class="timing-note">כל הזמנה מוצגת רק מסכום הכרטיסים המדודים שלה; כרטיס ללא התחלה או סיום תקינים מסומן בנפרד.</div>
+    <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
+      <table class="data-table">
+        <thead><tr><th>הזמנה</th><th>צורות וקטרים</th><th>כרטיסים מדודים</th><th>חסרי מדידה</th><th>זמן נטו</th><th>אורך חיתוך</th><th>משקל</th><th>מ׳/דק׳</th><th>ק״ג/דק׳</th></tr></thead>
+        <tbody id="timingOrderTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">📐 קצב לפי מתכון ייצור</div>
+    <div class="timing-note">ההשוואה כוללת צורה, קוטר, אורכי צלעות וכיפופים. צפי מוצג רק לאחר לפחות 5 כרטיסים זהים.</div>
+    <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
+      <table class="data-table">
+        <thead><tr><th>מכונה</th><th>צורה</th><th>קוטר</th><th>אורך יח׳</th><th>כיפופים</th><th>כרטיסים</th><th>זמן נטו</th><th>מ׳/דק׳</th><th>ק״ג/דק׳</th><th>כיפ׳/דק׳</th><th>צפי יח׳</th></tr></thead>
+        <tbody id="timingRecipeTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">🔁 זמן בין כרטיסים</div>
+    <div class="timing-note">הזמן שנותר לאחר צהריים ועצירות מתועדות הוא זמן מעבר/הכנה. חפיפה מסומנת כחריגת נתונים.</div>
+    <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
+      <table class="data-table">
+        <thead><tr><th>מכונה</th><th>כרטיס קודם</th><th>כרטיס הבא</th><th>פער גולמי</th><th>צהריים</th><th>עצירה מתועדת</th><th>טעינת גליל</th><th>מעבר/הכנה</th></tr></thead>
+        <tbody id="timingTransitionTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">🧾 פירוט זמני כרטיסים</div>
+    <div class="timing-note">כרטיס ללא התחלה או סיום תקינים אינו נכנס למדדי המהירות, כדי שלא ייווצר נתון מומצא.</div>
+    <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
+      <table class="data-table">
+        <thead><tr><th>הזמנה</th><th>מכונה</th><th>צורה</th><th>קוטר</th><th>כמות</th><th>התחלה</th><th>סיום</th><th>זמן נטו</th><th>מ׳/דק׳</th><th>ק״ג/דק׳</th><th>מצב</th></tr></thead>
+        <tbody id="timingCardTable"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Waste table -->
   <div>
     <div class="section-title">♻️ ניתוח פחת מפורט</div>
@@ -210,6 +264,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 <script>
 let charts = {};
 let reportData = null;
+let timingData = null;
 
 function escH(value) {
   if (window.IronBendSafe?.escapeHtml) return window.IronBendSafe.escapeHtml(value);
@@ -246,6 +301,20 @@ async function loadAll() {
   renderMachineEfficiency(summary.machineEfficiency || []);
   renderWasteTable(summary.waste || []);
   renderCustomersTable(summary.topCustomers || []);
+  loadProductionTiming(from, to);
+}
+
+async function loadProductionTiming(from, to) {
+  const empty = { cards: [], orders: [], machines: [], recipes: [], transitions: [], data_quality: {} };
+  const data = await fetch(`/api/reports/production-timing?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+    .then(response => response.ok ? response.json() : empty)
+    .catch(() => empty);
+  timingData = data;
+  renderTimingMachines(data.machines || []);
+  renderTimingOrders(data.orders || []);
+  renderTimingRecipes(data.recipes || []);
+  renderTimingTransitions(data.transitions || []);
+  renderTimingCards(data.cards || []);
 }
 
 function renderKPIs(data) {
@@ -345,6 +414,102 @@ function renderMachineEfficiency(eff) {
       </div>
     </div>`;
   }).join('') : '<div style="color:var(--text-dim);font-size:13px">אין נתוני ייצור עדיין</div>';
+}
+
+function formatMinutes(value) {
+  const minutes = num(value, 0);
+  if (!minutes) return '0 דק׳';
+  if (minutes < 60) return `${minutes.toFixed(minutes % 1 ? 1 : 0)} דק׳`;
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes % 60);
+  return `${hours} שע׳ ${rest} דק׳`;
+}
+
+function formatRate(value, digits = 2) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed.toFixed(digits) : '—';
+}
+
+function renderTimingMachines(machines) {
+  machines = Array.isArray(machines) ? machines : [];
+  document.getElementById('timingMachineGrid').innerHTML = machines.length ? machines.map(machine => `
+    <div class="machine-card">
+      <div class="machine-label">${escH(machine.machine || 'לא שויכה')}</div>
+      <div class="machine-stat">כרטיסים מדודים: <strong>${num(machine.measured_cards)}</strong></div>
+      <div class="machine-stat">זמן נטו: <strong>${formatMinutes(machine.net_minutes)}</strong></div>
+      <div class="machine-stat">קצב: <strong>${formatRate(machine.meters_per_min)} מ׳/דק׳</strong></div>
+      <div class="machine-stat">משקל: <strong>${formatRate(machine.kg_per_min)} ק״ג/דק׳</strong></div>
+      <div class="machine-stat">כיפופים: <strong>${machine.bends_per_min == null ? '—' : formatRate(machine.bends_per_min)} כיפ׳/דק׳</strong></div>
+      <div class="machine-stat">מעבר/הכנה: <strong>${formatMinutes(machine.transition_minutes)}</strong></div>
+      <div class="machine-stat">טעינת גליל: <strong>${formatMinutes(machine.coil_load_minutes)}</strong></div>
+      <div class="machine-stat">לא מדודים: <strong>${num(machine.unmeasured_cards)}</strong></div>
+    </div>`).join('') : '<div style="color:var(--text-dim);font-size:13px">אין עדיין כרטיסים עם זמני התחלה וסיום מלאים בתקופה שנבחרה.</div>';
+}
+
+function renderTimingOrders(orders) {
+  orders = Array.isArray(orders) ? orders : [];
+  document.getElementById('timingOrderTable').innerHTML = orders.map(order => `
+    <tr>
+      <td><strong>${escH(order.order_num || '—')}</strong></td><td>${(order.profiles || []).map(escH).join('<br>') || '—'}</td>
+      <td>${num(order.measured_cards)}</td><td>${num(order.unmeasured_cards)}</td><td>${formatMinutes(order.net_minutes)}</td>
+      <td>${num(order.cut_length_mm) ? `${num(order.cut_length_mm).toLocaleString()} מ״מ` : '—'}</td><td>${formatRate(order.weight_kg)} ק״ג</td>
+      <td>${formatRate(order.meters_per_min)} מ׳/דק׳</td><td>${formatRate(order.kg_per_min)} ק״ג/דק׳</td>
+    </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-dim);padding:20px">אין הזמנות עם זמן ייצור מדוד בתקופה שנבחרה.</td></tr>';
+}
+
+function renderTimingRecipes(recipes) {
+  recipes = Array.isArray(recipes) ? recipes : [];
+  document.getElementById('timingRecipeTable').innerHTML = recipes.map(row => `
+    <tr>
+      <td>${escH(row.machine || '—')}</td><td>${escH(row.shape_name || '—')}</td><td>Ø${num(row.diameter_mm) || '—'} מ״מ</td>
+      <td>${num(row.unit_cut_length_mm) ? `${num(row.unit_cut_length_mm).toLocaleString()} מ״מ` : '—'}</td><td>${num(row.bend_count)}</td>
+      <td>${num(row.sample_count)}</td><td>${formatMinutes(row.net_minutes)}</td><td>${formatRate(row.meters_per_min)} מ׳/דק׳</td>
+      <td>${formatRate(row.kg_per_min)} ק״ג/דק׳</td><td>${row.bends_per_min == null ? '—' : `${formatRate(row.bends_per_min)} כיפ׳/דק׳`}</td>
+      <td>${row.median_min_per_unit == null ? 'אין מספיק היסטוריה' : `${formatRate(row.median_min_per_unit)} דק׳/יח׳`}</td>
+    </tr>`).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--text-dim);padding:20px">אין עדיין נתונים מדודים לפי מתכון ייצור.</td></tr>';
+}
+
+function renderTimingTransitions(transitions) {
+  transitions = Array.isArray(transitions) ? transitions : [];
+  document.getElementById('timingTransitionTable').innerHTML = transitions.map(row => {
+    const isOverlap = row.gap_status === 'overlap';
+    return `<tr>
+      <td>${escH(row.machine || '—')}</td><td>${escH(row.previous_order_num || '—')} · ${escH(row.previous_shape_name || '')}</td>
+      <td>${escH(row.order_num || '—')} · ${escH(row.shape_name || '')}</td>
+      <td>${isOverlap ? `חפיפה ${formatMinutes(row.overlap_minutes)}` : formatMinutes(row.gross_gap_minutes)}</td>
+      <td>${formatMinutes(row.lunch_minutes)}</td><td>${formatMinutes(row.documented_stop_minutes)}</td>
+      <td>${formatMinutes(row.coil_load_minutes)}</td><td>${isOverlap ? 'נדרשת בדיקה' : formatMinutes(row.transition_minutes)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-dim);padding:20px">אין זוגות כרטיסים רצופים עם זמן מדוד.</td></tr>';
+}
+
+function timingStatus(card) {
+  if (card.measurement_status !== 'measured') return { label: escH(card.measurement_reason || 'לא נמדד'), cls: 'missing' };
+  if (card.speed_status === 'slow') return { label: 'איטי מול מתכון', cls: 'slow' };
+  if (card.speed_status === 'watch') return { label: 'לבדיקה', cls: 'watch' };
+  if (card.speed_status === 'normal') return { label: 'תקין', cls: 'normal' };
+  return { label: 'נמדד — אין מספיק היסטוריה', cls: 'missing' };
+}
+
+function formatTimingDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Jerusalem' });
+}
+
+function renderTimingCards(cards) {
+  cards = Array.isArray(cards) ? cards : [];
+  document.getElementById('timingCardTable').innerHTML = cards.map(card => {
+    const status = timingStatus(card);
+    return `<tr>
+      <td>${escH(card.order_num || '—')}</td><td>${escH(card.machine || 'לא שויכה')}</td><td>${escH(card.shapeName || '—')}</td>
+      <td>Ø${num(card.diameterMm) || '—'} מ״מ</td><td>${num(card.quantity)}</td><td>${formatTimingDate(card.started_at)}</td>
+      <td>${formatTimingDate(card.completed_at)}</td><td>${card.net_minutes == null ? '—' : formatMinutes(card.net_minutes)}</td>
+      <td>${card.meters_per_min == null ? '—' : `${formatRate(card.meters_per_min)} מ׳/דק׳`}</td>
+      <td>${card.kg_per_min == null ? '—' : `${formatRate(card.kg_per_min)} ק״ג/דק׳`}</td>
+      <td><span class="timing-status ${status.cls}">${status.label}</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--text-dim);padding:20px">אין כרטיסים שהושלמו בתקופה שנבחרה.</td></tr>';
 }
 
 function renderWasteTable(waste) {
