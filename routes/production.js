@@ -329,7 +329,7 @@ module.exports = function createProductionRouter(deps) {
       state_counts: stateCounts,
       may_start_loading: mayOpenLoading,
       loading_state: loadingState,
-      loading_entry_url: `/warehouse.html?load_order=${encodeURIComponent(order.id)}`,
+      loading_entry_url: `/warehouse.html?load_order=${encodeURIComponent(order.id)}&autostart=1`,
     });
   });
 

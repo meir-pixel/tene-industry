@@ -1,5 +1,12 @@
 const router = require('express').Router();
 const { itemShapeMetrics } = require('../services/shapeSnapshot');
+const {
+  normalizeToken,
+  scannedWorkerCardToken,
+  tokenItemId,
+  projectOrderCards,
+  findProjectedCardByToken,
+} = require('../services/productionCardLoading');
 const { ORDER_STATUS, normalizeOrderStatus } = require('../status-contracts');
 
 function required(name, value) {
@@ -245,10 +252,362 @@ function createLoadingDeliveryNote(db, { session, departureType, departureReason
   };
 }
 
+function cardLoadingSessionState(db, sessionUid) {
+  const session = db.prepare(`
+    SELECT id, session_uid, order_id, order_num, status, expected_count,
+           expected_weight, started_by, started_at, completed_by, completed_at,
+           departure_type, departure_reason, delivery_note_id, scan_unit
+    FROM order_loading_sessions
+    WHERE session_uid=? AND scan_unit='production_card'
+  `).get(sessionUid);
+  if (!session) return null;
+
+  const cards = db.prepare(`
+    SELECT card_key, worker_card_token, parent_item_id, title, quantity, weight,
+           diameter_mm, total_length_mm, state, loaded_by, loaded_at
+    FROM order_loading_session_cards
+    WHERE session_id=?
+    ORDER BY id
+  `).all(session.id);
+  const loaded = cards.filter(card => card.state === 'loaded');
+  const pending = cards.filter(card => card.state !== 'loaded');
+  return {
+    ...session,
+    cards,
+    loaded_count: loaded.length,
+    loaded_weight: Math.round(loaded.reduce((sum, card) => sum + Number(card.weight || 0), 0) * 1000) / 1000,
+    missing_count: pending.length,
+    missing_weight: Math.round(pending.reduce((sum, card) => sum + Number(card.weight || 0), 0) * 1000) / 1000,
+  };
+}
+
+function addCardLoadingEvent(db, { sessionId, type, cardKey = null, scannedValue = null, actorId = null, details = {} }) {
+  db.prepare(`
+    INSERT INTO order_loading_card_events (session_id,event_type,card_key,scanned_value,actor_id,details_json)
+    VALUES (?,?,?,?,?,?)
+  `).run(sessionId, type, cardKey, scannedValue, actorId, safeJson(details));
+}
+
+function completedCardKeysForOrder(db, orderId) {
+  return new Set(db.prepare(`
+    SELECT DISTINCT c.card_key
+    FROM order_loading_session_cards c
+    JOIN order_loading_sessions s ON s.id=c.session_id
+    WHERE s.order_id=? AND s.scan_unit='production_card' AND s.status='completed' AND c.state='loaded'
+  `).all(orderId).map(row => String(row.card_key)));
+}
+
+function sourceOrderForCardToken(db, token) {
+  const itemId = tokenItemId(token);
+  if (!itemId) return null;
+  return db.prepare(`
+    SELECT o.id,o.order_num,o.status,o.customer_id
+    FROM items i
+    JOIN pallets p ON p.id=i.pallet_id
+    JOIN orders o ON o.id=p.order_id
+    WHERE i.id=?
+  `).get(itemId) || null;
+}
+
+function loadingCardSnapshot(row) {
+  return {
+    card_key: row.card_key,
+    worker_card_token: row.worker_card_token,
+    parent_item_id: Number(row.parent_item_id),
+    title: row.title,
+    quantity: Number(row.quantity || 0),
+    weight: Number(row.weight || 0),
+    diameter_mm: Number(row.diameter_mm || 0) || null,
+    total_length_mm: Number(row.total_length_mm || 0) || null,
+  };
+}
+
+function sessionLoadedCards(db, sessionId) {
+  return db.prepare(`
+    SELECT card_key,worker_card_token,parent_item_id,title,quantity,weight,diameter_mm,total_length_mm
+    FROM order_loading_session_cards
+    WHERE session_id=? AND state='loaded'
+    ORDER BY id
+  `).all(sessionId).map(loadingCardSnapshot);
+}
+
+// A delivery note is a truck snapshot, not a second production or packing
+// record.  Its `items_json` carries only the cards actually scanned onto this
+// truck and is immutable once written.
+function createCardLoadingDeliveryNote(db, { session, departureType, departureReason = null }) {
+  const existing = Number(session.delivery_note_id);
+  if (Number.isInteger(existing) && existing > 0) return linkedDeliveryNote(db, existing);
+
+  const cards = sessionLoadedCards(db, session.id);
+  if (!cards.length) {
+    const error = new Error('no_loaded_cards');
+    error.statusCode = 409;
+    throw error;
+  }
+  const noteNum = `DN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-L${session.id}`;
+  const totalWeight = Math.round(cards.reduce((sum, card) => sum + Number(card.weight || 0), 0) * 1000) / 1000;
+  const inserted = db.prepare(`
+    INSERT INTO delivery_notes (note_num,order_id,order_num,customer_id,packages_json,items_json,total_weight)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(
+    noteNum,
+    session.order_id,
+    session.order_num,
+    session.customer_id || null,
+    JSON.stringify([]),
+    JSON.stringify(cards.map(card => ({ ...card, loading_card: true }))),
+    totalWeight,
+  );
+  const noteId = Number(inserted.lastInsertRowid);
+  db.prepare(`
+    UPDATE order_loading_sessions
+    SET delivery_note_id=?,departure_type=?,departure_reason=?
+    WHERE id=? AND delivery_note_id IS NULL
+  `).run(noteId, departureType, departureReason || null, session.id);
+  return { id: noteId, note_num: noteNum, total_weight: totalWeight, print_url: `/api/delivery-notes/${noteId}/print` };
+}
+
+function eligibleProductionCardsForLoading(db, order) {
+  const alreadyLoaded = completedCardKeysForOrder(db, order.id);
+  const remainingFinalCards = projectOrderCards(db, order)
+    .filter(card => card.final_deliverable && !alreadyLoaded.has(card.card_key));
+  return {
+    cards: remainingFinalCards.filter(card => card.completed),
+    incomplete: remainingFinalCards.filter(card => !card.completed),
+  };
+}
+
 module.exports = function createWarehouseRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
+
+  // ── CARD-QR LOADING (canonical outbound flow) ────────────────────
+  // The same worker-card QR has two safe contexts: production updates at the
+  // workstation and loading verification here.  A session freezes its card
+  // list so an order edit cannot silently change a truck already loading.
+  router.post('/loading/card-sessions', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    const orderId = Number(req.body?.order_id);
+    if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'invalid_order_id' });
+    const actorId = loadingActorId(req);
+
+    try {
+      const result = db.transaction(() => {
+        const order = db.prepare('SELECT id,order_num,status,customer_id,total_weight FROM orders WHERE id=?').get(orderId);
+        if (!order) return { error: 'order_not_found', status: 404 };
+        const normalizedOrderStatus = normalizeOrderStatus(order.status);
+        const active = db.prepare(`SELECT session_uid,scan_unit FROM order_loading_sessions WHERE order_id=? AND status='active'`).get(orderId);
+        if (active) {
+          if (active.scan_unit !== 'production_card') return { error: 'legacy_package_loading_session_active', status: 409 };
+          return { session_uid: active.session_uid, resumed: true };
+        }
+        if (![ORDER_STATUS.DONE_WAITING_PICKUP, ORDER_STATUS.LOADING, ORDER_STATUS.PARTIAL_DELIVERY].includes(normalizedOrderStatus)) {
+          return { error: 'order_not_ready_for_loading', status: 409, order_status: order.status };
+        }
+
+        const cardAvailability = eligibleProductionCardsForLoading(db, order);
+        if (cardAvailability.incomplete.length) {
+          return { error: 'production_cards_not_completed', status: 409, incomplete_count: cardAvailability.incomplete.length };
+        }
+        const cards = cardAvailability.cards;
+        if (!cards.length) return { error: 'no_completed_cards_to_load', status: 409 };
+
+        if (normalizedOrderStatus !== ORDER_STATUS.LOADING) {
+          db.prepare('UPDATE orders SET status=? WHERE id=?').run(ORDER_STATUS.LOADING, order.id);
+          addOrderLoadingStatusAudit(db, { order, from: order.status, to: ORDER_STATUS.LOADING, actorId, note: 'תחילת העמסה מסריקת QR של טופס ההזמנה' });
+        }
+
+        const sessionUid = loadingSessionUid();
+        const expectedWeight = Math.round(cards.reduce((sum, card) => sum + Number(card.weight || 0), 0) * 1000) / 1000;
+        const created = db.prepare(`
+          INSERT INTO order_loading_sessions (session_uid,order_id,order_num,expected_count,expected_weight,started_by,scan_unit)
+          VALUES (?,?,?,?,?,?, 'production_card')
+        `).run(sessionUid, order.id, order.order_num, cards.length, expectedWeight, actorId);
+        const sessionId = Number(created.lastInsertRowid);
+        const addCard = db.prepare(`
+          INSERT INTO order_loading_session_cards
+            (session_id,card_key,worker_card_token,parent_item_id,title,quantity,weight,diameter_mm,total_length_mm)
+          VALUES (?,?,?,?,?,?,?,?,?)
+        `);
+        for (const card of cards) {
+          addCard.run(sessionId, card.card_key, normalizeToken(card.worker_card_token), card.parent_item_id, card.title,
+            Number(card.quantity || 0), Number(card.weight || 0), card.diameter_mm, card.total_length_mm);
+        }
+        addCardLoadingEvent(db, {
+          sessionId,
+          type: 'started',
+          actorId,
+          details: { expected_count: cards.length, expected_weight: expectedWeight, source: 'order_qr' },
+        });
+        return { session_uid: sessionUid, resumed: false, status_changed: normalizedOrderStatus !== ORDER_STATUS.LOADING, order_num: order.order_num };
+      })();
+
+      if (result.error) return res.status(result.status).json({
+        error: result.error,
+        order_status: result.order_status || null,
+        incomplete_count: result.incomplete_count || 0,
+      });
+      if (result.status_changed) wsBroadcast('order_status', { id: orderId, status: ORDER_STATUS.LOADING, orderNum: result.order_num });
+      return res.status(result.resumed ? 200 : 201).json({ ...cardLoadingSessionState(db, result.session_uid), resumed: result.resumed });
+    } catch (error) {
+      // SQLite reports partial-index collisions by column names on some
+      // versions and by the index name on others.  Either form means another
+      // scanner opened the same order at the same moment, so return that
+      // canonical session instead of creating a second truck workflow.
+      if (/idx_loading_session_one_active_order|UNIQUE constraint failed/i.test(String(error.message || ''))) {
+        const active = db.prepare(`SELECT session_uid,scan_unit FROM order_loading_sessions WHERE order_id=? AND status='active'`).get(orderId);
+        if (active?.scan_unit === 'production_card') return res.json({ ...cardLoadingSessionState(db, active.session_uid), resumed: true });
+      }
+      throw error;
+    }
+  });
+
+  router.get('/loading/card-sessions/:sessionUid', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    const state = cardLoadingSessionState(db, req.params.sessionUid);
+    if (!state) return res.status(404).json({ error: 'card_loading_session_not_found' });
+    res.json(state);
+  });
+
+  router.post('/loading/card-sessions/:sessionUid/scan', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => {
+    const token = scannedWorkerCardToken(req.body?.qr_data ?? req.body?.code);
+    if (!token) return res.status(400).json({ error: 'invalid_worker_card_qr' });
+    const actorId = loadingActorId(req);
+    const sessionUid = String(req.params.sessionUid || '');
+
+    const result = db.transaction(() => {
+      const session = db.prepare(`
+        SELECT s.id,s.order_id,s.order_num,s.status,s.scan_unit,o.status AS order_status,o.customer_id
+        FROM order_loading_sessions s
+        JOIN orders o ON o.id=s.order_id
+        WHERE s.session_uid=?
+      `).get(sessionUid);
+      if (!session || session.scan_unit !== 'production_card') return { error: 'card_loading_session_not_found', status: 404 };
+      if (session.status !== 'active') return { error: 'loading_session_not_active', status: 409 };
+      if (normalizeOrderStatus(session.order_status) !== ORDER_STATUS.LOADING) return { error: 'order_not_in_loading', status: 409 };
+
+      const expected = db.prepare(`
+        SELECT id,card_key,state
+        FROM order_loading_session_cards
+        WHERE session_id=? AND worker_card_token=?
+      `).get(session.id, token);
+      if (!expected) {
+        const scannedOrder = sourceOrderForCardToken(db, token);
+        if (!scannedOrder) {
+          addCardLoadingEvent(db, { sessionId: session.id, type: 'unknown_scan', scannedValue: token, actorId });
+          return { outcome: 'unknown' };
+        }
+        if (Number(scannedOrder.id) !== Number(session.order_id)) {
+          addCardLoadingEvent(db, {
+            sessionId: session.id, type: 'wrong_order_scan', scannedValue: token, actorId,
+            details: { expected_order_id: session.order_id, scanned_order_id: scannedOrder.id },
+          });
+          return { outcome: 'wrong_order' };
+        }
+        const projected = findProjectedCardByToken(db, scannedOrder, token);
+        const previouslyLoaded = db.prepare(`
+          SELECT 1
+          FROM order_loading_session_cards c
+          JOIN order_loading_sessions s ON s.id=c.session_id
+          WHERE s.order_id=? AND s.scan_unit='production_card' AND s.status='completed'
+            AND c.worker_card_token=? AND c.state='loaded'
+          LIMIT 1
+        `).get(session.order_id, token);
+        const outcome = previouslyLoaded ? 'already_loaded'
+          : projected && !projected.final_deliverable ? 'not_final_card'
+            : projected && !projected.completed ? 'not_ready'
+              : projected ? 'not_in_loading_snapshot' : 'unknown';
+        addCardLoadingEvent(db, { sessionId: session.id, type: outcome, cardKey: projected?.card_key || null, scannedValue: token, actorId });
+        return { outcome };
+      }
+
+      if (expected.state === 'loaded') {
+        addCardLoadingEvent(db, { sessionId: session.id, type: 'duplicate_scan', cardKey: expected.card_key, scannedValue: token, actorId });
+        return { outcome: 'duplicate' };
+      }
+      const changed = db.prepare(`
+        UPDATE order_loading_session_cards
+        SET state='loaded',loaded_by=?,loaded_at=CURRENT_TIMESTAMP
+        WHERE id=? AND state='pending'
+      `).run(actorId, expected.id);
+      if (changed.changes !== 1) {
+        addCardLoadingEvent(db, { sessionId: session.id, type: 'duplicate_scan', cardKey: expected.card_key, scannedValue: token, actorId });
+        return { outcome: 'duplicate' };
+      }
+      addCardLoadingEvent(db, { sessionId: session.id, type: 'card_loaded', cardKey: expected.card_key, scannedValue: token, actorId });
+      return { outcome: 'loaded', card_key: expected.card_key };
+    })();
+
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    const state = cardLoadingSessionState(db, sessionUid);
+    const messages = {
+      loaded: 'כרטיס העבודה הועמס',
+      duplicate: 'כרטיס העבודה כבר נסרק להעמסה זו',
+      wrong_order: 'כרטיס העבודה שייך להזמנה אחרת',
+      already_loaded: 'כרטיס העבודה כבר יצא בהעמסה קודמת',
+      not_final_card: 'זהו רכיב ייצור פנימי; יש לסרוק את כרטיס ההרכבה של הכלוב',
+      not_ready: 'כרטיס העבודה עדיין לא הושלם בייצור',
+      not_in_loading_snapshot: 'הכרטיס אינו חלק מסשן ההעמסה שנפתח',
+      unknown: 'QR של כרטיס עבודה אינו מוכר',
+    };
+    res.json({ outcome: result.outcome, message: messages[result.outcome], state });
+  });
+
+  function finishCardLoadingSession(req, res, { partial = false } = {}) {
+    const sessionUid = String(req.params.sessionUid || '');
+    const reason = String(req.body?.reason || '').trim();
+    if (partial && !reason) return res.status(400).json({ error: 'partial_departure_reason_required' });
+    const actorId = loadingActorId(req);
+    const result = db.transaction(() => {
+      const session = db.prepare(`
+        SELECT s.id,s.status,s.order_id,s.order_num,s.delivery_note_id,s.scan_unit,
+               o.customer_id,o.status AS order_status
+        FROM order_loading_sessions s
+        JOIN orders o ON o.id=s.order_id
+        WHERE s.session_uid=?
+      `).get(sessionUid);
+      if (!session || session.scan_unit !== 'production_card') return { error: 'card_loading_session_not_found', status: 404 };
+      if (session.status === 'completed') return {
+        completed: true, replay: true, delivery_note: linkedDeliveryNote(db, session.delivery_note_id),
+        order_id: session.order_id, order_num: session.order_num,
+      };
+      if (session.status !== 'active') return { error: 'loading_session_not_active', status: 409 };
+      if (normalizeOrderStatus(session.order_status) !== ORDER_STATUS.LOADING) return { error: 'order_not_in_loading', status: 409 };
+      const counts = db.prepare(`
+        SELECT
+          SUM(CASE WHEN state='loaded' THEN 1 ELSE 0 END) AS loaded,
+          SUM(CASE WHEN state='pending' THEN 1 ELSE 0 END) AS pending
+        FROM order_loading_session_cards WHERE session_id=?
+      `).get(session.id);
+      const loaded = Number(counts?.loaded || 0);
+      const pending = Number(counts?.pending || 0);
+      if (!loaded) return { error: 'no_loaded_cards', status: 409 };
+      if (!partial && pending > 0) return { error: 'cards_missing', status: 409, missing_count: pending };
+      if (partial && !pending) return { error: 'all_cards_loaded_use_complete', status: 409 };
+
+      const departureType = partial ? 'partial' : 'full';
+      const note = createCardLoadingDeliveryNote(db, { session, departureType, departureReason: partial ? reason : null });
+      db.prepare(`UPDATE order_loading_sessions SET status='completed',completed_by=?,completed_at=CURRENT_TIMESTAMP WHERE id=?`).run(actorId, session.id);
+      const nextOrderStatus = departureType === 'full' ? ORDER_STATUS.ON_THE_WAY : ORDER_STATUS.PARTIAL_DELIVERY;
+      db.prepare('UPDATE orders SET status=? WHERE id=? AND status=?').run(nextOrderStatus, session.order_id, ORDER_STATUS.LOADING);
+      addCardLoadingEvent(db, {
+        sessionId: session.id,
+        type: 'completed',
+        actorId,
+        details: { departure_type: departureType, departure_reason: partial ? reason : null, delivery_note_id: note.id, delivery_note_num: note.note_num, loaded_count: loaded, remaining_count: pending },
+      });
+      addOrderLoadingStatusAudit(db, {
+        order: { id: session.order_id, order_num: session.order_num }, from: session.order_status, to: nextOrderStatus, actorId,
+        note: departureType === 'full' ? `העמסה מלאה · תעודת משלוח ${note.note_num}` : `העמסה חלקית: ${reason} · תעודת משלוח ${note.note_num}`,
+      });
+      return { completed: true, replay: false, status_changed: true, next_order_status: nextOrderStatus, delivery_note: note, order_id: session.order_id, order_num: session.order_num };
+    })();
+    if (result.error) return res.status(result.status).json({ error: result.error, missing_count: result.missing_count || 0 });
+    if (result.status_changed) wsBroadcast('order_status', { id: result.order_id, status: result.next_order_status, orderNum: result.order_num });
+    res.json({ ...cardLoadingSessionState(db, sessionUid), replay: result.replay, delivery_note: result.delivery_note || null });
+  }
+
+  router.post('/loading/card-sessions/:sessionUid/complete', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => finishCardLoadingSession(req, res));
+  router.post('/loading/card-sessions/:sessionUid/partial-departure', requireAnyRole(['warehouse', 'manager', 'admin']), (req, res) => finishCardLoadingSession(req, res, { partial: true }));
 
   router.get('/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
     const { order_id, status, zone } = req.query;
@@ -286,6 +645,9 @@ module.exports = function createWarehouseRouter(deps) {
     res.json({ id: r.lastInsertRowid, package_code, weight: packageWeight });
   });
 
+  // Historical package operations stay available for existing records. New
+  // QR-driven loading never invokes this endpoint: it uses production cards
+  // and issues a truck delivery note atomically at session completion.
   router.patch('/packages/:id/ship', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
     db.prepare('UPDATE packages SET status=?,shipped_at=CURRENT_TIMESTAMP WHERE id=?')
       .run('shipped', req.params.id);
@@ -614,6 +976,7 @@ module.exports = function createWarehouseRouter(deps) {
     `).get(req.params.id);
     if (!note) return res.status(404).send('תעודת המשלוח לא נמצאה');
     const packages = safeJsonArray(note.packages_json);
+    const loadingCards = safeJsonArray(note.items_json).filter(row => row && row.loading_card === true);
     const packageRows = packages.map((pkg, index) => `
       <tr>
         <td>${index + 1}</td>
@@ -621,10 +984,21 @@ module.exports = function createWarehouseRouter(deps) {
         <td>${escapeHtml(pkg.quantity || '—')}</td>
         <td>${Number(pkg.weight || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 })} ק"ג</td>
       </tr>`).join('');
+    const cardRows = loadingCards.map((card, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(card.title || 'כרטיס ייצור')}</td>
+        <td>${escapeHtml(card.worker_card_token || '—')}</td>
+        <td>${Number(card.quantity || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 })}</td>
+        <td>${Number(card.weight || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 })} ק"ג</td>
+      </tr>`).join('');
+    const deliveryRowsHtml = loadingCards.length
+      ? `<table><thead><tr><th>#</th><th>כרטיס עבודה</th><th>QR / מספר כרטיס</th><th>כמות</th><th>משקל</th></tr></thead><tbody>${cardRows}</tbody></table>`
+      : `<table><thead><tr><th>#</th><th>חבילה</th><th>כמות</th><th>משקל</th></tr></thead><tbody>${packageRows || '<tr><td colspan="4">אין חבילות בתעודה</td></tr>'}</tbody></table>`;
     const issuedAt = note.issued_at ? new Date(note.issued_at).toLocaleString('he-IL') : '—';
     res.type('html').send(`<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>תעודת משלוח ${escapeHtml(note.note_num)}</title><style>
       body{font-family:Arial,sans-serif;color:#111;margin:0;padding:24mm;background:#fff}h1{margin:0 0 5mm;font-size:24px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin:0 0 8mm}.meta div{border:1px solid #222;padding:3mm}table{width:100%;border-collapse:collapse}th,td{border:1px solid #222;padding:3mm;text-align:right}th{background:#eee}.total{font-size:18px;font-weight:bold;margin-top:7mm}@media print{body{padding:12mm}}
-    </style></head><body><h1>תעודת משלוח</h1><div class="meta"><div><b>מספר תעודה:</b> ${escapeHtml(note.note_num)}</div><div><b>הזמנה:</b> ${escapeHtml(note.order_num)}</div><div><b>לקוח:</b> ${escapeHtml(note.customer_name || '—')}</div><div><b>תאריך יציאה:</b> ${escapeHtml(issuedAt)}</div><div><b>כתובת:</b> ${escapeHtml(note.delivery_address || '—')}</div><div><b>טלפון:</b> ${escapeHtml(note.customer_phone || '—')}</div></div><table><thead><tr><th>#</th><th>חבילה</th><th>כמות</th><th>משקל</th></tr></thead><tbody>${packageRows || '<tr><td colspan="4">אין חבילות בתעודה</td></tr>'}</tbody></table><p class="total">סה"כ למשאית זו: ${Number(note.total_weight || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 })} ק"ג</p></body></html>`);
+    </style></head><body><h1>תעודת משלוח</h1><div class="meta"><div><b>מספר תעודה:</b> ${escapeHtml(note.note_num)}</div><div><b>הזמנה:</b> ${escapeHtml(note.order_num)}</div><div><b>לקוח:</b> ${escapeHtml(note.customer_name || '—')}</div><div><b>תאריך יציאה:</b> ${escapeHtml(issuedAt)}</div><div><b>כתובת:</b> ${escapeHtml(note.delivery_address || '—')}</div><div><b>טלפון:</b> ${escapeHtml(note.customer_phone || '—')}</div></div>${deliveryRowsHtml}<p class="total">סה"כ למשאית זו: ${Number(note.total_weight || 0).toLocaleString('he-IL', { maximumFractionDigits: 3 })} ק"ג</p></body></html>`);
   });
 
   router.post('/delivery-notes', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
@@ -660,6 +1034,8 @@ module.exports.manifest = {
     { table: 'delivery_notes' },
     { table: 'order_loading_sessions' },
     { table: 'order_loading_session_packages' },
+    { table: 'order_loading_session_cards' },
+    { table: 'order_loading_card_events' },
   ],
   produces: [],
 };

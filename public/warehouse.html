@@ -136,6 +136,11 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .scan-input-wrap input{flex:1;padding:14px 16px;font-size:20px;font-weight:700;border:2px solid var(--accent);border-radius:var(--radius-sm);background:#fff;color:var(--text);font-family:monospace;text-align:center;}
 .scan-input-wrap input:focus{outline:none;box-shadow:0 0 0 3px var(--accent-dim);}
 .scan-icon{font-size:32px;cursor:pointer;color:var(--text-dim);}
+.camera-panel{display:none;max-width:480px;margin:14px auto 0;padding:10px;background:#101820;border-radius:var(--radius-sm);color:#fff;}
+.camera-panel.active{display:block;}
+.camera-panel video{display:block;width:100%;max-height:280px;object-fit:cover;border-radius:6px;background:#000;}
+.camera-notice{font-size:12px;font-weight:700;margin-top:8px;line-height:1.45;}
+.camera-panel .btn{margin-top:8px;}
 
 /* PROGRESS BAR */
 .progress-wrap{margin-bottom:12px;}
@@ -284,35 +289,19 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
   <!-- ══ TAB: LOADING ════════════════════════════════════════════════ -->
   <div id="tab-loading" class="tab-panel">
-    <!-- Entered from the QR printed on the A4 order sheet.  A scan never
-         starts loading by itself: the warehouse user must explicitly confirm. -->
+    <!-- The QR printed on the A4 order sheet opens this persisted, card-based
+         loading session directly. There are no second package labels. -->
     <div class="card" id="orderLoadingStartCard" style="display:none">
       <div class="card-header"><span class="card-title">🚛 העמסת הזמנה</span></div>
       <div class="card-body">
         <div id="orderLoadingStartInfo" class="delivery-info"></div>
-        <div class="confirm-row" style="margin-top:14px">
-          <button class="btn btn-success" id="btnStartOrderLoading" onclick="startOrderLoadingSession()">התחל העמסה</button>
-        </div>
       </div>
-    </div>
-
-    <!-- Delivery selector -->
-    <div class="card" id="deliverySelectorCard">
-      <div class="card-header">
-        <span class="card-title">🚛 בחר משלוח / משאית</span>
-        <div class="select-actions">
-          <select id="deliverySelect" class="delivery-select" onchange="selectDelivery()">
-            <option value="">— בחר משלוח —</option>
-          </select>
-        </div>
-      </div>
-      <div id="deliveryInfo" class="delivery-info">בחר משלוח כדי להתחיל בטעינה</div>
     </div>
 
     <!-- Scanner -->
     <div class="card hidden-card" id="scannerCard">
       <div class="card-header">
-            <span class="card-title" id="loadingScannerTitle">📷 סריקת חבילות</span>
+            <span class="card-title" id="loadingScannerTitle">📷 סריקת כרטיסי עבודה</span>
       </div>
       <div class="card-body">
         <div class="alert alert-danger" id="scanAlert"></div>
@@ -320,15 +309,20 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
         <div class="scanner-area">
           <div class="scan-input-wrap">
-            <input type="text" id="scanInput" placeholder="סרוק ברקוד או הקלד קוד חבילה..." autocomplete="off" onkeydown="if(event.key==='Enter')doScan()">
-            <span class="scan-icon" title="מצלמה" onclick="focusScan()">📷</span>
+            <input type="text" id="scanInput" placeholder="סרוק QR של כרטיס עבודה או הקלד את הקוד..." autocomplete="off" onkeydown="if(event.key==='Enter')doScan()">
+            <span class="scan-icon" title="המשך סריקה במצלמה" onclick="resumeCardCamera()">📷</span>
             <button class="btn btn-primary" onclick="doScan()">סרוק</button>
+          </div>
+          <div class="camera-panel" id="cameraPanel">
+            <video id="scanCamera" playsinline muted></video>
+            <div class="camera-notice" id="cameraNotice">המצלמה קוראת את ה־QR של כרטיס העבודה.</div>
+            <button class="btn btn-outline" id="btnResumeCamera" type="button" onclick="resumeCardCamera()" style="display:none">המשך סריקה במצלמה</button>
           </div>
           <div class="loading-status-summary" id="loadingStatusSummary" aria-live="polite" style="display:none">
             <div class="loading-status-card loaded">
               <span class="loading-status-label">✓ הועמסו</span>
               <strong class="loading-status-value" id="loadingLoadedCount">0</strong>
-              <span class="loading-status-detail" id="loadingLoadedDetail">מתוך 0 חבילות</span>
+              <span class="loading-status-detail" id="loadingLoadedDetail">מתוך 0 כרטיסים</span>
             </div>
             <div class="loading-status-card missing">
               <span class="loading-status-label">! חסרות</span>
@@ -338,12 +332,12 @@ tr:hover td{background:rgba(0,0,0,0.015);}
             <div class="loading-status-card active" id="loadingPhaseCard">
               <span class="loading-status-label">סטטוס העמסה</span>
               <strong class="loading-status-value" id="loadingPhaseValue">בהעמסה</strong>
-              <span class="loading-status-detail" id="loadingPhaseDetail">סרוק כל חבילה</span>
+              <span class="loading-status-detail" id="loadingPhaseDetail">סרוק כל כרטיס עבודה</span>
             </div>
           </div>
           <div class="progress-wrap" id="progressWrap" style="display:none;">
             <div class="progress-label">
-              <span>חבילות נטענו</span>
+              <span>כרטיסי עבודה הועמסו</span>
               <span id="progressText">0 / 0</span>
             </div>
             <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
@@ -352,17 +346,17 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
         <div class="two-col">
           <div>
-            <div class="mini-title">חבילות שנטענו ✅</div>
-            <div class="scanned-list" id="scannedList"><div class="empty-inline">אין חבילות עדיין</div></div>
+            <div class="mini-title">כרטיסים שהועמסו ✅</div>
+            <div class="scanned-list" id="scannedList"><div class="empty-inline">אין כרטיסים עדיין</div></div>
           </div>
           <div>
-            <div class="mini-title danger">חסרות ⏳</div>
+            <div class="mini-title danger">כרטיסים חסרים ⏳</div>
             <div id="missingList"><div class="empty-inline">—</div></div>
           </div>
         </div>
 
         <div class="confirm-row">
-          <button class="btn btn-success" id="btnConfirmShip" disabled onclick="confirmShipment()">אשר יציאה</button>
+          <button class="btn btn-success" id="btnConfirmShip" disabled onclick="confirmShipment()">סיים העמסה והפק תעודת משלוח</button>
         </div>
         <div id="partialDepartureControls" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
           <label for="partialDepartureReason" style="display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:6px">יציאה חלקית — סיבה לתיעוד</label>
@@ -471,16 +465,24 @@ function showTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>{
     if(b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+name+"'"))b.classList.add('active');
   });
-  if(name==='loading')loadDeliveries();
+  if(name==='loading'&&!currentLoadingSession)showCardLoadingIdle();
 }
 
 // ─── KPI ─────────────────────────────────────────────────────────────
 let allPackages=[];
+// Keep the warehouse's outbound-delivery projection available.  The new
+// loading session creates its delivery note only at departure, so this is not
+// a pre-loading selector and cannot start a shipment by itself.
+let allDeliveries=[];
 
 async function loadKPI(){
   try{
-    const pkgs=await fetch('/api/packages').then(r=>r.json());
+    const [pkgs,deliveries]=await Promise.all([
+      fetch('/api/packages').then(r=>r.json()),
+      fetch('/api/deliveries').then(r=>r.json()),
+    ]);
     allPackages=pkgs||[];
+    allDeliveries=Array.isArray(deliveries)?deliveries:[];
   } catch(e){
     allPackages=[];
     showAlert('scanAlert','שגיאה בטעינת חבילות. בדוק הרשאות או חיבור שרת.');
@@ -526,7 +528,6 @@ function renderPackages(rows){
       loaded:'<span class="badge badge-loaded">הועמס</span>',
       shipped:'<span class="badge badge-shipped">נשלח</span>',
     }[p.status]||'<span class="badge">—</span>';
-    const canShip=p.status!=='shipped';
     return `<tr>
       <td style="color:var(--text-muted);font-size:12px">${i+1}</td>
       <td><code style="font-size:11px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px">${escH(p.package_code)}</code></td>
@@ -541,10 +542,7 @@ function renderPackages(rows){
         <button class="btn btn-outline btn-sm" title="הצג QR" onclick="openQR(${p.id})">QR</button>
       </td>
       <td>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-outline btn-sm" onclick="openLabel(${p.id})">🖨 תווית</button>
-          ${canShip?`<button class="btn btn-success btn-sm" onclick="markShipped(${p.id})">✓ נשלח</button>`:''}
-        </div>
+        <button class="btn btn-outline btn-sm" onclick="openLabel(${p.id})">🖨 תווית</button>
       </td>
     </tr>`;
   }).join('');
@@ -594,348 +592,291 @@ async function markShipped(id){
   loadKPI();
 }
 
-// ─── LOADING TAB ──────────────────────────────────────────────────────
-let currentDelivery=null;
-let scannedCodes=[];
+// ─── CARD-QR LOADING ─────────────────────────────────────────────────
+// A worker-card QR is deliberately reused: the production station handles
+// production status; an active order-loading session treats that same signed
+// card identity as the thing put on the truck. No package label is created.
+const CARD_LOADING_STORAGE_KEY='ironbend.card-loading.resume.v1';
 let currentLoadingSession=null;
 let qrLoadingOrderId=null;
+let cameraStream=null;
+let cardBarcodeDetector=null;
+let cameraTimer=null;
+let cameraBusy=false;
+let screenWakeLock=null;
 
-function currentLoadingExpected(){
-  return currentLoadingSession ? (currentLoadingSession.packages||[]) : (currentDelivery?.packages||[]);
+function currentLoadingExpected(){return currentLoadingSession?.cards||[];}
+function activeCardLoading(){return currentLoadingSession?.status==='active';}
+
+function persistCardLoadingSession(){
+  if(!currentLoadingSession?.session_uid||!activeCardLoading())return;
+  localStorage.setItem(CARD_LOADING_STORAGE_KEY,JSON.stringify({
+    sessionUid:currentLoadingSession.session_uid,
+    orderId:currentLoadingSession.order_id,
+    savedAt:Date.now(),
+  }));
+}
+function clearPersistedCardLoadingSession(){localStorage.removeItem(CARD_LOADING_STORAGE_KEY);}
+
+function showCardLoadingIdle(message='סרוק את ה־QR שמופיע בטופס ההזמנה כדי להתחיל העמסה.'){
+  if(currentLoadingSession)return;
+  const startCard=document.getElementById('orderLoadingStartCard');
+  startCard.style.display='block';
+  document.getElementById('scannerCard').style.display='none';
+  document.getElementById('orderLoadingStartInfo').textContent=message;
 }
 
-function renderOrderLoadingStart(info){
-  const startCard=document.getElementById('orderLoadingStartCard');
-  const deliveryCard=document.getElementById('deliverySelectorCard');
-  const startInfo=document.getElementById('orderLoadingStartInfo');
-  const startBtn=document.getElementById('btnStartOrderLoading');
-  startCard.style.display='block';
-  deliveryCard.style.display='none';
-  startBtn.disabled=false;
-  if(info.active_session_uid){
-    startInfo.textContent=`הזמנה ${info.order.order_num}: קיימת העמסה פעילה. אפשר להמשיך לסרוק.`;
-    startBtn.textContent='המשך העמסה';
-    startBtn.onclick=()=>loadOrderLoadingSession(info.active_session_uid);
-  }else if(info.loading_state==='ready_to_start'||info.loading_state==='ready_to_resume'||info.loading_state==='ready_for_next_truck'){
-    const nextTruck=info.loading_state==='ready_for_next_truck';
-    startInfo.textContent=nextTruck
-      ? `הזמנה ${info.order.order_num}: בוצעה אספקה חלקית. הסשן הבא יכלול רק את החבילות שנותרו.`
-      : `הזמנה ${info.order.order_num} מוכנה לאיסוף. לחיצה תעביר אותה למצב בהעמסה ותפתח סריקה.`;
-    startBtn.textContent=nextTruck?'התחל העמסה למשאית הבאה':'התחל העמסה';
-    startBtn.onclick=()=>startOrderLoadingSession();
+function useCardLoadingSession(data){
+  currentLoadingSession=data;
+  qrLoadingOrderId=Number(data.order_id||qrLoadingOrderId)||null;
+  document.getElementById('orderLoadingStartCard').style.display='none';
+  document.getElementById('scannerCard').style.display='block';
+  document.getElementById('loadingScannerTitle').textContent=`📷 העמסת הזמנה ${data.order_num||''}`;
+  document.getElementById('btnConfirmShip').textContent=data.status==='completed'?'העמסה הושלמה':'סיים העמסה והפק תעודת משלוח';
+  updateLoadingUI();
+  if(activeCardLoading()){
+    persistCardLoadingSession();
+    requestScreenWakeLock();
+    document.getElementById('scanInput').focus();
   }else{
-    startInfo.textContent=`הזמנה ${info.order.order_num} אינה במצב שמאפשר העמסה.`;
-    startBtn.disabled=true;
+    stopCardCamera();
+    clearPersistedCardLoadingSession();
   }
 }
 
-async function initOrderLoadingFromQr(orderId){
+async function startCardLoadingSession(orderId){
   qrLoadingOrderId=Number(orderId);
   if(!Number.isInteger(qrLoadingOrderId)||qrLoadingOrderId<=0)return;
-  const startCard=document.getElementById('orderLoadingStartCard');
-  const startInfo=document.getElementById('orderLoadingStartInfo');
-  startCard.style.display='block';
-  document.getElementById('deliverySelectorCard').style.display='none';
-  startInfo.textContent='בודק את ההזמנה…';
+  showCardLoadingIdle('פותח העמסה ומכין את המצלמה…');
   try{
-    const response=await fetch(`/api/loading/orders/${qrLoadingOrderId}`);
+    const response=await fetch('/api/loading/card-sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:qrLoadingOrderId})});
     const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||'loading_order_unavailable');
-    renderOrderLoadingStart(data);
+    if(!response.ok)throw new Error(data.error||'card_loading_session_failed');
+    useCardLoadingSession(data);
+    // Some browsers require a second user gesture after arriving from an OS QR
+    // scan. The session is already persisted; only then do we show one resume
+    // button instead of forcing the loader to restart the workflow.
+    await resumeCardCamera({quiet:true});
   }catch(error){
-    startInfo.textContent='לא ניתן לפתוח העמסה: נדרשת הרשאת מחסן, מנהל או אדמין.';
-    document.getElementById('btnStartOrderLoading').disabled=true;
+    const messages={
+      order_not_ready_for_loading:'ההזמנה עדיין אינה מוכנה לאיסוף.',
+      production_cards_not_completed:'יש כרטיסי עבודה שעדיין לא הושלמו בייצור.',
+      no_completed_cards_to_load:'אין כרטיסי עבודה שהושלמו להעמסה.',
+      legacy_package_loading_session_active:'קיימת העמסה היסטורית פעילה להזמנה זו.',
+    };
+    showCardLoadingIdle(messages[error.message]||'לא ניתן לפתוח העמסה. נדרשת הרשאת מחסן, מנהל או אדמין.');
   }
 }
 
-async function startOrderLoadingSession(){
-  if(!qrLoadingOrderId)return;
-  const btn=document.getElementById('btnStartOrderLoading');
-  btn.disabled=true;
+async function restoreCardLoadingSession(sessionUid,{quiet=false}={}){
+  if(!sessionUid)return false;
   try{
-    const response=await fetch('/api/loading/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:qrLoadingOrderId})});
+    const response=await fetch(`/api/loading/card-sessions/${encodeURIComponent(sessionUid)}`);
     const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||'loading_session_failed');
-    currentLoadingSession=data;
-    currentDelivery=null;
-    document.getElementById('orderLoadingStartCard').style.display='none';
-    document.getElementById('scannerCard').style.display='block';
-    document.getElementById('deliveryInfo').style.display='none';
-    document.getElementById('loadingScannerTitle').textContent=`📷 העמסת הזמנה ${data.order_num}`;
-    document.getElementById('btnConfirmShip').textContent='אשר יציאה';
-    updateLoadingUI();
-    document.getElementById('scanInput').focus();
+    if(!response.ok)throw new Error(data.error||'card_loading_session_unavailable');
+    useCardLoadingSession(data);
+    if(activeCardLoading())await resumeCardCamera({quiet:true});
+    return true;
   }catch(error){
-    btn.disabled=false;
-    document.getElementById('orderLoadingStartInfo').textContent='לא ניתן להתחיל העמסה. ודא שיש חבילות מוכנות ונסה שוב.';
+    clearPersistedCardLoadingSession();
+    if(!quiet)showCardLoadingIdle('לא ניתן להמשיך את סשן ההעמסה שנשמר. סרוק שוב את QR ההזמנה.');
+    return false;
   }
 }
 
-async function loadOrderLoadingSession(sessionUid){
-  try{
-    const response=await fetch(`/api/loading/sessions/${encodeURIComponent(sessionUid)}`);
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||'loading_session_unavailable');
-    currentLoadingSession=data;
-    currentDelivery=null;
-    document.getElementById('orderLoadingStartCard').style.display='none';
-    document.getElementById('scannerCard').style.display='block';
-    document.getElementById('deliveryInfo').style.display='none';
-    document.getElementById('loadingScannerTitle').textContent=`📷 העמסת הזמנה ${data.order_num}`;
-    document.getElementById('btnConfirmShip').textContent=data.status==='completed'?'העמסה הושלמה':'אשר יציאה';
-    updateLoadingUI();
-    if(data.status==='active')document.getElementById('scanInput').focus();
-  }catch(error){
-    showAlert('scanAlert','לא ניתן להמשיך את סשן ההעמסה.',0);
-  }
+function cameraElements(){
+  return {
+    panel:document.getElementById('cameraPanel'),
+    video:document.getElementById('scanCamera'),
+    notice:document.getElementById('cameraNotice'),
+    resume:document.getElementById('btnResumeCamera'),
+  };
 }
-
-async function loadDeliveries(){
-  let deliveries=[];
-  try{
-    deliveries=await fetch('/api/deliveries').then(r=>r.json());
-  }catch(e){
-    deliveries=[];
-    showAlert('scanAlert','שגיאה בטעינת משלוחים');
-  }
-  const sel=document.getElementById('deliverySelect');
-  sel.innerHTML='<option value="">— בחר משלוח —</option>'+
-    deliveries.map(d=>`<option value="${d.id}">${escH(d.delivery_num)} – ${escH(d.driver||'')} (${d.vehicle||''})</option>`).join('');
-  // Store deliveries in scope for later
-  sel._deliveries=deliveries;
+function showCameraResume(message){
+  const {panel,notice,resume}=cameraElements();
+  panel.classList.add('active');
+  notice.textContent=message;
+  resume.style.display='inline-flex';
 }
-
-function selectDelivery(){
-  const sel=document.getElementById('deliverySelect');
-  const id=sel.value;
-  const deliveries=sel._deliveries||[];
-  currentDelivery=deliveries.find(d=>String(d.id)===String(id))||null;
-  currentLoadingSession=null;
-  scannedCodes=[];
-
-  const card=document.getElementById('scannerCard');
-  const info=document.getElementById('deliveryInfo');
-
-  if(!currentDelivery){
-    card.style.display='none';
-    info.style.display='block';
-    info.textContent='בחר משלוח כדי להתחיל בטעינה';
+function stopCardCamera(){
+  if(cameraTimer){clearTimeout(cameraTimer);cameraTimer=null;}
+  if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;}
+  cardBarcodeDetector=null;
+  const {video,panel}=cameraElements();
+  if(video)video.srcObject=null;
+  if(panel)panel.classList.remove('active');
+  if(screenWakeLock){screenWakeLock.release().catch(()=>{});screenWakeLock=null;}
+}
+async function requestScreenWakeLock(){
+  if(!activeCardLoading()||document.visibilityState!=='visible'||!navigator.wakeLock?.request)return;
+  try{screenWakeLock=await navigator.wakeLock.request('screen');}catch(_){/* device policy may deny it */}
+}
+async function resumeCardCamera({quiet=false}={}){
+  if(!activeCardLoading())return;
+  const {panel,video,notice,resume}=cameraElements();
+  if(cameraStream)return;
+  if(!navigator.mediaDevices?.getUserMedia||!('BarcodeDetector' in window)){
+    showCameraResume('הדפדפן לא מאפשר סריקת QR אוטומטית. אפשר לסרוק בקורא הברקוד או להקליד את קוד הכרטיס.');
     return;
   }
-  info.style.display='none';
-  card.style.display='block';
-  updateLoadingUI();
-  document.getElementById('scanInput').focus();
+  try{
+    cardBarcodeDetector=new BarcodeDetector({formats:['qr_code']});
+    cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'}}});
+    video.srcObject=cameraStream;
+    await video.play();
+    panel.classList.add('active');
+    notice.textContent='המצלמה פעילה — סרוק את ה־QR שעל כרטיס העבודה.';
+    resume.style.display='none';
+    requestScreenWakeLock();
+    scheduleCardCameraScan();
+  }catch(error){
+    stopCardCamera();
+    showCameraResume(quiet
+      ? 'לחץ “המשך סריקה במצלמה” אם הדפדפן ביקש אישור מצלמה.'
+      : 'לא ניתן לפתוח כעת את המצלמה. לחץ כדי להמשיך סריקה, או השתמש בקורא הברקוד.');
+  }
+}
+function scheduleCardCameraScan(){
+  if(cameraTimer)clearTimeout(cameraTimer);
+  cameraTimer=setTimeout(scanCardCameraFrame,240);
+}
+async function scanCardCameraFrame(){
+  cameraTimer=null;
+  if(!cameraStream||!cardBarcodeDetector||!activeCardLoading()||document.hidden)return;
+  try{
+    if(!cameraBusy){
+      const codes=await cardBarcodeDetector.detect(document.getElementById('scanCamera'));
+      const value=codes?.[0]?.rawValue;
+      if(value){cameraBusy=true;await scanCardValue(value);cameraBusy=false;}
+    }
+  }catch(_){/* the next frame recovers from transient camera frames */}
+  if(cameraStream&&activeCardLoading()&&!document.hidden)scheduleCardCameraScan();
 }
 
 function updateLoadingUI(){
-  if(!currentDelivery&&!currentLoadingSession)return;
+  if(!currentLoadingSession)return;
   const expected=currentLoadingExpected();
   const total=expected.length;
-  const done=currentLoadingSession
-    ? Number(currentLoadingSession.loaded_count||0)
-    : scannedCodes.length;
+  const done=Number(currentLoadingSession.loaded_count||0);
   const pct=total>0?Math.round(done/total*100):0;
   const missingCount=Math.max(0,total-done);
-  const loadingCompleted=currentLoadingSession&&currentLoadingSession.status==='completed';
-
+  const loadingCompleted=currentLoadingSession.status==='completed';
   const statusSummary=document.getElementById('loadingStatusSummary');
   statusSummary.style.display=total>0?'grid':'none';
   document.getElementById('loadingLoadedCount').textContent=String(done);
-  document.getElementById('loadingLoadedDetail').textContent=`מתוך ${total} חבילות`;
+  document.getElementById('loadingLoadedDetail').textContent=`מתוך ${total} כרטיסים`;
   document.getElementById('loadingMissingCount').textContent=String(missingCount);
-  document.getElementById('loadingMissingDetail').textContent=missingCount===0?'כל החבילות נסרקו':'יש לסרוק לפני יציאה';
+  document.getElementById('loadingMissingDetail').textContent=missingCount===0?'כל הכרטיסים נסרקו':'יש לסרוק לפני יציאה';
   const phaseCard=document.getElementById('loadingPhaseCard');
   phaseCard.className=`loading-status-card ${loadingCompleted||missingCount===0?'completed':'active'}`;
   document.getElementById('loadingPhaseValue').textContent=loadingCompleted?'הושלמה':missingCount===0?'מוכנה ליציאה':'בהעמסה';
-  document.getElementById('loadingPhaseDetail').textContent=loadingCompleted?'החבילות סומנו כהועמסו':missingCount===0?'אפשר לאשר יציאה':'סרוק רק חבילות של הזמנה זו';
-
+  document.getElementById('loadingPhaseDetail').textContent=loadingCompleted?'הכרטיסים הועמסו ותועדה היציאה':missingCount===0?'אפשר להפיק תעודת משלוח':'סרוק רק כרטיסים של הזמנה זו';
   document.getElementById('progressWrap').style.display=total>0?'block':'none';
   document.getElementById('progressText').textContent=`${done} / ${total}`;
   document.getElementById('progressFill').style.width=pct+'%';
 
-  // Scanned list
+  const loadedRows=expected.filter(row=>row.state==='loaded');
   const sl=document.getElementById('scannedList');
-  const loadedRows=currentLoadingSession
-    ? expected.filter(row=>row.state==='loaded')
-    : scannedCodes.map(code=>({package_code:code}));
-  if(loadedRows.length===0){
-    sl.innerHTML='<div style="color:var(--text-muted);font-size:13px;padding:8px">אין חבילות עדיין</div>';
-  } else {
-    sl.innerHTML=loadedRows.map(row=>`<div class="scanned-item"><span class="code">${escH(row.package_code||row)}</span><span>✓</span></div>`).join('');
-  }
-
-  // Missing list
-  const missing=currentLoadingSession
-    ? expected.filter(row=>row.state!=='loaded')
-    : expected.filter(code=>!scannedCodes.includes(code));
+  sl.innerHTML=loadedRows.length
+    ? loadedRows.map(row=>`<div class="scanned-item"><span class="code">${escH(row.title)} · ${escH(row.worker_card_token)}</span><span>✓</span></div>`).join('')
+    : '<div style="color:var(--text-muted);font-size:13px;padding:8px">אין כרטיסים עדיין</div>';
+  const missing=expected.filter(row=>row.state!=='loaded');
   const ml=document.getElementById('missingList');
-  if(missing.length===0){
-    ml.innerHTML='<div style="color:var(--success);font-size:13px;padding:8px;font-weight:700">כל החבילות נטענו ✓</div>';
-  } else {
-    ml.innerHTML=missing.map(row=>`<div class="missing-item">${escH(row.package_code||row)}</div>`).join('');
-  }
+  ml.innerHTML=missing.length
+    ? missing.map(row=>`<div class="missing-item">${escH(row.title)} · ${escH(row.worker_card_token)}</div>`).join('')
+    : '<div style="color:var(--success);font-size:13px;padding:8px;font-weight:700">כל הכרטיסים הועמסו ✓</div>';
 
-  // Enable confirm button
   const btn=document.getElementById('btnConfirmShip');
-  btn.disabled=currentLoadingSession
-    ? currentLoadingSession.status!=='active'||done<total
-    : !(done>0 && done>=total);
-
-  // A truck may leave with only the packages scanned in this session.  This
-  // remains unavailable until at least one package is actually on the truck;
-  // the server is still the final authority for the partial departure.
+  btn.disabled=currentLoadingSession.status!=='active'||done<total;
   const partialControls=document.getElementById('partialDepartureControls');
   const partialButton=document.getElementById('btnPartialDeparture');
-  const canPartiallyDepart=Boolean(currentLoadingSession)
-    && currentLoadingSession.status==='active'
-    && done>0
-    && missingCount>0;
+  const canPartiallyDepart=currentLoadingSession.status==='active'&&done>0&&missingCount>0;
   partialControls.style.display=canPartiallyDepart?'block':'none';
   partialButton.disabled=!canPartiallyDepart;
 }
 
+async function scanCardValue(code){
+  const value=String(code||'').trim();
+  if(!value||!currentLoadingSession)return;
+  hideAlert('scanAlert');hideAlert('scanSuccess');
+  const input=document.getElementById('scanInput');
+  try{
+    const response=await fetch(`/api/loading/card-sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/scan`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_data:value})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'card_loading_scan_failed');
+    currentLoadingSession=data.state;
+    const isGood=data.outcome==='loaded';
+    if(isGood)showAlert('scanSuccess',`✓ ${data.message}`,2500);
+    else showAlert('scanAlert',`⚠️ ${data.message}`,4000);
+    input.style.borderColor=isGood?'var(--success)':'var(--danger)';
+    setTimeout(()=>{input.style.borderColor='var(--accent)';},1600);
+    updateLoadingUI();
+    if(!activeCardLoading()){stopCardCamera();clearPersistedCardLoadingSession();}
+  }catch(error){
+    showAlert('scanAlert','לא ניתן לרשום את סריקת ההעמסה. נסה שוב.',4000);
+  }
+}
 async function doScan(){
   const input=document.getElementById('scanInput');
   const code=(input.value||'').trim();
   if(!code)return;
-  input.value='';
-  input.focus();
-  hideAlert('scanAlert');
-  hideAlert('scanSuccess');
-
-  if(currentLoadingSession){
-    try{
-      const response=await fetch(`/api/loading/sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/scan`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_data:code})});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'loading_scan_failed');
-      currentLoadingSession=data.state;
-      const isGood=data.outcome==='loaded';
-      if(isGood)showAlert('scanSuccess',`✓ ${data.message}`,2500);
-      else showAlert('scanAlert',`⚠️ ${data.message}`,4000);
-      input.style.borderColor=isGood?'var(--success)':'var(--danger)';
-      setTimeout(()=>{input.style.borderColor='var(--accent)';},1600);
-      updateLoadingUI();
-    }catch(error){
-      showAlert('scanAlert','לא ניתן לרשום את סריקת ההעמסה.',4000);
-    }
-    return;
-  }
-
-  if(!currentDelivery){return;}
-  const normalizedCode=code.toUpperCase();
-  const expected=(currentDelivery.packages||[]).map(c=>c.toUpperCase());
-
-  if(!expected.includes(normalizedCode)){
-    showAlert('scanAlert',`⚠️ חבילה "${normalizedCode}" אינה שייכת למשלוח זה!`,5000);
-    input.style.borderColor='var(--danger)';
-    setTimeout(()=>{input.style.borderColor='var(--accent)';},2000);
-    return;
-  }
-  if(scannedCodes.map(c=>c.toUpperCase()).includes(normalizedCode)){
-    showAlert('scanAlert',`חבילה "${normalizedCode}" כבר נסרקה.`,3000);
-    return;
-  }
-  scannedCodes.push(normalizedCode);
-  showAlert('scanSuccess',`✓ חבילה "${normalizedCode}" נסרקה בהצלחה`,2000);
-  updateLoadingUI();
+  input.value='';input.focus();
+  await scanCardValue(code);
 }
-
-function focusScan(){
-  document.getElementById('scanInput').focus();
-}
+function focusScan(){document.getElementById('scanInput').focus();}
 
 async function confirmShipment(){
-  if(currentLoadingSession){
-    if(!confirm(`לסיים העמסה להזמנה ${currentLoadingSession.order_num}?`))return;
-    try{
-      const response=await fetch(`/api/loading/sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok){
-        if(data.error==='packages_missing')showAlert('scanAlert',`חסרות עדיין ${data.missing_count} חבילות — אי אפשר לסיים העמסה.`,0);
-        else showAlert('scanAlert','לא ניתן לסיים את ההעמסה.',0);
-        return;
-      }
-      currentLoadingSession=data;
-      document.getElementById('btnConfirmShip').textContent='העמסה הושלמה';
-      const note=data.delivery_note?.note_num?` תעודת משלוח: ${data.delivery_note.note_num}.`:'';
-      const partial=data.departure_type==='partial';
-      showDeliveryNoteSuccess(partial
-        ? `✅ יצאה משאית חלקית להזמנה ${data.order_num}.${note}`
-        : `✅ ההעמסה להזמנה ${data.order_num} הושלמה.${note}`,data.delivery_note);
-      updateLoadingUI();
-      loadKPI();
-    }catch(error){
-      showAlert('scanAlert','לא ניתן לסיים את ההעמסה.',0);
+  if(!currentLoadingSession||!confirm(`לסיים העמסה להזמנה ${currentLoadingSession.order_num}?`))return;
+  try{
+    const response=await fetch(`/api/loading/card-sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok){
+      showAlert('scanAlert',data.error==='cards_missing'?`חסרים עדיין ${data.missing_count} כרטיסים — אי אפשר לסיים העמסה.`:'לא ניתן לסיים את ההעמסה.',0);
+      return;
     }
-    return;
-  }
-  if(!currentDelivery)return;
-  if(!confirm(`לאשר יציאת משלוח ${currentDelivery.delivery_num}?\nכל החבילות ישומנו כנשלחו.`))return;
-
-  // Ship each scanned package
-  for(const code of scannedCodes){
-    const pkg=allPackages.find(p=>p.package_code.toUpperCase()===code.toUpperCase());
-    if(pkg){
-      try{
-        await fetch(`/api/packages/${pkg.id}/ship`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({shipped_at:new Date().toISOString()})});
-      }catch(e){}
-      pkg.status='shipped';pkg.shipped_at=new Date().toISOString();
-    }
-  }
-  showAlert('scanSuccess',`✅ משלוח ${currentDelivery.delivery_num} אושר! ${scannedCodes.length} חבילות נשלחו.`,0);
-  document.getElementById('btnConfirmShip').disabled=true;
-  scannedCodes=[];
-  updateLoadingUI();
-  loadKPI();
+    useCardLoadingSession(data);
+    showDeliveryNoteSuccess(`✅ ההעמסה להזמנה ${data.order_num} הושלמה.`,data.delivery_note);
+    loadKPI();
+  }catch(_){showAlert('scanAlert','לא ניתן לסיים את ההעמסה.',0);}
 }
-
 async function confirmPartialDeparture(){
   if(!currentLoadingSession)return;
   const reason=(document.getElementById('partialDepartureReason').value||'').trim();
-  if(!reason){
-    showAlert('scanAlert','יש לציין סיבה ליציאה החלקית לפני הנפקת תעודת משלוח.',0);
-    document.getElementById('partialDepartureReason').focus();
-    return;
-  }
-  if(!confirm(`להוציא משאית עם ${currentLoadingSession.loaded_count||0} חבילות בלבד? יתרת ההזמנה תישאר למשאית הבאה.`))return;
-  const button=document.getElementById('btnPartialDeparture');
-  button.disabled=true;
+  if(!reason){showAlert('scanAlert','יש לציין סיבה ליציאה החלקית לפני הנפקת תעודת משלוח.',0);return;}
+  if(!confirm(`להוציא משאית עם ${currentLoadingSession.loaded_count||0} כרטיסים בלבד? היתרה תישאר למשאית הבאה.`))return;
+  const button=document.getElementById('btnPartialDeparture');button.disabled=true;
   try{
-    const response=await fetch(`/api/loading/sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/partial-departure`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({reason}),
-    });
+    const response=await fetch(`/api/loading/card-sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/partial-departure`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok){
-      const messages={
-        partial_departure_reason_required:'יש לציין סיבה ליציאה החלקית.',
-        no_loaded_packages:'לא נסרקה אף חבילה למשאית זו.',
-        all_packages_loaded_use_complete:'כל החבילות נסרקו — יש לאשר יציאה מלאה.',
-      };
-      showAlert('scanAlert',messages[data.error]||'לא ניתן לאשר יציאה חלקית.',0);
-      return;
+      const messages={partial_departure_reason_required:'יש לציין סיבה ליציאה החלקית.',no_loaded_cards:'לא נסרק אף כרטיס למשאית זו.',all_cards_loaded_use_complete:'כל הכרטיסים נסרקו — יש להשלים העמסה מלאה.'};
+      showAlert('scanAlert',messages[data.error]||'לא ניתן לאשר יציאה חלקית.',0);return;
     }
-    currentLoadingSession=data;
-    document.getElementById('btnConfirmShip').textContent='העמסה הושלמה';
-    const note=data.delivery_note?.note_num||'—';
-    showDeliveryNoteSuccess(`✅ יציאה חלקית אושרה. הונפקה תעודת משלוח ${note}; היתרה נשארה למשאית הבאה.`,data.delivery_note);
-    updateLoadingUI();
+    useCardLoadingSession(data);
+    showDeliveryNoteSuccess(`✅ יציאה חלקית אושרה. הונפקה תעודת משלוח ${data.delivery_note?.note_num||'—'}; היתרה נשארה למשאית הבאה.`,data.delivery_note);
     loadKPI();
-  }catch(error){
-    showAlert('scanAlert','לא ניתן לאשר יציאה חלקית.',0);
-  }finally{
-    button.disabled=false;
-  }
+  }catch(_){showAlert('scanAlert','לא ניתן לאשר יציאה חלקית.',0);}finally{button.disabled=false;}
 }
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&activeCardLoading()){
+    requestScreenWakeLock();
+    resumeCardCamera({quiet:true});
+  }
+});
+window.addEventListener('pagehide',()=>stopCardCamera());
 
 // ─── INIT ─────────────────────────────────────────────────────────────
 loadKPI();
 const loadingOrderFromQr=new URLSearchParams(location.search).get('load_order');
 if(loadingOrderFromQr){
   showTab('loading');
-  initOrderLoadingFromQr(loadingOrderFromQr);
+  startCardLoadingSession(loadingOrderFromQr);
+}else{
+  const saved=(()=>{try{return JSON.parse(localStorage.getItem(CARD_LOADING_STORAGE_KEY)||'null');}catch(_){return null;}})();
+  if(saved?.sessionUid)restoreCardLoadingSession(saved.sessionUid,{quiet:true}).then(restored=>{
+    if(restored)showTab('loading');
+  });
 }
 </script>
 

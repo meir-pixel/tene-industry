@@ -155,7 +155,10 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
   // The order QR opens the live production sheet first. That sheet shows the
   // server-derived state of every production card and hands off to the
   // warehouse's explicit loading confirmation only when the user chooses it.
-  const fullOrderPath = '/production-order-sheet.html?order=' + encodeURIComponent(order.id);
+  // Scanning the QR printed on the order sheet starts (or restores) the
+  // persisted card-loading session directly.  The worker scans the existing
+  // production-card QRs next; no second package label is created.
+  const fullOrderPath = '/warehouse.html?load_order=' + encodeURIComponent(order.id) + '&autostart=1';
   const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
   const protocol = forwardedProto || req.protocol || 'https';
   const fullOrderUrl = `${protocol}://${req.get('host')}${fullOrderPath}`;

@@ -154,7 +154,7 @@ test('live order production sheet projects real item, material and canonical pil
   assert.equal(sheet.order.order_num, 'LIVE-PROD-1');
   assert.equal(sheet.may_start_loading, true);
   assert.equal(sheet.loading_state, 'ready_to_start');
-  assert.equal(sheet.loading_entry_url, `/warehouse.html?load_order=${orderId}`);
+  assert.equal(sheet.loading_entry_url, `/warehouse.html?load_order=${orderId}&autostart=1`);
   assert.ok(sheet.cards.some(card => card.state.code === 'completed'));
   assert.ok(sheet.cards.some(card => card.state.code === 'in_production'));
   const shortage = sheet.cards.find(card => card.state.code === 'material_shortage');

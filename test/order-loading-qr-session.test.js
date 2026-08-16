@@ -98,7 +98,7 @@ test('order-sheet QR opens the live production sheet while package loading remai
   const printResponse = await request(`/api/orders/${orderId}/print-a4`, { headers: authHeaders(office) });
   assert.equal(printResponse.status, 200);
   const printHtml = await printResponse.text();
-  assert.match(printHtml, new RegExp(`production-order-sheet[.]html[?]order=${orderId}`));
+  assert.match(printHtml, new RegExp(`warehouse[.]html[?]load_order=${orderId}&autostart=1`));
   assert.match(printHtml, /<img src="data:image\/png;base64,/);
   assert.doesNotMatch(printHtml, /cdn[.]jsdelivr[.]net\/npm\/qrcode/);
   assert.doesNotMatch(printHtml, />QR<\/div>/);

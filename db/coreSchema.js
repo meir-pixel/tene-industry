@@ -158,6 +158,54 @@ function ensureMaterialConsumptionV2Schema(db) {
   `);
 }
 
+// The worker-card QR is the physical loading identifier.  These rows freeze
+// the issued card projection at the start of one truck-loading session while
+// leaving the older package ledger intact for historical documents only.
+function ensureProductionCardLoadingSchema(db) {
+  ensureColumn(db, 'order_loading_sessions', 'scan_unit', "TEXT NOT NULL DEFAULT 'package' CHECK (scan_unit IN ('package','production_card'))");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS order_loading_session_cards (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id        INTEGER NOT NULL,
+      card_key          TEXT NOT NULL,
+      worker_card_token TEXT NOT NULL,
+      parent_item_id    INTEGER NOT NULL,
+      title             TEXT NOT NULL,
+      quantity          REAL NOT NULL DEFAULT 0,
+      weight            REAL NOT NULL DEFAULT 0,
+      diameter_mm       REAL,
+      total_length_mm   REAL,
+      state             TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','loaded')),
+      loaded_by         INTEGER,
+      loaded_at         DATETIME,
+      FOREIGN KEY (session_id) REFERENCES order_loading_sessions(id),
+      FOREIGN KEY (parent_item_id) REFERENCES items(id),
+      FOREIGN KEY (loaded_by) REFERENCES users(id),
+      UNIQUE(session_id, card_key),
+      UNIQUE(session_id, worker_card_token)
+    );
+    CREATE INDEX IF NOT EXISTS idx_loading_session_cards_session
+      ON order_loading_session_cards(session_id, state);
+    CREATE INDEX IF NOT EXISTS idx_loading_session_cards_token
+      ON order_loading_session_cards(worker_card_token);
+
+    CREATE TABLE IF NOT EXISTS order_loading_card_events (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id        INTEGER NOT NULL,
+      event_type        TEXT NOT NULL,
+      card_key          TEXT,
+      scanned_value     TEXT,
+      actor_id          INTEGER,
+      details_json      JSON,
+      created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (session_id) REFERENCES order_loading_sessions(id),
+      FOREIGN KEY (actor_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_loading_card_events_session
+      ON order_loading_card_events(session_id, created_at);
+  `);
+}
+
 function ensurePendingRawMaterialReceiptV2Schema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS pending_raw_material_receipts_v2 (
@@ -1429,6 +1477,7 @@ function ensureCoreSchema(db) {
   ensureMaterialConsumptionV2Schema(db);
   ensurePendingRawMaterialReceiptV2Schema(db);
   ensureProcurementRecommendationV2Schema(db);
+  ensureProductionCardLoadingSchema(db);
 
   // A completed loading session is one physical truck departure.  These
   // additive columns keep the delivery note and partial/full outcome
@@ -1456,4 +1505,5 @@ module.exports = {
   ensureMaterialConsumptionV2Schema,
   ensurePendingRawMaterialReceiptV2Schema,
   ensureProcurementRecommendationV2Schema,
+  ensureProductionCardLoadingSchema,
 };
