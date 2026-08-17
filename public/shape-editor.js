@@ -70,11 +70,11 @@ function shapePresetIconSVG(kind) {
     polygon: `<path ${stroke} d="M50 16 L78 32 V66 L50 82 L22 66 V32 Z"/>`,
     w: `<path ${stroke} d="M16 25 L31 74 L50 38 L69 74 L84 25"/>`,
     c: `<path ${stroke} d="M77 24 H31 V74 H77"/>`,
-    bench: `<path ${stroke} d="M12 78 L30 64 V30 H70 V64 L88 78"/>`,
+    bench: `<path ${stroke} d="M18 82 L31 58 V28 H69 V62 L89 78"/>`,
     mesh: `<path ${thin} d="M20 24 H82 M20 40 H82 M20 56 H82 M20 72 H82 M28 16 V80 M44 16 V80 M60 16 V80 M76 16 V80"/>`,
     pile: `<circle cx="50" cy="50" r="30" ${thin}/><circle cx="50" cy="50" r="21" ${thin} opacity=".45"/>${dot(50, 20)}${dot(71, 29)}${dot(80, 50)}${dot(71, 71)}${dot(50, 80)}${dot(29, 71)}${dot(20, 50)}${dot(29, 29)}`,
-    spiral: `<path ${thin} d="M50 82 C22 82 14 68 14 58 C14 44 26 36 38 36 C52 36 58 46 58 54 C58 64 50 70 42 70 C34 70 30 64 30 58 C30 52 36 48 42 48 C48 48 52 52 52 56"/>`,
-    ring: `<path ${thin} d="M28 64 A30 30 0 1 1 30 34 M28 64 A30 30 0 0 0 57 79"/>`,
+    spiral: `<path ${thin} d="M39 84 A36 36 0 1 1 67 80"/><circle cx="50" cy="48" r="26" ${thin}/><circle cx="50" cy="48" r="16" ${thin}/><path ${thin} d="M50 40 A8 8 0 1 1 42 48"/><path stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" d="M12 48 H88 M12 42 V54 M88 42 V54"/>`,
+    ring: `<circle cx="50" cy="48" r="28" ${thin}/><path ${thin} d="M30 68 C37 76 47 80 59 77"/>`,
     custom: `<path ${stroke} d="M24 70 L34 50 L62 22 L78 38 L50 66 Z"/><path ${thin} d="M58 26 L74 42"/>`,
   };
   return `<svg viewBox="0 0 100 100" aria-hidden="true">${icons[kind] || icons.straight}</svg>`;

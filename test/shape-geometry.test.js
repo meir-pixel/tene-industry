@@ -109,6 +109,7 @@ test('bench preset opens as real 3D and keeps the schedule elevation in every 2D
 
   assert.match(editor, /id: 's15'.*name: 'ספסל'.*sides: \[280, 170, 300, 170, 280\].*is3d: 1.*azAngles: \[0, 90, 90, 90, 90\].*elAngles: \[90, 0, 0, 0, 90\].*shapeType: 'bench_bar'/);
   assert.match(editor, /data-edit-family="bench"[^>]*>[^\n]*<span>ספסל<\/span>/);
+  assert.match(editor, /bench: `<path \$\{stroke\} d="M18 82 L31 58 V28 H69 V62 L89 78"\/>`/);
   assert.match(editor, /family === 'bench'.*SHAPE_PRESETS\.find\(isBenchBarShape\)/);
   assert.match(editor, /if \(isReal3D\) window\.seSetView\?\.\('3d'\)/);
   assert.match(editor, /diameter:\s+Number\(preset\.diameter \?\? this\.current\?\.diameter \?\? this\._pendingDiameter/);
@@ -477,8 +478,22 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=63/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=62/);
+  assert.match(index, /shape-editor\.js\?v=64/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=63/);
+});
+
+test('standalone ring family icon reads as a closed circular ring with overlap', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /ring: `<circle cx="50" cy="48" r="28" \$\{thin\}\/><path \$\{thin\} d="M30 68 C37 76 47 80 59 77"\/>`/);
+  assert.doesNotMatch(editor, /ring: `<path \$\{thin\} d="M28 64 A30 30/);
+});
+
+test('spiral family icon reads as a multi-turn coil with a diameter line', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /spiral: `<path \$\{thin\} d="M39 84 A36 36 0 1 1 67 80"\/><circle cx="50" cy="48" r="26"/);
+  assert.match(editor, /M12 48 H88 M12 42 V54 M88 42 V54/);
 });
 
 test('standalone ring editor keeps overlap in the Shape V2 cut length', () => {
