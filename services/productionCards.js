@@ -256,7 +256,7 @@ function calcShapePoints(sides, angles) {
   return points;
 }
 
-function normalizeShapePointsBaseBottom(points) {
+function normalizeShapePointsBaseBottom(points, opts = {}) {
   if (!Array.isArray(points) || points.length < 2) return points;
   let longest = { index: 0, length: 0, angle: 0 };
   for (let i = 0; i < points.length - 1; i += 1) {
@@ -275,6 +275,21 @@ function normalizeShapePointsBaseBottom(points) {
   const baseY = (base[1] + baseNext[1]) / 2;
   const bodyY = rotated.reduce((sum, point) => sum + point[1], 0) / rotated.length;
   if (bodyY > baseY) rotated = rotated.map(([x, y]) => [x, baseY + (baseY - y)]);
+  const rotateDegrees = Number(opts.rotateDegrees || 0);
+  if (rotateDegrees) {
+    const xs = rotated.map(point => point[0]);
+    const ys = rotated.map(point => point[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const radians = rotateDegrees * Math.PI / 180;
+    const rotateCos = Math.cos(radians);
+    const rotateSin = Math.sin(radians);
+    rotated = rotated.map(([x, y]) => {
+      const dx = x - cx;
+      const dy = y - cy;
+      return [cx + dx * rotateCos - dy * rotateSin, cy + dx * rotateSin + dy * rotateCos];
+    });
+  }
   return rotated;
 }
 
@@ -434,6 +449,17 @@ function shapeSnapshotFromItem(item = {}) {
   return parseJsonObject(item.shape_snapshot_json || item.shapeSnapshot || item.shape_snapshot || item.shapeData || item.shape_data) || {};
 }
 
+function isBenchBarItem(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item);
+  const data = snapshot.data || {};
+  const shapeType = item.shapeType || item.shape_type || snapshot.shapeType || data.shapeType;
+  const presetId = item.shapeId || item.shape_id || item.presetId || item.preset_id;
+  const name = item.shape_name || item.shapeName || item.shape || snapshot.displayName || '';
+  return shapeType === 'bench_bar'
+    || presetId === 's15'
+    || /^\s*(?:ספסל|bench)\s*$/i.test(String(name));
+}
+
 function normalizeSnapshotSegments(segments) {
   if (!Array.isArray(segments)) return [];
   return segments.map(segment => ({
@@ -511,6 +537,7 @@ function spiralParamsFromItem(item = {}) {
   const spiralDiameterMm = Number(
     item.spiral_diameter_mm ?? item.spiralDiameterMm ?? item.spiralDiameter ??
     snapshot.spiralDiameterMm ?? snapshot.spiral_diameter_mm ??
+    data.ringDiameterMm ?? data.bendingDiameterMm ??
     data.spiral?.diameterMm ?? data.spiral?.diameter ??
     data.spiralDiameterMm ?? data.spiralDiameter ?? data.spiral_diameter_mm ??
     generic.spiralDiameterMm ?? generic.spiralDiameter ?? 0
@@ -525,11 +552,14 @@ function spiralParamsFromItem(item = {}) {
   const name = item.shape_name || item.shapeName || item.shape || snapshot.shapeName || snapshot.displayName || snapshot.shapeType || snapshot.shapeId;
   const family = item.family || snapshot.family || data.family || generic.family;
   const shapeType = item.shapeType || snapshot.shapeType || data.shapeType || generic.shapeType;
+  const overlapMm = Number(data.overlapMm ?? data.overlap ?? generic.overlapMm ?? item.overlapMm ?? item.overlap ?? 0);
   const isSpiral = isSpiralName(name) || isSpiralName(shapeType) || family === 'spirals';
   return {
     isSpiral: isSpiral && Number.isFinite(spiralDiameterMm) && spiralDiameterMm > 0 && Number.isFinite(turns) && turns > 0,
     spiralDiameterMm,
     turns,
+    shapeType,
+    overlapMm: Number.isFinite(overlapMm) ? Math.max(0, overlapMm) : 0,
   };
 }
 
@@ -540,7 +570,7 @@ function spiralShapeSvg(item = {}) {
   const height = 118;
   const spiralDiameterLabel = Math.round(spiral.spiralDiameterMm);
   const turnsLabel = Math.round(spiral.turns);
-  const isRing = spiral.turns <= 1.5;
+  const isRing = spiral.shapeType === 'ring' || spiral.turns <= 1.5;
 
   // \u2500\u2500 RING (1 turn): draw circle with diameter line \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   if (isRing) {
@@ -550,6 +580,9 @@ function spiralShapeSvg(item = {}) {
     // circle
     svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#1a2332" stroke-width="4"/>`;
     svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#3a5070" stroke-width="1.5"/>`;
+    if (spiral.overlapMm > 0) {
+      svg += `<path d="M ${cx + r - 5} ${cy - 18} A ${r} ${r} 0 0 1 ${cx + r - 5} ${cy + 18}" fill="none" stroke="#c9621a" stroke-width="4" stroke-linecap="round"/>`;
+    }
     // diameter dimension line
     svg += `<line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-rl)" marker-end="url(#arr-r)"/>`;
     svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
@@ -558,9 +591,9 @@ function spiralShapeSvg(item = {}) {
     svg += `<rect x="34" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
     svg += `<text x="73" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
     svg += `<rect x="128" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
-    svg += `<text x="167" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">1 \u05db\u05e8\u05d9\u05db\u05d4</text>`;
+    svg += `<text x="167" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">${spiral.overlapMm > 0 ? `\u05d7\u05e4\u05d9\u05e4\u05d4 ${Math.round(spiral.overlapMm / 10)} \u05e1\u05f4\u05de` : `1 \u05db\u05e8\u05d9\u05db\u05d4`}</text>`;
     svg += `</g>`;
-    return `<svg data-shape-kind="ring" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
+    return `<svg data-shape-kind="ring" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-ring-overlap-mm="${Math.round(spiral.overlapMm)}" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
   }
 
   // \u2500\u2500 SPIRAL (>1 turn): circle with the diameter inside \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -588,7 +621,11 @@ function spiralShapeSvg(item = {}) {
 function itemShapeSvg(item = {}) {
   if (isRoundPileCageItem(item)) return pileCageProductionSvg(item);
   const spiralSvg = spiralShapeSvg(item);
-  return spiralSvg || shapeSvg(shapeSegmentsFromItem(item));
+  const isBench = isBenchBarItem(item);
+  return spiralSvg || shapeSvg(shapeSegmentsFromItem(item), {
+    rotateDegrees: isBench ? 180 : 0,
+    shapeKind: isBench ? 'bench-bar' : 'generic-bar',
+  });
 }
 
 function openUShapeSvg(segments) {
@@ -733,7 +770,7 @@ function angledOpenStirrupSvg(parts) {
 
   return '<svg data-shape-kind="angled-open-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + svg + '</svg>';
 }
-function shapeSvg(segmentsRaw) {
+function shapeSvg(segmentsRaw, opts = {}) {
   try {
     const segments = parseSegments(segmentsRaw);
     const width = 260;
@@ -755,7 +792,7 @@ function shapeSvg(segmentsRaw) {
     const sides = segments.map(segment => Number(segment.length_mm || 0));
     const angles = segments.map(segment => segment.angle_deg);
     const visualSides = proportionalPrintSides(sides);
-    const points = normalizeShapePointsBaseBottom(calcShapePoints(visualSides, angles));
+    const points = normalizeShapePointsBaseBottom(calcShapePoints(visualSides, angles), opts);
 
     const xs = points.map(point => point[0]);
     const ys = points.map(point => point[1]);
@@ -788,7 +825,7 @@ function shapeSvg(segmentsRaw) {
       }
     }
 
-    return `<svg data-shape-kind="generic-bar" data-scale-mode="print-fit" data-proportional-short-bends="1" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
+    return `<svg data-shape-kind="${opts.shapeKind || 'generic-bar'}" data-scale-mode="print-fit" data-proportional-short-bends="1" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
   } catch {
     return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
   }
