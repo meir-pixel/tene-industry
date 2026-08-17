@@ -109,7 +109,12 @@ test('bench preset opens as real 3D and keeps the schedule elevation in every 2D
 
   assert.match(editor, /id: 's15'.*name: 'ספסל'.*sides: \[280, 170, 300, 170, 280\].*is3d: 1.*azAngles: \[0, 90, 90, 90, 90\].*elAngles: \[90, 0, 0, 0, 90\].*shapeType: 'bench_bar'/);
   assert.match(editor, /data-edit-family="bench"[^>]*>[^\n]*<span>ספסל<\/span>/);
-  assert.match(editor, /bench: `<path \$\{stroke\} d="M18 82 L31 58 V28 H69 V62 L89 78"\/>`/);
+  assert.match(editor, /bench: `<path \$\{stroke\} d="M10 38 L31 64 V28 H69 V62 L89 78"\/>`/);
+  const acuteVertex = [31, 64];
+  const incomingRay = [10 - acuteVertex[0], 38 - acuteVertex[1]];
+  const outgoingRay = [31 - acuteVertex[0], 28 - acuteVertex[1]];
+  const interiorDotProduct = incomingRay[0] * outgoingRay[0] + incomingRay[1] * outgoingRay[1];
+  assert.ok(interiorDotProduct > 0, 'expected the left bench icon corner to be acute, not obtuse');
   assert.match(editor, /family === 'bench'.*SHAPE_PRESETS\.find\(isBenchBarShape\)/);
   assert.match(editor, /if \(isReal3D\) window\.seSetView\?\.\('3d'\)/);
   assert.match(editor, /diameter:\s+Number\(preset\.diameter \?\? this\.current\?\.diameter \?\? this\._pendingDiameter/);
@@ -478,8 +483,8 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=65/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=(?:62|63|64)/);
+  assert.match(index, /shape-editor\.js\?v=66/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=(?:62|63|64|65)/);
 });
 
 test('standalone ring family icon reads as a closed circular ring with overlap', () => {
