@@ -104,8 +104,8 @@ test('production card split does not add a generic split master card', () => {
   assert.match(orderPrintA4Route, /byBucket/);
   assert.doesNotMatch(orderPrintA4Route, /byDiameter/);
   assert.doesNotMatch(orderPrintA4Route, /diameterRows/);
-  assert.match(orderPrintA4Route, /משקל חיתוך/);
-  assert.match(orderPrintA4Route, /משקל כיפוף/);
+  assert.match(orderPrintA4Route, /סה"כ לחיתוך/);
+  assert.match(orderPrintA4Route, /מתוכם לכיפוף/);
   assert.match(productionCardsRoute, /data-worker-card-url/);
   assert.match(productionCardsRoute, /worker-visual\.html\?scan=1&card=/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);

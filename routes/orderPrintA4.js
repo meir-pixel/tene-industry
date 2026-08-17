@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const QRCode = require('qrcode');
+const canonicalProductionCards = require('../services/productionCards');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orderPrintA4 missing dependency: ${name}`);
@@ -21,45 +22,120 @@ function formatPrintNumber(value, digits = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-function productionBucketForA4Item(item, segments, snapshot) {
+function productionFamilyForA4Item(item, snapshot) {
   const text = [item.shape_name, item.struct_element, snapshot && snapshot.kind, snapshot && snapshot.type, snapshot && snapshot.family]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
   if (/mesh|wire|רשת/.test(text)) return 'mesh';
   if (/cage|pile|כלוב|כלונס/.test(text)) return 'cage';
-  return Array.isArray(segments) && segments.length > 1 ? 'bending' : 'cutting';
+  return 'rebar';
+}
+
+function hasA4ProductionBend(segments) {
+  return Array.isArray(segments)
+    && segments.length > 1
+    && segments.slice(0, -1).some(segment => canonicalProductionCards.isPrintableBendAngle(segment.angle_deg));
+}
+
+function isFullStockStraightLength(totalLengthMm) {
+  const length = Number(totalLengthMm);
+  return Number.isFinite(length)
+    && (Math.abs(length - 6000) < 0.001 || Math.abs(length - 12000) < 0.001);
 }
 
 function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
-  const totals = { quantity: 0, weight: 0, lengthMm: 0, cuttingWeight: 0, bendingWeight: 0, meshWeight: 0, cageWeight: 0 };
+  const totals = {
+    quantity: 0,
+    weight: 0,
+    lengthMm: 0,
+    cuttingQuantity: 0,
+    cuttingWeight: 0,
+    cuttingLengthMm: 0,
+    bendingQuantity: 0,
+    bendingWeight: 0,
+    bendingLengthMm: 0,
+    straightCutQuantity: 0,
+    straightCutWeight: 0,
+    straightCutLengthMm: 0,
+    straightStockQuantity: 0,
+    straightStockWeight: 0,
+    straightStockLengthMm: 0,
+    meshWeight: 0,
+    cageWeight: 0,
+  };
   const bucketLabels = {
-    cutting: '\u05d7\u05d9\u05ea\u05d5\u05da / \u05de\u05d5\u05d8\u05d5\u05ea \u05d9\u05e9\u05e8\u05d9\u05dd',
-    bending: '\u05db\u05d9\u05e4\u05d5\u05e3',
+    cutting: '\u05d7\u05d9\u05ea\u05d5\u05da \u2014 \u05db\u05d5\u05dc\u05dc \u05de\u05d5\u05d8\u05d5\u05ea \u05dc\u05db\u05d9\u05e4\u05d5\u05e3',
+    bending: '\u05db\u05d9\u05e4\u05d5\u05e3 \u2014 \u05de\u05ea\u05d5\u05da \u05d4\u05d7\u05d9\u05ea\u05d5\u05da',
+    straightCut: '\u05de\u05d5\u05d8\u05d5\u05ea \u05d9\u05e9\u05e8\u05d9\u05dd \u05dc\u05d7\u05d9\u05ea\u05d5\u05da \u2014 \u05dc\u05dc\u05d0 \u05db\u05d9\u05e4\u05d5\u05e3',
+    straightStock: '\u05de\u05d5\u05d8\u05d5\u05ea \u05d9\u05e9\u05e8\u05d9\u05dd 6/12 \u05de\u05f3 \u2014 \u05dc\u05dc\u05d0 \u05d7\u05d9\u05ea\u05d5\u05da',
     mesh: '\u05e8\u05e9\u05ea\u05d5\u05ea',
     cage: '\u05db\u05dc\u05d5\u05d1\u05d9\u05dd / \u05db\u05dc\u05d5\u05e0\u05e1\u05d0\u05d5\u05ea',
   };
   const byBucket = new Map();
 
-  allItems.forEach((item) => {
-    const qty = Number(item.quantity || 0);
-    const weight = Number(item.total_weight || 0);
-    const lengthMm = Number(item.total_length_mm || 0) * qty;
-    const segments = tryParseJSON(item.segments, []);
-    const snapshot = tryParseJSON(item.shape_snapshot_json || item.shapeSnapshot, {}) || {};
-    const bucket = productionBucketForA4Item(item, segments, snapshot);
-
-    totals.quantity += qty;
-    totals.weight += weight;
-    totals.lengthMm += lengthMm;
-    totals[bucket + 'Weight'] += weight;
-
+  const addToBucket = (bucket, qty, weight, lengthMm) => {
     const row = byBucket.get(bucket) || { quantity: 0, weight: 0, lengthMm: 0, items: 0 };
     row.quantity += qty;
     row.weight += weight;
     row.lengthMm += lengthMm;
     row.items += 1;
     byBucket.set(bucket, row);
+  };
+
+  allItems.forEach((item) => {
+    const qty = Number(item.quantity || 0);
+    const weight = Number(item.total_weight || 0);
+    const unitLengthMm = Number(item.total_length_mm || 0);
+    const lengthMm = unitLengthMm * qty;
+    const segments = tryParseJSON(item.segments, []);
+    const snapshot = tryParseJSON(item.shape_snapshot_json || item.shapeSnapshot, {}) || {};
+    const family = productionFamilyForA4Item(item, snapshot);
+
+    totals.quantity += qty;
+    totals.weight += weight;
+    totals.lengthMm += lengthMm;
+
+    if (family === 'mesh' || family === 'cage') {
+      totals[family + 'Weight'] += weight;
+      addToBucket(family, qty, weight, lengthMm);
+      return;
+    }
+
+    // A bent item is one bending operation per produced bar, no matter how
+    // many bends its geometry contains. It is also always cut to its developed
+    // length before bending, including when that length happens to be 6/12 m.
+    if (hasA4ProductionBend(segments)) {
+      totals.cuttingQuantity += qty;
+      totals.cuttingWeight += weight;
+      totals.cuttingLengthMm += lengthMm;
+      totals.bendingQuantity += qty;
+      totals.bendingWeight += weight;
+      totals.bendingLengthMm += lengthMm;
+      addToBucket('cutting', qty, weight, lengthMm);
+      addToBucket('bending', qty, weight, lengthMm);
+      return;
+    }
+
+    // A straight bar is a cutting operation only if it is not supplied at a
+    // commercial full-stock length. 6 m and 12 m straight stock remains visible
+    // as a separate, explicitly non-cut category for reconciliation.
+    if (isFullStockStraightLength(unitLengthMm)) {
+      totals.straightStockQuantity += qty;
+      totals.straightStockWeight += weight;
+      totals.straightStockLengthMm += lengthMm;
+      addToBucket('straightStock', qty, weight, lengthMm);
+      return;
+    }
+
+    totals.cuttingQuantity += qty;
+    totals.cuttingWeight += weight;
+    totals.cuttingLengthMm += lengthMm;
+    totals.straightCutQuantity += qty;
+    totals.straightCutWeight += weight;
+    totals.straightCutLengthMm += lengthMm;
+    addToBucket('cutting', qty, weight, lengthMm);
+    addToBucket('straightCut', qty, weight, lengthMm);
   });
 
   const optionalWeightRows = [
@@ -72,7 +148,7 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
     .filter(Boolean)
     .join('');
 
-  const bucketRows = ['cutting', 'bending', 'mesh', 'cage']
+  const bucketRows = ['cutting', 'bending', 'straightCut', 'straightStock', 'mesh', 'cage']
     .map((bucket) => {
       const row = byBucket.get(bucket);
       if (!row || row.weight <= 0) return '';
@@ -315,12 +391,12 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
   <!-- Production summary -->
   <div class="production-summary">
     <div class="prod-summary-box">
-      <h2>סיכום משקלים לייצור</h2>
+      <h2>סיכום פעולות ייצור</h2>
       <div class="prod-summary-grid">
-        <div><span>כמות / מוטות</span><b>${formatPrintNumber(productionSummary.totals.quantity, 0)}</b></div>
-        <div><span>אורך כולל</span><b>${formatPrintNumber(productionSummary.totals.lengthMm / 1000, 2)} מ</b></div>
-        <div><span>משקל חיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} קג</b></div>
-        <div><span>משקל כיפוף</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} קג</b></div>
+        <div><span>סה"כ לחיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingQuantity, 0)} יח</b></div>
+        <div><span>אורך לחיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingLengthMm / 1000, 2)} מ</b></div>
+        <div><span>משקל לחיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} קג</b></div>
+        <div><span>מתוכם לכיפוף</span><b>${formatPrintNumber(productionSummary.totals.bendingQuantity, 0)} יח<br>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} קג</b></div>
       </div>
       ${productionSummary.optionalWeightRows ? '<table class="prod-breakdown"><tbody>' + productionSummary.optionalWeightRows + '</tbody></table>' : ''}
       <div class="prod-notes"><b>הערות:</b> ${productionSummary.notes}</div>
