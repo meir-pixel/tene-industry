@@ -37,7 +37,7 @@ const SHAPE_PRESETS = [
   { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, edgeLeft: 0, edgeRight: 0, edgeTop: 0, edgeBottom: 0, emoji: '#', specialty: 'mesh' },
   { id: 'round-pile-cage', name: 'כלוב כלונס עגול', family: 'piles', icon: 'pile', bends: 0, roundPileCage: true, pileDiameter: 60, pileLength: 1200, longitudinalBars: 10, longitudinalDiameter: 20, straightBarCount: 5, bentBarCount: 5, straightBarLength: 1200, bentBarLength: 1220, bendLength: 20, barPattern: 'alternate', spiralDiameter: 8, spiralOuterDiameter: 48, spiralPitch: 15, spiralZones: [{ length: 1180, pitch: 15 }], hoopsEnabled: true, hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30, emoji: '◎', specialty: 'pile' },
   { id: 'spiral1', name: 'ספיראלה', family: 'spirals', icon: 'spiral', bends: 0, barDiameter: 8, spiralDiameter: 400, turns: 20, emoji: '🌀', specialty: 'spiral' },
-  { id: 'ring1',   name: 'טבעת',    family: 'spirals', icon: 'spiral', bends: 0, barDiameter: 8, spiralDiameter: 400, turns: 1,  emoji: '⭕', specialty: 'spiral' },
+  { id: 'ring1', name: 'טבעת עגולה', family: 'spirals', icon: 'ring', bends: 0, barDiameter: 18, ringDiameter: 420, spiralDiameter: 420, overlap: 200, turns: 1, shapeType: 'ring', emoji: '⭕', specialty: 'ring' },
   { id: 's12', name: 'צורה מותאמת',  family: 'bars', icon: 'custom', bends: 0, sides: [500],                          angles: [],                    emoji: '✏️', custom: true },
 ];
 
@@ -72,9 +72,17 @@ function shapePresetIconSVG(kind) {
     mesh: `<path ${thin} d="M20 24 H82 M20 40 H82 M20 56 H82 M20 72 H82 M28 16 V80 M44 16 V80 M60 16 V80 M76 16 V80"/>`,
     pile: `<circle cx="50" cy="50" r="30" ${thin}/><circle cx="50" cy="50" r="21" ${thin} opacity=".45"/>${dot(50, 20)}${dot(71, 29)}${dot(80, 50)}${dot(71, 71)}${dot(50, 80)}${dot(29, 71)}${dot(20, 50)}${dot(29, 29)}`,
     spiral: `<path ${thin} d="M50 82 C22 82 14 68 14 58 C14 44 26 36 38 36 C52 36 58 46 58 54 C58 64 50 70 42 70 C34 70 30 64 30 58 C30 52 36 48 42 48 C48 48 52 52 52 56"/>`,
+    ring: `<path ${thin} d="M28 64 A30 30 0 1 1 30 34 M28 64 A30 30 0 0 0 57 79"/>`,
     custom: `<path ${stroke} d="M24 70 L34 50 L62 22 L78 38 L50 66 Z"/><path ${thin} d="M58 26 L74 42"/>`,
   };
   return `<svg viewBox="0 0 100 100" aria-hidden="true">${icons[kind] || icons.straight}</svg>`;
+}
+
+function isStandaloneRingShape(shape = {}) {
+  return shape?.specialty === 'ring'
+    || shape?.shapeType === 'ring'
+    || shape?.presetId === 'ring1'
+    || shape?.id === 'ring1';
 }
 
 // ── GEOMETRY ──────────────────────────────────────────────────────
@@ -1153,10 +1161,45 @@ SpiralEngine.render = function(spiral, w = 300, h = 260) {
   </g>`;
 };
 
+function RingEngine() {}
+RingEngine.render = function(ring, w = 300, h = 260) {
+  const barDia = Math.max(1, Number(ring?.barDiameter || ring?.barDiameterMm || 18));
+  const ringDia = Math.max(1, Number(ring?.ringDiameter || ring?.ringDiameterMm || ring?.bendingDiameterMm || ring?.spiralDiameter || 420));
+  const overlap = Math.max(0, Number(ring?.overlap || ring?.overlapMm || 0));
+  const circumferenceMm = Math.round(Math.PI * ringDia);
+  const totalLengthMm = Math.round(circumferenceMm + overlap);
+  const compact = w <= 140 || h <= 100;
+  const cx = w / 2;
+  const cy = compact ? h * 0.46 : h * 0.43;
+  const r = Math.max(16, Math.min((w - 60) / 2, (h - (compact ? 24 : 92)) / 2, compact ? 30 : 78));
+  const barW = Math.max(2.4, Math.min(9, barDia * 0.28));
+  const circleLength = 2 * Math.PI * r;
+  const gapPx = Math.max(10, Math.min(24, r * 0.3));
+  const overlapArc = `M ${(cx - r * 0.88).toFixed(1)} ${(cy + r * 0.46).toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 0 0 ${(cx - r * 0.18).toFixed(1)} ${(cy + r * 0.98).toFixed(1)}`;
+  const overlapPath = overlap > 0
+    ? `<path data-se-focus="ring-overlap" d="${overlapArc}" fill="none" stroke="#3d5e78" stroke-width="${barW.toFixed(1)}" stroke-linecap="round"/>`
+    : '';
+  const dimensionY = cy;
+  const labels = compact ? '' : `<g font-family="Heebo,Arial">
+    <text data-se-focus="ring-diameter" x="${cx.toFixed(1)}" y="${(cy - 7).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="900" fill="#c9621a">Ø ${(ringDia / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 })} ס״מ</text>
+    <text data-se-focus="ring-overlap" x="${(cx - r - 12).toFixed(1)}" y="${(cy + r * 0.82).toFixed(1)}" text-anchor="end" font-size="10" font-weight="900" fill="#c9621a">חפיפה ${(overlap / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 })} ס״מ</text>
+    <text x="${cx.toFixed(1)}" y="${(h - 28).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#526070">היקף ${(circumferenceMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 })} ס״מ</text>
+    <text x="${cx.toFixed(1)}" y="${(h - 10).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="900" fill="#15803d">אורך חיתוך ${(totalLengthMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 })} ס״מ</text>
+  </g>`;
+  return `<g data-engine="RingEngine" data-family="spirals" data-shape-type="ring" data-bar-diameter="${barDia}" data-ring-diameter-mm="${ringDia}" data-overlap-mm="${overlap}" data-circumference-mm="${circumferenceMm}" data-total-length-mm="${totalLengthMm}">
+    <circle data-se-focus="ring-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="none" stroke="#111827" stroke-width="${barW.toFixed(1)}" stroke-linecap="round" stroke-dasharray="${(circleLength - gapPx).toFixed(1)} ${gapPx.toFixed(1)}" transform="rotate(128 ${cx.toFixed(1)} ${cy.toFixed(1)})"/>
+    ${overlapPath}
+    <line data-se-focus="ring-diameter" x1="${(cx - r).toFixed(1)}" y1="${dimensionY.toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${dimensionY.toFixed(1)}" stroke="#c9621a" stroke-width="1.3"/>
+    <path d="M ${(cx-r).toFixed(1)} ${(dimensionY-5).toFixed(1)} V ${(dimensionY+5).toFixed(1)} M ${(cx+r).toFixed(1)} ${(dimensionY-5).toFixed(1)} V ${(dimensionY+5).toFixed(1)}" stroke="#c9621a" stroke-width="1.3"/>
+    ${labels}
+  </g>`;
+};
+
 function ShapeEngineRouter(shape) {
   const family = shape?.family || 'bars';
   if (family === 'mesh')    return MeshEngine;
   if (family === 'piles')   return PileCageEngine;
+  if (isStandaloneRingShape(shape)) return RingEngine;
   if (family === 'spirals') return SpiralEngine;
   return PolylineBarEngine;
 }
@@ -1175,9 +1218,15 @@ function persistSavedShape(shapeData, name) {
   const family = shapeData.family || 'bars';
   const entry = { id, name: (name || 'צורה מותאמת').trim(), family, savedAt: Date.now() };
   if (family === 'spirals') {
+    entry.specialty      = isStandaloneRingShape(shapeData) ? 'ring' : 'spiral';
+    entry.shapeType      = entry.specialty;
     entry.barDiameter    = shapeData.barDiameter    || 8;
     entry.spiralDiameter = shapeData.spiralDiameter || 400;
-    entry.turns          = shapeData.turns          || 20;
+    entry.turns          = entry.specialty === 'ring' ? 1 : (shapeData.turns || 20);
+    if (entry.specialty === 'ring') {
+      entry.ringDiameter = shapeData.ringDiameter || shapeData.spiralDiameter || 420;
+      entry.overlap = Math.max(0, Number(shapeData.overlap || 0));
+    }
   } else if (family === 'mesh') {
     Object.assign(entry, {
       length: shapeData.length, width: shapeData.width,
@@ -1242,6 +1291,7 @@ function normalizeShapeFamily(shape) {
 function resolveShapeType(shape) {
   const family = normalizeShapeFamily(shape);
   if (shape?.shapeType) return String(shape.shapeType);
+  if (isStandaloneRingShape(shape)) return 'ring';
   if (family === 'mesh')    return 'mesh_rectangular';
   if (family === 'piles')   return 'round_pile_cage';
   if (family === 'spirals') return 'spiral';
@@ -1310,6 +1360,12 @@ function validateShapeContractData(family, data) {
     });
     if (zoneTotal > Number(data.pileLength)) errors.push('sum(spiralZones.length) must not exceed pileLength');
     if ('sides' in data || 'angles' in data) errors.push('pile cages must not use sides or angles');
+  } else if (family === 'spirals') {
+    ['barDiameter', 'spiralDiameter', 'turns'].forEach(field => positive(field));
+    if (data.shapeType === 'ring' || data.ringDiameterMm != null || data.overlapMm != null) {
+      positive('ringDiameterMm');
+      if (!(Number(data.overlapMm) >= 0)) errors.push('overlapMm must be 0 or greater');
+    }
   }
   return { valid: errors.length === 0, errors };
 }
@@ -1369,6 +1425,24 @@ function buildSpiralShapeContract(shape) {
     calculated: canonical.calculated,
     generic: canonical.generic,
     validation: validateShapeContractData('spirals', canonical.data),
+  };
+}
+
+function buildRingShapeContract(shape) {
+  const canonical = canonicalSteelRebarShapes().buildRingShapeContract({
+    ...shape,
+    barDiameterMm: shape?.barDiameter ?? shape?.barDiameterMm,
+    bendingDiameterMm: shape?.ringDiameter ?? shape?.ringDiameterMm ?? shape?.spiralDiameter,
+    overlapMm: shape?.overlap ?? shape?.overlapMm ?? 0,
+    quantity: 1,
+  });
+  const { quantity: _orderItemQuantity, ...canonicalData } = canonical.data || {};
+  const data = { ...canonicalData, shapeType: 'ring' };
+  return {
+    data,
+    calculated: canonical.calculated,
+    generic: canonical.generic,
+    validation: validateShapeContractData('spirals', data),
   };
 }
 
@@ -1457,7 +1531,7 @@ function buildShapeDataContractV2(shape) {
     : family === 'piles'
       ? buildPileShapeContract(safeShape)
       : family === 'spirals'
-        ? buildSpiralShapeContract(safeShape)
+        ? (isStandaloneRingShape(safeShape) ? buildRingShapeContract(safeShape) : buildSpiralShapeContract(safeShape))
         : buildBarsShapeContract(safeShape);
   const approvedAt = new Date().toISOString();
   const displayName = String(safeShape.displayName || safeShape.presetName || safeShape.shapeName || safeShape.name || '');
@@ -2476,6 +2550,8 @@ class ShapeEditorModal {
   #seModal .se-bottom-summary{width:100%!important;margin:0!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important;overflow:hidden!important;padding:0!important;}
   #seModal .se-bottom-summary .se-summary-item{min-width:0!important;width:auto!important;padding:5px 6px!important;}
   #seModal .se-bottom-summary .se-summary-item:nth-child(n+4){display:none!important;}
+  #seModal.se-ring-editor .se-bottom-summary{grid-template-columns:repeat(4,minmax(0,1fr))!important;}
+  #seModal.se-ring-editor .se-bottom-summary .se-quantity-item{display:block!important;}
   #seModal .se-summary-item span{font-size:9px!important;}
   #seModal .se-summary-item strong{font-size:14px!important;}
   #seModal .se-summary-item small{font-size:9px!important;}
@@ -2535,6 +2611,7 @@ class ShapeEditorModal {
       <button class="se-family-card" data-edit-family="mesh" onclick="window._seEditor._jumpToFamily('mesh')">${shapePresetIconSVG('mesh')}<span>רשתות</span></button>
       <button class="se-family-card" data-edit-family="piles" onclick="window._seEditor._jumpToFamily('piles')">${shapePresetIconSVG('pile')}<span>כלונסאות</span></button>
       <button class="se-family-card" data-edit-family="spirals" onclick="window._seEditor._jumpToFamily('spirals')">${shapePresetIconSVG('spiral')}<span>ספיראלות</span></button>
+      <button class="se-family-card" data-edit-family="ring" onclick="window._seEditor._jumpToFamily('ring')">${shapePresetIconSVG('ring')}<span>טבעות</span></button>
       <div id="seSidebarSaved" style="margin-top:8px;border-top:1px solid #c5cbd4;padding-top:10px;"></div>
     </aside>
     <!-- Center: preview -->
@@ -2735,7 +2812,7 @@ class ShapeEditorModal {
       const saved = loadSavedShapes().find(s => s.id === savedId);
       if (!saved) return null;
       const sf = saved.family || 'bars';
-      if (sf === 'spirals') return SpiralEngine.render(saved, 200, 140);
+      if (sf === 'spirals') return ShapeEngineRouter.render(saved, 200, 140);
       if (sf === 'mesh')    return MeshEngine.render(saved, 200, 140);
       if (sf === 'piles')   return PileCageEngine.render(saved, 200, 140);
       return shape3DSVG(saved.sides || [], saved.angles || [], 200, 140, 12, { showAxes: false, showDims: false });
@@ -2744,7 +2821,7 @@ class ShapeEditorModal {
       const preset = SHAPE_PRESETS.find(s => s.id === presetId);
       if (!preset) return null;
       const fam = preset.family || 'bars';
-      if (fam === 'spirals') return SpiralEngine.render(preset, 200, 140);
+      if (fam === 'spirals') return ShapeEngineRouter.render(preset, 200, 140);
       if (fam === 'mesh')    return MeshEngine.render(preset, 200, 140);
       if (fam === 'piles')   return PileCageEngine.render(preset, 200, 140);
       return shape3DSVG(preset.sides || [], preset.angles || [], 200, 140, preset.diameter || 12, { showAxes: false, showDims: false });
@@ -2810,9 +2887,10 @@ class ShapeEditorModal {
   }
 
   _defaultPresetForFamily(family = 'bars') {
+    if (family === 'ring') return SHAPE_PRESETS.find(isStandaloneRingShape) || SHAPE_PRESETS[0];
     const normalizedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars';
     const requestedSideCount = Number(this._selectedCount || this._selectedSideCount);
-    const candidates = SHAPE_PRESETS.filter(shape => (shape.family || 'bars') === normalizedFamily && !shape.custom);
+    const candidates = SHAPE_PRESETS.filter(shape => (shape.family || 'bars') === normalizedFamily && !shape.custom && (normalizedFamily !== 'spirals' || !isStandaloneRingShape(shape)));
     if (normalizedFamily === 'bars' && Number.isFinite(requestedSideCount) && requestedSideCount > 0) {
       const bySideCount = candidates.find(shape => Array.isArray(shape.sides) && shape.sides.length === requestedSideCount);
       if (bySideCount) return bySideCount;
@@ -2821,10 +2899,10 @@ class ShapeEditorModal {
   }
 
   _startDefaultEdit(family = 'bars') {
-    this._selectedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars';
+    this._selectedFamily = family === 'ring' ? 'spirals' : ((family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars');
     this._selectedCategory = '';
     if (this._selectedSideCount === undefined) this._selectedSideCount = this._selectedCount || null;
-    const preset = this._defaultPresetForFamily(this._selectedFamily);
+    const preset = this._defaultPresetForFamily(family);
     if (preset) this._loadPreset(preset);
   }
 
@@ -3014,7 +3092,7 @@ class ShapeEditorModal {
       const sf = s.family || 'bars';
       let svgStr;
       if (sf === 'spirals') {
-        svgStr = SpiralEngine.render(s, 100, 68);
+        svgStr = ShapeEngineRouter.render(s, 100, 68);
       } else if (sf === 'mesh') {
         svgStr = MeshEngine.render(s, 100, 68);
       } else if (sf === 'piles') {
@@ -3146,6 +3224,7 @@ class ShapeEditorModal {
     if (!this.current) return;
     if (this.current.family === 'mesh')    return this._renderMeshEditor();
     if (this.current.family === 'piles')   return this._renderPileCageEditor();
+    if (isStandaloneRingShape(this.current)) return this._renderRingEditor();
     if (this.current.family === 'spirals') return this._renderSpiralEditor();
     return this._renderBarEditor();
   }
@@ -3229,7 +3308,7 @@ class ShapeEditorModal {
   }
 
   _jumpToFamily(family) {
-    this._selectedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars';
+    this._selectedFamily = family;
     this._selectedCategory = '';
     this._selectedSideCount = null;
     this._selectedCount = null;
@@ -3238,7 +3317,8 @@ class ShapeEditorModal {
 
   _syncEditFamilyCards() {
     const family = normalizeShapeFamily(this.current || {});
-    document.querySelectorAll('[data-edit-family]').forEach(btn => btn.classList.toggle('active', btn.dataset.editFamily === family));
+    const editorKind = isStandaloneRingShape(this.current) ? 'ring' : family;
+    document.querySelectorAll('[data-edit-family]').forEach(btn => btn.classList.toggle('active', btn.dataset.editFamily === editorKind));
     this._renderSidebarSavedShapes(family);
   }
 
@@ -3250,7 +3330,7 @@ class ShapeEditorModal {
     const cards = list.map(s => {
       const sf = s.family || 'bars';
       let inner;
-      if (sf === 'spirals') inner = SpiralEngine.render(s, 100, 68);
+      if (sf === 'spirals') inner = ShapeEngineRouter.render(s, 100, 68);
       else if (sf === 'mesh') inner = MeshEngine.render(s, 100, 68);
       else if (sf === 'piles') inner = PileCageEngine.render(s, 100, 68);
       else inner = shape3DSVG(s.sides || [], s.angles || [], 100, 68, 12, { showAxes: false, showDims: false });
@@ -3375,13 +3455,15 @@ class ShapeEditorModal {
     const summary = document.querySelector('#seModal .se-panel-summary');
     const title = document.querySelector('#seModal .se-data-panel-head');
     const isBars = kind === 'bars';
+    const showsOrderQuantity = isBars || kind === 'ring';
+    document.getElementById('seModal')?.classList.toggle('se-ring-editor', kind === 'ring');
     if (table) table.classList.toggle('se-family-editor-table', !isBars);
     if (thead) thead.style.display = isBars ? '' : 'none';
     if (addRow) addRow.style.display = isBars ? '' : 'none';
     if (modeNote) modeNote.style.display = isBars ? '' : 'none';
     if (summary) summary.style.display = isBars ? '' : 'none';
     if (title) {
-      const titleText = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : 'מידות צלעות וזוויות';
+      const titleText = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : kind === 'ring' ? 'עריכת טבעת' : 'מידות צלעות וזוויות';
       const titleSpan = title.querySelector('span:first-child');
       if (titleSpan) titleSpan.textContent = titleText; else title.textContent = titleText;
     }
@@ -3390,7 +3472,7 @@ class ShapeEditorModal {
     const diaItem = document.getElementById('seDiameterItem');
     if (diaItem) diaItem.style.display = isBars ? '' : 'none';
     const qtyItem = document.querySelector('#seModal .se-quantity-item');
-    if (qtyItem) qtyItem.style.display = isBars ? '' : 'none';
+    if (qtyItem) qtyItem.style.display = showsOrderQuantity ? '' : 'none';
   }
 
   _renderMeshEditor() {
@@ -3416,6 +3498,92 @@ class ShapeEditorModal {
       <tr class="se-family-row">${field('edgeLeft', 0)}${field('edgeRight', 0)}</tr>
       <tr class="se-family-row">${field('edgeTop', 0)}${field('edgeBottom', 0)}</tr>`;
   }
+
+  _renderRingEditor() {
+    this._setFamilyEditorChrome('ring');
+    const ring = this.current;
+    const body = document.getElementById('seTableBody');
+    if (!body) return;
+
+    const barDiameter = Math.max(1, Number(ring.barDiameter || 18));
+    const ringDiameterMm = Math.max(1, Number(ring.ringDiameter || ring.spiralDiameter || 420));
+    const overlapMm = Math.max(0, Number(ring.overlap || ring.overlapMm || 0));
+    const circumferenceMm = Math.PI * ringDiameterMm;
+    const totalLengthMm = circumferenceMm + overlapMm;
+    const field = ({ key, id, label, unit, example, min = 0, value }) =>
+      `<td colspan="2">${this._fieldShell({ icon: '', label, unit, example, focusKey: `ring-${key}`,
+        input: `<input id="${id}" class="se-input" type="number" min="${min}" step="0.1" value="${value}"
+          onfocus="window._seEditor._focusFamilyField('ring-${key}')"
+          oninput="window._seEditor._setRingField('${key}', this.value)">` })}</td>`;
+    const computedRow = (label, value, unit) =>
+      `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;
+        background:#f0fdf4;border-radius:6px;font-size:12px;margin:2px 0">
+        <span style="color:#526070;font-weight:600">${label}</span>
+        <span style="font-weight:800;color:#15803d">${value} <span style="font-weight:400;color:#888">${unit}</span></span>
+      </div>`;
+
+    body.innerHTML = `
+      <tr class="se-family-row"><td colspan="4" style="padding:4px 0">
+        <div style="font-size:11px;font-weight:800;color:#526070;padding:0 4px;letter-spacing:0.5px">פרטי הטבעת</div>
+      </td></tr>
+      <tr class="se-family-row">
+        ${field({ key:'barDiameter', id:'seRingBarDiameter', label:'Ø קוטר ברזל', unit:'מ״מ', example:'לדוגמה 18', min:1, value:barDiameter })}
+        ${field({ key:'ringDiameter', id:'seRingDiameter', label:'Ø קוטר טבעת', unit:'ס״מ', example:'לדוגמה 42', min:0.1, value:ringDiameterMm / 10 })}
+      </tr>
+      <tr class="se-family-row">
+        ${field({ key:'overlap', id:'seRingOverlap', label:'חפיפה', unit:'ס״מ', example:'לדוגמה 20', min:0, value:overlapMm / 10 })}
+        <td colspan="2"></td>
+      </tr>
+      <tr class="se-family-row"><td colspan="4" style="padding:4px 0">
+        <div style="font-size:11px;font-weight:800;color:#526070;padding:0 4px;letter-spacing:0.5px">מחושב</div>
+      </td></tr>
+      <tr class="se-family-row" data-ring-computed><td colspan="4">
+        ${computedRow('היקף', Math.round(circumferenceMm / 10), 'ס״מ')}
+        ${computedRow('אורך חיתוך כולל חפיפה', Math.round(totalLengthMm / 10), 'ס״מ')}
+        ${computedRow('משקל ליחידה Ø' + barDiameter, ((totalLengthMm / 1000) * sharedKgPerMeter(barDiameter)).toFixed(2), 'ק״ג')}
+      </td></tr>`;
+  }
+
+  _setRingField(key, value) {
+    if (!this.current || !isStandaloneRingShape(this.current)) return;
+    const numeric = Number(value);
+    if (key === 'barDiameter') this.current.barDiameter = Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
+    if (key === 'ringDiameter') {
+      this.current.ringDiameter = Number.isFinite(numeric) ? Math.max(0, numeric * 10) : 0;
+      this.current.spiralDiameter = this.current.ringDiameter;
+    }
+    if (key === 'overlap') this.current.overlap = Number.isFinite(numeric) ? Math.max(0, numeric * 10) : 0;
+    this.current.turns = 1;
+    this.current.family = 'spirals';
+    this.current.shapeType = 'ring';
+    this.current.specialty = 'ring';
+    this._updatePreview();
+    this._refreshRingComputed();
+  }
+
+  _refreshRingComputed() {
+    const ring = this.current;
+    if (!ring) return;
+    const barDiameter = Math.max(0, Number(ring.barDiameter || 0));
+    const ringDiameterMm = Math.max(0, Number(ring.ringDiameter || ring.spiralDiameter || 0));
+    const overlapMm = Math.max(0, Number(ring.overlap || ring.overlapMm || 0));
+    const circumferenceMm = Math.PI * ringDiameterMm;
+    const totalLengthMm = circumferenceMm + overlapMm;
+    const el = document.querySelector('#seTableBody [data-ring-computed]');
+    if (!el) return;
+    const computedRow = (label, value, unit) =>
+      `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;
+        background:#f0fdf4;border-radius:6px;font-size:12px;margin:2px 0">
+        <span style="color:#526070;font-weight:600">${label}</span>
+        <span style="font-weight:800;color:#15803d">${value} <span style="font-weight:400;color:#888">${unit}</span></span>
+      </div>`;
+    el.innerHTML = `<td colspan="4">
+      ${computedRow('היקף', Math.round(circumferenceMm / 10), 'ס״מ')}
+      ${computedRow('אורך חיתוך כולל חפיפה', Math.round(totalLengthMm / 10), 'ס״מ')}
+      ${computedRow('משקל ליחידה Ø' + barDiameter, ((totalLengthMm / 1000) * sharedKgPerMeter(barDiameter)).toFixed(2), 'ק״ג')}
+    </td>`;
+  }
+
   _renderSpiralEditor() {
     this._setFamilyEditorChrome('spirals');
     const sp = this.current;
@@ -4503,6 +4671,26 @@ class ShapeEditorModal {
         return;
       }
     }
+    if (isStandaloneRingShape(this.current)) {
+      const barEl = document.getElementById('seRingBarDiameter');
+      const ringEl = document.getElementById('seRingDiameter');
+      const overlapEl = document.getElementById('seRingOverlap');
+      const qtyEl = document.getElementById('seQuantityInput');
+      const barOk = Number(this.current.barDiameter) > 0;
+      const ringOk = Number(this.current.ringDiameter || this.current.spiralDiameter) > 0;
+      const overlapOk = Number(this.current.overlap || this.current.overlapMm || 0) >= 0;
+      const qtyOk = Math.max(0, Number(this.current.quantity || this.current.qty || 0) || 0) >= 1;
+      [
+        [barEl, barOk], [ringEl, ringOk], [overlapEl, overlapOk], [qtyEl, qtyOk],
+      ].forEach(([el, valid]) => el?.classList.toggle('se-invalid', !valid));
+      if (!barOk || !ringOk || !overlapOk || !qtyOk) {
+        const okBtn = document.getElementById('seOk');
+        if (okBtn) { okBtn.classList.add('se-blocked'); setTimeout(() => okBtn.classList.remove('se-blocked'), 900); }
+        const focusEl = !barOk ? barEl : !ringOk ? ringEl : !overlapOk ? overlapEl : qtyEl;
+        focusEl?.focus();
+        return;
+      }
+    }
     const isReal3D = this.current.is3d === 1 || this.current.is3d === true;
     const orderItemQuantity = Math.max(1, Number(this.current.quantity || this.current.qty || 1) || 1);
     const normalized = {
@@ -4587,7 +4775,7 @@ class ShapeEditorModal {
     }
     // Apply the requested quantity/name once (presets seed quantity=1, which
     // would otherwise hide that a new item still needs a quantity).
-    if (this.current && this.current.family === 'bars') {
+    if (this.current && (this.current.family === 'bars' || isStandaloneRingShape(this.current))) {
       this.current.quantity = this._pendingQuantity;
       this.current.structElement = this._pendingElementName || this.current.structElement || '';
       this._updateSummaryValues();
@@ -4615,10 +4803,13 @@ window.IronBendShapeGeometry = {
   PolylineBarEngine,
   MeshEngine,
   PileCageEngine,
+  RingEngine,
   ShapeEngineRouter,
   buildShapeDataContractV2,
   buildBarsShapeContract,
   buildSpiralShapeContract,
+  buildRingShapeContract,
+  isStandaloneRingShape,
   calculateRoundPileCage,
   validateShapeContractData,
 };

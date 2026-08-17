@@ -304,6 +304,22 @@ test('round pile cage components have parity with standalone canonical engines',
   assert.deepEqual({ diameter: ring.bendingDiameterMm, unit: ring.unitLengthMm, total: ring.totalLengthMm, weight: ring.weightKg }, { diameter: standaloneRing.component.bendingDiameterMm, unit: standaloneRing.component.unitLengthMm, total: standaloneRing.component.totalLengthMm, weight: standaloneRing.component.weightKg });
 });
 
+test('standalone ring contract adds overlap to circumference and scales manufacturing quantity', () => {
+  const ring = buildRingShapeContract({
+    barDiameterMm: 18,
+    bendingDiameterMm: 420,
+    overlapMm: 200,
+    quantity: 168,
+  });
+
+  assert.equal(ring.data.ringDiameterMm, 420);
+  assert.equal(ring.data.overlapMm, 200);
+  assert.equal(ring.calculated.circumferenceMm, 1319);
+  assert.equal(ring.component.unitLengthMm, 1519);
+  assert.equal(ring.component.totalLengthMm, 255192);
+  assert.equal(ring.component.quantity, 168);
+});
+
 test('round pile cage blocks production cards when explicit hoop quantity is missing', () => {
   const pile = calculatePileCage({ roundPileCage: true, pileLengthMm: 12000, longitudinalBars: { totalBars: 10, layoutMode: 'alternating', pattern: [{ type: 'straight' }, { type: 'L', bendLengthMm: 200 }] }, spiral: { barDiameterMm: 8, outerDiameterMm: 480, uniformPitchMm: 150 }, hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420 } });
   assert.equal(pile.validation.ok, false);

@@ -196,6 +196,14 @@ function buildRingShapeContract(input = {}) {
     input.ringDiameterMm,
     input.ring_diameter_mm,
   );
+  const overlapCandidate = Number(
+    input.overlapMm
+      ?? input.overlap_mm
+      ?? input.ringOverlapMm
+      ?? input.ring_overlap_mm
+      ?? 0
+  );
+  const overlapMm = Number.isFinite(overlapCandidate) && overlapCandidate >= 0 ? overlapCandidate : 0;
   const quantity = Math.max(1, Math.round(positiveNumber(input.quantity, 1)));
   const standalone = buildSpiralShapeContract({
     shapeType: 'ring',
@@ -203,17 +211,22 @@ function buildRingShapeContract(input = {}) {
     spiralDiameter: bendingDiameterMm,
     turns: 1,
   });
-  const unitLengthMm = standalone.calculated.totalLengthMm;
-  const unitWeightKg = standalone.calculated.weightKg;
+  const circumferenceMm = standalone.calculated.totalLengthMm;
+  const unitLengthMm = round(circumferenceMm + overlapMm, 1);
+  const unitWeightKg = round((unitLengthMm / 1000) * requireWeightCalculator()(barDiameterMm), 3);
   return {
     ...standalone,
-    data: { ...standalone.data, bendingDiameterMm, quantity },
-    generic: { ...standalone.generic, shapeType: 'ring', bendingDiameterMm, quantity },
+    data: { ...standalone.data, ringDiameterMm: bendingDiameterMm, bendingDiameterMm, overlapMm, circumferenceMm, quantity },
+    calculated: { ...standalone.calculated, circumferenceMm, overlapMm, totalLengthMm: unitLengthMm, unitLengthMm, weightKg: unitWeightKg, unitWeightKg },
+    generic: { ...standalone.generic, shapeType: 'ring', ringDiameterMm: bendingDiameterMm, bendingDiameterMm, overlapMm, circumferenceMm, totalLengthMm: unitLengthMm, quantity },
     component: {
       family: 'spirals',
       shapeType: 'ring',
       diameterMm: barDiameterMm,
       bendingDiameterMm,
+      ringDiameterMm: bendingDiameterMm,
+      overlapMm,
+      circumferenceMm,
       spiralDiameterMm: bendingDiameterMm,
       turns: 1,
       quantity,

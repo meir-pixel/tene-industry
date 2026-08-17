@@ -14,7 +14,7 @@
 <script src="/rebar-weights.js"></script>
 <script src="/shapeSnapshot.js?v=1"></script>
 <script src="/steelRebarShapes.js?v=1"></script>
-<script src="/shape-editor.js?v=60"></script>
+<script src="/shape-editor.js?v=61"></script>
 <script src="/offline-db.js"></script>
 <script src="/auth-client.js"></script>
 <script src="/nav.js" defer></script>
@@ -2916,6 +2916,32 @@ function spiralFieldsFromShapeData(data = {}) {
     barDiameter: Number(source.barDiameter || source.barDiameterMm || data.barDiameter || data.diameter || 0),
   };
 }
+function ringFieldsFromShapeData(data = {}) {
+  const contract = itemShapeContract(data) || approvedShapeContract(data) || data.shapeSnapshot || null;
+  const source = contract?.data || data.data || data || {};
+  const calculated = contract?.calculated || data.calculated || {};
+  const ringDiameterMm = Number(source.ringDiameterMm || source.bendingDiameterMm || source.spiralDiameterMm || source.ringDiameter || source.spiralDiameter || data.ringDiameterMm || data.ringDiameter || 0);
+  const overlapMm = Number(source.overlapMm ?? source.overlap ?? data.overlapMm ?? data.overlap ?? 0);
+  const circumferenceMm = Number(source.circumferenceMm || calculated.circumferenceMm || (ringDiameterMm > 0 ? Math.PI * ringDiameterMm : 0));
+  return {
+    ringDiameterMm,
+    overlapMm: Number.isFinite(overlapMm) ? Math.max(0, overlapMm) : 0,
+    circumferenceMm,
+    totalLengthMm: Number(calculated.totalLengthMm || calculated.unitLengthMm || source.totalLengthMm || (circumferenceMm + Math.max(0, overlapMm || 0)) || 0),
+    barDiameter: Number(source.barDiameter || source.barDiameterMm || data.barDiameter || data.diameter || 0),
+  };
+}
+function isStandaloneRingItem(item = {}) {
+  const contract = itemShapeContract(item) || approvedShapeContract(item) || item.shapeSnapshot || null;
+  const source = contract?.data || item.data || item || {};
+  return contract?.shapeType === 'ring'
+    || item.shapeType === 'ring'
+    || source.shapeType === 'ring'
+    || source.specialty === 'ring'
+    || item.specialty === 'ring';
+}
+window.ringFieldsFromShapeData = ringFieldsFromShapeData;
+window.isStandaloneRingItem = isStandaloneRingItem;
 function roundPileCageSnapshot(item = {}) {
   const contract = itemShapeContract(item);
   const snapshot = contract || (typeof item.shapeSnapshot === 'object' ? item.shapeSnapshot : null) || item;
@@ -3056,6 +3082,15 @@ function roundPileCagePreviewSvg(item = {}) {
 }
 function itemPreviewSvg(item, sides, angles) {
   if (isRoundPileCageItem(item)) return roundPileCagePreviewSvg(item);
+  if (isStandaloneRingItem(item) && window.IronBendShapeGeometry?.RingEngine) {
+    const ring = ringFieldsFromShapeData(item);
+    const shape = {
+      shapeType: 'ring', specialty: 'ring', barDiameter: ring.barDiameter,
+      ringDiameter: ring.ringDiameterMm, spiralDiameter: ring.ringDiameterMm,
+      overlap: ring.overlapMm, turns: 1,
+    };
+    return '<svg viewBox="0 0 132 92" width="132" height="92">' + window.IronBendShapeGeometry.RingEngine.render(shape, 132, 92) + '</svg>';
+  }
   if (sides.length) {
     if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false }) + '</svg>';
     const W = 130, H = 42, pad = 16;
@@ -3105,12 +3140,34 @@ function openShapeEditor(palletId, itemId) {
   const sides = itemShapeSides(item || {});
   const angles = itemShapeAngles(item || {});
   const contract = itemShapeContract(item || {});
+  const elementName = item?.structElement || item?.struct_element || item?.elementName || '';
+  const allItems = pallets.flatMap(p => p.items || []);
+  const itemNumber = allItems.findIndex(i => i.id == itemId) + 1;
+  const itemTotal = allItems.length;
   if (contract?.family === 'piles' && contract?.shapeType === 'round_pile_cage') {
     const pileCage = roundPileCageEditorData(item || {});
     if (pileCage) shapeEditor.open(pileCage);
     return;
   }
   if (contract?.family === 'spirals') {
+    if (contract.shapeType === 'ring') {
+      const ring = ringFieldsFromShapeData({ ...item, shapeSnapshot: contract });
+      shapeEditor.open({
+        family: 'spirals', shapeType: 'ring', specialty: 'ring',
+        presetId: item.shapeId || contract.shapeId || 'ring1',
+        presetName: item.shapeName || contract.displayName || 'טבעת עגולה',
+        presetEmoji: item.shapeEmoji || '⭕',
+        barDiameter: ring.barDiameter || item.diameter || 18,
+        ringDiameter: ring.ringDiameterMm || 420,
+        spiralDiameter: ring.ringDiameterMm || 420,
+        overlap: ring.overlapMm,
+        turns: 1,
+        quantity: item.qty || 0,
+        structElement: elementName,
+        itemNumber, itemTotal,
+      });
+      return;
+    }
     const spiral = spiralFieldsFromShapeData({ ...item, shapeSnapshot: contract });
     shapeEditor.open({
       family: 'spirals',
@@ -3120,13 +3177,11 @@ function openShapeEditor(palletId, itemId) {
       spiralDiameter: spiral.spiralDiameterMm || 400,
       turns: spiral.spiralTurns || 20,
       quantity: item.qty || 1,
+      structElement: elementName,
+      itemNumber, itemTotal,
     });
     return;
   }
-  const elementName = item?.structElement || item?.struct_element || item?.elementName || '';
-  const allItems = pallets.flatMap(p => p.items || []);
-  const itemNumber = allItems.findIndex(i => i.id == itemId) + 1;
-  const itemTotal = allItems.length;
   shapeEditor.open(sides.length ? {
     presetId: item.shapeId,
     sides,
@@ -3376,6 +3431,17 @@ function calcItemWeight(item) {
     const unitWeightKg = Number(contract?.calculated?.totalWeightKg ?? contract?.calculated?.weightKg ?? contract?.data?.assemblySummary?.totalWeightKg ?? 0);
     const quantity = Math.max(1, Number(item.qty || item.quantity || 1));
     return Number.isFinite(unitWeightKg) && unitWeightKg > 0 ? unitWeightKg * quantity : 0;
+  }
+  if (isStandaloneRingItem(item)) {
+    const contract = itemShapeContract(item) || item.shapeSnapshot || {};
+    const ring = ringFieldsFromShapeData(item);
+    const quantity = Math.max(1, Number(item.qty || item.quantity || 1));
+    const unitWeightKg = Number(contract?.calculated?.weightKg || 0);
+    if (Number.isFinite(unitWeightKg) && unitWeightKg > 0) return unitWeightKg * quantity;
+    if (ring.barDiameter > 0 && ring.totalLengthMm > 0) {
+      return window.IronBendRebar.itemWeightKg({ ...item, diameter: ring.barDiameter, qty: quantity, length: ring.totalLengthMm, total_length_mm: ring.totalLengthMm, sides: [ring.totalLengthMm] });
+    }
+    return 0;
   }
   if (!item.diameter || !item.qty) return 0;
   const spiralDiameter = Number(item.spiral_diameter_mm || item.spiralDiameterMm || 0);
@@ -3956,6 +4022,6 @@ document.getElementById('imgAnalyzeOverlay').addEventListener('click', function(
   if (e.target === this) closeImgModal();
 });
 </script>
-<script src="/new-order-editor.js"></script>
+<script src="/new-order-editor.js?v=2"></script>
 </body>
 </html>

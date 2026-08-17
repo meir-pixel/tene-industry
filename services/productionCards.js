@@ -492,6 +492,7 @@ function spiralParamsFromItem(item = {}) {
   const spiralDiameterMm = Number(
     item.spiral_diameter_mm ?? item.spiralDiameterMm ?? item.spiralDiameter ??
     snapshot.spiralDiameterMm ?? snapshot.spiral_diameter_mm ??
+    data.ringDiameterMm ?? data.bendingDiameterMm ??
     data.spiral?.diameterMm ?? data.spiral?.diameter ??
     data.spiralDiameterMm ?? data.spiralDiameter ?? data.spiral_diameter_mm ??
     generic.spiralDiameterMm ?? generic.spiralDiameter ?? 0
@@ -506,11 +507,14 @@ function spiralParamsFromItem(item = {}) {
   const name = item.shape_name || item.shapeName || item.shape || snapshot.shapeName || snapshot.displayName || snapshot.shapeType || snapshot.shapeId;
   const family = item.family || snapshot.family || data.family || generic.family;
   const shapeType = item.shapeType || snapshot.shapeType || data.shapeType || generic.shapeType;
+  const overlapMm = Number(data.overlapMm ?? data.overlap ?? generic.overlapMm ?? item.overlapMm ?? item.overlap ?? 0);
   const isSpiral = isSpiralName(name) || isSpiralName(shapeType) || family === 'spirals';
   return {
     isSpiral: isSpiral && Number.isFinite(spiralDiameterMm) && spiralDiameterMm > 0 && Number.isFinite(turns) && turns > 0,
     spiralDiameterMm,
     turns,
+    shapeType,
+    overlapMm: Number.isFinite(overlapMm) ? Math.max(0, overlapMm) : 0,
   };
 }
 
@@ -521,7 +525,7 @@ function spiralShapeSvg(item = {}) {
   const height = 118;
   const spiralDiameterLabel = Math.round(spiral.spiralDiameterMm);
   const turnsLabel = Math.round(spiral.turns);
-  const isRing = spiral.turns <= 1.5;
+  const isRing = spiral.shapeType === 'ring' || spiral.turns <= 1.5;
 
   // \u2500\u2500 RING (1 turn): draw circle with diameter line \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   if (isRing) {
@@ -531,6 +535,9 @@ function spiralShapeSvg(item = {}) {
     // circle
     svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#1a2332" stroke-width="4"/>`;
     svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#3a5070" stroke-width="1.5"/>`;
+    if (spiral.overlapMm > 0) {
+      svg += `<path d="M ${cx + r - 5} ${cy - 18} A ${r} ${r} 0 0 1 ${cx + r - 5} ${cy + 18}" fill="none" stroke="#c9621a" stroke-width="4" stroke-linecap="round"/>`;
+    }
     // diameter dimension line
     svg += `<line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-rl)" marker-end="url(#arr-r)"/>`;
     svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
@@ -539,9 +546,9 @@ function spiralShapeSvg(item = {}) {
     svg += `<rect x="34" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
     svg += `<text x="73" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
     svg += `<rect x="128" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
-    svg += `<text x="167" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">1 \u05db\u05e8\u05d9\u05db\u05d4</text>`;
+    svg += `<text x="167" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">${spiral.overlapMm > 0 ? `\u05d7\u05e4\u05d9\u05e4\u05d4 ${Math.round(spiral.overlapMm / 10)} \u05e1\u05f4\u05de` : `1 \u05db\u05e8\u05d9\u05db\u05d4`}</text>`;
     svg += `</g>`;
-    return `<svg data-shape-kind="ring" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
+    return `<svg data-shape-kind="ring" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-ring-overlap-mm="${Math.round(spiral.overlapMm)}" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
   }
 
   // \u2500\u2500 SPIRAL (>1 turn): circle with the diameter inside \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
