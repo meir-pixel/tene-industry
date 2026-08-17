@@ -448,8 +448,8 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=62/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=61/);
+  assert.match(index, /shape-editor\.js\?v=63/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=62/);
 });
 
 test('standalone ring editor keeps overlap in the Shape V2 cut length', () => {
@@ -890,6 +890,56 @@ test('PileCageEngine renders no-wrap zones, hoops, and L longitudinal bars', () 
   assert.match(svg, /data-hoop-count="9"/);
   assert.match(svg, /data-bar-pattern="alternate"/);
   assert.match(svg, /data-spiral-zones="700@100,2000@200:no-wrap,13500@200"/);
+});
+
+test('round pile cage standard template keeps 60 cm empty, 300 cm at 10 cm and the remainder at 20 cm', () => {
+  const context = loadShapeEditorGeometry();
+  const zones = context.buildRoundPileCageStandardZones(1200);
+
+  assert.equal(JSON.stringify(zones), JSON.stringify([
+    { name: 'A', length: 60, noWrap: true },
+    { name: 'B', length: 300, pitch: 10, noWrap: false },
+    { name: 'C', length: 840, pitch: 20, noWrap: false },
+  ]));
+  assert.equal(context.matchesRoundPileCageStandardZones({ pileLength: 1200, spiralZones: zones }), true);
+  assert.equal(context.matchesRoundPileCageStandardZones({ pileLength: 1200, spiralZones: zones.map((zone, index) => index === 2 ? { ...zone, pitch: 15 } : zone) }), false);
+  assert.equal(JSON.stringify(context.buildRoundPileCageStandardZones(1500)), JSON.stringify([
+    { name: 'A', length: 60, noWrap: true },
+    { name: 'B', length: 300, pitch: 10, noWrap: false },
+    { name: 'C', length: 1140, pitch: 20, noWrap: false },
+  ]));
+});
+
+test('round pile cage visual editor exposes one canonical template initializer and compact responsive controls', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const { ShapeEngineRouter } = loadShapeEditorGeometry();
+  const svg = ShapeEngineRouter.render({
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    barPattern: 'alternate', bendLength: 20,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [
+      { name: 'A', length: 60, noWrap: true },
+      { name: 'B', length: 300, pitch: 10 },
+      { name: 'C', length: 840, pitch: 20 },
+    ],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  }, 300, 260);
+
+  assert.match(editor, /data-pile-template/);
+  assert.match(editor, /סטנדרטי · 60 ללא \/ 300@10 \/ יתרה@20/);
+  assert.match(editor, /class="se-pile-quick-summary"/);
+  assert.match(editor, /data-pile-quick="\$\{sectionId\}"/);
+  assert.match(editor, /data-pile-section-summary="\$\{id\}"/);
+  assert.match(editor, /_refreshRoundPileEditorProjection\(\)/);
+  assert.match(editor, /_activatePileCageField\(/);
+  assert.match(editor, /\.se-family-row\.se-zone-row\{grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) 42px!important/);
+  assert.match(svg, /data-pile-edit="general\|pileLength"/);
+  assert.match(svg, /data-pile-edit="spiral\|zone\|0\|noWrap"/);
+  assert.match(svg, /data-pile-edit="spiral\|zone\|1\|pitch"/);
+  assert.match(svg, /data-pile-edit="hoops\|hoopQuantity"/);
+  assert.match(svg, /data-pile-edit="bars\|bendLength"/);
 });
 
 test('round pile cage draws only alternating longitudinal bars with a head bend', () => {
