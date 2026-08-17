@@ -8,7 +8,7 @@ const steelRebarShapes = require('../modules/steel-rebar/shapes');
 const { normalizeFactorySegments, normalizeFactoryShapeName, spiralCutLengthMm } = steelRebarShapes;
 const { distributeSurplusToEndSegments } = require('../services/intakeWorkflow');
 
-function loadShapeEditorGeometry() {
+function loadShapeEditorGeometry(initialStorage = {}) {
   const snapshotSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'shapeSnapshot.js'), 'utf8');
   const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const context = {
@@ -16,9 +16,10 @@ function loadShapeEditorGeometry() {
     IronBendSteelRebarShapes: steelRebarShapes,
     console,
     localStorage: {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
+      _values: { ...initialStorage },
+      getItem(key) { return Object.prototype.hasOwnProperty.call(this._values, key) ? this._values[key] : null; },
+      setItem(key, value) { this._values[key] = String(value); },
+      removeItem(key) { delete this._values[key]; },
     },
   };
   context.window.IronBendSteelRebarShapes = steelRebarShapes;
@@ -399,8 +400,8 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=60/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=59/);
+  assert.match(index, /shape-editor\.js\?v=61/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=60/);
 });
 
 
@@ -810,6 +811,51 @@ test('round pile cage draws only alternating longitudinal bars with a head bend'
   assert.match(svg, /ראש הכלונס — כיפופי L/);
   assert.match(svg, /data-pile-alternating-legend="1"/);
   assert.equal((svg.match(/class="pile-hoop"/g) || []).length, 6, 'five side-view rings and one circular cross-section ring remain separate from bent bars');
+});
+
+test('round pile cage keeps bend geometry separate from the free assembly orientation', () => {
+  const context = loadShapeEditorGeometry();
+  const { PileCageEngine, buildShapeDataContractV2 } = context;
+  const source = {
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    barPattern: 'alternate',
+    bendOrientationDeg: -30.5,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [{ name: 'A', length: 1200, pitch: 15 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  };
+  const result = PileCageEngine.calculate(source);
+  const bent = result.manufacturingBreakdown.find(part => part.componentType === 'longitudinal_l_bar');
+  const contract = buildShapeDataContractV2(source);
+  const svg = PileCageEngine.render({ ...source, barPattern: 'alternate' }, 300, 260);
+
+  assert.deepEqual(bent.angles, [90], 'the canonical L-bar bend remains 90 degrees');
+  assert.equal(Object.hasOwn(bent, 'bendOrientationDeg'), false, 'assembly orientation must not leak into the L-bar production component');
+  assert.equal(result.data.bendOrientationDeg, 329.5);
+  assert.equal(result.data.bendOrientationReference, 'radial_inward');
+  assert.equal(result.data.bars.filter(bar => bar.type === 'L').every(bar => bar.bendOrientationDeg === 329.5), true);
+  assert.equal(contract.data.bendOrientationDeg, 329.5);
+  assert.match(svg, /data-bend-orientation-deg="329\.5"/);
+  assert.equal((svg.match(/data-pile-bend-orientation="329\.5"/g) || []).length, 5);
+});
+
+test('pile bend orientation accepts arbitrary numeric degrees and persists the next-cage default', () => {
+  const context = loadShapeEditorGeometry();
+  const editorSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.equal(context.normalizePileBendOrientationDeg('450.25°'), 90.25);
+  assert.equal(context.normalizePileBendOrientationDeg('-30,5'), 329.5);
+  assert.equal(context.normalizePileBendOrientationDeg('not-a-number'), null);
+  assert.equal(context.savePileBendOrientationDefault('127.75'), true);
+  assert.equal(context.loadPileBendOrientationDefault(), 127.75);
+  assert.equal(context.localStorage._values.ironbend_pile_bend_orientation_deg_v1, '127.75');
+  assert.match(editorSource, /data-pile-field="bendOrientationDeg"/);
+  assert.match(editorSource, /type="text" inputmode="decimal"/);
+  assert.match(editorSource, /0° פנימה · 90° עם כיוון השעון/);
 });
 
 test('round pile cage calculates the continuous spiral from its configured spiral zone', () => {

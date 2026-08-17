@@ -149,6 +149,25 @@ test('complete cage renders a dedicated schedule-aware monochrome SVG', () => {
   assert.equal(productionCards.itemHumanTitle(pileItem()), 'PILE CAGE');
 });
 
+test('assembly visuals show the saved bend orientation while the L component stays canonical', () => {
+  const input = cageInput();
+  input.longitudinalBars.defaultBendOrientationDeg = 135.5;
+  const snapshot = calculatePileCage(input);
+  const item = pileItem(snapshot);
+  const svg = productionCards.shapeSvgForProductionCard(item, []);
+  const cards = dynamicPrintCards([item]);
+  const assembly = cards.find(card => card.includes('pile-cage-assembly-card'));
+  const bent = cards.find(card => card.includes('longitudinal_l_bar'));
+
+  assert.equal((svg.match(/data-pile-bend-orientation="135\.5"/g) || []).length, 5);
+  assert.match(svg, /data-bend-orientation-reference="radial_inward"/);
+  assert.match(svg, /↻135\.5°/);
+  assert.match(assembly, /data-pile-bend-orientation="135\.5"/);
+  assert.match(assembly, /↻135\.5°/);
+  assert.match(bent, /data-component-type="longitudinal_l_bar"/);
+  assert.doesNotMatch(bent, /data-pile-bend-orientation|↻135\.5°/);
+});
+
 test('partial cage snapshot never fabricates reinforcement values or uses generic bar fallback', () => {
   const snapshot = { family: 'piles', shapeType: 'round_pile_cage', data: { general: { pileDiameterMm: 600, pileLengthMm: 12000 }, longitudinalBars: {}, spiral: {}, hoops: {} } };
   const svg = productionCards.shapeSvgForProductionCard(pileItem(snapshot), []);

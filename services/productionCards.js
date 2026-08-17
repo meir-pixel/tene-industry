@@ -97,6 +97,11 @@ function pileCageProductionSvg(item = {}) {
   const pileLength = n(data.pileLengthMm ?? data.pileLength ?? data.general?.pileLengthMm);
   const bars = Math.max(0, Math.round(n(data.longitudinalBars?.totalBars ?? data.longitudinalBars?.count ?? data.longitudinalBarCount ?? data.longitudinalBars)));
   const barDiameter = n(data.longitudinalBars?.defaultDiameterMm ?? data.longitudinalBars?.diameterMm ?? data.longitudinalDiameterMm ?? data.longitudinalDiameter ?? item.diameter);
+  const barRows = Array.isArray(data.longitudinalBars?.bars) ? data.longitudinalBars.bars : (Array.isArray(data.bars) ? data.bars : []);
+  const firstBent = barRows.find(bar => ['l', 'bent'].includes(String(bar?.type || '').toLowerCase())) || {};
+  const rawOrientation = Number(data.longitudinalBars?.defaultBendOrientationDeg ?? data.bendOrientationDeg ?? firstBent.bendOrientationDeg);
+  const bendOrientationDeg = Number.isFinite(rawOrientation) ? ((rawOrientation % 360) + 360) % 360 : null;
+  const bendOrientationRad = Number.isFinite(bendOrientationDeg) ? bendOrientationDeg * Math.PI / 180 : 0;
   const spiralDiameter = n(data.spiral?.barDiameterMm ?? data.spiralDiameterMm ?? data.spiralDiameter);
   const schedule = Array.isArray(data.spiral?.schedule) ? data.spiral.schedule
     : (Array.isArray(data.spiral?.zones) ? data.spiral.zones : (Array.isArray(data.spiralZones) ? data.spiralZones : []));
@@ -105,7 +110,15 @@ function pileCageProductionSvg(item = {}) {
   const hoops = Math.max(0, Math.round(n(data.hoops?.quantity ?? data.hoopQuantity)));
   const hoopDiameter = n(data.hoops?.hoopBarDiameterMm ?? data.hoops?.barDiameterMm ?? data.hoops?.diameterMm ?? data.hoopDiameterMm ?? data.hoopDiameter);
   const dotCount = bars > 0 && barDiameter > 0 ? Math.min(bars, 14) : 0;
-  const dots = Array.from({ length: dotCount }, (_, index) => { const a = -Math.PI / 2 + Math.PI * 2 * index / dotCount; return `<circle cx="190" cy="40" r="2" transform="translate(${(Math.cos(a) * 15).toFixed(2)} ${(Math.sin(a) * 15).toFixed(2)})" fill="#102a43"/>`; }).join('');
+  const dots = Array.from({ length: dotCount }, (_, index) => {
+    const a = -Math.PI / 2 + Math.PI * 2 * index / dotCount;
+    const x = 190 + Math.cos(a) * 15;
+    const y = 40 + Math.sin(a) * 15;
+    const isBent = ['l', 'bent'].includes(String(barRows[index]?.type || '').toLowerCase());
+    const hookAngle = a + Math.PI + bendOrientationRad;
+    const hook = isBent ? `<line data-pile-bend-orientation="${bendOrientationDeg}" x1="${x.toFixed(2)}" y1="${y.toFixed(2)}" x2="${(x + Math.cos(hookAngle) * 7).toFixed(2)}" y2="${(y + Math.sin(hookAngle) * 7).toFixed(2)}" stroke="#102a43" stroke-width="2" stroke-linecap="round"/>` : '';
+    return `${hook}<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="2" fill="#102a43"/>`;
+  }).join('');
   const totalAxisMm = schedule.reduce((sum, zone) => sum + n(zone.axialLengthMm ?? zone.lengthMm ?? zone.length), 0) || pileLength;
   let scheduleCursorMm = 0;
   const helix = spiralDiameter > 0 && (wrappedSchedule.length || pitch > 0) ? (schedule.length ? schedule.map(zone => {
@@ -140,7 +153,7 @@ function pileCageProductionSvg(item = {}) {
     ? `<g data-assembly-component-summary="4">${componentLines.map((line, index) => `<text x="12" y="${82 + index * 10}" text-anchor="start" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(line)}</text>`).join('')}<text data-assembly-total-steel="${escapeHtml(exactPileMetric(totalSteelLengthMm))}" x="213" y="122" text-anchor="end" font-size="8" font-weight="900" fill="#102a43">STEEL ${escapeHtml(exactPileMetric(totalSteelLengthMm))} mm</text></g>`
     : '';
   const viewHeight = hasAssemblySummary ? 128 : 72;
-  return `<svg viewBox="0 0 225 ${viewHeight}" role="img" aria-label="PILE CAGE"><rect x="12" y="21" width="152" height="38" rx="7" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">PILE CAGE · L ${escapeHtml(lengthM)}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${escapeHtml(diameterCm)}</text>${hasAssemblySummary ? assemblyRows : compactFooter}</svg>`;
+  return `<svg viewBox="0 0 225 ${viewHeight}" role="img" aria-label="PILE CAGE" data-bend-orientation-reference="radial_inward"><rect x="12" y="21" width="152" height="38" rx="7" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">PILE CAGE · L ${escapeHtml(lengthM)}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${escapeHtml(diameterCm)}${Number.isFinite(bendOrientationDeg) ? ` · ↻${escapeHtml(exactPileMetric(bendOrientationDeg))}°` : ''}</text>${hasAssemblySummary ? assemblyRows : compactFooter}</svg>`;
 }
 
 function itemHumanTitle(item = {}) {

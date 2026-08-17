@@ -28,6 +28,7 @@ const DEFAULT_PILE = Object.freeze({
   lBendHeightMm: 0,
   lBendAngleDeg: 90,
   lBendDirection: 'outward',
+  lBendOrientationDeg: 0,
 });
 
 function number(value, fallback = 0, min = null) {
@@ -72,6 +73,12 @@ function normalizePitchMode(value) {
 
 function normalizeBarType(value) {
   return value === 'L' || value === 'l' ? 'L' : 'straight';
+}
+
+function normalizeOrientationDeg(value, fallback = 0) {
+  const numeric = Number(value);
+  const safe = Number.isFinite(numeric) ? numeric : Number(fallback);
+  return round(((safe % 360) + 360) % 360, 3);
 }
 
 function normalizePileInput(input = {}) {
@@ -136,6 +143,12 @@ function normalizePileInput(input = {}) {
   pile.lBendHeightMm = number(barsInput.defaultBendHeightMm ?? input.lBendHeightMm, DEFAULT_PILE.lBendHeightMm, 0);
   pile.lBendAngleDeg = number(barsInput.defaultBendAngleDeg ?? input.lBendAngleDeg, DEFAULT_PILE.lBendAngleDeg);
   pile.lBendDirection = barsInput.defaultBendDirection || input.lBendDirection || DEFAULT_PILE.lBendDirection;
+  pile.lBendOrientationDeg = normalizeOrientationDeg(
+    barsInput.defaultBendOrientationDeg
+      ?? input.bendOrientationDeg
+      ?? input.lBendOrientationDeg,
+    DEFAULT_PILE.lBendOrientationDeg,
+  );
   pile.barPattern = barPattern;
   pile.barOverrides = explicitBars;
   pile.spiralEnabled = spiralInput.enabled !== false && input.spiralEnabled !== false;
@@ -219,6 +232,10 @@ function normalizeBar(pile, index, override = {}, pattern = {}) {
   const bendHeightMm = number(override.bendHeightMm ?? pattern.bendHeightMm ?? pile.lBendHeightMm, 0, 0);
   const bendAngleDeg = number(override.bendAngleDeg ?? pattern.bendAngleDeg ?? pile.lBendAngleDeg, pile.lBendAngleDeg);
   const bendDirection = override.bendDirection ?? pattern.bendDirection ?? pile.lBendDirection;
+  const bendOrientationDeg = normalizeOrientationDeg(
+    override.bendOrientationDeg ?? pattern.bendOrientationDeg,
+    pile.lBendOrientationDeg,
+  );
   const shapeContract = buildBarsShapeContract({
     shapeType: type === 'L' ? 'l_bar' : 'straight_bar',
     diameter: diameterMm,
@@ -227,7 +244,7 @@ function normalizeBar(pile, index, override = {}, pattern = {}) {
   }, { quantity: 1 });
   const lengthMm = shapeContract.component.unitLengthMm;
   const positionAngleDeg = round(((index - 1) * 360) / pile.longitudinalBarCount, 3);
-  return { barIndex: index, index, diameterMm, type, shapeType: shapeContract.generic.shapeType, mainLengthMm, bendLengthMm, hookLengthMm: bendLengthMm, bendHeightMm, bendAngleDeg, bendDirection, positionAngleDeg, angleDeg: positionAngleDeg, lengthMm, weightKg: shapeContract.component.weightKg, shapeContract, note: override.note ?? pattern.note ?? '' };
+  return { barIndex: index, index, diameterMm, type, shapeType: shapeContract.generic.shapeType, mainLengthMm, bendLengthMm, hookLengthMm: bendLengthMm, bendHeightMm, bendAngleDeg, bendDirection, bendOrientationDeg, positionAngleDeg, angleDeg: positionAngleDeg, lengthMm, weightKg: shapeContract.component.weightKg, shapeContract, note: override.note ?? pattern.note ?? '' };
 }
 
 function buildLongitudinalBars(pile) {
@@ -481,16 +498,16 @@ function sumBy(items, keySelector, valueSelector) {
 function buildViews(pile, bars, spiralZones, hoops) {
   return {
     sideView: { pileLengthMm: pile.pileLengthMm, activeSpiralLengthMm: activeSpiralLengthMm(pile), startNoSpiralMm: pile.noSpiralStartMm, endNoSpiralMm: pile.noSpiralEndMm, spiralZones: spiralZones.map(zone => ({ zoneIndex: zone.zoneIndex, name: zone.name, startMm: zone.startMm, endMm: zone.endMm, lengthMm: zone.lengthMm, pitchMm: zone.pitchMm, noWrap: zone.noWrap, label: zone.noWrap ? `${zone.name} ללא כריכות` : `${zone.name} @${zone.pitchMm}` })), hoops: hoops.flatMap(hoop => hoop.positionsMm || []), longitudinalBars: bars.map(bar => ({ barIndex: bar.barIndex, diameterMm: bar.diameterMm, type: bar.type })) },
-    topView: { pileDiameterMm: pile.pileDiameterMm, cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), internalHoopDiameterMm: hoops[0]?.diameterMm ?? internalHoopDiameterMm(pile), barCenterSpacingMm: hoops[0]?.barCenterSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).centerToCenterMm, barClearSpacingMm: hoops[0]?.barClearSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).clearMm, bars: bars.map(bar => ({ barIndex: bar.barIndex, positionAngleDeg: bar.positionAngleDeg, diameterMm: bar.diameterMm, type: bar.type })), legend: { straight: 'straight longitudinal bar', L: 'L longitudinal bar', mixedDiameters: new Set(bars.map(bar => bar.diameterMm)).size > 1 } },
+    topView: { pileDiameterMm: pile.pileDiameterMm, cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), internalHoopDiameterMm: hoops[0]?.diameterMm ?? internalHoopDiameterMm(pile), barCenterSpacingMm: hoops[0]?.barCenterSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).centerToCenterMm, barClearSpacingMm: hoops[0]?.barClearSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).clearMm, bendOrientationReference: 'radial_inward', bendOrientationPositive: 'clockwise', bars: bars.map(bar => ({ barIndex: bar.barIndex, positionAngleDeg: bar.positionAngleDeg, diameterMm: bar.diameterMm, type: bar.type, bendOrientationDeg: bar.bendOrientationDeg })), legend: { straight: 'straight longitudinal bar', L: 'L longitudinal bar', mixedDiameters: new Set(bars.map(bar => bar.diameterMm)).size > 1 } },
     isoView: { cageDiameterMm: round(cageDiameterMm(pile), 1), pileLengthMm: pile.pileLengthMm, longitudinalBars: bars.length, spiralZones: spiralZones.length, hoops: hoops.reduce((sum, hoop) => sum + hoop.count, 0) },
-    selectedBarView: bars.map(bar => ({ barIndex: bar.barIndex, type: bar.type, mainLengthMm: bar.mainLengthMm, bendLengthMm: bar.bendLengthMm, bendHeightMm: bar.bendHeightMm, bendAngleDeg: bar.bendAngleDeg, bendDirection: bar.bendDirection, diameterMm: bar.diameterMm })),
+    selectedBarView: bars.map(bar => ({ barIndex: bar.barIndex, type: bar.type, mainLengthMm: bar.mainLengthMm, bendLengthMm: bar.bendLengthMm, bendHeightMm: bar.bendHeightMm, bendAngleDeg: bar.bendAngleDeg, bendDirection: bar.bendDirection, bendOrientationDeg: bar.bendOrientationDeg, diameterMm: bar.diameterMm })),
   };
 }
 
 function buildDataContract(pile, bars, spiralZones, hoops) {
   return {
     general: { pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, concreteCoverMm: pile.concreteCoverMm, cageDiameterMm: round(cageDiameterMm(pile), 1), cageCenterlineDiameterMm: round(cageCenterlineDiameterMm(pile), 1), shapeVersion: pile.shapeVersion, shapeId: pile.shapeId, family: 'piles' },
-    longitudinalBars: { totalBars: pile.longitudinalBarCount, defaultDiameterMm: pile.longitudinalDiameterMm, defaultLengthMm: pile.longitudinalDefaultLengthMm, layoutMode: pile.longitudinalLayoutMode, bars },
+    longitudinalBars: { totalBars: pile.longitudinalBarCount, defaultDiameterMm: pile.longitudinalDiameterMm, defaultLengthMm: pile.longitudinalDefaultLengthMm, defaultBendOrientationDeg: pile.lBendOrientationDeg, bendOrientationReference: 'radial_inward', bendOrientationPositive: 'clockwise', layoutMode: pile.longitudinalLayoutMode, bars },
     spiral: { enabled: pile.spiralEnabled, barDiameterMm: pile.spiralDiameterMm, outerDiameterMm: pile.spiralOuterDiameterMm || null, spiralDiameterMm: round(cageCenterlineDiameterMm(pile), 1), pitchMode: pile.pitchMode, uniformPitchMm: pile.uniformPitchMm, startNoSpiralMm: pile.noSpiralStartMm, endNoSpiralMm: pile.noSpiralEndMm, zones: spiralZones },
     hoops: { enabled: pile.hoopsEnabled, hoopBarDiameterMm: pile.hoopBarDiameterMm, outerDiameterMm: pile.hoopOuterDiameterMm || pile.hoopDiameterMm || null, bendingDiameterMm: hoops[0]?.bendingDiameterMm ?? pile.hoopDiameterMm, hoopDiameterMm: hoops[0]?.diameterMm ?? internalHoopDiameterMm(pile), spacingMode: pile.hoopSpacingMode, spacingMm: pile.hoopSpacingMm, quantity: pile.hoopQuantity || hoops.reduce((sum, hoop) => sum + hoop.count, 0), positionsMm: hoops[0]?.positionsMm || [], firstHoopOffsetMm: pile.firstHoopOffsetMm, lastHoopOffsetMm: pile.lastHoopOffsetMm, shape: pile.hoopShape, barCenterSpacingMm: hoops[0]?.barCenterSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).centerToCenterMm, barClearSpacingMm: hoops[0]?.barClearSpacingMm ?? longitudinalBarSpacingMm(internalHoopDiameterMm(pile), pile.longitudinalBarCount, pile.longitudinalDiameterMm).clearMm, rings: hoops },
   };

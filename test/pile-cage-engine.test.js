@@ -119,6 +119,29 @@ test('L bar includes bendLengthMm in length calculation', () => {
   assert.equal(pile.calculated.totalLBars, 4);
 });
 
+test('pile bend orientation is snapshot metadata and never changes canonical L-bar material', () => {
+  const base = completeRoundPileInput();
+  base.longitudinalBars.defaultBendOrientationDeg = 42.75;
+  const oriented = calculatePileCage(base);
+  const neutralInput = completeRoundPileInput();
+  neutralInput.longitudinalBars.defaultBendOrientationDeg = 0;
+  const neutral = calculatePileCage(neutralInput);
+  const bentBars = oriented.data.longitudinalBars.bars.filter(bar => bar.type === 'L');
+
+  assert.equal(oriented.data.longitudinalBars.defaultBendOrientationDeg, 42.75);
+  assert.equal(oriented.data.longitudinalBars.bendOrientationReference, 'radial_inward');
+  assert.equal(oriented.data.longitudinalBars.bendOrientationPositive, 'clockwise');
+  assert.equal(bentBars.every(bar => bar.bendOrientationDeg === 42.75), true);
+  assert.equal(oriented.views.topView.bendOrientationReference, 'radial_inward');
+  assert.equal(oriented.views.topView.bars.filter(bar => bar.type === 'L').every(bar => bar.bendOrientationDeg === 42.75), true);
+  assert.equal(oriented.calculated.totalSteelLengthMm, neutral.calculated.totalSteelLengthMm);
+  assert.equal(oriented.calculated.totalWeightKg, neutral.calculated.totalWeightKg);
+  assert.deepEqual(
+    oriented.manufacturingBreakdown.map(part => ({ type: part.componentType, unit: part.unitLengthMm, total: part.totalLengthMm, weight: part.weightKg })),
+    neutral.manufacturingBreakdown.map(part => ({ type: part.componentType, unit: part.unitLengthMm, total: part.totalLengthMm, weight: part.weightKg })),
+  );
+});
+
 test('mixed diameters group correctly in manufacturing breakdown', () => {
   const pile = calculatePileCage({
     longitudinalBars: {
