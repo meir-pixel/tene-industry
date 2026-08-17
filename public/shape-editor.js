@@ -98,7 +98,7 @@ function shapePresetIconSVG(kind) {
     polygon: `<path ${stroke} d="M50 16 L78 32 V66 L50 82 L22 66 V32 Z"/>`,
     w: `<path ${stroke} d="M16 25 L31 74 L50 38 L69 74 L84 25"/>`,
     c: `<path ${stroke} d="M77 24 H31 V74 H77"/>`,
-    bench: `<path ${stroke} d="M18 82 L31 58 V28 H69 V62 L89 78"/>`,
+    bench: `<path ${stroke} d="M10 38 L31 64 V28 H69 V62 L89 78"/>`,
     mesh: `<path ${thin} d="M20 24 H82 M20 40 H82 M20 56 H82 M20 72 H82 M28 16 V80 M44 16 V80 M60 16 V80 M76 16 V80"/>`,
     pile: `<circle cx="50" cy="50" r="30" ${thin}/><circle cx="50" cy="50" r="21" ${thin} opacity=".45"/>${dot(50, 20)}${dot(71, 29)}${dot(80, 50)}${dot(71, 71)}${dot(50, 80)}${dot(29, 71)}${dot(20, 50)}${dot(29, 29)}`,
     spiral: `<path ${thin} d="M39 84 A36 36 0 1 1 67 80"/><circle cx="50" cy="48" r="26" ${thin}/><circle cx="50" cy="48" r="16" ${thin}/><path ${thin} d="M50 40 A8 8 0 1 1 42 48"/><path stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" d="M12 48 H88 M12 42 V54 M88 42 V54"/>`,
