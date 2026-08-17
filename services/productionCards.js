@@ -256,7 +256,7 @@ function calcShapePoints(sides, angles) {
   return points;
 }
 
-function normalizeShapePointsBaseBottom(points) {
+function normalizeShapePointsBaseBottom(points, opts = {}) {
   if (!Array.isArray(points) || points.length < 2) return points;
   let longest = { index: 0, length: 0, angle: 0 };
   for (let i = 0; i < points.length - 1; i += 1) {
@@ -275,6 +275,21 @@ function normalizeShapePointsBaseBottom(points) {
   const baseY = (base[1] + baseNext[1]) / 2;
   const bodyY = rotated.reduce((sum, point) => sum + point[1], 0) / rotated.length;
   if (bodyY > baseY) rotated = rotated.map(([x, y]) => [x, baseY + (baseY - y)]);
+  const rotateDegrees = Number(opts.rotateDegrees || 0);
+  if (rotateDegrees) {
+    const xs = rotated.map(point => point[0]);
+    const ys = rotated.map(point => point[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const radians = rotateDegrees * Math.PI / 180;
+    const rotateCos = Math.cos(radians);
+    const rotateSin = Math.sin(radians);
+    rotated = rotated.map(([x, y]) => {
+      const dx = x - cx;
+      const dy = y - cy;
+      return [cx + dx * rotateCos - dy * rotateSin, cy + dx * rotateSin + dy * rotateCos];
+    });
+  }
   return rotated;
 }
 
@@ -432,6 +447,17 @@ function parseJsonObject(value) {
 
 function shapeSnapshotFromItem(item = {}) {
   return parseJsonObject(item.shape_snapshot_json || item.shapeSnapshot || item.shape_snapshot || item.shapeData || item.shape_data) || {};
+}
+
+function isBenchBarItem(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item);
+  const data = snapshot.data || {};
+  const shapeType = item.shapeType || item.shape_type || snapshot.shapeType || data.shapeType;
+  const presetId = item.shapeId || item.shape_id || item.presetId || item.preset_id;
+  const name = item.shape_name || item.shapeName || item.shape || snapshot.displayName || '';
+  return shapeType === 'bench_bar'
+    || presetId === 's15'
+    || /^\s*(?:ספסל|bench)\s*$/i.test(String(name));
 }
 
 function normalizeSnapshotSegments(segments) {
@@ -595,7 +621,11 @@ function spiralShapeSvg(item = {}) {
 function itemShapeSvg(item = {}) {
   if (isRoundPileCageItem(item)) return pileCageProductionSvg(item);
   const spiralSvg = spiralShapeSvg(item);
-  return spiralSvg || shapeSvg(shapeSegmentsFromItem(item));
+  const isBench = isBenchBarItem(item);
+  return spiralSvg || shapeSvg(shapeSegmentsFromItem(item), {
+    rotateDegrees: isBench ? 180 : 0,
+    shapeKind: isBench ? 'bench-bar' : 'generic-bar',
+  });
 }
 
 function openUShapeSvg(segments) {
@@ -740,7 +770,7 @@ function angledOpenStirrupSvg(parts) {
 
   return '<svg data-shape-kind="angled-open-stirrup" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;height:100%;max-height:112px;overflow:visible">' + svg + '</svg>';
 }
-function shapeSvg(segmentsRaw) {
+function shapeSvg(segmentsRaw, opts = {}) {
   try {
     const segments = parseSegments(segmentsRaw);
     const width = 260;
@@ -762,7 +792,7 @@ function shapeSvg(segmentsRaw) {
     const sides = segments.map(segment => Number(segment.length_mm || 0));
     const angles = segments.map(segment => segment.angle_deg);
     const visualSides = proportionalPrintSides(sides);
-    const points = normalizeShapePointsBaseBottom(calcShapePoints(visualSides, angles));
+    const points = normalizeShapePointsBaseBottom(calcShapePoints(visualSides, angles), opts);
 
     const xs = points.map(point => point[0]);
     const ys = points.map(point => point[1]);
@@ -795,7 +825,7 @@ function shapeSvg(segmentsRaw) {
       }
     }
 
-    return `<svg data-shape-kind="generic-bar" data-scale-mode="print-fit" data-proportional-short-bends="1" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
+    return `<svg data-shape-kind="${opts.shapeKind || 'generic-bar'}" data-scale-mode="print-fit" data-proportional-short-bends="1" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
   } catch {
     return '<svg viewBox="0 0 220 60"><line x1="10" y1="30" x2="210" y2="30" stroke="#ccc" stroke-width="2"/></svg>';
   }

@@ -14,7 +14,7 @@
 <script src="/rebar-weights.js"></script>
 <script src="/shapeSnapshot.js?v=1"></script>
 <script src="/steelRebarShapes.js?v=1"></script>
-<script src="/shape-editor.js?v=61"></script>
+<script src="/shape-editor.js?v=62"></script>
 <script src="/offline-db.js"></script>
 <script src="/auth-client.js"></script>
 <script src="/nav.js" defer></script>
@@ -2940,6 +2940,14 @@ function isStandaloneRingItem(item = {}) {
     || source.specialty === 'ring'
     || item.specialty === 'ring';
 }
+function isBenchBarItem(item = {}) {
+  const contract = itemShapeContract(item) || approvedShapeContract(item) || item.shapeSnapshot || null;
+  const name = item.shapeName || item.shape_name || contract?.displayName || '';
+  return contract?.shapeType === 'bench_bar'
+    || item.shapeType === 'bench_bar'
+    || item.shapeId === 's15'
+    || /^\s*(?:ספסל|bench)\s*$/i.test(String(name));
+}
 window.ringFieldsFromShapeData = ringFieldsFromShapeData;
 window.isStandaloneRingItem = isStandaloneRingItem;
 function roundPileCageSnapshot(item = {}) {
@@ -3106,9 +3114,10 @@ function itemPreviewSvg(item, sides, angles) {
     return '<svg viewBox="0 0 132 92" width="132" height="92">' + window.IronBendShapeGeometry.RingEngine.render(shape, 132, 92) + '</svg>';
   }
   if (sides.length) {
-    if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false }) + '</svg>';
+    const rotateDegrees = isBenchBarItem(item) ? 180 : 0;
+    if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false, rotateDegrees }) + '</svg>';
     const W = 130, H = 42, pad = 16;
-    const result = shapeSVGPath(sides, angles, W, H, pad);
+    const result = shapeSVGPath(sides, angles, W, H, pad, { rotateDegrees });
     const pts = result.pts || [];
     const labels = [];
     for (let i = 0; i < pts.length - 1; i++) {
@@ -3198,6 +3207,8 @@ function openShapeEditor(palletId, itemId) {
   }
   shapeEditor.open(sides.length ? {
     presetId: item.shapeId,
+    presetName: item.shapeName || contract?.displayName,
+    shapeType: contract?.shapeType || (isBenchBarItem(item) ? 'bench_bar' : undefined),
     sides,
     angles,
     azAngles: item.azAngles || null,

@@ -34,6 +34,7 @@ const SHAPE_PRESETS = [
   { id: 's11', name: 'צורה 11',  family: 'bars', category: 'משקפיים', icon: 'polygon', bends: 6, sides: [150, 150, 400, 150, 400, 150, 150], angles: [90,90,90,90,90,90], emoji: '⬡' },
   { id: 's13', name: 'צורה 12', family: 'bars', category: 'פיגורה', icon: 'w', bends: 4, sides: [200, 300, 300, 300, 200], angles: [135, 90, 90, 135], emoji: 'W' },
   { id: 's14', name: 'צורה 13',    family: 'bars', category: 'פיגורה', icon: 'c', bends: 4, sides: [300, 200, 400, 200, 300], angles: [90, 90, 90, 90],   emoji: 'C' },
+  { id: 's15', name: 'ספסל',       family: 'bars', category: 'פיגורה', icon: 'bench', bends: 2, sides: [280, 300, 280], angles: [142.6, 142.6], shapeType: 'bench_bar', emoji: '🪑' },
   { id: 'mesh1', name: 'רשת', family: 'mesh', icon: 'mesh', bends: 0, length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, edgeLeft: 0, edgeRight: 0, edgeTop: 0, edgeBottom: 0, emoji: '#', specialty: 'mesh' },
   { id: 'round-pile-cage', name: 'כלוב כלונס עגול', family: 'piles', icon: 'pile', bends: 0, roundPileCage: true, pileDiameter: 60, pileLength: 1200, longitudinalBars: 10, longitudinalDiameter: 20, straightBarCount: 5, bentBarCount: 5, straightBarLength: 1200, bentBarLength: 1220, bendLength: 20, barPattern: 'alternate', spiralDiameter: 8, spiralOuterDiameter: 48, spiralPitch: 15, spiralZones: [{ length: 1180, pitch: 15 }], hoopsEnabled: true, hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30, emoji: '◎', specialty: 'pile' },
   { id: 'spiral1', name: 'ספיראלה', family: 'spirals', icon: 'spiral', bends: 0, barDiameter: 8, spiralDiameter: 400, turns: 20, emoji: '🌀', specialty: 'spiral' },
@@ -69,6 +70,7 @@ function shapePresetIconSVG(kind) {
     polygon: `<path ${stroke} d="M50 16 L78 32 V66 L50 82 L22 66 V32 Z"/>`,
     w: `<path ${stroke} d="M16 25 L31 74 L50 38 L69 74 L84 25"/>`,
     c: `<path ${stroke} d="M77 24 H31 V74 H77"/>`,
+    bench: `<path ${stroke} d="M16 74 L38 30 H62 L84 74"/>`,
     mesh: `<path ${thin} d="M20 24 H82 M20 40 H82 M20 56 H82 M20 72 H82 M28 16 V80 M44 16 V80 M60 16 V80 M76 16 V80"/>`,
     pile: `<circle cx="50" cy="50" r="30" ${thin}/><circle cx="50" cy="50" r="21" ${thin} opacity=".45"/>${dot(50, 20)}${dot(71, 29)}${dot(80, 50)}${dot(71, 71)}${dot(50, 80)}${dot(29, 71)}${dot(20, 50)}${dot(29, 29)}`,
     spiral: `<path ${thin} d="M50 82 C22 82 14 68 14 58 C14 44 26 36 38 36 C52 36 58 46 58 54 C58 64 50 70 42 70 C34 70 30 64 30 58 C30 52 36 48 42 48 C48 48 52 52 52 56"/>`,
@@ -83,6 +85,20 @@ function isStandaloneRingShape(shape = {}) {
     || shape?.shapeType === 'ring'
     || shape?.presetId === 'ring1'
     || shape?.id === 'ring1';
+}
+
+function isBenchBarShape(shape = {}) {
+  const name = shape?.presetName || shape?.shapeName || shape?.name || shape?.displayName || '';
+  return shape?.shapeType === 'bench_bar'
+    || shape?.presetId === 's15'
+    || shape?.id === 's15'
+    || /^\s*(?:ספסל|bench)\s*$/i.test(String(name));
+}
+
+function shapePreviewRotation(shape = {}) {
+  const explicit = Number(shape?.previewRotation);
+  if (Number.isFinite(explicit)) return explicit;
+  return isBenchBarShape(shape) ? 180 : 0;
 }
 
 // ── GEOMETRY ──────────────────────────────────────────────────────
@@ -2643,6 +2659,7 @@ class ShapeEditorModal {
       <button class="se-family-card" data-edit-family="piles" onclick="window._seEditor._jumpToFamily('piles')">${shapePresetIconSVG('pile')}<span>כלונסאות</span></button>
       <button class="se-family-card" data-edit-family="spirals" onclick="window._seEditor._jumpToFamily('spirals')">${shapePresetIconSVG('spiral')}<span>ספיראלות</span></button>
       <button class="se-family-card" data-edit-family="ring" onclick="window._seEditor._jumpToFamily('ring')">${shapePresetIconSVG('ring')}<span>טבעות</span></button>
+      <button class="se-family-card" data-edit-family="bench" onclick="window._seEditor._jumpToFamily('bench')">${shapePresetIconSVG('bench')}<span>ספסל</span></button>
       <div id="seSidebarSaved" style="margin-top:8px;border-top:1px solid #c5cbd4;padding-top:10px;"></div>
     </aside>
     <!-- Center: preview -->
@@ -2919,6 +2936,7 @@ class ShapeEditorModal {
 
   _defaultPresetForFamily(family = 'bars') {
     if (family === 'ring') return SHAPE_PRESETS.find(isStandaloneRingShape) || SHAPE_PRESETS[0];
+    if (family === 'bench') return SHAPE_PRESETS.find(isBenchBarShape) || SHAPE_PRESETS[0];
     const normalizedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars';
     const requestedSideCount = Number(this._selectedCount || this._selectedSideCount);
     const candidates = SHAPE_PRESETS.filter(shape => (shape.family || 'bars') === normalizedFamily && !shape.custom && (normalizedFamily !== 'spirals' || !isStandaloneRingShape(shape)));
@@ -3239,6 +3257,7 @@ class ShapeEditorModal {
       presetEmoji: preset.emoji,
       sides,
       angles,
+      diameter:   Number(preset.diameter ?? this.current?.diameter ?? this._pendingDiameter ?? 0) || 0,
       quantity:    Math.max(1, Number(this.current?.quantity || this._pendingQuantity || preset.quantity || preset.qty || 1) || 1),
       azAngles:    [0, ...angles.map(a => 180 - (a ?? 180))].slice(0, n),
       elAngles:    Array(n).fill(0),
@@ -3249,7 +3268,7 @@ class ShapeEditorModal {
     // pad azAngles if needed
     while (this.current.azAngles.length < n) this.current.azAngles.push(0);
     document.querySelectorAll('.se-preset-btn').forEach(b => b.classList.toggle('active', b.dataset.id === preset.id));
-    this._previewRotation = 0;
+    this._previewRotation = shapePreviewRotation(preset);
     seSyncRotateButton();
     this._goToEdit();
   }
@@ -3351,7 +3370,7 @@ class ShapeEditorModal {
 
   _syncEditFamilyCards() {
     const family = normalizeShapeFamily(this.current || {});
-    const editorKind = isStandaloneRingShape(this.current) ? 'ring' : family;
+    const editorKind = isStandaloneRingShape(this.current) ? 'ring' : (isBenchBarShape(this.current) ? 'bench' : family);
     document.querySelectorAll('[data-edit-family]').forEach(btn => btn.classList.toggle('active', btn.dataset.editFamily === editorKind));
     this._renderSidebarSavedShapes(family);
   }
@@ -4526,6 +4545,7 @@ class ShapeEditorModal {
 
       svg.innerHTML = shape3DSVG(sides, angles, 300, 260, diam, {
         showAxes: true, showDims: true, showBends: false, compactLabels: true, dark: false,
+        rotateDegrees: this._previewRotation || 0,
         camTheta:  this._camTheta,
         camPhi:    this._camPhi,
         azAngles:  has3D ? (effectiveAzAngles || Array(sides.length).fill(0)) : null,
@@ -4786,7 +4806,8 @@ class ShapeEditorModal {
     if (orbitCtrl) orbitCtrl.style.display = is3D ? 'flex' : 'none';
     if (svgWrap)   svgWrap.classList.toggle('grab-mode', is3D);
     this._pendingQuantity = Math.max(0, Number(existingData?.quantity ?? existingData?.qty ?? 0) || 0);
-    this._previewRotation = 0;
+    this._pendingDiameter = Math.max(0, Number(existingData?.diameter ?? existingData?.diameterMm ?? 0) || 0);
+    this._previewRotation = shapePreviewRotation(existingData || {});
     seSyncRotateButton();
     if (existingData?.family === 'mesh' || existingData?.family === 'piles' || existingData?.family === 'spirals') {
       this.current = { ...existingData, quantity: this._pendingQuantity };

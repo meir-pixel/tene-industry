@@ -85,6 +85,54 @@ test('shape editor exposes a visual-only 90-degree rotation control for ambiguou
   assert.ok(Math.abs(longest.dy) > 100, 'expected rotated preview to keep the full shape geometry, not just move labels');
 });
 
+test('bench preset keeps production geometry while displaying the bridge above its legs', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const { buildShapeDataContractV2, shapeSVGPath } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'bars',
+    shapeType: 'bench_bar',
+    presetId: 's15',
+    presetName: 'ספסל',
+    sides: [280, 300, 280],
+    angles: [142.6, 142.6],
+    diameter: 12,
+  });
+  const { pts } = shapeSVGPath([280, 300, 280], [142.6, 142.6], 300, 260, 38, { rotateDegrees: 180 });
+
+  assert.match(editor, /id: 's15'.*name: 'ספסל'.*shapeType: 'bench_bar'/);
+  assert.match(editor, /data-edit-family="bench"[^>]*>[^\n]*<span>ספסל<\/span>/);
+  assert.match(editor, /family === 'bench'.*SHAPE_PRESETS\.find\(isBenchBarShape\)/);
+  assert.match(editor, /diameter:\s+Number\(preset\.diameter \?\? this\.current\?\.diameter \?\? this\._pendingDiameter/);
+  assert.equal(contract.shapeType, 'bench_bar');
+  assert.deepEqual(Array.from(contract.data.sides), [280, 300, 280]);
+  assert.deepEqual(Array.from(contract.data.angles), [142.6, 142.6]);
+  assert.equal(contract.calculated.unitLengthMm, 860);
+  assert.ok(Math.abs(pts[1][1] - pts[2][1]) < 0.2, 'expected the 300 mm bridge to stay horizontal');
+  assert.ok(pts[1][1] < pts[0][1] && pts[2][1] < pts[3][1], 'expected the bridge above both feet');
+});
+
+test('production card renders bench bars with the bridge above both feet', () => {
+  const svg = itemShapeSvg({
+    shape_name: 'ספסל',
+    segments: JSON.stringify([
+      { length_mm: 280, angle_deg: 142.6 },
+      { length_mm: 300, angle_deg: 142.6 },
+      { length_mm: 280, angle_deg: null },
+    ]),
+    shape_snapshot_json: JSON.stringify({
+      family: 'bars',
+      shapeType: 'bench_bar',
+      displayName: 'ספסל',
+      data: { sides: [280, 300, 280], angles: [142.6, 142.6], diameter: 12 },
+    }),
+  });
+  const pathMatch = svg.match(/<path d="M ([^"]+)"/);
+  assert.match(svg, /data-shape-kind="bench-bar"/);
+  assert.ok(pathMatch, 'expected a bench SVG path');
+  const points = pathMatch[1].split(' L ').map(pair => pair.split(',').map(Number));
+  assert.ok(points[1][1] < points[0][1] && points[2][1] < points[3][1], 'expected print bridge above both feet');
+});
+
 test('visual-only 3D preview does not use true-3D azimuth arrays', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
 
@@ -400,8 +448,8 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=61/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=60/);
+  assert.match(index, /shape-editor\.js\?v=62/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=61/);
 });
 
 test('standalone ring editor keeps overlap in the Shape V2 cut length', () => {
