@@ -85,52 +85,82 @@ test('shape editor exposes a visual-only 90-degree rotation control for ambiguou
   assert.ok(Math.abs(longest.dy) > 100, 'expected rotated preview to keep the full shape geometry, not just move labels');
 });
 
-test('bench preset keeps production geometry while displaying the bridge above its legs', () => {
+test('bench preset opens as real 3D and keeps the schedule elevation in every 2D view', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
-  const { buildShapeDataContractV2, shapeSVGPath } = loadShapeEditorGeometry();
+  const { buildShapeDataContractV2, calcShapePoints3D, benchBarSVGPath } = loadShapeEditorGeometry();
   const contract = buildShapeDataContractV2({
     family: 'bars',
     shapeType: 'bench_bar',
     presetId: 's15',
     presetName: 'ספסל',
-    sides: [280, 300, 280],
-    angles: [142.6, 142.6],
+    sides: [280, 170, 300, 170, 280],
+    angles: [90, 90, 90, 90],
+    is3d: 1,
+    azAngles: [0, 90, 90, 90, 90],
+    elAngles: [90, 0, 0, 0, 90],
     diameter: 12,
   });
-  const { pts } = shapeSVGPath([280, 300, 280], [142.6, 142.6], 300, 260, 38, { rotateDegrees: 180 });
+  const points = calcShapePoints3D(
+    [280, 170, 300, 170, 280],
+    [0, 90, 90, 90, 90],
+    [90, 0, 0, 0, 90],
+  );
+  const elevation = benchBarSVGPath([280, 170, 300, 170, 280], 300, 260, 38).pts;
 
-  assert.match(editor, /id: 's15'.*name: 'ספסל'.*shapeType: 'bench_bar'/);
+  assert.match(editor, /id: 's15'.*name: 'ספסל'.*sides: \[280, 170, 300, 170, 280\].*is3d: 1.*azAngles: \[0, 90, 90, 90, 90\].*elAngles: \[90, 0, 0, 0, 90\].*shapeType: 'bench_bar'/);
   assert.match(editor, /data-edit-family="bench"[^>]*>[^\n]*<span>ספסל<\/span>/);
+  assert.match(editor, /bench: `<path \$\{stroke\} d="M18 82 L31 58 V28 H69 V62 L89 78"\/>`/);
   assert.match(editor, /family === 'bench'.*SHAPE_PRESETS\.find\(isBenchBarShape\)/);
+  assert.match(editor, /if \(isReal3D\) window\.seSetView\?\.\('3d'\)/);
   assert.match(editor, /diameter:\s+Number\(preset\.diameter \?\? this\.current\?\.diameter \?\? this\._pendingDiameter/);
   assert.equal(contract.shapeType, 'bench_bar');
-  assert.deepEqual(Array.from(contract.data.sides), [280, 300, 280]);
-  assert.deepEqual(Array.from(contract.data.angles), [142.6, 142.6]);
-  assert.equal(contract.calculated.unitLengthMm, 860);
-  assert.ok(Math.abs(pts[1][1] - pts[2][1]) < 0.2, 'expected the 300 mm bridge to stay horizontal');
-  assert.ok(pts[1][1] < pts[0][1] && pts[2][1] < pts[3][1], 'expected the bridge above both feet');
+  assert.deepEqual(Array.from(contract.data.sides), [280, 170, 300, 170, 280]);
+  assert.deepEqual(Array.from(contract.data.angles), [90, 90, 90, 90]);
+  assert.equal(contract.data.is3d, 1);
+  assert.deepEqual(Array.from(contract.data.azAngles), [0, 90, 90, 90, 90]);
+  assert.deepEqual(Array.from(contract.data.elAngles), [90, 0, 0, 0, 90]);
+  assert.equal(contract.calculated.unitLengthMm, 1200);
+  assert.equal(points.length, 6);
+  assert.ok(Math.abs(points[1][2] - points[0][2] - 280) < 0.001, 'expected the first 28 cm side on the Z axis');
+  assert.ok(points.slice(1, 5).every(point => Math.abs(point[2] - 280) < 0.001), 'expected the 17-30-17 cm bridge in one plane');
+  assert.ok(Math.abs(points[5][2] - points[4][2] - 280) < 0.001, 'expected the final 28 cm side on the Z axis');
+  assert.ok(Math.abs(elevation[1][0] - elevation[2][0]) < 0.001, 'expected the left 17 cm rise to be vertical in 2D');
+  assert.ok(Math.abs(elevation[2][1] - elevation[3][1]) < 0.001, 'expected the 30 cm bridge to be horizontal in 2D');
+  assert.ok(Math.abs(elevation[3][0] - elevation[4][0]) < 0.001, 'expected the right 17 cm drop to be vertical in 2D');
+  assert.ok(elevation[0][0] < elevation[1][0] && elevation[0][1] > elevation[1][1], 'expected the left 28 cm foot to angle outward');
+  assert.ok(elevation[5][0] > elevation[4][0] && elevation[5][1] > elevation[4][1], 'expected the right 28 cm foot to angle outward');
+  assert.match(editor, /isBenchProjection\s*\?\s*benchBarSVGPath\(sides, 300, 260, 38\)/);
 });
 
-test('production card renders bench bars with the bridge above both feet', () => {
+test('production card keeps all five bench segments and the 120 cm cut length', () => {
   const svg = itemShapeSvg({
     shape_name: 'ספסל',
     segments: JSON.stringify([
-      { length_mm: 280, angle_deg: 142.6 },
-      { length_mm: 300, angle_deg: 142.6 },
+      { length_mm: 280, angle_deg: 90 },
+      { length_mm: 170, angle_deg: 90 },
+      { length_mm: 300, angle_deg: 90 },
+      { length_mm: 170, angle_deg: 90 },
       { length_mm: 280, angle_deg: null },
     ]),
     shape_snapshot_json: JSON.stringify({
       family: 'bars',
       shapeType: 'bench_bar',
       displayName: 'ספסל',
-      data: { sides: [280, 300, 280], angles: [142.6, 142.6], diameter: 12 },
+      data: { sides: [280, 170, 300, 170, 280], angles: [90, 90, 90, 90], diameter: 12 },
     }),
   });
   const pathMatch = svg.match(/<path d="M ([^"]+)"/);
   assert.match(svg, /data-shape-kind="bench-bar"/);
+  assert.match(svg, /data-dimension="2d"/);
   assert.ok(pathMatch, 'expected a bench SVG path');
   const points = pathMatch[1].split(' L ').map(pair => pair.split(',').map(Number));
-  assert.ok(points[1][1] < points[0][1] && points[2][1] < points[3][1], 'expected print bridge above both feet');
+  assert.equal(points.length, 6);
+  assert.ok(points[0][0] < points[1][0] && points[0][1] > points[1][1]);
+  assert.equal(points[1][0], points[2][0]);
+  assert.equal(points[2][1], points[3][1]);
+  assert.equal(points[3][0], points[4][0]);
+  assert.ok(points[5][0] > points[4][0] && points[5][1] > points[4][1]);
+  assert.equal([280, 170, 300, 170, 280].reduce((sum, side) => sum + side, 0), 1200);
 });
 
 test('visual-only 3D preview does not use true-3D azimuth arrays', () => {
@@ -448,8 +478,22 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=63/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=62/);
+  assert.match(index, /shape-editor\.js\?v=65/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=(?:62|63|64)/);
+});
+
+test('standalone ring family icon reads as a closed circular ring with overlap', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /ring: `<circle cx="50" cy="48" r="28" \$\{thin\}\/><path \$\{thin\} d="M30 68 C37 76 47 80 59 77"\/>`/);
+  assert.doesNotMatch(editor, /ring: `<path \$\{thin\} d="M28 64 A30 30/);
+});
+
+test('spiral family icon reads as a multi-turn coil with a diameter line', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+
+  assert.match(editor, /spiral: `<path \$\{thin\} d="M39 84 A36 36 0 1 1 67 80"\/><circle cx="50" cy="48" r="26"/);
+  assert.match(editor, /M12 48 H88 M12 42 V54 M88 42 V54/);
 });
 
 test('standalone ring editor keeps overlap in the Shape V2 cut length', () => {

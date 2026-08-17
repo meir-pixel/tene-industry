@@ -92,6 +92,9 @@ function normalizeBarShapeType(input, sides, angles) {
 function buildBarsShapeContract(input = {}, options = {}) {
   const sides = Array.isArray(input.sides) ? input.sides.map(value => Number(value) || 0) : [];
   const angles = Array.isArray(input.angles) ? input.angles.map(value => Number(value) || 0) : [];
+  const is3d = input.is3d === 1 || input.is3d === true || input.is_3d === 1 || input.is_3d === true;
+  const azAngles = is3d && Array.isArray(input.azAngles) ? input.azAngles.map(value => Number(value) || 0) : null;
+  const elAngles = is3d && Array.isArray(input.elAngles) ? input.elAngles.map(value => Number(value) || 0) : null;
   const diameter = positiveNumber(input.diameter, input.diameterMm, input.barDiameterMm);
   const quantity = Math.max(1, Math.round(positiveNumber(options.quantity, input.quantity, 1)));
   const unitLengthMm = sides.reduce((sum, value) => sum + value, 0);
@@ -107,7 +110,7 @@ function buildBarsShapeContract(input = {}, options = {}) {
     angle_deg: index < angles.length ? angles[index] : null,
   }));
   return {
-    data: { sides, angles, diameter },
+    data: { sides, angles, diameter, ...(is3d ? { is3d: 1, azAngles, elAngles } : {}) },
     calculated: {
       totalLengthMm: unitLengthMm,
       weightKg: unitWeightKg,
@@ -118,7 +121,7 @@ function buildBarsShapeContract(input = {}, options = {}) {
       totalWeightKg,
       bendCount: angles.length,
     },
-    generic: { family: 'bars', shapeType, diameter, segments, totalLengthMm: unitLengthMm, bendCount: angles.length },
+    generic: { family: 'bars', shapeType, diameter, segments, totalLengthMm: unitLengthMm, bendCount: angles.length, ...(is3d ? { is3d: 1, azAngles, elAngles } : {}) },
     component: {
       family: 'bars',
       shapeType,
@@ -130,6 +133,7 @@ function buildBarsShapeContract(input = {}, options = {}) {
       weightKg: totalWeightKg,
       sides,
       angles,
+      ...(is3d ? { is3d: 1, azAngles, elAngles } : {}),
       segments,
     },
   };
