@@ -404,6 +404,56 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   assert.doesNotMatch(index, /shape-editor\.js\?v=60/);
 });
 
+test('standalone ring editor keeps overlap in the Shape V2 cut length', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const { buildShapeDataContractV2, RingEngine } = loadShapeEditorGeometry();
+  const contract = buildShapeDataContractV2({
+    family: 'spirals',
+    shapeType: 'ring',
+    specialty: 'ring',
+    presetId: 'ring1',
+    presetName: 'טבעת עגולה',
+    barDiameter: 18,
+    ringDiameter: 420,
+    spiralDiameter: 420,
+    overlap: 200,
+    turns: 1,
+  });
+
+  assert.match(editor, /data-edit-family="ring"/);
+  assert.match(editor, /seRingDiameter/);
+  assert.match(editor, /seRingOverlap/);
+  assert.match(editor, /אורך חיתוך כולל חפיפה/);
+  assert.equal(contract.family, 'spirals');
+  assert.equal(contract.shapeType, 'ring');
+  assert.equal(contract.data.ringDiameterMm, 420);
+  assert.equal(contract.data.overlapMm, 200);
+  assert.equal(contract.calculated.circumferenceMm, 1319);
+  assert.equal(contract.calculated.totalLengthMm, 1519);
+  assert.equal(contract.validation.valid, true);
+  assert.equal(Object.hasOwn(contract.data, 'quantity'), false);
+  assert.match(RingEngine.render({ barDiameter: 18, ringDiameter: 420, overlap: 200 }, 300, 260), /data-overlap-mm="200"/);
+});
+
+test('production card renders a standalone ring and its overlap', () => {
+  const svg = itemShapeSvg({
+    family: 'spirals',
+    spiral_diameter_mm: 420,
+    spiral_turns: 1,
+    shapeSnapshot: {
+      family: 'spirals',
+      shapeType: 'ring',
+      data: { shapeType: 'ring', barDiameter: 18, ringDiameterMm: 420, spiralDiameter: 420, turns: 1, overlapMm: 200 },
+      calculated: { totalLengthMm: 1519 },
+      machineOutput: { generic: {} },
+    },
+  });
+
+  assert.match(svg, /data-shape-kind="ring"/);
+  assert.match(svg, /data-ring-overlap-mm="200"/);
+  assert.match(svg, /חפיפה 20 ס״מ/);
+});
+
 
 test('shape editor summary weight stays per shape unit and does not multiply by order quantity', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
