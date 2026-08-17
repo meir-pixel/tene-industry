@@ -622,10 +622,37 @@ function itemShapeSvg(item = {}) {
   if (isRoundPileCageItem(item)) return pileCageProductionSvg(item);
   const spiralSvg = spiralShapeSvg(item);
   const isBench = isBenchBarItem(item);
-  return spiralSvg || shapeSvg(shapeSegmentsFromItem(item), {
+  const segments = shapeSegmentsFromItem(item);
+  if (!spiralSvg && isBench && segments.length === 5) return benchBarProductionSvg(segments);
+  return spiralSvg || shapeSvg(segments, {
     rotateDegrees: isBench ? 180 : 0,
     shapeKind: isBench ? 'bench-bar' : 'generic-bar',
   });
+}
+
+function benchBarProductionSvg(segments) {
+  const sides = segments.map(segment => Number(segment.length_mm || 0));
+  const width = 260;
+  const height = 140;
+  const points = [
+    [25, 116],
+    [62, 82],
+    [62, 30],
+    [198, 30],
+    [198, 82],
+    [235, 116],
+  ];
+  const path = `M ${points.map(point => point.join(',')).join(' L ')}`;
+  const center = [
+    points.reduce((sum, point) => sum + point[0], 0) / points.length,
+    points.reduce((sum, point) => sum + point[1], 0) / points.length,
+  ];
+  let svg = `<path d="${path}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  svg += `<path d="${path}" fill="none" stroke="#3a5070" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  sides.forEach((value, index) => {
+    svg += sideDimensionSvg(points[index], points[index + 1], value, center, index === 0 || index === 4 ? 18 : 16);
+  });
+  return `<svg data-shape-kind="bench-bar" data-dimension="2d" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
 }
 
 function openUShapeSvg(segments) {
