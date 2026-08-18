@@ -56,12 +56,18 @@ test('order API, A4 and delivery certificate share the computed commercial summa
   assert.equal(order.commercial_summary.calculation, 'computed_on_read');
   assert.equal(order.commercial_summary.lines.find(line => line.key === 'cutting_kg').value, 10);
   assert.equal(order.commercial_summary.lines.find(line => line.key === 'bending_kg').value, 10);
+  const materialLine = order.commercial_summary.lines.find(line => line.key === 'round_wire_coil_kg');
+  assert.equal(materialLine.label, 'סלילים עגולים-חוטים');
+  assert.equal(materialLine.value, 10);
+  assert.equal(materialLine.contributors[0].material_source, 'coil');
+  assert.equal(materialLine.contributors[0].material_source_basis, 'inferred_diameter_shape_length');
   assert.equal(Object.hasOwn(order.commercial_summary.lines.find(line => line.key === 'cutting_kg'), 'units'), false);
 
   const a4Response = await request(`/api/orders/${orderId}/print-a4`, { headers });
   assert.equal(a4Response.status, 200);
   const a4 = await a4Response.text();
   assert.match(a4, /data-commercial-summary-line="cutting_kg"/);
+  assert.match(a4, /<td>סלילים עגולים-חוטים<\/td><td>10\.00 קג<\/td>/);
   assert.match(a4, /<td>חיתוך<\/td><td>10\.00 קג<\/td>/);
   assert.doesNotMatch(a4, /חיתוך<\/td><td>[^<]*יח/);
 
@@ -69,6 +75,7 @@ test('order API, A4 and delivery certificate share the computed commercial summa
   const delivery = await deliveryResponse.text();
   assert.equal(deliveryResponse.status, 200, delivery);
   assert.match(delivery, /data-commercial-summary-line="cutting_kg"/);
+  assert.match(delivery, /סלילים עגולים-חוטים:<\/span><span class="sum-val">10\.00/);
   assert.match(delivery, /חיתוך:<\/span><span class="sum-val">10\.00/);
   assert.doesNotMatch(delivery, /חיתוך:<\/span><span class="sum-val">[^<]*יח/);
 });
@@ -80,4 +87,6 @@ test('order summary drilldown opens only on double-click and contributor navigat
   assert.doesNotMatch(html, /onclick="openCommercialBreakdown\(event,/);
   assert.doesNotMatch(html, /onclick="focusCommercialContributor\(event,/);
   assert.match(html, /לחיצה כפולה על שורה מציגה את הכרטיסים/);
+  assert.match(html, /מקור משוער לפי קוטר, צורה ואורך/);
+  assert.match(html, /מקור שנבחר במפורש/);
 });

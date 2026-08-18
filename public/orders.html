@@ -1234,6 +1234,15 @@ function pileComponentLabel(component) {
   return labels[component?.component_type] || component?.description || component?.component_type || 'רכיב';
 }
 
+function commercialMaterialSourceText(row) {
+  if (!row?.material_source) return '';
+  const label = row.material_source === 'coil' ? 'סלילים עגולים-חוטים' : 'מוטות';
+  const basis = row.material_source_basis === 'explicit'
+    ? 'מקור שנבחר במפורש'
+    : 'מקור משוער לפי קוטר, צורה ואורך';
+  return ` · ${label} (${basis})`;
+}
+
 function openCommercialBreakdown(event, key) {
   event?.preventDefault();
   event?.stopPropagation();
@@ -1245,12 +1254,13 @@ function openCommercialBreakdown(event, key) {
     const itemId = Number(row.item_id) || 0;
     const diameter = Number(row.diameter_mm) > 0 ? ` · Ø${Number(row.diameter_mm)}` : '';
     const source = row.weight_source === 'actual' ? 'משקל בפועל' : 'משקל תיאורטי';
+    const materialSource = commercialMaterialSourceText(row);
     const components = Array.isArray(row.pile_components) && row.pile_components.length
       ? `<div class="commercial-pile-components">${row.pile_components.map(component => `<div>${escHtml(pileComponentLabel(component))}: ${Number(component.weight_kg || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ק״ג</div>`).join('')}</div>`
       : '';
     return `<div class="commercial-contributor" ${itemId ? `ondblclick="focusCommercialContributor(event, ${itemId})" title="לחיצה כפולה למעבר לכרטיס"` : ''}>
       <div class="commercial-contributor-title">פריט ${Number(row.line_no) || '—'} · ${escHtml(row.shape_name || 'פריט')}${escHtml(diameter)}</div>
-      <div class="commercial-contributor-meta">${escHtml(source)} · ${Number(row.weight_kg || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ק״ג · כמות ${Number(row.quantity || 0).toLocaleString('he-IL')}</div>
+      <div class="commercial-contributor-meta">${escHtml(source)}${escHtml(materialSource)} · ${Number(row.weight_kg || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ק״ג · כמות ${Number(row.quantity || 0).toLocaleString('he-IL')}</div>
       ${components}
     </div>`;
   }).join('') || '<div class="detail-customer">אין כרטיסים לפירוט.</div>';

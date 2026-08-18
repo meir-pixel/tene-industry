@@ -5,21 +5,21 @@ const { itemShapeMetrics } = require('./shapeSnapshot');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 
 const SECTION_DEFINITIONS = Object.freeze([
-  { key: 'material', label: 'חומר גלם לפי משקל' },
-  { key: 'processing', label: 'עיבוד ברזל' },
-  { key: 'finished_products', label: 'מוצרים לפי משקל' },
+  { key: 'material', label: 'ברזל מעובד' },
+  { key: 'processing', label: 'עיבודים ברזל' },
+  { key: 'finished_products', label: 'רשת סטנדרט' },
 ]);
 
 const LINE_DEFINITIONS = Object.freeze([
-  { key: 'processed_rebar_kg', section: 'material', label: 'ברזל בניין מעובד — מוטות', unit: 'kg' },
-  { key: 'round_wire_coil_kg', section: 'material', label: 'ברזל עגול / חוט לספירלות', unit: 'kg' },
+  { key: 'processed_rebar_kg', section: 'material', label: 'מוטות', unit: 'kg' },
+  { key: 'round_wire_coil_kg', section: 'material', label: 'סלילים עגולים-חוטים', unit: 'kg' },
   { key: 'cutting_kg', section: 'processing', label: 'חיתוך', unit: 'kg' },
   { key: 'bending_kg', section: 'processing', label: 'כיפוף', unit: 'kg' },
-  { key: 'spiral_processing_kg', section: 'processing', label: 'עיבוד ספירלה', unit: 'kg' },
-  { key: 'chairs_units', section: 'processing', label: 'כיסאות / ספסלים', unit: 'unit' },
-  { key: 'rings_units', section: 'processing', label: 'חישוקים / טבעות', unit: 'unit' },
-  { key: 'lifting_units', section: 'processing', label: 'אביזרי זיון / הרמה', unit: 'unit' },
-  { key: 'mesh_kg', section: 'finished_products', label: 'רשת ברזל', unit: 'kg' },
+  { key: 'spiral_processing_kg', section: 'processing', label: 'עיבוד ספירלות עד קוטר 12 כולל', unit: 'kg' },
+  { key: 'chairs_units', section: 'processing', label: 'כסאות', unit: 'unit' },
+  { key: 'rings_units', section: 'processing', label: 'חישוקים', unit: 'unit' },
+  { key: 'lifting_units', section: 'processing', label: 'ציפורים/אזני הרמה/קרומים', unit: 'unit' },
+  { key: 'mesh_kg', section: 'finished_products', label: 'רשת לבניין סטנדרט בחבילות', unit: 'kg' },
   { key: 'pile_cages_kg', section: 'finished_products', label: 'כלונסאות / כלובי זיון', unit: 'kg' },
 ]);
 
@@ -135,6 +135,46 @@ function isBentItem(item) {
     && segments.slice(0, -1).some(segment => productionCards.isPrintableBendAngle(segment.angle_deg));
 }
 
+function normalizedMaterialSource(value) {
+  const source = String(value || '').trim().toLowerCase();
+  if (['coil', 'coils', 'wire', 'סליל', 'סלילים'].includes(source)) return 'coil';
+  if (['straight', 'bar', 'bars', 'rod', 'מוט', 'מוטות'].includes(source)) return 'straight';
+  return null;
+}
+
+function explicitMaterialSource(item, snapshot) {
+  const data = snapshot?.data || {};
+  const generic = snapshot?.machineOutput?.generic || {};
+  const candidates = [
+    item.material_source,
+    item.materialSource,
+    item.stock_source,
+    item.stockSource,
+    item.material_type,
+    item.supply_form,
+    snapshot?.materialSource,
+    snapshot?.materialType,
+    snapshot?.supplyForm,
+    data.materialSource,
+    data.materialType,
+    data.supplyForm,
+    generic.materialSource,
+    generic.materialType,
+    generic.supplyForm,
+  ];
+  return candidates.map(normalizedMaterialSource).find(Boolean) || null;
+}
+
+function resolveMaterialSource({ item, snapshot, diameterMm, bent, spiral, lengthMm }) {
+  const explicit = explicitMaterialSource(item, snapshot);
+  if (explicit) return { source: explicit, basis: 'explicit' };
+  if (spiral) return { source: 'coil', basis: 'inferred_spiral' };
+  if (diameterMm > 0 && diameterMm <= 16 && (bent || !isCommercialStraightLength(lengthMm))) {
+    return { source: 'coil', basis: 'inferred_diameter_shape_length' };
+  }
+  return { source: 'straight', basis: 'inferred_diameter_shape_length' };
+}
+
 function classifyOrderItem(item = {}) {
   const snapshot = shapeSnapshot(item);
   const shape = identity(item, snapshot);
@@ -156,12 +196,24 @@ function classifyOrderItem(item = {}) {
   );
   const isLifting = !isPileCage && !isMesh && /ציפור|ציפורים|אוזן|אזני|הרמה|קרום|קרומים|bird|lifting|insert/i.test(shape.text);
   const bent = isChair || isRing || isLifting || (!isSpiral && isBentItem(item));
+  const material = resolveMaterialSource({
+    item,
+    snapshot,
+    diameterMm: positive(item.diameter),
+    bent,
+    spiral: isSpiral,
+    lengthMm,
+  });
 
   if (isPileCage) return { kind: 'pile_cage', weightKg, weightSource, quantity, lengthMm, pileBreakdown, lines: ['pile_cages_kg'] };
   if (isMesh) return { kind: 'mesh', weightKg, weightSource, quantity, lengthMm, lines: ['mesh_kg'] };
-  if (isSpiral) return { kind: 'spiral', weightKg, weightSource, quantity, lengthMm, lines: ['round_wire_coil_kg', 'cutting_kg', 'spiral_processing_kg'] };
+  if (isSpiral) return {
+    kind: 'spiral', weightKg, weightSource, quantity, lengthMm,
+    materialSource: material.source, materialSourceBasis: material.basis,
+    lines: [material.source === 'coil' ? 'round_wire_coil_kg' : 'processed_rebar_kg', 'cutting_kg', 'spiral_processing_kg'],
+  };
 
-  const lines = ['processed_rebar_kg'];
+  const lines = [material.source === 'coil' ? 'round_wire_coil_kg' : 'processed_rebar_kg'];
   if (bent || !isCommercialStraightLength(lengthMm)) lines.push('cutting_kg');
   if (bent) lines.push('bending_kg');
   if (isChair) lines.push('chairs_units');
@@ -171,6 +223,8 @@ function classifyOrderItem(item = {}) {
     kind: isChair ? 'chair' : isRing ? 'ring' : isLifting ? 'lifting' : bent ? 'bent_rebar' : 'straight_rebar',
     weightKg,
     weightSource,
+    materialSource: material.source,
+    materialSourceBasis: material.basis,
     quantity,
     lengthMm,
     lines,
@@ -188,6 +242,8 @@ function contributorFor(item, classification, lineNo) {
     unit_length_mm: classification.lengthMm,
     weight_kg: classification.weightKg,
     weight_source: classification.weightSource,
+    material_source: classification.materialSource || null,
+    material_source_basis: classification.materialSourceBasis || null,
     classification: classification.kind,
     pile_components: classification.pileBreakdown?.components || [],
   };

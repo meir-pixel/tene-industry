@@ -58,7 +58,8 @@ test('commercial summary treats cutting and bending as overlapping kg services',
     item({ id: 3, quantity: 1, total_length_mm: 4875, total_weight: 8.33, segments: JSON.stringify([{ length_mm: 1000, angle_deg: 90 }, { length_mm: 1500, angle_deg: 90 }, { length_mm: 1000, angle_deg: 135 }, { length_mm: 1375, angle_deg: null }]) }),
   ]);
 
-  assert.equal(line(summary, 'processed_rebar_kg').value, 1481.43);
+  assert.equal(line(summary, 'round_wire_coil_kg').value, 1481.43);
+  assert.equal(summaryLine(summary, 'processed_rebar_kg'), null);
   assert.equal(line(summary, 'cutting_kg').value, 1481.43);
   assert.equal(line(summary, 'bending_kg').value, 958.33);
   assert.equal(line(summary, 'bending_kg').unit, 'kg');
@@ -71,7 +72,8 @@ test('full 6/12 metre straight stock is material only while other straight lengt
     item({ id: 2, total_length_mm: 12000, total_weight: 12, segments: JSON.stringify([{ length_mm: 12000, angle_deg: null }]) }),
     item({ id: 3, total_length_mm: 5000, total_weight: 5, segments: JSON.stringify([{ length_mm: 5000, angle_deg: null }]) }),
   ]);
-  assert.equal(line(summary, 'processed_rebar_kg').value, 23);
+  assert.equal(line(summary, 'processed_rebar_kg').value, 18);
+  assert.equal(line(summary, 'round_wire_coil_kg').value, 5);
   assert.equal(line(summary, 'cutting_kg').value, 5);
   assert.equal(summaryLine(summary, 'bending_kg'), null);
 });
@@ -97,7 +99,7 @@ test('chairs and rings retain kg services and add only their natural unit line',
     item({ id: 1, shape_id: 's15', shape_name: 'ספסל', quantity: 4, total_weight: 10, segments: JSON.stringify([{ length_mm: 500, angle_deg: 90 }, { length_mm: 1000, angle_deg: 90 }, { length_mm: 500, angle_deg: null }]) }),
     item({ id: 2, shape_name: 'טבעת', quantity: 5, total_weight: 13.19, spiral_diameter_mm: 420, spiral_turns: 1, shape_snapshot_json: JSON.stringify({ family: 'spirals', shapeType: 'ring', data: { ringDiameterMm: 420 } }) }),
   ]);
-  assert.equal(line(summary, 'processed_rebar_kg').value, 23.19);
+  assert.equal(line(summary, 'round_wire_coil_kg').value, 23.19);
   assert.equal(line(summary, 'cutting_kg').value, 23.19);
   assert.equal(line(summary, 'bending_kg').value, 23.19);
   assert.equal(line(summary, 'chairs_units').value, 4);
@@ -134,4 +136,42 @@ test('top-level kg lines never expose unit counts while drilldown keeps traceabl
   assert.equal(cutting.value, 10);
   assert.equal(Object.hasOwn(cutting, 'units'), false);
   assert.deepEqual(cutting.contributors.map(row => ({ item: row.item_id, qty: row.quantity })), [{ item: 77, qty: 4 }]);
+  assert.deepEqual(
+    { source: cutting.contributors[0].material_source, basis: cutting.contributors[0].material_source_basis },
+    { source: 'coil', basis: 'inferred_diameter_shape_length' },
+  );
+});
+
+test('material source inference follows diameter, bends and commercial stock length', () => {
+  const bent16 = classifyOrderItem(item({ diameter: 16, total_length_mm: 6000, segments: JSON.stringify([{ length_mm: 1000, angle_deg: 90 }, { length_mm: 5000, angle_deg: null }]) }));
+  const cutStraight16 = classifyOrderItem(item({ diameter: 16, total_length_mm: 5000, segments: JSON.stringify([{ length_mm: 5000, angle_deg: null }]) }));
+  const fullStraight16 = classifyOrderItem(item({ diameter: 16, total_length_mm: 6000, segments: JSON.stringify([{ length_mm: 6000, angle_deg: null }]) }));
+  const bent20 = classifyOrderItem(item({ diameter: 20, total_length_mm: 5000, segments: JSON.stringify([{ length_mm: 1000, angle_deg: 90 }, { length_mm: 4000, angle_deg: null }]) }));
+
+  assert.deepEqual({ source: bent16.materialSource, basis: bent16.materialSourceBasis }, { source: 'coil', basis: 'inferred_diameter_shape_length' });
+  assert.equal(bent16.lines[0], 'round_wire_coil_kg');
+  assert.equal(cutStraight16.lines[0], 'round_wire_coil_kg');
+  assert.equal(fullStraight16.lines[0], 'processed_rebar_kg');
+  assert.equal(bent20.lines[0], 'processed_rebar_kg');
+});
+
+test('an explicit material source overrides inference for future stock or machine selection', () => {
+  const explicitBar = classifyOrderItem(item({ diameter: 12, total_length_mm: 5000, material_source: 'straight' }));
+  const explicitCoil = classifyOrderItem(item({ diameter: 20, total_length_mm: 12000, material_source: 'coil', segments: JSON.stringify([{ length_mm: 12000, angle_deg: null }]) }));
+
+  assert.deepEqual({ source: explicitBar.materialSource, basis: explicitBar.materialSourceBasis }, { source: 'straight', basis: 'explicit' });
+  assert.equal(explicitBar.lines[0], 'processed_rebar_kg');
+  assert.deepEqual({ source: explicitCoil.materialSource, basis: explicitCoil.materialSourceBasis }, { source: 'coil', basis: 'explicit' });
+  assert.equal(explicitCoil.lines[0], 'round_wire_coil_kg');
+});
+
+test('commercial summary uses the approved price-list terminology', () => {
+  const summary = buildOrderCommercialSummary([
+    item({ diameter: 12, total_length_mm: 5000, total_weight: 10 }),
+    item({ id: 2, diameter: 20, total_length_mm: 12000, total_weight: 20, segments: JSON.stringify([{ length_mm: 12000, angle_deg: null }]) }),
+  ]);
+  assert.deepEqual(summary.sections.map(section => section.label), ['ברזל מעובד', 'עיבודים ברזל']);
+  assert.equal(line(summary, 'processed_rebar_kg').label, 'מוטות');
+  assert.equal(line(summary, 'round_wire_coil_kg').label, 'סלילים עגולים-חוטים');
+  assert.equal(line(summary, 'cutting_kg').label, 'חיתוך');
 });
