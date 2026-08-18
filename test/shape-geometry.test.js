@@ -1002,10 +1002,10 @@ test('round pile cage draws only alternating longitudinal bars with a head bend'
     hoopDiameter: 18, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
   }, 300, 260);
 
-  assert.equal((svg.match(/class="pile-l-bar"[^>]*data-pile-head-hook="1"/g) || []).length, 5, 'five and only five longitudinal bars bend at the head in elevation');
-  assert.equal((svg.match(/class="pile-bent-head-hook"[^>]*data-pile-head-hook="1"/g) || []).length, 5, 'the same five head bends are drawn as short legs in section');
-  assert.match(svg, /class="pile-l-bar"[^>]*data-pile-head-hook="1"[^>]*d="M [^"]+ H [^"]+ V [^"]+"/);
-  assert.match(svg, /ראש הכלונס — כיפופי L/);
+  assert.equal((svg.match(/class="pile-l-bar"[^>]*data-pile-head-hook="1"/g) || []).length, 0, 'bent bars run straight in elevation — the head bend clutters the side view and is shown only in section');
+  assert.equal((svg.match(/class="pile-bent-head-hook"[^>]*data-pile-head-hook="1"/g) || []).length, 5, 'the five head bends are drawn as short legs in section');
+  assert.match(svg, /class="pile-l-bar" data-pile-bar-type="bent"[^>]*x1="[^"]+" y1="[^"]+" x2="[^"]+" y2="[^"]+"/);
+  assert.match(svg, /data-pile-head="1"/);
   assert.match(svg, /data-pile-alternating-legend="1"/);
   assert.equal((svg.match(/class="pile-hoop"/g) || []).length, 6, 'five side-view rings and one circular cross-section ring remain separate from bent bars');
 });
@@ -1136,9 +1136,10 @@ test('round pile cage drawing leaves a no-wrap segment empty and stays monochrom
   }, 300, 260);
 
   assert.match(svg, /class="pile-no-wrap-zone" data-zone="1"/);
-  assert.match(svg, /ללא כריכות/);
+  assert.match(svg, /∅/);
+  assert.doesNotMatch(svg, /ללא כריכות/, 'no-wrap label is language-neutral (∅), not Hebrew text');
   assert.doesNotMatch(svg, /#16a34a|#1d4ed8/);
-  assert.match(svg, /ראש הכלונס — כיפופי L/);
+  assert.match(svg, /data-pile-head="1"/);
 });
 
 
