@@ -3880,6 +3880,7 @@ class ShapeEditorModal {
     if (!pile.hoopShape) pile.hoopShape = 'round';
     if (!pile.barPattern) pile.barPattern = 'straight';
     if (pile.lHookLength == null) pile.lHookLength = 25;
+    if (pile.bendAngle == null) pile.bendAngle = 90;
     if (pile.roundPileCage && pile.bendOrientationDeg == null) pile.bendOrientationDeg = loadPileBendOrientationDefault();
     if (!Array.isArray(pile.longitudinalBarOverrides)) pile.longitudinalBarOverrides = [];
     const meta = {
@@ -3889,7 +3890,7 @@ class ShapeEditorModal {
       hoopsEnabled: ['H','טבעות פנימיות','','פעיל'], hoopDiameter: ['Ø','קוטר ברזל טבעת (מ״מ)','מ״מ','14'],
       hoopSpacing: ['@','מרווח טבעות (ס״מ)','ס״מ','200'], hoopStart: ['↦','תחילת טבעות (ס״מ)','ס״מ','0'], hoopEnd: ['↤','סוף טבעות (ס״מ)','ס״מ','2200'],
       hoopStartSide: ['⇄','צד התחלה','','מהתחלה'], hoopShape: ['⬡','צורת טבעת','','עגול'], barPattern: ['L','צורת מוטות אורך','','straight'], lHookLength: ['L','אורך רגל L','ס״מ','25'],
-      straightBarCount: ['N','מוטות ישרים (יח׳)','יח׳','5'], bentBarCount: ['N','מוטות מכופפים (יח׳)','יח׳','5'], straightBarLength: ['L','אורך ישר (ס״מ)','ס״מ','1200'], bentBarLength: ['L','אורך מכופף כולל (ס״מ)','ס״מ','1220'], bendLength: ['↪','אורך כיפוף (ס״מ)','ס״מ','20'], bendOrientationDeg: ['∠','כיוון הכיפוף סביב הכלוב','°','0 פנימה · 90 עם כיוון השעון'],
+      straightBarCount: ['N','מוטות ישרים (יח׳)','יח׳','5'], bentBarCount: ['N','מוטות מכופפים (יח׳)','יח׳','5'], straightBarLength: ['L','אורך ישר (ס״מ)','ס״מ','1200'], bentBarLength: ['L','אורך מכופף כולל (ס״מ)','ס״מ','1220'], bendLength: ['↪','אורך כיפוף (ס״מ)','ס״מ','20'], bendAngle: ['∠','זווית כיפוף (מעלות)','°','90'], bendOrientationDeg: ['∠','כיוון הכיפוף סביב הכלוב','°','0 פנימה · 90 עם כיוון השעון'],
       spiralOuterDiameter: ['Ø','קוטר חיצוני ספירלה (ס״מ)','ס״מ','48'], spiralPitch: ['@','פסיעת ספירלה (ס״מ)','ס״מ','15'], hoopOuterDiameter: ['Ø','קוטר חיצוני טבעת (ס״מ)','ס״מ','42'], hoopQuantity: ['N','כמות טבעות (יח׳)','יח׳','5'],
     };
     const field = (key, min = 1) => {
@@ -3962,7 +3963,7 @@ class ShapeEditorModal {
           ${quickCard('hoops', 'hoopQuantity', 'טבעות', `${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)}`, `D${Number(pile.hoopOuterDiameter || 0)} · התחלה ${Number(pile.hoopStart || 0)} · @${Number(pile.hoopSpacing || 0)}`)}
         </div></td></tr>
         ${section('general', 'נתוני הכלוב', sectionSummary.general, `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true, 'pile-diameter')}
-        ${section('bars', 'זיון אורכי', sectionSummary.bars, `<tr class="se-family-row se-pile-compact-row">${field('longitudinalDiameter', 1)}${field('straightBarCount', 0)}${field('bentBarCount', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('straightBarLength', 1)}${field('bentBarLength', 1)}${field('bendLength', 0)}</tr><tr class="se-family-row se-pile-compact-row">${bendOrientationField()}</tr>`, false, 'pile-longitudinal-bars')}
+        ${section('bars', 'זיון אורכי', sectionSummary.bars, `<tr class="se-family-row se-pile-compact-row">${field('longitudinalDiameter', 1)}${field('straightBarCount', 0)}${field('bentBarCount', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('straightBarLength', 1)}${field('bentBarLength', 1)}${field('bendLength', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('bendAngle', 0)}${bendOrientationField()}</tr>`, false, 'pile-longitudinal-bars')}
         ${section('spiral', 'מקטעי ספירלה', sectionSummary.spiral, `<tr class="se-family-row se-pile-compact-row">${field('spiralDiameter', 1)}${field('spiralOuterDiameter', 1)}</tr><tr class="se-zone-head se-zone-row"><td>מקטע</td><td>אורך</td><td>פסיעה</td><td>ללא כריכות</td><td></td></tr>${segmentRows}<tr class="se-family-row se-pile-action-row"><td colspan="5"><button class="se-add-btn" onclick="window._seEditor._addSpiralZone()">הוסף מקטע</button><div class="se-derived-chip" data-pile-derived="spiralTurns">${displaySpiralTurns} ליפופים מחושבים</div></td></tr>`, false, 'pile-spiral-pitch')}
         ${section('hoops', 'טבעות חיזוק', sectionSummary.hoops, `<tr class="se-family-row se-pile-compact-row">${field('hoopDiameter', 1)}${field('hoopOuterDiameter', 1)}${field('hoopQuantity', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('hoopStart', 0)}${field('hoopSpacing', 1)}</tr>`, false, 'pile-hoops')}
         ${section('breakdown', 'פירוט ייצור / BOM', `${(calc.manufacturingBreakdown || []).length} רכיבים · ${pileRound(calc.calculated?.weightKg || 0, 2)} ק״ג`, this._renderPileElementsSummary())}
@@ -4022,10 +4023,10 @@ class ShapeEditorModal {
       return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות אורך', 'ברירת מחדל: ישרים בקוטר אחיד', '<span class="se-pile-bar-note">שנה רק חריגים: מוט מסוים עם קוטר אחר או צורת L.</span>' + overrideRows)}</tr>`;
     }
     if (pattern === 'l') {
-      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות L', 'כל המוטות בצורת L', '<div class="se-pile-inline-field">' + field('lHookLength', 0) + '</div>' + overrideRows)}</tr>`;
+      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות L', 'כל המוטות בצורת L', '<div class="se-pile-inline-field">' + field('lHookLength', 0) + field('bendAngle', 0) + '</div>' + overrideRows)}</tr>`;
     }
     if (pattern === 'alternate') {
-      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות משולבים', 'ברירת מחדל: לסירוגין ישר / L', '<div class="se-pile-inline-field">' + field('lHookLength', 0) + '</div>' + overrideRows)}</tr>`;
+      return `<tr class="se-family-row se-pile-bar-shape-row">${shell('מוטות משולבים', 'ברירת מחדל: לסירוגין ישר / L', '<div class="se-pile-inline-field">' + field('lHookLength', 0) + field('bendAngle', 0) + '</div>' + overrideRows)}</tr>`;
     }
     return `<tr class="se-family-row se-pile-bar-shape-row">${shell('עריכת מוטות אורך', 'חריגים לפי מספר מוט', overrideRows)}</tr>`;
   }

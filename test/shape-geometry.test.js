@@ -730,7 +730,7 @@ test('pile cage editor refreshes derived hoops and gates longitudinal shape rows
   assert.ok(editor.includes('_addPileBarOverride()'));
   assert.ok(editor.includes('_deletePileBarOverride(index)'));
   assert.doesNotMatch(block, /עריכה פרטנית תוגדר בהמשך/);
-  assert.ok(editor.includes("field('lHookLength', 0) + '</div>'"));
+  assert.ok(editor.includes("field('lHookLength', 0) + field('bendAngle', 0) + '</div>'"));
   const barPatternBranch = editor.slice(editor.indexOf("key === 'barPattern'"), editor.indexOf("const parsed = key === 'longitudinalBars'"));
   assert.ok(barPatternBranch.includes('this._renderPileCageEditor()'));
 });
