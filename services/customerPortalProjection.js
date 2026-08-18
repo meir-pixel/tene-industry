@@ -101,6 +101,7 @@ function projectPortalItem(item = {}, ctx = {}) {
     shape_snapshot_json: shapeSnapshot,
     shapeName: firstText(item.shapeName, item.shape_name),
     shape_name: firstText(item.shape_name, item.shapeName),
+    shape_svg: item.shape_svg || null,
     segments: item.segments || null,
     diameter: numberOrNull(item.diameter),
     quantity,
