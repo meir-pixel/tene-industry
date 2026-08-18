@@ -988,6 +988,8 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const barSpacing = pileLongitudinalSpacingMm(internalHoopDiameter, longitudinalBars, longitudinalDiameter);
   const barPattern = String(pile?.barPattern || 'straight');
   const lHookLength = Math.max(0, pileCmToMm(pile?.lHookLength ?? pile?.bendLength ?? 25, 250));
+  // Bend angle of the bent longitudinal bar head (display only, default 90°).
+  const lHookAngle = Math.max(1, Math.min(180, Number(pile?.lHookAngle ?? pile?.bendAngle ?? 90) || 90));
   const zones = Array.isArray(pile?.spiralZones) && pile.spiralZones.length
     ? pileZonesCmToMm(pile.spiralZones, pile?.spiralPitch || 20)
     : [{ name: 'Zone A', length: pileLength, pitch: pileCmToMm(pile?.spiralPitch || 20, 200) }];
@@ -1008,10 +1010,11 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   const cy = h * 0.72;
   const r = Math.max(24, Math.min(w * 0.17, h * 0.17));
   const internalHoopRadius = Math.max(4, Math.min(r * 0.96, (internalHoopDiameter / Math.max(1, pileDiameter)) * r));
-  const dimColor = '#94a3b8';
-  const steelColor = '#111827';
-  const auxColor = '#64748b';
-  const accent = roundPile ? '#111827' : '#1d4ed8';
+  const dimColor = '#8b98ab';
+  const steelColor = '#1a2332';   // IronBend navy — straight steel
+  const auxColor = '#5fa83c';     // IronBend green — spiral guide
+  const hoopColor = '#5fa83c';    // IronBend green — reinforcement rings
+  const accent = roundPile ? '#e07b39' : '#1d4ed8'; // IronBend orange — bent bars
   const labelBox = (x, y, value, cls = '', rotate = 0) => `<g class="pile-label ${cls}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rotate})"><rect x="-17" y="-8" width="34" height="16" rx="3" fill="#fff" stroke="#94a3b8" stroke-width=".9"/><text text-anchor="middle" dominant-baseline="central" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">${svgEscape(value)}</text></g>`;
   const dimLine = (x1, y1, x2, y2, cls = '', focus = '') => `<line class="pile-dimension-line ${cls}" data-se-focus="${focus}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>`;
 
@@ -1043,14 +1046,19 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     const noWrap = zone.noWrap === true || zone.noWrap === 1 || zone.noWrap === 'true';
     zoneBoundaries.push(`<line class="pile-zone-boundary" data-zone="${zoneIndex}" data-se-focus="pile-zone" x1="${startX.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${startX.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
     zoneDimensions.push(`${dimLine(startX, sideTop, endX, sideTop, 'pile-zone-dimension', 'pile-zone pile-spiral-pitch')}<text class="pile-zone-dimension" data-se-focus="pile-zone pile-spiral-pitch" x="${midX.toFixed(1)}" y="${(sideTop - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">L${zoneIndex + 1}</text>${labelBox(midX, sideTop + 10, Math.round(len), 'pile-zone-dimension')}`);
-    if (!noWrap) pitchLabels.push(`<text class="pile-pitch-label" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-zone" x="${midX.toFixed(1)}" y="${(bottomY + 24).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">@${Math.round(pitch / 10)}</text>`);
+    if (!noWrap) pitchLabels.push(`<g class="pile-pitch-label" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-zone"><text x="${midX.toFixed(1)}" y="${(bottomY + 22).toFixed(1)}" text-anchor="middle" font-size="7.5" font-family="Heebo,Arial" font-weight="700" fill="#66738a">מרווח כריכות</text><text x="${midX.toFixed(1)}" y="${(bottomY + 33).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#e07b39">${Math.round(pitch / 10)} ס״מ</text></g>`);
     if (noWrap) {
       noWrapZones.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-se-focus="pile-no-wrap pile-zone" x="${startX.toFixed(1)}" y="${topY.toFixed(1)}" width="${Math.max(1, endX - startX).toFixed(1)}" height="${cageHeight.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".95"/><text data-se-focus="pile-no-wrap pile-zone" x="${midX.toFixed(1)}" y="${(sideMid + 3).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#64748b">ללא כריכות</text>`);
     } else {
-      for (let pos = startMm; pos <= endMm + 0.001; pos += pitch) {
-        const x = sideLeft + pos * scale;
-        const rx = Math.max(4, Math.min(11, pitch * scale * 0.52));
-        spiralLoops.push(`<ellipse class="pile-spiral-loop" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" cx="${x.toFixed(1)}" cy="${sideMid.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${(cageHeight * 0.54).toFixed(1)}" fill="none" stroke="${steelColor}" stroke-width="${spiralStroke.toFixed(1)}" opacity=".82"/>`);
+      // Clean engineering helix: one diagonal per pitch step. Spacing is
+      // pitch-proportional, so a tighter pitch (e.g. @10) reads visibly denser
+      // than a wide one (@20) without the clutter of a full drawn coil.
+      const spTop = sideMid - cageHeight * 0.5;
+      const spBottom = sideMid + cageHeight * 0.5;
+      for (let pos = startMm; pos < endMm - 0.001; pos += pitch) {
+        const x1 = sideLeft + pos * scale;
+        const x2 = sideLeft + Math.min(endMm, pos + pitch) * scale;
+        spiralLoops.push(`<line class="pile-spiral-loop" data-zone="${zoneIndex}" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" x1="${x1.toFixed(1)}" y1="${spBottom.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${spTop.toFixed(1)}" stroke="${steelColor}" stroke-width="${spiralStroke.toFixed(1)}" stroke-linecap="round" opacity=".7"/>`);
       }
     }
     offsetMm += len;
@@ -1062,7 +1070,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     : pileHoopPositionsMm({ enabled: hoopsEnabled, pileLength, start: hoopStart, end: hoopEnd, spacing: hoopSpacing, side: hoopStartSide })
   ).map(xMm => {
     const x = sideLeft + xMm * scale;
-    return `<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(topY - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(bottomY + 3).toFixed(1)}" stroke="${roundPile ? steelColor : '#16a34a'}" stroke-width="${hoopStroke.toFixed(1)}" opacity=".9"/>`;
+    return `<line class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter pile-hoop-spacing" x1="${x.toFixed(1)}" y1="${(topY - 3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(bottomY + 3).toFixed(1)}" stroke="${hoopColor}" stroke-width="${hoopStroke.toFixed(1)}" opacity=".9"/>`;
   });
 
   const topBars = Array.from({ length: longitudinalBars }, (_, i) => {
@@ -1083,17 +1091,22 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     return `${hook}<circle class="pile-longitudinal-bar" data-pile-bar-type="${isBent ? 'bent' : 'straight'}" data-se-focus="pile-longitudinal-bars pile-longitudinal-diameter" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(2.4, Math.min(4.8, longitudinalDiameter * 0.13)).toFixed(1)}" fill="${fill}"/>${labelText}`;
   }).join('');
   const topHoop = hoopsEnabled
-    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${internalHoopRadius.toFixed(1)}" fill="none" stroke="${roundPile ? steelColor : '#16a34a'}" stroke-width="${hoopStroke.toFixed(1)}" opacity=".75"/>`
+    ? `<circle class="pile-hoop" data-se-focus="pile-hoops pile-hoop-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${internalHoopRadius.toFixed(1)}" fill="none" stroke="${hoopColor}" stroke-width="${hoopStroke.toFixed(1)}" opacity=".75"/>`
     : '';
   const zoneSummary = zones.map(z => `${Number(z.length || 0)}@${Number(z.pitch || 0)}${(z.noWrap === true || z.noWrap === 1 || z.noWrap === 'true') ? ':no-wrap' : ''}`).join(',');
 
-  const headLabel = roundPile && (barPattern === 'l' || barPattern === 'alternate')
+  const headBent = roundPile && (barPattern === 'l' || barPattern === 'alternate');
+  const headLabel = headBent
     ? `<text data-pile-head="1" x="${sideRight.toFixed(1)}" y="${(topY - 8).toFixed(1)}" text-anchor="end" font-size="8" font-family="Heebo,Arial" font-weight="900" fill="${accent}">ראש הכלונס — כיפופי L</text>`
+    : '';
+  // Bend-angle marker at the head hook corner (display only, default 90°).
+  const bendAngleMarker = headBent
+    ? `<g class="pile-bend-angle" data-se-focus="pile-l-bars pile-l-hook"><path d="M ${(sideRight - 13).toFixed(1)} ${topY.toFixed(1)} A 13 13 0 0 1 ${sideRight.toFixed(1)} ${(topY - 13).toFixed(1)}" fill="none" stroke="${accent}" stroke-width="1.3"/><text x="${(sideRight - 17).toFixed(1)}" y="${(topY - 4).toFixed(1)}" text-anchor="end" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="${accent}">${lHookAngle}°</text></g>`
     : '';
   const alternatingLegend = roundPile && barPattern === 'alternate'
     ? `<text data-pile-alternating-legend="1" x="${cx.toFixed(1)}" y="${(cy - r - 14).toFixed(1)}" text-anchor="middle" font-size="7" font-family="Heebo,Arial" font-weight="800" fill="#334155">ישר / מכופף בראש</text>`
     : '';
-  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-input-unit="cm" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-internal-hoop-diameter="${internalHoopDiameter}" data-bar-center-spacing="${barSpacing.centerToCenterMm}" data-bar-clear-spacing="${barSpacing.clearMm}" data-bar-pattern="${svgEscape(barPattern)}"><defs><marker id="sePileDimArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 4 L 8 0 L 8 8 Z" fill="${dimColor}"/></marker></defs><g data-view="side" class="pile-side-engineering-view"><text data-se-focus="pile-length" x="${(w / 2).toFixed(1)}" y="${(sideTop - 18).toFixed(1)}" text-anchor="middle" font-size="13" font-family="Heebo,Arial" font-weight="800" fill="#111827">L ${pileLengthCm}</text>${dimLine(sideLeft, sideTop - 12, sideRight, sideTop - 12, 'pile-total-dimension', 'pile-length')}${zoneDimensions.join('')}${zoneBoundaries.join('')}${longitudinalLines}${noWrapZones.join('')}${spiralLoops.join('')}${hoopLines.join('')}${headLabel}<line class="pile-diameter-dimension" data-se-focus="pile-diameter" x1="${(sideRight + 12).toFixed(1)}" y1="${topY.toFixed(1)}" x2="${(sideRight + 12).toFixed(1)}" y2="${bottomY.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>${labelBox(sideRight + 24, sideMid, pileDiameterCm, 'pile-diameter-label', -90)}${pitchLabels.join('')}</g><g data-view="top" class="pile-top-engineering-view"><text x="${cx.toFixed(1)}" y="${(cy - r - 26).toFixed(1)}" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#12315a">מבט חזית (חתך)</text>${alternatingLegend}${topHoop}<circle data-se-focus="pile-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.82).toFixed(1)}" fill="none" stroke="${auxColor}" stroke-width="${spiralStroke.toFixed(1)}"/>${topBars}<line class="pile-dimension-line pile-top-diameter" data-se-focus="pile-diameter" x1="${(cx - r).toFixed(1)}" y1="${(cy + r + 16).toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${(cy + r + 16).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">Ø${pileDiameterCm}</text><text data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">d' ${spiralDiameter}</text><text data-se-focus="pile-longitudinal-bars" x="${cx.toFixed(1)}" y="${(cy + r + 45).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">מרכז-מרכז ${barSpacing.centerToCenterMm} מ״מ | נקי ${barSpacing.clearMm} מ״מ</text></g></g>`;
+  return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-input-unit="cm" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-internal-hoop-diameter="${internalHoopDiameter}" data-bar-center-spacing="${barSpacing.centerToCenterMm}" data-bar-clear-spacing="${barSpacing.clearMm}" data-bar-pattern="${svgEscape(barPattern)}"><defs><marker id="sePileDimArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 4 L 8 0 L 8 8 Z" fill="${dimColor}"/></marker></defs><g data-view="side" class="pile-side-engineering-view"><text data-se-focus="pile-length" x="${(w / 2).toFixed(1)}" y="${(sideTop - 18).toFixed(1)}" text-anchor="middle" font-size="13" font-family="Heebo,Arial" font-weight="800" fill="#111827">L ${pileLengthCm}</text>${dimLine(sideLeft, sideTop - 12, sideRight, sideTop - 12, 'pile-total-dimension', 'pile-length')}${zoneDimensions.join('')}${zoneBoundaries.join('')}${longitudinalLines}${noWrapZones.join('')}${spiralLoops.join('')}${hoopLines.join('')}${headLabel}${bendAngleMarker}<line class="pile-diameter-dimension" data-se-focus="pile-diameter" x1="${(sideRight + 12).toFixed(1)}" y1="${topY.toFixed(1)}" x2="${(sideRight + 12).toFixed(1)}" y2="${bottomY.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>${labelBox(sideRight + 24, sideMid, pileDiameterCm, 'pile-diameter-label', -90)}${pitchLabels.join('')}</g><g data-view="top" class="pile-top-engineering-view"><text x="${cx.toFixed(1)}" y="${(cy - r - 26).toFixed(1)}" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#12315a">מבט חזית (חתך)</text>${alternatingLegend}${topHoop}<circle data-se-focus="pile-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/><circle data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.82).toFixed(1)}" fill="none" stroke="${auxColor}" stroke-width="${spiralStroke.toFixed(1)}"/>${topBars}<line class="pile-dimension-line pile-top-diameter" data-se-focus="pile-diameter" x1="${(cx - r).toFixed(1)}" y1="${(cy + r + 16).toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${(cy + r + 16).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">Ø${pileDiameterCm}</text><text data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">d' ${spiralDiameter}</text><text data-se-focus="pile-longitudinal-bars" x="${cx.toFixed(1)}" y="${(cy + r + 45).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">מרכז-מרכז ${barSpacing.centerToCenterMm} מ״מ | נקי ${barSpacing.clearMm} מ״מ</text></g></g>`;
 };
 
 function SpiralEngine() {}
