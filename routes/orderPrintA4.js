@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const QRCode = require('qrcode');
+const { buildOrderCommercialSummary, summaryLine } = require('../services/orderCommercialSummary');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orderPrintA4 missing dependency: ${name}`);
@@ -21,66 +22,28 @@ function formatPrintNumber(value, digits = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-function productionBucketForA4Item(item, segments, snapshot) {
-  const text = [item.shape_name, item.struct_element, snapshot && snapshot.kind, snapshot && snapshot.type, snapshot && snapshot.family]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  if (/mesh|wire|רשת/.test(text)) return 'mesh';
-  if (/cage|pile|כלוב|כלונס/.test(text)) return 'cage';
-  return Array.isArray(segments) && segments.length > 1 ? 'bending' : 'cutting';
+function commercialLineValue(line) {
+  if (!line) return '0.00 קג';
+  return line.unit === 'unit'
+    ? formatPrintNumber(line.value, 0) + ' יח׳'
+    : formatPrintNumber(line.value, 2) + ' קג';
 }
 
 function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
-  const totals = { quantity: 0, weight: 0, lengthMm: 0, cuttingWeight: 0, bendingWeight: 0, meshWeight: 0, cageWeight: 0 };
-  const bucketLabels = {
-    cutting: '\u05d7\u05d9\u05ea\u05d5\u05da / \u05de\u05d5\u05d8\u05d5\u05ea \u05d9\u05e9\u05e8\u05d9\u05dd',
-    bending: '\u05db\u05d9\u05e4\u05d5\u05e3',
-    mesh: '\u05e8\u05e9\u05ea\u05d5\u05ea',
-    cage: '\u05db\u05dc\u05d5\u05d1\u05d9\u05dd / \u05db\u05dc\u05d5\u05e0\u05e1\u05d0\u05d5\u05ea',
+  const commercialSummary = buildOrderCommercialSummary(allItems);
+  const totals = {
+    quantity: allItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    weight: commercialSummary.material_weight_kg,
+    lengthMm: allItems.reduce((sum, item) => sum + Number(item.total_length_mm || 0) * Number(item.quantity || 0), 0),
+    cuttingWeight: summaryLine(commercialSummary, 'cutting_kg')?.value || 0,
+    bendingWeight: summaryLine(commercialSummary, 'bending_kg')?.value || 0,
+    spiralWeight: summaryLine(commercialSummary, 'spiral_processing_kg')?.value || 0,
   };
-  const byBucket = new Map();
 
-  allItems.forEach((item) => {
-    const qty = Number(item.quantity || 0);
-    const weight = Number(item.total_weight || 0);
-    const lengthMm = Number(item.total_length_mm || 0) * qty;
-    const segments = tryParseJSON(item.segments, []);
-    const snapshot = tryParseJSON(item.shape_snapshot_json || item.shapeSnapshot, {}) || {};
-    const bucket = productionBucketForA4Item(item, segments, snapshot);
-
-    totals.quantity += qty;
-    totals.weight += weight;
-    totals.lengthMm += lengthMm;
-    totals[bucket + 'Weight'] += weight;
-
-    const row = byBucket.get(bucket) || { quantity: 0, weight: 0, lengthMm: 0, items: 0 };
-    row.quantity += qty;
-    row.weight += weight;
-    row.lengthMm += lengthMm;
-    row.items += 1;
-    byBucket.set(bucket, row);
-  });
-
-  const optionalWeightRows = [
-    ['meshWeight', '\u05de\u05e9\u05e7\u05dc \u05e8\u05e9\u05ea\u05d5\u05ea'],
-    ['cageWeight', '\u05de\u05e9\u05e7\u05dc \u05db\u05dc\u05d5\u05d1\u05d9\u05dd'],
-  ]
-    .map(([key, label]) => Number(totals[key] || 0) > 0
-      ? '<tr><td>' + label + '</td><td>' + formatPrintNumber(totals[key], 2) + ' \u05e7\u05d2</td></tr>'
-      : '')
-    .filter(Boolean)
-    .join('');
-
-  const bucketRows = ['cutting', 'bending', 'mesh', 'cage']
-    .map((bucket) => {
-      const row = byBucket.get(bucket);
-      if (!row || row.weight <= 0) return '';
-      const details = formatPrintNumber(row.weight, 2) + ' \u05e7\u05d2 | ' + formatPrintNumber(row.quantity, 0) + ' \u05d9\u05d7 | ' + formatPrintNumber(row.lengthMm / 1000, 2) + ' \u05de';
-      return '<tr><td>' + bucketLabels[bucket] + '</td><td>' + details + '</td></tr>';
-    })
-    .filter(Boolean)
-    .join('') || '<tr><td colspan="2">\u05d0\u05d9\u05df \u05e0\u05ea\u05d5\u05e0\u05d9 \u05e1\u05d9\u05db\u05d5\u05dd \u05dc\u05e4\u05d9 \u05e1\u05d5\u05d2 \u05e2\u05d1\u05d5\u05d3\u05d4</td></tr>';
+  const bucketRows = commercialSummary.sections.map(section => {
+    const rows = section.lines.map(line => '<tr data-commercial-summary-line="' + escapeHtml(line.key) + '"><td>' + escapeHtml(line.label) + '</td><td>' + commercialLineValue(line) + '</td></tr>').join('');
+    return '<tr class="commercial-section-row"><td colspan="2">' + escapeHtml(section.label) + '</td></tr>' + rows;
+  }).join('') || '<tr><td colspan="2">אין נתוני סיכום מסחרי</td></tr>';
 
   const notes = [order.notes, order.general_notes, order.production_notes, order.driver_notes]
     .filter(Boolean)
@@ -89,7 +52,7 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
   return {
     totals,
     bucketRows,
-    optionalWeightRows,
+    commercialSummary,
     notes: escapeHtml(notes || '-'),
     project: escapeHtml(order.project_name || order.project || '-'),
     site: escapeHtml(order.site_name || order.building || order.delivery_address || '-'),
@@ -219,6 +182,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 .prod-breakdown{width:100%;border-collapse:collapse;font-size:10.5px;}
 .prod-breakdown td{border-bottom:1px solid #e1e6ed;padding:5px 8px;}
 .prod-breakdown td:last-child{text-align:left;direction:ltr;font-weight:900;}
+.prod-breakdown .commercial-section-row td{background:#f3f6fa;color:#34465e;text-align:right;direction:rtl;font-weight:900;}
 .prod-notes{font-size:10px;line-height:1.45;padding:7px 9px;color:#333;min-height:24px;}
 
 /* Table */
@@ -317,12 +281,11 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
     <div class="prod-summary-box">
       <h2>סיכום משקלים לייצור</h2>
       <div class="prod-summary-grid">
-        <div><span>כמות / מוטות</span><b>${formatPrintNumber(productionSummary.totals.quantity, 0)}</b></div>
-        <div><span>אורך כולל</span><b>${formatPrintNumber(productionSummary.totals.lengthMm / 1000, 2)} מ</b></div>
-        <div><span>משקל חיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} קג</b></div>
-        <div><span>משקל כיפוף</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} קג</b></div>
+        <div><span>חומר ומוצרים</span><b>${formatPrintNumber(productionSummary.totals.weight, 2)} קג</b></div>
+        <div><span>חיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} קג</b></div>
+        <div><span>כיפוף</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} קג</b></div>
+        <div><span>עיבוד ספירלה</span><b>${formatPrintNumber(productionSummary.totals.spiralWeight, 2)} קג</b></div>
       </div>
-      ${productionSummary.optionalWeightRows ? '<table class="prod-breakdown"><tbody>' + productionSummary.optionalWeightRows + '</tbody></table>' : ''}
       <div class="prod-notes"><b>הערות:</b> ${productionSummary.notes}</div>
     </div>
     <div class="prod-summary-box">

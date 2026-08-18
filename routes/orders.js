@@ -20,6 +20,7 @@ const {
 } = require('../services/inventoryReservation');
 const { createPricer } = require('../services/pricer');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
+const { buildOrderCommercialSummary } = require('../services/orderCommercialSummary');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -486,6 +487,10 @@ module.exports = function createOrdersRouter(deps) {
       p.items.forEach(item => { item.shape_svg = productionCards.itemShapeSvg(item); });
     });
     order.pallets = pallets;
+    // One computed-on-read projection serves current and historical orders.
+    // It never rewrites an order and keeps overlapping kg services separate
+    // from piece-based work such as chairs and rings.
+    order.commercial_summary = buildOrderCommercialSummary(pallets.flatMap(p => p.items));
     res.json(order);
   });
 

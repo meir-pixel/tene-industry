@@ -1,0 +1,137 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+
+const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
+const {
+  buildOrderCommercialSummary,
+  classifyOrderItem,
+  summaryLine,
+} = require('../services/orderCommercialSummary');
+
+function item(overrides = {}) {
+  return {
+    id: overrides.id || 1,
+    shape_name: 'מוט ישר',
+    diameter: 12,
+    quantity: 1,
+    total_length_mm: 5000,
+    total_weight: 10,
+    segments: JSON.stringify([{ length_mm: 5000, angle_deg: null }]),
+    ...overrides,
+  };
+}
+
+function line(summary, key) {
+  const result = summaryLine(summary, key);
+  assert.ok(result, `missing summary line ${key}`);
+  return result;
+}
+
+function cageSnapshot() {
+  return calculatePileCage({
+    shapeId: 'commercial-summary-cage',
+    roundPileCage: true,
+    pileDiameterMm: 600,
+    pileLengthMm: 12000,
+    longitudinalBars: {
+      totalBars: 10,
+      defaultDiameterMm: 20,
+      defaultLengthMm: 12000,
+      pattern: [{ type: 'straight', lengthMm: 12000 }, { type: 'L', lengthMm: 12000, bendLengthMm: 200 }],
+    },
+    spiral: {
+      barDiameterMm: 8,
+      outerDiameterMm: 480,
+      pitchMode: 'zones',
+      zones: [{ name: 'A', lengthMm: 3000, pitchMm: 150 }, { name: 'B', lengthMm: 2000, noWrap: true }, { name: 'C', lengthMm: 7000, pitchMm: 200 }],
+    },
+    hoops: { enabled: true, hoopBarDiameterMm: 18, outerDiameterMm: 420, spacingMode: 'byQuantity', quantity: 5, firstHoopOffsetMm: 1500, spacingMm: 300 },
+  });
+}
+
+test('commercial summary treats cutting and bending as overlapping kg services', () => {
+  const summary = buildOrderCommercialSummary([
+    item({ id: 1, quantity: 87, total_length_mm: 4400, total_weight: 523.10, segments: JSON.stringify([{ length_mm: 4400, angle_deg: null }]) }),
+    item({ id: 2, quantity: 131, total_length_mm: 4905, total_weight: 950, segments: JSON.stringify([{ length_mm: 1000, angle_deg: 90 }, { length_mm: 3905, angle_deg: null }]) }),
+    item({ id: 3, quantity: 1, total_length_mm: 4875, total_weight: 8.33, segments: JSON.stringify([{ length_mm: 1000, angle_deg: 90 }, { length_mm: 1500, angle_deg: 90 }, { length_mm: 1000, angle_deg: 135 }, { length_mm: 1375, angle_deg: null }]) }),
+  ]);
+
+  assert.equal(line(summary, 'processed_rebar_kg').value, 1481.43);
+  assert.equal(line(summary, 'cutting_kg').value, 1481.43);
+  assert.equal(line(summary, 'bending_kg').value, 958.33);
+  assert.equal(line(summary, 'bending_kg').unit, 'kg');
+  assert.equal(line(summary, 'bending_kg').contributors.length, 2, 'bend count must not multiply the service');
+});
+
+test('full 6/12 metre straight stock is material only while other straight lengths are cut', () => {
+  const summary = buildOrderCommercialSummary([
+    item({ id: 1, total_length_mm: 6000, total_weight: 6, segments: JSON.stringify([{ length_mm: 6000, angle_deg: null }]) }),
+    item({ id: 2, total_length_mm: 12000, total_weight: 12, segments: JSON.stringify([{ length_mm: 12000, angle_deg: null }]) }),
+    item({ id: 3, total_length_mm: 5000, total_weight: 5, segments: JSON.stringify([{ length_mm: 5000, angle_deg: null }]) }),
+  ]);
+  assert.equal(line(summary, 'processed_rebar_kg').value, 23);
+  assert.equal(line(summary, 'cutting_kg').value, 5);
+  assert.equal(summaryLine(summary, 'bending_kg'), null);
+});
+
+test('100 kg spiral is round-wire material plus cutting and spiral processing, never generic bending', () => {
+  const summary = buildOrderCommercialSummary([item({
+    shape_name: 'ספירלה',
+    diameter: 8,
+    quantity: 1,
+    total_weight: 100,
+    spiral_diameter_mm: 480,
+    spiral_turns: 50,
+    shape_snapshot_json: JSON.stringify({ family: 'spirals', shapeType: 'spiral', data: { spiral: { turns: 50 } } }),
+  })]);
+  assert.equal(line(summary, 'round_wire_coil_kg').value, 100);
+  assert.equal(line(summary, 'cutting_kg').value, 100);
+  assert.equal(line(summary, 'spiral_processing_kg').value, 100);
+  assert.equal(summaryLine(summary, 'bending_kg'), null);
+});
+
+test('chairs and rings retain kg services and add only their natural unit line', () => {
+  const summary = buildOrderCommercialSummary([
+    item({ id: 1, shape_id: 's15', shape_name: 'ספסל', quantity: 4, total_weight: 10, segments: JSON.stringify([{ length_mm: 500, angle_deg: 90 }, { length_mm: 1000, angle_deg: 90 }, { length_mm: 500, angle_deg: null }]) }),
+    item({ id: 2, shape_name: 'טבעת', quantity: 5, total_weight: 13.19, spiral_diameter_mm: 420, spiral_turns: 1, shape_snapshot_json: JSON.stringify({ family: 'spirals', shapeType: 'ring', data: { ringDiameterMm: 420 } }) }),
+  ]);
+  assert.equal(line(summary, 'processed_rebar_kg').value, 23.19);
+  assert.equal(line(summary, 'cutting_kg').value, 23.19);
+  assert.equal(line(summary, 'bending_kg').value, 23.19);
+  assert.equal(line(summary, 'chairs_units').value, 4);
+  assert.equal(line(summary, 'chairs_units').unit, 'unit');
+  assert.equal(line(summary, 'rings_units').value, 5);
+  assert.equal(line(summary, 'rings_units').unit, 'unit');
+});
+
+test('mesh and pile cages are independent finished-product kg rows without material double counting', () => {
+  const cage = cageSnapshot();
+  const summary = buildOrderCommercialSummary([
+    item({ id: 1, shape_name: 'רשת', quantity: 3, total_weight: 120, shape_snapshot_json: JSON.stringify({ family: 'mesh', shapeType: 'mesh_rectangular', data: {} }) }),
+    item({ id: 2, shape_name: 'corrupt legacy straight', quantity: 2, total_weight: 29.64, shape_snapshot_json: JSON.stringify(cage), segments: '[]' }),
+  ]);
+  assert.equal(line(summary, 'mesh_kg').value, 120);
+  assert.equal(line(summary, 'pile_cages_kg').value, 689.04);
+  assert.equal(line(summary, 'pile_cages_kg').contributors[0].pile_components.length, 4);
+  assert.equal(summary.material_weight_kg, 809.04);
+  assert.equal(summaryLine(summary, 'processed_rebar_kg'), null);
+  assert.equal(summaryLine(summary, 'cutting_kg'), null);
+});
+
+test('actual item weight wins and historical items fall back to saved theoretical weight', () => {
+  const actual = classifyOrderItem(item({ actual_weight_kg: 11.25, total_weight: 10 }));
+  const historical = classifyOrderItem(item({ actual_weight_kg: null, total_weight: 10 }));
+  assert.deepEqual({ weight: actual.weightKg, source: actual.weightSource }, { weight: 11.25, source: 'actual' });
+  assert.deepEqual({ weight: historical.weightKg, source: historical.weightSource }, { weight: 10, source: 'theoretical_saved' });
+});
+
+test('top-level kg lines never expose unit counts while drilldown keeps traceable contributors', () => {
+  const summary = buildOrderCommercialSummary([item({ id: 77, quantity: 4, total_weight: 10 })]);
+  const cutting = line(summary, 'cutting_kg');
+  assert.equal(cutting.unit, 'kg');
+  assert.equal(cutting.value, 10);
+  assert.equal(Object.hasOwn(cutting, 'units'), false);
+  assert.deepEqual(cutting.contributors.map(row => ({ item: row.item_id, qty: row.quantity })), [{ item: 77, qty: 4 }]);
+});

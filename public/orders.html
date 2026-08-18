@@ -147,6 +147,24 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .d-section{background:#fff;border:1px solid rgba(2,26,72,0.09);border-radius:16px;padding:16px;
   box-shadow:0 6px 20px rgba(2,26,72,0.05);}
 .d-title{font-size:12px;font-weight:900;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+.commercial-summary-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.commercial-summary-section{border:1px solid var(--border);border-radius:12px;background:#f8fafc;overflow:hidden;min-width:0;}
+.commercial-summary-section-title{padding:8px 10px;background:#eef3f8;font-size:12px;font-weight:900;color:var(--text);}
+.commercial-summary-line{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-top:1px solid rgba(2,26,72,.08);cursor:default;touch-action:manipulation;user-select:none;}
+.commercial-summary-line:hover{background:#fff;box-shadow:inset 3px 0 0 var(--accent);}
+.commercial-summary-line-label{font-size:12px;font-weight:800;color:var(--dim);}
+.commercial-summary-line-value{font-size:14px;font-weight:950;color:var(--text);direction:ltr;white-space:nowrap;}
+.commercial-summary-hint{font-size:10px;color:var(--muted);margin-top:8px;}
+.commercial-breakdown-overlay{position:fixed;inset:0;background:rgba(2,26,72,.55);z-index:820;display:none;padding:18px;backdrop-filter:blur(3px);}
+.commercial-breakdown-overlay.show{display:flex;}
+.commercial-breakdown-panel{width:min(680px,100%);max-height:min(760px,100%);margin:auto;background:#fff;border-radius:16px;border:1px solid var(--border);box-shadow:0 24px 80px rgba(2,26,72,.3);display:flex;flex-direction:column;overflow:hidden;}
+.commercial-breakdown-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#f8fafc;}
+.commercial-breakdown-body{padding:14px;overflow:auto;display:grid;gap:8px;}
+.commercial-contributor{border:1px solid var(--border);border-radius:11px;padding:10px;background:#fff;cursor:default;touch-action:manipulation;user-select:none;}
+.commercial-contributor:hover{border-color:var(--accent);}
+.commercial-contributor-title{font-size:13px;font-weight:900;color:var(--text);}
+.commercial-contributor-meta{font-size:11px;color:var(--dim);margin-top:3px;}
+.commercial-pile-components{margin-top:7px;padding-top:7px;border-top:1px dashed var(--border);display:grid;gap:3px;font-size:10px;color:var(--dim);}
 .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
 .info-label{font-size:10px;font-weight:700;color:var(--dim);margin-bottom:3px;}
 .info-value{font-size:14px;font-weight:700;}
@@ -269,6 +287,9 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   .print-btns{flex-direction:column;}
   .print-btns{display:flex;}
   .print-btn{justify-content:center;}
+  .commercial-summary-sections{grid-template-columns:1fr;}
+  .commercial-breakdown-overlay{padding:0;}
+  .commercial-breakdown-panel{height:100%;max-height:100%;border-radius:0;}
 }
 </style>
 </head>
@@ -324,6 +345,16 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
       <button class="detail-close" onclick="closeDetailPanel()">✕</button>
     </div>
     <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<div class="commercial-breakdown-overlay" id="commercialBreakdownOverlay" onclick="closeCommercialBreakdown(event)">
+  <div class="commercial-breakdown-panel">
+    <div class="commercial-breakdown-head">
+      <div><div class="edit-title" id="commercialBreakdownTitle">פירוט</div><div class="detail-customer" id="commercialBreakdownValue"></div></div>
+      <button type="button" class="detail-close" onclick="closeCommercialBreakdownPanel()">✕</button>
+    </div>
+    <div class="commercial-breakdown-body" id="commercialBreakdownBody"></div>
   </div>
 </div>
 
@@ -1169,6 +1200,81 @@ function reviewStatusHtml(item) {
   return '<span class="review-status review-pending">ממתין לאימות</span>';
 }
 
+function commercialValueText(line) {
+  const value = Number(line?.value || 0);
+  if (line?.unit === 'unit') return `${value.toLocaleString('he-IL', { maximumFractionDigits: 3 })} יח׳`;
+  return `${value.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ק״ג`;
+}
+
+function commercialSummaryHtml(order) {
+  const summary = order?.commercial_summary;
+  if (!summary?.sections?.length) return '';
+  const sections = summary.sections.map(section => `<div class="commercial-summary-section">
+    <div class="commercial-summary-section-title">${escHtml(section.label)}</div>
+    ${section.lines.map(line => `<div class="commercial-summary-line" data-commercial-summary-key="${escHtml(line.key)}"
+      ondblclick="openCommercialBreakdown(event, ${jsAttr(line.key)})" title="לחיצה כפולה לפירוט">
+      <span class="commercial-summary-line-label">${escHtml(line.label)}</span>
+      <span class="commercial-summary-line-value">${escHtml(commercialValueText(line))}</span>
+    </div>`).join('')}
+  </div>`).join('');
+  return `<div class="d-section" data-commercial-summary-version="${escHtml(summary.version || '')}">
+    <div class="d-title">סיכום הזמנה</div>
+    <div class="commercial-summary-sections">${sections}</div>
+    <div class="commercial-summary-hint">לחיצה כפולה על שורה מציגה את הכרטיסים שמהם חושב הנתון.</div>
+  </div>`;
+}
+
+function pileComponentLabel(component) {
+  const labels = {
+    longitudinal_straight_bar: 'מוטות ישרים',
+    longitudinal_l_bar: 'מוטות מכופפים',
+    spiral_consolidated: 'ספירלה',
+    hoop_ring: 'טבעות חיזוק',
+  };
+  return labels[component?.component_type] || component?.description || component?.component_type || 'רכיב';
+}
+
+function openCommercialBreakdown(event, key) {
+  event?.preventDefault();
+  event?.stopPropagation();
+  const line = currentDetailOrder?.commercial_summary?.lines?.find(row => row.key === key);
+  if (!line) return;
+  document.getElementById('commercialBreakdownTitle').textContent = line.label;
+  document.getElementById('commercialBreakdownValue').textContent = commercialValueText(line);
+  document.getElementById('commercialBreakdownBody').innerHTML = line.contributors.map(row => {
+    const itemId = Number(row.item_id) || 0;
+    const diameter = Number(row.diameter_mm) > 0 ? ` · Ø${Number(row.diameter_mm)}` : '';
+    const source = row.weight_source === 'actual' ? 'משקל בפועל' : 'משקל תיאורטי';
+    const components = Array.isArray(row.pile_components) && row.pile_components.length
+      ? `<div class="commercial-pile-components">${row.pile_components.map(component => `<div>${escHtml(pileComponentLabel(component))}: ${Number(component.weight_kg || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ק״ג</div>`).join('')}</div>`
+      : '';
+    return `<div class="commercial-contributor" ${itemId ? `ondblclick="focusCommercialContributor(event, ${itemId})" title="לחיצה כפולה למעבר לכרטיס"` : ''}>
+      <div class="commercial-contributor-title">פריט ${Number(row.line_no) || '—'} · ${escHtml(row.shape_name || 'פריט')}${escHtml(diameter)}</div>
+      <div class="commercial-contributor-meta">${escHtml(source)} · ${Number(row.weight_kg || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ק״ג · כמות ${Number(row.quantity || 0).toLocaleString('he-IL')}</div>
+      ${components}
+    </div>`;
+  }).join('') || '<div class="detail-customer">אין כרטיסים לפירוט.</div>';
+  document.getElementById('commercialBreakdownOverlay').classList.add('show');
+}
+
+function closeCommercialBreakdown(event) {
+  if (event?.target === document.getElementById('commercialBreakdownOverlay')) closeCommercialBreakdownPanel();
+}
+
+function closeCommercialBreakdownPanel() {
+  document.getElementById('commercialBreakdownOverlay').classList.remove('show');
+}
+
+function focusCommercialContributor(event, itemId) {
+  event?.preventDefault();
+  event?.stopPropagation();
+  closeCommercialBreakdownPanel();
+  const target = document.getElementById(`order-item-${itemId}`);
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.animate([{ outline: '3px solid #e07b39' }, { outline: '0 solid transparent' }], { duration: 1500 });
+}
+
 function buildDetailHTML(o, pkgs) {
   const totalItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).length, 0);
   const reviewItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).filter(item => needsItemReview(item)).length, 0);
@@ -1278,7 +1384,7 @@ function buildDetailHTML(o, pkgs) {
           data-angles="${encodeURIComponent(JSON.stringify(angles))}"
           onclick="openItemEdit(event, ${o.id}, ${item.id})"
           title="ערוך צורה"></div>`;
-      return `<div class="item-row">
+      return `<div class="item-row" id="order-item-${item.id}">
         ${visualHtml}
         <div class="item-main">
           <div class="item-head">
@@ -1346,7 +1452,7 @@ function buildDetailHTML(o, pkgs) {
     pkgSec = `<div class="d-section"><div class="d-title">🏷️ חבילות</div>${pkgRows}</div>`;
   }
 
-  return hero + prints + info + orderActions + statusSec + itemsSec + pkgSec;
+  return hero + prints + info + commercialSummaryHtml(o) + orderActions + statusSec + itemsSec + pkgSec;
 }
 
 function closeDetail(e) { if (e.target===document.getElementById('detailOverlay')) closeDetailPanel(); }
