@@ -1163,30 +1163,36 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     const midX = (startX + endX) / 2;
     const noWrap = zone.noWrap === true || zone.noWrap === 1 || zone.noWrap === 'true';
     zoneBoundaries.push(`<line class="pile-zone-boundary" data-zone="${zoneIndex}" data-se-focus="pile-zone" x1="${startX.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${startX.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
-    zoneDimensions.push(`${dimLine(startX, sideTop, endX, sideTop, 'pile-zone-dimension', 'pile-zone pile-spiral-pitch', `spiral|zone|${zoneIndex}|length`)}<text class="pile-zone-dimension" data-pile-edit="spiral|zone|${zoneIndex}|length" data-se-focus="pile-zone pile-spiral-pitch" x="${midX.toFixed(1)}" y="${(sideTop - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">L${zoneIndex + 1}</text>${labelBox(midX, sideTop + 10, Math.round(len), 'pile-zone-dimension', 0, `spiral|zone|${zoneIndex}|length`)}`);
+    zoneDimensions.push(`${dimLine(startX, sideTop, endX, sideTop, 'pile-zone-dimension', 'pile-zone pile-spiral-pitch', `spiral|zone|${zoneIndex}|length`)}<text class="pile-zone-dimension" data-pile-edit="spiral|zone|${zoneIndex}|length" data-se-focus="pile-zone pile-spiral-pitch" x="${midX.toFixed(1)}" y="${(sideTop - 5).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">L${zoneIndex + 1}</text>${labelBox(midX, sideTop + 10, Math.round(len / 10), 'pile-zone-dimension', 0, `spiral|zone|${zoneIndex}|length`)}`);
     if (!noWrap) {
-      // Language-neutral pitch callout: two winding ticks + a dimension arrow +
-      // the value in cm, so a Hebrew or Thai reader alike sees "spacing = N cm".
-      const py = bottomY + 21; const g = 22;
-      pitchLabels.push(`<g class="pile-pitch-label" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|pitch" data-se-focus="pile-spiral-pitch pile-zone"><line x1="${(midX - g / 2).toFixed(1)}" y1="${(py - 7).toFixed(1)}" x2="${(midX - g / 2).toFixed(1)}" y2="${(py + 1).toFixed(1)}" stroke="#1a2332" stroke-width="1.5"/><line x1="${(midX + g / 2).toFixed(1)}" y1="${(py - 7).toFixed(1)}" x2="${(midX + g / 2).toFixed(1)}" y2="${(py + 1).toFixed(1)}" stroke="#1a2332" stroke-width="1.5"/><line class="pile-dimension-line" x1="${(midX - g / 2).toFixed(1)}" y1="${(py - 3).toFixed(1)}" x2="${(midX + g / 2).toFixed(1)}" y2="${(py - 3).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text x="${midX.toFixed(1)}" y="${(py + 14).toFixed(1)}" text-anchor="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">${Math.round(pitch / 10)} cm</text></g>`);
+      // Pitch dimensioned tooth-to-tooth: aligned to two adjacent winding peaks
+      // (same period as the coil above), with extension lines + arrows so it is
+      // clear exactly where the spacing is measured.
+      const nLoopsP = Math.min(14, Math.max(1, Math.round((endMm - startMm) / pitch)));
+      const stepP = (endX - startX) / Math.max(1, nLoopsP);
+      const peakA = startX + stepP * (nLoopsP > 2 ? 1.25 : 0.25);
+      const peakB = peakA + stepP;
+      const coilBottom = sideMid + cageHeight * 0.4;
+      const py = bottomY + 20;
+      pitchLabels.push(`<g class="pile-pitch-label" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|pitch" data-se-focus="pile-spiral-pitch pile-zone"><line x1="${peakA.toFixed(1)}" y1="${coilBottom.toFixed(1)}" x2="${peakA.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#e07b39" stroke-width=".7" stroke-dasharray="2 2"/><line x1="${peakB.toFixed(1)}" y1="${coilBottom.toFixed(1)}" x2="${peakB.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#e07b39" stroke-width=".7" stroke-dasharray="2 2"/><line class="pile-dimension-line" x1="${peakA.toFixed(1)}" y1="${py.toFixed(1)}" x2="${peakB.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#e07b39" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text x="${((peakA + peakB) / 2).toFixed(1)}" y="${(py + 13).toFixed(1)}" text-anchor="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="900" fill="#e07b39">@ ${Math.round(pitch / 10)}</text></g>`);
     }
     if (noWrap) {
-      noWrapZones.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|noWrap" data-se-focus="pile-no-wrap pile-zone" x="${startX.toFixed(1)}" y="${topY.toFixed(1)}" width="${Math.max(1, endX - startX).toFixed(1)}" height="${cageHeight.toFixed(1)}" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".95"/><text data-pile-edit="spiral|zone|${zoneIndex}|noWrap" data-se-focus="pile-no-wrap pile-zone" x="${midX.toFixed(1)}" y="${(sideMid + 3).toFixed(1)}" text-anchor="middle" font-size="12" font-family="Heebo,Arial" font-weight="800" fill="#94a3b8">∅</text>`);
+      noWrapZones.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|noWrap" data-se-focus="pile-no-wrap pile-zone" x="${startX.toFixed(1)}" y="${topY.toFixed(1)}" width="${Math.max(1, endX - startX).toFixed(1)}" height="${cageHeight.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-dasharray="4 4" opacity=".8"/><text data-pile-edit="spiral|zone|${zoneIndex}|noWrap" data-se-focus="pile-no-wrap pile-zone" x="${midX.toFixed(1)}" y="${(topY - 3).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#94a3b8">∅</text>`);
     } else {
       // Representative helix — capped so a tight pitch stays readable rather than
       // drawing every real turn. Count stays pitch-linked up to the cap (a shorter
       // zone with the same count still reads denser), and the true spacing is given
       // by the dimension callout below.
-      const spTop = sideMid - cageHeight * 0.5;
-      const spBottom = sideMid + cageHeight * 0.5;
+      const spTop = sideMid - cageHeight * 0.4;
+      const spBottom = sideMid + cageHeight * 0.4;
       const nLoops = Math.min(14, Math.max(1, Math.round((endMm - startMm) / pitch)));
       const step = (endX - startX) / nLoops;
       for (let k = 0; k < nLoops; k++) {
         const xa = startX + step * k;
-        const xb = startX + step * (k + 1);
-        // Each turn = diagonal up + vertical back, so the coil reads as a
-        // connected spiral rather than loose slashes.
-        spiralLoops.push(`<path class="pile-spiral-loop" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|pitch" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" d="M ${xa.toFixed(1)} ${spBottom.toFixed(1)} L ${xb.toFixed(1)} ${spTop.toFixed(1)} L ${xb.toFixed(1)} ${spBottom.toFixed(1)}" fill="none" stroke="${steelColor}" stroke-width="${spiralStroke.toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/>`);
+        const q1 = xa + step * 0.25, mid = xa + step * 0.5, q2 = xa + step * 0.75, xb = xa + step;
+        // One smooth sine period per turn — reads as a clean continuous helix
+        // (thin + light) instead of a jagged sawtooth, and stays pitch-linked.
+        spiralLoops.push(`<path class="pile-spiral-loop" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|pitch" data-se-focus="pile-spiral-pitch pile-spiral-diameter pile-zone" d="M ${xa.toFixed(1)} ${sideMid.toFixed(1)} Q ${q1.toFixed(1)} ${spTop.toFixed(1)} ${mid.toFixed(1)} ${sideMid.toFixed(1)} Q ${q2.toFixed(1)} ${spBottom.toFixed(1)} ${xb.toFixed(1)} ${sideMid.toFixed(1)}" fill="none" stroke="${steelColor}" stroke-width="1.1" opacity=".5"/>`);
       }
     }
     offsetMm += len;
