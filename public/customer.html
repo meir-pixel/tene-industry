@@ -1799,9 +1799,29 @@ function renderPortalFileList() {
 }
 
 function shapePreviewSvg(item) {
+  if (typeof item?.shape_svg === 'string' && item.shape_svg.includes('<svg')) return item.shape_svg;
   const sides = (item.sides || []).map(v => Number(v) || 0).filter(v => v > 0);
   const angles = (item.angles || []).map(v => Number(v) || 0);
   const name = String(item.shapeName || '');
+  const snapshot = portalParsedShapeSnapshot(item.shapeSnapshot || item.shape_snapshot_json) || {};
+  const source = snapshot.data || {};
+  if ((snapshot.family === 'spirals' || /spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(name)) && window.IronBendShapeGeometry?.ShapeEngineRouter) {
+    const shapeType = snapshot.shapeType || (/(?:ring|טבעת|לולאה)/i.test(name) ? 'ring' : 'spiral');
+    const spiralDiameter = Number(source.spiralDiameterMm || source.spiralDiameter || item.spiralDiameterMm || item.spiral_diameter_mm || 0);
+    const ringDiameter = Number(source.ringDiameterMm || source.bendingDiameterMm || source.ringDiameter || spiralDiameter || 0);
+    const shape = {
+      ...snapshot, ...source, family: 'spirals', shapeType,
+      barDiameter: Number(source.barDiameter || source.barDiameterMm || item.diameter || 8),
+      spiralDiameter: spiralDiameter || ringDiameter,
+      spiralDiameterMm: spiralDiameter || ringDiameter,
+      ringDiameter: ringDiameter || spiralDiameter,
+      ringDiameterMm: ringDiameter || spiralDiameter,
+      overlap: Number(source.overlapMm ?? source.overlap ?? 0),
+      overlapMm: Number(source.overlapMm ?? source.overlap ?? 0),
+      turns: Number(source.spiralTurns || source.turns || item.spiralTurns || item.spiral_turns || (shapeType === 'ring' ? 1 : 20)),
+    };
+    return `<svg viewBox="0 0 112 88" aria-hidden="true">${window.IronBendShapeGeometry.ShapeEngineRouter.render(shape, 112, 88)}</svg>`;
+  }
   if (/spiral|ring|coil|ספיר|ספירלה|טבעת|סליל|לולאה|קפיץ/i.test(name)) {
     return `<svg viewBox="0 0 112 88" aria-hidden="true">
       <path d="M58 44 m-24 0 a24 24 0 1 0 48 0 a24 24 0 1 0 -48 0" fill="none" stroke="#0e5a78" stroke-width="5"/>
