@@ -58,6 +58,45 @@ test('order persistence stores physical cage length and complete five-card assem
   }
 });
 
+test('variable hoop quantity is preserved while order quantity multiplies one-cage weight once', () => {
+  const db = new Database(':memory:');
+  try {
+    ensureCoreSchema(db);
+    runCoreMigrations(db);
+    const snapshot = cageSnapshot({
+      hoops: {
+        enabled: true,
+        hoopBarDiameterMm: 18,
+        outerDiameterMm: 420,
+        spacingMode: 'byQuantity',
+        quantity: 3,
+        firstHoopOffsetMm: 1500,
+        spacingMm: 3000,
+      },
+    });
+    const hoop = snapshot.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+    const service = createOrderFactory(db, { generateOrderNum: () => 'PILE-ORDER-VARIABLE-HOOPS', industry });
+    service.createOrderFromPayload({
+      customer: { name: 'Variable hoop test' },
+      order: {},
+      pallets: [{ items: [{ shapeSnapshot: snapshot, shapeName: 'PILE CAGE', diameter: 20, qty: 4 }] }],
+    });
+    const item = db.prepare('SELECT quantity,weight_per_unit,total_weight,shape_snapshot_json FROM items').get();
+    const saved = JSON.parse(item.shape_snapshot_json);
+
+    assert.equal(snapshot.validation.ok, true);
+    assert.equal(hoop.quantity, 3);
+    assert.deepEqual(hoop.positionsMm, [1500, 4500, 7500]);
+    assert.equal(saved.data.hoops.quantity, 3);
+    assert.equal(saved.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring').quantity, 3);
+    assert.equal(item.quantity, 4);
+    assert.equal(item.weight_per_unit, snapshot.assemblySummary.totalWeightKg);
+    assert.equal(item.total_weight, snapshot.assemblySummary.totalWeightKg * 4);
+  } finally {
+    db.close();
+  }
+});
+
 test('delivery metrics ignore corrupt generic stored values and use canonical cage assembly', () => {
   const snapshot = cageSnapshot();
   const item = {
