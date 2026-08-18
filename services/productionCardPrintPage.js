@@ -79,9 +79,11 @@ function formatPileNumber(value) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
-function formatPileMm(value) {
-  const formatted = formatPileNumber(value);
-  return formatted ? formatted + ' mm' : '';
+function formatPileCm(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return '';
+  const formatted = formatPileNumber(numeric / 10);
+  return formatted ? formatted + ' cm' : '';
 }
 
 function pileComponentShapeSvg(card, fallbackLengthMm, scope = 'pile') {
@@ -114,13 +116,13 @@ function pileComponentShapeSvg(card, fallbackLengthMm, scope = 'pile') {
       const rowY = 57 + index * 12;
       if (rowY <= 93) {
         const detail = segment.noWrap
-          ? `${name} ${Math.round(start)}-${Math.round(start + axial)} NO WRAP`
-          : `${name} ${formatPileNumber(start)}-${formatPileNumber(start + axial)} P${formatPileNumber(segment.pitchMm)} T${formatPileNumber(segment.turns)} C${formatPileNumber(segment.helicalCutLengthMm ?? segment.totalLengthMm)}`;
+          ? `${name} ${formatPileCm(start)}-${formatPileCm(start + axial)} NO WRAP`
+          : `${name} ${formatPileCm(start)}-${formatPileCm(start + axial)} P${formatPileCm(segment.pitchMm)} T${formatPileNumber(segment.turns)} C${formatPileCm(segment.helicalCutLengthMm ?? segment.totalLengthMm)}`;
         svg += `<text x="18" y="${rowY}" text-anchor="start" font-size="7" font-family="Arial" font-weight="700" fill="#1a2332">${escapeSvgText(detail)}</text>`;
       }
     });
-    svg += `<text x="18" y="108" text-anchor="start" font-size="8" font-family="Arial" font-weight="900" fill="#1a2332">AXIS ${Math.round(axisLengthMm)} mm</text>`;
-    svg += `<text x="222" y="108" text-anchor="end" font-size="8" font-family="Arial" font-weight="900" fill="#1a2332">CUT ${escapeSvgText(formatPileMm(cutLengthMm))}</text>`;
+    svg += `<text x="18" y="108" text-anchor="start" font-size="8" font-family="Arial" font-weight="900" fill="#1a2332">AXIS ${escapeSvgText(formatPileCm(axisLengthMm))}</text>`;
+    svg += `<text x="222" y="108" text-anchor="end" font-size="8" font-family="Arial" font-weight="900" fill="#1a2332">CUT ${escapeSvgText(formatPileCm(cutLengthMm))}</text>`;
     return `<svg data-shape-kind="pile-spiral-component" data-component-type="spiral_consolidated" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
   }
   if (componentType === 'hoop_ring') {
@@ -765,7 +767,7 @@ function escapeHtml(value) {
 function displayLengthCm(value) {
   var cm = (Number(value) || 0) / 10;
   if (!Number.isFinite(cm)) return '';
-  return Math.abs(cm - Math.round(cm)) < 0.001 ? String(Math.round(cm)) : cm.toFixed(1).replace(/\.0$/, '');
+  return cm.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function displayPileLengthCmExact(value) {
@@ -1058,10 +1060,10 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var useExactPileDimensions = Boolean(item.pile_component_type || item.pile_card_type === 'pile_assembly');
   var unitLengthCm = useExactPileDimensions
     ? displayPileLengthCmExact(Number(item.unit_length_mm || item.total_length_mm || 0))
-    : Math.round((Number(item.unit_length_mm || item.total_length_mm || 0)) / 10);
+    : displayLengthCm(Number(item.unit_length_mm || item.total_length_mm || 0));
   var totalLengthCm = useExactPileDimensions
     ? displayPileLengthCmExact(Number(item.total_length_mm || 0))
-    : Math.round((Number(item.total_length_mm || 0)) / 10);
+    : displayLengthCm(Number(item.total_length_mm || 0));
   var diameterLabel = isPileAssembly ? ((Number(item.diameter || 0) / 10).toFixed(1).replace(/\.0$/, '') + ' cm') : String(item.diameter);
   var allowSplit = !item.virtual_card;
   var splitTools = !allowSplit ? '<div class="pc-screen-tools"><span class="pc-split-state">'+(isPileAssembly?'הרכבת כלונס':'רכיב כלונס')+'</span></div>' : totalCards > 1

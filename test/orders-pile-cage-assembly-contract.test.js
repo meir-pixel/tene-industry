@@ -49,17 +49,17 @@ test('order assembly guide shows each production component and its exact snapsho
   const html = render({ shape_snapshot_json: JSON.stringify(snapshot) });
 
   for (const component of ['straight', 'bent', 'spiral', 'hoop']) assert.match(html, new RegExp(`data-pile-component="${component}"`));
-  assert.match(html, /5 × Ø20 · L=12 מ׳/);
-  assert.match(html, /5 × Ø20 · L=12.2 מ׳/);
+  assert.match(html, /5 × Ø20 מ״מ · L=1200 ס״מ/);
+  assert.match(html, /5 × Ø20 מ״מ · L=1220 ס״מ/);
   assert.match(html, /אורך הכיפוף 20 ס״מ/);
   assert.match(html, /כיפוף בראש/);
-  assert.match(html, /L=12 מ׳/);
-  assert.match(html, /L=12.2 מ׳/);
+  assert.match(html, /L=1200 ס״מ/);
+  assert.match(html, /L=1220 ס״מ/);
   assert.match(html, />20 ס״מ<\/text>/);
-  assert.match(html, /Ø8 · קוטר 48 ס״מ · פסיעות 15 \/ 20 ס״מ/);
-  assert.match(html, /A: 3m @ 15cm · 20 כריכות/);
-  assert.match(html, /B: 2m ללא כריכות/);
-  assert.match(html, /C: 7m @ 20cm · 35 כריכות/);
-  assert.match(html, /5 × Ø18 · קוטר 42 ס״מ/);
+  assert.match(html, /Ø8 מ״מ · קוטר 48 ס״מ · פסיעות 15 \/ 20 ס״מ/);
+  assert.match(html, /A: 300 ס״מ @ 15 ס״מ · 20 כריכות/);
+  assert.match(html, /B: 200 ס״מ ללא כריכות/);
+  assert.match(html, /C: 700 ס״מ @ 20 ס״מ · 35 כריכות/);
+  assert.match(html, /5 × Ø18 מ״מ · קוטר 42 ס״מ/);
   assert.match(html, /הטבעת הראשונה 150 ס״מ מראש הכלונס; מרווח 30 ס״מ/);
 });

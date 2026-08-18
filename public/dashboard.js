@@ -277,10 +277,10 @@ function cardDrillHtml(card, { detail = false } = {}) {
   const production = produced > 0 ? `יוצר ${dashboardNumber(produced, 2)}` : (card.status || 'ללא מצב');
   const weight = Number.isFinite(Number(card.display_weight_kg)) ? formatDrillKg(card.display_weight_kg) : 'ללא משקל זמין';
   const source = drillWeightSourceLabel(card.weight_source);
-  const length = Number.isFinite(Number(card.total_length_mm)) ? `אורך כולל ${dashboardNumber(card.total_length_mm, 1)} מ״מ` : 'אורך לא זמין';
+  const length = Number.isFinite(Number(card.total_length_mm)) ? `אורך כולל ${IronBendDisplayUnits.formatLengthCmFromMm(card.total_length_mm)}` : 'אורך לא זמין';
   const order = card.order_num ? `הזמנה ${card.order_num}` : 'ללא הזמנה';
   const geometry = Array.isArray(card.geometry) && card.geometry.length
-    ? card.geometry.map((segment, index) => `צלע ${index + 1}: ${Number.isFinite(Number(segment.length_mm)) ? `${dashboardNumber(segment.length_mm, 1)} מ״מ` : '—'}${Number.isFinite(Number(segment.angle_deg)) ? ` · ${dashboardNumber(segment.angle_deg, 1)}°` : ''}`).join(' | ')
+    ? card.geometry.map((segment, index) => `צלע ${index + 1}: ${Number.isFinite(Number(segment.length_mm)) ? IronBendDisplayUnits.formatLengthCmFromMm(segment.length_mm) : '—'}${Number.isFinite(Number(segment.angle_deg)) ? ` · ${dashboardNumber(segment.angle_deg, 1)}°` : ''}`).join(' | ')
     : '';
   if (!detail) {
     return `<button class="drill-entry" type="button" data-dashboard-drill-entry="${Number(card.item_id)}"><span class="drill-entry-main"><span class="drill-entry-title">${escHtml(title)} <span class="status-badge ${statusBadgeClass(card.status)}">${escHtml(card.status || '—')}</span></span><span class="drill-entry-sub">${escHtml(order)} · ${escHtml(quantity)} · ${escHtml(production)}</span><span class="drill-entry-meta"><span class="drill-data-pill">${escHtml(length)}</span><span class="drill-data-pill">${escHtml(weight)} · ${escHtml(source)}</span></span></span><span class="drill-entry-arrow" aria-hidden="true">‹</span></button>`;

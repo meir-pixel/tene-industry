@@ -98,7 +98,7 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
     shape_name:     it.shape_name || '',
     quantity:       it.quantity || 1,
     total_length_mm:it.total_length_mm || 0,
-    total_length_cm:(Math.round((it.total_length_mm||0)/10)),
+    total_length_cm:(Number(it.total_length_mm||0)/10),
     total_weight:   it.total_weight || 0,
     material_grade: it.material_grade || 'B500B',
     struct_element: it.struct_element || '',
@@ -300,7 +300,7 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
         <th>#</th>
         <th>⌀ נ'</th>
         <th>צורה</th>
-        <th>מידות (מ"מ)</th>
+        <th>מידות (ס"מ)</th>
         <th>L סה"כ<br>(ס"מ)</th>
         <th>כמות</th>
         <th>ק"ג</th>
@@ -335,7 +335,9 @@ function buildDimsHtml(segments) {
   var html = '';
   for (var i=0; i<segments.length; i++) {
     var lbl = String.fromCharCode(0x05D0+i); // א,ב,ג...
-    html += '<div class="seg-dim"><span class="seg-lbl">'+lbl+':</span> '+segments[i].length_mm+'</div>';
+    var lengthCm = Number(segments[i].length_mm || 0) / 10;
+    var displayCm = lengthCm.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+    html += '<div class="seg-dim"><span class="seg-lbl">'+lbl+':</span> '+displayCm+'</div>';
     if (i < segments.length-1 && segments[i].angle_deg != null) {
       // Bend direction is encoded on a full 0-360 turn: -30 displays as 330.
       var normAng = ((Number(segments[i].angle_deg) % 360) + 360) % 360;

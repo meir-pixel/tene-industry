@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/theme.css">
 <script src="/auth-client.js"></script>
+<script src="/display-units.js"></script>
 <script src="/status-contracts-client.js"></script>
 <script src="/safe-dom.js" defer></script>
 <script src="/nav.js" defer></script>
@@ -19,7 +20,7 @@
 <script src="/rebar-weights.js"></script>
 <script src="/shapeSnapshot.js?v=1"></script>
 <script src="/steelRebarShapes.js?v=1"></script>
-<script src="/shape-editor.js?v=65"></script>
+<script src="/shape-editor.js?v=66"></script>
 <style>
 :root{
   --accent:#c9621a; --accent-light:#e07b39;
@@ -851,7 +852,7 @@ function itemWeight(item) {
 }
 
 function itemDimensions(item) {
-  if (isRealSpiralItem(item)) return `קוטר ספיראלה ${item.spiral_diameter_mm} / ${item.spiral_turns} כריכות`;
+  if (isRealSpiralItem(item)) return `קוטר ספיראלה ${IronBendDisplayUnits.formatLengthCmFromMm(item.spiral_diameter_mm)} / ${item.spiral_turns} כריכות`;
   const values = normalizeDisplaySegments(item.shape_name, safeJson(item.segments)).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
   return values.length ? values.join(' / ') : '';
 }
@@ -896,15 +897,15 @@ function openULegWarning(item, sides) {
   const last = Number(sides[2]);
   if (!Number.isFinite(first) || !Number.isFinite(last)) return '';
   if (Math.abs(first - last) <= 1) return '';
-  return `צורת ח עם צלעות מקבילות לא שוות: צלע א ${first} מ"מ מול צלע ג ${last} מ"מ. דרוש תיקון לפני ייצור.`;
+  return `צורת ח עם צלעות מקבילות לא שוות: צלע א ${IronBendDisplayUnits.formatLengthCmFromMm(first)} מול צלע ג ${IronBendDisplayUnits.formatLengthCmFromMm(last)}. דרוש תיקון לפני ייצור.`;
 }
 
 function itemMachineSequence(item) {
   const segments = rawItemSegments(item);
   if (isRealSpiralItem(item)) {
-    return `ספיראלה: קוטר ברזל ${item.diameter || '-'}, קוטר ספיראלה ${item.spiral_diameter_mm || '-'}, כריכות ${item.spiral_turns || '-'}`;
+    return `ספיראלה: קוטר ברזל ${IronBendDisplayUnits.formatSteelDiameterMm(item.diameter) || '-'}, קוטר ספיראלה ${IronBendDisplayUnits.formatLengthCmFromMm(item.spiral_diameter_mm) || '-'}, כריכות ${item.spiral_turns || '-'}`;
   }
-  return segments.map((segment, idx) => `צלע ${idx + 1}: ${Math.round(segment.length_mm)} מ"מ | זווית אחרי: ${Number.isFinite(segment.angle_deg) ? segment.angle_deg : 180}°`).join(' · ');
+  return segments.map((segment, idx) => `צלע ${idx + 1}: ${IronBendDisplayUnits.formatLengthCmFromMm(segment.length_mm)} | זווית אחרי: ${Number.isFinite(segment.angle_deg) ? segment.angle_deg : 180}°`).join(' · ');
 }
 
 function renderDetailShapes() {
@@ -946,7 +947,7 @@ function buildSpiralSvg(diameter, turns) {
     <circle cx="110" cy="62" r="42" stroke="#DF5000" stroke-width="6" fill="none"/>
     <circle cx="110" cy="62" r="30" stroke="#ef8a42" stroke-width="4" fill="none" opacity=".75"/>
     <circle cx="110" cy="62" r="18" stroke="#f3b074" stroke-width="4" fill="none" opacity=".7"/>
-    <text x="110" y="118" text-anchor="middle" font-size="11" fill="#1f2937">קוטר ${escHtml(diameter)} מ"מ · ${escHtml(turns)} כריכות</text>
+    <text x="110" y="118" text-anchor="middle" font-size="11" fill="#1f2937">קוטר ${escHtml(IronBendDisplayUnits.formatLengthCmFromMm(diameter))} · ${escHtml(turns)} כריכות</text>
   </svg>`;
 }
 
@@ -994,20 +995,15 @@ function roundPileCageDetailSvg(item) {
   }).join('');
   const spirals = spiralDiameter > 0 && pitch > 0 ? Array.from({ length: 14 }, (_, index) => `<path d="M${18 + index * 12} 34L${30 + index * 12} 83" stroke="#2563eb" stroke-width="2"/>`).join('') : '';
   const bars = barCount > 0 && barDiameter > 0 ? Array.from({ length: 6 }, (_, index) => `<path d="M18 ${38 + index * 8}H180" stroke="#102a43" stroke-width="1.4"/>`).join('') : '';
-  const barLabel = barCount > 0 && barDiameter > 0 ? `${barCount} × Ø${barDiameter}` : '—';
-  const spiralLabel = spiralDiameter > 0 && pitch > 0 ? `Ø${spiralDiameter} @ ${pileCm(pitch)}cm` : '—';
-  const hoopLabel = hoopCount > 0 && hoopDiameter > 0 ? `${hoopCount} × Ø${hoopDiameter}` : '—';
-  return `<svg viewBox="0 0 250 110" role="img" aria-label="PILE CAGE"><rect x="14" y="31" width="170" height="58" rx="9" fill="#f8fafc" stroke="#102a43" stroke-width="2"/>${bars}${spirals}<circle cx="206" cy="65" r="29" fill="#fff" stroke="#102a43" stroke-width="2"/>${dots}<text x="99" y="18" text-anchor="middle" font-size="12" font-weight="900" fill="#102a43">L ${pileLength > 0 ? pileMeters(pileLength) : '—'}m</text><text x="206" y="105" text-anchor="middle" font-size="11" font-weight="900" fill="#102a43">Ø${pileDiameter > 0 ? pileCm(pileDiameter) : '—'}${Number.isFinite(bendOrientationDeg) ? ` · ↻${bendOrientationDeg}°` : ''}</text><text x="99" y="103" text-anchor="middle" font-size="10" font-weight="900" fill="#102a43">${barLabel} · ${spiralLabel} · ${hoopLabel}</text></svg>`;
+  const barLabel = barCount > 0 && barDiameter > 0 ? `${barCount} × Ø${barDiameter}mm` : '—';
+  const spiralLabel = spiralDiameter > 0 && pitch > 0 ? `Ø${spiralDiameter}mm @ ${pileCm(pitch)}cm` : '—';
+  const hoopLabel = hoopCount > 0 && hoopDiameter > 0 ? `${hoopCount} × Ø${hoopDiameter}mm` : '—';
+  return `<svg viewBox="0 0 250 110" role="img" aria-label="PILE CAGE"><rect x="14" y="31" width="170" height="58" rx="9" fill="#f8fafc" stroke="#102a43" stroke-width="2"/>${bars}${spirals}<circle cx="206" cy="65" r="29" fill="#fff" stroke="#102a43" stroke-width="2"/>${dots}<text x="99" y="18" text-anchor="middle" font-size="12" font-weight="900" fill="#102a43">L ${pileLength > 0 ? pileCm(pileLength) : '—'}cm</text><text x="206" y="105" text-anchor="middle" font-size="11" font-weight="900" fill="#102a43">Ø${pileDiameter > 0 ? pileCm(pileDiameter) : '—'}cm${Number.isFinite(bendOrientationDeg) ? ` · ↻${bendOrientationDeg}°` : ''}</text><text x="99" y="103" text-anchor="middle" font-size="10" font-weight="900" fill="#102a43">${barLabel} · ${spiralLabel} · ${hoopLabel}</text></svg>`;
 }
 
 function pileMm(value) {
   const number = pileNumber(value, 0);
   return Number.isInteger(number) ? String(number) : number.toFixed(1).replace(/\.0$/, '');
-}
-
-function pileMeters(value) {
-  const meters = pileNumber(value, 0) / 1000;
-  return Number.isInteger(meters) ? String(meters) : meters.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function pileCm(value) {
@@ -1024,8 +1020,8 @@ function pilePart(snapshot, type) {
 }
 
 function pileComponentSvg(kind, dimensions = {}) {
-  const length = escHtml(`L=${pileMeters(dimensions.lengthMm || 0)} מ׳`);
-  const mainLength = escHtml(`L=${pileMeters(dimensions.mainLengthMm ?? dimensions.lengthMm ?? 0)} מ׳`);
+  const length = escHtml(`L=${pileCm(dimensions.lengthMm || 0)} ס״מ`);
+  const mainLength = escHtml(`L=${pileCm(dimensions.mainLengthMm ?? dimensions.lengthMm ?? 0)} ס״מ`);
   const bend = escHtml(pileCm(dimensions.bendLengthMm || 0));
   const diameter = escHtml(pileCm(dimensions.outerDiameterMm || 0));
   const pitch = escHtml(pileCm(dimensions.pitchMm || 0));
@@ -1034,7 +1030,7 @@ function pileComponentSvg(kind, dimensions = {}) {
     <path d="M48 24V155M43 24h10M43 155h10" stroke="#7d8b99" stroke-width="1.5"/>
     <text x="38" y="93" text-anchor="middle" font-size="12" font-weight="800" fill="#1a2533" transform="rotate(-90 38 93)">${length}</text>
   </svg>`;
-  if (kind === 'bent') return `<svg viewBox="0 0 160 180" role="img" aria-label="מוט אורך עם כיפוף של 200 מילימטר בראש">
+  if (kind === 'bent') return `<svg viewBox="0 0 160 180" role="img" aria-label="מוט אורך עם כיפוף של 20 סנטימטר בראש">
     <path d="M68 155V28H122" fill="none" stroke="#1d4ed8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M27 28V155M22 28h10M22 155h10" stroke="#7d8b99" stroke-width="1.5"/>
     <text x="17" y="93" text-anchor="middle" font-size="11" font-weight="800" fill="#1a2533" transform="rotate(-90 17 93)">${mainLength}</text>
@@ -1094,19 +1090,19 @@ function roundPileAssemblyHtml(item) {
     <div><div class="pile-component-title">${escHtml(title)}</div><div class="pile-component-metric">${escHtml(metric)}</div><div class="pile-component-placement">${escHtml(placement)}</div>${list ? `<div class="pile-placement-list">${escHtml(list)}</div>` : ''}</div>
   </article>`;
   const cards = [];
-  if (straightQty > 0) cards.push(component('straight', 'מוטות אורך ישרים', `${straightQty} × Ø${pileMm(longDiameter)} · L=${pileMeters(straightLength)} מ׳`, 'לפזר סביב ההיקף במקומות האי־זוגיים: 1, 3, 5…', '', { lengthMm: straightLength }));
-  if (bentQty > 0) cards.push(component('bent', 'מוטות אורך עם כיפוף עליון', `${bentQty} × Ø${pileMm(longDiameter)} · L=${pileMeters(bentLength)} מ׳`, bendLength > 0 ? `במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס; אורך הכיפוף ${pileCm(bendLength)} ס״מ.` : 'במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס.', '', { lengthMm: bentLength, mainLengthMm: bentMainLength, bendLengthMm: bendLength }));
+  if (straightQty > 0) cards.push(component('straight', 'מוטות אורך ישרים', `${straightQty} × Ø${pileMm(longDiameter)} מ״מ · L=${pileCm(straightLength)} ס״מ`, 'לפזר סביב ההיקף במקומות האי־זוגיים: 1, 3, 5…', '', { lengthMm: straightLength }));
+  if (bentQty > 0) cards.push(component('bent', 'מוטות אורך עם כיפוף עליון', `${bentQty} × Ø${pileMm(longDiameter)} מ״מ · L=${pileCm(bentLength)} ס״מ`, bendLength > 0 ? `במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס; אורך הכיפוף ${pileCm(bendLength)} ס״מ.` : 'במקומות הזוגיים, כשהכיפוף כלפי ראש הכלונס.', '', { lengthMm: bentLength, mainLengthMm: bentMainLength, bendLengthMm: bendLength }));
   if (spiralDiameter > 0) {
     const pitchSummary = [...new Set(wrappedSpiral.map(zone => pileCm(zone.pitchMm)).filter(Boolean))].join(' / ');
     const scheduleText = spiralSchedule.map(zone => zone.noWrap
-      ? `${zone.name || zone.zoneIndex}: ${pileMeters(zone.axialLengthMm ?? zone.lengthMm)}m ללא כריכות`
-      : `${zone.name || zone.zoneIndex}: ${pileMeters(zone.axialLengthMm ?? zone.lengthMm)}m @ ${pileCm(zone.pitchMm)}cm · ${pileMm(zone.turns)} כריכות`).join(' | ');
-    cards.push(component('spiral', 'ספירלה מאוחדת', `Ø${pileMm(spiralDiameter)} · קוטר ${pileCm(spiralOuterDiameter)} ס״מ · פסיעות ${pitchSummary || pileCm(spiralPitch)} ס״מ`, 'לייצר כספירלה אחת לפי סדר המקטעים; מקטע ללא כריכות נשאר ריק.', scheduleText || (spiralTurns > 0 ? `ציר ${pileMeters(spiralCoverageLength)} מ׳ · ${pileMm(spiralTurns)} כריכות.` : ''), { outerDiameterMm: spiralOuterDiameter, pitchMm: spiralPitch }));
+      ? `${zone.name || zone.zoneIndex}: ${pileCm(zone.axialLengthMm ?? zone.lengthMm)} ס״מ ללא כריכות`
+      : `${zone.name || zone.zoneIndex}: ${pileCm(zone.axialLengthMm ?? zone.lengthMm)} ס״מ @ ${pileCm(zone.pitchMm)} ס״מ · ${pileMm(zone.turns)} כריכות`).join(' | ');
+    cards.push(component('spiral', 'ספירלה מאוחדת', `Ø${pileMm(spiralDiameter)} מ״מ · קוטר ${pileCm(spiralOuterDiameter)} ס״מ · פסיעות ${pitchSummary || pileCm(spiralPitch)} ס״מ`, 'לייצר כספירלה אחת לפי סדר המקטעים; מקטע ללא כריכות נשאר ריק.', scheduleText || (spiralTurns > 0 ? `ציר ${pileCm(spiralCoverageLength)} ס״מ · ${pileMm(spiralTurns)} כריכות.` : ''), { outerDiameterMm: spiralOuterDiameter, pitchMm: spiralPitch }));
   }
-  if (hoopQty > 0) cards.push(component('hoop', 'טבעות חיזוק', `${pileMm(hoopQty)} × Ø${pileMm(hoopDiameter)} · קוטר ${pileCm(hoopOuterDiameter)} ס״מ`, `הטבעת הראשונה ${pileCm(hoopStart)} ס״מ מראש הכלונס; מרווח ${pileCm(hoopSpacing)} ס״מ.`, '', { outerDiameterMm: hoopOuterDiameter }));
+  if (hoopQty > 0) cards.push(component('hoop', 'טבעות חיזוק', `${pileMm(hoopQty)} × Ø${pileMm(hoopDiameter)} מ״מ · קוטר ${pileCm(hoopOuterDiameter)} ס״מ`, `הטבעת הראשונה ${pileCm(hoopStart)} ס״מ מראש הכלונס; מרווח ${pileCm(hoopSpacing)} ס״מ.`, '', { outerDiameterMm: hoopOuterDiameter }));
   if (!cards.length) return '';
   return `<section class="pile-assembly" data-round-pile-assembly="1" aria-label="כלוב זיון לכלונס עגול">
-    <div class="pile-assembly-head"><div class="pile-assembly-title">כלוב זיון לכלונס עגול</div><div class="pile-assembly-note">L ${escHtml(pileMeters(pileLength))}m · 1 / 3${Number.isFinite(bendOrientationDeg) ? ` · כיוון כיפופי L ${escHtml(pileMm(bendOrientationDeg))}°` : ''}</div></div>
+    <div class="pile-assembly-head"><div class="pile-assembly-title">כלוב זיון לכלונס עגול</div><div class="pile-assembly-note">L ${escHtml(pileCm(pileLength))} ס״מ · 1 / 3${Number.isFinite(bendOrientationDeg) ? ` · כיוון כיפופי L ${escHtml(pileMm(bendOrientationDeg))}°` : ''}</div></div>
     <div class="pile-component-grid">${cards.join('')}</div>
   </section>`;
 }
@@ -1406,13 +1402,13 @@ function buildDetailHTML(o, pkgs) {
           </div>
           <div class="item-kpis">
             <div class="item-kpi"><div class="item-kpi-label">כמות</div><div class="item-kpi-value" id="qtyVal-${item.id}" onclick="startQtyEdit(event, ${o.id}, ${item.id}, ${qty})" style="cursor:pointer" title="לחץ לשינוי כמות">${qty} יח' <span style="font-size:11px;opacity:0.55">✎</span></div></div>
-            <div class="item-kpi"><div class="item-kpi-label">אורך פתיחה</div><div class="item-kpi-value">${Math.round(length)} מ"מ</div></div>
+            <div class="item-kpi"><div class="item-kpi-label">אורך פתיחה</div><div class="item-kpi-value">${IronBendDisplayUnits.formatLengthCmFromMm(length)}</div></div>
             <div class="item-kpi"><div class="item-kpi-label">משקל רצוי</div><div class="item-kpi-value">${weight.toFixed(1)} ק"ג</div></div>
             <div class="item-kpi"><div class="item-kpi-label">יוצר</div><div class="item-kpi-value">${produced}/${qty}</div></div>
           </div>
           <div class="raw-data"><b>מה שמור לפריט:</b> ${escHtml(itemMachineSequence(item))}</div>
           ${openUWarning ? `<div class="shape-warning">⚠ ${escHtml(openUWarning)}</div>` : ''}
-          ${dims ? `<div class="item-dims">${dims.split(' / ').map((d, idx) => `<span class="dim-chip">${String.fromCharCode(0x05D0 + idx)}: ${d} מ"מ</span>`).join('')}</div>` : ''}
+          ${dims ? `<div class="item-dims">${isRealSpiralItem(item) ? `<span class="dim-chip">${escHtml(dims)}</span>` : dims.split(' / ').map((d, idx) => `<span class="dim-chip">${String.fromCharCode(0x05D0 + idx)}: ${IronBendDisplayUnits.formatLengthCmFromMm(d)}</span>`).join('')}</div>` : ''}
           ${measuredWeight ? `<div class="item-dims"><span class="dim-chip">משקל מצוי: ${measuredWeight.toFixed(1)} ק"ג</span><span class="dim-chip"${weightDeviationClass(deviationPct)}>סטייה: ${deviationPct > 0 ? '+' : ''}${deviationPct.toFixed(1)}%</span></div>` : ''}
           ${shapeMismatch && !isReviewApproved(item) ? `<div class="note-chip">⚠ שם הצורה המקורי היה "${escHtml(item.shape_name)}", אבל הגיאומטריה כוללת צלע אחת בלבד ולכן מוצג כמוט ישר.</div>` : ''}
           ${displayNote ? `<div class="note-chip">⚠ ${escHtml(displayNote)}</div>` : ''}

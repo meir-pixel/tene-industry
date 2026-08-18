@@ -6,6 +6,14 @@ function sharedKgPerMeter(diameter) {
   return Number.isFinite(d) && d > 0 ? d * d * 0.00617 : 0;
 }
 
+function displayNumber(value, digits = 2) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return Number(number.toFixed(Math.max(0, Number(digits) || 0))).toLocaleString('he-IL', {
+    maximumFractionDigits: Math.max(0, Number(digits) || 0),
+  });
+}
+
 // ── SEGMENT COLOR PALETTE ─────────────────────────────────────────
 const SEG_COLORS = [
   '#e07b39', // כתום  – צלע א
@@ -1240,7 +1248,7 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
       <line class="pile-dimension-line pile-top-diameter" data-pile-edit="general|pileDiameter" data-se-focus="pile-diameter" x1="${(cx - r).toFixed(1)}" y1="${(cy + r + 16).toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${(cy + r + 16).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>
       <text data-pile-edit="general|pileDiameter" data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">Ø${pileDiameterCm}</text>
       <text data-pile-edit="spiral|spiralDiameter" data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#111827">d' ${spiralDiameter}</text>
-      <text data-pile-edit="bars|longitudinalDiameter" data-se-focus="pile-longitudinal-bars" x="${cx.toFixed(1)}" y="${(cy + r + 45).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">מרכז-מרכז ${barSpacing.centerToCenterMm} מ״מ | נקי ${barSpacing.clearMm} מ״מ</text>
+      <text data-pile-edit="bars|longitudinalDiameter" data-se-focus="pile-longitudinal-bars" x="${cx.toFixed(1)}" y="${(cy + r + 45).toFixed(1)}" text-anchor="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#334155">מרכז-מרכז ${displayNumber(barSpacing.centerToCenterMm / 10)} ס״מ | נקי ${displayNumber(barSpacing.clearMm / 10)} ס״מ</text>
     </g>
   </g>`;
 };
@@ -1302,7 +1310,7 @@ SpiralEngine.render = function(spiral, w = 300, h = 260) {
 
   // Labels
   const specLabel = `<text x="${(cx).toFixed(1)}" y="${(h - 8).toFixed(1)}" text-anchor="middle"
-    font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">Ø${barDia} | קוטר ${spiralDia} | ${turns} כריכות | ${(totalLengthMm/1000).toFixed(2)} מ׳</text>`;
+    font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">Ø${barDia} מ״מ | קוטר ${displayNumber(spiralDia / 10)} ס״מ | ${turns} כריכות | ${displayNumber(totalLengthMm / 10)} ס״מ</text>`;
 
   return `<g data-engine="SpiralEngine" data-family="spirals"
     data-bar-diameter="${barDia}" data-spiral-diameter="${spiralDia}" data-turns="${turns}">
@@ -2856,7 +2864,7 @@ class ShapeEditorModal {
           <span>אורך בר</span>
           <div>
             <strong id="sePanelTotalM">0.00</strong>
-            <small>מטר</small>
+            <small>ס״מ</small>
           </div>
         </div>
         <div class="se-panel-summary-item">
@@ -2889,7 +2897,7 @@ class ShapeEditorModal {
     <div id="seFootNormal" style="display:flex;width:100%;justify-content:space-between;gap:12px;align-items:center;">
       <div class="se-bottom-summary" aria-live="polite">
         <div class="se-summary-item primary"><span>סה״כ אורך</span><div><strong id="sePerimeter">0</strong><small>ס״מ</small></div></div>
-        <div class="se-summary-item"><span>אורך במטר</span><div><strong id="seBarLength">0.00</strong><small>מטר</small></div></div>
+        <div class="se-summary-item"><span>אורך בס״מ</span><div><strong id="seBarLength">0</strong><small>ס״מ</small></div></div>
         <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
         <div class="se-summary-item se-quantity-item" style="display:none"><span>כמות</span><div><input id="seQuantityInput" class="se-quantity-input" type="number" min="1" step="1" value="1" onfocus="this.select()" oninput="window._seEditor?._setQuantity(this.value)"><small>יח׳</small></div></div>
         <div class="se-summary-item" id="seDiameterItem" style="display:none"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)"><option value="0">—</option>${[5.5,6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d=>`<option value="${d}">${d}</option>`).join('')}</select><small>מ״מ</small></div></div>
@@ -3591,7 +3599,7 @@ class ShapeEditorModal {
     const bends = Array.isArray(this.current.angles) ? this.current.angles.length : (Array.isArray(this.current.spiralZones) ? this.current.spiralZones.length : 0);
     const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
     set('sePerimeter', (totalMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }));
-    set('seBarLength', (totalMm / 1000).toFixed(2));
+    set('seBarLength', (totalMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 2 }));
     set('seTotalWeight', weightKg.toFixed(2));
     const qtyInput = document.getElementById('seQuantityInput');
     if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = qty > 0 ? String(qty) : '';
@@ -3605,7 +3613,7 @@ class ShapeEditorModal {
     if (straightQuantityInput && document.activeElement !== straightQuantityInput) straightQuantityInput.value = String(qty);
     set('seBends', bends);
     set('sePanelTotalMm', (totalMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }));
-    set('sePanelTotalM', (totalMm / 1000).toFixed(2));
+    set('sePanelTotalM', (totalMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 2 }));
     set('sePanelBends', bends);
   }
 
@@ -3681,15 +3689,17 @@ class ShapeEditorModal {
     const body = document.getElementById('seTableBody');
     if (!body) return;
     const meta = {
-      length: ['📏','אורך רשת','מ״מ','לדוגמה 600'], width: ['↕','רוחב רשת','מ״מ','לדוגמה 250'],
+      length: ['📏','אורך רשת','ס״מ','לדוגמה 60'], width: ['↕','רוחב רשת','ס״מ','לדוגמה 25'],
       longitudinalDiameter: ['Ø','קוטר לאורך','מ״מ','לדוגמה 8'], longitudinalSpacing: ['↔','מרווח לאורך','ס״מ','לדוגמה 20'],
       transverseDiameter: ['Ø','קוטר לרוחב','מ״מ','לדוגמה 8'], transverseSpacing: ['↕','מרווח לרוחב','ס״מ','לדוגמה 20'],
       edgeLeft: ['←','שול שמאל','ס״מ','לדוגמה 0'], edgeRight: ['→','שול ימין','ס״מ','לדוגמה 0'],
       edgeTop: ['↑','שול עליון','ס״מ','לדוגמה 0'], edgeBottom: ['↓','שול תחתון','ס״מ','לדוגמה 0'],
     };
     const field = (key, min = 0) => {
-      const m = meta[key] || ['•', key, 'מ״מ', 'לדוגמה 100'];
-      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], focusKey:m[4], number:m[5], code:m[6], input:`<input class="se-input" type="number" min="${min}" value="${mesh[key] ?? 0}" data-mesh-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setMeshField('${key}', this.value)">` }) + '</td>';
+      const m = meta[key] || ['•', key, 'ס״מ', 'לדוגמה 10'];
+      const isSteelDiameter = key === 'longitudinalDiameter' || key === 'transverseDiameter';
+      const value = isSteelDiameter ? (mesh[key] ?? 0) : (Number(mesh[key] ?? 0) / 10);
+      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], focusKey:m[4], number:m[5], code:m[6], input:`<input class="se-input" type="number" min="${min}" step="0.1" value="${value}" data-mesh-field="${key}" onfocus="window._seEditor._focusFamilyField('${key}')" oninput="window._seEditor._setMeshField('${key}', this.value)">` }) + '</td>';
     };
     body.innerHTML = `
       <tr class="se-family-row">${field('length', 1)}${field('width', 1)}</tr>
@@ -3797,7 +3807,7 @@ class ShapeEditorModal {
 
     const field = (key, label, unit, example, min = 1) =>
       `<td colspan="2">${this._fieldShell({ icon: '', label, unit, example,
-        input: `<input class="se-input" type="number" min="${min}" value="${sp[key] ?? 0}"
+        input: `<input class="se-input" type="number" min="${min}" step="0.1" value="${key === 'spiralDiameter' ? Number(sp[key] ?? 0) / 10 : (sp[key] ?? 0)}"
           onfocus="window._seEditor._focusFamilyField('spiral-${key}')"
           oninput="window._seEditor._setSpiralField('${key}', this.value)">` })}</td>`;
 
@@ -3814,7 +3824,7 @@ class ShapeEditorModal {
       </td></tr>
       <tr class="se-family-row">
         ${field('barDiameter',    'Ø קוטר ברזל',     'מ״מ', '8',   1)}
-        ${field('spiralDiameter', 'Ø קוטר ספיראלה',  'מ״מ', '400', 1)}
+        ${field('spiralDiameter', 'Ø קוטר ספיראלה',  'ס״מ', '40', 0.1)}
       </tr>
       <tr class="se-family-row">
         ${field('turns', 'מספר כריכות', 'יח׳', '20', 1)}
@@ -3825,8 +3835,8 @@ class ShapeEditorModal {
       </td></tr>
       <tr class="se-family-row" data-spiral-computed>
         <td colspan="4">
-          ${cr('היקף חוג', Math.round(Math.PI * spiralDia), 'מ״מ')}
-          ${cr('אורך כולל', (totalMm / 1000).toFixed(2), 'מ׳')}
+          ${cr('היקף חוג', (Math.PI * spiralDia / 10).toFixed(1), 'ס״מ')}
+          ${cr('אורך כולל', (totalMm / 10).toFixed(1), 'ס״מ')}
           ${cr('משקל Ø' + barDia, ((totalMm / 1000) * sharedKgPerMeter(barDia)).toFixed(2), 'ק״ג')}
         </td>
       </tr>`;
@@ -3834,7 +3844,9 @@ class ShapeEditorModal {
 
   _setSpiralField(key, val) {
     if (!this.current || this.current.family !== 'spirals') return;
-    this.current[key] = Math.max(1, Number(val) || 1);
+    this.current[key] = key === 'spiralDiameter'
+      ? Math.max(1, (Number(val) || 0.1) * 10)
+      : Math.max(1, Number(val) || 1);
     this._updatePreview();
     this._refreshSpiralComputed();
   }
@@ -3857,8 +3869,8 @@ class ShapeEditorModal {
         <span style="font-weight:800;color:#15803d">${v} <span style="font-weight:400;color:#888">${unit}</span></span>
       </div>`;
     el.innerHTML = `<td colspan="4">
-      ${cr('היקף חוג', Math.round(Math.PI * spiralDia), 'מ״מ')}
-      ${cr('אורך כולל', (totalMm / 1000).toFixed(2), 'מ׳')}
+      ${cr('היקף חוג', (Math.PI * spiralDia / 10).toFixed(1), 'ס״מ')}
+      ${cr('אורך כולל', (totalMm / 10).toFixed(1), 'ס״מ')}
       ${cr('משקל Ø' + barDia, ((totalMm / 1000) * sharedKgPerMeter(barDia)).toFixed(2), 'ק״ג')}
     </td>`;
   }
@@ -3942,7 +3954,7 @@ class ShapeEditorModal {
       </tr>`).join('');
       const zoneQuick = pile.spiralZones.map((zone, index) => {
         const name = svgEscape(zone.name || String.fromCharCode(65 + index));
-        return zone.noWrap ? `${name}: ${Number(zone.length || 0)} ללא` : `${name}: ${Number(zone.length || 0)}@${Number(zone.pitch || 0)}`;
+        return zone.noWrap ? `${name}: ${Number(zone.length || 0)} ס״מ ללא` : `${name}: ${Number(zone.length || 0)} ס״מ @ ${Number(zone.pitch || 0)} ס״מ`;
       }).join(' · ');
       const quickCard = (sectionId, fieldKey, label, value, detail = '') => `<button type="button" class="se-pile-quick-card" data-pile-quick="${sectionId}" onclick="window._seEditor._activatePileCageField('${sectionId}','${fieldKey}')"><span>${label}</span><strong data-pile-quick-value>${value}</strong><small data-pile-quick-detail>${detail}</small></button>`;
       const templateValue = this._pileCageTemplateMode === ROUND_PILE_CAGE_STANDARD_TEMPLATE ? ROUND_PILE_CAGE_STANDARD_TEMPLATE : 'custom';
@@ -3950,17 +3962,17 @@ class ShapeEditorModal {
       const bentCount = Number(pile.bentBarCount || 0);
       const sectionSummary = {
         general: `Ø${Number(pile.pileDiameter || 0)} · L ${Number(pile.pileLength || 0)} ס״מ`,
-        bars: `${straightCount} ישר + ${bentCount} L · Ø${Number(pile.longitudinalDiameter || 0)}`,
-        spiral: `Ø${Number(pile.spiralDiameter || 0)} · ${zoneQuick}`,
-        hoops: `${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)} · D${Number(pile.hoopOuterDiameter || 0)}`,
+        bars: `${straightCount} ישר + ${bentCount} L · Ø${Number(pile.longitudinalDiameter || 0)} מ״מ`,
+        spiral: `Ø${Number(pile.spiralDiameter || 0)} מ״מ · ${zoneQuick}`,
+        hoops: `${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)} מ״מ · D${Number(pile.hoopOuterDiameter || 0)} ס״מ`,
       };
       body.innerHTML = `
         <tr class="se-family-row"><td colspan="5"><div class="se-pile-template-row"><label>סוג כלוב<select data-pile-template onchange="window._seEditor._applyPileCageTemplate(this.value)"><option value="${ROUND_PILE_CAGE_STANDARD_TEMPLATE}" ${templateValue === ROUND_PILE_CAGE_STANDARD_TEMPLATE ? 'selected' : ''}>סטנדרטי · 60 ללא / 300@10 / יתרה@20</option><option value="custom" ${templateValue === 'custom' ? 'selected' : ''}>מותאם אישית</option></select></label><div class="se-pile-template-note">בחירת סוג מאתחלת את המקטעים. לאחר מכן המקטעים עצמם הם מקור הנתונים היחיד לשרטוט ולחישוב.</div></div></td></tr>
         <tr class="se-family-row"><td colspan="5"><div class="se-pile-quick-summary" aria-label="עריכה מהירה של כלוב כלונס">
           ${quickCard('general', 'pileDiameter', 'כלוב', `Ø${Number(pile.pileDiameter || 0)} · L ${Number(pile.pileLength || 0)}`, 'ס״מ')}
-          ${quickCard('bars', 'longitudinalDiameter', 'זיון אורכי', `${straightCount} ישר + ${bentCount} L · Ø${Number(pile.longitudinalDiameter || 0)}`, `כיפוף ${Number(pile.bendLength || 0)} ס״מ`)}
-          ${quickCard('spiral', 'spiralDiameter', 'ספירלה', `Ø${Number(pile.spiralDiameter || 0)} · D${Number(pile.spiralOuterDiameter || 0)}`, zoneQuick)}
-          ${quickCard('hoops', 'hoopQuantity', 'טבעות', `${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)}`, `D${Number(pile.hoopOuterDiameter || 0)} · התחלה ${Number(pile.hoopStart || 0)} · @${Number(pile.hoopSpacing || 0)}`)}
+          ${quickCard('bars', 'longitudinalDiameter', 'זיון אורכי', `${straightCount} ישר + ${bentCount} L · Ø${Number(pile.longitudinalDiameter || 0)} מ״מ`, `כיפוף ${Number(pile.bendLength || 0)} ס״מ`)}
+          ${quickCard('spiral', 'spiralDiameter', 'ספירלה', `Ø${Number(pile.spiralDiameter || 0)} מ״מ · D${Number(pile.spiralOuterDiameter || 0)} ס״מ`, zoneQuick)}
+          ${quickCard('hoops', 'hoopQuantity', 'טבעות', `${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)} מ״מ`, `D${Number(pile.hoopOuterDiameter || 0)} ס״מ · התחלה ${Number(pile.hoopStart || 0)} ס״מ · @${Number(pile.hoopSpacing || 0)} ס״מ`)}
         </div></td></tr>
         ${section('general', 'נתוני הכלוב', sectionSummary.general, `<tr class="se-family-row se-pile-compact-row">${field('pileDiameter', 1)}${field('pileLength', 1)}</tr>`, true, 'pile-diameter')}
         ${section('bars', 'זיון אורכי', sectionSummary.bars, `<tr class="se-family-row se-pile-compact-row">${field('longitudinalDiameter', 1)}${field('straightBarCount', 0)}${field('bentBarCount', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('straightBarLength', 1)}${field('bentBarLength', 1)}${field('bendLength', 0)}</tr><tr class="se-family-row se-pile-compact-row">${field('bendAngle', 0)}${bendOrientationField()}</tr>`, false, 'pile-longitudinal-bars')}
@@ -3998,10 +4010,10 @@ class ShapeEditorModal {
       ? validationRows.map(([kind, msg]) => `<div class="se-pile-validation ${kind}">${msg}</div>`).join('')
       : '<div class="se-pile-validation ok">הנתונים תקינים לעריכה</div>';
     const sectionSummary = {
-      general: `קוטר ${pile.pileDiameter || 0} | אורך ${pile.pileLength || 0}`,
-      bars: `${pile.longitudinalBars || 0} מוטות | Ø${pile.longitudinalDiameter || 0} | ${pile.barPattern || 'ישר'}`,
-      spiral: `Ø${pile.spiralDiameter || 0} | פסיעה ${spiralPitchSummary || '-'} | ${(pile.spiralZones || []).length} אזורים`,
-      hoops: `${pile.hoopsEnabled ? 'פעיל' : 'כבוי'} | Ø${pile.hoopDiameter || 0} | ${hoopCount} יח׳`,
+      general: `קוטר ${pile.pileDiameter || 0} ס״מ | אורך ${pile.pileLength || 0} ס״מ`,
+      bars: `${pile.longitudinalBars || 0} מוטות | Ø${pile.longitudinalDiameter || 0} מ״מ | ${pile.barPattern || 'ישר'}`,
+      spiral: `Ø${pile.spiralDiameter || 0} מ״מ | פסיעה ${spiralPitchSummary || '-'} ס״מ | ${(pile.spiralZones || []).length} אזורים`,
+      hoops: `${pile.hoopsEnabled ? 'פעיל' : 'כבוי'} | Ø${pile.hoopDiameter || 0} מ״מ | ${hoopCount} יח׳`,
       breakdown: `${(calc.manufacturingBreakdown || []).length} רכיבים | ${pileRound(calc.weightKg || 0, 2)} ק״ג`,
       validation: validationRows.length ? `${validationRows.length} הערות` : 'תקין',
     };
@@ -4069,7 +4081,7 @@ class ShapeEditorModal {
     const hoopPart = parts.find(part => part.componentType === 'hoop_ring') || {};
     const cageDetails = roundCage ? `<div class="se-pile-cage-overview" data-pile-cage-overview>
       <strong>פרטי הכלוב</strong>
-      <span>כלוב Ø${displayNumber((calc.data?.pileDiameter || 0) / 10)} ס״מ · אורך ${displayNumber((calc.data?.pileLength || 0) / 1000, 3)} מ׳</span>
+      <span>כלוב Ø${displayNumber((calc.data?.pileDiameter || 0) / 10)} ס״מ · אורך ${displayNumber((calc.data?.pileLength || 0) / 10, 3)} ס״מ</span>
       <span>${calc.data?.longitudinalBars || 0} מוטות אורך Ø${displayNumber(calc.data?.longitudinalDiameter)} מ״מ · ${displayNumber(spiralPart.turns, 3)} ליפופי ספירלה</span>
       <span>ספירלה Ø${displayNumber(spiralPart.diameterMm)} מ״מ / קוטר ${displayNumber((spiralPart.outerDiameterMm || 0) / 10)} ס״מ / פסיעה ${displayNumber((spiralPart.pitchMm || 0) / 10)} ס״מ</span>
       <span>${hoopPart.quantity || 0} טבעות Ø${displayNumber(hoopPart.diameterMm)} מ״מ / קוטר ${displayNumber((hoopPart.hoopOuterDiameterMm || 0) / 10)} ס״מ</span>
@@ -4077,20 +4089,20 @@ class ShapeEditorModal {
     const rows = parts.map((part) => {
       const type = svgEscape(part.componentType || 'part');
       const label = svgEscape(this._pileElementLabel(part));
-      const lengthM = pileRound((Number(part.totalLengthMm || 0)) / 1000, 2).toFixed(2);
+      const lengthCm = displayNumber((Number(part.totalLengthMm || 0)) / 10, 3);
       const weightKg = pileRound(Number(part.weightKg || 0), 2).toFixed(2);
       const diameter = part.diameterMm ? `Ø${pileRound(Number(part.diameterMm || 0), 1)}` : '-';
       const qty = part.quantity ?? 1;
       let details = '';
-      if (part.componentType === 'longitudinal_straight_bar') details = `מוט ישר · L ${pileRound((part.lengthMm || 0) / 1000, 3)} מ׳`;
-      if (part.componentType === 'longitudinal_l_bar') details = `מוט עם כיפוף ראש · L ${pileRound((part.lengthMm || 0) / 1000, 3)} מ׳ · כיפוף ${pileRound((part.bendLengthMm || 0) / 10, 1)} ס״מ`;
+      if (part.componentType === 'longitudinal_straight_bar') details = `מוט ישר · L ${displayNumber((part.lengthMm || 0) / 10, 3)} ס״מ`;
+      if (part.componentType === 'longitudinal_l_bar') details = `מוט עם כיפוף ראש · L ${displayNumber((part.lengthMm || 0) / 10, 3)} ס״מ · כיפוף ${pileRound((part.bendLengthMm || 0) / 10, 1)} ס״מ`;
       if (part.componentType === 'spiral_zone') {
         const turns = Number(part.turns || 0);
         const displayTurns = Number.isInteger(turns) ? String(turns) : turns.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
         details = `@${pileRound((part.pitchMm || 0) / 10, 1)} ס״מ / L ${pileRound((part.zoneLengthMm || 0) / 10, 1)} ס״מ / ${displayTurns} ליפופים`;
       }
       if (part.componentType === 'hoop_ring') details = `קוטר טבעת ${pileRound((part.hoopDiameterMm || 0) / 10, 1)} ס״מ | מרכז-מרכז ${pileRound((part.barCenterSpacingMm || 0) / 10, 1)} ס״מ | מרווח נקי ${pileRound((part.barClearSpacingMm || 0) / 10, 1)} ס״מ`;
-      return `<div class="se-pile-element-row" data-pile-element="${type}"><strong>${label}<span>${svgEscape(details)}</span></strong><span class="se-pile-element-value">${qty}</span><span class="se-pile-element-value">${diameter}</span><span class="se-pile-element-value">${lengthM} מ׳</span><span class="se-pile-element-value">${weightKg} ק״ג</span></div>`;
+      return `<div class="se-pile-element-row" data-pile-element="${type}"><strong>${label}<span>${svgEscape(details)}</span></strong><span class="se-pile-element-value">${qty}</span><span class="se-pile-element-value">${diameter}</span><span class="se-pile-element-value">${lengthCm} ס״מ</span><span class="se-pile-element-value">${weightKg} ק״ג</span></div>`;
     }).join('');
     const componentCards = parts.map((part) => {
       const type = String(part.componentType || 'part');
@@ -4100,14 +4112,14 @@ class ShapeEditorModal {
       let metric = `${quantity} × ${diameter}`;
       let placement = '';
       if (type === 'longitudinal_straight_bar') {
-        metric += ` · L=${displayNumber((part.lengthMm || 0) / 1000, 3)} מ׳`;
+        metric += ` · L=${displayNumber((part.lengthMm || 0) / 10, 3)} ס״מ`;
         placement = 'לפזר סביב ההיקף במקומות האי־זוגיים: 1, 3, 5, 7, 9.';
       } else if (type === 'longitudinal_l_bar') {
-        metric += ` · L=${displayNumber((part.lengthMm || 0) / 1000, 3)} מ׳ · כיפוף ${displayNumber((part.bendLengthMm || 0) / 10)} ס״מ`;
+        metric += ` · L=${displayNumber((part.lengthMm || 0) / 10, 3)} ס״מ · כיפוף ${displayNumber((part.bendLengthMm || 0) / 10)} ס״מ`;
         placement = 'לפזר במקומות הזוגיים; הכיפוף נמצא בראש כלוב הכלונס.';
       } else if (type === 'spiral_zone') {
         metric = `${diameter} · קוטר ${displayNumber((part.outerDiameterMm || 0) / 10)} ס״מ · פסיעה ${displayNumber((part.pitchMm || 0) / 10)} ס״מ`;
-        placement = `ללפף ברציפות לאורך אזור של ${displayNumber((part.zoneLengthMm || 0) / 1000, 3)} מ׳ — ${displayNumber(part.turns, 3)} ליפופים.`;
+        placement = `ללפף ברציפות לאורך אזור של ${displayNumber((part.zoneLengthMm || 0) / 10, 3)} ס״מ — ${displayNumber(part.turns, 3)} ליפופים.`;
       } else if (type === 'hoop_ring') {
         metric = `${quantity} × ${diameter} · קוטר ${displayNumber((part.hoopOuterDiameterMm || 0) / 10)} ס״מ`;
         placement = `למקם מהראש במרווח ${displayNumber((part.spacingMm || 0) / 10)} ס״מ, לפי מיקומי הטבעות המחושבים.`;
@@ -4296,7 +4308,10 @@ class ShapeEditorModal {
   _setMeshField(key, val) {
     if (!this.current || this.current.family !== 'mesh') return;
     const min = key === 'edgeLeft' || key === 'edgeRight' || key === 'edgeTop' || key === 'edgeBottom' ? 0 : 1;
-    this.current[key] = Math.max(min, Number(val) || min);
+    const isSteelDiameter = key === 'longitudinalDiameter' || key === 'transverseDiameter';
+    this.current[key] = isSteelDiameter
+      ? Math.max(min, Number(val) || min)
+      : Math.max(min, (Number(val) || min / 10) * 10);
     this._updatePreview();
   }
 
@@ -4355,16 +4370,16 @@ class ShapeEditorModal {
     const zoneQuick = zones.map((zone, index) => {
       const name = String(zone?.name || String.fromCharCode(65 + index));
       return zone?.noWrap
-        ? `${name}: ${Number(zone.length || 0)} ללא`
-        : `${name}: ${Number(zone.length || 0)}@${Number(zone.pitch || 0)}`;
+        ? `${name}: ${Number(zone.length || 0)} ס״מ ללא`
+        : `${name}: ${Number(zone.length || 0)} ס״מ @ ${Number(zone.pitch || 0)} ס״מ`;
     }).join(' · ');
     const straightCount = Number(pile.straightBarCount || 0);
     const bentCount = Number(pile.bentBarCount || 0);
     const quick = {
       general: [`Ø${Number(pile.pileDiameter || 0)} · L ${Number(pile.pileLength || 0)}`, 'ס״מ'],
-      bars: [`${straightCount} ישר + ${bentCount} L · Ø${Number(pile.longitudinalDiameter || 0)}`, `כיפוף ${Number(pile.bendLength || 0)} ס״מ`],
-      spiral: [`Ø${Number(pile.spiralDiameter || 0)} · D${Number(pile.spiralOuterDiameter || 0)}`, zoneQuick],
-      hoops: [`${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)}`, `D${Number(pile.hoopOuterDiameter || 0)} · התחלה ${Number(pile.hoopStart || 0)} · @${Number(pile.hoopSpacing || 0)}`],
+      bars: [`${straightCount} ישר + ${bentCount} L · Ø${Number(pile.longitudinalDiameter || 0)} מ״מ`, `כיפוף ${Number(pile.bendLength || 0)} ס״מ`],
+      spiral: [`Ø${Number(pile.spiralDiameter || 0)} מ״מ · D${Number(pile.spiralOuterDiameter || 0)} ס״מ`, zoneQuick],
+      hoops: [`${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)} מ״מ`, `D${Number(pile.hoopOuterDiameter || 0)} ס״מ · התחלה ${Number(pile.hoopStart || 0)} ס״מ · @${Number(pile.hoopSpacing || 0)} ס״מ`],
     };
     Object.entries(quick).forEach(([key, [value, detail]]) => {
       const card = document.querySelector(`[data-pile-quick="${key}"]`);
@@ -4376,8 +4391,8 @@ class ShapeEditorModal {
     const sectionSummary = {
       general: `${quick.general[0]} ס״מ`,
       bars: quick.bars[0],
-      spiral: `Ø${Number(pile.spiralDiameter || 0)} · ${zoneQuick}`,
-      hoops: `${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)} · D${Number(pile.hoopOuterDiameter || 0)}`,
+      spiral: `Ø${Number(pile.spiralDiameter || 0)} מ״מ · ${zoneQuick}`,
+      hoops: `${Number(pile.hoopQuantity || 0)} × Ø${Number(pile.hoopDiameter || 0)} מ״מ · D${Number(pile.hoopOuterDiameter || 0)} ס״מ`,
     };
     Object.entries(sectionSummary).forEach(([key, value]) => {
       const output = document.querySelector(`[data-pile-section-summary="${key}"]`);

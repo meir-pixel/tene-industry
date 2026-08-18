@@ -67,7 +67,7 @@ module.exports = function createQualityRouter(deps) {
     const orderNum = f.order_num || itemContext?.order_num || null;
     const normalizedNotes = [
       f.notes || '',
-      metrics.totalLengthMm ? `Shape V2 length: ${metrics.totalLengthMm}mm` : '',
+      metrics.totalLengthMm ? `Shape V2 length: ${Math.round(metrics.totalLengthMm * 100) / 1000} cm` : '',
       metrics.totalWeightKg ? `Shape V2 weight: ${Math.round(metrics.totalWeightKg * 1000) / 1000}kg` : '',
     ].filter(Boolean).join(' | ');
     const r = db.prepare('INSERT INTO quality_checks (item_id,order_id,order_num,inspector_id,check_type,sample_qty,pass_qty,fail_qty,deviation_mm,deviation_deg,result,action_taken,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')

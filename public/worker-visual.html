@@ -87,6 +87,7 @@
     </div>
   </main>
   <script src="/auth-client.js"></script>
+  <script src="/display-units.js"></script>
   <script src="/status-contracts-client.js"></script>
   <script>
     const state={items:[],selected:null,focusItemId:null,scanToken:null};
@@ -164,7 +165,7 @@
       const mainText=key==='waiting'?'התחל ייצור':key==='production'?'סיים כרטיס':statusText[key];
       const disabled=key==='done'||key==='supplied'?' disabled':'';
       const cardTitle=scanned&&state.scanToken?esc(state.scanToken):index+1;
-      return `<article class="card ${scanned?'scanned':''}" data-item-id="${item.id}"><div class="card-head"><div class="worker-card-title"><b>כרטיס ${cardTitle}</b><span class="worker-status-pill ${key}">${statusText[key]}</span></div><div class="worker-card-summary"><div class="worker-metric"><span>כמות</span><strong>${Number(item.quantity)||0} יח׳</strong></div><div class="worker-metric"><span>קוטר</span><strong>Ø ${esc(item.diameter||'-')}</strong></div><div class="worker-metric"><span>אורך</span><strong>${total(item)} מ״מ</strong></div></div></div><div class="drawing">${drawing(item)}<span class="shape-scale-note">תצוגה קריאה</span></div><div class="worker-primary-actions"><button class="worker-action ${key}" onclick="setStatus(${item.id},'${mainKey}')" ${disabled}>${mainText}</button></div>${inlineProductionPanel(item,key)}</article>`
+      return `<article class="card ${scanned?'scanned':''}" data-item-id="${item.id}"><div class="card-head"><div class="worker-card-title"><b>כרטיס ${cardTitle}</b><span class="worker-status-pill ${key}">${statusText[key]}</span></div><div class="worker-card-summary"><div class="worker-metric"><span>כמות</span><strong>${Number(item.quantity)||0} יח׳</strong></div><div class="worker-metric"><span>קוטר ברזל</span><strong>${esc(IronBendDisplayUnits.formatSteelDiameterMm(item.diameter))}</strong></div><div class="worker-metric"><span>אורך</span><strong>${esc(IronBendDisplayUnits.formatLengthCmFromMm(total(item)))}</strong></div></div></div><div class="drawing">${drawing(item)}<span class="shape-scale-note">תצוגה קריאה</span></div><div class="worker-primary-actions"><button class="worker-action ${key}" onclick="setStatus(${item.id},'${mainKey}')" ${disabled}>${mainText}</button></div>${inlineProductionPanel(item,key)}</article>`
     }
     function targetWeight(item){return Number(item.weight ?? item.total_weight ?? 0)||0}
     function actualWeight(item){return Number(item.actual_weight_kg ?? 0)||0}

@@ -341,11 +341,12 @@ body[data-page="intake"] #seOverlay{z-index:980}
 </head>
 <body data-page="intake">
 <script src="/safe-dom.js"></script>
+<script src="/display-units.js"></script>
 <script src="/auth-client.js"></script>
 <script src="/rebar-weights.js"></script>
 <script src="/shapeSnapshot.js?v=1"></script>
 <script src="/steelRebarShapes.js?v=1"></script>
-<script src="/shape-editor.js?v=65"></script>
+<script src="/shape-editor.js?v=66"></script>
 <script src="/shape-renderer.js?v=3"></script>
 <script src="/nav.js"></script>
 
@@ -704,7 +705,7 @@ function compactDimensionPairText(segments) {
   const firstAngle = toNumber(segmentAngleOf(segments[0]));
   const secondAngle = toNumber(segmentAngleOf(segments[1]));
   if (firstLength > 0 && secondLength > 0 && Math.abs(firstAngle - 90) < 0.1 && Math.abs(secondAngle) < 0.1) {
-    return `${firstLength}@${secondLength}`;
+    return `${IronBendDisplayUnits.formatLengthCmFromMm(firstLength, { withUnit: false })}×${IronBendDisplayUnits.formatLengthCmFromMm(secondLength, { withUnit: false })}`;
   }
   return '';
 }
@@ -713,23 +714,32 @@ function segmentsToText(item) {
   if (isStraightOcrItem(item)) return '';
   const segments = Array.isArray(item.segments) ? item.segments : Array.isArray(item.sides) ? item.sides : [];
   const directPair = segments.length === 1 && typeof segments[0] === 'object' && isCardDimensionPair(segmentLengthOf(segments[0]), segmentAngleOf(segments[0]));
-  if (directPair) return `${segmentLengthOf(segments[0])}@${segmentAngleOf(segments[0])}`;
+  if (directPair) return `${IronBendDisplayUnits.formatLengthCmFromMm(segmentLengthOf(segments[0]), { withUnit: false })}×${IronBendDisplayUnits.formatLengthCmFromMm(segmentAngleOf(segments[0]), { withUnit: false })}`;
   const compactPair = compactDimensionPairText(segments);
   if (compactPair) return compactPair;
   return segments.map(seg => {
     if (typeof seg === 'object') {
-      const len = segmentLengthOf(seg);
+      const len = IronBendDisplayUnits.formatLengthCmFromMm(segmentLengthOf(seg), { withUnit: false });
       const angle = segmentAngleOf(seg);
       return angle !== '' && Math.abs(toNumber(angle)) !== 180 ? `${len}@${angle}` : String(len);
     }
-    return String(seg);
+    return String(IronBendDisplayUnits.formatLengthCmFromMm(seg, { withUnit: false }));
   }).filter(Boolean).join(' / ');
 }
 
 function parseSegmentsText(text) {
   return String(text || '').split(/[\/,\n]+/).map(part => part.trim()).filter(Boolean).flatMap(part => {
+    const pair = part.split('×').map(v => v.trim());
+    if (pair.length === 2) {
+      const firstMm = IronBendDisplayUnits.centimetersToMillimeters(pair[0]);
+      const secondMm = IronBendDisplayUnits.centimetersToMillimeters(pair[1].replace(/\s*ס״מ\s*$/, ''));
+      return [
+        { length_mm: firstMm, angle_deg: 90 },
+        { length_mm: secondMm, angle_deg: 0 },
+      ].filter(seg => Number(seg.length_mm) > 0);
+    }
     const [len, marker] = part.split('@').map(v => v.trim());
-    return expandSegmentPart(len, marker);
+    return expandSegmentPart(IronBendDisplayUnits.centimetersToMillimeters(len), marker);
   });
 }
 
@@ -856,7 +866,7 @@ function spiralOcrSvg(item) {
     <circle cx="75" cy="54" r="34" stroke="#c9621a" stroke-width="5" fill="none"/>
     <circle cx="75" cy="54" r="24" stroke="#df7c34" stroke-width="3" fill="none" opacity=".75"/>
     <circle cx="75" cy="54" r="14" stroke="#f2a15f" stroke-width="3" fill="none" opacity=".7"/>
-    <text x="75" y="103" text-anchor="middle" font-size="10" fill="#1f2937">קוטר ${escapeHtml(diameter)} מ"מ · ${escapeHtml(turns)} כריכות</text>
+    <text x="75" y="103" text-anchor="middle" font-size="10" fill="#1f2937">קוטר ${escapeHtml(IronBendDisplayUnits.formatLengthCmFromMm(diameter))} · ${escapeHtml(turns)} כריכות</text>
   </svg>`;
 }
 
@@ -882,7 +892,7 @@ function currentOcrItemFromFields(index) {
   const note = ocrItemInput(index, 'note');
   if (diameter) item.diameter = toNumber(diameter.value);
   if (quantity) item.quantity = toNumber(quantity.value);
-  if (totalLength) item.total_length_mm = toNumber(totalLength.value);
+  if (totalLength) item.total_length_mm = IronBendDisplayUnits.centimetersToMillimeters(totalLength.value) || 0;
   if (spiralDiameter) item.spiral_diameter_mm = toNumber(spiralDiameter.value);
   if (spiralTurns) item.spiral_turns = toNumber(spiralTurns.value);
   if (totalLengthM) item.total_length_m = toNumber(totalLengthM.value);
@@ -1172,6 +1182,19 @@ function ocrLengthMeters(item) {
   return length ? (length / 1000).toFixed(2) : '';
 }
 
+function ocrLengthCentimeters(item) {
+  const length = isSpiralOcrItem(item)
+    ? (toNumber(item?.total_length_mm) || spiralOcrLengthMm(item))
+    : toNumber(item?.total_length_mm ?? item?.length_mm ?? item?.length);
+  return length ? IronBendDisplayUnits.formatLengthCmFromMm(length, { withUnit: false }) : '';
+}
+
+function ocrTotalLengthCentimeters(item) {
+  const length = toNumber(isSpiralOcrItem(item) ? (item?.total_length_mm || spiralOcrLengthMm(item)) : (item?.total_length_mm ?? item?.length_mm ?? item?.length));
+  const quantity = toNumber(item?.qty ?? item?.quantity ?? item?.pcs) || 1;
+  return length ? IronBendDisplayUnits.formatLengthCmFromMm(length * quantity, { withUnit: false }) : '';
+}
+
 function ocrTotalLengthMeters(item) {
   const length = toNumber(isSpiralOcrItem(item) ? (item?.total_length_mm || spiralOcrLengthMm(item)) : (item?.total_length_mm ?? item?.length_mm ?? item?.length));
   const quantity = toNumber(item?.qty ?? item?.quantity ?? item?.pcs) || 1;
@@ -1407,14 +1430,14 @@ function ocrItemTableRowHtml(parsed, item, index) {
   const straightClass = isStraightOcrItem(item) ? ' straight-ocr-no-angles' : '';
   const diameter = item.diameter ?? item.diameter_mm ?? '';
   const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
-  const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '';
+  const totalLength = IronBendDisplayUnits.millimetersToCentimeters(item.total_length_mm ?? item.length_mm ?? item.length) ?? '';
   const note = item.note || item.notes || '';
   const targetWeight = ocrTargetWeightKg(item);
   const itemNumber = ocrItemNumber(item, index);
   const elementName = ocrElementName(item);
   const shapeDescription = ocrShapeDescription(item);
   const reviewStatus = ocrReviewStatus(item);
-  const lengthMeters = ocrLengthMeters(item);
+  const lengthCentimeters = ocrLengthCentimeters(item);
   const totalLengthMeters = ocrTotalLengthMeters(item);
   const segmentsValue = isSpiral ? '' : segmentsToText(item);
   const shapeSvg = ocrCardShapeSvg(item, 92, 50) || ocrShapeSvgHtml(item, 120, 62);
@@ -1424,7 +1447,7 @@ function ocrItemTableRowHtml(parsed, item, index) {
       <td>
         <button type="button" class="ocr-review-shape" id="ocrShapeCell_${index}" onclick="highlightOcrSource('items.${index}.shape_name'); openOcrShapeEditor(${index})" title="Open Shape Editor">
           ${shapeSvg}
-          <span class="ocr-review-dims">${escapeHtml(compactDimensionPairText(item) || segmentsValue || lengthMeters || shapeDescription || '-')}</span>
+          <span class="ocr-review-dims">${escapeHtml(compactDimensionPairText(item.segments || item.sides || []) || (segmentsValue ? `${segmentsValue} ס״מ` : '') || (lengthCentimeters ? `${lengthCentimeters} ס״מ` : '') || shapeDescription || '-')}</span>
         </button>
         <div class="ocr-hidden-fields">
           <input type="hidden" value="${escapeHtml(shape)}" data-item-index="${index}" data-item-field="shape_name">
@@ -1491,7 +1514,7 @@ function intakeEditableForm(parsed, options = {}) {
   const tableHtml = items.length ? `
     <div class="ocr-review-table-wrap ocr-order-form" aria-label="OCR Review Workspace table">
       <table class="ocr-review-table">
-        <thead><tr><th>Item #</th><th>Shape preview</th><th>Diameter</th><th>Length</th><th>Quantity</th><th>Confidence</th><th>Status</th></tr></thead>
+        <thead><tr><th>Item #</th><th>Shape preview</th><th>Steel diameter (mm)</th><th>Length (cm)</th><th>Quantity</th><th>Confidence</th><th>Status</th></tr></thead>
         <tbody>${items.map((item, index) => safeIntakeRender(`item ${index + 1}`, () => ocrItemTableRowHtml(parsed, item || {}, index), `<tr><td>${escapeHtml(ocrItemNumber(item || {}, index))}</td><td colspan="6">OCR row could not render. Open Shape Editor or review source data.</td></tr>`)).join('')}</tbody>
       </table>
     </div>
@@ -1613,7 +1636,7 @@ function shapeSelectedFromIntake(data) {
     markOcrEdited(segmentsInput);
   }
   if (totalLengthInput) {
-    totalLengthInput.value = (data.sides || []).reduce((sum, side) => sum + Number(side || 0), 0);
+    totalLengthInput.value = IronBendDisplayUnits.millimetersToCentimeters((data.sides || []).reduce((sum, side) => sum + Number(side || 0), 0)) || 0;
     markOcrEdited(totalLengthInput);
   }
   refreshOcrShapeVisual(index);
@@ -1642,7 +1665,8 @@ function readCorrectedParsed() {
     const field = input.dataset.itemField;
     parsed.items[index] = parsed.items[index] || {};
     if (field === 'segments') parsed.items[index].segments = parseSegmentsText(input.value);
-    else if (['diameter', 'quantity', 'total_length_mm', 'total_length_m', 'target_weight_kg', 'spiral_diameter_mm', 'spiral_turns'].includes(field)) parsed.items[index][field] = toNumber(input.value);
+    else if (field === 'total_length_mm') parsed.items[index][field] = IronBendDisplayUnits.centimetersToMillimeters(input.value) || 0;
+    else if (['diameter', 'quantity', 'total_length_m', 'target_weight_kg', 'spiral_diameter_mm', 'spiral_turns'].includes(field)) parsed.items[index][field] = toNumber(input.value);
     else parsed.items[index][field] = String(input.value ?? '').trim();
   });
   parsed.items = parsed.items.map(item => {
@@ -1662,19 +1686,19 @@ function intakeReviewTable(parsed) {
   const items = Array.isArray(parsed.items) ? parsed.items : [];
   if (!items.length) return '<div class="empty">לא זוהו פריטים. אין לאשר לפני תיקון ידני.</div>';
   return `<table class="intake-review-table">
-    <thead><tr><th>#</th><th>קוטר</th><th>כמות</th><th>אורך</th><th>צורה / מידות</th><th>הערה</th></tr></thead>
+    <thead><tr><th>#</th><th>קוטר ברזל (מ״מ)</th><th>כמות</th><th>אורך (ס״מ)</th><th>צורה / מידות (ס״מ)</th><th>הערה</th></tr></thead>
     <tbody>${items.map((item, index) => {
       const sides = Array.isArray(item.sides)
         ? item.sides
         : Array.isArray(item.segments)
-          ? item.segments.map(seg => typeof seg === 'object' ? (seg.length_mm || seg.length || seg.length_cm || '') : seg)
+          ? item.segments.map(seg => typeof seg === 'object' ? (seg.length_cm || IronBendDisplayUnits.millimetersToCentimeters(seg.length_mm ?? seg.length) || '') : IronBendDisplayUnits.millimetersToCentimeters(seg) || '')
           : [];
       const shape = item.shape_name || item.shapeName || item.shape || item.type || '';
       return `<tr>
         <td>${index + 1}</td>
         <td>${escapeHtml(item.diameter ?? item.diameter_mm ?? '-')}</td>
         <td>${escapeHtml(item.qty ?? item.quantity ?? '-')}</td>
-        <td>${escapeHtml(item.length ?? item.length_mm ?? item.total_length_mm ?? '-')}</td>
+        <td>${escapeHtml(IronBendDisplayUnits.millimetersToCentimeters(item.length_mm ?? item.total_length_mm ?? item.length) ?? '-')}</td>
         <td>${escapeHtml(shape)}<br><span class="meta">${escapeHtml(sides.join(' / '))}</span></td>
         <td>${escapeHtml(item.note || item.notes || '')}</td>
       </tr>`;
@@ -1729,9 +1753,9 @@ function formatIntakeItem(item) {
   if (isSpiralOcrItem(item)) {
     const spiralDiameter = item.spiral_diameter_mm ?? item.spiralDiameterMm ?? '-';
     const turns = item.spiral_turns ?? item.spiralTurns ?? '-';
-    return `<span class="chip">ספיראלה · Ø${escapeHtml(diameter)} · קוטר ${escapeHtml(spiralDiameter)} מ"מ · ${escapeHtml(turns)} כריכות · ${escapeHtml(qty)} יח'</span>`;
+    return `<span class="chip">ספיראלה · Ø${escapeHtml(diameter)} מ״מ · קוטר ${escapeHtml(IronBendDisplayUnits.formatLengthCmFromMm(spiralDiameter))} · ${escapeHtml(turns)} כריכות · ${escapeHtml(qty)} יח'</span>`;
   }
-  const parts = [`Ø${escapeHtml(diameter)}`, `${escapeHtml(length)} מ"מ`, `${escapeHtml(qty)} יח'`];
+  const parts = [`Ø${escapeHtml(diameter)} מ״מ`, escapeHtml(IronBendDisplayUnits.formatLengthCmFromMm(length)), `${escapeHtml(qty)} יח'`];
   if (shape) parts.push(escapeHtml(shape));
   return `<span class="chip">${parts.join(' · ')}</span>`;
 }
@@ -1759,12 +1783,12 @@ function openQueueItemShapeEditor(rowId, index) {
   parsed.items = Array.isArray(parsed.items) ? parsed.items : [];
   const item = parsed.items[index] || {};
   if (isSpiralOcrItem(item)) {
-    const diameter = window.prompt('קוטר ספירלה במ״מ', item.spiral_diameter_mm || item.spiralDiameterMm || '');
+    const diameter = window.prompt('קוטר ספירלה בס״מ', IronBendDisplayUnits.millimetersToCentimeters(item.spiral_diameter_mm || item.spiralDiameterMm) || '');
     if (diameter === null) return;
     const turns = window.prompt('מספר כריכות', item.spiral_turns || item.spiralTurns || '');
     if (turns === null) return;
     item.shape_name = 'spiral';
-    item.spiral_diameter_mm = toNumber(diameter);
+    item.spiral_diameter_mm = IronBendDisplayUnits.centimetersToMillimeters(diameter);
     item.spiral_turns = toNumber(turns);
     item.segments = [];
     item.sides = [];
@@ -1804,26 +1828,26 @@ function intakeQueueItemsTable(parsed, rowId) {
   return `<div class="ocr-queue-table-wrap" aria-label="פירוט פריטים להזמנה">
     <div class="ocr-queue-title">פירוט פריטים להזמנה</div>
     <table class="ocr-queue-table">
-      <thead><tr><th>מס' פריט</th><th>שם האלמנט</th><th>צורה ומידות</th><th>קוטר (Ø)</th><th>כמות (PCS)</th><th>אורך (m)</th><th>סה"כ אורך (m)</th><th>משקל (kg)</th></tr></thead>
+      <thead><tr><th>מס' פריט</th><th>שם האלמנט</th><th>צורה ומידות</th><th>קוטר ברזל (מ״מ)</th><th>כמות (PCS)</th><th>אורך (ס״מ)</th><th>סה"כ אורך (ס״מ)</th><th>משקל (ק״ג)</th></tr></thead>
       <tbody>${items.map((item, index) => {
         const itemNumber = ocrItemNumber(item, index);
         const elementName = ocrElementName(item) || '-';
         const diameter = item.diameter ?? item.diameter_mm ?? '-';
         const quantity = item.qty ?? item.quantity ?? item.pcs ?? '-';
-        const lengthMeters = ocrLengthMeters(item) || '-';
-        const totalLengthMeters = ocrTotalLengthMeters(item) || '-';
+        const lengthCentimeters = ocrLengthCentimeters(item) || '-';
+        const totalLengthCentimeters = ocrTotalLengthCentimeters(item) || '-';
         const targetWeight = ocrTargetWeightKg(item) || '-';
         const dimensions = isSpiralOcrItem(item)
-          ? `ספירלה ${item.spiral_diameter_mm ?? '-'} / ${item.spiral_turns ?? '-'}`
-          : (segmentsToText(item) || `${item.total_length_mm ?? item.length_mm ?? item.length ?? '-'} מ"מ`);
+          ? `ספירלה ${IronBendDisplayUnits.formatLengthCmFromMm(item.spiral_diameter_mm) || '-'} / ${item.spiral_turns ?? '-'} כריכות`
+          : (segmentsToText(item) || IronBendDisplayUnits.formatLengthCmFromMm(item.total_length_mm ?? item.length_mm ?? item.length));
         return `<tr>
           <td>${escapeHtml(itemNumber)}</td>
           <td>${escapeHtml(elementName)}</td>
           <td><div class="ocr-queue-shape"><button type="button" class="ocr-queue-edit" onclick="openQueueItemShapeEditor(${rowId}, ${index})" title="ערוך צורה" aria-label="ערוך צורה">✎</button><div class="ocr-queue-shape-main">${ocrCardShapeSvg(item, 130, 70) || ocrShapeSvgHtml(item, 130, 70)}</div></div></td>
           <td>${escapeHtml(diameter)}</td>
           <td>${escapeHtml(quantity)}</td>
-          <td>${escapeHtml(lengthMeters)}</td>
-          <td>${escapeHtml(totalLengthMeters)}</td>
+          <td>${escapeHtml(lengthCentimeters)}</td>
+          <td>${escapeHtml(totalLengthCentimeters)}</td>
           <td>${escapeHtml(targetWeight)}</td>
         </tr>`;
       }).join('')}</tbody>
@@ -2364,7 +2388,7 @@ function ocrItemTableRowHtml(parsed, item, index) {
   const shape = isSpiral ? 'spiral' : (item.shape_name || item.shapeName || item.shape || item.type || '');
   const diameter = item.diameter ?? item.diameter_mm ?? '';
   const quantity = item.qty ?? item.quantity ?? item.pcs ?? '';
-  const totalLength = item.total_length_mm ?? item.length_mm ?? item.length ?? '';
+  const totalLength = IronBendDisplayUnits.millimetersToCentimeters(item.total_length_mm ?? item.length_mm ?? item.length) ?? '';
   const note = item.note || item.notes || '';
   const targetWeight = ocrTargetWeightKg(item) || '';
   const segmentsValue = isSpiral ? '' : segmentsToText(item);
@@ -2398,7 +2422,7 @@ function intakeEditableForm(parsed, options = {}) {
   const row = intakeRows.find(item => item.id === activeCompareId) || {};
   const items = Array.isArray(parsed.items) ? parsed.items.map(item => normalizeLegacyOcrLShapeItem(item || {})) : [];
   const summary = ocrStatusSummary({ ...parsed, items });
-  const tableHtml = items.length ? '<div class="ocr-review-table-wrap ocr-order-form" aria-label="OCR Review Workspace table"><table class="ocr-review-table"><thead><tr><th>#</th><th>מיני שרטוט</th><th>קוטר</th><th>אורך</th><th>כמות</th><th>משקל</th><th>הערות</th><th>ביטחון</th><th>סטטוס</th></tr></thead><tbody>' + items.map((item, index) => safeIntakeRender('item ' + (index + 1), () => ocrItemTableRowHtml(parsed, item || {}, index), '<tr><td>' + escapeHtml(ocrItemNumber(item || {}, index)) + '</td><td colspan="8">OCR row could not render.</td></tr>')).join('') + '</tbody></table></div>' : '<div class="empty">לא זוהו פריטים.</div>';
+  const tableHtml = items.length ? '<div class="ocr-review-table-wrap ocr-order-form" aria-label="OCR Review Workspace table"><table class="ocr-review-table"><thead><tr><th>#</th><th>מיני שרטוט</th><th>קוטר ברזל (מ״מ)</th><th>אורך (ס״מ)</th><th>כמות</th><th>משקל</th><th>הערות</th><th>ביטחון</th><th>סטטוס</th></tr></thead><tbody>' + items.map((item, index) => safeIntakeRender('item ' + (index + 1), () => ocrItemTableRowHtml(parsed, item || {}, index), '<tr><td>' + escapeHtml(ocrItemNumber(item || {}, index)) + '</td><td colspan="8">OCR row could not render.</td></tr>')).join('') + '</tbody></table></div>' : '<div class="empty">לא זוהו פריטים.</div>';
   return '<div class="ocr-edit-form ocr-official-shell" data-table-first="true" data-official-ocr-review="true"><div class="ocr-official-summary"><div class="ocr-summary-card"><div class="ocr-summary-ok">✓</div><div class="ocr-summary-count">' + summary.verified + '/' + summary.total + '</div><div class="ocr-summary-label">פריטים מאושרים</div></div><div class="ocr-alert-card danger"><strong>' + summary.missing + '</strong><span>חסרים</span></div><div class="ocr-alert-card warn"><strong>' + summary.review + '</strong><span>דורשים בדיקה</span></div><div class="ocr-alert-card ok"><strong>' + summary.verified + '</strong><span>אושרו</span></div></div>' + ocrReviewTopHtml(parsed, row) + '<div class="ocr-review-toolbar"><button type="button" class="ocr-compare-toggle" onclick="toggleOcrCompareMode(this)" aria-pressed="false">מצב השוואה</button><button type="button" onclick="reprocessIntakeOcr(activeCompareId, { openAfter:true, trigger:this })">רענון זיהוי</button><button class="primary" type="button" onclick="verifyAllVisibleOcrItems()">סמן הכל אושר</button><button type="button" onclick="toggleOcrAttentionOnly()">בדוק רק בעייתיים</button><input type="search" placeholder="חיפוש פריט..." oninput="filterOcrReviewRows(this.value)"><span class="counter">' + summary.missing + ' דורשים טיפול</span></div>' + tableHtml + '<div class="ocr-official-footer"><div class="legend"><span><i class="ocr-status-dot"></i> מאושר</span><span><i class="ocr-status-dot review"></i> בדיקה</span><span><i class="ocr-status-dot missing"></i> חסר</span></div><div class="actions"><button type="button" onclick="intakeCreateProductionCards(activeCompareId)">צור כרטיסיות ייצור</button><button type="button" class="finish" onclick="intakeApprove(activeCompareId)">סיים ופתח הזמנה</button></div></div><div class="ocr-corrections" id="ocrCorrectionSummary">כל תא ניתן לעריכה ישירה. לחיצה על שרטוט פותחת את עורך הצורות.</div></div>';
 }
 function filterOcrReviewRows(value) {

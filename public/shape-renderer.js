@@ -153,10 +153,10 @@
     if (opts.showDimensions) {
       const midX = x + boxW / 2;
       const midY = y + boxH / 2;
-      addShapeText(svg, `${parts.top}mm`, midX, Math.max(12, y - 12), { fill: '#1a2533', size: '10', weight: '800' });
-      addShapeText(svg, `${parts.bottom}mm`, midX, Math.min(H - 10, bottom + 14), { fill: '#1a2533', size: '10', weight: '800' });
-      addShapeText(svg, `${parts.left}mm`, Math.max(20, x - 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
-      addShapeText(svg, `${parts.right}mm`, Math.min(W - 20, right + 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, `${Number(parts.top) / 10}cm`, midX, Math.max(12, y - 12), { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, `${Number(parts.bottom) / 10}cm`, midX, Math.min(H - 10, bottom + 14), { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, `${Number(parts.left) / 10}cm`, Math.max(20, x - 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, `${Number(parts.right) / 10}cm`, Math.min(W - 20, right + 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
     }
   }
 

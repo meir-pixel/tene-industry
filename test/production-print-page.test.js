@@ -177,8 +177,8 @@ test('production print page expands pile cages to master and component cards', (
   assert.match(html, /data-shape-kind=\\"pile-spiral-component\\"/);
   assert.match(html, /data-component-type=\\"spiral_consolidated\\"/);
   assert.match(html, /data-shape-kind=\\"pile-hoop-component\\"/);
-  assert.match(html, /AXIS 12000 mm/);
-  assert.match(html, /CUT 82,177\.1 mm/);
+  assert.match(html, /AXIS 1,200 cm/);
+  assert.match(html, /CUT 8,217\.71 cm/);
 });
 test('production card renderer prefers Shape V2 snapshot segments over legacy item segments', () => {
   const item = {

@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="/rebar-weights.js"></script>
+<script src="/display-units.js"></script>
 <script src="/shapeSnapshot.js?v=1"></script>
 <script src="/steelRebarShapes.js?v=1"></script>
 <script src="/shape-editor.js?v=66"></script>
@@ -3066,7 +3067,7 @@ function roundPileCageEditorData(item = {}) {
 function roundPileCagePreviewSvg(item = {}) {
   const d = roundPileCageVisualData(item);
   const pileDiameterCm = d.pileDiameterMm ? (d.pileDiameterMm / 10).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—';
-  const pileLengthM = d.pileLengthMm ? (d.pileLengthMm / 1000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const pileLengthCm = d.pileLengthMm ? IronBendDisplayUnits.formatNumber(d.pileLengthMm / 10, { maximumFractionDigits: 2 }) : '—';
   const bars = Math.max(0, Math.round(d.longitudinalCount));
   const dotCount = bars > 0 && d.longitudinalDiameterMm > 0 ? Math.min(bars, 14) : 0;
   const hookRotation = Number.isFinite(d.bendOrientationDeg) ? d.bendOrientationDeg * Math.PI / 180 : 0;
@@ -3093,11 +3094,11 @@ function roundPileCagePreviewSvg(item = {}) {
   }).join('') : '';
   const pitches = Array.from(new Set(schedule.filter(zone => !zone.noWrap && zone.pitchMm > 0).map(zone => zone.pitchMm)));
   const barsSvg = bars > 0 && d.longitudinalDiameterMm > 0 ? Array.from({ length: 5 }, (_, index) => `<path d="M18 ${29 + index * 7}H174" stroke="#102a43" stroke-width="1.25"/>`).join('') : '';
-  return `<svg class="pile-cage-preview-svg" viewBox="0 0 240 78" role="img" aria-label="PILE CAGE: Ø${pileDiameterCm}, L ${pileLengthM}m">
+  return `<svg class="pile-cage-preview-svg" viewBox="0 0 240 78" role="img" aria-label="PILE CAGE: Ø${pileDiameterCm} cm, L ${pileLengthCm} cm">
     <rect x="15" y="23" width="162" height="38" rx="8" fill="#f8fafc" stroke="#102a43" stroke-width="1.5"/>
     ${barsSvg}${spiral}
     <circle cx="202" cy="44" r="22" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}
-    <text x="96" y="14" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">L ${pileLengthM}m</text>
+    <text x="96" y="14" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">L ${pileLengthCm} cm</text>
     <text x="202" y="74" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${pileDiameterCm}${Number.isFinite(d.bendOrientationDeg) ? ` · ↻${d.bendOrientationDeg}°` : ''}</text>
     <text x="96" y="72" text-anchor="middle" font-size="8" font-weight="800" fill="#102a43">${bars > 0 && d.longitudinalDiameterMm > 0 ? `${bars} × Ø${d.longitudinalDiameterMm}` : '—'} · ${d.spiralDiameterMm > 0 && pitches.length ? `Ø${d.spiralDiameterMm} @ ${pitches.map(value => value / 10).join('/')}cm` : '—'} · ${d.hoopCount > 0 && d.hoopDiameterMm > 0 ? `${d.hoopCount} × Ø${d.hoopDiameterMm}` : '—'}</text>
   </svg>`;
@@ -3146,7 +3147,7 @@ function renderItemCard(palletId, item, itemIndex = 0) {
   const isSpiralRow = item.family === 'spirals' || itemShapeContract(item)?.family === 'spirals' || isSpiralOrderItem(item);
   const diameter = item.diameter || (isSpiralRow ? 8 : 12), qty = item.qty || item.quantity || 1;
   const title = item.shapeName || item.displayName || (isSpiralRow ? 'ספירלה' : 'מוט ברזל');
-  const lengthLabel = perimeter > 0 ? perimeter.toLocaleString('he-IL') + ' מ"מ' : 'לחץ לעריכה';
+  const lengthLabel = perimeter > 0 ? IronBendDisplayUnits.formatLengthCmFromMm(perimeter) : 'לחץ לעריכה';
   return `<article class="order-item-card no-item-card" id="item-row-${item.id}"><button type="button" class="item-shape-preview no-item-preview shape-preview" onclick="openShapeEditor(${palletId}, '${item.id}')" title="&#1506;&#1512;&#1493;&#1498; &#1510;&#1493;&#1512;&#1492;">${itemPreviewSvg(item, sides, angles)}${item.is3d ? '<span style="position:absolute;top:8px;right:8px;background:#7c3aed;color:white;font-size:10px;font-weight:900;padding:2px 6px;border-radius:6px">3D</span>' : ''}</button><div class="item-main no-item-main"><div class="item-title-row no-item-title-row"><div><h3 class="no-item-title">${escapeHtml(title)}</h3><div class="no-item-sub">&#1508;&#1512;&#1497;&#1496; #${itemIndex + 1}</div></div><button type="button" class="no-small-btn" onclick="toggleThumb3D()">${window._itemThumb3D ? '3D' : '2D'}</button></div><div class="item-metrics no-item-metrics"><div class="no-metric"><span>&#1511;&#1493;&#1496;&#1512;</span><strong>Ø${diameter}</strong></div><div class="no-metric"><span>&#1488;&#1493;&#1512;&#1498;</span><strong>${lengthLabel}</strong></div><div class="no-metric"><span>&#1499;&#1502;&#1493;&#1514;</span><strong>${qty}</strong></div><div class="no-metric"><span>&#1502;&#1513;&#1511;&#1500;</span><strong>${w > 0 ? w.toFixed(2) + ' &#1511;&quot;&#1490;' : '-'}</strong></div></div><div class="no-item-fields"><label class="no-field-mini">&#1499;&#1502;&#1493;&#1514;<input type="text" inputmode="numeric" pattern="[0-9]*" value="${qty}" class="item-qty" onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onblur="if(!this.value||+this.value<1)this.value=1;updateItem(${palletId},'${item.id}','qty',+this.value)" onkeydown="if(event.key==='Enter'){this.blur();}"></label><label class="no-field-mini">&#1514;&#1497;&#1488;&#1493;&#1512;<input type="text" value="${escapeAttr(item.note||'')}" placeholder="&#1500;&#1491;&#1493;&#1490;&#1502;&#1492;: &#1511;&#1493;&#1502;&#1492; 2" onchange="updateItem(${palletId},'${item.id}','note',this.value)"></label></div><div class="no-stock-wrap">${renderStockSelect(palletId, item)}</div></div><div class="item-actions no-item-actions"><button type="button" class="no-card-action" onclick="openShapeEditor(${palletId}, '${item.id}')">&#1506;&#1512;&#1493;&#1498;</button><button type="button" class="no-card-action" onclick="duplicateItem(${palletId}, '${item.id}')">&#1513;&#1499;&#1508;&#1500;</button><button type="button" class="no-card-action danger" onclick="removeItem(${palletId},'${item.id}')">&#1502;&#1495;&#1511;</button></div></article>`;
 }
 function renderItemRow(palletId, item) { return renderItemCard(palletId, item, 0); }
@@ -3890,12 +3891,12 @@ function renderImgItems(items) {
     html += '</div>';
     html += '<div class="img-item-fields">';
     html += '<label class="img-item-field">צורה <input class="img-item-inp" type="text" value="' + escapeHtml(it.shape_name || it.shapeName || it.shape || '') + '" id="imgShape' + i + '" oninput="markEdited(' + i + ')"></label>';
-    html += '<label class="img-item-field">קוטר Ø <input class="img-item-inp" type="number" value="' + escapeHtml(it.diameter || 12) + '" id="imgD' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">קוטר ברזל Ø (מ״מ) <input class="img-item-inp" type="number" value="' + escapeHtml(it.diameter || 12) + '" id="imgD' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field">כמות <input class="img-item-inp" type="number" value="' + escapeHtml(it.quantity || it.qty || 1) + '" id="imgQ' + i + '" oninput="markEdited(' + i + ')"></label>';
-    html += '<label class="img-item-field">אורך כולל <input class="img-item-inp" type="number" value="' + escapeHtml(it.total_length_mm || it.length_mm || it.length || '') + '" id="imgLen' + i + '" oninput="markEdited(' + i + ')"></label>';
-    html += '<label class="img-item-field">קוטר ספיראלה <input class="img-item-inp" type="number" value="' + escapeHtml(it.spiral_diameter_mm || it.spiralDiameterMm || '') + '" id="imgSpiralD' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">אורך כולל (ס״מ) <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(IronBendDisplayUnits.millimetersToCentimeters(it.total_length_mm || it.length_mm || it.length || '') ?? '') + '" id="imgLen' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">קוטר ספיראלה (ס״מ) <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(IronBendDisplayUnits.millimetersToCentimeters(it.spiral_diameter_mm || it.spiralDiameterMm || '') ?? '') + '" id="imgSpiralD' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field">מספר כריכות <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(it.spiral_turns || it.spiralTurns || '') + '" id="imgSpiralTurns' + i + '" oninput="markEdited(' + i + ')"></label>';
-    html += '<label class="img-item-field" style="grid-column:span 2">צלעות: אורך@זווית <textarea class="img-item-textarea" id="imgSegs' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(segmentsText) + '</textarea></label>';
+    html += '<label class="img-item-field" style="grid-column:span 2">צלעות בס״מ: אורך@זווית <textarea class="img-item-textarea" id="imgSegs' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(segmentsText) + '</textarea></label>';
     html += '<label class="img-item-field">שייך ל / תיאור <textarea class="img-item-textarea" id="imgNote' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(it.note || it.notes || it.shape_description || it.shapeDescription || '') + '</textarea></label>';
     html += '</div>';
     if (it.note || it.notes) {
@@ -3909,7 +3910,10 @@ function renderImgItems(items) {
 function segmentsToEditText(segments) {
   return (segments || []).map(function(s) {
     if (typeof s === 'object') {
-      var len = s.length_mm || s.length || s.length_cm || '';
+      var sourceMm = s.length_mm ?? s.length ?? null;
+      var len = s.length_cm != null
+        ? Number(s.length_cm)
+        : (IronBendDisplayUnits.millimetersToCentimeters(sourceMm) ?? '');
       var angle = s.angle_deg != null ? s.angle_deg : (s.angle != null ? s.angle : '');
       return angle === '' ? String(len) : (len + '@' + angle);
     }
@@ -3926,7 +3930,7 @@ function parseImgSegments(text) {
     var angle = bits.length > 1 && bits[1] !== '' ? Number(bits[1]) : 0;
     if (!Number.isFinite(length) || length <= 0) return null;
     return {
-      length_mm: length,
+      length_mm: IronBendDisplayUnits.centimetersToMillimeters(length),
       angle_deg: Number.isFinite(angle) ? angle : 0
     };
   }).filter(Boolean);
@@ -3961,8 +3965,8 @@ function markEdited(i) {
   if (shapeInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].shape_name = shapeInput.value.trim();
   if (dInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].diameter = parseInt(dInput.value) || 12;
   if (qInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].quantity  = parseInt(qInput.value) || 1;
-  if (lenInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].total_length_mm = parseInt(lenInput.value) || 0;
-  if (spiralDInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].spiral_diameter_mm = parseFloat(spiralDInput.value) || null;
+  if (lenInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].total_length_mm = IronBendDisplayUnits.centimetersToMillimeters(lenInput.value) || 0;
+  if (spiralDInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].spiral_diameter_mm = IronBendDisplayUnits.centimetersToMillimeters(spiralDInput.value) || null;
   if (spiralTurnsInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].spiral_turns = parseFloat(spiralTurnsInput.value) || null;
   if (segInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].segments = parseImgSegments(segInput.value);
   if (noteInput && _imgAnalyzedItems[i]) _imgAnalyzedItems[i].note = noteInput.value.trim();
@@ -4049,6 +4053,6 @@ document.getElementById('imgAnalyzeOverlay').addEventListener('click', function(
   if (e.target === this) closeImgModal();
 });
 </script>
-<script src="/new-order-editor.js?v=2"></script>
+<script src="/new-order-editor.js?v=3"></script>
 </body>
 </html>

@@ -553,7 +553,7 @@ function openQR(id){
   const p=allPackages.find(x=>x.id===id);
   if(!p)return;
   document.getElementById('qrPkgInfo').innerHTML=
-    `<strong>${escH(p.package_code)}</strong><br>לקוח: ${escH(p.customer_name||'—')} · Ø${p.diameter}mm · ${fmt0(p.weight)} ק"ג`;
+    `<strong>${escH(p.package_code)}</strong><br>לקוח: ${escH(p.customer_name||'—')} · Ø${p.diameter} מ"מ · ${fmt0(p.weight)} ק"ג`;
   document.getElementById('qrCodeDisplay').textContent=p.package_code;
   showModal('modalQR');
 }

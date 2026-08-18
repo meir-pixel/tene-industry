@@ -74,6 +74,12 @@ function exactPileMetric(value) {
   return numeric.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
+function exactPileCentimeters(valueMm) {
+  const numeric = Number(valueMm);
+  if (!Number.isFinite(numeric) || numeric < 0) return '';
+  return exactPileMetric(numeric / 10);
+}
+
 function pileAssemblyComponentLabel(component = {}) {
   const labels = {
     longitudinal_straight_bar: 'STRAIGHT',
@@ -86,7 +92,7 @@ function pileAssemblyComponentLabel(component = {}) {
   const diameter = Number(component.diameterMm);
   const totalLengthMm = Number(component.totalLengthMm);
   if (!label || !(quantity > 0) || !(diameter > 0) || !(totalLengthMm > 0)) return '';
-  return `${label} ${exactPileMetric(quantity)} × Ø${exactPileMetric(diameter)} · ${exactPileMetric(totalLengthMm)} mm`;
+  return `${label} ${exactPileMetric(quantity)} × Ø${exactPileMetric(diameter)} מ״מ · ${exactPileCentimeters(totalLengthMm)} ס״מ`;
 }
 
 function pileCageProductionSvg(item = {}) {
@@ -133,7 +139,7 @@ function pileCageProductionSvg(item = {}) {
     return Array.from({ length: turns }, (_, index) => { const x = startX + (index + 0.5) * Math.max(1, endX - startX) / turns; return `<path d="M${(x - 4).toFixed(1)} 23L${(x + 4).toFixed(1)} 55" stroke="#102a43" stroke-width="1.3"/>`; }).join('');
   }).join('') : Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#102a43" stroke-width="1.3"/>`).join('')) : '';
   const rods = bars > 0 && barDiameter > 0 ? Array.from({ length: 5 }, (_, index) => `<path d="M14 ${27 + index * 7}H160" stroke="#102a43" stroke-width="1.2"/>`).join('') : '';
-  const lengthM = pileLength ? (pileLength / 1000).toFixed(2) : '—';
+  const lengthCm = pileLength ? exactPileCentimeters(pileLength) : '—';
   const diameterCm = pileDiameter ? (pileDiameter / 10).toFixed(1).replace(/\.0$/, '') : '—';
   const barLabel = bars > 0 && barDiameter > 0 ? `${bars} × Ø${barDiameter}` : '—';
   const pitches = [...new Set(wrappedSchedule.map(zone => n(zone.pitchMm ?? zone.pitch)).filter(Boolean))];
@@ -150,10 +156,10 @@ function pileCageProductionSvg(item = {}) {
   const hasAssemblySummary = isAssemblyCard && componentLines.length === 4 && totalSteelLengthMm > 0;
   const compactFooter = `<text x="88" y="70" text-anchor="middle" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(barLabel)} · ${escapeHtml(spiralLabel)} · ${escapeHtml(hoopLabel)}</text>`;
   const assemblyRows = hasAssemblySummary
-    ? `<g data-assembly-component-summary="4">${componentLines.map((line, index) => `<text x="12" y="${82 + index * 10}" text-anchor="start" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(line)}</text>`).join('')}<text data-assembly-total-steel="${escapeHtml(exactPileMetric(totalSteelLengthMm))}" x="213" y="122" text-anchor="end" font-size="8" font-weight="900" fill="#102a43">STEEL ${escapeHtml(exactPileMetric(totalSteelLengthMm))} mm</text></g>`
+    ? `<g data-assembly-component-summary="4">${componentLines.map((line, index) => `<text x="12" y="${82 + index * 10}" text-anchor="start" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(line)}</text>`).join('')}<text data-assembly-total-steel="${escapeHtml(exactPileMetric(totalSteelLengthMm))}" x="213" y="122" text-anchor="end" font-size="8" font-weight="900" fill="#102a43">STEEL ${escapeHtml(exactPileCentimeters(totalSteelLengthMm))} cm</text></g>`
     : '';
   const viewHeight = hasAssemblySummary ? 128 : 72;
-  return `<svg viewBox="0 0 225 ${viewHeight}" role="img" aria-label="PILE CAGE" data-bend-orientation-reference="radial_inward"><rect x="12" y="21" width="152" height="38" rx="7" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">PILE CAGE · L ${escapeHtml(lengthM)}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${escapeHtml(diameterCm)}${Number.isFinite(bendOrientationDeg) ? ` · ↻${escapeHtml(exactPileMetric(bendOrientationDeg))}°` : ''}</text>${hasAssemblySummary ? assemblyRows : compactFooter}</svg>`;
+  return `<svg viewBox="0 0 225 ${viewHeight}" role="img" aria-label="PILE CAGE" data-bend-orientation-reference="radial_inward"><rect x="12" y="21" width="152" height="38" rx="7" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">PILE CAGE · L ${escapeHtml(lengthCm)} cm</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${escapeHtml(diameterCm)} cm${Number.isFinite(bendOrientationDeg) ? ` · ↻${escapeHtml(exactPileMetric(bendOrientationDeg))}°` : ''}</text>${hasAssemblySummary ? assemblyRows : compactFooter}</svg>`;
 }
 
 function itemHumanTitle(item = {}) {
@@ -569,6 +575,7 @@ function spiralShapeSvg(item = {}) {
   const width = 240;
   const height = 118;
   const spiralDiameterLabel = Math.round(spiral.spiralDiameterMm);
+  const spiralDiameterCmLabel = displayLengthCm(spiral.spiralDiameterMm);
   const turnsLabel = Math.round(spiral.turns);
   const isRing = spiral.shapeType === 'ring' || spiral.turns <= 1.5;
 
@@ -585,11 +592,11 @@ function spiralShapeSvg(item = {}) {
     }
     // diameter dimension line
     svg += `<line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-rl)" marker-end="url(#arr-r)"/>`;
-    svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
+    svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
     // labels
     svg += `<g data-spiral-visual-labels="1" font-family="Heebo,Arial">`;
     svg += `<rect x="34" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
-    svg += `<text x="73" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
+    svg += `<text x="73" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">\u00d8 ${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
     svg += `<rect x="128" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
     svg += `<text x="167" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">${spiral.overlapMm > 0 ? `\u05d7\u05e4\u05d9\u05e4\u05d4 ${Math.round(spiral.overlapMm / 10)} \u05e1\u05f4\u05de` : `1 \u05db\u05e8\u05d9\u05db\u05d4`}</text>`;
     svg += `</g>`;
@@ -606,11 +613,11 @@ function spiralShapeSvg(item = {}) {
   svg += `<circle cx="${cx}" cy="${cy}" r="${r - 6}" fill="none" stroke="#8fa3b8" stroke-width="1.4"/>`;
   // diameter dimension line inside the circle
   svg += `<line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-sl)" marker-end="url(#arr-s)"/>`;
-  svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
+  svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
   svg += `<g data-spiral-visual-labels="1" font-family="Heebo,Arial">`;
   svg += `<rect x="34" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/>`;
   svg += `<text x="73" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4</text>`;
-  svg += `<text x="73" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${spiralDiameterLabel} \u05de"\u05de</text>`;
+  svg += `<text x="73" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
   svg += `<rect x="128" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/>`;
   svg += `<text x="167" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea</text>`;
   svg += `<text x="167" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${turnsLabel}</text>`;

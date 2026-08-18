@@ -8,7 +8,7 @@ function validateShapeGeometry(segments) {
       return { valid: false, error: `קטע ${i + 1}: אורך חייב להיות מספר חיובי (קיבלנו: ${seg.length_mm})` };
     }
     if (seg.length_mm > 20000) {
-      return { valid: false, error: `קטע ${i + 1}: אורך ${seg.length_mm}mm חורג מ-20,000mm` };
+      return { valid: false, error: `קטע ${i + 1}: אורך ${seg.length_mm / 10} ס״מ חורג מ-2,000 ס״מ` };
     }
     if (typeof seg.angle_deg !== 'number') {
       return { valid: false, error: `קטע ${i + 1}: זווית חייבת להיות מספר` };
