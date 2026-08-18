@@ -268,8 +268,9 @@ function benchBarSVGPath(sides, w, h, padding = 14) {
   const [leftFoot, leftRise, bridge, rightDrop, rightFoot] = values;
   const leftProjection = leftFoot / Math.SQRT2;
   const rightProjection = rightFoot / Math.SQRT2;
+  const leftVerticalProjection = Math.min(leftProjection, leftRise * 0.72);
   const raw = [
-    [0, leftRise + leftProjection],
+    [0, leftRise - leftVerticalProjection],
     [leftProjection, leftRise],
     [leftProjection, 0],
     [leftProjection + bridge, 0],
@@ -1225,8 +1226,30 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
 function SpiralEngine() {}
 SpiralEngine.render = function(spiral, w = 300, h = 260) {
   const barDia     = Math.max(1, Number(spiral?.barDiameter    || 8));
-  const spiralDia  = Math.max(1, Number(spiral?.spiralDiameter || 400));
+  const spiralDia  = Math.max(1, Number(spiral?.spiralDiameter || spiral?.spiralDiameterMm || 400));
   const turns      = Math.max(1, Number(spiral?.turns          || 20));
+
+  const compact = w <= 160 || h <= 110;
+  if (compact) {
+    const cx = w / 2;
+    const cy = h * 0.56;
+    const outerRadius = Math.max(14, Math.min(w * 0.27, h * 0.34));
+    const points = [];
+    const samples = 120;
+    for (let index = 0; index <= samples; index += 1) {
+      const progress = index / samples;
+      const theta = progress * 4.25 * Math.PI * 2;
+      const radius = 2 + (outerRadius - 2) * progress;
+      points.push([cx + Math.cos(theta) * radius, cy + Math.sin(theta) * radius]);
+    }
+    const path = points.map((point, index) => `${index ? 'L' : 'M'} ${point[0].toFixed(1)} ${point[1].toFixed(1)}`).join(' ');
+    return `<g data-engine="SpiralEngine" data-family="spirals" data-bar-diameter="${barDia}" data-spiral-diameter="${spiralDia}" data-turns="${turns}">
+      <text data-spiral-turn-count="1" x="${cx.toFixed(1)}" y="12" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">${turns} כריכות</text>
+      <path d="${path}" fill="none" stroke="#111827" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="${(cx - outerRadius).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(cx + outerRadius).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#c9621a" stroke-width="1.2"/>
+      <path d="M ${(cx - outerRadius).toFixed(1)} ${(cy - 4).toFixed(1)} V ${(cy + 4).toFixed(1)} M ${(cx + outerRadius).toFixed(1)} ${(cy - 4).toFixed(1)} V ${(cy + 4).toFixed(1)}" stroke="#c9621a" stroke-width="1.2"/>
+    </g>`;
+  }
 
   // Computed
   const circumference = Math.PI * spiralDia;
@@ -1294,8 +1317,8 @@ RingEngine.render = function(ring, w = 300, h = 260) {
   const overlap = Math.max(0, Number(ring?.overlap || ring?.overlapMm || 0));
   const circumferenceMm = Math.round(Math.PI * ringDia);
   const totalLengthMm = Math.round(circumferenceMm + overlap);
-  const compact = w <= 140 || h <= 100;
-  const cx = w / 2;
+  const compact = w <= 160 || h <= 110;
+  const cx = compact && overlap > 0 ? w * 0.56 : w / 2;
   const cy = compact ? h * 0.46 : h * 0.43;
   const r = Math.max(16, Math.min((w - 60) / 2, (h - (compact ? 24 : 92)) / 2, compact ? 30 : 78));
   const barW = Math.max(2.4, Math.min(9, barDia * 0.28));
@@ -1306,7 +1329,11 @@ RingEngine.render = function(ring, w = 300, h = 260) {
     ? `<path data-se-focus="ring-overlap" d="${overlapArc}" fill="none" stroke="#3d5e78" stroke-width="${barW.toFixed(1)}" stroke-linecap="round"/>`
     : '';
   const dimensionY = cy;
-  const labels = compact ? '' : `<g font-family="Heebo,Arial">
+  const compactOverlapGuide = compact && overlap > 0 ? `<g data-ring-overlap-dimension="1" font-family="Heebo,Arial">
+    <path d="M ${(cx - r * 0.55).toFixed(1)} ${(cy + r * 0.82).toFixed(1)} L 7 ${(h - 15).toFixed(1)}" fill="none" stroke="#c9621a" stroke-width="1.2"/>
+    <text x="5" y="${(h - 4).toFixed(1)}" text-anchor="start" font-size="9" font-weight="900" fill="#c9621a">חפיפה ${(overlap / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 })} ס״מ</text>
+  </g>` : '';
+  const labels = compact ? compactOverlapGuide : `<g font-family="Heebo,Arial">
     <text data-se-focus="ring-diameter" x="${cx.toFixed(1)}" y="${(cy - 7).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="900" fill="#c9621a">Ø ${(ringDia / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 })} ס״מ</text>
     <text data-se-focus="ring-overlap" x="${(cx - r - 12).toFixed(1)}" y="${(cy + r * 0.82).toFixed(1)}" text-anchor="end" font-size="10" font-weight="900" fill="#c9621a">חפיפה ${(overlap / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 })} ס״מ</text>
     <text x="${cx.toFixed(1)}" y="${(h - 28).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="#526070">היקף ${(circumferenceMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 })} ס״מ</text>

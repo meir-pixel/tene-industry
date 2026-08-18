@@ -513,7 +513,7 @@ var allItems      = ${JSON.stringify(cardItems.map(it => ({
   total_weight:   +(it.total_weight  || 0),
   weight_per_unit:+(it.weight_per_unit || 0),
   segments:       cards.shapeSegmentsFromItem(it),
-  shape_svg:      it.shape_svg || cards.spiralShapeSvg(it) || '',
+  shape_svg:      it.virtual_card && it.shape_svg ? it.shape_svg : cards.shapeSvgForProductionCard(it),
   note:           printableItemNote(it.note),
   struct_element: it.struct_element || '',
   orderLineNo:    it.orderLineNo || it.order_line_no || it.line_no || it.lineNo || it.position || null,
@@ -1019,10 +1019,6 @@ function hasPrintableBends(segments) {
 function shapeSvgForCard(item, segments) {
   var cleanSegments = Array.isArray(segments) ? segments : [];
   var generated = buildShapeSVG(cleanSegments);
-  var snapshot = item.pile_cage_snapshot || {};
-  var isRoundPileCage = snapshot.family === 'piles' && snapshot.shapeType === 'round_pile_cage';
-  if (isRoundPileCage && item.shape_svg) return item.shape_svg;
-  if (cleanSegments.length) return generated;
   return item.shape_svg || generated;
 }
 

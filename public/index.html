@@ -3113,6 +3113,18 @@ function itemPreviewSvg(item, sides, angles) {
     };
     return '<svg viewBox="0 0 132 92" width="132" height="92">' + window.IronBendShapeGeometry.RingEngine.render(shape, 132, 92) + '</svg>';
   }
+  const shapeContract = itemShapeContract(item) || approvedShapeContract(item) || item.shapeSnapshot || null;
+  if ((shapeContract?.family === 'spirals' || item.family === 'spirals') && window.IronBendShapeGeometry?.ShapeEngineRouter) {
+    const spiral = spiralFieldsFromShapeData(item);
+    const shape = {
+      family: 'spirals', shapeType: 'spiral',
+      barDiameter: spiral.barDiameter,
+      spiralDiameter: spiral.spiralDiameterMm,
+      spiralDiameterMm: spiral.spiralDiameterMm,
+      turns: spiral.spiralTurns,
+    };
+    return '<svg viewBox="0 0 132 92" width="132" height="92">' + window.IronBendShapeGeometry.ShapeEngineRouter.render(shape, 132, 92) + '</svg>';
+  }
   if (sides.length) {
     const rotateDegrees = isBenchBarItem(item) ? 180 : 0;
     if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false, rotateDegrees, azAngles: item.is3d ? (item.azAngles || null) : null, elAngles: item.is3d ? (item.elAngles || []) : [] }) + '</svg>';

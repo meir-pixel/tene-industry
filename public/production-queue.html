@@ -459,8 +459,6 @@ function renderQueue() {
     const col = createMachineColumn(machineKey, machineInfo, items);
     grid.appendChild(col);
   });
-  requestAnimationFrame(renderQueueShapes);
-
   // Update shift pieces count
   const totalPending = queueData.items ? queueData.items.length : 0;
   document.getElementById('shift-pieces').textContent = totalPending;
@@ -501,15 +499,13 @@ function renderQueueItem(item) {
   const segments = safeJson(item.segments);
   const dims = formatSegments(segments);
   const totalLength = item.total_length_mm || segmentTotal(segments);
-  const sides = itemSegments(segments);
-  const angles = itemAngles(segments);
+  const canonicalShapeSvg = typeof item.shape_svg === 'string' && item.shape_svg.includes('<svg')
+    ? item.shape_svg
+    : '<span>אין תצוגת צורה</span>';
 
   return `
     <div class="queue-item ${isActive ? 'active-item' : ''}" onclick="toggleItemActions(${item.id})">
-      <div class="queue-shape"
-        data-queue-shape="1"
-        data-sides="${encodeURIComponent(JSON.stringify(sides))}"
-        data-angles="${encodeURIComponent(JSON.stringify(angles))}"></div>
+      <div class="queue-shape">${canonicalShapeSvg}</div>
       <div class="queue-info">
         <div class="item-top">
           <span class="item-order">${escHtml(item.order_num || '')}</span>
@@ -569,30 +565,6 @@ function itemAngles(segments) {
   return segments.slice(0, -1).map(segment => {
     const angle = segment && typeof segment === 'object' ? Number(segment.angle_deg) : 180;
     return Number.isFinite(angle) && angle > 0 ? angle : 180;
-  });
-}
-
-function renderQueueShapes() {
-  if (!window.IronBendShapes) {
-    setTimeout(renderQueueShapes, 80);
-    return;
-  }
-  document.querySelectorAll('[data-queue-shape]').forEach(el => {
-    try {
-      const sides = JSON.parse(decodeURIComponent(el.dataset.sides || '%5B%5D'));
-      const angles = JSON.parse(decodeURIComponent(el.dataset.angles || '%5B%5D'));
-      window.IronBendShapes.render2D(el, sides, angles, {
-        width: el.clientWidth || 116,
-        height: el.clientHeight || 92,
-        padding: 16,
-        color: '#DF5000',
-        strokeWidth: 4,
-        showDimensions: true,
-        bgColor: '#ffffff',
-      });
-    } catch (e) {
-      el.textContent = 'אין צורה';
-    }
   });
 }
 

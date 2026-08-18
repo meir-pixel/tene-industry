@@ -5,6 +5,7 @@ const { itemShapeMetrics } = require('../services/shapeSnapshot');
 const { ORDER_STATUS } = require('../status-contracts');
 const { projectPortalCustomer, projectPortalOrder, projectPortalOrderDetail } = require('../services/customerPortalProjection');
 const { portalShapeDraftToOrderItem } = require('../services/customerPortalShapeDraft');
+const productionCards = require('../services/productionCards');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/portal missing dependency: ${name}`);
@@ -38,6 +39,7 @@ module.exports = function createPortalRouter(deps) {
     return {
       ...item,
       shapeSnapshot: item.shape_snapshot_json || null,
+      shape_svg: productionCards.itemShapeSvg(item),
       total_length_mm: metrics.totalLengthMm || item.total_length_mm,
       weight_per_unit: metrics.unitWeightKg || item.weight_per_unit,
       total_weight: metrics.totalWeightKg || item.total_weight,

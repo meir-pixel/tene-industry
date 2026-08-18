@@ -132,7 +132,10 @@ test('bench preset opens as real 3D and keeps the schedule elevation in every 2D
   assert.ok(Math.abs(elevation[1][0] - elevation[2][0]) < 0.001, 'expected the left 17 cm rise to be vertical in 2D');
   assert.ok(Math.abs(elevation[2][1] - elevation[3][1]) < 0.001, 'expected the 30 cm bridge to be horizontal in 2D');
   assert.ok(Math.abs(elevation[3][0] - elevation[4][0]) < 0.001, 'expected the right 17 cm drop to be vertical in 2D');
-  assert.ok(elevation[0][0] < elevation[1][0] && elevation[0][1] > elevation[1][1], 'expected the left 28 cm foot to angle outward');
+  assert.ok(elevation[0][0] < elevation[1][0] && elevation[0][1] < elevation[1][1], 'expected the left 28 cm foot to enter the rise through an acute corner');
+  const elevationIncoming = [elevation[0][0] - elevation[1][0], elevation[0][1] - elevation[1][1]];
+  const elevationOutgoing = [elevation[2][0] - elevation[1][0], elevation[2][1] - elevation[1][1]];
+  assert.ok(elevationIncoming[0] * elevationOutgoing[0] + elevationIncoming[1] * elevationOutgoing[1] > 0, 'expected the full 2D bench projection to keep the acute left corner');
   assert.ok(elevation[5][0] > elevation[4][0] && elevation[5][1] > elevation[4][1], 'expected the right 28 cm foot to angle outward');
   assert.match(editor, /isBenchProjection\s*\?\s*benchBarSVGPath\(sides, 300, 260, 38\)/);
 });
@@ -157,10 +160,15 @@ test('production card keeps all five bench segments and the 120 cm cut length', 
   const pathMatch = svg.match(/<path d="M ([^"]+)"/);
   assert.match(svg, /data-shape-kind="bench-bar"/);
   assert.match(svg, /data-dimension="2d"/);
+  assert.match(svg, /data-scale-mode="container-fit"/);
+  assert.doesNotMatch(svg, /max-height:/);
   assert.ok(pathMatch, 'expected a bench SVG path');
   const points = pathMatch[1].split(' L ').map(pair => pair.split(',').map(Number));
   assert.equal(points.length, 6);
-  assert.ok(points[0][0] < points[1][0] && points[0][1] > points[1][1]);
+  assert.ok(points[0][0] < points[1][0] && points[0][1] < points[1][1]);
+  const incoming = [points[0][0] - points[1][0], points[0][1] - points[1][1]];
+  const outgoing = [points[2][0] - points[1][0], points[2][1] - points[1][1]];
+  assert.ok(incoming[0] * outgoing[0] + incoming[1] * outgoing[1] > 0, 'expected the production bench SVG to keep the acute left corner');
   assert.equal(points[1][0], points[2][0]);
   assert.equal(points[2][1], points[3][1]);
   assert.equal(points[3][0], points[4][0]);
@@ -548,6 +556,17 @@ test('production card renders a standalone ring and its overlap', () => {
 
   assert.match(svg, /data-shape-kind="ring"/);
   assert.match(svg, /data-ring-overlap-mm="200"/);
+  assert.match(svg, /data-scale-mode="container-fit"/);
+  assert.doesNotMatch(svg, /max-height:/);
+  assert.match(svg, /data-ring-overlap-dimension="1"/);
+  assert.match(svg, />חפיפה</);
+  assert.match(svg, />20 ס״מ</);
+});
+
+test('compact ring preview points the 20 cm label at the overlap arc', () => {
+  const { RingEngine } = loadShapeEditorGeometry();
+  const svg = RingEngine.render({ shapeType: 'ring', barDiameter: 18, ringDiameter: 420, overlap: 200 }, 112, 88);
+  assert.match(svg, /data-ring-overlap-dimension="1"/);
   assert.match(svg, /חפיפה 20 ס״מ/);
 });
 
@@ -1300,7 +1319,11 @@ test('production card renders real spiral items from item fields instead of stra
   assert.match(svg, /data-shape-kind="spiral"/);
   assert.match(svg, /data-spiral-diameter-mm="300"/);
   assert.match(svg, /data-spiral-turns="30"/);
+  assert.match(svg, /data-scale-mode="container-fit"/);
+  assert.doesNotMatch(svg, /max-height:/);
   assert.match(svg, /data-spiral-visual-labels="1"/);
+  assert.match(svg, /data-spiral-turn-count="1"/);
+  assert.match(svg, />30 כריכות</);
   assert.match(svg, /\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4/);
   assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
   assert.doesNotMatch(svg, /data-shape-kind="straight-bar"/);
