@@ -1224,6 +1224,7 @@ function ensureCoreSchema(db) {
       departure_type     TEXT CHECK (departure_type IN ('full','partial')),
       departure_reason   TEXT,
       delivery_note_id   INTEGER,
+      loading_group_uid  TEXT,
       cancelled_by       INTEGER,
       cancelled_at       DATETIME,
       cancel_reason      TEXT,
@@ -1319,6 +1320,25 @@ function ensureCoreSchema(db) {
       delivered_at  DATETIME,
       FOREIGN KEY (order_id) REFERENCES orders(id)
     );
+
+    -- A delivery note may cover several orders on the same truck.  The
+    -- legacy order_id/order_num columns remain populated for single-order
+    -- notes and backward compatibility; this junction is the authoritative
+    -- order list for consolidated notes.
+    CREATE TABLE IF NOT EXISTS delivery_note_orders (
+      delivery_note_id INTEGER NOT NULL,
+      order_id         INTEGER NOT NULL,
+      order_num        TEXT NOT NULL,
+      customer_id      INTEGER,
+      items_json       JSON,
+      total_weight     REAL NOT NULL DEFAULT 0,
+      PRIMARY KEY (delivery_note_id, order_id),
+      FOREIGN KEY (delivery_note_id) REFERENCES delivery_notes(id),
+      FOREIGN KEY (order_id) REFERENCES orders(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_delivery_note_orders_order
+      ON delivery_note_orders(order_id, delivery_note_id);
 
     CREATE TABLE IF NOT EXISTS export_log (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1485,8 +1505,15 @@ function ensureCoreSchema(db) {
   ensureColumn(db, 'order_loading_sessions', 'departure_type', "TEXT CHECK (departure_type IN ('full','partial'))");
   ensureColumn(db, 'order_loading_sessions', 'departure_reason', 'TEXT');
   ensureColumn(db, 'order_loading_sessions', 'delivery_note_id', 'INTEGER');
-  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_loading_session_delivery_note
+  ensureColumn(db, 'order_loading_sessions', 'loading_group_uid', 'TEXT');
+  // Several per-order sessions may deliberately point to one consolidated
+  // truck delivery note.  The old unique index encoded the former one-order
+  // limitation, so replace it with a normal lookup index.
+  db.exec('DROP INDEX IF EXISTS idx_loading_session_delivery_note');
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_loading_session_delivery_note
     ON order_loading_sessions(delivery_note_id) WHERE delivery_note_id IS NOT NULL`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_loading_sessions_group
+    ON order_loading_sessions(loading_group_uid, status)`);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)

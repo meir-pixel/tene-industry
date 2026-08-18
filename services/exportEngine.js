@@ -121,6 +121,8 @@ function deliveryRowsToLines(note) {
     weightKg: money(row.weight || row.total_weight || row.totalWeightKg || 0),
     diameter: row.diameter || null,
     zone: row.zone || null,
+    orderId: row.order_id || null,
+    orderNum: row.order_num || null,
   }));
 }
 
@@ -206,6 +208,10 @@ function buildDeliveryNoteExportPayload(db, { delivery_note_id, destination = DE
 
   const customer = loadCustomer(database, note.customer_id);
   const order = loadOrder(database, note.order_id);
+  const linkedOrders = database.prepare(`
+    SELECT order_id,order_num,total_weight FROM delivery_note_orders
+    WHERE delivery_note_id=? ORDER BY rowid
+  `).all(note.id);
 
   return {
     ...basePayload({
@@ -246,6 +252,11 @@ function buildDeliveryNoteExportPayload(db, { delivery_note_id, destination = DE
       signedBy: note.signed_by || null,
     },
     lines: deliveryRowsToLines(note),
+    linkedOrders: linkedOrders.map(row => ({
+      orderId: Number(row.order_id),
+      orderNum: row.order_num,
+      totalWeightKg: money(row.total_weight),
+    })),
     raw: { deliveryNote: note },
   };
 }
@@ -432,6 +443,21 @@ function resolveOrderBillingTargets(database, { entity_type, entity_id, billed_a
       const err = new Error('delivery_note_not_found');
       err.statusCode = 404;
       throw err;
+    }
+    const linkedOrders = database.prepare(`
+      SELECT order_id,order_num,total_weight FROM delivery_note_orders
+      WHERE delivery_note_id=? ORDER BY rowid
+    `).all(note.id);
+    if (linkedOrders.length) {
+      const linkedWeight = linkedOrders.reduce((sum, row) => sum + Number(row.total_weight || 0), 0);
+      const requestedAmount = money(billed_amount || 0);
+      return linkedOrders.map(row => ({
+        order_id: Number(row.order_id),
+        order_num: row.order_num || null,
+        billed_amount: linkedWeight > 0
+          ? money(requestedAmount * Number(row.total_weight || 0) / linkedWeight)
+          : money(requestedAmount / linkedOrders.length),
+      }));
     }
     if (!note.order_id) {
       const err = new Error('delivery_note_has_no_order');
