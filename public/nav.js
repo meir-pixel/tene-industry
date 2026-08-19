@@ -43,6 +43,7 @@
 
     { group:'בקרה', href:'/quality.html', icon:'🔍', label:'איכות', id:'quality' },
     { group:'בקרה', href:'/maintenance.html', icon:'🛠️', label:'תחזוקה', id:'maintenance' },
+    { group:'בקרה', href:'/support.html', icon:'🧑‍💻', label:'תמיכה מרחוק', id:'support' },
     { group:'בקרה', href:'/warroom.html', icon:'🚨', label:'War Room', id:'warroom' },
     { group:'בקרה', href:'/reports.html', icon:'📈', label:'דוחות', id:'reports' },
 

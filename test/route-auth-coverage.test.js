@@ -122,6 +122,8 @@ const AUTH_GUARD_MARKERS = [
   'webhookLimiter',
   'verifyWhatsAppSignature',
   'authLoginLimiter',
+  'agentTokenAuthorization',
+  'agentActivationAuthorization',
   'if (!refreshToken && !req.auth)',
 ];
 
