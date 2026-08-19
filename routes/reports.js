@@ -210,6 +210,28 @@ function shapeWeightForOrdersCreatedBetween(db, fromDate, toDate) {
   return roundMetric(rows.reduce((sum, row) => sum + (Number(row.weight) || 0), 0));
 }
 
+function dashboardOrdersCreatedInRange(db, start, end, completedStatus) {
+  const orderSummary = db.prepare(`
+    SELECT COUNT(*) AS count,
+           COALESCE(SUM(CASE WHEN status=? THEN 1 ELSE 0 END), 0) AS completed_count,
+           COALESCE(SUM(total_weight), 0) AS legacy_weight
+    FROM orders
+    WHERE datetime(created_at) >= datetime(?) AND datetime(created_at) < datetime(?)
+  `).get(completedStatus, start, end);
+  const itemRows = reportItemRows(
+    db,
+    'datetime(o.created_at) >= datetime(?) AND datetime(o.created_at) < datetime(?)',
+    [start, end]
+  );
+  return {
+    count: Number(orderSummary.count) || 0,
+    completedCount: Number(orderSummary.completed_count) || 0,
+    totalWeight: itemRows.length > 0
+      ? sumShapeWeight(itemRows)
+      : roundMetric(orderSummary.legacy_weight),
+  };
+}
+
 function topCustomersByShapeWeight(db, fromDate, toDate, limit = 10) {
   const legacyRows = db.prepare(`
     SELECT c.id as customer_id, c.name, COUNT(o.id) as order_count,
@@ -560,6 +582,12 @@ module.exports = function createReportsRouter(deps) {
     const productionActual = productionActuals.getDailyProductionActuals(db, today);
     const doneItemStatus = statusContracts.ITEM_STATUS.DONE;
     const completedOrderStatus = statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP;
+    const ordersCreatedToday = dashboardOrdersCreatedInRange(
+      db,
+      todayRange.start,
+      todayRange.end,
+      completedOrderStatus
+    );
     const wasteData = db.prepare(`
       SELECT SUM(actual_waste) as totalWaste, SUM(quantity) as totalQty,
              COUNT(*) as completedItems
@@ -586,13 +614,13 @@ module.exports = function createReportsRouter(deps) {
     `).all(todayRange.start, todayRange.end, doneItemStatus);
 
     res.json({
-      ordersToday:      db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=?").get(today).c,
-      completedOrdersToday: db.prepare("SELECT COUNT(*) as c FROM orders WHERE DATE(created_at)=? AND status=?").get(today, completedOrderStatus).c,
+      ordersToday:      ordersCreatedToday.count,
+      completedOrdersToday: ordersCreatedToday.completedCount,
       completedToday:   productionToday.completedItems || 0,
       inProduction:     db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.IN_PRODUCTION).c,
       pending:          db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.PENDING_APPROVAL).c,
       urgentOpen:       db.prepare("SELECT COUNT(*) as c FROM orders WHERE priority='דחוף' AND status NOT IN (?,?)").get(statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED, statusContracts.ORDER_STATUS.CANCELLED).c,
-      totalWeightToday: shapeWeightForOrdersCreatedBetween(db, today, today),
+      totalWeightToday: ordersCreatedToday.totalWeight,
       producedWeightToday: productionToday.producedWeightToday || 0,
       producedTonsToday: Math.round((productionToday.producedTonsToday || 0) * 10) / 10,
       productionActualDate: today,
