@@ -23,3 +23,11 @@ test('the order-sheet QR opens the persisted production-card camera flow, never 
   assert.match(warehousePage, /partial-departure/);
   assert.match(warehousePage, /כרטיסי עבודה/);
 });
+
+test('A4 order rows keep dimensions on the canonical shape drawing, without a duplicate dimensions column', () => {
+  assert.doesNotMatch(orderPrintRoute, /<th>מידות \(ס"מ\)<\/th>/);
+  assert.doesNotMatch(orderPrintRoute, /buildDimsHtml/);
+  assert.doesNotMatch(orderPrintRoute, /dims-td/);
+  assert.match(orderPrintRoute, /shape_svg:\s+productionCards\.itemShapeSvg\(it\)/);
+  assert.match(orderPrintRoute, /colspan="7"/);
+});

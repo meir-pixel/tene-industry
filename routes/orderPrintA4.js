@@ -196,10 +196,6 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 .diam{font-weight:900;font-size:13px;color:#c9621a;}
 .shape-td{min-width:120px;max-width:180px;padding:3px!important;}
 .shape-svg{display:block;margin:0 auto;}
-.dims-td{text-align:right;font-size:10px;line-height:1.7;min-width:90px;}
-.seg-dim{white-space:nowrap;}
-.seg-lbl{font-weight:700;color:#1a2332;}
-.seg-ang{color:#c9621a;font-size:9px;}
 .len-val{font-size:13px;font-weight:900;}
 .qty-val{font-size:15px;font-weight:900;color:#1a2332;}
 .wt-val{font-size:12px;font-weight:700;}
@@ -300,7 +296,6 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
         <th>#</th>
         <th>⌀ נ'</th>
         <th>צורה</th>
-        <th>מידות (ס"מ)</th>
         <th>L סה"כ<br>(ס"מ)</th>
         <th>כמות</th>
         <th>ק"ג</th>
@@ -330,30 +325,10 @@ function toggleDiamSplit(input){
   window.location.href = u.href;
 }
 
-function buildDimsHtml(segments) {
-  if (!segments || !segments.length) return '<span style="color:#aaa;font-size:10px;">—</span>';
-  var html = '';
-  for (var i=0; i<segments.length; i++) {
-    var lbl = String.fromCharCode(0x05D0+i); // א,ב,ג...
-    var lengthCm = Number(segments[i].length_mm || 0) / 10;
-    var displayCm = lengthCm.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
-    html += '<div class="seg-dim"><span class="seg-lbl">'+lbl+':</span> '+displayCm+'</div>';
-    if (i < segments.length-1 && segments[i].angle_deg != null) {
-      // Bend direction is encoded on a full 0-360 turn: -30 displays as 330.
-      var normAng = ((Number(segments[i].angle_deg) % 360) + 360) % 360;
-      if (Number.isFinite(normAng) && normAng !== 180 && normAng !== 0) {
-        html += '<div class="seg-ang">∠ '+normAng+'°</div>';
-      }
-    }
-  }
-  return html;
-}
-
 function itemRowHtml(it, uid) {
   return '<td class="row-num">'+it.rowNum+'</td>'+
     '<td class="diam">Ø'+it.diameter+'</td>'+
     '<td class="shape-td"><div class="shape-svg" id="'+uid+'">'+(it.shape_svg||'')+'</div></td>'+
-    '<td class="dims-td">'+buildDimsHtml(it.segments)+'</td>'+
     '<td><span class="len-val">'+it.total_length_cm+'</span></td>'+
     '<td><span class="qty-val">'+it.quantity+'</span></td>'+
     '<td><span class="wt-val">'+(it.total_weight||0).toFixed(1)+'</span></td>'+
@@ -373,14 +348,14 @@ function buildFlatTable() {
     if (it.note) {
       var noteRow = document.createElement('tr');
       noteRow.className = 'note-row';
-      noteRow.innerHTML = '<td colspan="8">⚠ '+it.note+'</td>';
+      noteRow.innerHTML = '<td colspan="7">⚠ '+it.note+'</td>';
       tbody.appendChild(noteRow);
     }
   }
   var totRow = document.createElement('tr');
   totRow.className = 'totals-row';
   totRow.innerHTML =
-    '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ</td>'+
+    '<td colspan="4" style="text-align:right;padding-right:10px!important;">סה"כ</td>'+
     '<td>'+totalQty+'</td>'+
     '<td>'+totalWt.toFixed(1)+'</td>'+
     '<td></td>';
@@ -415,7 +390,7 @@ function buildTable() {
 
     var head = document.createElement('tr');
     head.className = 'group-head';
-    head.innerHTML = '<td colspan="8">קוטר Ø'+d+' <span class="gh-count">· '+items.length+' פריטים</span></td>';
+    head.innerHTML = '<td colspan="7">קוטר Ø'+d+' <span class="gh-count">· '+items.length+' פריטים</span></td>';
     body.appendChild(head);
 
     items.forEach(function(it) {
@@ -427,7 +402,7 @@ function buildTable() {
       if (it.note) {
         var noteRow = document.createElement('tr');
         noteRow.className = 'note-row';
-        noteRow.innerHTML = '<td colspan="8">⚠ '+it.note+'</td>';
+        noteRow.innerHTML = '<td colspan="7">⚠ '+it.note+'</td>';
         body.appendChild(noteRow);
       }
     });
@@ -435,7 +410,7 @@ function buildTable() {
     var sub = document.createElement('tr');
     sub.className = 'group-sub';
     sub.innerHTML =
-      '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ Ø'+d+'</td>'+
+      '<td colspan="4" style="text-align:right;padding-right:10px!important;">סה"כ Ø'+d+'</td>'+
       '<td>'+gQty+'</td>'+
       '<td>'+gWt.toFixed(1)+'</td>'+
       '<td></td>';
@@ -450,7 +425,7 @@ function buildTable() {
     var totRow = document.createElement('tr');
     totRow.className = 'totals-row';
     totRow.innerHTML =
-      '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ כללי</td>'+
+      '<td colspan="4" style="text-align:right;padding-right:10px!important;">סה"כ כללי</td>'+
       '<td>'+totalQty+'</td>'+
       '<td>'+totalWt.toFixed(1)+'</td>'+
       '<td></td>';
