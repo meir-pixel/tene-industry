@@ -11,7 +11,7 @@ const SECTION_DEFINITIONS = Object.freeze([
 ]);
 
 const LINE_DEFINITIONS = Object.freeze([
-  { key: 'processed_rebar_kg', section: 'material', label: 'מוטות', unit: 'kg' },
+  { key: 'processed_rebar_kg', section: 'material', label: 'ברזל בניין מעובד', unit: 'kg' },
   { key: 'round_wire_coil_kg', section: 'material', label: 'סלילים עגולים-חוטים', unit: 'kg' },
   { key: 'cutting_kg', section: 'processing', label: 'חיתוך', unit: 'kg' },
   { key: 'bending_kg', section: 'processing', label: 'כיפוף', unit: 'kg' },
@@ -165,14 +165,13 @@ function explicitMaterialSource(item, snapshot) {
   return candidates.map(normalizedMaterialSource).find(Boolean) || null;
 }
 
-function resolveMaterialSource({ item, snapshot, diameterMm, bent, spiral, lengthMm }) {
+function resolveMaterialSource({ item, snapshot }) {
   const explicit = explicitMaterialSource(item, snapshot);
   if (explicit) return { source: explicit, basis: 'explicit' };
-  if (spiral) return { source: 'coil', basis: 'inferred_spiral' };
-  if (diameterMm > 0 && diameterMm <= 16 && (bent || !isCommercialStraightLength(lengthMm))) {
-    return { source: 'coil', basis: 'inferred_diameter_shape_length' };
-  }
-  return { source: 'straight', basis: 'inferred_diameter_shape_length' };
+  // A shape, diameter, or cut length cannot prove its stock source. Until a
+  // future stock/machine selection is recorded explicitly, all such items are
+  // commercial processed rebar rather than inferred coils/wire.
+  return { source: 'straight', basis: 'default_processed_rebar' };
 }
 
 function classifyOrderItem(item = {}) {
@@ -196,14 +195,7 @@ function classifyOrderItem(item = {}) {
   );
   const isLifting = !isPileCage && !isMesh && /ציפור|ציפורים|אוזן|אזני|הרמה|קרום|קרומים|bird|lifting|insert/i.test(shape.text);
   const bent = isChair || isRing || isLifting || (!isSpiral && isBentItem(item));
-  const material = resolveMaterialSource({
-    item,
-    snapshot,
-    diameterMm: positive(item.diameter),
-    bent,
-    spiral: isSpiral,
-    lengthMm,
-  });
+  const material = resolveMaterialSource({ item, snapshot });
 
   if (isPileCage) return { kind: 'pile_cage', weightKg, weightSource, quantity, lengthMm, pileBreakdown, lines: ['pile_cages_kg'] };
   if (isMesh) return { kind: 'mesh', weightKg, weightSource, quantity, lengthMm, lines: ['mesh_kg'] };
