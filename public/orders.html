@@ -145,6 +145,18 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .metric-box{background:#f4f7fb;border-radius:12px;padding:10px 12px;}
 .metric-label{font-size:10px;font-weight:700;color:var(--muted);margin-bottom:2px;}
 .metric-value{font-size:15px;font-weight:900;color:var(--text);}
+.order-status-current{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #d7e0ec;border-radius:12px;padding:10px 12px;background:#f7f9fc;}
+.order-status-current span{font-size:10px;font-weight:800;color:var(--muted);}
+.order-status-current strong{font-size:16px;font-weight:900;color:#334155;}
+.order-status-current.is-production{background:#fff7ed;border-color:#fed7aa;}.order-status-current.is-production strong{color:#9a3412;}
+.order-status-current.is-ready{background:#eef5ff;border-color:#bfd3ed;}.order-status-current.is-ready strong{color:#1e4f83;}
+.order-status-current.is-supplied{background:#ecfdf5;border-color:#bbf7d0;}.order-status-current.is-supplied strong{color:#166534;}
+.order-status-current.is-cancelled{background:#fef2f2;border-color:#fecaca;}.order-status-current.is-cancelled strong{color:#991b1b;}
+.order-status-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px;}
+.order-status-step{min-width:0;text-align:center;color:#94a3b8;}
+.order-status-step i{display:block;height:4px;border-radius:999px;background:#dbe3ee;margin-bottom:5px;}
+.order-status-step span{display:block;font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.order-status-step.is-complete,.order-status-step.is-active{color:#1e4f83;}.order-status-step.is-complete i{background:#9bb8d6;}.order-status-step.is-active i{background:#2466a4;}
 .d-section{background:#fff;border:1px solid rgba(2,26,72,0.09);border-radius:16px;padding:16px;
   box-shadow:0 6px 20px rgba(2,26,72,0.05);}
 .d-title{font-size:12px;font-weight:900;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:7px;}
@@ -544,6 +556,27 @@ function sBadgeClass(s) {
   if (s === 'בייצור' || s === ORDER_STATUS.LOADING) return 's-prod';
   if (s.includes('אושרה'))  return 's-approved';
   return 's-wait';
+}
+function orderStatusStage(status) {
+  const value = String(status || '').trim();
+  if (value === ORDER_STATUS.CANCELLED || /בוטל/.test(value)) return 'cancelled';
+  if (value === ORDER_STATUS.DELIVERED_CONFIRMED || /סופק|נמסר/.test(value)) return 'supplied';
+  if ([ORDER_STATUS.DONE_WAITING_PICKUP, ORDER_STATUS.LOADING, ORDER_STATUS.PARTIAL_DELIVERY, ORDER_STATUS.ON_THE_WAY, ORDER_STATUS.SENT, ORDER_STATUS.DELIVERY_PROBLEM].includes(value) || /הושלם|העמסה|אספקה|בדרך|נשלחה/.test(value)) return 'ready';
+  if (value === ORDER_STATUS.IN_PRODUCTION || /בייצור/.test(value)) return 'production';
+  return 'waiting';
+}
+function orderStatusPanel(o) {
+  const currentStatus = String(o.status || ORDER_STATUS.PENDING_APPROVAL || 'ממתינה לאישור');
+  const stage = orderStatusStage(currentStatus);
+  if (stage === 'cancelled') return `<div class="order-status-current is-cancelled"><span>מצב נוכחי</span><strong>${escHtml(currentStatus)}</strong></div>`;
+  const stages = [
+    { key: 'waiting', label: 'ממתינה' },
+    { key: 'production', label: 'בייצור' },
+    { key: 'ready', label: 'בוצעה' },
+    { key: 'supplied', label: 'סופקה' },
+  ];
+  const activeIndex = stages.findIndex(item => item.key === stage);
+  return `<div class="order-status-current is-${stage}"><span>מצב נוכחי</span><strong>${escHtml(currentStatus)}</strong></div><div class="order-status-flow" aria-label="התקדמות הזמנה">${stages.map((item, index) => `<div class="order-status-step${index < activeIndex ? ' is-complete' : ''}${index === activeIndex ? ' is-active' : ''}"><i></i><span>${item.label}</span></div>`).join('')}</div>`;
 }
 function urgentLabel(o) {
   return o.priority === 'דחוף'
@@ -1282,9 +1315,6 @@ function focusCommercialContributor(event, itemId) {
 }
 
 function buildDetailHTML(o, pkgs) {
-  const totalItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).length, 0);
-  const reviewItems = (o.pallets || []).reduce((sum, p) => sum + (p.items || []).filter(item => needsItemReview(item)).length, 0);
-  const totalPallets = (o.pallets || []).length;
   const driverNotes = visibleOrderNote(o.driver_notes);
 
   const hero = `<div class="detail-hero">
@@ -1299,12 +1329,7 @@ function buildDetailHTML(o, pkgs) {
     </div>
     <div class="hero-card">
       <div class="hero-title">סטטוס הזמנה</div>
-      <div class="hero-metric" style="margin-top:0">
-        <div class="metric-box"><div class="metric-label">משטחים</div><div class="metric-value">${totalPallets}</div></div>
-        <div class="metric-box"><div class="metric-label">פריטים</div><div class="metric-value">${totalItems}</div></div>
-        <div class="metric-box"><div class="metric-label">דורש בדיקה</div><div class="metric-value" style="color:${reviewItems ? 'var(--warning)' : 'var(--success)'}">${reviewItems}</div></div>
-        <div class="metric-box"><div class="metric-label">עדיפות</div><div class="metric-value">${escHtml(o.priority || 'רגיל')}</div></div>
-      </div>
+      ${orderStatusPanel(o)}
     </div>
   </div>`;
 
