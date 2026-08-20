@@ -317,7 +317,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .pc-print-face{display:grid;grid-template-columns:minmax(0,1fr) 27mm;width:100%;height:100%;background:#fff;direction:ltr;}
 .pc-print-main{display:grid;grid-template-rows:11mm 7mm minmax(0,1fr) 18.25mm;width:100%;height:100%;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
 .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;background:#1a2332;color:#fff;}
-.pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:8px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
+.pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
 .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
 .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
 .pc-print-bottom{display:grid;grid-template-columns:1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
@@ -414,7 +414,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .pc-print-main{display:grid;grid-template-rows:11mm 7mm minmax(0,1fr) 18.25mm;width:100%;height:100%;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
   .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:13.5px;font-weight:900;line-height:1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .pc-print-head span span{font-size:10.5px!important;}
-  .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:9.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
+  .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
   .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
   .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
   .pc-print-bottom{display:grid;grid-template-columns:1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:13px;font-weight:900;text-align:center;}
