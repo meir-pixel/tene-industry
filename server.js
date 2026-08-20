@@ -221,7 +221,10 @@ const customerPortalAuthLimiter = rateLimit({
 });
 const customerPortalActionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 60,
+  // The browser reality suite exercises many isolated users and status views
+  // against one short-lived server process. Keep production behavior intact
+  // while preventing the harness itself from exhausting the shared IP bucket.
+  limit: process.env.NODE_ENV === 'test' ? 1000 : 60,
   standardHeaders: true,
   legacyHeaders: false,
 });

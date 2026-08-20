@@ -19,6 +19,9 @@
     "test:security": "node test/security-routes.test.js",
     "test:smoke": "node test/app-smoke.test.js",
     "test:status": "node test/status-contracts.test.js",
+    "test:e2e:portal": "node scripts/run-portal-e2e.js",
+    "test:e2e:portal:headed": "node scripts/run-portal-e2e.js --headed",
+    "test:portal:scan": "node scripts/portal-integrity-scan.js",
     "auth:migrate:dry-run": "node scripts/migrate-auth.js",
     "auth:migrate": "node scripts/migrate-auth.js --apply"
   },
@@ -45,6 +48,7 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "mammoth": "^1.12.0",
     "nodemon": "^3.1.0"
   }
