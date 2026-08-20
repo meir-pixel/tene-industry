@@ -23,6 +23,7 @@
   function formatCm(value) { const n = numeric(value, 0); return n > 0 ? (n / 10).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + ' \u05e1\u05f4\u05de' : '-'; }
   function formatMeters(value) { const n = numeric(value, 0); return n > 0 ? (n / 1000).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + ' \u05de\u05f3' : '-'; }
   function jsArg(value) { const n = Number(value); return Number.isFinite(n) && String(value).trim() !== '' ? String(n) : JSON.stringify(String(value)); }
+  function orderLinesGridGuidesHtml() { return '<div class="order-lines-grid-guides" aria-hidden="true">' + '<span></span>'.repeat(9) + '</div>'; }
 
   function setupOrderLinesTable() {
     const container = document.getElementById('palletsContainer');
@@ -37,6 +38,7 @@
     container.parentNode.insertBefore(table, container);
     table.append(container);
     container.prepend(head);
+    container.insertAdjacentHTML('beforeend', orderLinesGridGuidesHtml());
   }
   function injectKbdEntryStyles() {
     if (document.getElementById('kbd-entry-styles')) return;
@@ -1200,7 +1202,8 @@
     const rows = minGetAllVisibleOrderItems();
     const nextNum = rows.length + 1;
     const headerHtml = container.querySelector(':scope > .order-lines-head')?.outerHTML || '';
-    container.innerHTML = headerHtml + (rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState()) + minRenderAddRow(nextNum);
+    const gridGuidesHtml = container.querySelector(':scope > .order-lines-grid-guides')?.outerHTML || orderLinesGridGuidesHtml();
+    container.innerHTML = headerHtml + gridGuidesHtml + (rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState()) + minRenderAddRow(nextNum);
     setTextSafe('itemsCountPill', rows.length + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd');
     setTextSafe('noItemsCount', rows.length);
     if (typeof window.updateSummary === 'function') window.updateSummary();
