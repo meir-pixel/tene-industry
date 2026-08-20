@@ -75,6 +75,7 @@ body[data-page="new"] .order-min-context{grid-column:1 / -1!important;grid-row:2
 body[data-page="new"] .order-min-editor{grid-column:1 / 2!important;grid-row:3!important;width:100%!important}
 body[data-page="new"] .order-min-inspector{grid-column:2 / 3!important;grid-row:3 / span 2!important;width:100%!important}
 body[data-page="new"] .notes-section{grid-column:1 / 2!important;grid-row:4!important}
+@media(max-width:1240px) and (min-width:901px){body[data-page="new"] .main.order-min-page{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"head" "context" "editor" "inspector" "notes"!important}body[data-page="new"] .order-min-editor{grid-column:1 / -1!important;grid-row:3!important}body[data-page="new"] .order-min-inspector{grid-column:1 / -1!important;grid-row:4!important;position:static!important}body[data-page="new"] .notes-section{grid-column:1 / -1!important;grid-row:5!important}}
 @media(max-width:900px){body[data-page="new"] .order-min-header,body[data-page="new"] .order-min-context,body[data-page="new"] .order-min-editor,body[data-page="new"] .order-min-inspector,body[data-page="new"] .notes-section{grid-column:auto!important;grid-row:auto!important;width:100%!important}}
 
 body[data-page="new"] #seOverlay:not(.show){display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
@@ -146,7 +147,7 @@ body[data-page="new"] .order-lines-head{position:sticky!important;top:0!importan
 body[data-page="new"] .order-lines-head>*{justify-content:center!important;text-align:center!important}
 
 /* Scrollable body */
-body[data-page="new"] .order-lines-body{display:block!important;gap:0!important;margin:0!important;padding:0!important;max-height:max(280px,calc(100vh - 320px))!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;scrollbar-gutter:stable!important}
+body[data-page="new"] .order-lines-body{display:block!important;gap:0!important;margin:0!important;padding:0!important;max-height:max(280px,calc(100vh - 320px))!important;overflow-y:auto!important;overflow-x:auto!important;overscroll-behavior:contain!important;scrollbar-gutter:stable!important}
 
 /* Row */
 body[data-page="new"] .order-line-row{height:82px!important;border-bottom:2px solid #9db0c5!important;background:#fff!important;transition:background .1s!important}
