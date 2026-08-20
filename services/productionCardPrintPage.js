@@ -320,7 +320,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:8px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
 .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
 .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
-.pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
+.pc-print-bottom{display:grid;grid-template-columns:1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
 .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
 .pc-print-bottom span:first-child{border-left:0;}
 .pc-print-qr-panel{display:grid;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:transparent;}
@@ -417,7 +417,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:9.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
   .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
   .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
-  .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:13px;font-weight:900;text-align:center;}
+  .pc-print-bottom{display:grid;grid-template-columns:1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:13px;font-weight:900;text-align:center;}
   .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
   .pc-print-bottom span:first-child{border-left:0;}
   .pc-print-qr-panel{display:grid;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:transparent!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
@@ -1079,8 +1079,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-print-ref">'+printRef+'</div>';
   h += '<div class="pc-print-shape">'+shapeSvg+'</div>';
   h += isPileAssembly
-    ? '<div class="pc-print-bottom"><span>L = '+unitLengthCm+' cm</span><span>CAGES '+displayQty+'</span><span>'+wProp+' kg</span></div>'
-    : '<div class="pc-print-bottom"><span>UNIT '+unitLengthCm+' cm</span><span>PCS '+displayQty+'</span><span>TOTAL '+totalLengthCm+' cm</span><span>'+wProp+' kg</span></div>';
+    ? '<div class="pc-print-bottom"><span>L = '+totalLengthCm+' cm</span><span>CAGES '+displayQty+'</span></div>'
+    : '<div class="pc-print-bottom"><span>L = '+totalLengthCm+' cm</span><span>PCS '+displayQty+'</span></div>';
   h += '</div>';
   h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div></div>';
   h += '</div>';
