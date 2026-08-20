@@ -29,7 +29,7 @@ test('order API, A4 and delivery certificate share the computed commercial summa
   const customerId = db.prepare("INSERT INTO customers (name,phone) VALUES ('Summary customer','0500000000')").run().lastInsertRowid;
   const orderId = db.prepare("INSERT INTO orders (order_num,customer_id,channel,status,total_weight) VALUES ('SUMMARY-HTTP-1',?,'משרד','ממתין',10)").run(customerId).lastInsertRowid;
   const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,1,10)').run(orderId).lastInsertRowid;
-  db.prepare(`INSERT INTO items (pallet_id,order_id,shape_name,diameter,segments,total_length_mm,quantity,total_weight,status) VALUES (?,?,'מוט מכופף',12,?,5000,4,10,'ממתין')`)
+  db.prepare(`INSERT INTO items (pallet_id,order_id,shape_name,diameter,segments,total_length_mm,quantity,total_weight,note,status) VALUES (?,?,'מוט מכופף',12,?,5000,4,10,'נוסף ידנית, בעורך הצורות','ממתין')`)
     .run(palletId, orderId, JSON.stringify([{ length_mm: 1000, angle_deg: 90 }, { length_mm: 4000, angle_deg: null }]));
 
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -70,6 +70,7 @@ test('order API, A4 and delivery certificate share the computed commercial summa
   assert.match(a4, /<td>ברזל בניין מעובד<\/td><td>10\.00 קג<\/td>/);
   assert.match(a4, /<td>חיתוך<\/td><td>10\.00 קג<\/td>/);
   assert.doesNotMatch(a4, /חיתוך<\/td><td>[^<]*יח/);
+  assert.doesNotMatch(a4, /נוסף ידנית/);
 
   const deliveryResponse = await request(`/api/orders/${orderId}/delivery-certificate?waste3=0`, { headers });
   const delivery = await deliveryResponse.text();

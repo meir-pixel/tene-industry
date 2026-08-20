@@ -16,6 +16,13 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function isShapeEditorProvenance(note) {
+  const normalized = String(note || '').trim();
+  // This is an internal marker added by the shape editor, not a production
+  // instruction. Older records may include a comma before the editor label.
+  return /^נוסף\s+ידנית(?:[,.·\s]+(?:בעורך|עורך|נערך)\s+הצורות)?\.?$/u.test(normalized);
+}
+
 function formatPrintNumber(value, digits = 2) {
   const n = Number(value);
   if (!Number.isFinite(n)) return digits === 0 ? '0' : '0.00';
@@ -102,7 +109,7 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
     total_weight:   it.total_weight || 0,
     material_grade: it.material_grade || 'B500B',
     struct_element: it.struct_element || '',
-    note:           it.note || '',
+    note:           isShapeEditorProvenance(it.note) ? '' : (it.note || ''),
     pallet_num:     it._palletNum || 1,
     shape_svg:      productionCards.itemShapeSvg(it),
   })));
