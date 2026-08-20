@@ -495,7 +495,7 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=75/);
+  assert.match(index, /shape-editor\.js\?v=76/);
   assert.doesNotMatch(index, /shape-editor\.js\?v=(?:62|63|64|65|66|67)/);
 });
 
@@ -645,6 +645,23 @@ test('manual add item opens the shape editor before creating an empty order row'
   assert.doesNotMatch(addItemBlock[0], /pallet\.items\.push/);
   assert.match(shapeSelectedBlock[0], /pallet\.items\.push\(item\)/);
   assert.match(shapeSelectedBlock[0], /data\.orderItemQuantity/);
+});
+
+test('smooth Ø8 and Ø10 remain distinct saved material specifications without changing geometry', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const quickEntry = fs.readFileSync(path.join(__dirname, '..', 'public', 'new-order-editor.js'), 'utf8');
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const smooth = buildShapeDataContractV2({ family: 'bars', sides: [1200], angles: [], diameter: 8, steelFinish: 'smooth' });
+  const ribbed = buildShapeDataContractV2({ family: 'bars', sides: [1200], angles: [], diameter: 8 });
+
+  assert.match(editor, /'8\|smooth'/);
+  assert.match(editor, /'10\|smooth'/);
+  assert.match(quickEntry, /'8\|smooth'/);
+  assert.equal(smooth.data.diameter, 8);
+  assert.equal(smooth.data.steelFinish, 'smooth');
+  assert.equal(ribbed.data.steelFinish, undefined);
+  assert.equal(smooth.calculated.totalLengthMm, ribbed.calculated.totalLengthMm);
+  assert.equal(smooth.calculated.weightKg, ribbed.calculated.weightKg);
 });
 
 test('a new shape-editor item clears the preceding geometry instead of reusing defaults', () => {

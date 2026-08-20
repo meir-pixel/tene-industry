@@ -15,7 +15,7 @@
 <script src="/display-units.js"></script>
 <script src="/shapeSnapshot.js?v=1"></script>
 <script src="/steelRebarShapes.js?v=1"></script>
-<script src="/shape-editor.js?v=75"></script>
+<script src="/shape-editor.js?v=76"></script>
 <script src="/offline-db.js"></script>
 <script src="/auth-client.js"></script>
 <script src="/nav.js" defer></script>
@@ -3231,9 +3231,10 @@ function openShapeEditor(palletId, itemId) {
     is3d: item.is3d || item.is_3d || contract?.data?.is3d || 0,
     quantity: item.qty || 0,
     diameter: item.diameter || 0,
+    steelFinish: item.steelFinish || item.steel_finish || contract?.data?.steelFinish || contract?.data?.steel_finish || 'ribbed',
     structElement: elementName,
     itemNumber, itemTotal,
-  } : { quantity: item?.qty || 0, diameter: item?.diameter || 0, structElement: elementName, itemNumber, itemTotal });
+  } : { quantity: item?.qty || 0, diameter: item?.diameter || 0, steelFinish: item?.steelFinish || item?.steel_finish || 'ribbed', structElement: elementName, itemNumber, itemTotal });
 }
 
 function shapeSelected(data) {
@@ -3251,6 +3252,7 @@ function shapeSelected(data) {
   item.shapeEmoji  = data.presetEmoji;
   item.family      = data.family || 'bars';
   item.shapeSnapshot = approvedShapeContract(data);
+  item.steelFinish = data.steelFinish || data.data?.steelFinish || 'ribbed';
   const isPileCage = item.shapeSnapshot?.family === 'piles' && item.shapeSnapshot?.shapeType === 'round_pile_cage';
   if (isPileCage) {
     const pile = roundPileCageVisualData(item);
@@ -4065,6 +4067,6 @@ document.getElementById('imgAnalyzeOverlay').addEventListener('click', function(
   if (e.target === this) closeImgModal();
 });
 </script>
-<script src="/new-order-editor.js?v=3"></script>
+<script src="/new-order-editor.js?v=4"></script>
 </body>
 </html>

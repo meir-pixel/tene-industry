@@ -1616,11 +1616,20 @@ function validateShapeContractData(family, data) {
 
 function buildBarsShapeContract(shape) {
   const canonical = canonicalSteelRebarShapes().buildBarsShapeContract(shape || {});
+  // A smooth bar is the same physical diameter for geometry/weight purposes,
+  // but it is a distinct manufacturing/material specification. Keep that fact
+  // in the canonical shape snapshot instead of encoding it in the diameter.
+  const steelFinish = String(shape?.steelFinish || shape?.steel_finish || '').toLowerCase() === 'smooth'
+    ? 'smooth'
+    : 'ribbed';
+  const finishMetadata = steelFinish === 'smooth' ? { steelFinish } : {};
+  const data = { ...canonical.data, ...finishMetadata };
+  const generic = { ...canonical.generic, ...finishMetadata };
   return {
-    data: canonical.data,
+    data,
     calculated: canonical.calculated,
-    generic: canonical.generic,
-    validation: validateShapeContractData('bars', canonical.data),
+    generic,
+    validation: validateShapeContractData('bars', data),
   };
 }
 
@@ -1840,6 +1849,7 @@ function legacyApprovedShapeFields(shape, contract) {
     sides: [...contract.data.sides],
     angles: [...contract.data.angles],
     diameter: contract.data.diameter,
+    ...(contract.data.steelFinish ? { steelFinish: contract.data.steelFinish } : {}),
     is3d: shape?.is3d ? 1 : 0,
     azAngles: shape?.is3d ? (shape.azAngles || []) : null,
     elAngles: shape?.is3d ? (shape.elAngles || []) : null,
@@ -3562,7 +3572,7 @@ class ShapeEditorModal {
         <div class="se-summary-item"><span>אורך בס״מ</span><div><strong id="seBarLength">0</strong><small>ס״מ</small></div></div>
         <div class="se-summary-item"><span>משקל מחושב</span><div><strong id="seTotalWeight">0.00</strong><small>ק״ג</small></div></div>
         <div class="se-summary-item se-quantity-item" style="display:none"><span>כמות</span><div><input id="seQuantityInput" class="se-quantity-input" type="number" min="1" step="1" value="1" onfocus="this.select()" oninput="window._seEditor?._setQuantity(this.value)"><small>יח׳</small></div></div>
-        <div class="se-summary-item" id="seDiameterItem" style="display:none"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)"><option value="0">—</option>${[5.5,6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d=>`<option value="${d}">${d}</option>`).join('')}</select><small>מ״מ</small></div></div>
+        <div class="se-summary-item" id="seDiameterItem" style="display:none"><span>קוטר</span><div><select id="seDiameterSelect" class="se-quantity-input" onchange="window._seEditor?._setDiameter(this.value)"><option value="0">—</option>${[5.5,6,8,'8|smooth',10,'10|smooth',12,14,16,18,20,22,25,28,32,36,40].map(option => { const smooth = String(option).endsWith('|smooth'); const d = String(option).replace('|smooth',''); return `<option value="${option}">${d}${smooth ? ' חלק' : ''}</option>`; }).join('')}</select><small>מ״מ</small></div></div>
         <div class="se-summary-item"><span>כיפופים</span><strong id="seBends">0</strong></div>
       </div>
       <div class="se-foot-actions">
@@ -4269,7 +4279,12 @@ class ShapeEditorModal {
     const qtyInput = document.getElementById('seQuantityInput');
     if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = qty > 0 ? String(qty) : '';
     const diaSelect = document.getElementById('seDiameterSelect');
-    if (diaSelect && document.activeElement !== diaSelect) diaSelect.value = String(this.current.diameter || 0);
+    if (diaSelect && document.activeElement !== diaSelect) {
+      const finish = String(this.current.steelFinish || this.current.steel_finish || '').toLowerCase();
+      diaSelect.value = finish === 'smooth' && [8, 10].includes(Number(this.current.diameter))
+        ? `${this.current.diameter}|smooth`
+        : String(this.current.diameter || 0);
+    }
     const straightLengthInput = document.getElementById('seStraightLengthInput');
     if (straightLengthInput && document.activeElement !== straightLengthInput) {
       const value = Number(this.current.sides?.[0] || 0);
@@ -4299,7 +4314,9 @@ class ShapeEditorModal {
 
   _setDiameter(value) {
     if (!this.current) return;
-    this.current.diameter = Number(value) || 0;
+    const [diameter, finish] = String(value ?? '').split('|');
+    this.current.diameter = Number(diameter) || 0;
+    this.current.steelFinish = finish === 'smooth' ? 'smooth' : 'ribbed';
     const el = document.getElementById('seDiameterSelect');
     if (el) el.classList.toggle('se-invalid', !(this.current.diameter >= 5.5));
     this._updatePreview();

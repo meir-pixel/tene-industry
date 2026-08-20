@@ -987,6 +987,7 @@
 
   function lineContract(item = {}) { return typeof window.itemShapeContract === 'function' ? window.itemShapeContract(item) : null; }
   function lineData(item = {}) { const contract = lineContract(item); const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null; return contract?.data || snapshot?.data || snapshot || {}; }
+  function lineSteelFinish(item = {}) { const data = lineData(item); return String(item.steelFinish || item.steel_finish || data.steelFinish || data.steel_finish || '').toLowerCase() === 'smooth' ? 'smooth' : 'ribbed'; }
   function lineSides(item = {}) { if (typeof window.itemShapeSides === 'function') return window.itemShapeSides(item); const data = lineData(item); if (Array.isArray(item.shapeSides)) return item.shapeSides.map(Number).filter(v => Number.isFinite(v) && v > 0); if (Array.isArray(data.sides)) return data.sides.map(Number).filter(v => Number.isFinite(v) && v > 0); const length = numeric(item.length || item.totalLengthMm || data.lengthMm || data.totalLengthMm, 0); return length > 0 ? [length] : []; }
   function lineAngles(item = {}) { if (typeof window.itemShapeAngles === 'function') return window.itemShapeAngles(item); const data = lineData(item); return Array.isArray(data.angles) ? data.angles.map(Number).filter(Number.isFinite) : []; }
   function lineQty(item = {}) { return Math.max(0, numeric(item.qty ?? item.quantity ?? lineData(item).quantity, 0)); }
@@ -1026,11 +1027,18 @@
   }
 
   function updateLineDiameter(palletId, itemId, select) {
-    const next = Number(select?.value) || 12;
+    const [rawDiameter, rawFinish] = String(select?.value ?? '').split('|');
+    const next = Number(rawDiameter) || 12;
+    const steelFinish = rawFinish === 'smooth' ? 'smooth' : 'ribbed';
     const pallet = (pallets || []).find((entry) => String(entry.id) === String(palletId));
     const item = (pallet?.items || []).find((entry) => String(entry.id) === String(itemId));
     if (!item) return;
-    if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'diameter', next);
+    item.steelFinish = steelFinish;
+    if (item.shapeSnapshot?.data && typeof item.shapeSnapshot.data === 'object') item.shapeSnapshot.data.steelFinish = steelFinish;
+    if (typeof window.updateItem === 'function') {
+      window.updateItem(palletId, itemId, 'diameter', next);
+      window.updateItem(palletId, itemId, 'steelFinish', steelFinish);
+    }
     scheduleDraftAutosave();
   }
 
@@ -1148,7 +1156,12 @@
 
   function renderCompactOrderLine(palletId, item, itemIndex = 0, orderTotalLines = 1) {
     const id = String(item.id); const palletArg = jsArg(palletId); const itemArg = jsArg(id); const qty = lineQty(item); const diameter = lineDiameter(item); const dims = formatLineShapeDims(item); const length = formatLineLength(item); const totalLength = formatLineTotalLength(item); const weight = formatLineWeight(item); const elementName = lineElementName(item); const openCall = 'openShapeEditor(' + palletArg + ',' + itemArg + ')'; const updateQtyCall = 'updateLineQuantity(' + palletArg + ',' + itemArg + ',this)'; const updateElementCall = 'updateLineElementName(' + palletArg + ',' + itemArg + ',this)'; const updateDiamCall = 'updateLineDiameter(' + palletArg + ',' + itemArg + ',this)'; const lineLabel = orderTotalLines > 0 ? (itemIndex + 1) + '/' + orderTotalLines : String(itemIndex + 1);
-    const diaOptions = [5.5,6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d => `<option value="${d}"${d === diameter ? ' selected' : ''}>\u00d8${d}</option>`).join('');
+    const steelFinish = lineSteelFinish(item);
+    const diaOptions = [5.5,6,8,'8|smooth',10,'10|smooth',12,14,16,18,20,22,25,28,32,36,40].map(option => {
+      const raw = String(option); const smooth = raw.endsWith('|smooth'); const d = Number(raw.replace('|smooth', ''));
+      const selected = d === diameter && (smooth ? steelFinish === 'smooth' : steelFinish !== 'smooth');
+      return `<option value="${raw}"${selected ? ' selected' : ''}>\u00d8${d}${smooth ? ' חלק' : ''}</option>`;
+    }).join('');
     const isPileCage = isRoundPileCageLine(item);
     const hasShape = !!(isPileCage || item.shapeId || (item.shapeSides && item.shapeSides.length));
     const emptyDash = '<span class="line-val-empty">\u2014</span>';
