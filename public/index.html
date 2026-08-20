@@ -3153,13 +3153,13 @@ function engineeringRingSketchSvg(item = {}) {
     ? `<path d="M72.8 65.4 Q66.2 53.3 70.5 40.6" fill="none" stroke="#42627b" stroke-width="2" stroke-linecap="round"/>`
     : '';
   const overlapLabel = overlapCm
-    ? `<text x="47" y="79" text-anchor="middle" font-size="8.7" font-family="Heebo,Arial" font-weight="700" fill="#596d7e">חפ׳ ${overlapCm}</text>`
+    ? `<text x="47" y="79" text-anchor="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="700" fill="#596d7e">חפ׳ ${overlapCm}</text>`
     : '';
   return `<svg class="engineering-shape-sketch engineering-ring-sketch" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="סקיצת טבעת">
     <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="#42627b" stroke-width="2"/>
     ${overlap}
     <path d="M${cx - radius} ${cy}H${cx + radius} M${cx - radius} ${cy - 4}V${cy + 4} M${cx + radius} ${cy - 4}V${cy + 4}" fill="none" stroke="#9aaaba" stroke-width="1"/>
-    <text x="${cx}" y="${cy - 7}" text-anchor="middle" font-size="8.7" font-family="Heebo,Arial" font-weight="700" fill="#40566b">Ø${diameterCm}</text>
+    <text x="${cx}" y="${cy - 7}" text-anchor="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="700" fill="#40566b">Ø${diameterCm}</text>
     ${overlapLabel}
   </svg>`;
 }
@@ -3198,7 +3198,7 @@ function engineeringShapeSketchSvg(sides = [], angles = [], sourcePoints = null)
       ny *= -1;
     }
     const distance = 11 + (index % 2) * 2;
-    return `<text x="${(midpoint[0] + nx * distance).toFixed(1)}" y="${(midpoint[1] + ny * distance).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8.7" font-family="Heebo,Arial" font-weight="700" fill="#40566b" stroke="#fff" stroke-width="2.4" paint-order="stroke fill">${orderSketchFormat(sides[index] / 10)}</text>`;
+    return `<text x="${(midpoint[0] + nx * distance).toFixed(1)}" y="${(midpoint[1] + ny * distance).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="700" fill="#40566b" stroke="#fff" stroke-width="2.4" paint-order="stroke fill">${orderSketchFormat(sides[index] / 10)}</text>`;
   }).join('');
   const bendMarks = points.slice(1, -1).map((vertex, index) => {
     const angle = Number(angles[index]);
@@ -3217,7 +3217,7 @@ function engineeringShapeSketchSvg(sides = [], angles = [], sourcePoints = null)
     const bisectorLength = Math.hypot(backX + forwardX, backY + forwardY) || 1;
     const labelX = vertex[0] + ((backX + forwardX) / bisectorLength) * (markerSize + 10);
     const labelY = vertex[1] + ((backY + forwardY) / bisectorLength) * (markerSize + 10);
-    return `<path d="M${start[0].toFixed(1)} ${start[1].toFixed(1)}Q${vertex[0].toFixed(1)} ${vertex[1].toFixed(1)} ${end[0].toFixed(1)} ${end[1].toFixed(1)}" fill="none" stroke="#70869a" stroke-width="1.15" stroke-linecap="round"/><text x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8.7" font-family="Heebo,Arial" font-weight="700" fill="#40566b" stroke="#fff" stroke-width="2.4" paint-order="stroke fill">${orderSketchFormat(angle)}°</text>`;
+    return `<path d="M${start[0].toFixed(1)} ${start[1].toFixed(1)}Q${vertex[0].toFixed(1)} ${vertex[1].toFixed(1)} ${end[0].toFixed(1)} ${end[1].toFixed(1)}" fill="none" stroke="#70869a" stroke-width="1.15" stroke-linecap="round"/><text x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="9.5" font-family="Heebo,Arial" font-weight="700" fill="#40566b" stroke="#fff" stroke-width="2.4" paint-order="stroke fill">${orderSketchFormat(angle)}°</text>`;
   }).join('');
   return `<svg class="engineering-shape-sketch" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="סקיצת צורה"><path d="${path}" fill="none" stroke="#42627b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>${bendMarks}${sideLabels}</svg>`;
 }

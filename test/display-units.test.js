@@ -22,11 +22,11 @@ test('only the steel diameter formatter retains millimeters', () => {
   assert.equal(units.formatSteelDiameterMm(''), '—');
 });
 
-test('new-order projection shows unit and aggregate lengths in centimeters', () => {
+test('new-order projection shows unit length in centimeters and aggregate length in meters', () => {
   assert.match(newOrderSource, /function formatLineLength\(item = \{\}\) \{ return formatCm/);
-  assert.match(newOrderSource, /function formatLineTotalLength\(item = \{\}\) \{ return formatCm/);
+  assert.match(newOrderSource, /function formatLineTotalLength\(item = \{\}\) \{ return formatMeters/);
   assert.match(newOrderSource, /PILE CAGE[\s\S]*?ס״מ[\s\S]*?L [\s\S]*?ס״מ/);
-  assert.doesNotMatch(newOrderSource, /function formatMeters\(/);
+  assert.match(newOrderSource, /function formatMeters\(value\)/);
 });
 
 test('image and intake review fields edit centimeters but preserve canonical millimeters', () => {

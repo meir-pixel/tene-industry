@@ -628,7 +628,7 @@ test('new order item rows render a visible shape preview from length fallback', 
   assert.match(index, /item\.length \?\? item\.totalLengthMm \?\? item\.total_length_mm/);
   assert.match(index, /const sides = itemShapeSides\(item\);/);
   assert.match(index, /const sides = itemShapeSides\(item \|\| \{\}\);/);
-  assert.match(index, /const W = 130, H = 42, pad = 16/);
+  assert.match(index, /const W = 180, H = 96, padX = 28, padY = 22/);
 });
 
 test('manual add item opens the shape editor before creating an empty order row', () => {

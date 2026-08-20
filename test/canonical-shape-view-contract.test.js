@@ -36,7 +36,7 @@ test('portal saved items keep the canonical SVG while draft previews use the sha
   assert.match(portalProjection, /shape_svg: item\.shape_svg \|\| null/);
   assert.match(customer, /item\?\.shape_svg.*includes\('<svg'\).*return item\.shape_svg/);
   assert.match(customer, /IronBendShapeGeometry\?\.ShapeEngineRouter/);
-  assert.match(newOrder, /ShapeEngineRouter\.render\(shape, 132, 92\)/);
+  assert.match(newOrder, /ShapeEngineRouter\.render\(shape, 180, 96/);
 });
 
 test('intake previews use the same special-shape engines without changing their containers', () => {
