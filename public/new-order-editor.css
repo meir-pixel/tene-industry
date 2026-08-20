@@ -129,7 +129,7 @@ body[data-page="new"] .order-min-items .secondary-import-shape,
 body[data-page="new"] .order-min-items .secondary-import{display:inline-flex!important;align-items:center!important;justify-content:center!important}
 
 /* ===== ORDER LINES TABLE ===== */
-body[data-page="new"] .order-lines-table{margin:12px 14px 14px!important;border:1px solid var(--border,#c8d8ea)!important;border-radius:12px!important;background:#fff!important;overflow:hidden!important}
+body[data-page="new"] .order-lines-table{margin:12px 14px 14px!important;border:1px solid #b4c3d4!important;border-radius:12px!important;background:#fff!important;overflow:hidden!important}
 
 /* 9 columns: מס׳ | אלמנט | צורה | קוטר | כמות | אורך | סה״כ | משקל | × */
 body[data-page="new"] .order-lines-head,
@@ -137,19 +137,19 @@ body[data-page="new"] .order-line-row,
 body[data-page="new"] .order-line-add-row{display:grid!important;grid-template-columns:38px minmax(84px,.78fr) minmax(220px,1.85fr) 52px 54px 72px 80px 74px 30px!important;gap:0!important;align-items:stretch!important;box-sizing:border-box!important}
 
 body[data-page="new"] .order-lines-head>*,
-body[data-page="new"] .order-line-row>*{border-right:1px solid var(--border,#dce6f3)!important;padding:0 7px!important;display:flex!important;align-items:center!important;justify-content:center!important;min-width:0!important;box-sizing:border-box!important;border-left:0!important}
+body[data-page="new"] .order-line-row>*{border-right:1px solid #c3cfdd!important;padding:0 7px!important;display:flex!important;align-items:center!important;justify-content:center!important;min-width:0!important;box-sizing:border-box!important;border-left:0!important}
 body[data-page="new"] .order-lines-head>*:last-child,
 body[data-page="new"] .order-line-row>*:last-child{border-right:0!important}
 
 /* Header */
-body[data-page="new"] .order-lines-head{position:sticky!important;top:0!important;z-index:3!important;height:38px!important;background:linear-gradient(180deg,#f0f4fa 0%,#e8eef7 100%)!important;border-bottom:2px solid var(--border,#c8d8ea)!important;color:#3d5470!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important;letter-spacing:0.3px!important}
+body[data-page="new"] .order-lines-head{position:sticky!important;top:0!important;z-index:3!important;height:38px!important;background:linear-gradient(180deg,#f0f4fa 0%,#e8eef7 100%)!important;border-bottom:2px solid #aebed0!important;color:#3d5470!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important;letter-spacing:0.3px!important}
 body[data-page="new"] .order-lines-head>*{justify-content:center!important;text-align:center!important}
 
 /* Scrollable body */
 body[data-page="new"] .order-lines-body{max-height:max(280px,calc(100vh - 320px))!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;scrollbar-gutter:stable!important}
 
 /* Row */
-body[data-page="new"] .order-line-row{height:66px!important;border-bottom:1px solid var(--border,#dce6f3)!important;background:#fff!important;transition:background .1s!important}
+body[data-page="new"] .order-line-row{height:66px!important;border-bottom:1px solid #c5d1df!important;background:#fff!important;transition:background .1s!important}
 body[data-page="new"] .order-lines-body>.order-line-row:last-of-type{border-bottom:0!important}
 body[data-page="new"] .order-lines-body>.order-line-row:nth-of-type(even){background:#fafcff!important}
 body[data-page="new"] .order-line-row:hover{background:#eef4ff!important}
@@ -217,8 +217,8 @@ body[data-page="new"] .line-mobile-meta{display:none!important}
 body[data-page="new"] .order-lines-empty{padding:24px!important;color:var(--text-dim,#64748b)!important;font-size:13px!important;font-weight:800!important;text-align:center!important}
 
 /* שורת הוספה */
-body[data-page="new"] .order-line-add-row{height:34px!important;border-top:1px dashed #c8d8ea!important;background:transparent!important}
-body[data-page="new"] .line-add-btn{grid-column:1!important;height:34px!important;border:0!important;background:transparent!important;color:#4a90d9!important;font-size:11px!important;font-weight:900!important;cursor:pointer!important;font-family:inherit!important;display:flex!important;align-items:center!important;justify-content:center!important;border-right:1px solid #dce6f3!important}
+body[data-page="new"] .order-line-add-row{height:34px!important;border-top:1px solid #c5d1df!important;background:transparent!important}
+body[data-page="new"] .line-add-btn{grid-column:1!important;height:34px!important;border:0!important;background:transparent!important;color:#4a90d9!important;font-size:11px!important;font-weight:900!important;cursor:pointer!important;font-family:inherit!important;display:flex!important;align-items:center!important;justify-content:center!important;border-right:1px solid #c3cfdd!important}
 body[data-page="new"] .line-add-btn:hover{background:#eef4ff!important;color:#1769e0!important}
 
 /* ===== MOBILE ===== */
