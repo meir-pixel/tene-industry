@@ -3198,8 +3198,7 @@ function engineeringShapeSketchSvg(sides = [], angles = [], sourcePoints = null)
       ny *= -1;
     }
     const distance = 11 + (index % 2) * 2;
-    const letter = String.fromCharCode(0x05D0 + (index % 22));
-    return `<text x="${(midpoint[0] + nx * distance).toFixed(1)}" y="${(midpoint[1] + ny * distance).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8.7" font-family="Heebo,Arial" font-weight="700" fill="#40566b" stroke="#fff" stroke-width="2.4" paint-order="stroke fill">${letter} ${orderSketchFormat(sides[index] / 10)}</text>`;
+    return `<text x="${(midpoint[0] + nx * distance).toFixed(1)}" y="${(midpoint[1] + ny * distance).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8.7" font-family="Heebo,Arial" font-weight="700" fill="#40566b" stroke="#fff" stroke-width="2.4" paint-order="stroke fill">${orderSketchFormat(sides[index] / 10)}</text>`;
   }).join('');
   const bendMarks = points.slice(1, -1).map((vertex, index) => {
     const angle = Number(angles[index]);
