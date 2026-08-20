@@ -34,7 +34,8 @@
     head.className = 'order-lines-head';
     head.innerHTML = '<span>\u05de\u05e1\u05f3</span><span>\u05d0\u05dc\u05de\u05e0\u05d8</span><span>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</span><span>\u05e7\u05d5\u05d8\u05e8 <small style="opacity:.7;font-weight:800">\u05de\u05f4\u05de</small></span><span>\u05db\u05de\u05d5\u05ea</span><span class="desktop-only-cell">\u05d0\u05d5\u05e8\u05da <small style="opacity:.7;font-weight:800">\u05e1\u05f4\u05de</small></span><span class="desktop-only-cell">\u05e1\u05d4\u05f4\u05db <small style="opacity:.7;font-weight:800">\u05e1\u05f4\u05de</small></span><span>\u05de\u05e9\u05e7\u05dc</span><span></span>';
     container.parentNode.insertBefore(table, container);
-    table.append(head, container);
+    table.append(container);
+    container.prepend(head);
   }
   function injectKbdEntryStyles() {
     if (document.getElementById('kbd-entry-styles')) return;
@@ -1197,7 +1198,8 @@
     minEnsureDefaultPallet();
     const rows = minGetAllVisibleOrderItems();
     const nextNum = rows.length + 1;
-    container.innerHTML = (rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState()) + minRenderAddRow(nextNum);
+    const headerHtml = container.querySelector(':scope > .order-lines-head')?.outerHTML || '';
+    container.innerHTML = headerHtml + (rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState()) + minRenderAddRow(nextNum);
     setTextSafe('itemsCountPill', rows.length + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd');
     setTextSafe('noItemsCount', rows.length);
     if (typeof window.updateSummary === 'function') window.updateSummary();

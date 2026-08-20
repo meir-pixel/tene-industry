@@ -134,7 +134,7 @@ body[data-page="new"] .order-lines-table{margin:12px 14px 14px!important;border:
 /* 9 columns: מס׳ | אלמנט | צורה | קוטר | כמות | אורך | סה״כ | משקל | × */
 body[data-page="new"] .order-lines-head,
 body[data-page="new"] .order-line-row,
-body[data-page="new"] .order-line-add-row{display:grid!important;grid-template-columns:38px minmax(84px,.78fr) minmax(220px,1.85fr) 52px 54px 72px 80px 74px 30px!important;gap:0!important;align-items:stretch!important}
+body[data-page="new"] .order-line-add-row{display:grid!important;grid-template-columns:38px minmax(84px,.78fr) minmax(220px,1.85fr) 52px 54px 72px 80px 74px 30px!important;gap:0!important;align-items:stretch!important;box-sizing:border-box!important}
 
 body[data-page="new"] .order-lines-head>*,
 body[data-page="new"] .order-line-row>*{border-right:1px solid var(--border,#dce6f3)!important;padding:0 7px!important;display:flex!important;align-items:center!important;justify-content:center!important;min-width:0!important;box-sizing:border-box!important;border-left:0!important}
@@ -142,16 +142,16 @@ body[data-page="new"] .order-lines-head>*:last-child,
 body[data-page="new"] .order-line-row>*:last-child{border-right:0!important}
 
 /* Header */
-body[data-page="new"] .order-lines-head{height:38px!important;background:linear-gradient(180deg,#f0f4fa 0%,#e8eef7 100%)!important;border-bottom:2px solid var(--border,#c8d8ea)!important;color:#3d5470!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important;letter-spacing:0.3px!important}
+body[data-page="new"] .order-lines-head{position:sticky!important;top:0!important;z-index:3!important;height:38px!important;background:linear-gradient(180deg,#f0f4fa 0%,#e8eef7 100%)!important;border-bottom:2px solid var(--border,#c8d8ea)!important;color:#3d5470!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important;letter-spacing:0.3px!important}
 body[data-page="new"] .order-lines-head>*{justify-content:center!important;text-align:center!important}
 
 /* Scrollable body */
-body[data-page="new"] .order-lines-body{max-height:max(280px,calc(100vh - 320px))!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important}
+body[data-page="new"] .order-lines-body{max-height:max(280px,calc(100vh - 320px))!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;scrollbar-gutter:stable!important}
 
 /* Row */
 body[data-page="new"] .order-line-row{height:66px!important;border-bottom:1px solid var(--border,#dce6f3)!important;background:#fff!important;transition:background .1s!important}
-body[data-page="new"] .order-line-row:last-child{border-bottom:0!important}
-body[data-page="new"] .order-line-row:nth-child(even){background:#fafcff!important}
+body[data-page="new"] .order-lines-body>.order-line-row:last-of-type{border-bottom:0!important}
+body[data-page="new"] .order-lines-body>.order-line-row:nth-of-type(even){background:#fafcff!important}
 body[data-page="new"] .order-line-row:hover{background:#eef4ff!important}
 
 /* Draft row (no shape yet) — subtle left accent */
@@ -190,6 +190,14 @@ body[data-page="new"] .line-diameter-select{width:48px!important;height:26px!imp
 body[data-page="new"] .line-qty{width:46px!important;height:30px!important;border:1.5px solid #d0dcea!important;border-radius:7px!important;text-align:center!important;font-weight:950!important;font-size:14px!important;font-family:inherit!important;color:var(--text,#0f234b)!important;background:#f7fafd!important;padding:0!important;box-sizing:border-box!important}
 body[data-page="new"] .line-qty:focus{outline:none!important;border-color:#4a90d9!important;background:#fff!important}
 
+/* Desktop rows behave as one continuous table, not a row of floating input pills. */
+body[data-page="new"] .order-line-row>.line-element,
+body[data-page="new"] .order-line-row>.line-diameter-select,
+body[data-page="new"] .order-line-row>.line-qty{width:100%!important;height:100%!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+body[data-page="new"] .order-line-row>.line-element:focus,
+body[data-page="new"] .order-line-row>.line-diameter-select:focus,
+body[data-page="new"] .order-line-row>.line-qty:focus{outline:2px solid rgba(74,144,217,.62)!important;outline-offset:-2px!important;background:#fff!important;box-shadow:none!important}
+
 /* תאי חישוב */
 body[data-page="new"] .line-length,
 body[data-page="new"] .line-total-length,
@@ -225,9 +233,9 @@ body[data-page="new"] .line-add-btn:hover{background:#eef4ff!important;color:#17
   }
   body[data-page="new"] .order-line-row>*{border-right:0!important;padding:0 3px!important}
   body[data-page="new"] .line-index{grid-area:index!important}
-  body[data-page="new"] .line-element{grid-area:element!important;height:30px!important;width:100%!important}
-  body[data-page="new"] .line-diameter-select{grid-area:diam!important;width:46px!important}
-  body[data-page="new"] .line-qty{grid-area:qty!important;width:46px!important}
+  body[data-page="new"] .order-line-row>.line-element{grid-area:element!important;height:30px!important;width:100%!important;border:1.5px solid #d0dcea!important;border-radius:7px!important;background:#f7fafd!important}
+  body[data-page="new"] .order-line-row>.line-diameter-select{grid-area:diam!important;width:46px!important;height:26px!important;border:1.5px solid #d0dcea!important;border-radius:6px!important;background:#f7fafd!important}
+  body[data-page="new"] .order-line-row>.line-qty{grid-area:qty!important;width:46px!important;height:30px!important;border:1.5px solid #d0dcea!important;border-radius:7px!important;background:#f7fafd!important}
   body[data-page="new"] .line-delete{grid-area:delete!important;width:28px!important;font-size:16px!important}
   body[data-page="new"] .line-shape{grid-area:shape!important;min-height:36px!important}
   body[data-page="new"] .line-shape-sketch{width:100%!important;height:34px!important}
