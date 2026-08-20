@@ -11,8 +11,12 @@ function escapeHtml(value) {
 }
 
 function printableItemNote(note) {
-  if (!note) return '';
-  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
+  const normalized = String(note || '').trim();
+  if (!normalized) return '';
+  // Editor provenance is an internal marker, not an instruction for the
+  // production card.
+  if (/^נוסף ידנית בעורך הצורות\.?$/u.test(normalized)) return '';
+  return isTechnicalRecognitionNote(normalized) ? REVIEW_NOTE_LABEL : normalized;
 }
 
 function itemStructElement(item = {}) {

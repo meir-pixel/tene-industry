@@ -17,8 +17,12 @@ function required(name, value) {
 }
 
 function printableItemNote(note) {
-  if (!note) return '';
-  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
+  const normalized = String(note || '').trim();
+  if (!normalized) return '';
+  // This is an internal provenance marker added by the editor. It is not a
+  // customer or delivery instruction, so it must never appear on documents.
+  if (/^נוסף ידנית בעורך הצורות\.?$/u.test(normalized)) return '';
+  return isTechnicalRecognitionNote(normalized) ? REVIEW_NOTE_LABEL : normalized;
 }
 
 

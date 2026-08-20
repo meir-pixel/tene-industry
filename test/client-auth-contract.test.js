@@ -742,6 +742,18 @@ test('technical OCR metadata does not print on customer-facing documents', () =>
   assert.doesNotMatch(printPage, /note:\s+it\.note\s+\|\|/);
 });
 
+test('internal shape-editor provenance is not printed as an item note', () => {
+  for (const file of [
+    'routes/orderDeliveryCertificate.js',
+    'services/productionCards.js',
+    'services/productionCardPrintPage.js',
+  ]) {
+    const source = read(file);
+    assert.match(source, /נוסף ידנית בעורך הצורות/);
+    assert.match(source, /return '';/);
+  }
+});
+
 
 
 test('delivery certificate summarizes work sections and reuses production card shapes', () => {

@@ -5,8 +5,11 @@ const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine')
 const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
 
 function printableItemNote(note) {
-  if (!note) return '';
-  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
+  const normalized = String(note || '').trim();
+  if (!normalized) return '';
+  // Editor provenance is an internal marker, not a printable production note.
+  if (/^נוסף ידנית בעורך הצורות\.?$/u.test(normalized)) return '';
+  return isTechnicalRecognitionNote(normalized) ? REVIEW_NOTE_LABEL : normalized;
 }
 
 
