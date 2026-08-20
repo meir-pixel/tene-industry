@@ -152,11 +152,11 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .order-status-current.is-ready{background:#eef5ff;border-color:#bfd3ed;}.order-status-current.is-ready strong{color:#1e4f83;}
 .order-status-current.is-supplied{background:#ecfdf5;border-color:#bbf7d0;}.order-status-current.is-supplied strong{color:#166534;}
 .order-status-current.is-cancelled{background:#fef2f2;border-color:#fecaca;}.order-status-current.is-cancelled strong{color:#991b1b;}
-.order-status-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px;}
-.order-status-step{min-width:0;text-align:center;color:#94a3b8;}
-.order-status-step i{display:block;height:4px;border-radius:999px;background:#dbe3ee;margin-bottom:5px;}
-.order-status-step span{display:block;font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.order-status-step.is-complete,.order-status-step.is-active{color:#1e4f83;}.order-status-step.is-complete i{background:#9bb8d6;}.order-status-step.is-active i{background:#2466a4;}
+.order-status-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px;}
+.order-status-metric{min-width:0;background:#f7f9fc;border:1px solid #e1e8f0;border-radius:10px;padding:7px 8px;}
+.order-status-metric-head{display:flex;justify-content:space-between;gap:6px;align-items:baseline;font-size:10px;font-weight:800;color:#526070;}
+.order-status-metric-head b{color:#1a2533;font-size:12px;white-space:nowrap;}.order-status-metric i{display:block;height:4px;border-radius:999px;background:#dbe3ee;margin-top:6px;overflow:hidden;}
+.order-status-metric i::after{content:'';display:block;width:var(--status-pct);height:100%;border-radius:inherit;background:#7599bd;}.order-status-metric.production i::after{background:#d97706;}.order-status-metric.done i::after{background:#2466a4;}.order-status-metric.supplied i::after{background:#1f8a50;}
 .d-section{background:#fff;border:1px solid rgba(2,26,72,0.09);border-radius:16px;padding:16px;
   box-shadow:0 6px 20px rgba(2,26,72,0.05);}
 .d-title{font-size:12px;font-weight:900;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:7px;}
@@ -451,6 +451,7 @@ let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder =
 let orderShapeEditor = null, pendingShapeEdit = null;
 const STATUS_CONTRACT = window.IronBendStatus || {};
 const ORDER_STATUS = STATUS_CONTRACT.ORDER_STATUS || {};
+const ITEM_STATUS = STATUS_CONTRACT.ITEM_STATUS || {};
 const allowedOrderTransitions = STATUS_CONTRACT.allowedOrderTransitions || (() => []);
 const ORDER_ACTION_LABELS = new Map([
   [ORDER_STATUS.APPROVED_WAITING_PRODUCTION, '✓ אשר'],
@@ -565,18 +566,29 @@ function orderStatusStage(status) {
   if (value === ORDER_STATUS.IN_PRODUCTION || /בייצור/.test(value)) return 'production';
   return 'waiting';
 }
+function orderItemStatusKey(item, orderStatus) {
+  if (/סופק|נשלח/.test(String(orderStatus || ''))) return 'supplied';
+  const status = String(item?.status || '').trim();
+  if (status === ITEM_STATUS.DELIVERED || /סופק/.test(status)) return 'supplied';
+  if (status === ITEM_STATUS.DONE || /הושלם/.test(status)) return 'done';
+  if (status === ITEM_STATUS.IN_PRODUCTION || /בייצור/.test(status)) return 'production';
+  return 'waiting';
+}
 function orderStatusPanel(o) {
   const currentStatus = String(o.status || ORDER_STATUS.PENDING_APPROVAL || 'ממתינה לאישור');
   const stage = orderStatusStage(currentStatus);
   if (stage === 'cancelled') return `<div class="order-status-current is-cancelled"><span>מצב נוכחי</span><strong>${escHtml(currentStatus)}</strong></div>`;
+  const items = (o.pallets || []).flatMap(pallet => pallet.items || []);
+  const counts = { waiting: 0, production: 0, done: 0, supplied: 0 };
+  items.forEach(item => { counts[orderItemStatusKey(item, currentStatus)] += 1; });
+  const total = items.length || 1;
   const stages = [
-    { key: 'waiting', label: 'ממתינה' },
+    { key: 'waiting', label: 'ממתין' },
     { key: 'production', label: 'בייצור' },
-    { key: 'ready', label: 'בוצעה' },
-    { key: 'supplied', label: 'סופקה' },
+    { key: 'done', label: 'בוצע' },
+    { key: 'supplied', label: 'סופק' },
   ];
-  const activeIndex = stages.findIndex(item => item.key === stage);
-  return `<div class="order-status-current is-${stage}"><span>מצב נוכחי</span><strong>${escHtml(currentStatus)}</strong></div><div class="order-status-flow" aria-label="התקדמות הזמנה">${stages.map((item, index) => `<div class="order-status-step${index < activeIndex ? ' is-complete' : ''}${index === activeIndex ? ' is-active' : ''}"><i></i><span>${item.label}</span></div>`).join('')}</div>`;
+  return `<div class="order-status-current is-${stage}"><span>מצב נוכחי</span><strong>${escHtml(currentStatus)}</strong></div><div class="order-status-breakdown" aria-label="סטטוס פריטי ההזמנה">${stages.map(item => { const pct = Math.round(counts[item.key] * 100 / total); return `<div class="order-status-metric ${item.key}" style="--status-pct:${pct}%"><div class="order-status-metric-head"><span>${item.label}</span><b>${counts[item.key]} · ${pct}%</b></div><i></i></div>`; }).join('')}</div>`;
 }
 function urgentLabel(o) {
   return o.priority === 'דחוף'
