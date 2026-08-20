@@ -2844,8 +2844,8 @@ function renderPalletHTML(p, idx) {
 // ---- ITEM CARD VIEW ----// ---- ITEM CARD VIEW ----
 let _shapeTarget = null;
 
-// ── Global 3D toggle for item thumbnails ──────────────────────────
-window._itemThumb3D = true; // default: show 3D in thumbnails
+// ── Item thumbnails are engineering sketches, never 3D renders ───
+window._itemThumb3D = false;
 window.toggleThumb3D = function() {
   window._itemThumb3D = !window._itemThumb3D;
   const btn = document.getElementById('thumb3d-btn');
@@ -3103,51 +3103,154 @@ function roundPileCagePreviewSvg(item = {}) {
     <text x="96" y="72" text-anchor="middle" font-size="8" font-weight="800" fill="#102a43">${bars > 0 && d.longitudinalDiameterMm > 0 ? `${bars} × Ø${d.longitudinalDiameterMm}` : '—'} · ${d.spiralDiameterMm > 0 && pitches.length ? `Ø${d.spiralDiameterMm} @ ${pitches.map(value => value / 10).join('/')}cm` : '—'} · ${d.hoopCount > 0 && d.hoopDiameterMm > 0 ? `${d.hoopCount} × Ø${d.hoopDiameterMm}` : '—'}</text>
   </svg>`;
 }
+
+// Order lines are a quick production reference, not a scale drawing.  A
+// compressed scale keeps a 20cm hook visible beside a 5m main leg while the
+// numbers retain the exact dimensions supplied by the shape editor.
+function orderSketchGeometry(sides = [], angles = []) {
+  const lengths = sides.map(Number).filter(value => Number.isFinite(value) && value > 0);
+  if (!lengths.length) return { points: [], lengths: [] };
+  const longest = Math.max(...lengths);
+  const visualLengths = lengths.map((length) => {
+    if (lengths.length === 1) return 120;
+    return 22 + 62 * Math.pow(length / longest, 0.38);
+  });
+  const points = [[0, 0]];
+  let direction = 0;
+  visualLengths.forEach((length, index) => {
+    const previous = points[points.length - 1];
+    const radians = direction * Math.PI / 180;
+    points.push([
+      previous[0] + length * Math.cos(radians),
+      previous[1] + length * Math.sin(radians),
+    ]);
+    const bend = Number(angles[index]);
+    if (index < visualLengths.length - 1 && Number.isFinite(bend)) direction -= (180 - bend);
+  });
+  return { points, lengths };
+}
+
+function orderSketchUnit(from, to) {
+  const dx = to[0] - from[0];
+  const dy = to[1] - from[1];
+  const length = Math.hypot(dx, dy) || 1;
+  return [dx / length, dy / length, length];
+}
+
+function orderSketchFormat(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  const rounded = Math.round(number * 10) / 10;
+  return rounded.toLocaleString('he-IL', { maximumFractionDigits: 1 });
+}
+
+function engineeringRingSketchSvg(item = {}) {
+  const ring = ringFieldsFromShapeData(item);
+  const W = 180, H = 96, cx = 96, cy = 47, radius = 28;
+  const diameterCm = ring.ringDiameterMm > 0 ? orderSketchFormat(ring.ringDiameterMm / 10) : '—';
+  const overlapCm = ring.overlapMm > 0 ? orderSketchFormat(ring.overlapMm / 10) : '';
+  const overlap = ring.overlapMm > 0
+    ? `<path d="M72.8 65.4 Q66.2 53.3 70.5 40.6" fill="none" stroke="#42627b" stroke-width="2" stroke-linecap="round"/>`
+    : '';
+  const overlapLabel = overlapCm
+    ? `<text x="47" y="79" text-anchor="middle" font-size="8.5" font-family="Heebo,Arial" font-weight="700" fill="#596d7e">חפ׳ ${overlapCm}</text>`
+    : '';
+  return `<svg class="engineering-shape-sketch engineering-ring-sketch" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="סקיצת טבעת">
+    <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="#42627b" stroke-width="2"/>
+    ${overlap}
+    <path d="M${cx - radius} ${cy}H${cx + radius} M${cx - radius} ${cy - 4}V${cy + 4} M${cx + radius} ${cy - 4}V${cy + 4}" fill="none" stroke="#9aaaba" stroke-width="1"/>
+    <text x="${cx}" y="${cy - 7}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="700" fill="#40566b">Ø${diameterCm}</text>
+    ${overlapLabel}
+  </svg>`;
+}
+
+function engineeringShapeSketchSvg(sides = [], angles = [], sourcePoints = null) {
+  const suppliedPoints = Array.isArray(sourcePoints) && sourcePoints.length >= 2
+    ? sourcePoints.map(point => [Number(point?.[0]), Number(point?.[1])]).filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
+    : [];
+  const geometry = suppliedPoints.length >= 2 ? { points: suppliedPoints } : orderSketchGeometry(sides, angles);
+  if (geometry.points.length < 2) return '';
+  const W = 180, H = 96, padX = 28, padY = 22;
+  const rawX = geometry.points.map(point => point[0]);
+  const rawY = geometry.points.map(point => point[1]);
+  const minX = Math.min(...rawX), maxX = Math.max(...rawX);
+  const minY = Math.min(...rawY), maxY = Math.max(...rawY);
+  const spanX = Math.max(0.001, maxX - minX), spanY = Math.max(0.001, maxY - minY);
+  const scale = Math.min((W - padX * 2) / spanX, (H - padY * 2) / spanY);
+  const offsetX = padX + ((W - padX * 2) - spanX * scale) / 2;
+  const offsetY = padY + ((H - padY * 2) - spanY * scale) / 2;
+  const points = geometry.points.map(point => [
+    offsetX + (point[0] - minX) * scale,
+    offsetY + (point[1] - minY) * scale,
+  ]);
+  const center = [
+    points.reduce((sum, point) => sum + point[0], 0) / points.length,
+    points.reduce((sum, point) => sum + point[1], 0) / points.length,
+  ];
+  const path = points.map((point, index) => `${index ? 'L' : 'M'}${point[0].toFixed(1)} ${point[1].toFixed(1)}`).join(' ');
+  const sideLabels = points.slice(0, -1).map((point, index) => {
+    const next = points[index + 1];
+    const [ux, uy] = orderSketchUnit(point, next);
+    const midpoint = [(point[0] + next[0]) / 2, (point[1] + next[1]) / 2];
+    let nx = -uy, ny = ux;
+    if (((midpoint[0] + nx - center[0]) * nx) + ((midpoint[1] + ny - center[1]) * ny) < 0) {
+      nx *= -1;
+      ny *= -1;
+    }
+    const distance = 11 + (index % 2) * 2;
+    const letter = String.fromCharCode(0x05D0 + (index % 22));
+    return `<text x="${(midpoint[0] + nx * distance).toFixed(1)}" y="${(midpoint[1] + ny * distance).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8.7" font-family="Heebo,Arial" font-weight="700" fill="#40566b" stroke="#fff" stroke-width="2.4" paint-order="stroke fill">${letter} ${orderSketchFormat(sides[index] / 10)}</text>`;
+  }).join('');
+  const bendMarks = points.slice(1, -1).map((vertex, index) => {
+    const angle = Number(angles[index]);
+    if (!Number.isFinite(angle) || Math.abs(angle - 180) < 0.5) return '';
+    const previous = points[index];
+    const next = points[index + 2];
+    const [backX, backY, beforeLength] = orderSketchUnit(vertex, previous);
+    const [forwardX, forwardY, afterLength] = orderSketchUnit(vertex, next);
+    const markerSize = Math.max(4.5, Math.min(8, Math.min(beforeLength, afterLength) * 0.18));
+    const start = [vertex[0] + backX * markerSize, vertex[1] + backY * markerSize];
+    const end = [vertex[0] + forwardX * markerSize, vertex[1] + forwardY * markerSize];
+    if (Math.abs(angle - 90) < 0.5) {
+      const elbow = [start[0] + forwardX * markerSize, start[1] + forwardY * markerSize];
+      return `<path d="M${start[0].toFixed(1)} ${start[1].toFixed(1)}L${elbow[0].toFixed(1)} ${elbow[1].toFixed(1)}L${end[0].toFixed(1)} ${end[1].toFixed(1)}" fill="none" stroke="#70869a" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    const bisectorLength = Math.hypot(backX + forwardX, backY + forwardY) || 1;
+    const labelX = vertex[0] + ((backX + forwardX) / bisectorLength) * (markerSize + 10);
+    const labelY = vertex[1] + ((backY + forwardY) / bisectorLength) * (markerSize + 10);
+    return `<path d="M${start[0].toFixed(1)} ${start[1].toFixed(1)}Q${vertex[0].toFixed(1)} ${vertex[1].toFixed(1)} ${end[0].toFixed(1)} ${end[1].toFixed(1)}" fill="none" stroke="#70869a" stroke-width="1.15" stroke-linecap="round"/><text x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="8.5" font-family="Heebo,Arial" font-weight="700" fill="#40566b" stroke="#fff" stroke-width="2.4" paint-order="stroke fill">${orderSketchFormat(angle)}°</text>`;
+  }).join('');
+  return `<svg class="engineering-shape-sketch" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="סקיצת צורה"><path d="${path}" fill="none" stroke="#42627b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>${bendMarks}${sideLabels}</svg>`;
+}
+
+function itemPreviewShapeData(item = {}) {
+  const contract = itemShapeContract(item) || approvedShapeContract(item) || (typeof item.shapeSnapshot === 'object' ? item.shapeSnapshot : null);
+  const data = contract?.data || item.data || {};
+  return {
+    ...item,
+    ...data,
+    family: contract?.family || data.family || item.family || 'bars',
+    shapeType: contract?.shapeType || data.shapeType || item.shapeType,
+    specialty: data.specialty || item.specialty,
+  };
+}
+
 function itemPreviewSvg(item, sides, angles) {
   if (isRoundPileCageItem(item)) return roundPileCagePreviewSvg(item);
-  if (isStandaloneRingItem(item) && window.IronBendShapeGeometry?.RingEngine) {
-    const ring = ringFieldsFromShapeData(item);
-    const shape = {
-      shapeType: 'ring', specialty: 'ring', barDiameter: ring.barDiameter,
-      ringDiameter: ring.ringDiameterMm, spiralDiameter: ring.ringDiameterMm,
-      overlap: ring.overlapMm, turns: 1,
-    };
-    return '<svg viewBox="0 0 132 92" width="132" height="92">' + window.IronBendShapeGeometry.RingEngine.render(shape, 132, 92) + '</svg>';
-  }
-  const shapeContract = itemShapeContract(item) || approvedShapeContract(item) || item.shapeSnapshot || null;
-  if ((shapeContract?.family === 'spirals' || item.family === 'spirals') && window.IronBendShapeGeometry?.ShapeEngineRouter) {
-    const spiral = spiralFieldsFromShapeData(item);
-    const shape = {
-      family: 'spirals', shapeType: 'spiral',
-      barDiameter: spiral.barDiameter,
-      spiralDiameter: spiral.spiralDiameterMm,
-      spiralDiameterMm: spiral.spiralDiameterMm,
-      turns: spiral.spiralTurns,
-    };
-    return '<svg viewBox="0 0 132 92" width="132" height="92">' + window.IronBendShapeGeometry.ShapeEngineRouter.render(shape, 132, 92) + '</svg>';
-  }
+  if (isStandaloneRingItem(item)) return engineeringRingSketchSvg(item);
   if (sides.length) {
-    const rotateDegrees = isBenchBarItem(item) ? 180 : 0;
-    if (window._itemThumb3D) return '<svg viewBox="0 0 132 92" width="132" height="92">' + shape3DSVG(sides, angles, 132, 92, item.diameter || 12, { showAxes:false, showDims:true, dark:false, rotateDegrees, azAngles: item.is3d ? (item.azAngles || null) : null, elAngles: item.is3d ? (item.elAngles || []) : [] }) + '</svg>';
-    const W = 130, H = 42, pad = 16;
-    const result = isBenchBarItem(item) && sides.length === 5
-      ? benchBarSVGPath(sides, W, H, pad)
-      : shapeSVGPath(sides, angles, W, H, pad, { rotateDegrees });
-    const pts = result.pts || [];
-    const labels = [];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const mx = (pts[i][0] + pts[i+1][0]) / 2;
-      const my = (pts[i][1] + pts[i+1][1]) / 2;
-      const dx = pts[i+1][0] - pts[i][0], dy = pts[i+1][1] - pts[i][1];
-      const len = Math.sqrt(dx*dx + dy*dy) || 1;
-      const nx = -dy/len * 9, ny = dx/len * 9;
-      const cx = W/2, cy = H/2;
-      const ox = mx + ((mx + nx - cx) * nx + (my + ny - cy) * ny >= 0 ? nx : -nx);
-      const oy = my + ((mx + nx - cx) * nx + (my + ny - cy) * ny >= 0 ? ny : -ny);
-      const lbl = String.fromCharCode(0x05D0 + i) + '=' + Math.round(sides[i]/10);
-      labels.push('<text x="' + ox.toFixed(1) + '" y="' + oy.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8" font-family="Heebo,Arial" font-weight="800" fill="#1a3a5c" stroke="white" stroke-width="2.5" paint-order="stroke fill">' + lbl + '</text>');
-    }
-    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="overflow:visible"><path d="' + result.path + '" stroke="#c9621a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' + labels.join('') + '</svg>';
+    const benchPoints = isBenchBarItem(item) && sides.length === 5 && typeof benchBarSVGPath === 'function'
+      ? benchBarSVGPath(sides, 180, 96, 22).pts
+      : null;
+    return engineeringShapeSketchSvg(sides, angles, benchPoints);
+  }
+  const shape = itemPreviewShapeData(item);
+  if (shape.family === 'spirals' && window.IronBendShapeGeometry?.ShapeEngineRouter) {
+    const spiral = spiralFieldsFromShapeData(item);
+    return '<svg class="engineering-shape-sketch" viewBox="0 0 180 96" width="180" height="96" role="img" aria-label="סקיצת צורה">' + window.IronBendShapeGeometry.ShapeEngineRouter.render({ ...shape, family: 'spirals', shapeType: 'spiral', barDiameter: spiral.barDiameter, spiralDiameter: spiral.spiralDiameterMm, spiralDiameterMm: spiral.spiralDiameterMm, turns: spiral.spiralTurns }, 180, 96, { view: '2d' }) + '</svg>';
+  }
+  if (shape.family !== 'bars' && window.IronBendShapeGeometry?.ShapeEngineRouter) {
+    return '<svg class="engineering-shape-sketch" viewBox="0 0 180 96" width="180" height="96" role="img" aria-label="סקיצת צורה">' + window.IronBendShapeGeometry.ShapeEngineRouter.render(shape, 180, 96, { view: '2d' }) + '</svg>';
   }
   return '<span style="font-size:34px">' + (item.shapeEmoji || '&#8594;') + '</span>';
 }
