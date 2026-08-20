@@ -117,7 +117,7 @@ test('bench preset opens as real 3D and keeps the schedule elevation in every 2D
   assert.ok(interiorDotProduct > 0, 'expected the left bench icon corner to be acute, not obtuse');
   assert.match(editor, /family === 'bench'.*SHAPE_PRESETS\.find\(isBenchBarShape\)/);
   assert.match(editor, /if \(isReal3D\) window\.seSetView\?\.\('3d'\)/);
-  assert.match(editor, /diameter:\s+Number\(preset\.diameter \?\? this\.current\?\.diameter \?\? this\._pendingDiameter/);
+  assert.match(editor, /diameter:\s+isBlankNewEntry \? 0 : \(Number\(preset\.diameter \?\? this\.current\?\.diameter \?\? this\._pendingDiameter/);
   assert.equal(contract.shapeType, 'bench_bar');
   assert.deepEqual(Array.from(contract.data.sides), [280, 170, 300, 170, 280]);
   assert.deepEqual(Array.from(contract.data.angles), [90, 90, 90, 90]);
@@ -495,7 +495,7 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=74/);
+  assert.match(index, /shape-editor\.js\?v=75/);
   assert.doesNotMatch(index, /shape-editor\.js\?v=(?:62|63|64|65|66|67)/);
 });
 
@@ -645,6 +645,22 @@ test('manual add item opens the shape editor before creating an empty order row'
   assert.doesNotMatch(addItemBlock[0], /pallet\.items\.push/);
   assert.match(shapeSelectedBlock[0], /pallet\.items\.push\(item\)/);
   assert.match(shapeSelectedBlock[0], /data\.orderItemQuantity/);
+});
+
+test('a new shape-editor item clears the preceding geometry instead of reusing defaults', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const openStart = editor.indexOf('  open(existingData) {');
+  assert.ok(openStart >= 0, 'expected shape editor open body');
+  const openBlock = editor.slice(openStart, openStart + 5000);
+  assert.match(openBlock, /this\._blankNewEntry = !existingData\?\.presetId/);
+  assert.match(openBlock, /if \(this\._blankNewEntry\) this\.current = null/);
+  assert.match(editor, /const isBlankNewEntry = this\._blankNewEntry === true/);
+  assert.match(editor, /\.map\(value => isBlankNewEntry \? 0 : value\)/);
+  assert.match(editor, /diameter:\s+isBlankNewEntry \? 0/);
+  assert.match(editor, /quantity:\s+isBlankNewEntry \? 0/);
+  assert.match(editor, /straightLengthInput\.value = String\(value\)/);
+  assert.match(editor, /this\.current\.sides\[i\] = Number\.isFinite\(lengthCm\) && lengthCm > 0 \? Math\.round\(lengthCm \* 10\) : 0/);
+  assert.match(editor, /const sidesOk = Array\.isArray\(this\.current\.sides\)/);
 });
 
 test('shape editor keeps true 3D angle fields in sync with visual bends', () => {

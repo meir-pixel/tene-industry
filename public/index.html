@@ -15,7 +15,7 @@
 <script src="/display-units.js"></script>
 <script src="/shapeSnapshot.js?v=1"></script>
 <script src="/steelRebarShapes.js?v=1"></script>
-<script src="/shape-editor.js?v=74"></script>
+<script src="/shape-editor.js?v=75"></script>
 <script src="/offline-db.js"></script>
 <script src="/auth-client.js"></script>
 <script src="/nav.js" defer></script>
@@ -3355,7 +3355,7 @@ function addItem(palletId) {
 function addEmptyRow(palletId) {
   const pallet = pallets.find(p => p.id === palletId);
   if (!pallet) return;
-  const item = { id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' };
+  const item = { id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 0, length: 0, qty: 0, note: '', raw_material_id: 'auto' };
   pallet.items.push(item);
   renderPallets();
 }

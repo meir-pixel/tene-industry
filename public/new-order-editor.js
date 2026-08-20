@@ -189,7 +189,7 @@
     if (!pallets.length) pallets.push({ id: Date.now(), maxWeight: 500, items: [] });
     const pallet = pallets[0];
     if (pallet && !pallet.items.length) {
-      pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' });
+      pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 0, length: 0, qty: 0, note: '', raw_material_id: 'auto' });
     }
     return pallet;
   }
@@ -989,8 +989,8 @@
   function lineData(item = {}) { const contract = lineContract(item); const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null; return contract?.data || snapshot?.data || snapshot || {}; }
   function lineSides(item = {}) { if (typeof window.itemShapeSides === 'function') return window.itemShapeSides(item); const data = lineData(item); if (Array.isArray(item.shapeSides)) return item.shapeSides.map(Number).filter(v => Number.isFinite(v) && v > 0); if (Array.isArray(data.sides)) return data.sides.map(Number).filter(v => Number.isFinite(v) && v > 0); const length = numeric(item.length || item.totalLengthMm || data.lengthMm || data.totalLengthMm, 0); return length > 0 ? [length] : []; }
   function lineAngles(item = {}) { if (typeof window.itemShapeAngles === 'function') return window.itemShapeAngles(item); const data = lineData(item); return Array.isArray(data.angles) ? data.angles.map(Number).filter(Number.isFinite) : []; }
-  function lineQty(item = {}) { return Math.max(1, numeric(item.qty ?? item.quantity ?? lineData(item).quantity, 1)); }
-  function lineDiameter(item = {}) { const data = lineData(item); if (isRoundPileCageLine(item) && typeof window.roundPileCageVisualData === 'function') return numeric(window.roundPileCageVisualData(item).longitudinalDiameterMm, 20); return numeric(item.diameter ?? item.barDiameter ?? data.diameter ?? data.barDiameter ?? 12, 12); }
+  function lineQty(item = {}) { return Math.max(0, numeric(item.qty ?? item.quantity ?? lineData(item).quantity, 0)); }
+  function lineDiameter(item = {}) { const data = lineData(item); if (isRoundPileCageLine(item) && typeof window.roundPileCageVisualData === 'function') return numeric(window.roundPileCageVisualData(item).longitudinalDiameterMm, 20); return numeric(item.diameter ?? item.barDiameter ?? data.diameter ?? data.barDiameter ?? 0, 0); }
   function isLineSpiral(item = {}) { const contract = lineContract(item); return item.family === 'spirals' || contract?.family === 'spirals' || (typeof window.isSpiralOrderItem === 'function' && window.isSpiralOrderItem(item)); }
   function getSpiralFields(item = {}) { if (typeof window.spiralFieldsFromShapeData === 'function') return window.spiralFieldsFromShapeData(item); const data = lineData(item); return { spiralDiameterMm: numeric(item.spiral_diameter_mm || item.spiralDiameterMm || data.spiralDiameterMm || data.diameterMm, 0), spiralTurns: numeric(item.spiral_turns || item.spiralTurns || data.spiralTurns || data.turns, 0), spiralHeightMm: numeric(item.spiral_height_mm || item.spiralHeightMm || data.spiralHeightMm || data.heightMm, 0) }; }
   function isLineRing(item = {}) { const contract = lineContract(item); const data = lineData(item); return contract?.shapeType === 'ring' || data.shapeType === 'ring' || data.specialty === 'ring' || (typeof window.isStandaloneRingItem === 'function' && window.isStandaloneRingItem(item)); }

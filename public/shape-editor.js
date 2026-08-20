@@ -4050,7 +4050,9 @@ class ShapeEditorModal {
   }
 
   _loadPreset(preset) {
-    const sides = Array.isArray(preset.sides) ? [...preset.sides] : [];
+    const isBlankNewEntry = this._blankNewEntry === true;
+    const sides = (Array.isArray(preset.sides) ? [...preset.sides] : [])
+      .map(value => isBlankNewEntry ? 0 : value);
     const angles = Array.isArray(preset.angles) ? [...preset.angles] : [];
     const n = sides.length;
     const isReal3D = preset.is3d === 1 || preset.is3d === true;
@@ -4067,8 +4069,8 @@ class ShapeEditorModal {
       presetEmoji: preset.emoji,
       sides,
       angles,
-      diameter:   Number(preset.diameter ?? this.current?.diameter ?? this._pendingDiameter ?? 0) || 0,
-      quantity:    Math.max(1, Number(this.current?.quantity || this._pendingQuantity || preset.quantity || preset.qty || 1) || 1),
+      diameter:   isBlankNewEntry ? 0 : (Number(preset.diameter ?? this.current?.diameter ?? this._pendingDiameter ?? 0) || 0),
+      quantity:    isBlankNewEntry ? 0 : Math.max(1, Number(this.current?.quantity || this._pendingQuantity || preset.quantity || preset.qty || 1) || 1),
       is3d:        isReal3D ? 1 : 0,
       azAngles:    presetAzAngles,
       elAngles:    presetElAngles,
@@ -4269,9 +4271,15 @@ class ShapeEditorModal {
     const diaSelect = document.getElementById('seDiameterSelect');
     if (diaSelect && document.activeElement !== diaSelect) diaSelect.value = String(this.current.diameter || 0);
     const straightLengthInput = document.getElementById('seStraightLengthInput');
-    if (straightLengthInput && document.activeElement !== straightLengthInput) straightLengthInput.value = String(this.current.sides?.[0] || 1000);
+    if (straightLengthInput && document.activeElement !== straightLengthInput) {
+      const value = Number(this.current.sides?.[0] || 0);
+      straightLengthInput.value = String(value);
+    }
     const straightDiameterInput = document.getElementById('seStraightDiameterInput');
-    if (straightDiameterInput && document.activeElement !== straightDiameterInput) straightDiameterInput.value = String(this.current.diameter || 12);
+    if (straightDiameterInput && document.activeElement !== straightDiameterInput) {
+      const value = Number(this.current.diameter || 0);
+      straightDiameterInput.value = value > 0 ? String(value) : '';
+    }
     const straightQuantityInput = document.getElementById('seStraightQuantityInput');
     if (straightQuantityInput && document.activeElement !== straightQuantityInput) straightQuantityInput.value = String(qty);
     set('seBends', bends);
@@ -4300,7 +4308,8 @@ class ShapeEditorModal {
   _setStraightLength(value) {
     if (!this.current) return;
     // Input is centimeters; sides are stored in millimeters.
-    this.current.sides = [Math.max(1, Math.round((Number(value) || 0) * 10)) || 10];
+    const lengthCm = Number(value);
+    this.current.sides = [Number.isFinite(lengthCm) && lengthCm > 0 ? Math.round(lengthCm * 10) : 0];
     this.current.angles = [];
     this.current.is3d = 0;
     this.current.azAngles = [0];
@@ -5331,7 +5340,8 @@ class ShapeEditorModal {
   _setSide(i, val) {
     if (!this.current) return;
     // Input is centimeters; sides are stored in millimeters.
-    this.current.sides[i] = Math.max(1, Math.round((Number(val) || 0) * 10)) || 10;
+    const lengthCm = Number(val);
+    this.current.sides[i] = Number.isFinite(lengthCm) && lengthCm > 0 ? Math.round(lengthCm * 10) : 0;
     this._updatePreview();
   }
 
@@ -5890,14 +5900,19 @@ class ShapeEditorModal {
     if (this.current.family === 'bars') {
       const diaEl = document.getElementById('seDiameterSelect');
       const qtyEl = document.getElementById('seQuantityInput');
+      const sideInputs = this._sideInputs();
       const diaOk = Number(this.current.diameter) >= 5.5;
       const qtyOk = Math.max(0, Number(this.current.quantity || this.current.qty || 0) || 0) >= 1;
-      if (diaEl && diaEl.offsetParent !== null && (!diaOk || !qtyOk)) {
+      const sidesOk = Array.isArray(this.current.sides)
+        && this.current.sides.length > 0
+        && this.current.sides.every(side => Number(side) > 0);
+      if (diaEl && diaEl.offsetParent !== null && (!diaOk || !qtyOk || !sidesOk)) {
         if (diaEl) diaEl.classList.toggle('se-invalid', !diaOk);
         if (qtyEl) qtyEl.classList.toggle('se-invalid', !qtyOk);
+        sideInputs.forEach((input, index) => input.classList.toggle('se-invalid', Number(this.current.sides?.[index]) <= 0));
         const okBtn = document.getElementById('seOk');
         if (okBtn) { okBtn.classList.add('se-blocked'); setTimeout(() => okBtn.classList.remove('se-blocked'), 900); }
-        const focusEl = !diaOk ? diaEl : qtyEl;
+        const focusEl = !sidesOk ? sideInputs.find((input, index) => Number(this.current.sides?.[index]) <= 0) : !diaOk ? diaEl : qtyEl;
         if (focusEl) focusEl.focus();
         return;
       }
@@ -5968,6 +5983,12 @@ class ShapeEditorModal {
     if (svgWrap)   svgWrap.classList.toggle('grab-mode', is3D);
     this._pendingQuantity = Math.max(0, Number(existingData?.quantity ?? existingData?.qty ?? 0) || 0);
     this._pendingDiameter = Math.max(0, Number(existingData?.diameter ?? existingData?.diameterMm ?? 0) || 0);
+    this._blankNewEntry = !existingData?.presetId
+      && !existingData?.shapeId
+      && !(Array.isArray(existingData?.sides) && existingData.sides.length)
+      && this._pendingQuantity === 0
+      && this._pendingDiameter === 0;
+    if (this._blankNewEntry) this.current = null;
     this._previewRotation = shapePreviewRotation(existingData || {});
     seSyncRotateButton();
     if (existingData?.family === 'mesh' || existingData?.family === 'piles' || existingData?.family === 'spirals') {
