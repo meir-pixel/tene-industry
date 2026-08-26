@@ -553,8 +553,8 @@ function proportionalPrintSidesClient(sides) {
 function drawShape(svgEl, segments) {
   if (!segments || !segments.length) return;
   var sides  = segments.map(function(s){ return s.length_mm; });
-  var visualSides = proportionalPrintSidesClient(sides);
   var angles = segments.map(function(s){ return s.angle_deg; }).slice(0, -1);
+  var visualSides = separateOverlappingSidesClient(proportionalPrintSidesClient(sides), angles);
   var pts = [[0,0]];
   var dir = 0;
   for (var i = 0; i < sides.length; i++) {
@@ -779,6 +779,59 @@ function displayPileLengthCmExact(value) {
   return cm.toFixed(3).replace(/0+$/, '').replace(/\\.$/, '');
 }
 
+
+// כשצלע מאוחרת רצה בדיוק על גבי צלע קודמת (מוט מקופל אחורה על עצמו),
+// הן מצוירות קו-על-קו ואי אפשר להבחין ביניהן בשרטוט.
+function overlappingCoverIndexClient(points, scale) {
+  var EPS = Math.max(1e-9, scale * 0.002);
+  for (var i = 1; i < points.length - 1; i++) {
+    var a = points[i], b = points[i + 1];
+    var dx = b[0] - a[0], dy = b[1] - a[1];
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (!len) continue;
+    dx /= len; dy /= len;
+    for (var j = 0; j < i; j++) {
+      var c = points[j], d = points[j + 1];
+      var ex = d[0] - c[0], ey = d[1] - c[1];
+      var elen = Math.sqrt(ex * ex + ey * ey);
+      if (!elen) continue;
+      ex /= elen; ey /= elen;
+      if (Math.abs(dx * ey - dy * ex) > 0.02) continue;
+      if (Math.abs((c[0] - a[0]) * dy - (c[1] - a[1]) * dx) > EPS) continue;
+      var t0 = (c[0] - a[0]) * dx + (c[1] - a[1]) * dy;
+      var t1 = (d[0] - a[0]) * dx + (d[1] - a[1]) * dy;
+      if (Math.max(t0, t1) <= EPS || Math.min(t0, t1) >= len - EPS) continue;
+      return { covering: i, victim: j };
+    }
+  }
+  return null;
+}
+
+// חישוקים וכל צורה סגורה שחוזרת לנקודת ההתחלה - לא בתחום הכלל הזה.
+function isClosedHoopOutlineClient(points, scale) {
+  if (!points || points.length < 4 || !scale) return false;
+  var first = points[0], last = points[points.length - 1];
+  return Math.sqrt(Math.pow(last[0] - first[0], 2) + Math.pow(last[1] - first[1], 2)) < scale * 0.35;
+}
+
+// קיצור ויזואלי בלבד של הצלע הצמודה לצלע הקצרה שנדרסת, כדי שהשתיים ייפרדו.
+// המידות המודפסות נשענות על sides המקורי ולא מושפעות.
+var OVERLAP_SEPARATION_RATIO = 0.10;
+function separateOverlappingSidesClient(visualSides, angles) {
+  if (!visualSides || visualSides.length < 3) return visualSides;
+  var max = Math.max.apply(null, visualSides.concat([0]));
+  var shapePoints = calcShapePointsClient(visualSides, angles || []);
+  if (isClosedHoopOutlineClient(shapePoints, max)) return visualSides;
+  var hit = overlappingCoverIndexClient(shapePoints, max);
+  if (!hit) return visualSides;
+  var legIndex = hit.victim > 0 ? hit.victim - 1 : hit.victim + 1;
+  if (legIndex < 0 || legIndex >= visualSides.length) return visualSides;
+  var adjusted = visualSides.slice();
+  var leg = adjusted[legIndex];
+  adjusted[legIndex] = Math.max(leg * 0.5, leg - max * OVERLAP_SEPARATION_RATIO);
+  return adjusted;
+}
+
 function calcShapePointsClient(sides, angles) {
   var points = [[0, 0]];
   var direction = 0;
@@ -884,7 +937,9 @@ function sideDimensionSvg(start, end, value, center, distance = 18) {
 
 function angleMarkerSvg(previous, corner, next, angle, center) {
   if (!isPrintableBendAngle(angle)) return '';
-  if (isRightAngleValue(angle)) return rightAngleMarkerSvg(previous, corner, next);
+  // 90° היא ברירת המחדל של כיפוף במוט - לא מסמנים אותה בשרטוט.
+  // בחישוקים הסימון נשמר - שם יש חוק אחר.
+  if (isRightAngleValue(angle)) return '';
   var a = unitVector(corner, previous);
   var b = unitVector(corner, next);
   var p1 = pointAt(corner, a, 13);
@@ -917,12 +972,8 @@ function buildOpenUShapeSVG(segments) {
   s += sideDimensionSvg([left, top], [left, bottom], leftLeg, [midX, midY], 22);
   s += sideDimensionSvg([left, bottom], [right, bottom], bridge, [midX, midY], 20);
   s += sideDimensionSvg([right, bottom], [right, top], rightLeg, [midX, midY], 22);
-  [
-    [[left, top], [left, bottom], [right, bottom]],
-    [[left, bottom], [right, bottom], [right, top]],
-  ].forEach(function(points) {
-    s += rightAngleMarkerSvg(points[0], points[1], points[2]);
-  });
+  // 90° היא ברירת המחדל של כיפוף במוט - לא מסמנים אותה בשרטוט.
+  // בחישוקים הסימון נשמר - שם יש חוק אחר.
   return '<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:100px;overflow:visible">' + s + '</svg>';
 }
 
@@ -984,7 +1035,7 @@ function buildShapeSVG(segments) {
     var W=260, H=140, PAD=46;
     var sides = segments.map(function(s){ return +(s.length_mm||0); });
     var angs  = segments.map(function(s){ return s.angle_deg; });
-    var visualSides = proportionalPrintSidesClient(sides);
+    var visualSides = separateOverlappingSidesClient(proportionalPrintSidesClient(sides), angs);
     var pts = normalizeShapePointsBaseBottomClient(calcShapePointsClient(visualSides, angs));
     var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
     var mnX=Math.min.apply(null,xs), mxX=Math.max.apply(null,xs);

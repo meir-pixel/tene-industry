@@ -249,6 +249,59 @@ function proportionalPrintSides(sides) {
   });
 }
 
+
+// כשצלע מאוחרת רצה בדיוק על גבי צלע קודמת (מוט מקופל אחורה על עצמו),
+// הן מצוירות קו-על-קו ואי אפשר להבחין ביניהן בשרטוט.
+function overlappingCoverIndex(points, scale) {
+  let EPS = Math.max(1e-9, scale * 0.002);
+  for (let i = 1; i < points.length - 1; i++) {
+    let a = points[i], b = points[i + 1];
+    let dx = b[0] - a[0], dy = b[1] - a[1];
+    let len = Math.sqrt(dx * dx + dy * dy);
+    if (!len) continue;
+    dx /= len; dy /= len;
+    for (let j = 0; j < i; j++) {
+      let c = points[j], d = points[j + 1];
+      let ex = d[0] - c[0], ey = d[1] - c[1];
+      let elen = Math.sqrt(ex * ex + ey * ey);
+      if (!elen) continue;
+      ex /= elen; ey /= elen;
+      if (Math.abs(dx * ey - dy * ex) > 0.02) continue;
+      if (Math.abs((c[0] - a[0]) * dy - (c[1] - a[1]) * dx) > EPS) continue;
+      let t0 = (c[0] - a[0]) * dx + (c[1] - a[1]) * dy;
+      let t1 = (d[0] - a[0]) * dx + (d[1] - a[1]) * dy;
+      if (Math.max(t0, t1) <= EPS || Math.min(t0, t1) >= len - EPS) continue;
+      return { covering: i, victim: j };
+    }
+  }
+  return null;
+}
+
+// חישוקים וכל צורה סגורה שחוזרת לנקודת ההתחלה - לא בתחום הכלל הזה.
+function isClosedHoopOutline(points, scale) {
+  if (!points || points.length < 4 || !scale) return false;
+  let first = points[0], last = points[points.length - 1];
+  return Math.sqrt(Math.pow(last[0] - first[0], 2) + Math.pow(last[1] - first[1], 2)) < scale * 0.35;
+}
+
+// קיצור ויזואלי בלבד של הצלע הצמודה לצלע הקצרה שנדרסת, כדי שהשתיים ייפרדו.
+// המידות המודפסות נשענות על sides המקורי ולא מושפעות.
+const OVERLAP_SEPARATION_RATIO = 0.10;
+function separateOverlappingSides(visualSides, angles) {
+  if (!visualSides || visualSides.length < 3) return visualSides;
+  let max = Math.max.apply(null, visualSides.concat([0]));
+  let shapePoints = calcShapePoints(visualSides, angles || []);
+  if (isClosedHoopOutline(shapePoints, max)) return visualSides;
+  let hit = overlappingCoverIndex(shapePoints, max);
+  if (!hit) return visualSides;
+  let legIndex = hit.victim > 0 ? hit.victim - 1 : hit.victim + 1;
+  if (legIndex < 0 || legIndex >= visualSides.length) return visualSides;
+  let adjusted = visualSides.slice();
+  let leg = adjusted[legIndex];
+  adjusted[legIndex] = Math.max(leg * 0.5, leg - max * OVERLAP_SEPARATION_RATIO);
+  return adjusted;
+}
+
 function calcShapePoints(sides, angles) {
   const points = [[0, 0]];
   let direction = 0;
@@ -418,7 +471,9 @@ function sideDimensionSvg(start, end, value, center, distance = 18) {
 
 function angleMarkerSvg(previous, corner, next, angle, center) {
   if (!isPrintableBendAngle(angle)) return '';
-  if (isRightAngle(angle)) return rightAngleMarkerSvg(previous, corner, next);
+  // 90° היא ברירת המחדל של כיפוף במוט - לא מסמנים אותה בשרטוט.
+  // בחישוקים הסימון נשמר - שם יש חוק אחר.
+  if (isRightAngle(angle)) return '';
   const a = unitVector(corner, previous);
   const b = unitVector(corner, next);
   const p1 = pointAt(corner, a, 13);
@@ -708,12 +763,8 @@ function openUShapeSvg(segments) {
   svg += sideDimensionSvg([left, bottom], [right, bottom], bridge, [midX, midY], 20);
   svg += sideDimensionSvg([right, bottom], [right, top], rightLeg, [midX, midY], 22);
 
-  [
-    [[left, top], [left, bottom], [right, bottom]],
-    [[left, bottom], [right, bottom], [right, top]],
-  ].forEach(([previous, corner, next]) => {
-    svg += rightAngleMarkerSvg(previous, corner, next);
-  });
+  // 90° היא ברירת המחדל של כיפוף במוט - לא מסמנים אותה בשרטוט.
+  // בחישוקים הסימון נשמר - שם יש חוק אחר.
 
   return `<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
 }
@@ -852,7 +903,7 @@ function shapeSvg(segmentsRaw, opts = {}) {
 
     const sides = segments.map(segment => Number(segment.length_mm || 0));
     const angles = segments.map(segment => segment.angle_deg);
-    const visualSides = proportionalPrintSides(sides);
+    const visualSides = separateOverlappingSides(proportionalPrintSides(sides), angles);
     const points = normalizeShapePointsBaseBottom(calcShapePoints(visualSides, angles), opts);
 
     const xs = points.map(point => point[0]);

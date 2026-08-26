@@ -1763,7 +1763,7 @@ test('production card renders open U bars as a readable U shape, not a flattened
   assert.ok(points[1][1] > points[0][1], 'expected the long bridge to render as the bottom base');
   assert.match(svg, />190</);
   assert.match(svg, />20</);
-  assert.match(svg, /stroke="#a8b0ba"/);
+  assert.doesNotMatch(svg, /stroke="#a8b0ba"/, '90 is the default bend and is not marked on bars');
   assert.match(svg, /<line x1="42\.0" y1="51\.0" x2="20\.0" y2="51\.0"/);
   assert.match(svg, /<line x1="110\.0" y1="78\.0" x2="110\.0" y2="98\.0"/);
   assert.match(svg, /<line x1="178\.0" y1="51\.0" x2="200\.0" y2="51\.0"/);

@@ -218,7 +218,7 @@ test('production card renderer prefers Shape V2 snapshot segments over legacy it
 });
 
 
-test('production cards mark 90 degree bends with a square marker only (no 90° text)', () => {
+test('production cards leave 90 degree bends unmarked (default) and never print 90° text', () => {
   const item = {
     id: 801,
     shape_name: 'U 90',
@@ -233,7 +233,7 @@ test('production cards mark 90 degree bends with a square marker only (no 90° t
     ]),
   };
   const html = cards.itemCard(item, { order_num: 'HZ-ANGLE-90', customer_name: 'Angle Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
-  assert.equal((html.match(/stroke-linecap="square"/g) || []).length >= 2, true);
+  assert.equal((html.match(/stroke-linecap="square"/g) || []).length, 0, '90 is the default bend and is not marked on bars');
   assert.doesNotMatch(html, /90\u00b0/);
 });
 
@@ -383,7 +383,7 @@ test('production cards rebuild old shape_svg when valid segments have bend label
     ]),
   };
   const html = cards.itemCard(item, { order_num: 'HZ-OLD-SVG', customer_name: 'Old Svg Customer' }, '10-07-2026', industry.REBAR_WEIGHTS || {});
-  assert.match(html, /stroke-linecap="square"/);
+  assert.doesNotMatch(html, /stroke-linecap="square"/, '90 is the default bend and is not marked on bars');
   assert.doesNotMatch(html, /data-old="1"/);
   assert.doesNotMatch(html, />0\u00b0</);
 
@@ -397,6 +397,7 @@ test('production cards rebuild old shape_svg when valid segments have bend label
     industry,
     tryParseJSON,
   });
+  // דף ההדפסה מכיל את קוד הרנדרר עצמו, ושם המחרוזת קיימת עבור חישוקים.
   assert.match(printHtml, /stroke-linecap="square"/);
   assert.doesNotMatch(printHtml, />0\u00b0</);
   assert.match(printHtml, /shapeSvgForCard/);
