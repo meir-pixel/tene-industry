@@ -464,7 +464,7 @@ module.exports = function createOrdersRouter(deps) {
   router.get('/orders', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
     const { status, date, priority } = req.query;
     const page = listPage(req.query, { limit: 100, max: 500 });
-    let sql = `SELECT o.*, c.name as customer_name, c.phone as customer_phone
+    let sql = `SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
                FROM orders o LEFT JOIN customers c ON o.customer_id = c.id`;
     const params = [];
     const where = [];
@@ -478,7 +478,7 @@ module.exports = function createOrdersRouter(deps) {
   });
 
   router.get('/orders/:id', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
-    const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone
+    const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
       FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
     if (!order) return res.status(404).json({ error: 'לא נמצא' });
     const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
@@ -776,7 +776,7 @@ module.exports = function createOrdersRouter(deps) {
         order.id,
       );
 
-      const updated = db.prepare(`SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+      const updated = db.prepare(`SELECT o.*, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email
         FROM orders o LEFT JOIN customers c ON c.id=o.customer_id WHERE o.id=?`).get(order.id);
       const auditReason = correctionReason(req.body?.correction_reason ?? req.body?.correctionReason);
       auditLog('order', order.id, order.order_num, 'order_update', 'order_header', JSON.stringify(before), JSON.stringify(orderHeaderSnapshot(updated)), auditReason, req.auth?.sub || req.userId || null, req.auth?.display_name || null);

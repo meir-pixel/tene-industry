@@ -85,6 +85,31 @@ test('shape editor exposes a visual-only 90-degree rotation control for ambiguou
   assert.ok(Math.abs(longest.dy) > 100, 'expected rotated preview to keep the full shape geometry, not just move labels');
 });
 
+test('shape previews display one centimetre unit contract without changing millimetre geometry', () => {
+  const { ShapeEngineRouter, formatLengthCmFromMm } = loadShapeEditorGeometry().window.IronBendShapeGeometry;
+  const svg = ShapeEngineRouter.render({ family: 'bars', sides: [1010, 300], angles: [90] }, 300, 260);
+
+  assert.equal(formatLengthCmFromMm(1010), '101 ס״מ');
+  assert.equal(formatLengthCmFromMm(305), '30.5 ס״מ');
+  assert.match(svg, />101 ס״מ</);
+  assert.match(svg, />30 ס״מ</);
+  assert.doesNotMatch(svg, />1010</);
+});
+
+test('visual rotations preserve the shape coordinates and never mutate the 3D product model', () => {
+  const { rotatePointListAroundBounds, rotate3DPointsForView } = loadShapeEditorGeometry().window.IronBendShapeGeometry;
+  const twoD = [[0, 0], [1000, 0], [1000, 250]];
+  const threeD = [[0, 0, 0], [1000, 0, 0], [1000, 250, 300]];
+  const rotated2D = rotatePointListAroundBounds(twoD, 37);
+  const rotated3D = rotate3DPointsForView(threeD, 37);
+
+  assert.deepEqual(twoD, [[0, 0], [1000, 0], [1000, 250]]);
+  assert.deepEqual(threeD, [[0, 0, 0], [1000, 0, 0], [1000, 250, 300]]);
+  assert.ok(Math.abs(distance(rotated2D[0], rotated2D[1]) - 1000) < 0.000001);
+  assert.ok(Math.abs(distance(rotated3D[0], rotated3D[1]) - 1000) < 0.000001);
+  assert.equal(rotated3D[2][2], 300);
+});
+
 test('bench preset opens as real 3D and keeps the schedule elevation in every 2D view', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const { buildShapeDataContractV2, calcShapePoints3D, benchBarSVGPath } = loadShapeEditorGeometry();
@@ -137,7 +162,7 @@ test('bench preset opens as real 3D and keeps the schedule elevation in every 2D
   const elevationOutgoing = [elevation[2][0] - elevation[1][0], elevation[2][1] - elevation[1][1]];
   assert.ok(elevationIncoming[0] * elevationOutgoing[0] + elevationIncoming[1] * elevationOutgoing[1] > 0, 'expected the full 2D bench projection to keep the acute left corner');
   assert.ok(elevation[5][0] > elevation[4][0] && elevation[5][1] > elevation[4][1], 'expected the right 28 cm foot to angle outward');
-  assert.match(editor, /isBenchProjection\s*\?\s*benchBarSVGPath\(sides, 300, 260, 38\)/);
+  assert.match(editor, /isBenchProjection\s*\?\s*benchBarSVGPath\(sides, 300, 260, 38, \{ rotateDegrees: this\._previewRotation \|\| 0 \}\)/);
 });
 
 test('production card keeps all five bench segments and the 120 cm cut length', () => {
@@ -190,7 +215,9 @@ test('shape editor supports bend angles from -360 to 360 without quick angle but
   assert.match(editor, /data-angle="\$\{i\}"/);
   assert.match(editor, /min="-360"/);
   assert.match(editor, /max="360"/);
-  assert.match(editor, /Math\.min\(360,\s*Math\.max\(-360,\s*Number\(val\) \|\| 90\)\)/);
+  assert.match(editor, /const rawValue = String\(val \?\? ''\)\.trim\(\);/);
+  assert.match(editor, /if \(!rawValue \|\| !Number\.isFinite\(numeric\)\)/);
+  assert.match(editor, /Math\.min\(360, Math\.max\(-360, numeric\)\)/);
   assert.doesNotMatch(editor, /<div class="se-angle-btns">/);
   assert.doesNotMatch(editor, /data-angle-value/);
 });
@@ -495,7 +522,7 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=76/);
+  assert.match(index, /shape-editor\.js\?v=77/);
   assert.doesNotMatch(index, /shape-editor\.js\?v=(?:62|63|64|65|66|67)/);
 });
 
@@ -676,8 +703,62 @@ test('a new shape-editor item clears the preceding geometry instead of reusing d
   assert.match(editor, /diameter:\s+isBlankNewEntry \? 0/);
   assert.match(editor, /quantity:\s+isBlankNewEntry \? 0/);
   assert.match(editor, /straightLengthInput\.value = String\(value\)/);
-  assert.match(editor, /this\.current\.sides\[i\] = Number\.isFinite\(lengthCm\) && lengthCm > 0 \? Math\.round\(lengthCm \* 10\) : 0/);
+  assert.match(editor, /if \(!raw \|\| !Number\.isFinite\(lengthCm\) \|\| lengthCm <= 0\) \{/);
+  assert.match(editor, /this\.current\.sides\[i\] = Math\.round\(lengthCm \* 10\);/);
   assert.match(editor, /const sidesOk = Array\.isArray\(this\.current\.sides\)/);
+});
+
+test('clearing a dimension while typing keeps the last valid side and angle until the field is committed', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  const attributes = new Map();
+  const input = {
+    setAttribute(name, value) { attributes.set(name, value); },
+    removeAttribute(name) { attributes.delete(name); },
+  };
+  context.document = {
+    querySelector() { return input; },
+    querySelectorAll() { return []; },
+  };
+  const modal = Object.create(ShapeEditorModal.prototype);
+  modal.current = { sides: [1010], angles: [90] };
+  let previewUpdates = 0;
+  modal._updatePreview = () => { previewUpdates += 1; };
+
+  modal._setSide(0, '');
+  modal._setAngle(0, '');
+  assert.deepEqual(Array.from(modal.current.sides), [1010]);
+  assert.deepEqual(Array.from(modal.current.angles), [90]);
+  assert.equal(previewUpdates, 0);
+  assert.equal(attributes.get('aria-invalid'), 'true');
+
+  modal._setSide(0, '101');
+  modal._setAngle(0, '95');
+  assert.deepEqual(Array.from(modal.current.sides), [1010]);
+  assert.deepEqual(Array.from(modal.current.angles), [95]);
+  assert.equal(previewUpdates, 2);
+  assert.equal(attributes.has('aria-invalid'), false);
+});
+
+test('preview rendering is coalesced to one animation frame during fast camera input', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  const frames = [];
+  context.window.requestAnimationFrame = callback => {
+    frames.push(callback);
+    return frames.length;
+  };
+  context.window.cancelAnimationFrame = () => {};
+  const modal = Object.create(ShapeEditorModal.prototype);
+  let renders = 0;
+  modal._renderPreviewNow = () => { renders += 1; };
+
+  modal._updatePreview();
+  modal._updatePreview();
+  modal._updatePreview();
+  assert.equal(frames.length, 1);
+  frames[0]();
+  assert.equal(renders, 1);
 });
 
 test('shape editor keeps true 3D angle fields in sync with visual bends', () => {
@@ -697,8 +778,8 @@ test('ShapeEngineRouter renders ח 35/120/35 with PolylineBarEngine', () => {
   assert.equal(ShapeEngineRouter(shape), PolylineBarEngine);
   assert.match(svg, /data-engine="PolylineBarEngine"/);
   assert.match(svg, /M /);
-  assert.match(svg, />350</);
-  assert.match(svg, />1200</);
+  assert.match(svg, />35 ס״מ</);
+  assert.match(svg, />120 ס״מ</);
   assert.match(svg, />90°</);
 });
 
@@ -720,8 +801,8 @@ test('ShapeEngineRouter renders Mesh 600x250 Ø8@20 as grid with MeshEngine', ()
   assert.match(svg, /data-family="mesh"/);
   assert.match(svg, /data-length="600"/);
   assert.match(svg, /data-width="250"/);
-  assert.match(svg, /data-longitudinal="&#216;8@20"/);
-  assert.match(svg, /data-transverse="&#216;8@20"/);
+  assert.match(svg, /data-longitudinal="Ø8@20 ס״מ"/);
+  assert.match(svg, /data-transverse="Ø8@20 ס״מ"/);
   assert.ok((svg.match(/<line /g) || []).length >= 40, 'expected mesh grid lines');
 });
 
@@ -923,9 +1004,9 @@ test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine
   assert.match(svg, /class="pile-zone-dimension/);
   assert.match(svg, /class="pile-pitch-label"/);
   assert.match(svg, /class="pile-spiral-loop"/);
-  assert.match(svg, /L 2200 cm/);
+  assert.match(svg, /L 2200 ס״מ/);
   assert.match(svg, /D/);
-  assert.match(svg, /Ø8 mm/);
+  assert.match(svg, /Ø8 מ״מ/);
   assert.doesNotMatch(svg, /data-view="3d"/);
 });
 
@@ -1209,12 +1290,12 @@ test('round pile cage elevation is illustrative, keeps tooth spirals readable, a
   const side = svg.match(/<g data-view="side"[\s\S]*?<\/g>/)?.[0] || svg;
   const loopsFor = zone => (svg.match(new RegExp(`class="pile-spiral-loop" data-zone="${zone}"`, 'g')) || []).length;
 
-  assert.match(svg, /L 1200 cm/);
-  assert.match(svg, /A · 60 cm/);
-  assert.match(svg, /B · 300 cm/);
-  assert.match(svg, /C · 840 cm/);
-  assert.match(svg, /B · @10 cm/);
-  assert.match(svg, /C · @20 cm/);
+  assert.match(svg, /L 1200 ס״מ/);
+  assert.match(svg, /A · 60 ס״מ/);
+  assert.match(svg, /B · 300 ס״מ/);
+  assert.match(svg, /C · 840 ס״מ/);
+  assert.match(svg, /B · @10 ס״מ/);
+  assert.match(svg, /C · @20 ס״מ/);
   assert.doesNotMatch(svg, />600<|>3000<|>8400</);
   assert.equal(loopsFor(0), 0, 'no-wrap zone must not draw spiral steel');
   assert.ok(loopsFor(1) > 0 && loopsFor(1) <= 24);
@@ -1329,11 +1410,11 @@ test('round pile cage cross-section shows every bar and one selected spacing con
   assert.equal((centerSvg.match(/class="pile-longitudinal-bar"/g) || []).length, 10);
   assert.equal((centerSvg.match(/class="pile-bent-head-hook"/g) || []).length, 5);
   assert.match(centerSvg, /data-bar-spacing-mode="center"/);
-  assert.match(centerSvg, />C\/C [^<]+ cm</);
-  assert.doesNotMatch(centerSvg, />CLEAR [^<]+ cm</);
+  assert.match(centerSvg, />C\/C [^<]+ ס״מ</);
+  assert.doesNotMatch(centerSvg, />CLEAR [^<]+ ס״מ</);
   assert.match(clearSvg, /data-bar-spacing-mode="clear"/);
-  assert.match(clearSvg, />CLEAR [^<]+ cm</);
-  assert.doesNotMatch(clearSvg, />C\/C [^<]+ cm</);
+  assert.match(clearSvg, />CLEAR [^<]+ ס״מ</);
+  assert.doesNotMatch(clearSvg, />C\/C [^<]+ ס״מ</);
   assert.equal(PileCageEngine.calculate({ ...base, barSpacingDisplayMode: 'clear' }).data.barSpacingDisplayMode, 'clear');
   assert.equal(buildShapeDataContractV2({ ...base, barSpacingDisplayMode: 'clear' }).data.barSpacingDisplayMode, 'clear');
 });

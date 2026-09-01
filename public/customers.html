@@ -1431,6 +1431,7 @@ function renderCustomerOrders(c, orders) {
         '<td>'+fmtDate(o.created_at)+'</td>' +
         '<td style="white-space:nowrap">' +
           '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=print-a4" target="_blank" rel="noopener">PDF \u05d4\u05d6\u05de\u05e0\u05d4</a> ' +
+          '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=print-a4&lang=th" target="_blank" rel="noopener">PDF ไทย</a> ' +
           '<a class="btn-action" href="/order-print.html?id='+o.id+'&kind=delivery-certificate" target="_blank" rel="noopener">\u05ea\u05e2\u05d5\u05d3\u05d4</a>' +
         '</td>' +
       '</tr>';

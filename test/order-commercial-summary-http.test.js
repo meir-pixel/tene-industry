@@ -72,6 +72,16 @@ test('order API, A4 and delivery certificate share the computed commercial summa
   assert.doesNotMatch(a4, /חיתוך<\/td><td>[^<]*יח/);
   assert.doesNotMatch(a4, /נוסף ידנית/);
 
+  const thaiA4Response = await request(`/api/orders/${orderId}/print-a4?lang=th`, { headers });
+  assert.equal(thaiA4Response.status, 200);
+  const thaiA4 = await thaiA4Response.text();
+  assert.match(thaiA4, /<html lang="th" dir="ltr">/);
+  assert.match(thaiA4, /ใบสั่งผลิต – ดัดเหล็กเสริม/);
+  assert.match(thaiA4, /<td>เหล็กเส้นแปรรูป<\/td><td>10\.00 กก\.<\/td>/);
+  assert.match(thaiA4, /<td>ตัด<\/td><td>10\.00 กก\.<\/td>/);
+  assert.match(thaiA4, /Noto Sans Thai/);
+  assert.doesNotMatch(thaiA4, /טופס ייצור – כיפוף ברזל/);
+
   const deliveryResponse = await request(`/api/orders/${orderId}/delivery-certificate?waste3=0`, { headers });
   const delivery = await deliveryResponse.text();
   assert.equal(deliveryResponse.status, 200, delivery);

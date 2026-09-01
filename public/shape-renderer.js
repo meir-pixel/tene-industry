@@ -20,6 +20,25 @@
 (function(global) {
   const NS = 'http://www.w3.org/2000/svg';
 
+  // The shape data contract stores lengths in millimetres. Keep every visual
+  // label in centimetres, matching the editor and the order text around it.
+  function formatLengthCmFromMm(value) {
+    const millimetres = Number(value);
+    if (!Number.isFinite(millimetres)) return '—';
+    if (global.IronBendDisplayUnits?.formatLengthCmFromMm) {
+      return global.IronBendDisplayUnits.formatLengthCmFromMm(millimetres, {
+        maximumFractionDigits: 1,
+        useGrouping: false,
+      });
+    }
+    const centimetres = Math.round(millimetres) / 10;
+    return `${Number(centimetres.toFixed(1)).toLocaleString('he-IL', { maximumFractionDigits: 1, useGrouping: false })} ס״מ`;
+  }
+
+  function dimensionTagWidth(value, min = 44, max = 76) {
+    return Math.max(min, Math.min(max, String(value).length * 6.4 + 16));
+  }
+
   /* ── compute path points ───────────────────────────────────── */
   function computePoints(sides, angles) {
     const pts = [{x:0, y:0}];
@@ -153,10 +172,10 @@
     if (opts.showDimensions) {
       const midX = x + boxW / 2;
       const midY = y + boxH / 2;
-      addShapeText(svg, `${Number(parts.top) / 10}cm`, midX, Math.max(12, y - 12), { fill: '#1a2533', size: '10', weight: '800' });
-      addShapeText(svg, `${Number(parts.bottom) / 10}cm`, midX, Math.min(H - 10, bottom + 14), { fill: '#1a2533', size: '10', weight: '800' });
-      addShapeText(svg, `${Number(parts.left) / 10}cm`, Math.max(20, x - 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
-      addShapeText(svg, `${Number(parts.right) / 10}cm`, Math.min(W - 20, right + 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, formatLengthCmFromMm(parts.top), midX, Math.max(12, y - 12), { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, formatLengthCmFromMm(parts.bottom), midX, Math.min(H - 10, bottom + 14), { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, formatLengthCmFromMm(parts.left), Math.max(20, x - 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
+      addShapeText(svg, formatLengthCmFromMm(parts.right), Math.min(W - 20, right + 24), midY, { fill: '#1a2533', size: '10', weight: '800' });
     }
   }
 
@@ -350,32 +369,20 @@
         let labelAngle = Math.atan2(dy, dx) * 180 / Math.PI;
         if (labelAngle > 90) labelAngle -= 180;
         if (labelAngle < -90) labelAngle += 180;
-        const value = String(Math.round(Number(len) || 0));
-        const tagW = Math.max(28, Math.min(52, value.length * 7 + 14));
-        const letter = String.fromCharCode(65 + i);
+        const value = formatLengthCmFromMm(len);
+        const tagW = dimensionTagWidth(value);
         const lx = mx + nx * 22;
         const ly = my + ny * 22;
         const g = document.createElementNS(NS, 'g');
         g.setAttribute('transform', `translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${labelAngle.toFixed(1)})`);
         g.setAttribute('data-shape-dim-label', String(i));
 
-        const letterText = document.createElementNS(NS, 'text');
-        letterText.setAttribute('x', '0');
-        letterText.setAttribute('y', '-11');
-        letterText.setAttribute('text-anchor', 'middle');
-        letterText.setAttribute('font-size', '9');
-        letterText.setAttribute('font-family', 'Heebo, Arial, sans-serif');
-        letterText.setAttribute('font-weight', '800');
-        letterText.setAttribute('fill', '#475569');
-        letterText.textContent = letter;
-        g.appendChild(letterText);
-
         const rect = document.createElementNS(NS, 'rect');
         rect.setAttribute('x', (-tagW / 2).toFixed(1));
-        rect.setAttribute('y', '-7');
+        rect.setAttribute('y', '-8');
         rect.setAttribute('width', String(tagW));
-        rect.setAttribute('height', '14');
-        rect.setAttribute('rx', '2');
+        rect.setAttribute('height', '16');
+        rect.setAttribute('rx', '3');
         rect.setAttribute('fill', '#ffffff');
         rect.setAttribute('stroke', '#94a3b8');
         rect.setAttribute('stroke-width', '0.8');

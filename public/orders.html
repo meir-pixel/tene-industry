@@ -16,11 +16,11 @@
 <script src="/status-contracts-client.js"></script>
 <script src="/safe-dom.js" defer></script>
 <script src="/nav.js" defer></script>
-<script src="/shape-renderer.js" defer></script>
+<script src="/shape-renderer.js?v=4" defer></script>
 <script src="/rebar-weights.js"></script>
 <script src="/shapeSnapshot.js?v=1"></script>
 <script src="/steelRebarShapes.js?v=1"></script>
-<script src="/shape-editor.js?v=66"></script>
+<script src="/shape-editor.js?v=77"></script>
 <style>
 :root{
   --accent:#c9621a; --accent-light:#e07b39;
@@ -274,7 +274,8 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .is-done{background:rgba(26,122,66,0.15);color:var(--success);}
 .prog-bar{height:3px;background:rgba(0,0,0,0.06);border-radius:2px;margin-top:4px;}
 .prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s;}
-.print-btns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.print-btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.print-action-pair{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;min-width:0;}
 .print-btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;
   justify-content:center;text-decoration:none;border-radius:12px;font-size:14px;font-weight:800;font-family:inherit;color:#fff;
   border:1px solid transparent;box-shadow:0 8px 22px rgba(2,26,72,0.12);transition:transform .16s ease,box-shadow .16s ease;}
@@ -282,6 +283,26 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .print-btn.cards{background:linear-gradient(135deg,#021A48,#17356f) !important;}
 .print-btn.a4{background:linear-gradient(135deg,#1a7a42,#0f5a2f) !important;}
 .print-btn.delivery{background:linear-gradient(135deg,#6d217d,#481652) !important;}
+.send-file-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 12px;border:1px solid #b9c9dd;border-radius:12px;background:#fff;color:#294764;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap;transition:background .16s ease,border-color .16s ease;}
+.send-file-btn:hover{background:#eef5fb;border-color:#7294b6;}
+.send-file-overlay{position:fixed;inset:0;background:rgba(2,26,72,.55);z-index:740;display:none;padding:18px;backdrop-filter:blur(3px);}
+.send-file-overlay.show{display:flex;}
+.send-file-panel{background:#fff;border:1px solid var(--border);border-radius:16px;width:min(560px,100%);margin:auto;box-shadow:0 24px 80px rgba(2,26,72,.3);overflow:hidden;}
+.send-file-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f8fafc;}
+.send-file-title{font-size:18px;font-weight:900;color:var(--text);}
+.send-file-body{padding:16px;display:grid;gap:14px;}
+.send-file-document{border:1px solid #d7e4f1;border-radius:12px;background:#f4f8fc;padding:11px 12px;color:#294764;font-weight:900;}
+.send-file-document small{display:block;margin-top:3px;color:var(--muted);font-size:12px;font-weight:700;}
+.send-file-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.send-file-field{display:flex;flex-direction:column;gap:5px;}
+.send-file-field label{font-size:11px;font-weight:900;color:var(--dim);}
+.send-file-field input{border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-family:inherit;font-size:14px;color:var(--text);background:#fff;direction:ltr;text-align:left;}
+.send-file-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.send-file-action{border:1px solid #cdd9e6;border-radius:11px;background:#fff;color:#1a3856;padding:11px 10px;font-family:inherit;font-weight:900;font-size:13px;cursor:pointer;text-align:right;}
+.send-file-action:hover{background:#eef5fb;border-color:#7294b6;}
+.send-file-action.pdf{background:linear-gradient(135deg,#c9621a,#e07b39);border-color:#c9621a;color:#fff;}
+.send-file-hint{border-top:1px solid var(--border);padding-top:11px;color:var(--muted);font-size:12px;line-height:1.5;}
+.send-file-status{min-height:18px;color:#1a7a42;font-size:12px;font-weight:800;}
 
 @media(max-width:640px){
   .detail-overlay{inset:56px 0 0;padding:0;background:rgba(2,26,72,0.24);}
@@ -299,7 +320,11 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   .item-kpis{grid-template-columns:repeat(2,1fr);}
   .print-btns{flex-direction:column;}
   .print-btns{display:flex;}
+  .print-action-pair{width:100%;}
   .print-btn{justify-content:center;}
+  .send-file-overlay{padding:0;}
+  .send-file-panel{height:auto;max-height:100%;border-radius:0;overflow:auto;}
+  .send-file-grid,.send-file-actions{grid-template-columns:1fr;}
   .commercial-summary-sections{grid-template-columns:1fr;}
   .commercial-breakdown-overlay{padding:0;}
   .commercial-breakdown-panel{height:100%;max-height:100%;border-radius:0;}
@@ -397,6 +422,33 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   </form>
 </div>
 
+<div class="send-file-overlay" id="sendFileOverlay" onclick="closeSendFile(event)">
+  <section class="send-file-panel" aria-labelledby="sendFileTitle">
+    <div class="send-file-head">
+      <div>
+        <div class="send-file-title" id="sendFileTitle">שליחת קובץ PDF</div>
+        <div class="detail-customer" id="sendFileOrderMeta"></div>
+      </div>
+      <button type="button" class="detail-close" onclick="closeSendFilePanel()">✕</button>
+    </div>
+    <div class="send-file-body">
+      <div class="send-file-document" id="sendFileDocument"></div>
+      <div class="send-file-grid">
+        <div class="send-file-field"><label for="sendFilePhone">וואטסאפ / טלפון נמען</label><input id="sendFilePhone" type="tel" autocomplete="tel" placeholder="0500000000"></div>
+        <div class="send-file-field"><label for="sendFileEmail">אימייל נמען</label><input id="sendFileEmail" type="email" autocomplete="email" placeholder="name@example.com"></div>
+      </div>
+      <div class="send-file-actions">
+        <button type="button" class="send-file-action pdf" onclick="openPdfForSending()">📄 פתח שמירה כ‑PDF</button>
+        <button type="button" class="send-file-action" onclick="openWhatsAppForSending()">💬 פתח WhatsApp</button>
+        <button type="button" class="send-file-action" onclick="openEmailForSending()">✉️ פתח מייל</button>
+        <button type="button" class="send-file-action" onclick="copyDocumentName()">📋 העתק שם קובץ</button>
+      </div>
+      <div class="send-file-status" id="sendFileStatus" aria-live="polite"></div>
+      <div class="send-file-hint">הפעולה פותחת את המסמך בחלון נפרד. בחר/י שם <b>שמירה כ‑PDF</b>; לאחר השמירה צרף/י את הקובץ בהודעת WhatsApp או במייל שנפתחו כאן.</div>
+    </div>
+  </section>
+</div>
+
 <div class="edit-overlay" id="correctionReasonOverlay" onclick="closeCorrectionReason(event)">
   <form class="edit-panel" onsubmit="submitCorrectionReason(event)">
     <div class="edit-head"><div class="edit-title">סיבת תיקון לאחר תחילת ייצור</div><button type="button" class="detail-close" onclick="cancelCorrectionReason()">✕</button></div>
@@ -447,8 +499,14 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 </div>
 
 <script>
-let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [];
+let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, currentSendFile = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [];
 let orderShapeEditor = null, pendingShapeEdit = null;
+const PRINT_DOCUMENTS = Object.freeze({
+  'print-cards': { kind: 'print-cards', label: 'כרטיסיות ייצור', fileLabel: 'כרטיסיות-ייצור' },
+  'print-a4': { kind: 'print-a4', label: 'הזמנה A4', fileLabel: 'הזמנה' },
+  'print-a4-th': { kind: 'print-a4', lang: 'th', label: 'הזמנה A4 – תאילנדית', fileLabel: 'הזמנה-תאילנדית' },
+  'delivery-certificate': { kind: 'delivery-certificate', label: 'תעודת משלוח', fileLabel: 'תעודת-משלוח' },
+});
 const STATUS_CONTRACT = window.IronBendStatus || {};
 const ORDER_STATUS = STATUS_CONTRACT.ORDER_STATUS || {};
 const ITEM_STATUS = STATUS_CONTRACT.ITEM_STATUS || {};
@@ -724,6 +782,113 @@ function closeOrderEdit(event) {
 function closeOrderEditPanel() {
   document.getElementById('orderEditOverlay').classList.remove('show');
   orderEditOrder = null;
+}
+
+function printDocumentUrl(orderId, documentKey, options = {}) {
+  const documentInfo = PRINT_DOCUMENTS[documentKey];
+  if (!documentInfo) return '';
+  const params = new URLSearchParams({ id: String(orderId), kind: documentInfo.kind });
+  if (documentInfo.lang) params.set('lang', documentInfo.lang);
+  if (options.autoPrint) params.set('auto_print', '1');
+  return '/order-print.html?' + params.toString();
+}
+
+function orderForDocumentSending(orderId) {
+  if (currentDetailOrder && Number(currentDetailOrder.id) === Number(orderId)) return currentDetailOrder;
+  return allOrders.find(order => Number(order.id) === Number(orderId)) || null;
+}
+
+function closeSendFile(event) {
+  if (event?.target === document.getElementById('sendFileOverlay')) closeSendFilePanel();
+}
+
+function closeSendFilePanel() {
+  document.getElementById('sendFileOverlay').classList.remove('show');
+  currentSendFile = null;
+}
+
+function safeFilePart(value) {
+  return String(value || 'הזמנה').trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-').slice(0, 80) || 'הזמנה';
+}
+
+function sendDocumentFileName() {
+  if (!currentSendFile) return 'order.pdf';
+  return `${safeFilePart(currentSendFile.document.fileLabel)}-${safeFilePart(currentSendFile.order.order_num)}.pdf`;
+}
+
+function setSendFileStatus(message) {
+  document.getElementById('sendFileStatus').textContent = message || '';
+}
+
+function openSendFile(event, orderId, documentKey) {
+  event?.stopPropagation?.();
+  const documentInfo = PRINT_DOCUMENTS[documentKey];
+  const order = orderForDocumentSending(orderId);
+  if (!documentInfo || !order) {
+    alert('לא ניתן להכין מסמך לשליחה כרגע');
+    return;
+  }
+  currentSendFile = { order, document: documentInfo, documentKey };
+  document.getElementById('sendFileDocument').innerHTML = '';
+  const title = document.createElement('div');
+  title.textContent = documentInfo.label;
+  const subtitle = document.createElement('small');
+  subtitle.textContent = `הזמנה ${order.order_num || '—'} · ${order.customer_name || 'ללא לקוח'} · ${sendDocumentFileName()}`;
+  document.getElementById('sendFileDocument').append(title, subtitle);
+  document.getElementById('sendFileOrderMeta').textContent = `הזמנה ${order.order_num || ''}`;
+  document.getElementById('sendFilePhone').value = order.customer_phone || '';
+  document.getElementById('sendFileEmail').value = order.customer_email || '';
+  setSendFileStatus('');
+  document.getElementById('sendFileOverlay').classList.add('show');
+}
+
+function openPdfForSending() {
+  if (!currentSendFile) return;
+  const target = printDocumentUrl(currentSendFile.order.id, currentSendFile.documentKey, { autoPrint: true });
+  window.open(target, '_blank', 'noopener');
+  setSendFileStatus('נפתח מסמך: בחר/י “שמירה כ‑PDF” בחלון ההדפסה, בשם ' + sendDocumentFileName());
+}
+
+function sendFileMessage() {
+  if (!currentSendFile) return '';
+  return `שלום, מצורף קובץ PDF: ${currentSendFile.document.label} עבור הזמנה ${currentSendFile.order.order_num || ''}.`;
+}
+
+function normalizedRecipientPhone() {
+  return String(document.getElementById('sendFilePhone').value || '').replace(/\D/g, '');
+}
+
+function openWhatsAppForSending() {
+  const phone = normalizedRecipientPhone();
+  if (!phone) {
+    setSendFileStatus('יש להזין מספר טלפון לפני פתיחת WhatsApp.');
+    document.getElementById('sendFilePhone').focus();
+    return;
+  }
+  window.open('https://wa.me/' + encodeURIComponent(phone) + '?text=' + encodeURIComponent(sendFileMessage()), '_blank', 'noopener');
+  setSendFileStatus('WhatsApp נפתח. לאחר שמירת ה‑PDF צרף/י את הקובץ לשיחה.');
+}
+
+function openEmailForSending() {
+  const email = String(document.getElementById('sendFileEmail').value || '').trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setSendFileStatus('יש להזין כתובת אימייל תקינה לפני פתיחת מייל.');
+    document.getElementById('sendFileEmail').focus();
+    return;
+  }
+  const subject = currentSendFile ? `${currentSendFile.document.label} – הזמנה ${currentSendFile.order.order_num || ''}` : 'מסמך הזמנה';
+  window.location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(sendFileMessage());
+  setSendFileStatus('חלון המייל נפתח. לאחר שמירת ה‑PDF צרף/י את הקובץ להודעה.');
+}
+
+async function copyDocumentName() {
+  const filename = sendDocumentFileName();
+  try {
+    await navigator.clipboard.writeText(filename);
+    setSendFileStatus('שם הקובץ הועתק: ' + filename);
+  } catch {
+    setSendFileStatus('שם הקובץ: ' + filename);
+  }
 }
 
 function requestCorrectionReason() {
@@ -1347,9 +1512,10 @@ function buildDetailHTML(o, pkgs) {
 
   // ── Print buttons
   const prints = `<div class="print-btns">
-    <a class="print-btn cards" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" rel="noopener">&#128424;&#65039; &#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1493;&#1514; &#1497;&#1497;&#1510;&#1493;&#1512;</a>
-    <a class="print-btn a4" href="/order-print.html?id=${o.id}&kind=print-a4" target="_blank" rel="noopener">&#128196; &#1492;&#1491;&#1508;&#1505;&#1514; A4</a>
-    <a class="print-btn delivery" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" rel="noopener">&#128203; &#1514;&#1506;&#1493;&#1491;&#1514; &#1502;&#1513;&#1500;&#1493;&#1495;</a>
+    <div class="print-action-pair"><a class="print-btn cards" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" rel="noopener">&#128424;&#65039; &#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1493;&#1514; &#1497;&#1497;&#1510;&#1493;&#1512;</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-cards')">📤 שלח קובץ</button></div>
+    <div class="print-action-pair"><a class="print-btn a4" href="/order-print.html?id=${o.id}&kind=print-a4" target="_blank" rel="noopener">&#128196; &#1492;&#1491;&#1508;&#1505;&#1514; A4</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-a4')">📤 שלח קובץ</button></div>
+    <div class="print-action-pair"><a class="print-btn a4" href="/order-print.html?id=${o.id}&kind=print-a4&lang=th" target="_blank" rel="noopener">&#127760; A4 ไทย</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-a4-th')">📤 שלח קובץ</button></div>
+    <div class="print-action-pair"><a class="print-btn delivery" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" rel="noopener">&#128203; &#1514;&#1506;&#1493;&#1491;&#1514; &#1502;&#1513;&#1500;&#1493;&#1495;</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'delivery-certificate')">📤 שלח קובץ</button></div>
   </div>`;
 
   // ── Info

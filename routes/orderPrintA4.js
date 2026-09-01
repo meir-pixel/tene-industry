@@ -29,14 +29,76 @@ function formatPrintNumber(value, digits = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-function commercialLineValue(line) {
-  if (!line) return '0.00 קג';
+const THAI_PRINT_LABELS = Object.freeze({
+  printA4: 'พิมพ์ A4',
+  splitByDiameter: 'แยกแต่ละขนาดเส้นผ่านศูนย์กลางคนละหน้า',
+  order: 'ใบสั่งงาน',
+  items: 'รายการ',
+  productionTitle: 'ใบสั่งผลิต – ดัดเหล็กเสริม',
+  productionSubtitle: 'ใบงานผลิต IronBend',
+  project: 'โครงการ',
+  site: 'สถานที่ / อาคาร',
+  customer: 'ลูกค้า',
+  orderDate: 'วันที่สั่ง',
+  deliveryDate: 'วันที่ส่งมอบ',
+  scanOrderQr: 'QR – เปิดการโหลดใบสั่งงาน',
+  totalItems: 'รายการทั้งหมด',
+  totalWeight: 'น้ำหนักรวม (กก.)',
+  pallets: 'พาเลท',
+  productionWeightSummary: 'สรุปน้ำหนักการผลิต',
+  materialAndProducts: 'วัสดุและสินค้า',
+  cutting: 'ตัด',
+  bending: 'ดัด',
+  spiralProcessing: 'ขึ้นรูปเกลียว',
+  notes: 'หมายเหตุ',
+  workTypeBreakdown: 'รายละเอียดตามประเภทงาน',
+  diameter: 'Ø ขนาด',
+  shape: 'รูปทรง',
+  totalLengthCm: 'L รวม<br>(ซม.)',
+  quantity: 'จำนวน',
+  kg: 'กก.',
+  inspection: 'ตรวจ',
+  printed: 'พิมพ์เมื่อ',
+  signature: 'ลายเซ็น',
+  total: 'รวม',
+  grandTotal: 'รวมทั้งหมด',
+  diameterGroup: 'ขนาด Ø',
+  noCommercialData: 'ไม่มีข้อมูลสรุปการผลิต',
+  commercialSections: {
+    material: 'เหล็กแปรรูป',
+    processing: 'งานแปรรูปเหล็ก',
+    finished_products: 'สินค้าเหล็กสำเร็จรูป',
+  },
+  commercialLines: {
+    processed_rebar_kg: 'เหล็กเส้นแปรรูป',
+    round_wire_coil_kg: 'ลวดกลมม้วน',
+    cutting_kg: 'ตัด',
+    bending_kg: 'ดัด',
+    spiral_processing_kg: 'ขึ้นรูปเหล็กเกลียว (Ø ไม่เกิน 12)',
+    chairs_units: 'เหล็กรอง',
+    rings_units: 'ปลอก / ห่วง',
+    lifting_units: 'หูยก / อุปกรณ์ยก',
+    mesh_kg: 'ตะแกรงเหล็กมาตรฐาน',
+    pile_cages_kg: 'กรงเหล็กเสาเข็ม',
+  },
+});
+
+function commercialLineValue(line, language = 'he') {
+  const thai = language === 'th';
+  if (!line) return thai ? '0.00 กก.' : '0.00 קג';
   return line.unit === 'unit'
-    ? formatPrintNumber(line.value, 0) + ' יח׳'
-    : formatPrintNumber(line.value, 2) + ' קג';
+    ? formatPrintNumber(line.value, 0) + (thai ? ' ชิ้น' : ' יח׳')
+    : formatPrintNumber(line.value, 2) + (thai ? ' กก.' : ' קג');
 }
 
-function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
+function buildA4ProductionSummary({ order, allItems, tryParseJSON, language = 'he' }) {
+  const thai = language === 'th';
+  const localizeSection = section => thai
+    ? (THAI_PRINT_LABELS.commercialSections[section.key] || section.label)
+    : section.label;
+  const localizeLine = line => thai
+    ? (THAI_PRINT_LABELS.commercialLines[line.key] || line.label)
+    : line.label;
   const commercialSummary = buildOrderCommercialSummary(allItems);
   const totals = {
     quantity: allItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
@@ -48,9 +110,9 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
   };
 
   const bucketRows = commercialSummary.sections.map(section => {
-    const rows = section.lines.map(line => '<tr data-commercial-summary-line="' + escapeHtml(line.key) + '"><td>' + escapeHtml(line.label) + '</td><td>' + commercialLineValue(line) + '</td></tr>').join('');
-    return '<tr class="commercial-section-row"><td colspan="2">' + escapeHtml(section.label) + '</td></tr>' + rows;
-  }).join('') || '<tr><td colspan="2">אין נתוני סיכום מסחרי</td></tr>';
+    const rows = section.lines.map(line => '<tr data-commercial-summary-line="' + escapeHtml(line.key) + '"><td>' + escapeHtml(localizeLine(line)) + '</td><td>' + commercialLineValue(line, language) + '</td></tr>').join('');
+    return '<tr class="commercial-section-row"><td colspan="2">' + escapeHtml(localizeSection(section)) + '</td></tr>' + rows;
+  }).join('') || '<tr><td colspan="2">' + (thai ? THAI_PRINT_LABELS.noCommercialData : 'אין נתוני סיכום מסחרי') + '</td></tr>';
 
   const notes = [order.notes, order.general_notes, order.production_notes, order.driver_notes]
     .filter(Boolean)
@@ -74,6 +136,11 @@ module.exports = function createOrderPrintA4Router(deps) {
 
 // ── PRINT A4 ──────────────────────────────────────────────────────
 router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'manager', 'admin']), async (req, res) => {
+  const language = String(req.query.lang || '').toLowerCase() === 'th' ? 'th' : 'he';
+  const thai = language === 'th';
+  const label = (key, hebrew) => thai ? (THAI_PRINT_LABELS[key] || hebrew) : hebrew;
+  const textDirection = thai ? 'ltr' : 'rtl';
+  const totalTextAlign = thai ? 'left' : 'right';
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone,
       p.name as project_name, COALESCE(cs.name, legacy_site.name) as site_name
     FROM orders o
@@ -121,7 +188,7 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
   const splitByDiameter = String(req.query.split_by_diameter || '') === '1';
   const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const totalWeight  = (order.total_weight || 0).toFixed(1);
-  const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON });
+  const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON, language });
   // The order QR opens the live production sheet first. That sheet shows the
   // server-derived state of every production card and hands off to the
   // warehouse's explicit loading confirmation only when the user chooses it.
@@ -140,14 +207,14 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="${language}" dir="${textDirection}">
 <head>
 <meta charset="UTF-8">
-<title>הדפסת A4 – ${order.order_num}</title>
+<title>${label('printA4', 'הדפסת A4')} – ${order.order_num}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&family=Noto+Sans+Thai:wght@400;700;900&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direction:rtl;padding:14px;}
+body{font-family:${thai ? "'Noto Sans Thai','Leelawadee UI',Tahoma,Arial,sans-serif" : "'Heebo',Arial,sans-serif"};background:#f5f5f5;color:#1a2332;direction:${textDirection};padding:14px;}
 
 /* Screen toolbar */
 .no-print{margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
@@ -229,6 +296,11 @@ tbody.diam-group .group-sub td{background:#eef2f7;color:#1a2332;font-weight:900;
 tbody.diam-split{break-before:page;page-break-before:always;}
 tbody.diam-split.first{break-before:auto;page-break-before:auto;}
 tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
+body[data-print-language="th"] .hdr-right{text-align:right;}
+body[data-print-language="th"] .prod-breakdown td:last-child{direction:ltr;text-align:right;}
+body[data-print-language="th"] .prod-breakdown .commercial-section-row td{text-align:left;direction:ltr;}
+body[data-print-language="th"] .note-row td{text-align:left!important;}
+body[data-print-language="th"] tbody.diam-group .group-head td{text-align:left;}
 
 @media print{
   body{background:#fff;padding:0;}
@@ -239,15 +311,16 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
 }
 </style>
 </head>
-<body>
+<body data-print-language="${language}">
 
 <div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ הדפס A4</button>
+  <button class="btn-print" onclick="window.print()">🖨️ ${label('printA4', 'הדפס A4')}</button>
+  <button class="btn-print" onclick="switchPrintLanguage('${thai ? 'he' : 'th'}')">${thai ? 'עברית' : 'ไทย'}</button>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#1a2332;cursor:pointer;">
     <input type="checkbox" ${splitByDiameter ? 'checked' : ''} onchange="toggleDiamSplit(this)">
-    כל קוטר בעמוד נפרד
+    ${label('splitByDiameter', 'כל קוטר בעמוד נפרד')}
   </label>
-  <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${safeCustomer} · ${allItems.length} פריטים</span>
+  <span style="font-size:13px;color:#555;">${label('order', 'הזמנה')} ${order.order_num} · ${safeCustomer} · ${allItems.length} ${label('items', 'פריטים')}</span>
 </div>
 
 <div class="page">
@@ -255,44 +328,44 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
   <div class="hdr">
     <img class="hdr-logo" src="/brand/tene-pdf-logo.jpg" alt="TENA">
     <div class="hdr-main">
-      <div class="hdr-title">טופס ייצור – כיפוף ברזל</div>
-      <div class="hdr-sub">IronBend Production Sheet</div>
-      <div class="hdr-meta">פרויקט: <b>${productionSummary.project}</b> · אתר / בניין: <b>${productionSummary.site}</b></div>
+      <div class="hdr-title">${label('productionTitle', 'טופס ייצור – כיפוף ברזל')}</div>
+      <div class="hdr-sub">${label('productionSubtitle', 'IronBend Production Sheet')}</div>
+      <div class="hdr-meta">${label('project', 'פרויקט')}: <b>${productionSummary.project}</b> · ${label('site', 'אתר / בניין')}: <b>${productionSummary.site}</b></div>
     </div>
     <div class="hdr-right">
       <div class="order-num">${order.order_num}</div>
       <div class="hdr-meta">
-        לקוח: <b>${safeCustomer}</b><br>
-        תאריך הזמנה: <b>${printDate}</b><br>
-        תאריך מסירה: <b>${delivDate}</b>
+        ${label('customer', 'לקוח')}: <b>${safeCustomer}</b><br>
+        ${label('orderDate', 'תאריך הזמנה')}: <b>${printDate}</b><br>
+        ${label('deliveryDate', 'תאריך מסירה')}: <b>${delivDate}</b>
       </div>
     </div>
       <div class="order-qr" data-order-url="${fullOrderPath}">
-        <img src="${orderQrDataUrl}" alt="QR – פתיחת העמסת הזמנה">
+        <img src="${orderQrDataUrl}" alt="${label('scanOrderQr', 'QR – פתיחת העמסת הזמנה')}">
       </div>
   </div>
 
   <!-- Summary -->
   <div class="summary">
-    <div class="sum-cell"><div class="sum-label">סה"כ פריטים</div><div class="sum-val">${allItems.length}</div></div>
-    <div class="sum-cell"><div class="sum-label">סה"כ ק"ג</div><div class="sum-val">${totalWeight}</div></div>
-    <div class="sum-cell"><div class="sum-label">משטחים</div><div class="sum-val">${pallets.length}</div></div>
-    <div class="sum-cell"><div class="sum-label">הזמנה</div><div class="sum-val">${order.order_num}</div></div>
+    <div class="sum-cell"><div class="sum-label">${label('totalItems', 'סה"כ פריטים')}</div><div class="sum-val">${allItems.length}</div></div>
+    <div class="sum-cell"><div class="sum-label">${label('totalWeight', 'סה"כ ק"ג')}</div><div class="sum-val">${totalWeight}</div></div>
+    <div class="sum-cell"><div class="sum-label">${label('pallets', 'משטחים')}</div><div class="sum-val">${pallets.length}</div></div>
+    <div class="sum-cell"><div class="sum-label">${label('order', 'הזמנה')}</div><div class="sum-val">${order.order_num}</div></div>
   </div>
   <!-- Production summary -->
   <div class="production-summary">
     <div class="prod-summary-box">
-      <h2>סיכום משקלים לייצור</h2>
+      <h2>${label('productionWeightSummary', 'סיכום משקלים לייצור')}</h2>
       <div class="prod-summary-grid">
-        <div><span>חומר ומוצרים</span><b>${formatPrintNumber(productionSummary.totals.weight, 2)} קג</b></div>
-        <div><span>חיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} קג</b></div>
-        <div><span>כיפוף</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} קג</b></div>
-        <div><span>עיבוד ספירלה</span><b>${formatPrintNumber(productionSummary.totals.spiralWeight, 2)} קג</b></div>
+        <div><span>${label('materialAndProducts', 'חומר ומוצרים')}</span><b>${formatPrintNumber(productionSummary.totals.weight, 2)} ${label('kg', 'קג')}</b></div>
+        <div><span>${label('cutting', 'חיתוך')}</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} ${label('kg', 'קג')}</b></div>
+        <div><span>${label('bending', 'כיפוף')}</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} ${label('kg', 'קג')}</b></div>
+        <div><span>${label('spiralProcessing', 'עיבוד ספירלה')}</span><b>${formatPrintNumber(productionSummary.totals.spiralWeight, 2)} ${label('kg', 'קג')}</b></div>
       </div>
-      <div class="prod-notes"><b>הערות:</b> ${productionSummary.notes}</div>
+      <div class="prod-notes"><b>${label('notes', 'הערות')}:</b> ${productionSummary.notes}</div>
     </div>
     <div class="prod-summary-box">
-      <h2>פירוט לפי סוג עבודה</h2>
+      <h2>${label('workTypeBreakdown', 'פירוט לפי סוג עבודה')}</h2>
       <table class="prod-breakdown"><tbody>${productionSummary.bucketRows}</tbody></table>
     </div>
   </div>
@@ -301,12 +374,12 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
     <thead>
       <tr>
         <th>#</th>
-        <th>⌀ נ'</th>
-        <th>צורה</th>
-        <th>L סה"כ<br>(ס"מ)</th>
-        <th>כמות</th>
-        <th>ק"ג</th>
-        <th>✓</th>
+        <th>${label('diameter', '⌀ נ\'')}</th>
+        <th>${label('shape', 'צורה')}</th>
+        <th>${label('totalLengthCm', 'L סה"כ<br>(ס"מ)')}</th>
+        <th>${label('quantity', 'כמות')}</th>
+        <th>${label('kg', 'ק"ג')}</th>
+        <th>${label('inspection', '✓')}</th>
       </tr>
     </thead>
     <tbody id="tableBody"></tbody>
@@ -314,21 +387,34 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
 
   <!-- Footer -->
   <div class="footer">
-    <div>הודפס: ${printDate} · IronBend</div>
-    <div class="footer-brand">הזמנה ${order.order_num}</div>
-    <div>חתימה: _______________</div>
+    <div>${label('printed', 'הודפס')}: ${printDate} · IronBend</div>
+    <div class="footer-brand">${label('order', 'הזמנה')} ${order.order_num}</div>
+    <div>${label('signature', 'חתימה')}: _______________</div>
   </div>
 </div>
 
 <script>
 var allItems = ${allItemsJson};
 var splitByDiameter = ${splitByDiameter ? 'true' : 'false'};
+var printLabels = ${JSON.stringify({
+  total: label('total', 'סה"כ'),
+  grandTotal: label('grandTotal', 'סה"כ כללי'),
+  diameterGroup: label('diameterGroup', 'קוטר Ø'),
+  items: label('items', 'פריטים'),
+})};
+var totalTextAlign = '${totalTextAlign}';
 
 // window.URL is used explicitly: inline handlers resolve identifiers against
 // document first, where document.URL is a string that shadows the constructor.
 function toggleDiamSplit(input){
   var u = new window.URL(window.location.href);
   u.searchParams.set('split_by_diameter', input.checked ? '1' : '0');
+  window.location.href = u.href;
+}
+
+function switchPrintLanguage(language){
+  var u = new window.URL(window.location.href);
+  u.searchParams.set('lang', language);
   window.location.href = u.href;
 }
 
@@ -362,7 +448,7 @@ function buildFlatTable() {
   var totRow = document.createElement('tr');
   totRow.className = 'totals-row';
   totRow.innerHTML =
-    '<td colspan="4" style="text-align:right;padding-right:10px!important;">סה"כ</td>'+
+    '<td colspan="4" style="text-align:'+totalTextAlign+';padding-right:10px!important;">'+printLabels.total+'</td>'+
     '<td>'+totalQty+'</td>'+
     '<td>'+totalWt.toFixed(1)+'</td>'+
     '<td></td>';
@@ -397,7 +483,7 @@ function buildTable() {
 
     var head = document.createElement('tr');
     head.className = 'group-head';
-    head.innerHTML = '<td colspan="7">קוטר Ø'+d+' <span class="gh-count">· '+items.length+' פריטים</span></td>';
+    head.innerHTML = '<td colspan="7">'+printLabels.diameterGroup+d+' <span class="gh-count">· '+items.length+' '+printLabels.items+'</span></td>';
     body.appendChild(head);
 
     items.forEach(function(it) {
@@ -417,7 +503,7 @@ function buildTable() {
     var sub = document.createElement('tr');
     sub.className = 'group-sub';
     sub.innerHTML =
-      '<td colspan="4" style="text-align:right;padding-right:10px!important;">סה"כ Ø'+d+'</td>'+
+      '<td colspan="4" style="text-align:'+totalTextAlign+';padding-right:10px!important;">'+printLabels.total+' Ø'+d+'</td>'+
       '<td>'+gQty+'</td>'+
       '<td>'+gWt.toFixed(1)+'</td>'+
       '<td></td>';
@@ -432,7 +518,7 @@ function buildTable() {
     var totRow = document.createElement('tr');
     totRow.className = 'totals-row';
     totRow.innerHTML =
-      '<td colspan="4" style="text-align:right;padding-right:10px!important;">סה"כ כללי</td>'+
+      '<td colspan="4" style="text-align:'+totalTextAlign+';padding-right:10px!important;">'+printLabels.grandTotal+'</td>'+
       '<td>'+totalQty+'</td>'+
       '<td>'+totalWt.toFixed(1)+'</td>'+
       '<td></td>';

@@ -23,6 +23,7 @@
   const params = new URLSearchParams(location.search);
   const id = params.get('id');
   const kind = params.get('kind');
+  const autoPrint = params.get('auto_print') === '1';
   const status = document.getElementById('status');
 
   function fail(message, options = {}){
@@ -69,8 +70,11 @@
       return;
     }
     const html = await response.text();
+    const renderedHtml = autoPrint
+      ? html.replace(/<\/body>\s*<\/html>\s*$/i, '<script>window.setTimeout(function(){window.print();},350);<\\/script></body></html>')
+      : html;
     document.open();
-    document.write(html);
+    document.write(renderedHtml);
     document.close();
   }
 

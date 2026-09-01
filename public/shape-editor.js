@@ -1,4 +1,4 @@
-window.IRONBEND_ASSET_VERSION = "round-pile-cage-quick-entry-v2";
+window.IRONBEND_ASSET_VERSION = "shape-preview-stability-v1";
 // ── REBAR WEIGHTS ─────────────────────────────────────────────────
 function sharedKgPerMeter(diameter) {
   if (window.IronBendRebar?.kgPerMeter) return window.IronBendRebar.kgPerMeter(diameter);
@@ -11,6 +11,76 @@ function displayNumber(value, digits = 2) {
   if (!Number.isFinite(number)) return '—';
   return Number(number.toFixed(Math.max(0, Number(digits) || 0))).toLocaleString('he-IL', {
     maximumFractionDigits: Math.max(0, Number(digits) || 0),
+  });
+}
+
+// Geometry is always stored in millimetres.  The editor, the schedule and
+// production cards all speak centimetres to the operator, so SVG labels must
+// go through one formatter instead of printing the raw model value.
+function formatLengthCmFromMm(value, { withUnit = true, fallback = '—' } = {}) {
+  const millimetres = Number(value);
+  if (!Number.isFinite(millimetres)) return fallback;
+  const centimetres = Math.round(millimetres) / 10;
+  const formatted = Number(centimetres.toFixed(1)).toLocaleString('he-IL', {
+    maximumFractionDigits: 1,
+    useGrouping: false,
+  });
+  return withUnit ? `${formatted} ס״מ` : formatted;
+}
+
+// Mesh and pile form fields are already authored in centimetres. Keep their
+// display contract explicit so a centimetre spacing is never divided again.
+function formatLengthCm(value, options = {}) {
+  const centimetres = Number(value);
+  if (!Number.isFinite(centimetres)) return options.fallback ?? '—';
+  return formatLengthCmFromMm(centimetres * 10, options);
+}
+
+function dimensionTagWidth(value, min = 44, max = 76) {
+  return Math.max(min, Math.min(max, String(value).length * 6.4 + 16));
+}
+
+function normalizeReadableLabelAngle(degrees) {
+  let angle = ((Number(degrees) % 360) + 360) % 360;
+  if (angle > 180) angle -= 360;
+  if (angle > 90) angle -= 180;
+  if (angle < -90) angle += 180;
+  return angle;
+}
+
+function rotatePointListAroundBounds(points, degrees = 0) {
+  const rotation = Number(degrees || 0);
+  if (!rotation || !Array.isArray(points) || points.length < 2) return points;
+  const xs = points.map(point => point[0]);
+  const ys = points.map(point => point[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const radians = rotation * Math.PI / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return points.map(([x, y]) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+  });
+}
+
+// In a true-3D product the view may rotate, but the manufactured XYZ data
+// must not.  Rotate a copy of the camera-space source around its own centre.
+function rotate3DPointsForView(points, degrees = 0) {
+  const rotation = Number(degrees || 0);
+  if (!rotation || !Array.isArray(points) || points.length < 2) return points;
+  const xs = points.map(point => point[0]);
+  const ys = points.map(point => point[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const radians = rotation * Math.PI / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return points.map(([x, y, z]) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos, z];
   });
 }
 
@@ -141,7 +211,7 @@ function isBenchBarShape(shape = {}) {
 function shapePreviewRotation(shape = {}) {
   const explicit = Number(shape?.previewRotation);
   if (Number.isFinite(explicit)) return explicit;
-  return isBenchBarShape(shape) ? 180 : 0;
+  return 0;
 }
 
 // ── GEOMETRY ──────────────────────────────────────────────────────
@@ -180,22 +250,7 @@ function normalizeShapePointsBaseBottom(points, opts = {}) {
   if (bodyY > baseY) {
     rotated = rotated.map(([x, y]) => [x, baseY + (baseY - y)]);
   }
-  const rotateDegrees = Number(opts.rotateDegrees || 0);
-  if (rotateDegrees) {
-    const xs = rotated.map(point => point[0]);
-    const ys = rotated.map(point => point[1]);
-    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-    const rad = rotateDegrees * Math.PI / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    rotated = rotated.map(([x, y]) => {
-      const dx = x - cx;
-      const dy = y - cy;
-      return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
-    });
-  }
-  return rotated;
+  return rotatePointListAroundBounds(rotated, opts.rotateDegrees);
 }
 
 const COUNT_PICKER_NAMES = {
@@ -277,7 +332,7 @@ function shapeSVGPath(sides, angles, w, h, padding = 14, opts = {}) {
 // A bench is manufactured as a real 3D bar, but its 2D schedule projection is
 // the conventional five-leg elevation: angled feet, two uprights, and a top
 // bridge. Keep this projection stable anywhere the user explicitly chooses 2D.
-function benchBarSVGPath(sides, w, h, padding = 14) {
+function benchBarSVGPath(sides, w, h, padding = 14, opts = {}) {
   const values = Array.isArray(sides) ? sides.map(value => Math.max(1, Number(value) || 0)) : [];
   if (values.length !== 5) return shapeSVGPath(values, [], w, h, padding);
   const [leftFoot, leftRise, bridge, rightDrop, rightFoot] = values;
@@ -292,8 +347,9 @@ function benchBarSVGPath(sides, w, h, padding = 14) {
     [leftProjection + bridge, rightDrop],
     [leftProjection + bridge + rightProjection, rightDrop + rightProjection],
   ];
-  const xs = raw.map(point => point[0]);
-  const ys = raw.map(point => point[1]);
+  const visualPoints = rotatePointListAroundBounds(raw, opts.rotateDegrees);
+  const xs = visualPoints.map(point => point[0]);
+  const ys = visualPoints.map(point => point[1]);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
   const rangeX = maxX - minX || 1;
@@ -301,7 +357,7 @@ function benchBarSVGPath(sides, w, h, padding = 14) {
   const scale = Math.min((w - padding * 2) / rangeX, (h - padding * 2) / rangeY);
   const offX = padding + ((w - padding * 2) - rangeX * scale) / 2;
   const offY = padding + ((h - padding * 2) - rangeY * scale) / 2;
-  const pts = raw.map(([x, y]) => [
+  const pts = visualPoints.map(([x, y]) => [
     offX + (x - minX) * scale,
     offY + (y - minY) * scale,
   ]);
@@ -379,23 +435,42 @@ function renderClosedStirrupEditor2D(parts, sides, w, h, opts = {}) {
   const activeSeg = opts.activeSeg ?? -1;
   const bodyStroke = '#1f3345';
   const highlight = '#2979ff';
-  const label = (sideIndex, lx, ly, rot, value, letter) => {
+  const previewRotation = Number(opts.rotateDegrees || 0);
+  const rotationRadians = previewRotation * Math.PI / 180;
+  const rotationCos = Math.cos(rotationRadians);
+  const rotationSin = Math.sin(rotationRadians);
+  const rotatePoint = (px, py) => {
+    if (!previewRotation) return [px, py];
+    const dx = px - w / 2;
+    const dy = py - h / 2;
+    return [w / 2 + dx * rotationCos - dy * rotationSin, h / 2 + dx * rotationSin + dy * rotationCos];
+  };
+  const pathBetween = (x1, y1, x2, y2) => {
+    const [rx1, ry1] = rotatePoint(x1, y1);
+    const [rx2, ry2] = rotatePoint(x2, y2);
+    return `M ${rx1.toFixed(1)} ${ry1.toFixed(1)} L ${rx2.toFixed(1)} ${ry2.toFixed(1)}`;
+  };
+  const label = (sideIndex, lx, ly, rot, value) => {
     const isAct = sideIndex === activeSeg;
     const stroke = isAct ? '#ff4047' : '#9aa3b2';
     const fill = isAct ? '#fff4f4' : '#ffffff';
-    const tagW = Math.max(28, Math.min(48, String(value).length * 7 + 12));
-    return `<g data-se-focus="bar-side-${sideIndex}" transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${rot})" data-seg-click="${sideIndex}" style="cursor:pointer">
-      <text x="0" y="-11" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="800" fill="#475569">${letter}</text>
-      <rect x="${(-tagW/2).toFixed(1)}" y="-7" width="${tagW}" height="14" rx="2" fill="${fill}" stroke="${stroke}" stroke-width=".8"/>
-      <text x="0" y="4" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#111827">${svgEscape(value)}</text>
+    const labelValue = formatLengthCmFromMm(value);
+    const tagW = dimensionTagWidth(labelValue);
+    const [x, y] = rotatePoint(lx, ly);
+    const labelRotation = normalizeReadableLabelAngle(rot + previewRotation);
+    return `<g data-se-focus="bar-side-${sideIndex}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${labelRotation.toFixed(1)})" data-seg-click="${sideIndex}" style="cursor:pointer">
+      <rect x="${(-tagW/2).toFixed(1)}" y="-8" width="${tagW}" height="16" rx="3" fill="${fill}" stroke="${stroke}" stroke-width=".8"/>
+      <text x="0" y="4" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#111827">${svgEscape(labelValue)}</text>
     </g>`;
   };
   const angleMark = (cx, cy, sx, sy) => {
     const m = 9;
-    return `<path d="M ${(cx + sx*m).toFixed(1)} ${(cy).toFixed(1)} L ${(cx + sx*m).toFixed(1)} ${(cy + sy*m).toFixed(1)} L ${(cx).toFixed(1)} ${(cy + sy*m).toFixed(1)}" fill="none" stroke="#c4c8cf" stroke-width="2"/>`;
+    const p1 = rotatePoint(cx + sx * m, cy);
+    const p2 = rotatePoint(cx + sx * m, cy + sy * m);
+    const p3 = rotatePoint(cx, cy + sy * m);
+    return `<path d="M ${p1[0].toFixed(1)} ${p1[1].toFixed(1)} L ${p2[0].toFixed(1)} ${p2[1].toFixed(1)} L ${p3[0].toFixed(1)} ${p3[1].toFixed(1)}" fill="none" stroke="#c4c8cf" stroke-width="2"/>`;
   };
-  const clickLine = (i, x1, y1, x2, y2) => `<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="transparent" stroke-width="16" fill="none" data-se-focus="bar-side-${i}" data-seg-click="${i}" style="cursor:pointer"/>`;
-  const pd = `M ${x.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${y.toFixed(1)} L ${right.toFixed(1)},${bottom.toFixed(1)} L ${x.toFixed(1)},${bottom.toFixed(1)} Z`;
+  const clickLine = (i, x1, y1, x2, y2) => `<path d="${pathBetween(x1, y1, x2, y2)}" stroke="transparent" stroke-width="16" fill="none" data-se-focus="bar-side-${i}" data-seg-click="${i}" style="cursor:pointer"/>`;
   let html = `<g data-shape-kind="closed-stirrup" data-stirrup-marker="overlap">`;
   const bodySegments = [
     [parts.sideMap[0], x, y, right, y],
@@ -406,15 +481,16 @@ function renderClosedStirrupEditor2D(parts, sides, w, h, opts = {}) {
   bodySegments.forEach(seg => {
     if (seg[0] == null) return;
     const color = bodyStroke;
-    html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" data-se-focus="bar-all bar-side-${seg[0]}" data-seg-click="${seg[0]}" style="cursor:pointer"/>`;
-    if (seg[0] !== activeSeg) html += `<path d="M ${seg[1].toFixed(1)} ${seg[2].toFixed(1)} L ${seg[3].toFixed(1)} ${seg[4].toFixed(1)}" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const path = pathBetween(seg[1], seg[2], seg[3], seg[4]);
+    html += `<path d="${path}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" data-se-focus="bar-all bar-side-${seg[0]}" data-seg-click="${seg[0]}" style="cursor:pointer"/>`;
+    if (seg[0] !== activeSeg) html += `<path d="${path}" fill="none" stroke="rgba(255,255,255,.42)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
   });
   bodySegments.forEach(seg => { if (seg[0] != null) html += clickLine(...seg); });
   html += angleMark(x, y, 1, 1) + angleMark(right, y, -1, 1) + angleMark(right, bottom, -1, -1) + angleMark(x, bottom, 1, -1);
-  html += label(parts.sideMap[0], midX, y - 22, 0, parts.top, String.fromCharCode(65 + parts.sideMap[0]));
-  html += label(parts.sideMap[1], right + 22, midY, 90, parts.right, String.fromCharCode(65 + parts.sideMap[1]));
-  html += label(parts.sideMap[2], midX, bottom + 22, 0, parts.bottom, String.fromCharCode(65 + parts.sideMap[2]));
-  html += label(parts.sideMap[3], x - 22, midY, -90, parts.left, String.fromCharCode(65 + parts.sideMap[3]));
+  html += label(parts.sideMap[0], midX, y - 22, 0, parts.top);
+  html += label(parts.sideMap[1], right + 22, midY, 90, parts.right);
+  html += label(parts.sideMap[2], midX, bottom + 22, 0, parts.bottom);
+  html += label(parts.sideMap[3], x - 22, midY, -90, parts.left);
 
   const drawTail = (sideIndex, lenValue, offset, flip = 1) => {
     if (sideIndex == null || !lenValue) return '';
@@ -426,11 +502,12 @@ function renderClosedStirrupEditor2D(parts, sides, w, h, opts = {}) {
     const isAct = sideIndex === activeSeg;
     const stroke = isAct ? highlight : '#111827';
     const mx = (sx + ex) / 2, my = (sy + ey) / 2;
-    const letter = String.fromCharCode(65 + sideIndex);
+    const [rsx, rsy] = rotatePoint(sx, sy);
+    const [rex, rey] = rotatePoint(ex, ey);
     return `<g data-se-focus="bar-side-${sideIndex}" data-seg-click="${sideIndex}" style="cursor:pointer">
-      <path d="M ${sx.toFixed(1)} ${sy.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)}" stroke="rgba(0,0,0,.12)" stroke-width="9" stroke-linecap="round" fill="none"/>
-      <path d="M ${sx.toFixed(1)} ${sy.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)}" stroke="${stroke}" stroke-width="4" stroke-linecap="round" fill="none"/>
-      ${label(sideIndex, mx + 14, my - 10, -25, lenValue, letter)}
+      <path d="M ${rsx.toFixed(1)} ${rsy.toFixed(1)} L ${rex.toFixed(1)} ${rey.toFixed(1)}" stroke="rgba(0,0,0,.12)" stroke-width="9" stroke-linecap="round" fill="none"/>
+      <path d="M ${rsx.toFixed(1)} ${rsy.toFixed(1)} L ${rex.toFixed(1)} ${rey.toFixed(1)}" stroke="${stroke}" stroke-width="4" stroke-linecap="round" fill="none"/>
+      ${label(sideIndex, mx + 14, my - 10, -25, lenValue)}
     </g>`;
   };
   html += drawTail(parts.tailMap[0], parts.tailStart, 0, -1);
@@ -512,6 +589,7 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
   let pts3d;
   if (opts.azAngles) {
     pts3d = calcShapePoints3D(sides, opts.azAngles, opts.elAngles || []);
+    pts3d = rotate3DPointsForView(pts3d, opts.rotateDegrees);
   } else {
     pts3d = normalizeShapePointsBaseBottom(calcShapePoints(sides, angles), { rotateDegrees: opts.rotateDegrees }).map(([x, y]) => [x, y, 0]);
   }
@@ -622,19 +700,16 @@ function shape3DSVG(sides, angles, w, h, diameterMm = 12, opts = {}) {
       const dx = x2 - x1, dy = y2 - y1;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
       const nx = -dy / len * (compactLabels ? 15 : 22), ny = dx / len * (compactLabels ? 15 : 22);
-      const letter = String.fromCharCode(0x05D0 + i); // א ב ג...
       const isActSeg = i === activeSeg;
       const badgeCol = isActSeg ? '#2979ff' : '#526070';
-      const labelW = Math.max(34, Math.min(54, String(sides[i]).length * 8 + 14));
+      const labelValue = formatLengthCmFromMm(sides[i]);
+      const labelW = dimensionTagWidth(labelValue, 54, 82);
       dimLabels += `
         <g data-seg-click="${i}" style="cursor:pointer">
           <rect x="${(mx + nx - labelW / 2).toFixed(1)}" y="${(my + ny - 10).toFixed(1)}" width="${labelW}" height="22"
             rx="6" fill="${dark ? 'rgba(26,38,55,0.9)' : 'rgba(255,255,255,0.96)'}" stroke="${badgeCol}" stroke-width="${isActSeg ? 1.8 : 1}"/>
           <text x="${(mx + nx).toFixed(1)}" y="${(my + ny + 5).toFixed(1)}" text-anchor="middle"
-            font-size="10" font-family="Heebo,Arial" font-weight="800" fill="${labelClr}">${sides[i]}</text>
-          ${compactLabels ? '' : `<circle cx="${(mx + nx + labelW / 2 - 4).toFixed(1)}" cy="${(my + ny - 10).toFixed(1)}" r="8" fill="${badgeCol}"/>
-          <text x="${(mx + nx + labelW / 2 - 4).toFixed(1)}" y="${(my + ny - 6.5).toFixed(1)}" text-anchor="middle"
-            font-size="8" font-family="Heebo,Arial" font-weight="900" fill="white">${letter}</text>`}
+            font-size="10" font-family="Heebo,Arial" font-weight="800" fill="${labelClr}">${labelValue}</text>
         </g>`;
     }
   }
@@ -751,7 +826,7 @@ PolylineBarEngine.render = function(shape, w = 300, h = 260, opts = {}) {
     const next = pts[i + 1];
     const mx = (p[0] + next[0]) / 2;
     const my = (p[1] + next[1]) / 2;
-    return `<text x="${mx.toFixed(1)}" y="${(my - 8).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">${svgEscape(sides[i])}</text>`;
+    return `<text x="${mx.toFixed(1)}" y="${(my - 8).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">${svgEscape(formatLengthCmFromMm(sides[i]))}</text>`;
   }).join('');
   const bends = pts.slice(1, -1).map((p, i) => {
     const angle = angles[i];
@@ -793,7 +868,27 @@ MeshEngine.render = function(mesh, w = 300, h = 260) {
     const y = y0 + mm * box.scale;
     return `<line class="mesh-transverse-bar" data-se-focus="mesh-transverse-bars mesh-transverse-diameter mesh-transverse-spacing" x1="${x0.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#111827" stroke-width="${Math.max(2, transDia * 0.22).toFixed(1)}" stroke-linecap="round"/>`;
   }).join('');
-  return `<g data-engine="MeshEngine" data-family="mesh" data-length="${length}" data-width="${width}" data-longitudinal="&#216;${longDia}@${longSpacing}" data-transverse="&#216;${transDia}@${transSpacing}" data-longitudinal-count="${verticalPositions.length}" data-transverse-count="${horizontalPositions.length}" data-edge-left="${edgeLeft}" data-edge-right="${edgeRight}" data-edge-top="${edgeTop}" data-edge-bottom="${edgeBottom}"><rect data-se-focus="mesh-length mesh-width mesh-edge" x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${box.drawW.toFixed(1)}" height="${box.drawH.toFixed(1)}" fill="#fff" stroke="#d8dde5"/>${horizontals}${verticals}<text data-se-focus="mesh-length" x="${((x0+x1)/2).toFixed(1)}" y="${(y0-10).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${length}</text><text data-se-focus="mesh-width" x="${(x0-10).toFixed(1)}" y="${((y0+y1)/2).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533" transform="rotate(-90 ${(x0-10).toFixed(1)} ${((y0+y1)/2).toFixed(1)})">W ${width}</text><g class="se-engineer-helper" data-se-focus="mesh-longitudinal-spacing mesh-transverse-spacing"><rect class="se-helper-panel" x="${(x1-72).toFixed(1)}" y="${(y1+8).toFixed(1)}" width="64" height="34" rx="4"/><path d="M ${(x1-61).toFixed(1)} ${(y1+18).toFixed(1)} H ${(x1-20).toFixed(1)} M ${(x1-61).toFixed(1)} ${(y1+28).toFixed(1)} H ${(x1-20).toFixed(1)} M ${(x1-50).toFixed(1)} ${(y1+13).toFixed(1)} V ${(y1+34).toFixed(1)} M ${(x1-34).toFixed(1)} ${(y1+13).toFixed(1)} V ${(y1+34).toFixed(1)}" stroke="#475569" stroke-width="1.5" fill="none"/><text x="${(x1-40).toFixed(1)}" y="${(y1+53).toFixed(1)}" text-anchor="middle" font-size="8">פרט מרווח</text></g><text data-se-focus="mesh-longitudinal-diameter mesh-longitudinal-spacing mesh-transverse-diameter mesh-transverse-spacing" x="${(x1+8).toFixed(1)}" y="${(y1+16).toFixed(1)}" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">&#216;${longDia}@${longSpacing} / &#216;${transDia}@${transSpacing}</text></g>`;
+  const longitudinalSpec = `Ø${longDia}@${formatLengthCm(longSpacing)}`;
+  const transverseSpec = `Ø${transDia}@${formatLengthCm(transSpacing)}`;
+  const spacingHelperPath = `M ${(x1 - 61).toFixed(1)} ${(y1 + 18).toFixed(1)} H ${(x1 - 20).toFixed(1)}
+    M ${(x1 - 61).toFixed(1)} ${(y1 + 28).toFixed(1)} H ${(x1 - 20).toFixed(1)}
+    M ${(x1 - 50).toFixed(1)} ${(y1 + 13).toFixed(1)} V ${(y1 + 34).toFixed(1)}
+    M ${(x1 - 34).toFixed(1)} ${(y1 + 13).toFixed(1)} V ${(y1 + 34).toFixed(1)}`;
+  return `<g data-engine="MeshEngine" data-family="mesh" data-length="${length}" data-width="${width}"
+      data-longitudinal="${longitudinalSpec}" data-transverse="${transverseSpec}"
+      data-longitudinal-count="${verticalPositions.length}" data-transverse-count="${horizontalPositions.length}"
+      data-edge-left="${edgeLeft}" data-edge-right="${edgeRight}" data-edge-top="${edgeTop}" data-edge-bottom="${edgeBottom}">
+    <rect data-se-focus="mesh-length mesh-width mesh-edge" x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${box.drawW.toFixed(1)}" height="${box.drawH.toFixed(1)}" fill="#fff" stroke="#d8dde5"/>
+    ${horizontals}${verticals}
+    <text data-se-focus="mesh-length" x="${((x0 + x1) / 2).toFixed(1)}" y="${(y0 - 10).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${formatLengthCm(length)}</text>
+    <text data-se-focus="mesh-width" x="${(x0 - 10).toFixed(1)}" y="${((y0 + y1) / 2).toFixed(1)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#1a2533" transform="rotate(-90 ${(x0 - 10).toFixed(1)} ${((y0 + y1) / 2).toFixed(1)})">W ${formatLengthCm(width)}</text>
+    <g class="se-engineer-helper" data-se-focus="mesh-longitudinal-spacing mesh-transverse-spacing">
+      <rect class="se-helper-panel" x="${(x1 - 72).toFixed(1)}" y="${(y1 + 8).toFixed(1)}" width="64" height="34" rx="4"/>
+      <path d="${spacingHelperPath}" stroke="#475569" stroke-width="1.5" fill="none"/>
+      <text x="${(x1 - 40).toFixed(1)}" y="${(y1 + 53).toFixed(1)}" text-anchor="middle" font-size="8">פרט מרווח</text>
+    </g>
+    <text data-se-focus="mesh-longitudinal-diameter mesh-longitudinal-spacing mesh-transverse-diameter mesh-transverse-spacing" x="${(x1 + 8).toFixed(1)}" y="${(y1 + 16).toFixed(1)}" font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">${longitudinalSpec} / ${transverseSpec}</text>
+  </g>`;
 };
 
 function PileCageEngine() {}
@@ -1209,9 +1304,9 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     const rawZoneName = String(zone?.name || String.fromCharCode(65 + zoneIndex)).trim();
     const zoneName = (rawZoneName.replace(/^Zone\s+/i, '').trim() || String.fromCharCode(65 + zoneIndex)).toUpperCase();
     zoneBoundaries.push(`<line class="pile-zone-boundary" data-zone="${zoneIndex}" data-se-focus="pile-zone" x1="${startX.toFixed(1)}" y1="${(topY - 14).toFixed(1)}" x2="${startX.toFixed(1)}" y2="${(bottomY + 18).toFixed(1)}" stroke="${dimColor}" stroke-width=".9"/>`);
-    zoneDimensions.push(`${dimLine(startX, zoneDimensionY, endX, zoneDimensionY, 'pile-zone-dimension', 'pile-zone pile-spiral-pitch', `spiral|zone|${zoneIndex}|length`)}<text class="pile-zone-dimension" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|length" data-se-focus="pile-zone pile-spiral-pitch" x="${zoneLabelX.toFixed(1)}" y="${zoneLabelY.toFixed(1)}" text-anchor="${zoneLabelAnchor}" font-size="8" font-family="Heebo,Arial" font-weight="900" fill="#334155">${svgEscape(zoneName)} · ${displayNumber(len / 10)} cm</text>`);
+    zoneDimensions.push(`${dimLine(startX, zoneDimensionY, endX, zoneDimensionY, 'pile-zone-dimension', 'pile-zone pile-spiral-pitch', `spiral|zone|${zoneIndex}|length`)}<text class="pile-zone-dimension" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|length" data-se-focus="pile-zone pile-spiral-pitch" x="${zoneLabelX.toFixed(1)}" y="${zoneLabelY.toFixed(1)}" text-anchor="${zoneLabelAnchor}" font-size="8" font-family="Heebo,Arial" font-weight="900" fill="#334155">${svgEscape(zoneName)} · ${displayNumber(len / 10)} ס״מ</text>`);
     if (!noWrap) {
-      pitchLabels.push(`<g class="pile-pitch-label" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|pitch" data-se-focus="pile-spiral-pitch pile-zone"><rect x="${(midX - 25).toFixed(1)}" y="${(spiralLaneY - 8).toFixed(1)}" width="50" height="14" rx="3" fill="#fff" stroke="#cbd5e1" stroke-width=".7"/><text x="${midX.toFixed(1)}" y="${(spiralLaneY + 2).toFixed(1)}" text-anchor="middle" font-size="8.5" font-family="Arial" font-weight="900" fill="#1a2332">${svgEscape(zoneName)} · @${displayNumber(pitch / 10)} cm</text></g>`);
+      pitchLabels.push(`<g class="pile-pitch-label" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|pitch" data-se-focus="pile-spiral-pitch pile-zone"><rect x="${(midX - 25).toFixed(1)}" y="${(spiralLaneY - 8).toFixed(1)}" width="50" height="14" rx="3" fill="#fff" stroke="#cbd5e1" stroke-width=".7"/><text x="${midX.toFixed(1)}" y="${(spiralLaneY + 2).toFixed(1)}" text-anchor="middle" font-size="8.5" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">${svgEscape(zoneName)} · @${displayNumber(pitch / 10)} ס״מ</text></g>`);
     }
     if (noWrap) {
       noWrapZones.push(`<rect class="pile-no-wrap-zone" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|noWrap" data-se-focus="pile-no-wrap pile-zone" x="${startX.toFixed(1)}" y="${topY.toFixed(1)}" width="${Math.max(1, endX - startX).toFixed(1)}" height="${cageHeight.toFixed(1)}" fill="rgba(255,255,255,.72)" stroke="#94a3b8" stroke-dasharray="4 4"/><g class="pile-no-wrap-label" data-zone="${zoneIndex}" data-pile-edit="spiral|zone|${zoneIndex}|noWrap" data-se-focus="pile-no-wrap pile-zone" fill="#64748b" font-family="Heebo,Arial" font-size="5.5" font-weight="900" text-anchor="middle" style="paint-order:stroke;stroke:#fff;stroke-width:2px;stroke-linejoin:round"><text x="${midX.toFixed(1)}" y="${(sideMid - 1).toFixed(1)}">ללא</text><text x="${midX.toFixed(1)}" y="${(sideMid + 5).toFixed(1)}">כריכות</text></g>`);
@@ -1286,8 +1381,8 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
     const x2 = pointB.x - ux * inset;
     const y2 = pointB.y - uy * inset;
     const label = barSpacingDisplayMode === 'clear'
-      ? `CLEAR ${displayNumber(barSpacing.clearMm / 10)} cm`
-      : `C/C ${displayNumber(barSpacing.centerToCenterMm / 10)} cm`;
+      ? `CLEAR ${displayNumber(barSpacing.clearMm / 10)} ס״מ`
+      : `C/C ${displayNumber(barSpacing.centerToCenterMm / 10)} ס״מ`;
     return `<g class="pile-bar-spacing-dimension" data-spacing-mode="${barSpacingDisplayMode}" data-pile-edit="bars|barSpacingDisplayMode" data-se-focus="pile-bar-spacing"><line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/><text x="${((x1 + x2) / 2 + 3).toFixed(1)}" y="${((y1 + y2) / 2 - 5).toFixed(1)}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="900" fill="#334155">${label}</text></g>`;
   })();
   const topHoop = hoopsEnabled
@@ -1304,18 +1399,18 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   return `<g data-engine="PileCageEngine" data-family="piles" data-pile-diameter="${pileDiameter}" data-pile-length="${pileLength}" data-input-unit="cm" data-longitudinal-bars="${longitudinalBars}" data-longitudinal-diameter="${longitudinalDiameter}" data-bend-orientation-deg="${bendOrientationDeg}" data-bend-orientation-reference="radial_inward" data-spiral-diameter="${spiralDiameter}" data-spiral-zones="${zoneSummary}" data-hoop-count="${hoopLines.length}" data-internal-hoop-diameter="${internalHoopDiameter}" data-bar-center-spacing="${barSpacing.centerToCenterMm}" data-bar-clear-spacing="${barSpacing.clearMm}" data-bar-spacing-mode="${barSpacingDisplayMode}" data-bar-pattern="${svgEscape(barPattern)}">
     <defs><marker id="sePileDimArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 4 L 8 0 L 8 8 Z" fill="${dimColor}"/></marker></defs>
     <g data-view="side" class="pile-side-engineering-view">
-      <text data-pile-edit="general|pileLength" data-se-focus="pile-length" x="${(w / 2).toFixed(1)}" y="${(overallDimensionY - 5).toFixed(1)}" text-anchor="middle" font-size="13" font-family="Arial" font-weight="900" fill="#111827">L ${pileLengthCm} cm</text>
+      <text data-pile-edit="general|pileLength" data-se-focus="pile-length" x="${(w / 2).toFixed(1)}" y="${(overallDimensionY - 5).toFixed(1)}" text-anchor="middle" font-size="13" font-family="Heebo,Arial" font-weight="900" fill="#111827">L ${pileLengthCm} ס״מ</text>
       ${dimLine(sideLeft, overallDimensionY, sideRight, overallDimensionY, 'pile-total-dimension', 'pile-length', 'general|pileLength')}${zoneDimensions.join('')}${zoneBoundaries.join('')}${noWrapZones.join('')}${longitudinalLines}${spiralLoops.join('')}${hoopLines.join('')}${hoopPlacementSummary}${headLabel}${bendAngleMarker}
       <line class="pile-diameter-dimension" data-pile-edit="general|pileDiameter" data-se-focus="pile-diameter" x1="${(sideRight + 12).toFixed(1)}" y1="${topY.toFixed(1)}" x2="${(sideRight + 12).toFixed(1)}" y2="${bottomY.toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>
-      ${labelBox(sideRight + 24, sideMid, `${pileDiameterCm} cm`, 'pile-diameter-label', -90, 'general|pileDiameter')}${pitchLabels.join('')}
+      ${labelBox(sideRight + 24, sideMid, `${pileDiameterCm} ס״מ`, 'pile-diameter-label', -90, 'general|pileDiameter')}${pitchLabels.join('')}
     </g>
     <g data-view="top" class="pile-top-engineering-view">
       <text x="${cx.toFixed(1)}" y="${(cy - r - 26).toFixed(1)}" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#12315a">חתך</text>${alternatingLegend}${topHoop}
       <circle data-pile-edit="general|pileDiameter" data-se-focus="pile-diameter" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="#111827" stroke-width="3"/>
       <circle data-pile-edit="spiral|spiralOuterDiameter" data-se-focus="pile-spiral-diameter pile-spiral-pitch" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.82).toFixed(1)}" fill="none" stroke="${auxColor}" stroke-width="${spiralStroke.toFixed(1)}"/>${topBars}${spacingDimension}
       <line class="pile-dimension-line pile-top-diameter" data-pile-edit="general|pileDiameter" data-se-focus="pile-diameter" x1="${(cx - r).toFixed(1)}" y1="${(cy + r + 16).toFixed(1)}" x2="${(cx + r).toFixed(1)}" y2="${(cy + r + 16).toFixed(1)}" stroke="${dimColor}" stroke-width="1" marker-start="url(#sePileDimArrow)" marker-end="url(#sePileDimArrow)"/>
-      <text data-pile-edit="general|pileDiameter" data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Arial" font-weight="900" fill="#111827">Ø${pileDiameterCm} cm</text>
-      <text data-pile-edit="spiral|spiralDiameter" data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Arial" font-weight="900" fill="#111827">Ø${spiralDiameter} mm</text>
+      <text data-pile-edit="general|pileDiameter" data-se-focus="pile-diameter" x="${cx.toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#111827">Ø${pileDiameterCm} ס״מ</text>
+      <text data-pile-edit="spiral|spiralDiameter" data-se-focus="pile-spiral-diameter" x="${(cx - r * 0.95).toFixed(1)}" y="${(cy + r + 30).toFixed(1)}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#111827">Ø${spiralDiameter} מ״מ</text>
     </g>
   </g>`;
 };
@@ -1421,7 +1516,7 @@ SpiralEngine.render = function(spiral, w = 300, h = 260) {
   const topView = `<circle cx="${tCx.toFixed(1)}" cy="${tCy.toFixed(1)}" r="${tR.toFixed(1)}"
       fill="none" stroke="#111827" stroke-width="${barW.toFixed(1)}"/>
     <text x="${tCx.toFixed(1)}" y="${(tCy + tR + 13).toFixed(1)}" text-anchor="middle"
-      font-size="9" font-family="Heebo,Arial" fill="#526070">Ø ${spiralDia}</text>`;
+      font-size="9" font-family="Heebo,Arial" fill="#526070">Ø ${formatLengthCmFromMm(spiralDia)}</text>`;
 
   // Dimension arrows
   const arrowY1 = startY - 6, arrowY2 = startY + totalH + 6;
@@ -4744,8 +4839,8 @@ class ShapeEditorModal {
       const section = (id, title, summary, content) => `<section class="se-pile-section" data-pile-section="${id}"><header class="se-pile-section-head"><strong>${title}</strong><span data-pile-section-summary="${id}">${summary}</span></header><div class="se-pile-section-body">${content}</div></section>`;
       const segmentRows = pile.spiralZones.map((zone, index) => `<div class="se-zone-engineering-row" data-zone-index="${index}">
         <label><span>מקטע</span><input class="se-input" type="text" value="${svgEscape(zone.name || String.fromCharCode(65 + index))}" data-zone-field="name" aria-label="שם מקטע" onfocus="window._seEditor._focusFamilyField('pile-zone')" oninput="window._seEditor._setSpiralZoneField(${index}, 'name', this.value)"></label>
-        <label><span>אורך <small>cm</small></span><input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" aria-label="אורך מקטע בסנטימטר" onfocus="window._seEditor._focusFamilyField('pile-zone')" oninput="window._seEditor._setSpiralZoneField(${index}, 'length', this.value)"></label>
-        <label><span>@ <small>cm</small></span><input class="se-input" type="number" min="1" value="${zone.noWrap ? '' : (zone.pitch ?? pile.spiralPitch ?? 20)}" ${zone.noWrap ? 'disabled' : ''} data-zone-field="pitch" aria-label="פסיעת מקטע בסנטימטר" onfocus="window._seEditor._focusFamilyField('pile-spiral-pitch')" oninput="window._seEditor._setSpiralZoneField(${index}, 'pitch', this.value)"></label>
+        <label><span>אורך <small>ס״מ</small></span><input class="se-input" type="number" min="0" value="${zone.length ?? 0}" data-zone-field="length" aria-label="אורך מקטע בסנטימטר" onfocus="window._seEditor._focusFamilyField('pile-zone')" oninput="window._seEditor._setSpiralZoneField(${index}, 'length', this.value)"></label>
+        <label><span>@ <small>ס״מ</small></span><input class="se-input" type="number" min="1" value="${zone.noWrap ? '' : (zone.pitch ?? pile.spiralPitch ?? 20)}" ${zone.noWrap ? 'disabled' : ''} data-zone-field="pitch" aria-label="פסיעת מקטע בסנטימטר" onfocus="window._seEditor._focusFamilyField('pile-spiral-pitch')" oninput="window._seEditor._setSpiralZoneField(${index}, 'pitch', this.value)"></label>
         <label class="se-zone-nowrap"><input type="checkbox" ${zone.noWrap ? 'checked' : ''} data-zone-field="noWrap" onfocus="window._seEditor._focusFamilyField('pile-no-wrap')" onchange="window._seEditor._setSpiralZoneField(${index}, 'noWrap', this.checked)"><span>ללא כריכות</span></label>
         <button type="button" class="se-del-btn" aria-label="מחיקת מקטע" onclick="window._seEditor._deleteSpiralZone(${index})">&times;</button>
       </div>`).join('');
@@ -4890,13 +4985,14 @@ class ShapeEditorModal {
       let visual = '';
       let metrics = [];
       if (type === 'longitudinal_straight_bar') {
-        const sidesCm = (part.sides || [part.unitLengthMm || 0]).map(value => Number(value || 0) / 10);
-        visual = PolylineBarEngine.render({ sides: sidesCm, angles: [] }, 112, 90, { padding: 18 });
+        const sidesMm = (part.sides || [part.unitLengthMm || 0]).map(value => Number(value || 0));
+        visual = PolylineBarEngine.render({ sides: sidesMm, angles: [] }, 112, 90, { padding: 18 });
         metrics = [`${quantity} × Ø${format(diameterMm)} mm`, `L ${format(Number(part.unitLengthMm || 0) / 10)} cm`];
       } else if (type === 'longitudinal_l_bar') {
         section = 'bars'; field = 'bendLength';
-        const sidesCm = (part.sides || []).map(value => Number(value || 0) / 10);
-        visual = PolylineBarEngine.render({ sides: sidesCm, angles: part.angles || [90] }, 112, 90, { padding: 18 });
+        const sidesMm = (part.sides || []).map(value => Number(value || 0));
+        visual = PolylineBarEngine.render({ sides: sidesMm, angles: part.angles || [90] }, 112, 90, { padding: 18 });
+        const sidesCm = sidesMm.map(value => value / 10);
         metrics = [`${quantity} × Ø${format(diameterMm)} mm`, `${sidesCm.map(value => format(value)).join(' + ')} cm`, `${format(Number(part.angles?.[0] || 90))}°`];
       } else if (type === 'spiral_consolidated') {
         section = 'spiral'; field = 'spiralDiameter';
@@ -4931,8 +5027,14 @@ class ShapeEditorModal {
     if (!gallery) return;
     const visible = Boolean(this.current?.roundPileCage);
     gallery.hidden = !visible;
-    gallery.innerHTML = visible ? this._pileComponentCardsHtml() : '';
-    if (visible) {
+    const cards = visible ? this._pileComponentCardsHtml() : '';
+    const shouldReplace = gallery !== this._pileComponentGalleryHost || cards !== this._pileComponentGalleryHtml;
+    if (shouldReplace) {
+      gallery.innerHTML = cards;
+      this._pileComponentGalleryHost = gallery;
+      this._pileComponentGalleryHtml = cards;
+    }
+    if (visible && shouldReplace) {
       // The form's focusout refreshes the preview.  Activate on pointerdown at
       // the stable gallery parent so that refresh cannot replace the card
       // between mousedown and click.
@@ -4950,11 +5052,11 @@ class ShapeEditorModal {
         event.preventDefault();
         this._activatePileComponentCard(card);
       };
-      this._syncPileActiveSection();
-    } else {
+    } else if (!visible && shouldReplace) {
       gallery.onpointerdown = null;
       gallery.onkeydown = null;
     }
+    if (visible) this._syncPileActiveSection();
   }
 
   _activatePileComponentCard(card) {
@@ -5113,14 +5215,14 @@ class ShapeEditorModal {
         html += `
           <tr>
             <td><span class="se-seg-label">${i + 1}</span></td>
-            <td>${this._fieldShell({ icon:'📏', label:'אורך', unit:'ס״מ', example:'לדוגמה 30', input:`<input class="se-input" type="number" min="1" max="2000" value="${sides[i] / 10}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
+            <td>${this._fieldShell({ icon:'📏', label:'אורך', unit:'ס״מ', example:'לדוגמה 30', input:`<input class="se-input" type="number" min="1" max="2000" value="${sides[i] / 10}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)" onblur="window._seEditor._finalizeSideInput(this, ${i})">` })}</td>
             <td>
               ${i === 0
                 ? `<span class="se-no-bend">&mdash;</span>`
-                : this._fieldShell({ icon:'↪', label:'פנייה', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${az}" data-az="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAzAngle(${i}, this.value)">` })}
+                : this._fieldShell({ icon:'↪', label:'פנייה', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${az}" data-az="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAzAngle(${i}, this.value)" onblur="window._seEditor._finalizeAngleInput(this, ${i}, 'az')">` })}
             </td>
             <td>
-              ${this._fieldShell({ icon:'Z', label:'הטיית Z', unit:'°', example:'לדוגמה 0', input:`<input class="se-input" type="number" min="-90" max="90" value="${el}" data-el="${i}" onfocus="window._seEditor._focusRow(${i}, 'z')" oninput="window._seEditor._setElAngle(${i}, this.value)">` })}
+              ${this._fieldShell({ icon:'Z', label:'הטיית Z', unit:'°', example:'לדוגמה 0', input:`<input class="se-input" type="number" min="-90" max="90" value="${el}" data-el="${i}" onfocus="window._seEditor._focusRow(${i}, 'z')" oninput="window._seEditor._setElAngle(${i}, this.value)" onblur="window._seEditor._finalizeAngleInput(this, ${i}, 'el')">` })}
             </td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
           </tr>`;
@@ -5128,9 +5230,9 @@ class ShapeEditorModal {
         html += `
           <tr class="se-side-row">
             <td><span class="se-seg-label">${letter}</span></td>
-            <td class="se-length-cell">${this._fieldShell({ icon:'📏', label:'אורך', unit:'ס״מ', example:'לדוגמה 30', input:`<input class="se-input" type="number" min="1" max="2000" value="${sides[i] / 10}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)">` })}</td>
+            <td class="se-length-cell">${this._fieldShell({ icon:'📏', label:'אורך', unit:'ס״מ', example:'לדוגמה 30', input:`<input class="se-input" type="number" min="1" max="2000" value="${sides[i] / 10}" data-side="${i}" onfocus="window._seEditor._focusRow(${i}, false)" oninput="window._seEditor._setSide(${i}, this.value)" onblur="window._seEditor._finalizeSideInput(this, ${i})">` })}</td>
             <td class="se-angle-cell ${i < angles.length ? '' : 'se-empty-cell'}">${i < angles.length
-              ? this._fieldShell({ icon:'∠', label:'זווית', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" data-angle="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAngle(${i}, this.value)">` })
+              ? this._fieldShell({ icon:'∠', label:'זווית', unit:'°', example:'לדוגמה 90', input:`<input class="se-input" type="number" min="-360" max="360" value="${angles[i]}" data-angle="${i}" onfocus="window._seEditor._focusRow(${i}, true)" oninput="window._seEditor._setAngle(${i}, this.value)" onblur="window._seEditor._finalizeAngleInput(this, ${i}, 'bend')">` })
               : '<span class="se-no-bend">&mdash;</span>'}</td>
             <td>${sides.length > 1 ? `<button class="se-del-btn" onclick="window._seEditor._deleteSide(${i})">&times;</button>` : ''}</td>
           </tr>`;
@@ -5458,9 +5560,39 @@ class ShapeEditorModal {
   _setSide(i, val) {
     if (!this.current) return;
     // Input is centimeters; sides are stored in millimeters.
-    const lengthCm = Number(val);
-    this.current.sides[i] = Number.isFinite(lengthCm) && lengthCm > 0 ? Math.round(lengthCm * 10) : 0;
-    this._updatePreview();
+    const raw = String(val ?? '').trim();
+    const lengthCm = Number(raw);
+    const input = document.querySelector(`[data-side="${i}"]`);
+    if (!raw || !Number.isFinite(lengthCm) || lengthCm <= 0) {
+      input?.setAttribute('aria-invalid', 'true');
+      return;
+    }
+    input?.removeAttribute('aria-invalid');
+    this.current.sides[i] = Math.round(lengthCm * 10);
+    this._updatePreview({ debounceMs: 160 });
+  }
+
+  _finalizeSideInput(input, i) {
+    if (!this.current || !input) return;
+    const value = Number(input.value);
+    if (Number.isFinite(value) && value > 0) {
+      input.removeAttribute('aria-invalid');
+      return;
+    }
+    input.value = formatLengthCmFromMm(this.current.sides[i], { withUnit: false, fallback: '' });
+    input.removeAttribute('aria-invalid');
+  }
+
+  _finalizeAngleInput(input, i, kind) {
+    if (!this.current || !input) return;
+    const value = Number(input.value);
+    if (String(input.value ?? '').trim() && Number.isFinite(value)) return;
+    const stored = kind === 'az'
+      ? this.current.azAngles?.[i]
+      : kind === 'el'
+        ? this.current.elAngles?.[i]
+        : this.current.angles?.[i];
+    input.value = Number.isFinite(Number(stored)) ? String(stored) : '0';
   }
 
   _setElementName(val) {
@@ -5582,7 +5714,15 @@ class ShapeEditorModal {
 
   _setAngle(i, val) {
     if (!this.current) return;
-    const raw = Math.min(360, Math.max(-360, Number(val) || 90));
+    const rawValue = String(val ?? '').trim();
+    const numeric = Number(rawValue);
+    const input = document.querySelector(`[data-angle="${i}"]`);
+    if (!rawValue || !Number.isFinite(numeric)) {
+      input?.setAttribute('aria-invalid', 'true');
+      return;
+    }
+    input?.removeAttribute('aria-invalid');
+    const raw = Math.min(360, Math.max(-360, numeric));
     // Negative input is the same bend on the full turn: -30 is stored as 330.
     const a = ((raw % 360) + 360) % 360;
     this.current.angles[i] = a;
@@ -5591,13 +5731,21 @@ class ShapeEditorModal {
     if (this.current.azAngles && i + 1 < this.current.azAngles.length) {
       this.current.azAngles[i + 1] = 180 - a;
     }
-    this._updatePreview();
+    this._updatePreview({ debounceMs: 160 });
   }
 
   _setAzAngle(i, val) {
     if (!this.current) return;
     if (i === 0) return; // first segment has no turn — always 0
-    const az = Math.min(360, Math.max(-360, Math.round(Number(val) || 0)));
+    const rawValue = String(val ?? '').trim();
+    const numeric = Number(rawValue);
+    const input = document.querySelector(`[data-az="${i}"]`);
+    if (!rawValue || !Number.isFinite(numeric)) {
+      input?.setAttribute('aria-invalid', 'true');
+      return;
+    }
+    input?.removeAttribute('aria-invalid');
+    const az = Math.min(360, Math.max(-360, Math.round(numeric)));
     if (!this.current.azAngles) this.current.azAngles = Array(this.current.sides.length).fill(0);
     this.current.azAngles[i] = az;
     // ── Sync back to 2D angles (machine data) ──────────────────────────
@@ -5622,7 +5770,7 @@ class ShapeEditorModal {
       const bVal = Number(b.dataset.azBtn.split('_')[1]);
       b.classList.toggle('active', bVal === az);
     });
-    this._updatePreview();
+    this._updatePreview({ debounceMs: 160 });
   }
 
   // Convert flat 2D bend angles → azAngles for 3D renderer.
@@ -5644,7 +5792,15 @@ class ShapeEditorModal {
 
   _setElAngle(i, val) {
     if (!this.current) return;
-    const el = Math.min(90, Math.max(-90, Math.round(Number(val) || 0)));
+    const rawValue = String(val ?? '').trim();
+    const numeric = Number(rawValue);
+    const input = document.querySelector(`[data-el="${i}"]`);
+    if (!rawValue || !Number.isFinite(numeric)) {
+      input?.setAttribute('aria-invalid', 'true');
+      return;
+    }
+    input?.removeAttribute('aria-invalid');
+    const el = Math.min(90, Math.max(-90, Math.round(numeric)));
     if (!this.current.elAngles) this.current.elAngles = Array(this.current.sides.length).fill(0);
 
     // First time setting any Z tilt: auto-initialize azAngles from 2D bend angles
@@ -5660,7 +5816,7 @@ class ShapeEditorModal {
       const bVal = Number(b.dataset.elBtn.split('_')[1]);
       b.classList.toggle('active', bVal === el);
     });
-    this._updatePreview();
+    this._updatePreview({ debounceMs: 160 });
   }
 
   _addSide() {
@@ -5772,7 +5928,47 @@ class ShapeEditorModal {
     }
   }
 
-  _updatePreview() {
+  // One rendering pass per animation frame keeps camera dragging and focus
+  // changes smooth. Numeric typing can opt into a short debounce so a partial
+  // value never redraws the product as a temporary broken shape.
+  _updatePreview({ debounceMs = 0 } = {}) {
+    const delay = Math.max(0, Number(debounceMs) || 0);
+    if (this._previewDebounceTimer != null) {
+      clearTimeout(this._previewDebounceTimer);
+      this._previewDebounceTimer = null;
+    }
+    if (delay > 0) {
+      if (this._previewFrame != null) {
+        this._previewFrameCancel?.(this._previewFrame);
+        this._previewFrame = null;
+        this._previewFrameCancel = null;
+      }
+      this._previewDebounceTimer = setTimeout(() => {
+        this._previewDebounceTimer = null;
+        this._requestPreviewFrame();
+      }, delay);
+      return;
+    }
+    this._requestPreviewFrame();
+  }
+
+  _requestPreviewFrame() {
+    if (this._previewFrame != null) return;
+    const render = () => {
+      this._previewFrame = null;
+      this._previewFrameCancel = null;
+      this._renderPreviewNow();
+    };
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      this._previewFrameCancel = window.cancelAnimationFrame?.bind(window) || null;
+      this._previewFrame = window.requestAnimationFrame(render);
+    } else {
+      this._previewFrameCancel = clearTimeout;
+      this._previewFrame = setTimeout(render, 0);
+    }
+  }
+
+  _renderPreviewNow() {
     if (!this.current) return;
     const { sides, angles } = this.current;
     const svg = document.getElementById('seShapeSvg');
@@ -5824,7 +6020,6 @@ class ShapeEditorModal {
       });
       this._bindSvgClicks(svg);
     } else {
-      svg.innerHTML = '';
       const _activeSeg2d = this._activeSeg ?? -1;
       const isBenchProjection = isBenchBarShape(this.current) && sides.length === 5;
       const stirrupParts = detectClosedStirrupParts(sides, angles);
@@ -5832,6 +6027,7 @@ class ShapeEditorModal {
         svg.innerHTML = renderClosedStirrupEditor2D(stirrupParts, sides, 300, 260, {
           padding: 38,
           activeSeg: _activeSeg2d,
+          rotateDegrees: this._previewRotation || 0,
         });
         this._applyFamilyFocus(svg);
         this._bindSvgClicks(svg);
@@ -5839,7 +6035,7 @@ class ShapeEditorModal {
         return;
       }
       const { path, pts } = isBenchProjection
-        ? benchBarSVGPath(sides, 300, 260, 38)
+        ? benchBarSVGPath(sides, 300, 260, 38, { rotateDegrees: this._previewRotation || 0 })
         : shapeSVGPath(sides, angles, 300, 260, 38, { rotateDegrees: this._previewRotation || 0 });
       const BAR_PX = Math.max(4, Math.min((this._diameter||12)*0.55, 14));
       const SEG_GRAY = '#3d5e78'; // dark steel-blue — visible on the light editor background
@@ -5921,18 +6117,12 @@ class ShapeEditorModal {
         const mx=(s.x1+s.x2)/2, my=(s.y1+s.y2)/2;
         const lx=mx+s.nx*24, ly=my+s.ny*24;
         const rawAngle = Math.atan2(s.y2 - s.y1, s.x2 - s.x1) * 180 / Math.PI;
-        let labelAngle = rawAngle;
-        if (labelAngle > 90) labelAngle -= 180;
-        if (labelAngle < -90) labelAngle += 180;
-        const value = String(sides[i]);
-        const tagW = Math.max(28, Math.min(48, value.length * 7 + 12));
-        const letter = String.fromCharCode(65 + i);
+        const labelAngle = normalizeReadableLabelAngle(rawAngle);
+        const value = formatLengthCmFromMm(sides[i]);
+        const tagW = dimensionTagWidth(value);
         html += `<g data-se-focus="bar-side-${i}" transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${labelAngle.toFixed(1)})"
             data-seg-click="${i}" style="cursor:pointer">
-          <text x="0" y="-11" text-anchor="middle" font-size="9"
-            font-family="Heebo,Arial" font-weight="800" fill="#475569"
-            data-seg-click="${i}">${letter}</text>
-          <rect x="${(-tagW/2).toFixed(1)}" y="-7" width="${tagW}" height="14" rx="2"
+          <rect x="${(-tagW/2).toFixed(1)}" y="-8" width="${tagW}" height="16" rx="3"
             fill="${fill}" stroke="${stroke}" stroke-width=".8"
             data-seg-click="${i}"/>
           <text x="0" y="4" text-anchor="middle" font-size="10"
@@ -6175,6 +6365,9 @@ window.IronBendShapeGeometry = {
   shapeSVGPath,
   benchBarSVGPath,
   shape3DSVG,
+  formatLengthCmFromMm,
+  rotatePointListAroundBounds,
+  rotate3DPointsForView,
   PolylineBarEngine,
   MeshEngine,
   PileCageEngine,
