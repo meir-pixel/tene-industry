@@ -336,12 +336,14 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 <div class="page">
   <!-- WS + title row -->
   <div class="ws-row">
-    <span style="font-size:18px;font-weight:900;color:var(--text)">📋 הזמנות</span>
+    <span id="ordersPageTitle" style="font-size:18px;font-weight:900;color:var(--text)">📋 הזמנות</span>
     <span class="ws-badge"><span class="ws-dot" id="wsDot"></span><span id="wsLabel">מתחבר...</span></span>
   </div>
 
   <!-- FILTERS -->
   <div class="filters">
+    <button type="button" class="filter-btn" id="ordersViewBtn" onclick="setOrdersView('orders')">הזמנות</button>
+    <button type="button" class="filter-btn" id="quotesViewBtn" onclick="setOrdersView('quotes')">הצעות מחיר</button>
     <span id="statusFilterButtons" style="display:contents"></span>
     <div class="search-wrap">
       <input class="search-box" id="searchBox" placeholder="🔍 חיפוש..." oninput="applyFilter()">
@@ -353,7 +355,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   <div class="orders-wrap">
     <div class="table-scroll">
       <table>
-        <thead>
+        <thead id="ordersTableHead">
           <tr>
             <th>מספר</th><th>לקוח</th><th>אספקה</th><th>עדיפות</th>
             <th>משקל</th><th>סטטוס</th><th>נוצרה</th><th></th>
@@ -499,7 +501,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 </div>
 
 <script>
-let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, currentSendFile = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [];
+let allOrders = [], allQuotes = [], activeStatus = '', viewMode = new URLSearchParams(location.search).get('view') === 'quotes' ? 'quotes' : 'orders', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, currentSendFile = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [];
 let orderShapeEditor = null, pendingShapeEdit = null;
 const PRINT_DOCUMENTS = Object.freeze({
   'print-cards': { kind: 'print-cards', label: 'כרטיסיות ייצור', fileLabel: 'כרטיסיות-ייצור' },
@@ -532,6 +534,11 @@ const ORDER_STATUS_FILTERS = [
   { label: 'בהעמסה', status: ORDER_STATUS.LOADING },
   { label: 'אספקה חלקית', status: ORDER_STATUS.PARTIAL_DELIVERY },
 ];
+const QUOTE_STATUS_FILTERS = [
+  { label: 'הכל', status: '' },
+  { label: 'ממתינות לאישור', status: 'pending_approval' },
+  { label: 'הומרו להזמנה', status: 'converted' },
+];
 
 function escHtml(value) {
   return window.IronBendSafe
@@ -562,26 +569,41 @@ function connectWS() {
   };
   ws.onmessage = e => {
     const { type } = JSON.parse(e.data);
-    if (['new_order','order_status','order_complete','order_updated','order_item_added','order_item_updated','order_item_deleted'].includes(type)) fetchOrders();
+    if (['new_order','order_status','order_complete','order_updated','order_item_added','order_item_updated','order_item_deleted','order_quote_created','order_quote_converted'].includes(type)) fetchOrders();
   };
 }
 
 // ── Data ───────────────────────────────────────────────────────────────
 async function fetchOrders() {
   try {
-    const url = '/api/orders' + (activeStatus ? '?status=' + encodeURIComponent(activeStatus) : '');
+    const url = viewMode === 'quotes'
+      ? '/api/order-quotes' + (activeStatus ? '?status=' + encodeURIComponent(activeStatus) : '')
+      : '/api/orders' + (activeStatus ? '?status=' + encodeURIComponent(activeStatus) : '');
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`orders ${response.status}`);
-    allOrders = await response.json();
+    if (!response.ok) throw new Error(`${viewMode} ${response.status}`);
+    if (viewMode === 'quotes') allQuotes = await response.json();
+    else allOrders = await response.json();
   } catch (error) {
     console.error('fetchOrders failed', error);
-    allOrders = [];
+    if (viewMode === 'quotes') allQuotes = [];
+    else allOrders = [];
   }
   applyFilter();
 }
 
 function applyFilter() {
   const q = (document.getElementById('searchBox').value || '').toLowerCase();
+  if (viewMode === 'quotes') {
+    let list = allQuotes;
+    if (q) list = list.filter(quote =>
+      quote.quote_num?.toLowerCase().includes(q) ||
+      quote.resolved_customer_name?.toLowerCase().includes(q) ||
+      quote.customer_name?.toLowerCase().includes(q)
+    );
+    renderQuoteTable(list);
+    renderQuoteCards(list);
+    return;
+  }
   let list = allOrders;
   if (q) list = list.filter(o =>
     o.order_num?.toLowerCase().includes(q) ||
@@ -594,18 +616,33 @@ function applyFilter() {
 
 function renderStatusFilters() {
   const target = document.getElementById('statusFilterButtons');
-  target.innerHTML = ORDER_STATUS_FILTERS.map((filter, index) =>
+  const filters = viewMode === 'quotes' ? QUOTE_STATUS_FILTERS : ORDER_STATUS_FILTERS;
+  target.innerHTML = filters.map((filter, index) =>
     `<button class="filter-btn${index === 0 ? ' active' : ''}" data-status="${filter.status}">${filter.label}</button>`
   ).join('');
 
-  document.querySelectorAll('.filter-btn').forEach(btn => {
+  document.querySelectorAll('[data-status]').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('[data-status]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeStatus = btn.dataset.status;
       fetchOrders();
     });
   });
+  document.getElementById('ordersViewBtn').classList.toggle('active', viewMode === 'orders');
+  document.getElementById('quotesViewBtn').classList.toggle('active', viewMode === 'quotes');
+  document.getElementById('ordersPageTitle').textContent = viewMode === 'quotes' ? '💬 הצעות מחיר' : '📋 הזמנות';
+}
+
+function setOrdersView(nextView) {
+  viewMode = nextView === 'quotes' ? 'quotes' : 'orders';
+  activeStatus = '';
+  const url = new URL(location.href);
+  if (viewMode === 'quotes') url.searchParams.set('view', 'quotes');
+  else url.searchParams.delete('view');
+  history.replaceState({}, '', url);
+  renderStatusFilters();
+  fetchOrders();
 }
 
 // ── Badge helpers ──────────────────────────────────────────────────────
@@ -676,7 +713,12 @@ function actionBtns(o, stopProp = true, includePrints = true) {
 }
 
 // ── Desktop table ──────────────────────────────────────────────────────
+function setTableHead(labels) {
+  document.getElementById('ordersTableHead').innerHTML = `<tr>${labels.map(label => `<th>${label}</th>`).join('')}</tr>`;
+}
+
 function renderTable(orders) {
+  setTableHead(['מספר', 'לקוח', 'אספקה', 'עדיפות', 'משקל', 'סטטוס', 'נוצרה', '']);
   const body = document.getElementById('ordersBody');
   if (!orders.length) {
     body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">אין הזמנות</td></tr>';
@@ -721,7 +763,108 @@ function renderCards(orders) {
         <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" onclick="event.stopPropagation()">🖨️ כרטיסיות</a>
         <a class="btn-sm" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" onclick="event.stopPropagation()">📋 תעודה</a>
       </div>
+  </div>`).join('');
+}
+
+function quoteStatusLabel(status) {
+  const labels = {
+    draft: 'טיוטה',
+    pending_approval: 'ממתינה לאישור',
+    approved: 'אושרה',
+    rejected: 'נדחתה',
+    cancelled: 'בוטלה',
+    converted: 'הומרה להזמנה',
+  };
+  return labels[status] || status || 'טיוטה';
+}
+
+function quoteBadgeClass(status) {
+  if (status === 'converted' || status === 'approved') return 's-approved';
+  if (status === 'rejected' || status === 'cancelled') return 's-wait';
+  return 's-prod';
+}
+
+function formatQuotePrice(value) {
+  const amount = Number(value || 0);
+  return amount > 0 ? `₪${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'מחיר לעדכון';
+}
+
+function quoteActions(quote) {
+  if (quote.status === 'converted' && quote.converted_order_id) {
+    return `<div class="actions"><button class="btn-sm" onclick="event.stopPropagation();openConvertedQuoteOrder(${quote.converted_order_id})">פתח הזמנה</button></div>`;
+  }
+  if (['draft', 'pending_approval', 'approved'].includes(quote.status)) {
+    return `<div class="actions"><button class="btn-sm success" onclick="event.stopPropagation();approveQuote(${quote.id},${jsAttr(quote.quote_num)})">✓ אשר והפוך להזמנה</button></div>`;
+  }
+  return '<div class="actions">—</div>';
+}
+
+function renderQuoteTable(quotes) {
+  setTableHead(['הצעה', 'לקוח', 'משקל', 'מחיר', 'סטטוס', 'נוצרה', 'הזמנה', '']);
+  const body = document.getElementById('ordersBody');
+  if (!quotes.length) {
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">אין הצעות מחיר</td></tr>';
+    return;
+  }
+  body.innerHTML = quotes.map(quote => `
+    <tr>
+      <td><span class="order-num">${escHtml(quote.quote_num)}</span></td>
+      <td>${escHtml(quote.resolved_customer_name || quote.customer_name || '—')}</td>
+      <td class="weight-tag">${Number(quote.total_weight || 0).toFixed(0)} ק"ג</td>
+      <td class="weight-tag">${escHtml(formatQuotePrice(quote.total_price))}</td>
+      <td><span class="badge ${quoteBadgeClass(quote.status)}">${escHtml(quoteStatusLabel(quote.status))}</span></td>
+      <td style="color:var(--muted);font-size:12px">${new Date(quote.created_at).toLocaleDateString('he-IL')}</td>
+      <td>${quote.converted_order_num ? `<span class="order-num">${escHtml(quote.converted_order_num)}</span>` : '—'}</td>
+      <td>${quoteActions(quote)}</td>
+    </tr>`).join('');
+}
+
+function renderQuoteCards(quotes) {
+  const wrap = document.getElementById('mobileCards');
+  if (!quotes.length) {
+    wrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">אין הצעות מחיר</div>';
+    return;
+  }
+  wrap.innerHTML = quotes.map(quote => `
+    <div class="m-card">
+      <div class="m-card-top">
+        <div>
+          <div class="m-card-num">${escHtml(quote.quote_num)}</div>
+          <div class="m-card-customer">${escHtml(quote.resolved_customer_name || quote.customer_name || '—')}</div>
+        </div>
+        <span class="badge ${quoteBadgeClass(quote.status)}">${escHtml(quoteStatusLabel(quote.status))}</span>
+      </div>
+      <div class="m-card-meta"><span>⚖️ ${Number(quote.total_weight || 0).toFixed(0)} ק"ג</span><span>💰 ${escHtml(formatQuotePrice(quote.total_price))}</span></div>
+      <div class="m-card-actions">${quoteActions(quote)}</div>
     </div>`).join('');
+}
+
+async function approveQuote(id, quoteNum) {
+  if (!confirm(`לאשר את ${quoteNum} וליצור ממנה הזמנה? רק עכשיו תיווצר הזמנה ותישמר הקצאת המלאי.`)) return;
+  const response = await fetch(`/api/order-quotes/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) {
+    alert(result.error || 'אישור הצעת המחיר נכשל');
+    return;
+  }
+  viewMode = 'orders';
+  activeStatus = '';
+  const url = new URL(location.href);
+  url.searchParams.delete('view');
+  history.replaceState({}, '', url);
+  renderStatusFilters();
+  await fetchOrders();
+  if (result.orderId) openDetail(result.orderId);
+}
+
+function openConvertedQuoteOrder(orderId) {
+  viewMode = 'orders';
+  activeStatus = '';
+  const url = new URL(location.href);
+  url.searchParams.delete('view');
+  history.replaceState({}, '', url);
+  renderStatusFilters();
+  fetchOrders().then(() => openDetail(orderId));
 }
 
 // ── Status update ──────────────────────────────────────────────────────
@@ -1062,7 +1205,7 @@ function itemWeight(item) {
 }
 
 function itemDimensions(item) {
-  if (isRealSpiralItem(item)) return `קוטר ספיראלה ${IronBendDisplayUnits.formatLengthCmFromMm(item.spiral_diameter_mm)} / ${item.spiral_turns} כריכות`;
+  if (isRealSpiralItem(item)) return `קוטר ספיראלה ${IronBendDisplayUnits.formatLengthCmFromMm(item.spiral_diameter_mm)} / N=${item.spiral_turns}`;
   const values = normalizeDisplaySegments(item.shape_name, safeJson(item.segments)).map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
   return values.length ? values.join(' / ') : '';
 }
@@ -1113,7 +1256,7 @@ function openULegWarning(item, sides) {
 function itemMachineSequence(item) {
   const segments = rawItemSegments(item);
   if (isRealSpiralItem(item)) {
-    return `ספיראלה: קוטר ברזל ${IronBendDisplayUnits.formatSteelDiameterMm(item.diameter) || '-'}, קוטר ספיראלה ${IronBendDisplayUnits.formatLengthCmFromMm(item.spiral_diameter_mm) || '-'}, כריכות ${item.spiral_turns || '-'}`;
+    return `ספיראלה: קוטר ברזל ${IronBendDisplayUnits.formatSteelDiameterMm(item.diameter) || '-'}, קוטר ספיראלה ${IronBendDisplayUnits.formatLengthCmFromMm(item.spiral_diameter_mm) || '-'}, N=${item.spiral_turns || '-'}`;
   }
   return segments.map((segment, idx) => `צלע ${idx + 1}: ${IronBendDisplayUnits.formatLengthCmFromMm(segment.length_mm)} | זווית אחרי: ${Number.isFinite(segment.angle_deg) ? segment.angle_deg : 180}°`).join(' · ');
 }
@@ -1157,7 +1300,7 @@ function buildSpiralSvg(diameter, turns) {
     <circle cx="110" cy="62" r="42" stroke="#DF5000" stroke-width="6" fill="none"/>
     <circle cx="110" cy="62" r="30" stroke="#ef8a42" stroke-width="4" fill="none" opacity=".75"/>
     <circle cx="110" cy="62" r="18" stroke="#f3b074" stroke-width="4" fill="none" opacity=".7"/>
-    <text x="110" y="118" text-anchor="middle" font-size="11" fill="#1f2937">קוטר ${escHtml(IronBendDisplayUnits.formatLengthCmFromMm(diameter))} · ${escHtml(turns)} כריכות</text>
+    <text x="110" y="118" text-anchor="middle" font-size="11" fill="#1f2937">קוטר ${escHtml(IronBendDisplayUnits.formatLengthCmFromMm(diameter))} · N=${escHtml(turns)}</text>
   </svg>`;
 }
 

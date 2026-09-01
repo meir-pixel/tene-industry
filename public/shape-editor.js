@@ -1471,7 +1471,7 @@ SpiralEngine.render = function(spiral, w = 300, h = 260) {
     }
     const path = points.map((point, index) => `${index ? 'L' : 'M'} ${point[0].toFixed(1)} ${point[1].toFixed(1)}`).join(' ');
     return `<g data-engine="SpiralEngine" data-family="spirals" data-bar-diameter="${barDia}" data-spiral-diameter="${spiralDia}" data-turns="${turns}">
-      <text data-spiral-turn-count="1" x="${cx.toFixed(1)}" y="12" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">${turns} כריכות</text>
+      <text data-spiral-turn-count="1" x="${cx.toFixed(1)}" y="12" text-anchor="middle" font-size="10" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">N=${turns}</text>
       <path d="${path}" fill="none" stroke="#111827" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
       <line x1="${(cx - outerRadius).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(cx + outerRadius).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#c9621a" stroke-width="1.2"/>
       <path d="M ${(cx - outerRadius).toFixed(1)} ${(cy - 4).toFixed(1)} V ${(cy + 4).toFixed(1)} M ${(cx + outerRadius).toFixed(1)} ${(cy - 4).toFixed(1)} V ${(cy + 4).toFixed(1)}" stroke="#c9621a" stroke-width="1.2"/>
@@ -1508,7 +1508,7 @@ SpiralEngine.render = function(spiral, w = 300, h = 260) {
   }
   if (turns > displayTurns) {
     coils += `<text x="${cx.toFixed(1)}" y="${(startY + totalH + 14).toFixed(1)}" text-anchor="middle"
-      font-size="9" font-family="Heebo,Arial" fill="#7a93ab">... ${turns} כריכות</text>`;
+      font-size="9" font-family="Heebo,Arial" fill="#7a93ab">... N=${turns}</text>`;
   }
 
   // Top-view circle (bottom-right)
@@ -1525,11 +1525,11 @@ SpiralEngine.render = function(spiral, w = 300, h = 260) {
       stroke="#526070" stroke-width="1" marker-start="url(#se-arr)" marker-end="url(#se-arr)"/>
     <text x="${(arrowX - 6).toFixed(1)}" y="${((arrowY1 + arrowY2) / 2).toFixed(1)}"
       text-anchor="middle" font-size="9" font-family="Heebo,Arial" fill="#526070"
-      transform="rotate(-90 ${(arrowX - 6).toFixed(1)} ${((arrowY1 + arrowY2) / 2).toFixed(1)})">${turns} כריכות</text>`;
+      transform="rotate(-90 ${(arrowX - 6).toFixed(1)} ${((arrowY1 + arrowY2) / 2).toFixed(1)})">N=${turns}</text>`;
 
   // Labels
   const specLabel = `<text x="${(cx).toFixed(1)}" y="${(h - 8).toFixed(1)}" text-anchor="middle"
-    font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">Ø${barDia} מ״מ | קוטר ${displayNumber(spiralDia / 10)} ס״מ | ${turns} כריכות | ${displayNumber(totalLengthMm / 10)} ס״מ</text>`;
+    font-size="10" font-family="Heebo,Arial" font-weight="800" fill="#526070">Ø${barDia} מ״מ | קוטר ${displayNumber(spiralDia / 10)} ס״מ | N=${turns} | ${displayNumber(totalLengthMm / 10)} ס״מ</text>`;
 
   return `<g data-engine="SpiralEngine" data-family="spirals"
     data-bar-diameter="${barDia}" data-spiral-diameter="${spiralDia}" data-turns="${turns}">
@@ -4713,7 +4713,7 @@ class ShapeEditorModal {
         ${field('spiralDiameter', 'Ø קוטר ספיראלה',  'ס״מ', '40', 0.1)}
       </tr>
       <tr class="se-family-row">
-        ${field('turns', 'מספר כריכות', 'יח׳', '20', 1)}
+        ${field('turns', 'N', '', '20', 1)}
         <td colspan="2"></td>
       </tr>
       <tr class="se-family-row"><td colspan="4" style="padding:4px 0">

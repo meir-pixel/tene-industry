@@ -21,6 +21,7 @@ const {
 const { createPricer } = require('../services/pricer');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 const { buildOrderCommercialSummary } = require('../services/orderCommercialSummary');
+const { createOrderQuoteService } = require('../services/orderQuotes');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -239,6 +240,7 @@ module.exports = function createOrdersRouter(deps) {
   const auditLog = required('auditLog', deps.auditLog);
   const productionCards = deps.productionCards || require('../services/productionCards');
   const pricer = deps.pricer || createPricer(db);
+  const quotes = createOrderQuoteService(db, { createOrderFromPayload });
 
   function normalizePreviewItem(item = {}, index = 0) {
     const shapeSnapshot = parseJsonObject(item.shape_snapshot_json) || parseJsonObject(item.shapeSnapshot) || null;
@@ -458,6 +460,45 @@ module.exports = function createOrdersRouter(deps) {
     } catch (err) {
       console.error('price preview failed:', err);
       res.status(500).json({ error: 'price_preview_failed', message: err.message });
+    }
+  });
+
+  router.get('/order-quotes', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    res.json(quotes.listQuotes({ status: req.query?.status }));
+  });
+
+  router.get('/order-quotes/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    const quote = quotes.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: 'הצעת מחיר לא נמצאה' });
+    res.json(quote);
+  });
+
+  router.post('/order-quotes', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    try {
+      const quote = quotes.createQuoteTransaction({
+        payload: req.body?.payload,
+        pricingSnapshot: req.body?.pricing_snapshot ?? req.body?.pricingSnapshot ?? null,
+        createdBy: req.userId || req.auth?.sub || null,
+      });
+      auditLog('order_quote', quote.id, quote.quote_num, 'quote_create', 'status', null, quote.status, null, req.userId || req.auth?.sub || null, req.auth?.display_name || null);
+      wsBroadcast('order_quote_created', { quoteId: quote.id, quoteNum: quote.quote_num });
+      res.status(201).json({ success: true, quote });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/order-quotes/:id/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    try {
+      const result = quotes.approveQuoteTransaction({ quoteId: req.params.id, approvedBy: req.userId || req.auth?.sub || null });
+      if (!result.alreadyConverted) {
+        auditLog('order_quote', result.quote.id, result.quote.quote_num, 'quote_convert_to_order', 'status', 'pending_approval', 'converted', `נוצרה הזמנה ${result.orderNum}`, req.userId || req.auth?.sub || null, req.auth?.display_name || null);
+        wsBroadcast('new_order', { orderNum: result.orderNum, orderId: result.orderId, quoteId: result.quote.id });
+        wsBroadcast('order_quote_converted', { quoteId: result.quote.id, quoteNum: result.quote.quote_num, orderId: result.orderId, orderNum: result.orderNum });
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, error: error.message });
     }
   });
 
@@ -1040,15 +1081,18 @@ module.exports.manifest = {
   label: 'הזמנות',
   screens: [
     { id: 'orders',    path: '/orders.html', label: 'הזמנות',     icon: '📋', group: 'ראשי' },
+    { id: 'order-quotes', path: '/orders.html?view=quotes', label: 'הצעות מחיר', icon: '💬', group: 'ראשי' },
     { id: 'new-order', path: '/index.html',  label: 'הזמנה חדשה', icon: '➕', group: 'ראשי' },
   ],
   access: {
     default: 'hidden',
     roles: { admin: 'edit', manager: 'edit', office: 'edit', finance: 'read', production: 'read', sales: 'read' },
   },
-  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'items' }],
+  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'order_quotes' }, { table: 'items' }],
   produces: [
     { event: 'new_order' },
+    { event: 'order_quote_created' },
+    { event: 'order_quote_converted' },
     { event: 'order_status' },
     { event: 'order_updated' },
     { event: 'order_review' },

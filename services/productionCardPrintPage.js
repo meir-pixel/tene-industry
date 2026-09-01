@@ -120,7 +120,7 @@ function pileComponentShapeSvg(card, fallbackLengthMm, scope = 'pile') {
       if (rowY <= 93) {
         const detail = segment.noWrap
           ? `${name} ${formatPileCm(start)}-${formatPileCm(start + axial)} NO WRAP`
-          : `${name} ${formatPileCm(start)}-${formatPileCm(start + axial)} P${formatPileCm(segment.pitchMm)} T${formatPileNumber(segment.turns)} C${formatPileCm(segment.helicalCutLengthMm ?? segment.totalLengthMm)}`;
+          : `${name} ${formatPileCm(start)}-${formatPileCm(start + axial)} P${formatPileCm(segment.pitchMm)} N${formatPileNumber(segment.turns)} C${formatPileCm(segment.helicalCutLengthMm ?? segment.totalLengthMm)}`;
         svg += `<text x="18" y="${rowY}" text-anchor="start" font-size="7" font-family="Arial" font-weight="700" fill="#1a2332">${escapeSvgText(detail)}</text>`;
       }
     });

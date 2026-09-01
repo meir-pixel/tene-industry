@@ -11,13 +11,13 @@ const SECTION_DEFINITIONS = Object.freeze([
 ]);
 
 const LINE_DEFINITIONS = Object.freeze([
-  { key: 'processed_rebar_kg', section: 'material', label: 'ברזל בניין מעובד', unit: 'kg' },
+  { key: 'processed_rebar_kg', section: 'material', label: 'ברזל', unit: 'kg' },
   { key: 'round_wire_coil_kg', section: 'material', label: 'סלילים עגולים-חוטים', unit: 'kg' },
   { key: 'cutting_kg', section: 'processing', label: 'חיתוך', unit: 'kg' },
   { key: 'bending_kg', section: 'processing', label: 'כיפוף', unit: 'kg' },
   { key: 'spiral_processing_kg', section: 'processing', label: 'עיבוד ספירלות עד קוטר 12 כולל', unit: 'kg' },
   { key: 'chairs_units', section: 'processing', label: 'כסאות', unit: 'unit' },
-  { key: 'rings_units', section: 'processing', label: 'חישוקים', unit: 'unit' },
+  { key: 'rings_units', section: 'processing', label: 'עיבוד טבעות', unit: 'unit' },
   { key: 'lifting_units', section: 'processing', label: 'ציפורים/אזני הרמה/קרומים', unit: 'unit' },
   { key: 'mesh_kg', section: 'finished_products', label: 'רשת לבניין סטנדרט בחבילות', unit: 'kg' },
   { key: 'pile_cages_kg', section: 'finished_products', label: 'כלונסאות / כלובי זיון', unit: 'kg' },
@@ -211,14 +211,24 @@ function classifyOrderItem(item = {}) {
     lines: [material.source === 'coil' ? 'round_wire_coil_kg' : 'processed_rebar_kg', 'cutting_kg', 'spiral_processing_kg'],
   };
 
+  if (isRing) return {
+    kind: 'ring',
+    weightKg,
+    weightSource,
+    materialSource: material.source,
+    materialSourceBasis: material.basis,
+    quantity,
+    lengthMm,
+    lines: [material.source === 'coil' ? 'round_wire_coil_kg' : 'processed_rebar_kg', 'cutting_kg', 'rings_units'],
+  };
+
   const lines = [material.source === 'coil' ? 'round_wire_coil_kg' : 'processed_rebar_kg'];
   if (bent || !isCommercialStraightLength(lengthMm)) lines.push('cutting_kg');
   if (bent) lines.push('bending_kg');
   if (isChair) lines.push('chairs_units');
-  else if (isRing) lines.push('rings_units');
   else if (isLifting) lines.push('lifting_units');
   return {
-    kind: isChair ? 'chair' : isRing ? 'ring' : isLifting ? 'lifting' : bent ? 'bent_rebar' : 'straight_rebar',
+    kind: isChair ? 'chair' : isLifting ? 'lifting' : bent ? 'bent_rebar' : 'straight_rebar',
     weightKg,
     weightSource,
     materialSource: material.source,

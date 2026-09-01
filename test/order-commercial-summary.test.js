@@ -95,7 +95,7 @@ test('an explicitly sourced coil spiral is round-wire material plus cutting and 
   assert.equal(summaryLine(summary, 'bending_kg'), null);
 });
 
-test('chairs and rings retain kg services and add only their natural unit line', () => {
+test('rings are priced as iron plus cutting and ring processing per unit, without generic bending', () => {
   const summary = buildOrderCommercialSummary([
     item({ id: 1, shape_id: 's15', shape_name: 'ספסל', quantity: 4, total_weight: 10, segments: JSON.stringify([{ length_mm: 500, angle_deg: 90 }, { length_mm: 1000, angle_deg: 90 }, { length_mm: 500, angle_deg: null }]) }),
     item({ id: 2, shape_name: 'טבעת', quantity: 5, total_weight: 13.19, spiral_diameter_mm: 420, spiral_turns: 1, shape_snapshot_json: JSON.stringify({ family: 'spirals', shapeType: 'ring', data: { ringDiameterMm: 420 } }) }),
@@ -103,11 +103,12 @@ test('chairs and rings retain kg services and add only their natural unit line',
   assert.equal(line(summary, 'processed_rebar_kg').value, 23.19);
   assert.equal(summaryLine(summary, 'round_wire_coil_kg'), null);
   assert.equal(line(summary, 'cutting_kg').value, 23.19);
-  assert.equal(line(summary, 'bending_kg').value, 23.19);
+  assert.equal(line(summary, 'bending_kg').value, 10);
   assert.equal(line(summary, 'chairs_units').value, 4);
   assert.equal(line(summary, 'chairs_units').unit, 'unit');
   assert.equal(line(summary, 'rings_units').value, 5);
   assert.equal(line(summary, 'rings_units').unit, 'unit');
+  assert.equal(line(summary, 'rings_units').label, 'עיבוד טבעות');
 });
 
 test('mesh and pile cages are independent finished-product kg rows without material double counting', () => {
@@ -189,7 +190,7 @@ test('commercial summary uses the approved price-list terminology', () => {
     item({ id: 2, diameter: 20, total_length_mm: 12000, total_weight: 20, material_source: 'coil', segments: JSON.stringify([{ length_mm: 12000, angle_deg: null }]) }),
   ]);
   assert.deepEqual(summary.sections.map(section => section.label), ['ברזל מעובד', 'עיבודים ברזל']);
-  assert.equal(line(summary, 'processed_rebar_kg').label, 'ברזל בניין מעובד');
+  assert.equal(line(summary, 'processed_rebar_kg').label, 'ברזל');
   assert.equal(line(summary, 'round_wire_coil_kg').label, 'סלילים עגולים-חוטים');
   assert.equal(line(summary, 'cutting_kg').label, 'חיתוך');
 });

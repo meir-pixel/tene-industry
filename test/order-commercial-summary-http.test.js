@@ -57,7 +57,7 @@ test('order API, A4 and delivery certificate share the computed commercial summa
   assert.equal(order.commercial_summary.lines.find(line => line.key === 'cutting_kg').value, 10);
   assert.equal(order.commercial_summary.lines.find(line => line.key === 'bending_kg').value, 10);
   const materialLine = order.commercial_summary.lines.find(line => line.key === 'processed_rebar_kg');
-  assert.equal(materialLine.label, 'ברזל בניין מעובד');
+  assert.equal(materialLine.label, 'ברזל');
   assert.equal(materialLine.value, 10);
   assert.equal(materialLine.contributors[0].material_source, 'straight');
   assert.equal(materialLine.contributors[0].material_source_basis, 'default_processed_rebar');
@@ -67,7 +67,7 @@ test('order API, A4 and delivery certificate share the computed commercial summa
   assert.equal(a4Response.status, 200);
   const a4 = await a4Response.text();
   assert.match(a4, /data-commercial-summary-line="cutting_kg"/);
-  assert.match(a4, /<td>ברזל בניין מעובד<\/td><td>10\.00 קג<\/td>/);
+  assert.match(a4, /<td>ברזל<\/td><td>10\.00 קג<\/td>/);
   assert.match(a4, /<td>חיתוך<\/td><td>10\.00 קג<\/td>/);
   assert.doesNotMatch(a4, /חיתוך<\/td><td>[^<]*יח/);
   assert.doesNotMatch(a4, /נוסף ידנית/);
@@ -86,7 +86,7 @@ test('order API, A4 and delivery certificate share the computed commercial summa
   const delivery = await deliveryResponse.text();
   assert.equal(deliveryResponse.status, 200, delivery);
   assert.match(delivery, /data-commercial-summary-line="cutting_kg"/);
-  assert.match(delivery, /ברזל בניין מעובד:<\/span><span class="sum-val">10\.00/);
+  assert.match(delivery, /ברזל:<\/span><span class="sum-val">10\.00/);
   assert.match(delivery, /חיתוך:<\/span><span class="sum-val">10\.00/);
   assert.doesNotMatch(delivery, /חיתוך:<\/span><span class="sum-val">[^<]*יח/);
 });

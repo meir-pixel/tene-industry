@@ -1438,6 +1438,7 @@
   body[data-page="new"] .order-pro-hidden-status{display:none!important;}
   body[data-page="new"] .order-pro-actions{display:flex!important;justify-content:flex-end!important;align-items:center!important;gap:8px!important;flex-wrap:nowrap!important;}
   body[data-page="new"] .order-primary-save,body[data-page="new"] .order-secondary-save,body[data-page="new"] .order-more-action{border-radius:10px!important;border:1px solid #cbd8ea!important;min-height:38px!important;padding:8px 13px!important;font-family:inherit!important;font-weight:900!important;cursor:pointer!important;white-space:nowrap!important;}
+  body[data-page="new"] .order-submit-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;}
   body[data-page="new"] .order-primary-save{background:#1769e0!important;color:#fff!important;border-color:#1769e0!important;box-shadow:0 10px 20px rgba(23,105,224,.18)!important;}
   body[data-page="new"] .order-secondary-save,body[data-page="new"] .order-more-action{background:#fff!important;color:#18345f!important;}
   body[data-page="new"] .order-pro-context{grid-area:context!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important;margin:0!important;}
@@ -1549,7 +1550,8 @@
     </div>
     <div class="order-pro-actions no-header-actions">
       <button type="button" class="order-secondary-save no-secondary-action" onclick="saveDraftNow()">&#1513;&#1502;&#1493;&#1512; &#1496;&#1497;&#1493;&#1496;&#1492;</button>
-      <button type="button" class="submit-btn order-primary-save no-primary-action" onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button>
+      <button type="button" class="order-secondary-save no-secondary-action" data-quote-submit onclick="saveQuote()">&#1492;&#1510;&#1506;&#1514; &#1502;&#1495;&#1497;&#1512;</button>
+      <button type="button" class="submit-btn order-primary-save no-primary-action" data-order-submit onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button>
       <button type="button" class="order-more-action no-ghost-action" onclick="openSetupDrawer('source')">&#1506;&#1493;&#1491;</button>
     </div>
   </header>
@@ -1888,15 +1890,16 @@
       <div class="wizard-summary-line"><span>&#1494;&#1502;&#1497;&#1503;</span><strong id="summaryAvailableKg">&#1500;&#1508;&#1497; FIFO &#1489;&#1513;&#1502;&#1497;&#1512;&#1492;</strong></div>
       <div class="wizard-summary-line wizard-summary-warning"><span>&#1495;&#1505;&#1512;</span><strong id="summaryShortageKg">-</strong></div>
     </div>
-    <button class="submit-btn" onclick="submitOrder()">
-      שמור הזמנה ←
-    </button>
+    <div class="order-submit-actions">
+      <button class="order-secondary-save" type="button" data-quote-submit onclick="saveQuote()">הצעת מחיר</button>
+      <button class="submit-btn" type="button" data-order-submit onclick="submitOrder()">שמור הזמנה ←</button>
+    </div>
   </div>
 
 
   <aside class="no-panel no-inventory-panel" id="liveInventoryPanel"><div class="no-panel-head"><h3>&#1502;&#1500;&#1488;&#1497; &#1489;&#1494;&#1502;&#1503; &#1488;&#1502;&#1514;</h3><p>&#1489;&#1491;&#1497;&#1511;&#1492; &#1500;&#1508;&#1497; &#1511;&#1493;&#1496;&#1512;&#1497;&#1501; &#1489;&#1492;&#1494;&#1502;&#1504;&#1492;</p></div><div class="no-inventory-list"><div class="no-empty-items">&#1488;&#1497;&#1503; &#1504;&#1514;&#1493;&#1504;&#1497; &#1502;&#1500;&#1488;&#1497; &#1500;&#1492;&#1510;&#1490;&#1492;</div></div></aside>
   </aside>
-  <footer class="no-bottom-actions"><button type="button" class="no-ghost-action" onclick="location.href='/orders.html'">&#1489;&#1496;&#1500;</button><button type="button" class="no-secondary-action" onclick="saveDraftNow()">&#1513;&#1502;&#1493;&#1512; &#1496;&#1497;&#1493;&#1496;&#1492;</button><button type="button" class="submit-btn no-primary-action" onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button></footer>
+  <footer class="no-bottom-actions"><button type="button" class="no-ghost-action" onclick="location.href='/orders.html'">&#1489;&#1496;&#1500;</button><button type="button" class="no-secondary-action" onclick="saveDraftNow()">&#1513;&#1502;&#1493;&#1512; &#1496;&#1497;&#1493;&#1496;&#1492;</button><button type="button" class="no-secondary-action" data-quote-submit onclick="saveQuote()">&#1492;&#1510;&#1506;&#1514; &#1502;&#1495;&#1497;&#1512;</button><button type="button" class="submit-btn no-primary-action" data-order-submit onclick="submitOrder()">&#1513;&#1502;&#1493;&#1512; &#1492;&#1494;&#1502;&#1504;&#1492;</button></footer>
 </div>
 
 <!-- Shape editor injected by shape-editor.js -->
@@ -1914,6 +1917,20 @@
       <button class="success-btn secondary" onclick="successPrintCards()">🖨️ כרטיסיות ייצור</button>
       <button class="success-btn secondary" onclick="successDelivCert()">📄 תעודת משלוח</button>
       <button class="success-btn outline" onclick="location.href='/orders.html'">📑 כל ההזמנות</button>
+    </div>
+    <button class="new-order-btn" onclick="newOrder()">➕ הזמנה חדשה</button>
+  </div>
+</div>
+
+<div class="success-overlay" id="quoteSuccessOverlay">
+  <div class="success-box">
+    <div class="success-icon">💬</div>
+    <div class="success-title">הצעת המחיר נשמרה</div>
+    <div class="success-order" id="successQuoteNum"></div>
+    <div class="success-sub">ההצעה עדיין אינה הזמנה. אשר/י אותה מרשימת הצעות המחיר כדי ליצור הזמנה.</div>
+    <div class="success-actions">
+      <button class="success-btn primary" onclick="location.href='/orders.html?view=quotes'">📄 להצעות המחיר</button>
+      <button class="success-btn outline" onclick="closeQuoteSuccess()">המשך לעריכה</button>
     </div>
     <button class="new-order-btn" onclick="newOrder()">➕ הזמנה חדשה</button>
   </div>
@@ -3628,6 +3645,7 @@ function newOrder() {
   orderCounter++;
   pallets = [];
   document.getElementById('successOverlay').classList.remove('show');
+  document.getElementById('quoteSuccessOverlay')?.classList.remove('show');
   document.getElementById('customerSearch').value = '';
   document.getElementById('customerPhone').value = '';
   document.getElementById('customerPriorityId').value = '';
@@ -3667,16 +3685,16 @@ function scrollToSection(id) {
 // ── START ──────────────────────────────────────────────
 init();
 loadInventoryBatches();
-async function submitOrder() {
+function buildOrderPayload() {
   const customer = document.getElementById('customerSearch').value;
   const address = document.getElementById('deliveryAddress').value;
   const date = document.getElementById('deliveryDate').value;
 
-  if (!customer) { openCustomerDetails(); alert('נא להזין שם לקוח'); return; }
-  if (!address) { openDeliveryDetails(); alert('נא להזין כתובת אספקה'); return; }
-  if (!date) { openDeliveryDetails(); alert('נא להזין תאריך אספקה'); return; }
+  if (!customer) { openCustomerDetails(); alert('נא להזין שם לקוח'); return null; }
+  if (!address) { openDeliveryDetails(); alert('נא להזין כתובת אספקה'); return null; }
+  if (!date) { openDeliveryDetails(); alert('נא להזין תאריך אספקה'); return null; }
   const hasItems = pallets.some(p => p.items.length > 0);
-  if (!hasItems) { alert('נא להוסיף לפחות פריט ברזל אחד'); return; }
+  if (!hasItems) { alert('נא להוסיף לפחות פריט ברזל אחד'); return null; }
 
   const totalWeight = pallets.reduce((sum, p) => sum + calcPalletWeight(p), 0);
   const deliverySiteName = (document.getElementById('deliverySiteName')?.value || '').trim();
@@ -3685,7 +3703,7 @@ async function submitOrder() {
   const selectedCustomerId = Number(window._selectedCustomerId || 0) || null;
   const selectedSiteId = selectedCustomerId ? (document.getElementById('orderSiteId')?.value || null) : null;
 
-  const payload = {
+  return {
     customer: {
       id: selectedCustomerId,
       name: document.getElementById('customerSearch').value,
@@ -3729,10 +3747,62 @@ async function submitOrder() {
       }))
     }))
   };
+}
 
-  const submitBtn = document.querySelector('.submit-btn');
-  submitBtn.textContent = 'שומר...';
-  submitBtn.disabled = true;
+function setActionButtonsBusy(selector, busy, busyLabel) {
+  document.querySelectorAll(selector).forEach(button => {
+    if (busy) {
+      button.dataset.readyLabel = button.textContent;
+      button.textContent = busyLabel;
+      button.disabled = true;
+    } else {
+      button.textContent = button.dataset.readyLabel || button.textContent;
+      button.disabled = false;
+    }
+  });
+}
+
+function closeQuoteSuccess() {
+  document.getElementById('quoteSuccessOverlay')?.classList.remove('show');
+}
+
+async function saveQuote() {
+  const payload = buildOrderPayload();
+  if (!payload) return;
+  if (!navigator.onLine) {
+    alert('לשמירת הצעת מחיר נדרש חיבור לרשת. ההצעה לא נשלחה ולא נוצרה הזמנה.');
+    return;
+  }
+
+  setActionButtonsBusy('[data-quote-submit]', true, 'שומר הצעה...');
+  try {
+    await loadPricePreview();
+    const response = await fetch('/api/order-quotes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload, pricing_snapshot: latestPricePreview || null }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success) {
+      alert(result.error || 'שמירת הצעת המחיר נכשלה');
+      return;
+    }
+    document.getElementById('successQuoteNum').textContent = result.quote?.quote_num || 'הצעת מחיר נשמרה';
+    clearOrderDraft();
+    document.getElementById('quoteSuccessOverlay').classList.add('show');
+  } catch (error) {
+    console.error('saveQuote failed:', error);
+    alert('שמירת הצעת המחיר נכשלה. לא נוצרה הזמנה.');
+  } finally {
+    setActionButtonsBusy('[data-quote-submit]', false);
+  }
+}
+
+async function submitOrder() {
+  const payload = buildOrderPayload();
+  if (!payload) return;
+
+  setActionButtonsBusy('[data-order-submit]', true, 'שומר...');
 
   try {
     if (!navigator.onLine) throw new Error('offline');
@@ -3777,8 +3847,7 @@ async function submitOrder() {
     document.getElementById('successOverlay').classList.add('show');
     orderCounter++;
   } finally {
-    submitBtn.textContent = 'שמור הזמנה ←';
-    submitBtn.disabled = false;
+    setActionButtonsBusy('[data-order-submit]', false);
   }
 }
 
@@ -4011,7 +4080,7 @@ function renderImgItems(items) {
     html += '<label class="img-item-field">כמות <input class="img-item-inp" type="number" value="' + escapeHtml(it.quantity || it.qty || 1) + '" id="imgQ' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field">אורך כולל (ס״מ) <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(IronBendDisplayUnits.millimetersToCentimeters(it.total_length_mm || it.length_mm || it.length || '') ?? '') + '" id="imgLen' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field">קוטר ספיראלה (ס״מ) <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(IronBendDisplayUnits.millimetersToCentimeters(it.spiral_diameter_mm || it.spiralDiameterMm || '') ?? '') + '" id="imgSpiralD' + i + '" oninput="markEdited(' + i + ')"></label>';
-    html += '<label class="img-item-field">מספר כריכות <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(it.spiral_turns || it.spiralTurns || '') + '" id="imgSpiralTurns' + i + '" oninput="markEdited(' + i + ')"></label>';
+    html += '<label class="img-item-field">N <input class="img-item-inp" type="number" step="0.1" value="' + escapeHtml(it.spiral_turns || it.spiralTurns || '') + '" id="imgSpiralTurns' + i + '" oninput="markEdited(' + i + ')"></label>';
     html += '<label class="img-item-field" style="grid-column:span 2">צלעות בס״מ: אורך@זווית <textarea class="img-item-textarea" id="imgSegs' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(segmentsText) + '</textarea></label>';
     html += '<label class="img-item-field">שייך ל / תיאור <textarea class="img-item-textarea" id="imgNote' + i + '" oninput="markEdited(' + i + ')">' + escapeHtml(it.note || it.notes || it.shape_description || it.shapeDescription || '') + '</textarea></label>';
     html += '</div>';

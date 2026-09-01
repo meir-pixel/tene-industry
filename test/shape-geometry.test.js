@@ -1787,9 +1787,9 @@ test('production card renders real spiral items from item fields instead of stra
   assert.doesNotMatch(svg, /max-height:/);
   assert.match(svg, /data-spiral-visual-labels="1"/);
   assert.match(svg, /data-spiral-turn-count="1"/);
-  assert.match(svg, />30 כריכות</);
+  assert.match(svg, />N=30</);
   assert.match(svg, /\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4/);
-  assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
+  assert.match(svg, />N</);
   assert.doesNotMatch(svg, /data-shape-kind="straight-bar"/);
   assert.doesNotMatch(svg, /30 turns/);
 });
@@ -1809,7 +1809,7 @@ test('production card renders legacy spiral snapshot retroactively', () => {
   assert.match(svg, /data-shape-kind="spiral"/);
   assert.match(svg, /data-spiral-diameter-mm="250"/);
   assert.match(svg, /data-spiral-turns="18"/);
-  assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
+  assert.match(svg, />N=18</);
   assert.doesNotMatch(svg, /18 turns/);
 });
 

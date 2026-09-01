@@ -689,7 +689,7 @@ function spiralShapeSvg(item = {}) {
   // \u2500\u2500 SPIRAL (>1 turn): real multi-turn plan view; count stays above the coil. \u2500\u2500
   const cx = 120, cy = 52, r = 34;
   let svg = `<defs><marker id="arr-s" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker><marker id="arr-sl" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker></defs>`;
-  svg += `<text data-spiral-turn-count="1" x="${cx}" y="13" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">${turnsLabel} \u05db\u05e8\u05d9\u05db\u05d5\u05ea</text>`;
+  svg += `<text data-spiral-turn-count="1" x="${cx}" y="13" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">N=${turnsLabel}</text>`;
   const spiralPath = archimedeanSpiralPath(cx, cy, 3, r, 4.25, 170);
   svg += `<path d="${spiralPath}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
   svg += `<path d="${spiralPath}" fill="none" stroke="#3a5070" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
@@ -701,8 +701,8 @@ function spiralShapeSvg(item = {}) {
   svg += `<text x="73" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4</text>`;
   svg += `<text x="73" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
   svg += `<rect x="128" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/>`;
-  svg += `<text x="167" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea</text>`;
-  svg += `<text x="167" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${turnsLabel}</text>`;
+  svg += `<text x="167" y="98" text-anchor="middle" font-size="9" font-weight="900" fill="#9a4b10">N</text>`;
+  svg += `<text x="167" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">N=${turnsLabel}</text>`;
   svg += `</g>`;
   return `<svg data-shape-kind="spiral" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-scale-mode="container-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;overflow:visible">${svg}</svg>`;
 }
