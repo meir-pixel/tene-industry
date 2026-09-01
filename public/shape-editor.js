@@ -83,7 +83,10 @@ const SHAPE_FAMILIES = [
   { id: 'mesh',    label: 'רשת' },
   { id: 'piles',   label: 'כלונסאות' },
   { id: 'spirals', label: 'ספיראלות' },
+  { id: 'lifts',   label: 'ליפטים' },
 ];
+
+SHAPE_PRESETS.push({ id: 'lift-package', name: 'חבילת ליפטים', family: 'lifts', icon: 'lift', bends: 0, diameter: 12, barLength: 1200, weighedKg: 0, quantity: 0, emoji: '📦', specialty: 'lift' });
 
 const SHAPE_CATEGORY_FILTERS = ['הכל', 'חישוק', 'פיגורה', 'ספירלים', 'ציפורים', 'משקפיים', 'קלמרה'];
 const SHAPE_SIDE_FILTERS = ['הכל', 1, 2, 3, 4, 5, 6, 7, 8];
@@ -114,6 +117,10 @@ function shapePresetIconSVG(kind) {
     custom: `<path ${stroke} d="M24 70 L34 50 L62 22 L78 38 L50 66 Z"/><path ${thin} d="M58 26 L74 42"/>`,
   };
   return `<svg viewBox="0 0 100 100" aria-hidden="true">${icons[kind] || icons.straight}</svg>`;
+}
+
+function liftPresetIconSVG() {
+  return '<svg viewBox="0 0 40 40" width="40" height="40"><rect x="7" y="13" width="26" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><line x1="10" y1="18" x2="30" y2="18" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="23" x2="30" y2="23" stroke="currentColor" stroke-width="1.5"/><line x1="15" y1="11" x2="15" y2="30" stroke="currentColor" stroke-width="2"/><line x1="25" y1="11" x2="25" y2="30" stroke="currentColor" stroke-width="2"/></svg>';
 }
 
 function isStandaloneRingShape(shape = {}) {
@@ -1313,6 +1320,41 @@ PileCageEngine.render = function(pile, w = 300, h = 260) {
   </g>`;
 };
 
+
+/* A lift is a purchased bundle of bars of one diameter and one length.
+   Geometry is only the bar itself; the package weight is the weighed value,
+   never a computed one, so no machine output is derived from it. */
+function LiftEngine() {}
+LiftEngine.render = function(lift, w = 300, h = 260) {
+  const diameter = Math.max(0, Number(lift?.diameter ?? 0) || 0);
+  const barLengthMm = Math.max(0, Number(lift?.barLength ?? 0) || 0);
+  const packages = Math.max(0, Number(lift?.quantity ?? 0) || 0);
+  const weighed = Math.max(0, Number(lift?.weighedKg ?? 0) || 0);
+  const f = (n) => n.toFixed(1);
+  const bw = Math.min(w * 0.62, 230);
+  const bh = Math.min(h * 0.34, 86);
+  const x = (w - bw) / 2;
+  const y = (h - bh) / 2 - 4;
+  const rows = 4;
+  const gap = bh / (rows + 1);
+  let bars = "";
+  for (let i = 1; i <= rows; i++) {
+    const by = y + gap * i;
+    bars += `<line class="lift-bar" data-se-focus="lift-diameter lift-bar-length" x1="${f(x + 10)}" y1="${f(by)}" x2="${f(x + bw - 10)}" y2="${f(by)}" stroke="#1a2332" stroke-width="${Math.max(2, Math.min(6, diameter * 0.28)).toFixed(1)}" stroke-linecap="round"/>`;
+  }
+  let g = `<g data-engine="LiftEngine" data-family="lifts" data-diameter="${diameter}" data-bar-length="${barLengthMm}" data-packages="${packages}" data-weighed-kg="${weighed}">`;
+  g += `<rect data-se-focus="lift-packages" x="${f(x)}" y="${f(y)}" width="${f(bw)}" height="${f(bh)}" rx="3" fill="#fff" stroke="#1a2332" stroke-width="2.2"/>`;
+  g += bars;
+  // strapping bands, the visual cue that this is a bundle and not a single bar
+  g += `<line x1="${f(x + bw * 0.28)}" y1="${f(y - 4)}" x2="${f(x + bw * 0.28)}" y2="${f(y + bh + 4)}" stroke="#1a2332" stroke-width="2.4"/>`;
+  g += `<line x1="${f(x + bw * 0.72)}" y1="${f(y - 4)}" x2="${f(x + bw * 0.72)}" y2="${f(y + bh + 4)}" stroke="#1a2332" stroke-width="2.4"/>`;
+  g += `<text data-se-focus="lift-bar-length" x="${f(w / 2)}" y="${f(y - 16)}" text-anchor="middle" font-size="12" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${barLengthMm ? Math.round(barLengthMm / 10) : "—"} ס״מ</text>`;
+  g += `<text data-se-focus="lift-diameter" x="${f(w / 2)}" y="${f(y + bh + 22)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#526070">&#216;${diameter || "—"} מ״מ</text>`;
+  g += `<text data-se-focus="lift-packages lift-weighed" x="${f(w / 2)}" y="${f(y + bh + 38)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#526070">${packages || "—"} חבילות · ${weighed ? weighed.toFixed(1) + " ק״ג לחבילה" : "טרם נשקל"}</text>`;
+  g += `</g>`;
+  return g;
+};
+
 function SpiralEngine() {}
 SpiralEngine.render = function(spiral, w = 300, h = 260) {
   const barDia     = Math.max(1, Number(spiral?.barDiameter    || 8));
@@ -1444,6 +1486,7 @@ function ShapeEngineRouter(shape) {
   if (family === 'piles')   return PileCageEngine;
   if (isStandaloneRingShape(shape)) return RingEngine;
   if (family === 'spirals') return SpiralEngine;
+  if (family === 'lifts')   return LiftEngine;
   return PolylineBarEngine;
 }
 ShapeEngineRouter.render = function(shape, w = 300, h = 260, opts = {}) {
@@ -1529,7 +1572,7 @@ function shapeMachineProfiles() {
 
 function normalizeShapeFamily(shape) {
   const f = shape?.family;
-  return (f === 'mesh' || f === 'piles' || f === 'spirals') ? f : 'bars';
+  return (f === 'mesh' || f === 'piles' || f === 'spirals' || f === 'lifts') ? f : 'bars';
 }
 
 function resolveShapeType(shape) {
@@ -1539,6 +1582,7 @@ function resolveShapeType(shape) {
   if (family === 'mesh')    return 'mesh_rectangular';
   if (family === 'piles')   return 'round_pile_cage';
   if (family === 'spirals') return 'spiral';
+  if (family === 'lifts')   return 'lift_package';
   const sides = Array.isArray(shape?.sides) ? shape.sides : [];
   const angles = Array.isArray(shape?.angles) ? shape.angles : [];
   if (family === 'bars' && sides.length === 1 && angles.length === 0) return 'straight_bar';
@@ -1576,9 +1620,13 @@ function validateShapeContractData(family, data) {
   const positive = (field, label = field) => {
     if (!(Number(data[field]) > 0)) errors.push(`${label} must be greater than 0`);
   };
-  if (!['bars', 'mesh', 'piles', 'spirals'].includes(family)) errors.push('family must be bars, mesh, piles, or spirals');
+  if (!['bars', 'mesh', 'piles', 'spirals', 'lifts'].includes(family)) errors.push('family must be bars, mesh, piles, spirals, or lifts');
   if (Object.prototype.hasOwnProperty.call(data, 'quantity')) errors.push('quantity belongs to Order Item, not Shape');
-  if (family === 'bars') {
+  if (family === 'lifts') {
+    positive('diameter');
+    positive('barLength', 'barLength');
+    if (!(Number(data.weighedKg) >= 0)) errors.push('weighedKg must be 0 or greater');
+  } else if (family === 'bars') {
     if (!Array.isArray(data.sides) || data.sides.length === 0) errors.push('sides must be a non-empty array');
     if (!Array.isArray(data.angles)) errors.push('angles must be an array');
     if (Array.isArray(data.sides) && Array.isArray(data.angles) && ![data.sides.length - 1, data.sides.length].includes(data.angles.length)) errors.push('angles.length must equal sides.length - 1 for open bars or sides.length for closed bars');
@@ -1681,6 +1729,23 @@ function buildSpiralShapeContract(shape) {
   };
 }
 
+function buildLiftShapeContract(shape) {
+  const data = {
+    diameter: Math.max(0, Number(shape?.diameter || 0)),
+    barLength: Math.max(0, Number(shape?.barLength || 0)),
+    weighedKg: Math.max(0, Number(shape?.weighedKg || 0)),
+  };
+  // The weighed package value replaces any theoretical weight.
+  const weightKg = Number(data.weighedKg.toFixed(3));
+  const calculated = { totalLengthMm: data.barLength, weightKg, weighedKg: weightKg };
+  return {
+    data,
+    calculated,
+    generic: { family: 'lifts', shapeType: 'lift_package', ...data },
+    validation: validateShapeContractData('lifts', data),
+  };
+}
+
 function buildRingShapeContract(shape) {
   const canonical = canonicalSteelRebarShapes().buildRingShapeContract({
     ...shape,
@@ -1779,7 +1844,9 @@ function buildShapeDataContractV2(shape) {
   const safeShape = shape && typeof shape === 'object' ? shape : {};
   const family = normalizeShapeFamily(safeShape);
   const shapeType = resolveShapeType({ ...safeShape, family });
-  const familyPayload = family === 'mesh'
+  const familyPayload = family === 'lifts'
+    ? buildLiftShapeContract(safeShape)
+    : family === 'mesh'
     ? buildMeshShapeContract(safeShape)
     : family === 'piles'
       ? buildPileShapeContract(safeShape)
@@ -3465,6 +3532,7 @@ class ShapeEditorModal {
       <button class="se-family-card" data-edit-family="mesh" onclick="window._seEditor._jumpToFamily('mesh')">${shapePresetIconSVG('mesh')}<span>רשתות</span></button>
       <button class="se-family-card" data-edit-family="piles" onclick="window._seEditor._jumpToFamily('piles')">${shapePresetIconSVG('pile')}<span>כלונסאות</span></button>
       <button class="se-family-card" data-edit-family="spirals" onclick="window._seEditor._jumpToFamily('spirals')">${shapePresetIconSVG('spiral')}<span>ספיראלות</span></button>
+      <button class="se-family-card" data-edit-family="lifts" onclick="window._seEditor._jumpToFamily('lifts')">${liftPresetIconSVG()}<span>ליפטים</span></button>
       <button class="se-family-card" data-edit-family="ring" onclick="window._seEditor._jumpToFamily('ring')">${shapePresetIconSVG('ring')}<span>טבעות</span></button>
       <button class="se-family-card" data-edit-family="bench" onclick="window._seEditor._jumpToFamily('bench')">${shapePresetIconSVG('bench')}<span>ספסל</span></button>
       <div id="seSidebarSaved" style="margin-top:8px;border-top:1px solid #c5cbd4;padding-top:10px;"></div>
@@ -3745,7 +3813,7 @@ class ShapeEditorModal {
   _defaultPresetForFamily(family = 'bars') {
     if (family === 'ring') return SHAPE_PRESETS.find(isStandaloneRingShape) || SHAPE_PRESETS[0];
     if (family === 'bench') return SHAPE_PRESETS.find(isBenchBarShape) || SHAPE_PRESETS[0];
-    const normalizedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars';
+    const normalizedFamily = (family === 'mesh' || family === 'piles' || family === 'spirals' || family === 'lifts') ? family : 'bars';
     const requestedSideCount = Number(this._selectedCount || this._selectedSideCount);
     const candidates = SHAPE_PRESETS.filter(shape => (shape.family || 'bars') === normalizedFamily && !shape.custom && (normalizedFamily !== 'spirals' || !isStandaloneRingShape(shape)));
     if (normalizedFamily === 'bars' && Number.isFinite(requestedSideCount) && requestedSideCount > 0) {
@@ -3756,7 +3824,7 @@ class ShapeEditorModal {
   }
 
   _startDefaultEdit(family = 'bars') {
-    this._selectedFamily = family === 'ring' ? 'spirals' : ((family === 'mesh' || family === 'piles' || family === 'spirals') ? family : 'bars');
+    this._selectedFamily = family === 'ring' ? 'spirals' : ((family === 'mesh' || family === 'piles' || family === 'spirals' || family === 'lifts') ? family : 'bars');
     this._selectedCategory = '';
     if (this._selectedSideCount === undefined) this._selectedSideCount = this._selectedCount || null;
     const preset = this._defaultPresetForFamily(family);
@@ -4105,6 +4173,7 @@ class ShapeEditorModal {
 
   _renderTable() {
     if (!this.current) return;
+    if (this.current.family === 'lifts')   return this._renderLiftEditor();
     if (this.current.family === 'mesh')    return this._renderMeshEditor();
     if (this.current.family === 'piles')   return this._renderPileCageEditor();
     if (isStandaloneRingShape(this.current)) return this._renderRingEditor();
@@ -4352,7 +4421,7 @@ class ShapeEditorModal {
     const summary = document.querySelector('#seModal .se-panel-summary');
     const title = document.querySelector('#seModal .se-data-panel-head');
     const isBars = kind === 'bars';
-    const showsOrderQuantity = isBars || kind === 'ring';
+    const showsOrderQuantity = isBars || kind === 'ring' || kind === 'lifts';
     document.getElementById('seModal')?.classList.toggle('se-ring-editor', kind === 'ring');
     document.getElementById('seModal')?.classList.toggle('se-pile-editor', kind === 'piles');
     if (table) table.classList.toggle('se-family-editor-table', !isBars);
@@ -4361,7 +4430,7 @@ class ShapeEditorModal {
     if (modeNote) modeNote.style.display = isBars ? '' : 'none';
     if (summary) summary.style.display = isBars ? '' : 'none';
     if (title) {
-      const titleText = kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : kind === 'ring' ? 'עריכת טבעת' : 'מידות צלעות וזוויות';
+      const titleText = kind === 'lifts' ? 'חבילת ליפטים' : kind === 'mesh' ? 'עריכת רשת' : kind === 'piles' ? 'עריכת כלונס' : kind === 'spirals' ? 'עריכת ספיראלה' : kind === 'ring' ? 'עריכת טבעת' : 'מידות צלעות וזוויות';
       const titleSpan = title.querySelector('span:first-child');
       if (titleSpan) titleSpan.textContent = titleText; else title.textContent = titleText;
     }
@@ -4371,6 +4440,38 @@ class ShapeEditorModal {
     if (diaItem) diaItem.style.display = isBars ? '' : 'none';
     const qtyItem = document.querySelector('#seModal .se-quantity-item');
     if (qtyItem) qtyItem.style.display = showsOrderQuantity ? '' : 'none';
+  }
+
+  _renderLiftEditor() {
+    this._setFamilyEditorChrome('lifts');
+    const lift = this.current;
+    if (lift.diameter == null) lift.diameter = 12;
+    if (lift.barLength == null) lift.barLength = 1200;
+    if (lift.weighedKg == null) lift.weighedKg = 0;
+    const body = document.getElementById('seTableBody');
+    if (!body) return;
+    const meta = {
+      diameter:  ['Ø','קוטר ברזל','מ״מ','לדוגמה 12'],
+      barLength: ['📏','אורך מוט','ס״מ','לדוגמה 120'],
+      weighedKg: ['⚖','משקל חבילה אחרי שקילה','ק״ג','לדוגמה 48.5'],
+    };
+    const field = (key, min = 0, step = 0.1) => {
+      const m = meta[key] || ['•', key, '', ''];
+      const value = key === 'barLength' ? (Number(lift[key] ?? 0) / 10) : (lift[key] ?? 0);
+      return '<td colspan="2">' + this._fieldShell({ icon:m[0], label:m[1], unit:m[2], example:m[3], input:`<input class="se-input" type="number" min="${min}" step="${step}" value="${value}" data-lift-field="${key}" oninput="window._seEditor._setLiftField(\'${key}\', this.value)">` }) + '</td>';
+    };
+    body.innerHTML = `
+      <tr class="se-family-row">${field('diameter', 1)}${field('barLength', 1)}</tr>
+      <tr class="se-family-row">${field('weighedKg', 0, 0.1)}<td colspan="2"><div class="se-lift-note">הכמות נספרת בחבילות. המשקל שנשקל מחליף את המשקל המחושב.</div></td></tr>`;
+  }
+
+  _setLiftField(key, val) {
+    if (!this.current) return;
+    const n = Number(val);
+    if (!Number.isFinite(n) || n < 0) return;
+    this.current[key] = key === 'barLength' ? n * 10 : n;
+    this._render();
+    this._updateSummaryValues();
   }
 
   _renderMeshEditor() {

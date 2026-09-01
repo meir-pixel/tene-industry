@@ -707,7 +707,40 @@ function spiralShapeSvg(item = {}) {
   return `<svg data-shape-kind="spiral" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-scale-mode="container-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;overflow:visible">${svg}</svg>`;
 }
 
+function isLiftPackageItem(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item);
+  return snapshot?.family === 'lifts' && snapshot?.shapeType === 'lift_package';
+}
+
+// A lift is a purchased bundle: one diameter, one bar length, weighed per package.
+// It carries no bend geometry, so the card shows the bundle instead of a bar outline.
+function liftPackageProductionSvg(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item) || {};
+  const data = snapshot.data || {};
+  const diameter = Number(data.diameter || item.diameter || 0);
+  const barLengthMm = Number(data.barLength || item.total_length_mm || 0);
+  const packages = Number(item.quantity || 0);
+  const weighed = Number(data.weighedKg || item.weight_per_unit || 0);
+  const W = 220, H = 100;
+  const x = 26, y = 26, bw = W - 52, bh = 40;
+  let svg = '';
+  svg += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + bh + '" rx="3" fill="none" stroke="#1a2332" stroke-width="2.2"/>';
+  for (let i = 1; i <= 3; i += 1) {
+    const by = y + (bh / 4) * i;
+    svg += '<line x1="' + (x + 8) + '" y1="' + by.toFixed(1) + '" x2="' + (x + bw - 8) + '" y2="' + by.toFixed(1) + '" stroke="#1a2332" stroke-width="' + Math.max(2, Math.min(5, diameter * 0.26)).toFixed(1) + '" stroke-linecap="round"/>';
+  }
+  [0.28, 0.72].forEach(t => {
+    const bx = (x + bw * t).toFixed(1);
+    svg += '<line x1="' + bx + '" y1="' + (y - 4) + '" x2="' + bx + '" y2="' + (y + bh + 4) + '" stroke="#1a2332" stroke-width="2.4"/>';
+  });
+  svg += dimensionLabelSvg(displayLengthCm(barLengthMm), W / 2, y - 12, 60);
+  const foot = 'Ø' + (diameter || '?') + '  ·  ' + packages + ' חבילות' + (weighed ? '  ·  ' + weighed.toFixed(1) + ' ק״ג' : '');
+  svg += dimensionLabelSvg(foot, W / 2, y + bh + 18, 190);
+  return '<svg data-shape-kind="lift-package" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:100px;overflow:visible">' + svg + '</svg>';
+}
+
 function itemShapeSvg(item = {}) {
+  if (isLiftPackageItem(item)) return liftPackageProductionSvg(item);
   if (isRoundPileCageItem(item)) return pileCageProductionSvg(item);
   const spiralSvg = spiralShapeSvg(item);
   const isBench = isBenchBarItem(item);
@@ -1041,4 +1074,6 @@ module.exports = {
   isRoundPileCageItem,
   pileCageProductionSvg,
   shapeSvgForProductionCard,
+  isLiftPackageItem,
+  liftPackageProductionSvg,
 };

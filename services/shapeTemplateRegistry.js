@@ -5,7 +5,7 @@ const { isSupportedShapeType } = require('./shapeCatalog');
 
 const TEMPLATE_STATUSES = Object.freeze(['draft', 'active', 'deprecated']);
 const TEMPLATE_SOURCES = Object.freeze(['system', 'learned', 'manual']);
-const SUPPORTED_FAMILIES = Object.freeze(['bars', 'mesh', 'piles', 'spirals']);
+const SUPPORTED_FAMILIES = Object.freeze(['bars', 'mesh', 'piles', 'spirals', 'lifts']);
 
 const INITIAL_TEMPLATES = Object.freeze([
   Object.freeze({

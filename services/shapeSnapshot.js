@@ -53,7 +53,7 @@
   }
 
   function normalizeShapeFamily(value) {
-    return ['bars', 'mesh', 'piles', 'spirals'].includes(value) ? value : 'bars';
+    return ['bars', 'mesh', 'piles', 'spirals', 'lifts'].includes(value) ? value : 'bars';
   }
 
   function normalizeValidation(validation = {}, timestamp = new Date().toISOString()) {
@@ -68,7 +68,7 @@
   function buildFullShapeSnapshot(options = {}) {
     const approvedAt = options.approvedAt || new Date().toISOString();
     const family = normalizeShapeFamily(options.family);
-    const shapeType = String(options.shapeType || (family === 'mesh' ? 'mesh_rectangular' : family === 'piles' ? 'round_pile_cage' : family === 'spirals' ? 'spiral' : 'custom_bar'));
+    const shapeType = String(options.shapeType || (family === 'mesh' ? 'mesh_rectangular' : family === 'piles' ? 'round_pile_cage' : family === 'spirals' ? 'spiral' : family === 'lifts' ? 'lift_package' : 'custom_bar'));
     const generic = { ...(options.machineOutput?.generic || options.generic || {}), family, shapeType };
     const machineProfiles = options.machineOutput?.machineProfiles || options.machineProfiles || buildMachineProfilesPlaceholder();
     const extra = options.extra && typeof options.extra === 'object' ? options.extra : {};

@@ -9,6 +9,7 @@ const SHAPE_TYPES = Object.freeze({
   OPEN_U_BAR: 'open_u_bar',
   SPIRAL_BAR: 'spiral_bar',
   MESH_RECTANGULAR: 'mesh_rectangular',
+  LIFT_PACKAGE: 'lift_package',
   ROUND_PILE_CAGE: 'round_pile_cage',
   CUSTOM_POLYLINE: 'custom_polyline',
 });

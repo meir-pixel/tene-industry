@@ -75,6 +75,7 @@ function deliverySectionKey(item) {
   const kind = classifyOrderItem(item).kind;
   return {
     pile_cage: 'cage',
+    lift_package: 'lifts',
     mesh: 'mesh',
     spiral: 'spiral',
     chair: 'chairs',

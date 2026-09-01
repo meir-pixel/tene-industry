@@ -21,6 +21,8 @@ const LINE_DEFINITIONS = Object.freeze([
   { key: 'lifting_units', section: 'processing', label: 'ציפורים/אזני הרמה/קרומים', unit: 'unit' },
   { key: 'mesh_kg', section: 'finished_products', label: 'רשת לבניין סטנדרט בחבילות', unit: 'kg' },
   { key: 'pile_cages_kg', section: 'finished_products', label: 'כלונסאות / כלובי זיון', unit: 'kg' },
+  { key: 'lift_packages_units', section: 'finished_products', label: 'ליפטים — חבילות (חבילה = יחידה)', unit: 'unit' },
+  { key: 'lift_packages_kg', section: 'finished_products', label: 'ליפטים — משקל שנשקל', unit: 'kg' },
 ]);
 
 const LINE_BY_KEY = new Map(LINE_DEFINITIONS.map(line => [line.key, line]));
@@ -182,7 +184,10 @@ function classifyOrderItem(item = {}) {
   const { weightKg, source: weightSource } = effectiveItemWeight(item, pileBreakdown);
   const lengthMm = positive(productionCards.shapeTotalLengthMmFromItem(item) ?? item.total_length_mm);
   const spiralTurns = positive(item.spiral_turns ?? item.spiralTurns ?? shape.data.spiral?.turns ?? shape.generic.turns);
-  const isPileCage = Boolean(pileBreakdown || productionCards.isRoundPileCageItem(item));
+  // A lift is recognised by its family alone. Never by wording: the OCR wording
+  // rules own 'ליפט' for bent bars and must keep behaving exactly as before.
+  const isLiftPackage = shape.family === 'lifts' || shape.shapeType === 'lift_package';
+  const isPileCage = !isLiftPackage && Boolean(pileBreakdown || productionCards.isRoundPileCageItem(item));
   const isMesh = shape.family === 'mesh' || /(^|\W)(mesh|wire mesh|רשת)(\W|$)/i.test(shape.text);
   const isChair = shape.shapeType === 'bench_bar' || shape.shapeId === 's15' || /(^|\W)(chair|bench|כסא|כסאות|ספסל)(\W|$)/i.test(shape.text);
   const isSpiral = !isPileCage && !isMesh && shape.shapeType !== 'ring' && (
@@ -197,6 +202,7 @@ function classifyOrderItem(item = {}) {
   const bent = isChair || isRing || isLifting || (!isSpiral && isBentItem(item));
   const material = resolveMaterialSource({ item, snapshot });
 
+  if (isLiftPackage) return { kind: 'lift_package', weightKg, weightSource, quantity, lengthMm, lines: ['lift_packages_units', 'lift_packages_kg'] };
   if (isPileCage) return { kind: 'pile_cage', weightKg, weightSource, quantity, lengthMm, pileBreakdown, lines: ['pile_cages_kg'] };
   if (isMesh) return { kind: 'mesh', weightKg, weightSource, quantity, lengthMm, lines: ['mesh_kg'] };
   if (isSpiral) return {
