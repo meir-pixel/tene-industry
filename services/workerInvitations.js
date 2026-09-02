@@ -7,6 +7,26 @@ const INVITATION_TTL_MS = 15 * 60 * 1000;
 
 function ensureWorkerInvitationSchema(db) {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS worker_qr_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      worker_name TEXT NOT NULL,
+      phone TEXT NOT NULL UNIQUE,
+      phone_normalized TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'production',
+      permissions_json TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+      created_by INTEGER,
+      created_by_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_by INTEGER,
+      updated_by_name TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(created_by) REFERENCES users(id),
+      FOREIGN KEY(updated_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_worker_qr_profiles_active_name
+      ON worker_qr_profiles(active, worker_name);
+
     CREATE TABLE IF NOT EXISTS worker_invitations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       invitation_uid TEXT NOT NULL UNIQUE,
@@ -38,6 +58,11 @@ function ensureWorkerInvitationSchema(db) {
       ON worker_invitations(claimed_user_id);
   `);
   try { db.exec("ALTER TABLE worker_invitations ADD COLUMN permissions_json TEXT NOT NULL DEFAULT '[]'"); } catch {}
+  try { db.exec("ALTER TABLE worker_invitations ADD COLUMN worker_profile_id INTEGER"); } catch {}
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_worker_invitations_profile
+      ON worker_invitations(worker_profile_id, created_at DESC);
+  `);
 }
 
 function createInvitationUid() {
@@ -92,14 +117,14 @@ function createWorkerInvitationService({ getDb, now = () => new Date() }) {
     };
   }
 
-  function create({ workerName, phone, role, permissions = [], createdBy, createdByName }) {
+  function create({ workerName, phone, role, permissions = [], workerProfileId = null, createdBy, createdByName }) {
     const db = getDb();
     const token = createInvitationToken();
     const expiresAt = new Date(now().getTime() + INVITATION_TTL_MS).toISOString();
     const result = db.prepare(`
       INSERT INTO worker_invitations
-        (invitation_uid,token_hash,worker_name,phone,role,permissions_json,expires_at,created_by,created_by_name)
-      VALUES (?,?,?,?,?,?,?,?,?)
+        (invitation_uid,token_hash,worker_name,phone,role,permissions_json,worker_profile_id,expires_at,created_by,created_by_name)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
     `).run(
       createInvitationUid(),
       sha256(token),
@@ -107,6 +132,7 @@ function createWorkerInvitationService({ getDb, now = () => new Date() }) {
       phone || null,
       role,
       JSON.stringify(permissions),
+      workerProfileId || null,
       expiresAt,
       createdBy || null,
       createdByName || null,

@@ -79,6 +79,9 @@ test('QR scanning supports open mode and passwordless one-time device activation
   assert.match(admin, /reviewDevice/);
   assert.match(admin, /\/api\/device-enrollment\/requests/);
   assert.match(admin, /\/api\/qr-access\/mode/);
+  assert.match(admin, /\/api\/worker-profiles/);
+  assert.match(admin, /saveWorkerProfile/);
+  assert.match(admin, /צור ושלח QR/);
 });
 
 test('public portal does not query internal order search', () => {

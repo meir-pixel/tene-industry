@@ -408,7 +408,7 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <button class="tab-btn" onclick="showTab('vision',this)">📷 OCR</button>
         <button class="tab-btn" onclick="showTab('permissions',this)">🔐 הרשאות</button>
         <button class="tab-btn" data-tab-users onclick="showTab('users',this);loadUsers()">👥 משתמשים</button>
-        <button class="tab-btn" data-tab-worker-invites onclick="showTab('worker-invites',this);loadWorkerInvitations()">✉️ הזמנות עובדים <span id="workerInvitePendingBadge"></span></button>
+        <button class="tab-btn" data-tab-worker-invites onclick="showTab('worker-invites',this);loadWorkerInvitations()">✉️ עובדים ו־QR <span id="workerInvitePendingBadge"></span></button>
         <button class="tab-btn" data-tab-devices onclick="showTab('devices',this);loadDeviceRequests()">📱 אישור מכשירים <span id="devicePendingBadge"></span></button>
         <button class="tab-btn" onclick="showTab('auditlog',this);loadAuditLog()">📋 לוג שינויים</button>
         <button class="tab-btn" onclick="showTab('cloud',this)">☁️ ניהול ענן</button>
@@ -737,16 +737,17 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
       <div id="tab-worker-invites" class="tab-pane tab-content-pad">
         <div class="tab-toolbar">
           <div>
-            <div class="tab-heading">✉️ הזמנות אישיות לעובדים</div>
-            <div class="tab-subtitle">יוצרים קישור אישי לוואטסאפ. הקישור תקף ל־15 דקות ומפעיל מכשיר אחד בלבד — בלי סיסמה ובלי WhatsApp API.</div>
+            <div class="tab-heading">✉️ עובדים ו־QR אישי</div>
+            <div class="tab-subtitle">שומרים את פרטי העובד פעם אחת. כשרוצים לשלוח, יוצרים עבורו QR אישי שתקף ל־15 דקות — בלי סיסמה ובלי WhatsApp API.</div>
           </div>
           <button class="btn btn-outline" onclick="loadWorkerInvitations()">רענן</button>
         </div>
         <div class="permission-note">
-          שולחים את הקישור רק למספר שאושר. העובד פותח אותו פעם אחת במכשיר שלו, וה־Token נשמר בדפדפן. אפשר לבטל את המכשיר בכל עת.
+          שמירת העובד אינה מפעילה שעון. רק לחיצה על “צור ושלח QR” יוצרת קישור זמני. QR חדש מבטל קישור קודם שעדיין לא הופעל.
         </div>
         <div class="user-form" style="display:block;margin-top:0">
-          <div class="user-form-title">הזמנה חדשה</div>
+          <div class="user-form-title" id="workerProfileFormTitle">שמירת עובד חדש</div>
+          <input type="hidden" id="workerProfileId">
           <div class="user-form-grid">
             <div class="inline-field"><label>שם העובד</label><input id="workerInviteName" maxlength="100" placeholder="שם מלא" autocomplete="name"></div>
             <div class="inline-field"><label>טלפון מאושר</label><input id="workerInvitePhone" maxlength="30" placeholder="050-0000000" inputmode="tel" required></div>
@@ -764,12 +765,27 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
               <label style="display:flex;gap:7px;align-items:center;font-weight:700"><input id="workerInviteWarehouse" type="checkbox" style="width:auto"> פעולות מחסן/העמסה</label>
             </div>
           </div>
-          <div class="inline-actions"><button class="btn btn-primary" onclick="createWorkerInvitation()">צור קישור ל־15 דקות</button></div>
+          <div class="inline-actions">
+            <button class="btn btn-primary" onclick="saveWorkerProfile()">💾 שמור פרטי עובד</button>
+            <button class="btn btn-outline" id="workerProfileCancelEdit" hidden onclick="resetWorkerProfileForm()">ביטול עריכה</button>
+          </div>
           <div id="workerInviteCreated" hidden style="margin-top:12px;padding:12px;border:1px solid var(--success);border-radius:10px;background:var(--success-bg)">
             <strong>הקישור נוצר. העתק ושלח אותו לעובד בוואטסאפ:</strong>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input id="workerInviteLink" readonly style="flex:1;min-width:220px;padding:8px;border:1px solid var(--border);border-radius:8px;direction:ltr"><button class="btn btn-outline" onclick="copyWorkerInvitation()">העתק קישור</button><a id="workerInviteWhatsApp" class="btn btn-primary" href="#" target="_blank" rel="noopener">פתח WhatsApp</a></div>
             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px"><img id="workerInviteQr" hidden alt="QR אישי להפעלת העובד" width="180" height="180" style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:6px"><div><button class="btn btn-outline" onclick="downloadWorkerInvitationQr()">הורד QR כתמונה</button><button class="btn btn-primary" style="margin-top:7px" onclick="shareWorkerInvitationQr()">שתף QR מהטלפון</button></div></div>
           </div>
+        </div>
+        <div class="tab-toolbar" style="margin-top:18px">
+          <div><div class="tab-heading">עובדים שמורים</div><div class="tab-subtitle">הפרטים נשמרים ללא הגבלת זמן. אפשר לערוך או ליצור QR כשרוצים לשלוח.</div></div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>עובד</th><th>תפקיד</th><th>הרשאות QR</th><th>מכשיר אחרון</th><th>פעולות</th></tr></thead>
+            <tbody id="workerProfilesTableBody"></tbody>
+          </table>
+        </div>
+        <div class="tab-toolbar" style="margin-top:18px">
+          <div><div class="tab-heading">היסטוריית QR שנוצרו</div><div class="tab-subtitle">כל QR הוא אישי, חד־פעמי ותקף ל־15 דקות.</div></div>
         </div>
         <div class="admin-table-wrap" style="margin-top:16px">
           <table class="admin-table">
@@ -1615,6 +1631,7 @@ async function toggleUser(id, active) {
 
 // ── PERSONAL WORKER INVITATIONS ─────────────────────────────────
 let workerInvitationsData = [];
+let workerProfilesData = [];
 let workerInviteQrDataUrl = '';
 let workerInviteShareMessage = '';
 const WORKER_INVITE_STATUS_LABELS = {
@@ -1635,7 +1652,41 @@ function workerInviteDevice(row) {
   return `<strong>${escHtml(row.worker_name)}</strong><div style="font-size:11px;color:var(--muted)">${device}</div>`;
 }
 
+function workerProfilePermissions(row) {
+  const labels = { production:'ייצור', warehouse:'מחסן/העמסה' };
+  return (row.permissions || []).map(permission => labels[permission] || permission).join(', ') || '—';
+}
+
+function workerProfileDevice(row) {
+  if (!row.device_status) return 'טרם הופעל';
+  const label = DEVICE_STATUS_LABELS[row.device_status] || row.device_status;
+  return `<strong>${escHtml(label)}</strong>${row.device_name ? `<div style="font-size:11px;color:var(--muted)">${escHtml(row.device_name)}</div>` : ''}`;
+}
+
+async function loadWorkerProfiles() {
+  const tbody = document.getElementById('workerProfilesTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:22px;color:var(--muted)">טוען עובדים…</td></tr>';
+  const response = await fetch('/api/worker-profiles');
+  if (!response.ok) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:22px;color:var(--danger)">לא ניתן לטעון את העובדים השמורים</td></tr>';
+    return;
+  }
+  workerProfilesData = await response.json();
+  tbody.innerHTML = workerProfilesData.length ? workerProfilesData.map(row => `<tr>
+    <td><strong>${escHtml(row.worker_name)}</strong><div style="font-size:11px;color:var(--muted);direction:ltr;text-align:right">${escHtml(row.phone)}</div></td>
+    <td>${escHtml(ROLE_LABELS[row.role] || row.role)}</td>
+    <td>${escHtml(workerProfilePermissions(row))}</td>
+    <td>${workerProfileDevice(row)}</td>
+    <td style="white-space:nowrap">
+      <button class="btn btn-primary" style="padding:7px 10px" onclick="createWorkerInvitation(${row.id})">צור ושלח QR</button>
+      <button class="btn btn-outline" style="padding:7px 10px" onclick="editWorkerProfile(${row.id})">ערוך</button>
+    </td>
+  </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">אין עובדים שמורים. הזן פרטים למעלה ולחץ “שמור פרטי עובד”.</td></tr>';
+}
+
 async function loadWorkerInvitations() {
+  loadWorkerProfiles();
   const tbody = document.getElementById('workerInvitationsTableBody');
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:22px;color:var(--muted)">טוען הזמנות…</td></tr>';
@@ -1659,18 +1710,71 @@ async function loadWorkerInvitations() {
   </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">אין הזמנות עדיין</td></tr>';
 }
 
-async function createWorkerInvitation() {
+function workerProfileFormValues() {
   const workerName = document.getElementById('workerInviteName').value.trim();
   const phone = document.getElementById('workerInvitePhone').value.trim();
   const role = document.getElementById('workerInviteRole').value;
   const permissions = [];
   if (document.getElementById('workerInviteProduction').checked) permissions.push('production');
   if (document.getElementById('workerInviteWarehouse').checked) permissions.push('warehouse');
+  return { worker_name:workerName, phone, role, permissions };
+}
+
+function resetWorkerProfileForm() {
+  document.getElementById('workerProfileId').value = '';
+  document.getElementById('workerProfileFormTitle').textContent = 'שמירת עובד חדש';
+  document.getElementById('workerProfileCancelEdit').hidden = true;
+  document.getElementById('workerInviteName').value = '';
+  document.getElementById('workerInvitePhone').value = '';
+  document.getElementById('workerInviteRole').value = 'production';
+  document.getElementById('workerInviteProduction').checked = true;
+  document.getElementById('workerInviteWarehouse').checked = false;
+}
+
+function editWorkerProfile(id) {
+  const row = workerProfilesData.find(item => Number(item.id) === Number(id));
+  if (!row) return;
+  document.getElementById('workerProfileId').value = row.id;
+  document.getElementById('workerProfileFormTitle').textContent = `עריכת ${row.worker_name}`;
+  document.getElementById('workerProfileCancelEdit').hidden = false;
+  document.getElementById('workerInviteName').value = row.worker_name || '';
+  document.getElementById('workerInvitePhone').value = row.phone || '';
+  document.getElementById('workerInviteRole').value = row.role || 'production';
+  document.getElementById('workerInviteProduction').checked = (row.permissions || []).includes('production');
+  document.getElementById('workerInviteWarehouse').checked = (row.permissions || []).includes('warehouse');
+  document.getElementById('workerInviteName').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function saveWorkerProfile() {
+  const id = document.getElementById('workerProfileId').value;
+  const details = workerProfileFormValues();
+  const workerName = details.worker_name;
+  const phone = details.phone;
+  const permissions = details.permissions;
   if (workerName.length < 2) return toast('יש להזין שם עובד', true);
   if (phone.replace(/\D/g,'').length < 9) return toast('יש להזין מספר טלפון מאושר', true);
   if (!permissions.length) return toast('יש לבחור לפחות הרשאת QR אחת', true);
-  const response = await fetch('/api/worker-invitations', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ worker_name:workerName, phone, role, permissions })
+  const response = await fetch(id ? `/api/worker-profiles/${id}` : '/api/worker-profiles', {
+    method:id ? 'PATCH' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(details)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = result.error === 'worker_phone_already_saved'
+      ? 'מספר הטלפון הזה כבר שמור לעובד אחר'
+      : 'שמירת פרטי העובד נכשלה';
+    return toast(message, true);
+  }
+  resetWorkerProfileForm();
+  document.getElementById('workerInviteCreated').hidden = true;
+  toast(id ? '✓ פרטי העובד עודכנו' : '✓ העובד נשמר. אפשר ליצור לו QR בכל זמן');
+  loadWorkerProfiles();
+}
+
+async function createWorkerInvitation(profileId) {
+  const profile = workerProfilesData.find(item => Number(item.id) === Number(profileId));
+  if (!profile) return toast('לא נמצאו פרטי העובד', true);
+  const response = await fetch(`/api/worker-profiles/${profileId}/invitations`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.activation_url) return toast(result.error || 'יצירת הקישור נכשלה. יש לוודא שכתובת הענן מוגדרת.', true);
@@ -1679,12 +1783,11 @@ async function createWorkerInvitation() {
   workerInviteShareMessage = result.whatsapp_message || result.activation_url;
   const qrImage = document.getElementById('workerInviteQr');
   qrImage.src = workerInviteQrDataUrl; qrImage.hidden = !workerInviteQrDataUrl;
-  const waDigits = phone.replace(/\D/g,'').replace(/^0/,'972');
+  const waDigits = profile.phone.replace(/\D/g,'').replace(/^0/,'972');
   document.getElementById('workerInviteWhatsApp').href = `https://wa.me/${waDigits}?text=${encodeURIComponent(result.whatsapp_message || result.activation_url)}`;
   document.getElementById('workerInviteCreated').hidden = false;
-  document.getElementById('workerInviteName').value = '';
-  document.getElementById('workerInvitePhone').value = '';
-  toast('✓ קישור אישי נוצר. תוקפו 15 דקות');
+  document.getElementById('workerInviteCreated').scrollIntoView({ behavior:'smooth', block:'center' });
+  toast(`✓ QR אישי עבור ${profile.worker_name} נוצר. תוקפו 15 דקות`);
   loadWorkerInvitations();
 }
 

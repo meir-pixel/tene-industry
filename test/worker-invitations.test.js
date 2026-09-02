@@ -59,9 +59,26 @@ test('a personal worker invitation activates one passwordless device with server
 
   const adminToken = await login('invite-admin', '7701');
   const adminHeaders = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
-  const create = await request('/api/worker-invitations', {
+  const saveProfile = await request('/api/worker-profiles', {
     method: 'POST', headers: adminHeaders,
     body: JSON.stringify({ worker_name: 'דוד כהן', phone: '050-1234567', role: 'production', permissions: ['production'] }),
+  });
+  assert.equal(saveProfile.status, 201);
+  const profile = await saveProfile.json();
+  assert.equal(profile.worker_name, 'דוד כהן');
+  assert.deepEqual(profile.permissions, ['production']);
+  const duplicateProfile = await request('/api/worker-profiles', {
+    method: 'POST', headers: adminHeaders,
+    body: JSON.stringify({ worker_name: 'דוד אחר', phone: '+972 50-1234567', role: 'production', permissions: ['production'] }),
+  });
+  assert.equal(duplicateProfile.status, 409);
+  assert.equal((await duplicateProfile.json()).error, 'worker_phone_already_saved');
+  const profiles = await request('/api/worker-profiles', { headers: adminHeaders });
+  assert.equal(profiles.status, 200);
+  assert.equal((await profiles.json()).length, 1);
+
+  const create = await request(`/api/worker-profiles/${profile.id}/invitations`, {
+    method: 'POST', headers: adminHeaders, body: '{}',
   });
   assert.equal(create.status, 201);
   const created = await create.json();
@@ -143,6 +160,26 @@ test('a personal worker invitation activates one passwordless device with server
   });
   assert.equal(reused.status, 409);
   assert.equal((await reused.json()).error, 'invitation_already_used');
+
+  const reactivate = await request(`/api/worker-profiles/${profile.id}/invitations`, {
+    method: 'POST', headers: adminHeaders, body: '{}',
+  });
+  assert.equal(reactivate.status, 201);
+  const reactivateToken = new URL((await reactivate.json()).activation_url).searchParams.get('token');
+  const reactivateClaim = await request('/api/worker-invitations/activation', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: reactivateToken, device_name: 'טלפון דוד החדש', platform: 'Android' }),
+  });
+  assert.equal(reactivateClaim.status, 201);
+  const devicesAfterReactivation = db.prepare(`
+    SELECT d.status,d.device_name FROM device_enrollment_requests d
+    JOIN worker_invitations wi ON wi.id=d.invitation_id
+    WHERE wi.worker_profile_id=? ORDER BY d.id
+  `).all(profile.id);
+  assert.deepEqual(devicesAfterReactivation, [
+    { status: 'revoked', device_name: 'טלפון דוד' },
+    { status: 'approved', device_name: 'טלפון דוד החדש' },
+  ]);
 
   const expiring = await request('/api/worker-invitations', {
     method: 'POST', headers: adminHeaders,

@@ -24,6 +24,11 @@ function cleanPhone(value) {
   return String(value || '').trim().replace(/[^+\d -]/g, '').slice(0, 30);
 }
 
+function normalizePhone(value) {
+  const digits = cleanPhone(value).replace(/\D/g, '');
+  return digits.startsWith('972') ? `0${digits.slice(3)}` : digits;
+}
+
 function cleanPermissions(value, role) {
   const requested = Array.isArray(value) ? value : [];
   const permissions = [...new Set(requested.map(item => cleanText(item, 30)).filter(item => INVITABLE_PERMISSIONS.has(item)))];
@@ -44,6 +49,23 @@ function publicActivationError(row, workerInvitations) {
   return { status: 404, error: 'invitation_not_found' };
 }
 
+function publicWorkerProfile(row) {
+  return {
+    id: row.id,
+    worker_name: row.worker_name,
+    phone: row.phone,
+    role: row.role,
+    permissions: cleanPermissions(JSON.parse(row.permissions_json || '[]'), row.role),
+    active: Boolean(row.active),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    latest_invitation_status: row.latest_invitation_status || null,
+    latest_invitation_at: row.latest_invitation_at || null,
+    device_status: row.device_status || null,
+    device_name: row.device_name || null,
+  };
+}
+
 module.exports = function createWorkerInvitationsRouter(deps) {
   const getDb = required('getDb', deps.getDb);
   const requireRole = required('requireRole', deps.requireRole);
@@ -53,21 +75,24 @@ module.exports = function createWorkerInvitationsRouter(deps) {
   const auditLog = required('auditLog', deps.auditLog);
   const settingsService = deps.settingsService || null;
 
-  router.post('/worker-invitations', requireRole('admin'), async (req, res) => {
-    const workerName = cleanText(req.body?.worker_name, 100);
-    const phone = cleanPhone(req.body?.phone);
-    const role = cleanText(req.body?.role, 40) || 'production';
-    const permissions = cleanPermissions(req.body?.permissions, role);
-    const phoneDigits = phone.replace(/\D/g, '');
-    if (workerName.length < 2 || phoneDigits.length < 9 || !INVITABLE_ROLES.has(role) || !permissions.length) {
-      return res.status(400).json({ error: 'invalid_worker_invitation' });
-    }
+  function workerDetails(body) {
+    const workerName = cleanText(body?.worker_name, 100);
+    const phone = cleanPhone(body?.phone);
+    const phoneNormalized = normalizePhone(phone);
+    const role = cleanText(body?.role, 40) || 'production';
+    const permissions = cleanPermissions(body?.permissions, role);
+    const valid = workerName.length >= 2 && phoneNormalized.length >= 9
+      && INVITABLE_ROLES.has(role) && permissions.length > 0;
+    return { workerName, phone, phoneNormalized, role, permissions, valid };
+  }
 
+  async function createInvitationResponse(req, res, details, workerProfileId = null) {
     const created = workerInvitations.create({
-      workerName,
-      phone,
-      role,
-      permissions,
+      workerName: details.workerName,
+      phone: details.phone,
+      role: details.role,
+      permissions: details.permissions,
+      workerProfileId,
       createdBy: Number(req.auth?.sub) || null,
       createdByName: cleanText(req.auth?.display_name, 100) || null,
     });
@@ -81,31 +106,131 @@ module.exports = function createWorkerInvitationsRouter(deps) {
     }
     auditLog(
       'worker_invitation', created.row.id, created.row.invitation_uid, 'create', 'status', null, 'pending',
-      `${workerName} · ${role}`, Number(req.auth?.sub) || null, cleanText(req.auth?.display_name, 100) || null,
+      `${details.workerName} · ${details.role}`, Number(req.auth?.sub) || null, cleanText(req.auth?.display_name, 100) || null,
     );
-    res.status(201).json({
+    return res.status(201).json({
       invitation: {
         id: created.row.id,
         invitation_uid: created.row.invitation_uid,
+        worker_profile_id: created.row.worker_profile_id,
         worker_name: created.row.worker_name,
         phone: created.row.phone,
         role: created.row.role,
-        permissions,
+        permissions: details.permissions,
         status: created.row.status,
         expires_at: created.row.expires_at,
       },
       activation_url: url,
       activation_qr_data_url: activationQr,
       whatsapp_message: url
-        ? `שלום ${workerName}, זהו קישור אישי להפעלת אפליקציית העובדים של טנא. הקישור תקף ל־15 דקות: ${url}`
+        ? `שלום ${details.workerName}, זהו קישור אישי להפעלת אפליקציית העובדים של טנא. הקישור תקף ל־15 דקות: ${url}`
         : '',
     });
+  }
+
+  router.get('/worker-profiles', requireRole('admin'), (_req, res) => {
+    workerInvitations.expireOutstanding();
+    const rows = getDb().prepare(`
+      SELECT p.*,
+             (SELECT wi.status FROM worker_invitations wi WHERE wi.worker_profile_id=p.id ORDER BY wi.id DESC LIMIT 1) AS latest_invitation_status,
+             (SELECT wi.created_at FROM worker_invitations wi WHERE wi.worker_profile_id=p.id ORDER BY wi.id DESC LIMIT 1) AS latest_invitation_at,
+             (SELECT d.status FROM device_enrollment_requests d
+                JOIN worker_invitations wi ON wi.id=d.invitation_id
+               WHERE wi.worker_profile_id=p.id ORDER BY d.id DESC LIMIT 1) AS device_status,
+             (SELECT d.device_name FROM device_enrollment_requests d
+                JOIN worker_invitations wi ON wi.id=d.invitation_id
+               WHERE wi.worker_profile_id=p.id ORDER BY d.id DESC LIMIT 1) AS device_name
+      FROM worker_qr_profiles p
+      ORDER BY p.active DESC,p.worker_name COLLATE NOCASE,p.id
+    `).all();
+    res.json(rows.map(publicWorkerProfile));
+  });
+
+  router.post('/worker-profiles', requireRole('admin'), (req, res) => {
+    const details = workerDetails(req.body);
+    if (!details.valid) return res.status(400).json({ error: 'invalid_worker_profile' });
+    const actorId = Number(req.auth?.sub) || null;
+    const actorName = cleanText(req.auth?.display_name, 100) || null;
+    try {
+      const result = getDb().prepare(`
+        INSERT INTO worker_qr_profiles
+          (worker_name,phone,phone_normalized,role,permissions_json,created_by,created_by_name,updated_by,updated_by_name)
+        VALUES (?,?,?,?,?,?,?,?,?)
+      `).run(details.workerName, details.phone, details.phoneNormalized, details.role,
+        JSON.stringify(details.permissions), actorId, actorName, actorId, actorName);
+      const row = getDb().prepare('SELECT * FROM worker_qr_profiles WHERE id=?').get(result.lastInsertRowid);
+      auditLog('worker_qr_profile', row.id, details.phoneNormalized, 'create', null, null, null,
+        details.workerName, actorId, actorName);
+      return res.status(201).json(publicWorkerProfile(row));
+    } catch (error) {
+      if (String(error.message).includes('UNIQUE')) return res.status(409).json({ error: 'worker_phone_already_saved' });
+      throw error;
+    }
+  });
+
+  router.patch('/worker-profiles/:id', requireRole('admin'), (req, res) => {
+    const id = Number(req.params.id);
+    const details = workerDetails(req.body);
+    if (!Number.isInteger(id) || id <= 0 || !details.valid) {
+      return res.status(400).json({ error: 'invalid_worker_profile' });
+    }
+    const db = getDb();
+    const before = db.prepare('SELECT * FROM worker_qr_profiles WHERE id=?').get(id);
+    if (!before) return res.status(404).json({ error: 'worker_profile_not_found' });
+    const actorId = Number(req.auth?.sub) || null;
+    const actorName = cleanText(req.auth?.display_name, 100) || null;
+    try {
+      db.prepare(`
+        UPDATE worker_qr_profiles
+           SET worker_name=?,phone=?,phone_normalized=?,role=?,permissions_json=?,updated_by=?,updated_by_name=?,updated_at=CURRENT_TIMESTAMP
+         WHERE id=?
+      `).run(details.workerName, details.phone, details.phoneNormalized, details.role,
+        JSON.stringify(details.permissions), actorId, actorName, id);
+      const row = db.prepare('SELECT * FROM worker_qr_profiles WHERE id=?').get(id);
+      auditLog('worker_qr_profile', id, details.phoneNormalized, 'update', 'profile', JSON.stringify({
+        worker_name: before.worker_name, phone: before.phone, role: before.role, permissions_json: before.permissions_json,
+      }), JSON.stringify({
+        worker_name: row.worker_name, phone: row.phone, role: row.role, permissions_json: row.permissions_json,
+      }), details.workerName, actorId, actorName);
+      return res.json(publicWorkerProfile(row));
+    } catch (error) {
+      if (String(error.message).includes('UNIQUE')) return res.status(409).json({ error: 'worker_phone_already_saved' });
+      throw error;
+    }
+  });
+
+  router.post('/worker-profiles/:id/invitations', requireRole('admin'), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'invalid_worker_profile' });
+    const db = getDb();
+    const profile = db.prepare('SELECT * FROM worker_qr_profiles WHERE id=? AND active=1').get(id);
+    if (!profile) return res.status(404).json({ error: 'worker_profile_not_found' });
+    const details = workerDetails({
+      worker_name: profile.worker_name,
+      phone: profile.phone,
+      role: profile.role,
+      permissions: JSON.parse(profile.permissions_json || '[]'),
+    });
+    db.prepare(`
+      UPDATE worker_invitations
+         SET status='cancelled',cancelled_at=CURRENT_TIMESTAMP,cancelled_by=?,cancelled_by_name=?
+       WHERE worker_profile_id=? AND status IN ('pending','opened')
+    `).run(Number(req.auth?.sub) || null, cleanText(req.auth?.display_name, 100) || null, id);
+    return createInvitationResponse(req, res, details, id);
+  });
+
+  router.post('/worker-invitations', requireRole('admin'), async (req, res) => {
+    const details = workerDetails(req.body);
+    if (!details.valid) {
+      return res.status(400).json({ error: 'invalid_worker_invitation' });
+    }
+    return createInvitationResponse(req, res, details);
   });
 
   router.get('/worker-invitations', requireRole('admin'), (_req, res) => {
     workerInvitations.expireOutstanding();
     const rows = getDb().prepare(`
-      SELECT wi.id,wi.invitation_uid,wi.worker_name,wi.phone,wi.role,wi.status,wi.expires_at,
+      SELECT wi.id,wi.invitation_uid,wi.worker_profile_id,wi.worker_name,wi.phone,wi.role,wi.status,wi.expires_at,
              wi.created_at,wi.opened_at,wi.claimed_at,wi.cancelled_at,wi.created_by_name,wi.permissions_json,
              u.username AS claimed_username,u.display_name AS claimed_user_name,u.active AS claimed_user_active,
              d.id AS device_id,d.device_name,d.platform,d.status AS device_status
@@ -172,6 +297,15 @@ module.exports = function createWorkerInvitationsRouter(deps) {
           throw error;
         }
         const permissions = cleanPermissions(JSON.parse(invite.permissions_json || '[]'), invite.role);
+        if (invite.worker_profile_id) {
+          getDb().prepare(`
+            UPDATE device_enrollment_requests
+               SET status='revoked',reviewed_at=CURRENT_TIMESTAMP,reviewed_by=NULL,reviewed_by_name='הפעלה מחדש'
+             WHERE status='approved' AND invitation_id IN (
+               SELECT id FROM worker_invitations WHERE worker_profile_id=? AND id<>?
+             )
+          `).run(invite.worker_profile_id, invite.id);
+        }
         const enrollment = deviceEnrollment.createApprovedEnrollment({
           requesterName: invite.worker_name,
           deviceName,
@@ -218,5 +352,5 @@ module.exports.manifest = {
   screens: ['worker-invite.html'],
   access: { default: 'hidden', roles: { admin: 'edit' } },
   consumes: [{ table: 'users' }, { table: 'device_enrollment_requests' }],
-  produces: [{ table: 'worker_invitations' }],
+  produces: [{ table: 'worker_qr_profiles' }, { table: 'worker_invitations' }],
 };
