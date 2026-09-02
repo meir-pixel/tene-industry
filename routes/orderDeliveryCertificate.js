@@ -296,7 +296,9 @@ tfoot .total-val{font-size:14px;color:#f0a060;}
 
 <div class="toolbar">
   <a href="/orders.html" class="btn-back">← חזור להזמנות</a>
-  <button class="btn-print" onclick="window.print()">🖨️ הדפס / שמור PDF</button>
+  <button class="btn-print" onclick="window.print()">🖨️ הדפס</button>
+  <button class="btn-print" onclick="IronBendDocExport.download({ button: this, filename: 'תעודת משלוח ${order.order_num}' })">⬇️ הורד PDF</button>
+  <button class="btn-print" onclick="IronBendDocExport.send({ button: this, filename: 'תעודת משלוח ${order.order_num}' })">📤 שלח</button>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#1a2332;cursor:pointer;">
     <input type="checkbox" ${includeWaste ? 'checked' : ''} onchange="toggleWaste3(this)">
     תוספת 3% פערי משקלים
@@ -464,6 +466,9 @@ function toggleWaste3(input){
   }
 })();
 </script>
+<script src="/vendor/html2canvas.min.js"></script>
+<script src="/vendor/jspdf.umd.min.js"></script>
+<script src="/doc-export.js"></script>
 </body>
 </html>`);
 });

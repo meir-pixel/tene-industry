@@ -310,6 +310,8 @@ body[data-print-language="th"] tbody.diam-group .group-head td{text-align:left;}
 
 <div class="no-print">
   <button class="btn-print" onclick="window.print()">🖨️ ${label('printA4', 'הדפס A4')}</button>
+  <button class="btn-print" onclick="IronBendDocExport.download({ button: this, filename: 'הדפסת A4 ${order.order_num}' })">⬇️ הורד PDF</button>
+  <button class="btn-print" onclick="IronBendDocExport.send({ button: this, filename: 'הדפסת A4 ${order.order_num}' })">📤 שלח</button>
   <button class="btn-print" onclick="switchPrintLanguage('${thai ? 'he' : 'th'}')">${thai ? 'עברית' : 'ไทย'}</button>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#1a2332;cursor:pointer;">
     <input type="checkbox" ${splitByDiameter ? 'checked' : ''} onchange="toggleDiamSplit(this)">
@@ -524,6 +526,9 @@ function buildTable() {
 
 buildTable();
 </script>
+<script src="/vendor/html2canvas.min.js"></script>
+<script src="/vendor/jspdf.umd.min.js"></script>
+<script src="/doc-export.js"></script>
 </body>
 </html>`);
 });

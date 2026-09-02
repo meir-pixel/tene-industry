@@ -481,6 +481,8 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   ${previewNoticeHtml}
   <div class="toolbar">
     ${printButtonHtml}
+  <button class="btn-print" onclick="IronBendDocExport.download({ button: this, filename: 'כרטיסיות ייצור ${order.order_num}', pageSelector: '.cards-page', scale: 3 })">⬇️ הורד PDF</button>
+  <button class="btn-print" onclick="IronBendDocExport.send({ button: this, filename: 'כרטיסיות ייצור ${order.order_num}', pageSelector: '.cards-page', scale: 3 })">📤 שלח</button>
     <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${order.customer_name || ''} · ${cardItems.length} כרטיסיות</span>
   </div>
 
@@ -1294,6 +1296,9 @@ function printCards() {
   renderWorkerCardQrCodes();
 })();
 </script>
+<script src="/vendor/html2canvas.min.js"></script>
+<script src="/vendor/jspdf.umd.min.js"></script>
+<script src="/doc-export.js"></script>
 </body>
 </html>`;
 }
