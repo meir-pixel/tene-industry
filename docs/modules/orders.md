@@ -46,9 +46,12 @@
 weight_per_unit = (total_length_mm / 1000) × rebarKgPerMeter(diameter)
 total_weight    = weight_per_unit × quantity
 billing_weight  = total_weight × (1 + waste_pct / 100)
+production_qty  = quantity
 ```
 
 ### waste_pct ברירת מחדל: 3%
+
+הפחת מחושב רק במשקל הכולל לחיוב של ההזמנה. הוא אינו מגדיל את כמות הייצור בפריטים.
 
 ---
 

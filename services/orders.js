@@ -191,7 +191,9 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
         const hasShapeV2Envelope = isShapeDataContractV2(item.shapeSnapshot ?? item.shape_snapshot ?? item.shapeData ?? item.shape_data ?? item.shapeContract ?? item.shape_contract ?? item.shape_snapshot_json);
         const persistedShapeName = pileCageMetrics ? 'PILE CAGE' : (hasShapeV2Envelope ? item.shapeName : shapeName);
         const weightPerUnit = pileCageMetrics ? pileCageMetrics.weightKg : calcWeightPerUnit(item.diameter, totalLengthMm);
-        const productionQty = Math.ceil((item.qty || 1) * (1 + wastePct / 100));
+        // Waste is an order-level billing adjustment only. Production must use
+        // the ordered item quantity without adding or rounding a percentage.
+        const productionQty = item.qty || 1;
         const machine = assignResource(item.diameter);
 
         const totalWeight = weightPerUnit * (item.qty || 1);

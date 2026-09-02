@@ -45,10 +45,11 @@ test('order persistence stores physical cage length and complete five-card assem
       order: {},
       pallets: [{ items: [{ shapeSnapshot: snapshot, shapeName: 'generic bar', diameter: 20, qty: 2 }] }],
     });
-    const item = db.prepare('SELECT shape_name,total_length_mm,quantity,weight_per_unit,total_weight,segments,shape_snapshot_json FROM items').get();
+    const item = db.prepare('SELECT shape_name,total_length_mm,quantity,production_qty,weight_per_unit,total_weight,segments,shape_snapshot_json FROM items').get();
     assert.equal(item.shape_name, 'PILE CAGE');
     assert.equal(item.total_length_mm, 12000);
     assert.equal(item.quantity, 2);
+    assert.equal(item.production_qty, 2);
     assert.equal(item.weight_per_unit, 344.52);
     assert.equal(item.total_weight, 689.04);
     assert.deepEqual(JSON.parse(item.segments), []);
@@ -92,6 +93,34 @@ test('variable hoop quantity is preserved while order quantity multiplies one-ca
     assert.equal(item.quantity, 4);
     assert.equal(item.weight_per_unit, snapshot.assemblySummary.totalWeightKg);
     assert.equal(item.total_weight, snapshot.assemblySummary.totalWeightKg * 4);
+  } finally {
+    db.close();
+  }
+});
+
+test('three percent waste is applied only to the order billing total', () => {
+  const db = new Database(':memory:');
+  try {
+    ensureCoreSchema(db);
+    runCoreMigrations(db);
+    const service = createOrderFactory(db, { generateOrderNum: () => 'WASTE-ORDER-1', industry });
+    service.createOrderFromPayload({
+      customer: { name: 'Waste policy test' },
+      order: { totalWeight: 12.34, wastePctCharged: 3 },
+      pallets: [{
+        totalWeight: 12.34,
+        items: [{ shapeName: 'straight', diameter: 10, length: 2000, qty: 10 }],
+      }],
+    });
+
+    const order = db.prepare('SELECT total_weight,waste_pct_charged,billing_weight FROM orders').get();
+    const item = db.prepare('SELECT quantity,production_qty,total_weight FROM items').get();
+    assert.equal(order.total_weight, 12.34);
+    assert.equal(order.waste_pct_charged, 3);
+    assert.equal(order.billing_weight, 12.34 * 1.03);
+    assert.equal(item.quantity, 10);
+    assert.equal(item.production_qty, 10);
+    assert.equal(item.total_weight, 12.34);
   } finally {
     db.close();
   }

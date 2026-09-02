@@ -340,7 +340,10 @@ module.exports = function createOrdersRouter(deps) {
       FROM items i JOIN pallets p ON p.id=i.pallet_id
       WHERE p.order_id=?
     `).get(orderId).total_weight || 0;
-    db.prepare('UPDATE orders SET total_weight=?, billing_weight=? WHERE id=?').run(orderTotal, orderTotal * 1.03, orderId);
+    const order = db.prepare('SELECT COALESCE(waste_pct_charged, 3) AS waste_pct_charged FROM orders WHERE id=?').get(orderId);
+    const wastePct = Number(order?.waste_pct_charged);
+    const billingWeight = orderTotal * (1 + (Number.isFinite(wastePct) ? wastePct : 3) / 100);
+    db.prepare('UPDATE orders SET total_weight=?, billing_weight=? WHERE id=?').run(orderTotal, billingWeight, orderId);
     db.prepare(`
       UPDATE pallets
       SET total_weight=(SELECT COALESCE(SUM(total_weight),0) FROM items WHERE pallet_id=pallets.id)
