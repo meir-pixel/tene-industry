@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#e07b39">
+  <title>תמיכה מרחוק — IronBend</title>
+  <script src="/auth-client.js"></script>
+  <script src="/nav.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/support.css">
+</head>
+<body data-page="support">
+  <main class="support-shell">
+    <header class="support-header">
+      <div>
+        <p class="eyebrow">IRONBEND · תמיכה מאובטחת</p>
+        <h1>תמיכה מרחוק</h1>
+        <p>סשן זמני, מאושר ומוצג למשתמש במפעל בכל שלב.</p>
+      </div>
+      <div id="support-user" class="identity"></div>
+    </header>
+
+    <section class="support-grid" aria-label="תמיכה מרחוק">
+      <article class="support-card requester-card">
+        <div class="card-head"><span class="step">1</span><div><h2>פתיחת סשן במפעל</h2><p>העובד מפעיל את IronBend Support ומקליד קוד חד־פעמי.</p></div></div>
+        <ul class="safety-list">
+          <li>אין גישה ללא קוד וללא אישור על מחשב המפעל.</li>
+          <li>שיתוף המסך מסתיים בסגירת חלון התמיכה או כעבור 10 דקות.</li>
+          <li>שליטה בעכבר ובמקלדת דורשת אישור שני ונפרד.</li>
+        </ul>
+        <button id="create-session" class="primary" type="button">פתח סשן תמיכה</button>
+        <div id="request-result" class="request-result" hidden>
+          <div class="code-label">קוד למסירה למנהל</div>
+          <output id="support-code" class="support-code" aria-live="polite"></output>
+          <p id="expires-at" class="muted"></p>
+          <button id="download-agent" class="secondary" type="button">הורד IronBend Support</button>
+          <p class="small-note">פותחים את התוכנה, מקלידים בה את הקוד שמעל, ואז מאשרים את חלון שיתוף המסך.</p>
+        </div>
+        <p id="request-message" class="message" role="status"></p>
+      </article>
+
+      <article id="operator-card" class="support-card operator-card" hidden>
+        <div class="card-head"><span class="step">2</span><div><h2>מסוף מנהל</h2><p>הזן את הקוד שהופיע במחשב המפעל.</p></div></div>
+        <div class="claim-row">
+          <label>קוד סשן<input id="claim-code" inputmode="numeric" autocomplete="off" maxlength="9" placeholder="1234-5678"></label>
+          <button id="claim-session" class="primary compact" type="button">התחבר</button>
+        </div>
+        <div id="operator-session" hidden>
+          <div class="status-line"><strong id="operator-status">ממתין</strong><button id="request-control" class="secondary compact" type="button" disabled>בקש שליטה</button><button id="end-session" class="danger compact" type="button">סיים תמיכה</button></div>
+          <div class="remote-screen-wrap">
+            <img id="remote-screen" alt="תצוגת מסך מפעל בזמן תמיכה" hidden>
+            <div id="screen-placeholder" class="screen-placeholder">ממתין לאישור שיתוף מסך במפעל…</div>
+          </div>
+          <label class="key-entry">שלח מקש מאושר<input id="remote-key" autocomplete="off" placeholder="למשל Enter או A" maxlength="12"></label>
+          <p class="small-note">לחיצה על המסך שולחת לחיצת עכבר רק לאחר שהעובד במפעל אישר שליטה.</p>
+        </div>
+        <p id="operator-message" class="message" role="status"></p>
+      </article>
+    </section>
+
+    <section class="support-card sessions-card">
+      <div class="card-head"><span class="step">•</span><div><h2>סשנים אחרונים</h2><p>הקוד והמסך אינם נשמרים כאן.</p></div></div>
+      <div id="session-list" class="session-list" aria-live="polite"></div>
+    </section>
+  </main>
+  <script src="/support.js"></script>
+</body>
+</html>

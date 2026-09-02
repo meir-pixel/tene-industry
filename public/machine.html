@@ -212,6 +212,7 @@
 </head>
 <body data-page="machine">
 <script src="/auth-client.js"></script>
+<script src="/display-units.js"></script>
 <script src="/safe-dom.js"></script>
 <script src="/status-contracts-client.js"></script>
 <script src="/nav.js"></script>
@@ -319,7 +320,7 @@
             </select>
           </div>
           <div>
-            <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">פרימטר / אורך (מ"מ)</div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">פרימטר / אורך (ס״מ)</div>
             <input type="text" inputmode="numeric" id="manLength" placeholder="1200"
               style="width:100%;padding:8px;background:rgba(0,0,0,0.04);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Heebo',sans-serif;font-size:14px"
               onfocus="this.select()" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
@@ -557,7 +558,8 @@ async function startManualWork() {
   if (!selectedMachineId) { alert('בחר מכונה תחילה'); return; }
   const diameter = parseInt(document.getElementById('manDiameter').value);
   const qty      = parseInt(document.getElementById('manQty').value) || 1;
-  const length   = parseInt(document.getElementById('manLength').value) || 0;
+  const lengthCm = Number(document.getElementById('manLength').value) || 0;
+  const length   = IronBendDisplayUnits.centimetersToMillimeters(lengthCm) || 0;
   const shape    = document.getElementById('manShape').value;
   const note     = document.getElementById('manNote').value.trim();
 
@@ -613,7 +615,7 @@ async function loadQueue() {
       <div class="queue-item" id="qi-${item.id}" onclick="selectQueueItem(${item.id},${jsArg(item.orderNum)},${Number(item.quantity)||0})">
         <div style="flex:1">
           <div class="queue-order">${escHtml(item.orderNum)}</div>
-          <div class="queue-details">⌀${escHtml(item.diameter)} × ${escHtml(item.length || item.total_length_mm || '')}מ"מ × ${escHtml(item.quantity)}יח' | ${escHtml(item.shape_name||'ישר')}</div>
+          <div class="queue-details">${escHtml(IronBendDisplayUnits.formatSteelDiameterMm(item.diameter))} × ${escHtml(IronBendDisplayUnits.formatLengthCmFromMm(item.length || item.total_length_mm))} × ${escHtml(item.quantity)}יח' | ${escHtml(item.shape_name||'ישר')}</div>
           <div class="queue-details">${escHtml(item.customerName??'')}</div>
         </div>
         <div class="queue-weight">${(item.weight*(item.quantity||1)).toFixed(0)}ק"ג</div>
@@ -741,7 +743,7 @@ function renderFullQueue() {
 function renderQItem(item) {
   const isActive = item.status === ITEM_STATUS.IN_PRODUCTION;
   const pct = item.quantity>0 ? Math.min(100,Math.round((item.produced_qty||0)/item.quantity*100)) : 0;
-  const segs = (() => { try { const s=typeof item.segments==='string'?JSON.parse(item.segments):item.segments; return s&&s.length?s.slice(0,3).map(x=>typeof x==='object'?(x.length||x):x).join('/'):'' } catch{return''} })();
+  const segs = (() => { try { const s=typeof item.segments==='string'?JSON.parse(item.segments):item.segments; return s&&s.length?s.slice(0,3).map(x=>typeof x==='object'?(x.length_mm ?? x.lengthMm ?? x.length):x).join('/'):'' } catch{return''} })();
   return `<div class="q-item ${isActive?'q-active':''}" onclick="toggleQActions(${item.id})">
     <div class="q-top">
       <span class="q-order">${item.order_num||''}</span>
@@ -752,7 +754,7 @@ function renderQItem(item) {
       <span class="q-detail"><strong>⌀${item.diameter}</strong></span>
       <span class="q-detail">${item.produced_qty||0}/${item.quantity} יח'</span>
       <span class="q-detail">${Math.round(item.weight||0)} ק"ג</span>
-      ${segs?`<span class="q-detail">${segs} מ"מ</span>`:''}
+      ${segs?`<span class="q-detail">${segs.split('/').map(value => IronBendDisplayUnits.formatLengthCmFromMm(value)).join(' / ')}</span>`:''}
       ${item.delivery_date?`<span class="q-detail">📅 ${item.delivery_date}</span>`:''}
     </div>
     ${isActive?`<div class="q-prog"><div class="q-prog-fill" style="width:${pct}%"></div></div>`:''}

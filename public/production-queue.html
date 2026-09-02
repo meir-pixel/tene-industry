@@ -177,9 +177,10 @@
   }
 </style>
 <script src="/auth-client.js"></script>
+<script src="/display-units.js"></script>
 <script src="/safe-dom.js"></script>
 <script src="/status-contracts-client.js"></script>
-<script src="/shape-renderer.js" defer></script>
+<script src="/shape-renderer.js?v=4" defer></script>
 <script src="/nav.js" defer></script>
 </head>
 <body data-page="production-queue">
@@ -517,7 +518,7 @@ function renderQueueItem(item) {
           <span class="item-detail"><strong>קוטר</strong> ⌀${escHtml(item.diameter)}</span>
           <span class="item-detail"><strong>כמות</strong> ${item.produced_qty||0}/${item.quantity}</span>
           <span class="item-detail"><strong>משקל</strong> ${Math.round(item.weight||0)} ק"ג</span>
-          ${totalLength ? `<span class="item-detail"><strong>אורך</strong> ${Math.round(totalLength)} מ"מ</span>` : ''}
+          ${totalLength ? `<span class="item-detail"><strong>אורך</strong> ${IronBendDisplayUnits.formatLengthCmFromMm(totalLength)}</span>` : ''}
           ${item.shape_name ? `<span class="item-detail"><strong>צורה</strong> ${escHtml(shapeLabel(item.shape_name))}</span>` : ''}
           ${dims ? `<span class="item-detail"><strong>מידות</strong> ${escHtml(dims)}</span>` : ''}
           ${item.delivery_date ? `<span class="item-detail"><strong>אספקה</strong> ${escHtml(item.delivery_date)}</span>` : ''}
@@ -552,7 +553,7 @@ function segmentTotal(segments) {
 function formatSegments(segments) {
   if (!Array.isArray(segments) || !segments.length) return '';
   const values = segments.map(segmentLength).filter(n => Number.isFinite(n) && n > 0);
-  return values.length ? `${values.join(' / ')} מ"מ` : '';
+  return values.length ? values.map(value => IronBendDisplayUnits.formatLengthCmFromMm(value)).join(' / ') : '';
 }
 
 function itemSegments(segments) {

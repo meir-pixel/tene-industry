@@ -92,6 +92,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 </style>
 <link rel="stylesheet" href="/theme.css">
 <script src="/auth-client.js"></script>
+<script src="/display-units.js"></script>
 <script src="/safe-dom.js"></script>
 <script src="/nav.js"></script></head>
 <body data-page="reports">
@@ -676,7 +677,7 @@ function renderTimingOrders(orders) {
     <tr>
       <td><strong>${escH(order.order_num || '—')}</strong></td><td>${(order.profiles || []).map(escH).join('<br>') || '—'}</td>
       <td>${num(order.measured_cards)}</td><td>${num(order.unmeasured_cards)}</td><td>${formatMinutes(order.net_minutes)}</td>
-      <td>${num(order.cut_length_mm) ? `${num(order.cut_length_mm).toLocaleString()} מ״מ` : '—'}</td><td>${formatRate(order.weight_kg)} ק״ג</td>
+      <td>${num(order.cut_length_mm) ? IronBendDisplayUnits.formatLengthCmFromMm(order.cut_length_mm) : '—'}</td><td>${formatRate(order.weight_kg)} ק״ג</td>
       <td>${formatRate(order.meters_per_min)} מ׳/דק׳</td><td>${formatRate(order.kg_per_min)} ק״ג/דק׳</td>
     </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-dim);padding:20px">אין הזמנות עם זמן ייצור מדוד בתקופה שנבחרה.</td></tr>';
 }
@@ -698,7 +699,7 @@ function renderDailyDiameters(rows) {
       <td>${escH(row.date || '—')}</td><td><strong>${dailyDiameterLabel(row)}</strong></td>
       <td>${num(row.completed_cards)} <span style="color:var(--text-muted)">(${num(row.measured_cards)} מדודים)</span></td>
       <td>${num(row.quantity)}</td>
-      <td>${num(row.cut_length_mm) ? `${num(row.cut_length_mm).toLocaleString()} מ״מ` : row.missing_cut_length_cards ? 'חסר נתון אורך' : '—'}</td>
+      <td>${num(row.cut_length_mm) ? IronBendDisplayUnits.formatLengthCmFromMm(row.cut_length_mm) : row.missing_cut_length_cards ? 'חסר נתון אורך' : '—'}</td>
       <td>${formatRate(row.weight_kg)} ק״ג <span style="color:var(--text-muted)">(${dailyWeightSourceLabel(row)})</span></td>
       <td>${formatMinutes(row.net_minutes)}</td>
       <td>${formatRate(row.meters_per_min)} מ׳/דק׳</td><td>${formatRate(row.kg_per_min)} ק״ג/דק׳</td>
@@ -712,7 +713,7 @@ function renderTimingRecipes(recipes) {
   document.getElementById('timingRecipeTable').innerHTML = recipes.map(row => `
     <tr>
       <td>${escH(row.machine || '—')}</td><td>${escH(row.shape_name || '—')}</td><td>Ø${num(row.diameter_mm) || '—'} מ״מ</td>
-      <td>${num(row.unit_cut_length_mm) ? `${num(row.unit_cut_length_mm).toLocaleString()} מ״מ` : '—'}</td><td>${num(row.bend_count)}</td>
+      <td>${num(row.unit_cut_length_mm) ? IronBendDisplayUnits.formatLengthCmFromMm(row.unit_cut_length_mm) : '—'}</td><td>${num(row.bend_count)}</td>
       <td>${num(row.sample_count)}</td><td>${formatMinutes(row.net_minutes)}</td><td>${formatRate(row.meters_per_min)} מ׳/דק׳</td>
       <td>${formatRate(row.kg_per_min)} ק״ג/דק׳</td><td>${row.bends_per_min == null ? '—' : `${formatRate(row.bends_per_min)} כיפ׳/דק׳`}</td>
       <td>${row.median_min_per_unit == null ? 'אין מספיק היסטוריה' : `${formatRate(row.median_min_per_unit)} דק׳/יח׳`}</td>

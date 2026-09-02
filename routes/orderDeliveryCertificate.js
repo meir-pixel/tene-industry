@@ -3,6 +3,11 @@ const { isTechnicalRecognitionNote } = require('../services/intakeWorkflow');
 const productionCards = require('../services/productionCards');
 const { itemShapeMetrics } = require('../services/shapeSnapshot');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
+const {
+  buildOrderCommercialSummary,
+  classifyOrderItem,
+  effectiveItemWeight,
+} = require('../services/orderCommercialSummary');
 
 const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
 
@@ -12,15 +17,14 @@ function required(name, value) {
 }
 
 function printableItemNote(note) {
-  if (!note) return '';
-  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
+  const normalized = String(note || '').trim();
+  if (!normalized) return '';
+  // This is an internal provenance marker added by the editor. It is not a
+  // customer or delivery instruction, so it must never appear on documents.
+  if (/^נוסף ידנית בעורך הצורות\.?$/u.test(normalized)) return '';
+  return isTechnicalRecognitionNote(normalized) ? REVIEW_NOTE_LABEL : normalized;
 }
 
-
-function isSixOrTwelveMeterStraight(lengthMm) {
-  const mm = Number(lengthMm || 0);
-  return Math.abs(mm - 6000) <= 5 || Math.abs(mm - 12000) <= 5;
-}
 
 function parseSnapshot(value) {
   if (!value) return null;
@@ -67,58 +71,19 @@ function deliveryItemMetrics(item, industry = null) {
   return { totalLengthMm, totalWeightKg: calculatedWeight };
 }
 
-function deliverySectionKey(item, segs) {
-  if (productionCards.isRoundPileCageItem(item)) return 'cage';
-  const text = [item.shape_name, item.shape_id, item.struct_element, item.note]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  const diameter = Number(item.diameter || 0);
-  if (/mesh|wire|רשת/.test(text)) return 'mesh';
-  if (/cage|pile|כלוב|כלונס/.test(text)) return 'cage';
-  if (/חישוק|hoop/.test(text)) return 'hoops';
-  if (/כסא|כסאות|chair/.test(text)) return 'chairs';
-  if (/ציפור|ציפורים|אוזן|אזני|הרמה|קרום|קרומים|bird|lifting|insert/.test(text)) return 'lifting';
-  if (/spiral|ring|coil|ספיר|טבעת|סליל|לולאה/.test(text)) return diameter <= 12 ? 'spiral_upto_12' : 'spiral_14_plus';
-  const angles = Array.isArray(segs) ? segs.map(seg => Number(seg.angle_deg)).filter(Number.isFinite) : [];
-  const bent = Array.isArray(segs) && segs.length > 1 && angles.some(angle => Math.abs(angle) > 0.001 && angle < 175);
-  if (bent) return 'bent_rebar';
-  return isSixOrTwelveMeterStraight(deliveryItemMetrics(item).totalLengthMm || item.total_length_mm) ? 'straight_stock' : 'straight_cut';
-}
-
-function buildDeliveryWorkSummary(allItems, parseSegs, calcItemWeight) {
-  const labels = {
-    steel: 'ברזל',
-    cutting: 'חיתוך',
-    bending: 'כיפוף',
-    straight_stock: 'ברזל ישר 6/12 מטר',
-    mesh: 'רשתות',
-    cage: 'כלונסאות / כלובים',
-    hoops: 'חישוקים',
-    chairs: 'כסאות',
-    lifting: 'ציפורים / אזני הרמה / קרומים',
-    spiral_upto_12: 'עיבוד ספירלות טבעות עד קוטר 12 כולל',
-    spiral_14_plus: 'עיבוד ספירלות מקוטר 14 ומעלה',
-  };
-  const basis = { steel:'kg', cutting:'kg', bending:'kg', straight_stock:'kg', mesh:'kg', cage:'kg', hoops:'unit', chairs:'unit', lifting:'unit', spiral_upto_12:'kg', spiral_14_plus:'kg' };
-  const rows = new Map();
-  const add = (key, item, weight) => {
-    const row = rows.get(key) || { key, label: labels[key], basis: basis[key], weight: 0, units: 0, items: 0 };
-    row.weight += Number(weight || 0);
-    row.units += Number(item.quantity || 0);
-    row.items += 1;
-    rows.set(key, row);
-  };
-  allItems.forEach(item => {
-    const segs = parseSegs(item.segments);
-    const weight = calcItemWeight(item);
-    const key = deliverySectionKey(item, segs);
-    if (key === 'bent_rebar') { add('steel', item, weight); add('cutting', item, weight); add('bending', item, weight); return; }
-    if (key === 'straight_cut') { add('steel', item, weight); add('cutting', item, weight); return; }
-    if (key === 'straight_stock') { add('straight_stock', item, weight); return; }
-    add(key, item, weight);
-  });
-  return Array.from(rows.values()).filter(row => row.weight > 0 || row.units > 0);
+function deliverySectionKey(item) {
+  const kind = classifyOrderItem(item).kind;
+  return {
+    pile_cage: 'cage',
+    lift_package: 'lifts',
+    mesh: 'mesh',
+    spiral: 'spiral',
+    chair: 'chairs',
+    ring: 'hoops',
+    lifting: 'lifting',
+    bent_rebar: 'bent_rebar',
+    straight_rebar: 'straight_rebar',
+  }[kind] || kind;
 }
 
 module.exports = function createOrderDeliveryCertificateRouter(deps) {
@@ -143,13 +108,9 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
   const today = fmtDate();
   const delivDate = order.delivery_date ? fmtDate(order.delivery_date) : '—';
 
-  const parseSegs = raw => { try { return JSON.parse(raw) || []; } catch { return []; } };
-  const isBent = item => deliverySectionKey(item, parseSegs(item.segments)) === 'bent_rebar';
-
-  const calcItemWeight = it => Math.round((deliveryItemMetrics(it, industry).totalWeightKg || 0) * 10) / 10;
-
-  const workSummary = buildDeliveryWorkSummary(allItems, parseSegs, calcItemWeight);
-  const wTotal = allItems.reduce((sum, item) => sum + calcItemWeight(item), 0);
+  const calcItemWeight = it => effectiveItemWeight(it, roundPileCageDeliveryMetrics(it)).weightKg;
+  const commercialSummary = buildOrderCommercialSummary(allItems);
+  const wTotal = commercialSummary.material_weight_kg;
   // 3% weight-gap addition — same factor as orders.billing_weight (routes/orders.js).
   // Optional: ?waste3=0 renders the certificate without the addition rows.
   const includeWaste = String(req.query.waste3 || '1') !== '0';
@@ -160,16 +121,18 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
   const fmtTon = v => (Number(v || 0) / 1000).toFixed(2);
 
   // Position range label
-  const bentCount = allItems.filter(isBent).length;
   const posLabel = allItems.length > 0
     ? 'תעודת משלוח לפי פריטים שסופקו וסיכום סעיפי עבודה'
     : 'תעודת משלוח';
 
-  const workSummaryRowsHtml = workSummary.map(row => {
-    const value = row.basis === 'unit'
-      ? fmt1(row.units) + ' &#1497;&#1495;&#1523;'
-      : fmt1(row.weight) + ' &#1511;&#1524;&#1490; (' + fmtTon(row.weight) + ' &#1496;&#1493;&#1503;)';
-    return '<div class="sum-row"><span class="sum-lbl">' + row.label + ':</span><span class="sum-val">' + value + '</span></div>';
+  const workSummaryRowsHtml = commercialSummary.sections.map(section => {
+    const rows = section.lines.map(line => {
+      const value = line.unit === 'unit'
+        ? fmt1(line.value) + ' &#1497;&#1495;&#1523;'
+        : fmt2(line.value) + ' &#1511;&#1524;&#1490;';
+      return '<div class="sum-row" data-commercial-summary-line="' + line.key + '"><span class="sum-lbl">' + line.label + ':</span><span class="sum-val">' + value + '</span></div>';
+    }).join('');
+    return '<div class="summary-group-title">' + section.label + '</div>' + rows;
   }).join('');
 
   const summaryTotalsHtml = includeWaste ? `
@@ -219,7 +182,6 @@ router.get('/orders/:id/delivery-certificate', requireAnyRole(['office', 'wareho
   // Build table rows
   let rows = '';
   allItems.forEach((item, idx) => {
-    const segs   = parseSegs(item.segments);
     const itemMetrics = deliveryItemMetrics(item, industry);
     const posNum = idx + 1;
     const pileCageMetrics = roundPileCageDeliveryMetrics(item);
@@ -287,6 +249,7 @@ body{font-family:'Heebo',Arial,sans-serif;direction:rtl;background:#f0f2f5;paddi
   padding:12px 16px;margin-bottom:16px;display:inline-block;float:left;min-width:92mm;box-shadow:0 1px 0 rgba(26,35,50,.12);}
 .summary-title{font-size:12px;font-weight:900;color:#1a2332;margin-bottom:9px;text-align:center;border-bottom:2px solid #1a2332;padding-bottom:5px;}
 .sum-row{display:flex;justify-content:space-between;gap:24px;font-size:12px;margin-bottom:5px;}
+.summary-group-title{font-size:11px;font-weight:900;color:#526276;background:#eef2f7;margin:8px -6px 5px;padding:3px 6px;}
 .sum-lbl{color:#444;}
 .sum-val{font-weight:700;color:#1a2332;}
 .sum-total{border-top:1.5px solid #1a2332;margin-top:6px;padding-top:6px;}

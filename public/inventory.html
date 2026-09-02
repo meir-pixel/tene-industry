@@ -118,6 +118,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .search-row input{flex:1;min-width:200px;}
 </style>
 <script src="/auth-client.js"></script>
+<script src="/display-units.js"></script>
 <script src="/safe-dom.js"></script>
 <script src="/nav.js"></script><link rel="stylesheet" href="/theme.css">
 </head>
@@ -249,7 +250,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
         <select id="bGrade"><option value="B500B">B500B</option><option value="B500C">B500C</option><option value="B500A">B500A</option><option value="other">אחר</option></select>
       </div>
       <div class="form-row"><label>תקן / מפרט</label><input id="bStandard" type="text" placeholder="לדוגמה: 10219"></div>
-      <div class="form-row"><label>אורך נומינלי (מ"מ)</label><input id="bNominalLength" type="number" step="1" min="0" placeholder="אופציונלי"></div>
+      <div class="form-row"><label>אורך נומינלי (ס״מ)</label><input id="bNominalLength" type="number" step="0.1" min="0" placeholder="אופציונלי"></div>
       <div class="form-row"><label>תאריך קבלה *</label><input id="bDate" type="date"></div>
       <div class="form-row"><label>משקל (ק"ג) *</label><input id="bWeight" type="number" step="0.1" min="0" placeholder="5000"></div>
       <div class="form-row"><label>מחיר לטון (₪)</label><input id="bPrice" type="number" step="1" min="0" placeholder="3800"></div>
@@ -262,7 +263,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
             <select id="bShapePreset" onchange="applyBendingPreset()"></select>
           </div>
           <div class="form-row"><label>שם צורה</label><input id="bShapeName" type="text" placeholder="לדוגמה: U / אסדה / מותאם"></div>
-          <div class="form-row"><label>צלעות במ"מ</label><input id="bShapeSides" type="text" placeholder="300,600,300" oninput="previewBendingShape()"></div>
+          <div class="form-row"><label>צלעות בס״מ</label><input id="bShapeSides" type="text" placeholder="30,60,30" oninput="previewBendingShape()"></div>
           <div class="form-row"><label>זוויות בין צלעות</label><input id="bShapeAngles" type="text" placeholder="90,90" oninput="previewBendingShape()"></div>
           <div class="shape-actions">
             <input id="bShapeImage" type="file" accept="image/*,.pdf,application/pdf" style="display:none" onchange="analyzeBendingShape(this.files[0])">
@@ -352,7 +353,7 @@ function applyCatalogItem() {
   if (item.supply_form) document.getElementById('bType').value = item.supply_form;
   if (item.steel_grade) document.getElementById('bGrade').value = item.steel_grade;
   document.getElementById('bStandard').value = item.standard_code || '';
-  document.getElementById('bNominalLength').value = item.nominal_length_mm || '';
+  document.getElementById('bNominalLength').value = IronBendDisplayUnits.millimetersToCentimeters(item.nominal_length_mm) ?? '';
   normalizeBatchDiameter();
   toggleBendingPanel();
 }
@@ -406,7 +407,7 @@ function parseNumberList(value) {
 function parseBendingShapeSegments() {
   const sides = parseNumberList(document.getElementById('bShapeSides').value);
   const angles = parseNumberList(document.getElementById('bShapeAngles').value);
-  return sides.map((length, i) => ({ length_mm:length, angle_deg: angles[i] ?? 180 }));
+  return sides.map((length, i) => ({ length_mm:IronBendDisplayUnits.centimetersToMillimeters(length), angle_deg: angles[i] ?? 180 }));
 }
 function shapePoints(segments) {
   const pts = [[0, 0]];
@@ -432,7 +433,7 @@ function renderShapePreview(segments) {
   const labels = segments.map((s,i) => {
     const a = mapped[i], b = mapped[i+1];
     const x = ((a[0]+b[0])/2).toFixed(1), y = ((a[1]+b[1])/2 - 6).toFixed(1);
-    return `<text x="${x}" y="${y}" text-anchor="middle" font-size="10" fill="#526070">${fmt0(s.length_mm)}</text>`;
+    return `<text x="${x}" y="${y}" text-anchor="middle" font-size="10" fill="#526070">${IronBendDisplayUnits.formatLengthCmFromMm(s.length_mm, { withUnit:false })}</text>`;
   }).join('');
   box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="150" role="img" aria-label="תצוגת צורת כיפוף">
     <rect width="${w}" height="${h}" rx="8" fill="#fff"/>
@@ -456,7 +457,7 @@ function applyBendingPreset() {
   const preset = BENDING_PRESETS.find(p => p.id === document.getElementById('bShapePreset').value) || BENDING_PRESETS[0];
   if (preset.id !== 'custom') {
     document.getElementById('bShapeName').value = preset.name;
-    document.getElementById('bShapeSides').value = preset.sides.join(',');
+    document.getElementById('bShapeSides').value = preset.sides.map(value => value / 10).join(',');
     document.getElementById('bShapeAngles').value = preset.angles.join(',');
   }
   previewBendingShape();
@@ -465,7 +466,7 @@ function previewBendingShape() {
   const segments = parseBendingShapeSegments();
   renderShapePreview(segments);
   const total = segments.reduce((sum,s)=>sum+s.length_mm,0);
-  document.getElementById('bShapeStatus').textContent = segments.length ? `${segments.length} צלעות · אורך כולל ${fmt0(total)} מ"מ` : '';
+  document.getElementById('bShapeStatus').textContent = segments.length ? `${segments.length} צלעות · אורך כולל ${IronBendDisplayUnits.formatLengthCmFromMm(total)}` : '';
 }
 function setBendingShapeFields(shape = {}) {
   initBendingPresets();
@@ -473,7 +474,7 @@ function setBendingShapeFields(shape = {}) {
   document.getElementById('bShapePreset').value = 'custom';
   document.getElementById('bShapeName').value = shape.name || '';
   const segments = shape.segments || [];
-  document.getElementById('bShapeSides').value = segments.map(s=>s.length_mm).join(',');
+  document.getElementById('bShapeSides').value = segments.map(s=>IronBendDisplayUnits.millimetersToCentimeters(s.length_mm)).join(',');
   document.getElementById('bShapeAngles').value = segments.slice(0, -1).map(s=>s.angle_deg).join(',');
   previewBendingShape();
 }
@@ -776,7 +777,7 @@ function editBatch(id) {
   document.getElementById('bCert').value = b.certificate_num||'';
   document.getElementById('bGrade').value = b.grade||'B500B';
   document.getElementById('bStandard').value = b.standard_code||'';
-  document.getElementById('bNominalLength').value = b.nominal_length_mm||'';
+  document.getElementById('bNominalLength').value = IronBendDisplayUnits.millimetersToCentimeters(b.nominal_length_mm) ?? '';
   document.getElementById('bDate').value = b.received_date||'';
   document.getElementById('bWeight').value = b.weight_received||'';
   document.getElementById('bPrice').value = b.purchase_price||'';
@@ -814,7 +815,7 @@ async function saveBatch() {
     certificate_num: document.getElementById('bCert').value,
     grade:         document.getElementById('bGrade').value,
     standard_code: document.getElementById('bStandard').value.trim() || null,
-    nominal_length_mm: Number(document.getElementById('bNominalLength').value) || null,
+    nominal_length_mm: IronBendDisplayUnits.centimetersToMillimeters(document.getElementById('bNominalLength').value),
     received_date: document.getElementById('bDate').value,
     weight_received: Number(document.getElementById('bWeight').value),
     purchase_price:  Number(document.getElementById('bPrice').value)||0,

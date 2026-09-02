@@ -127,15 +127,14 @@ test('production card split does not add a generic split master card', () => {
   assert.doesNotMatch(orderPrintA4Route, /web\+ironbend:\/\/open\/order\//);
   assert.doesNotMatch(orderPrintA4Route, /data-order-url/);
   assert.match(orderPrintA4Route, /buildA4ProductionSummary/);
+  assert.match(orderPrintA4Route, /buildOrderCommercialSummary/);
   assert.match(orderPrintA4Route, /bucketRows/);
-  assert.match(orderPrintA4Route, /optionalWeightRows/);
-  assert.doesNotMatch(orderPrintA4Route, /productionSummary\.totals\.meshWeight, 2/);
-  assert.doesNotMatch(orderPrintA4Route, /productionSummary\.totals\.cageWeight, 2/);
-  assert.match(orderPrintA4Route, /byBucket/);
+  assert.doesNotMatch(orderPrintA4Route, /optionalWeightRows/);
+  assert.doesNotMatch(orderPrintA4Route, /byBucket/);
   assert.doesNotMatch(orderPrintA4Route, /byDiameter/);
   assert.doesNotMatch(orderPrintA4Route, /diameterRows/);
-  assert.match(orderPrintA4Route, /משקל חיתוך/);
-  assert.match(orderPrintA4Route, /משקל כיפוף/);
+  assert.match(orderPrintA4Route, /label\('cutting', 'חיתוך'\)/);
+  assert.match(orderPrintA4Route, /label\('bending', 'כיפוף'\)/);
   assert.match(productionCardsRoute, /data-worker-card-code/);
   assert.match(productionCardsRoute, /customer-scan\.html\?code=/);
   assert.doesNotMatch(productionCardsRoute, /web\+ironbend:\/\/open\/card\//);
@@ -803,14 +802,27 @@ test('technical OCR metadata does not print on customer-facing documents', () =>
   assert.doesNotMatch(printPage, /note:\s+it\.note\s+\|\|/);
 });
 
+test('internal shape-editor provenance is not printed as an item note', () => {
+  for (const file of [
+    'routes/orderDeliveryCertificate.js',
+    'services/productionCards.js',
+    'services/productionCardPrintPage.js',
+  ]) {
+    const source = read(file);
+    assert.match(source, /נוסף ידנית בעורך הצורות/);
+    assert.match(source, /return '';/);
+  }
+});
+
 
 
 test('delivery certificate summarizes work sections and reuses production card shapes', () => {
   const deliveryCertificate = read('routes/orderDeliveryCertificate.js');
 
-  assert.match(deliveryCertificate, /function buildDeliveryWorkSummary/);
-  assert.ok(deliveryCertificate.includes("add('steel', item, weight); add('cutting', item, weight); add('bending', item, weight)"));
-  assert.match(deliveryCertificate, /isSixOrTwelveMeterStraight/);
+  assert.match(deliveryCertificate, /buildOrderCommercialSummary/);
+  assert.match(deliveryCertificate, /commercialSummary\.sections\.map/);
+  assert.match(deliveryCertificate, /line\.unit === 'unit'/);
+  assert.doesNotMatch(deliveryCertificate, /function buildDeliveryWorkSummary/);
   assert.ok(deliveryCertificate.includes('productionCards.itemShapeSvg(item)'));
   assert.match(deliveryCertificate, /data-summary-contract="steel-cutting-bending"/);
   assert.match(deliveryCertificate, /delivery-shape svg/);

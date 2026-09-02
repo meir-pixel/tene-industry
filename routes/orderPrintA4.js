@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const QRCode = require('qrcode');
 const { customerScanUrl } = require('../services/publicScanLinks');
+const { buildOrderCommercialSummary, summaryLine } = require('../services/orderCommercialSummary');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orderPrintA4 missing dependency: ${name}`);
@@ -16,72 +17,103 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function isShapeEditorProvenance(note) {
+  const normalized = String(note || '').trim();
+  // This is an internal marker added by the shape editor, not a production
+  // instruction. Older records may include a comma before the editor label.
+  return /^נוסף\s+ידנית(?:[,.·\s]+(?:בעורך|עורך|נערך)\s+הצורות)?\.?$/u.test(normalized);
+}
+
 function formatPrintNumber(value, digits = 2) {
   const n = Number(value);
   if (!Number.isFinite(n)) return digits === 0 ? '0' : '0.00';
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-function productionBucketForA4Item(item, segments, snapshot) {
-  const text = [item.shape_name, item.struct_element, snapshot && snapshot.kind, snapshot && snapshot.type, snapshot && snapshot.family]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  if (/mesh|wire|רשת/.test(text)) return 'mesh';
-  if (/cage|pile|כלוב|כלונס/.test(text)) return 'cage';
-  return Array.isArray(segments) && segments.length > 1 ? 'bending' : 'cutting';
+const THAI_PRINT_LABELS = Object.freeze({
+  printA4: 'พิมพ์ A4',
+  splitByDiameter: 'แยกแต่ละขนาดเส้นผ่านศูนย์กลางคนละหน้า',
+  order: 'ใบสั่งงาน',
+  items: 'รายการ',
+  productionTitle: 'ใบสั่งผลิต – ดัดเหล็กเสริม',
+  productionSubtitle: 'ใบงานผลิต IronBend',
+  project: 'โครงการ',
+  site: 'สถานที่ / อาคาร',
+  customer: 'ลูกค้า',
+  orderDate: 'วันที่สั่ง',
+  deliveryDate: 'วันที่ส่งมอบ',
+  scanOrderQr: 'QR – เปิดการโหลดใบสั่งงาน',
+  totalItems: 'รายการทั้งหมด',
+  totalWeight: 'น้ำหนักรวม (กก.)',
+  pallets: 'พาเลท',
+  productionWeightSummary: 'สรุปน้ำหนักการผลิต',
+  materialAndProducts: 'วัสดุและสินค้า',
+  cutting: 'ตัด',
+  bending: 'ดัด',
+  spiralProcessing: 'ขึ้นรูปเกลียว',
+  notes: 'หมายเหตุ',
+  workTypeBreakdown: 'รายละเอียดตามประเภทงาน',
+  diameter: 'Ø ขนาด',
+  shape: 'รูปทรง',
+  totalLengthCm: 'L รวม<br>(ซม.)',
+  quantity: 'จำนวน',
+  kg: 'กก.',
+  inspection: 'ตรวจ',
+  printed: 'พิมพ์เมื่อ',
+  signature: 'ลายเซ็น',
+  total: 'รวม',
+  grandTotal: 'รวมทั้งหมด',
+  diameterGroup: 'ขนาด Ø',
+  noCommercialData: 'ไม่มีข้อมูลสรุปการผลิต',
+  commercialSections: {
+    material: 'เหล็กแปรรูป',
+    processing: 'งานแปรรูปเหล็ก',
+    finished_products: 'สินค้าเหล็กสำเร็จรูป',
+  },
+  commercialLines: {
+    processed_rebar_kg: 'เหล็กเส้นแปรรูป',
+    round_wire_coil_kg: 'ลวดกลมม้วน',
+    cutting_kg: 'ตัด',
+    bending_kg: 'ดัด',
+    spiral_processing_kg: 'ขึ้นรูปเหล็กเกลียว (Ø ไม่เกิน 12)',
+    chairs_units: 'เหล็กรอง',
+    rings_units: 'ปลอก / ห่วง',
+    lifting_units: 'หูยก / อุปกรณ์ยก',
+    mesh_kg: 'ตะแกรงเหล็กมาตรฐาน',
+    pile_cages_kg: 'กรงเหล็กเสาเข็ม',
+  },
+});
+
+function commercialLineValue(line, language = 'he') {
+  const thai = language === 'th';
+  if (!line) return thai ? '0.00 กก.' : '0.00 קג';
+  return line.unit === 'unit'
+    ? formatPrintNumber(line.value, 0) + (thai ? ' ชิ้น' : ' יח׳')
+    : formatPrintNumber(line.value, 2) + (thai ? ' กก.' : ' קג');
 }
 
-function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
-  const totals = { quantity: 0, weight: 0, lengthMm: 0, cuttingWeight: 0, bendingWeight: 0, meshWeight: 0, cageWeight: 0 };
-  const bucketLabels = {
-    cutting: '\u05d7\u05d9\u05ea\u05d5\u05da / \u05de\u05d5\u05d8\u05d5\u05ea \u05d9\u05e9\u05e8\u05d9\u05dd',
-    bending: '\u05db\u05d9\u05e4\u05d5\u05e3',
-    mesh: '\u05e8\u05e9\u05ea\u05d5\u05ea',
-    cage: '\u05db\u05dc\u05d5\u05d1\u05d9\u05dd / \u05db\u05dc\u05d5\u05e0\u05e1\u05d0\u05d5\u05ea',
+function buildA4ProductionSummary({ order, allItems, tryParseJSON, language = 'he' }) {
+  const thai = language === 'th';
+  const localizeSection = section => thai
+    ? (THAI_PRINT_LABELS.commercialSections[section.key] || section.label)
+    : section.label;
+  const localizeLine = line => thai
+    ? (THAI_PRINT_LABELS.commercialLines[line.key] || line.label)
+    : line.label;
+  const commercialSummary = buildOrderCommercialSummary(allItems);
+  const totals = {
+    quantity: allItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    weight: commercialSummary.material_weight_kg,
+    lengthMm: allItems.reduce((sum, item) => sum + Number(item.total_length_mm || 0) * Number(item.quantity || 0), 0),
+    cuttingWeight: summaryLine(commercialSummary, 'cutting_kg')?.value || 0,
+    bendingWeight: summaryLine(commercialSummary, 'bending_kg')?.value || 0,
+    spiralWeight: summaryLine(commercialSummary, 'spiral_processing_kg')?.value || 0,
   };
-  const byBucket = new Map();
 
-  allItems.forEach((item) => {
-    const qty = Number(item.quantity || 0);
-    const weight = Number(item.total_weight || 0);
-    const lengthMm = Number(item.total_length_mm || 0) * qty;
-    const segments = tryParseJSON(item.segments, []);
-    const snapshot = tryParseJSON(item.shape_snapshot_json || item.shapeSnapshot, {}) || {};
-    const bucket = productionBucketForA4Item(item, segments, snapshot);
-
-    totals.quantity += qty;
-    totals.weight += weight;
-    totals.lengthMm += lengthMm;
-    totals[bucket + 'Weight'] += weight;
-
-    const row = byBucket.get(bucket) || { quantity: 0, weight: 0, lengthMm: 0, items: 0 };
-    row.quantity += qty;
-    row.weight += weight;
-    row.lengthMm += lengthMm;
-    row.items += 1;
-    byBucket.set(bucket, row);
-  });
-
-  const optionalWeightRows = [
-    ['meshWeight', '\u05de\u05e9\u05e7\u05dc \u05e8\u05e9\u05ea\u05d5\u05ea'],
-    ['cageWeight', '\u05de\u05e9\u05e7\u05dc \u05db\u05dc\u05d5\u05d1\u05d9\u05dd'],
-  ]
-    .map(([key, label]) => Number(totals[key] || 0) > 0
-      ? '<tr><td>' + label + '</td><td>' + formatPrintNumber(totals[key], 2) + ' \u05e7\u05d2</td></tr>'
-      : '')
-    .filter(Boolean)
-    .join('');
-
-  const bucketRows = ['cutting', 'bending', 'mesh', 'cage']
-    .map((bucket) => {
-      const row = byBucket.get(bucket);
-      if (!row || row.weight <= 0) return '';
-      const details = formatPrintNumber(row.weight, 2) + ' \u05e7\u05d2 | ' + formatPrintNumber(row.quantity, 0) + ' \u05d9\u05d7 | ' + formatPrintNumber(row.lengthMm / 1000, 2) + ' \u05de';
-      return '<tr><td>' + bucketLabels[bucket] + '</td><td>' + details + '</td></tr>';
-    })
-    .filter(Boolean)
-    .join('') || '<tr><td colspan="2">\u05d0\u05d9\u05df \u05e0\u05ea\u05d5\u05e0\u05d9 \u05e1\u05d9\u05db\u05d5\u05dd \u05dc\u05e4\u05d9 \u05e1\u05d5\u05d2 \u05e2\u05d1\u05d5\u05d3\u05d4</td></tr>';
+  const bucketRows = commercialSummary.sections.map(section => {
+    const rows = section.lines.map(line => '<tr data-commercial-summary-line="' + escapeHtml(line.key) + '"><td>' + escapeHtml(localizeLine(line)) + '</td><td>' + commercialLineValue(line, language) + '</td></tr>').join('');
+    return '<tr class="commercial-section-row"><td colspan="2">' + escapeHtml(localizeSection(section)) + '</td></tr>' + rows;
+  }).join('') || '<tr><td colspan="2">' + (thai ? THAI_PRINT_LABELS.noCommercialData : 'אין נתוני סיכום מסחרי') + '</td></tr>';
 
   const notes = [order.notes, order.general_notes, order.production_notes, order.driver_notes]
     .filter(Boolean)
@@ -90,7 +122,7 @@ function buildA4ProductionSummary({ order, allItems, tryParseJSON }) {
   return {
     totals,
     bucketRows,
-    optionalWeightRows,
+    commercialSummary,
     notes: escapeHtml(notes || '-'),
     project: escapeHtml(order.project_name || order.project || '-'),
     site: escapeHtml(order.site_name || order.building || order.delivery_address || '-'),
@@ -106,6 +138,11 @@ module.exports = function createOrderPrintA4Router(deps) {
 
 // ── PRINT A4 ──────────────────────────────────────────────────────
 router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'manager', 'admin']), async (req, res) => {
+  const language = String(req.query.lang || '').toLowerCase() === 'th' ? 'th' : 'he';
+  const thai = language === 'th';
+  const label = (key, hebrew) => thai ? (THAI_PRINT_LABELS[key] || hebrew) : hebrew;
+  const textDirection = thai ? 'ltr' : 'rtl';
+  const totalTextAlign = thai ? 'left' : 'right';
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone,
       p.name as project_name, COALESCE(cs.name, legacy_site.name) as site_name
     FROM orders o
@@ -137,11 +174,11 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
     shape_name:     it.shape_name || '',
     quantity:       it.quantity || 1,
     total_length_mm:it.total_length_mm || 0,
-    total_length_cm:(Math.round((it.total_length_mm||0)/10)),
+    total_length_cm:(Number(it.total_length_mm||0)/10),
     total_weight:   it.total_weight || 0,
     material_grade: it.material_grade || 'B500B',
     struct_element: it.struct_element || '',
-    note:           it.note || '',
+    note:           isShapeEditorProvenance(it.note) ? '' : (it.note || ''),
     pallet_num:     it._palletNum || 1,
     shape_svg:      productionCards.itemShapeSvg(it),
   })));
@@ -153,7 +190,7 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
   const splitByDiameter = String(req.query.split_by_diameter || '') === '1';
   const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const totalWeight  = (order.total_weight || 0).toFixed(1);
-  const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON });
+  const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON, language });
   // A normal phone camera always opens the public customer-registration page.
   // Only the approved scanner inside the work app interprets the embedded code.
   const orderQrToken = customerScanUrl(req, `TENE-ORDER-${order.id}`, settingsService);
@@ -165,14 +202,14 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="${language}" dir="${textDirection}">
 <head>
 <meta charset="UTF-8">
-<title>הדפסת A4 – ${order.order_num}</title>
+<title>${label('printA4', 'הדפסת A4')} – ${order.order_num}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&family=Noto+Sans+Thai:wght@400;700;900&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direction:rtl;padding:14px;}
+body{font-family:${thai ? "'Noto Sans Thai','Leelawadee UI',Tahoma,Arial,sans-serif" : "'Heebo',Arial,sans-serif"};background:#f5f5f5;color:#1a2332;direction:${textDirection};padding:14px;}
 
 /* Screen toolbar */
 .no-print{margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
@@ -214,6 +251,7 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 .prod-breakdown{width:100%;border-collapse:collapse;font-size:10.5px;}
 .prod-breakdown td{border-bottom:1px solid #e1e6ed;padding:5px 8px;}
 .prod-breakdown td:last-child{text-align:left;direction:ltr;font-weight:900;}
+.prod-breakdown .commercial-section-row td{background:#f3f6fa;color:#34465e;text-align:right;direction:rtl;font-weight:900;}
 .prod-notes{font-size:10px;line-height:1.45;padding:7px 9px;color:#333;min-height:24px;}
 
 /* Table */
@@ -227,10 +265,6 @@ body{font-family:'Heebo',Arial,sans-serif;background:#f5f5f5;color:#1a2332;direc
 .diam{font-weight:900;font-size:13px;color:#c9621a;}
 .shape-td{min-width:120px;max-width:180px;padding:3px!important;}
 .shape-svg{display:block;margin:0 auto;}
-.dims-td{text-align:right;font-size:10px;line-height:1.7;min-width:90px;}
-.seg-dim{white-space:nowrap;}
-.seg-lbl{font-weight:700;color:#1a2332;}
-.seg-ang{color:#c9621a;font-size:9px;}
 .len-val{font-size:13px;font-weight:900;}
 .qty-val{font-size:15px;font-weight:900;color:#1a2332;}
 .wt-val{font-size:12px;font-weight:700;}
@@ -257,6 +291,11 @@ tbody.diam-group .group-sub td{background:#eef2f7;color:#1a2332;font-weight:900;
 tbody.diam-split{break-before:page;page-break-before:always;}
 tbody.diam-split.first{break-before:auto;page-break-before:auto;}
 tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
+body[data-print-language="th"] .hdr-right{text-align:right;}
+body[data-print-language="th"] .prod-breakdown td:last-child{direction:ltr;text-align:right;}
+body[data-print-language="th"] .prod-breakdown .commercial-section-row td{text-align:left;direction:ltr;}
+body[data-print-language="th"] .note-row td{text-align:left!important;}
+body[data-print-language="th"] tbody.diam-group .group-head td{text-align:left;}
 
 @media print{
   body{background:#fff;padding:0;}
@@ -267,15 +306,16 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
 }
 </style>
 </head>
-<body>
+<body data-print-language="${language}">
 
 <div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ הדפס A4</button>
+  <button class="btn-print" onclick="window.print()">🖨️ ${label('printA4', 'הדפס A4')}</button>
+  <button class="btn-print" onclick="switchPrintLanguage('${thai ? 'he' : 'th'}')">${thai ? 'עברית' : 'ไทย'}</button>
   <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#1a2332;cursor:pointer;">
     <input type="checkbox" ${splitByDiameter ? 'checked' : ''} onchange="toggleDiamSplit(this)">
-    כל קוטר בעמוד נפרד
+    ${label('splitByDiameter', 'כל קוטר בעמוד נפרד')}
   </label>
-  <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${safeCustomer} · ${allItems.length} פריטים</span>
+  <span style="font-size:13px;color:#555;">${label('order', 'הזמנה')} ${order.order_num} · ${safeCustomer} · ${allItems.length} ${label('items', 'פריטים')}</span>
 </div>
 
 <div class="page">
@@ -283,16 +323,16 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
   <div class="hdr">
     <img class="hdr-logo" src="/brand/tene-pdf-logo.jpg" alt="TENA">
     <div class="hdr-main">
-      <div class="hdr-title">טופס ייצור – כיפוף ברזל</div>
-      <div class="hdr-sub">IronBend Production Sheet</div>
-      <div class="hdr-meta">פרויקט: <b>${productionSummary.project}</b> · אתר / בניין: <b>${productionSummary.site}</b></div>
+      <div class="hdr-title">${label('productionTitle', 'טופס ייצור – כיפוף ברזל')}</div>
+      <div class="hdr-sub">${label('productionSubtitle', 'IronBend Production Sheet')}</div>
+      <div class="hdr-meta">${label('project', 'פרויקט')}: <b>${productionSummary.project}</b> · ${label('site', 'אתר / בניין')}: <b>${productionSummary.site}</b></div>
     </div>
     <div class="hdr-right">
       <div class="order-num">${order.order_num}</div>
       <div class="hdr-meta">
-        לקוח: <b>${safeCustomer}</b><br>
-        תאריך הזמנה: <b>${printDate}</b><br>
-        תאריך מסירה: <b>${delivDate}</b>
+        ${label('customer', 'לקוח')}: <b>${safeCustomer}</b><br>
+        ${label('orderDate', 'תאריך הזמנה')}: <b>${printDate}</b><br>
+        ${label('deliveryDate', 'תאריך מסירה')}: <b>${delivDate}</b>
       </div>
     </div>
       <div class="order-qr" data-order-code="${escapeHtml(orderQrToken)}" title="לקוחות: פורטל לקוחות · עובדים: סריקה מתוך האפליקציה">
@@ -302,26 +342,25 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
 
   <!-- Summary -->
   <div class="summary">
-    <div class="sum-cell"><div class="sum-label">סה"כ פריטים</div><div class="sum-val">${allItems.length}</div></div>
-    <div class="sum-cell"><div class="sum-label">סה"כ ק"ג</div><div class="sum-val">${totalWeight}</div></div>
-    <div class="sum-cell"><div class="sum-label">משטחים</div><div class="sum-val">${pallets.length}</div></div>
-    <div class="sum-cell"><div class="sum-label">הזמנה</div><div class="sum-val">${order.order_num}</div></div>
+    <div class="sum-cell"><div class="sum-label">${label('totalItems', 'סה"כ פריטים')}</div><div class="sum-val">${allItems.length}</div></div>
+    <div class="sum-cell"><div class="sum-label">${label('totalWeight', 'סה"כ ק"ג')}</div><div class="sum-val">${totalWeight}</div></div>
+    <div class="sum-cell"><div class="sum-label">${label('pallets', 'משטחים')}</div><div class="sum-val">${pallets.length}</div></div>
+    <div class="sum-cell"><div class="sum-label">${label('order', 'הזמנה')}</div><div class="sum-val">${order.order_num}</div></div>
   </div>
   <!-- Production summary -->
   <div class="production-summary">
     <div class="prod-summary-box">
-      <h2>סיכום משקלים לייצור</h2>
+      <h2>${label('productionWeightSummary', 'סיכום משקלים לייצור')}</h2>
       <div class="prod-summary-grid">
-        <div><span>כמות / מוטות</span><b>${formatPrintNumber(productionSummary.totals.quantity, 0)}</b></div>
-        <div><span>אורך כולל</span><b>${formatPrintNumber(productionSummary.totals.lengthMm / 1000, 2)} מ</b></div>
-        <div><span>משקל חיתוך</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} קג</b></div>
-        <div><span>משקל כיפוף</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} קג</b></div>
+        <div><span>${label('materialAndProducts', 'חומר ומוצרים')}</span><b>${formatPrintNumber(productionSummary.totals.weight, 2)} ${label('kg', 'קג')}</b></div>
+        <div><span>${label('cutting', 'חיתוך')}</span><b>${formatPrintNumber(productionSummary.totals.cuttingWeight, 2)} ${label('kg', 'קג')}</b></div>
+        <div><span>${label('bending', 'כיפוף')}</span><b>${formatPrintNumber(productionSummary.totals.bendingWeight, 2)} ${label('kg', 'קג')}</b></div>
+        <div><span>${label('spiralProcessing', 'עיבוד ספירלה')}</span><b>${formatPrintNumber(productionSummary.totals.spiralWeight, 2)} ${label('kg', 'קג')}</b></div>
       </div>
-      ${productionSummary.optionalWeightRows ? '<table class="prod-breakdown"><tbody>' + productionSummary.optionalWeightRows + '</tbody></table>' : ''}
-      <div class="prod-notes"><b>הערות:</b> ${productionSummary.notes}</div>
+      <div class="prod-notes"><b>${label('notes', 'הערות')}:</b> ${productionSummary.notes}</div>
     </div>
     <div class="prod-summary-box">
-      <h2>פירוט לפי סוג עבודה</h2>
+      <h2>${label('workTypeBreakdown', 'פירוט לפי סוג עבודה')}</h2>
       <table class="prod-breakdown"><tbody>${productionSummary.bucketRows}</tbody></table>
     </div>
   </div>
@@ -330,13 +369,12 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
     <thead>
       <tr>
         <th>#</th>
-        <th>⌀ נ'</th>
-        <th>צורה</th>
-        <th>מידות (מ"מ)</th>
-        <th>L סה"כ<br>(ס"מ)</th>
-        <th>כמות</th>
-        <th>ק"ג</th>
-        <th>✓</th>
+        <th>${label('diameter', '⌀ נ\'')}</th>
+        <th>${label('shape', 'צורה')}</th>
+        <th>${label('totalLengthCm', 'L סה"כ<br>(ס"מ)')}</th>
+        <th>${label('quantity', 'כמות')}</th>
+        <th>${label('kg', 'ק"ג')}</th>
+        <th>${label('inspection', '✓')}</th>
       </tr>
     </thead>
     <tbody id="tableBody"></tbody>
@@ -344,15 +382,22 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
 
   <!-- Footer -->
   <div class="footer">
-    <div>הודפס: ${printDate} · IronBend</div>
-    <div class="footer-brand">הזמנה ${order.order_num}</div>
-    <div>חתימה: _______________</div>
+    <div>${label('printed', 'הודפס')}: ${printDate} · IronBend</div>
+    <div class="footer-brand">${label('order', 'הזמנה')} ${order.order_num}</div>
+    <div>${label('signature', 'חתימה')}: _______________</div>
   </div>
 </div>
 
 <script>
 var allItems = ${allItemsJson};
 var splitByDiameter = ${splitByDiameter ? 'true' : 'false'};
+var printLabels = ${JSON.stringify({
+  total: label('total', 'סה"כ'),
+  grandTotal: label('grandTotal', 'סה"כ כללי'),
+  diameterGroup: label('diameterGroup', 'קוטר Ø'),
+  items: label('items', 'פריטים'),
+})};
+var totalTextAlign = '${totalTextAlign}';
 
 // window.URL is used explicitly: inline handlers resolve identifiers against
 // document first, where document.URL is a string that shadows the constructor.
@@ -362,28 +407,16 @@ function toggleDiamSplit(input){
   window.location.href = u.href;
 }
 
-function buildDimsHtml(segments) {
-  if (!segments || !segments.length) return '<span style="color:#aaa;font-size:10px;">—</span>';
-  var html = '';
-  for (var i=0; i<segments.length; i++) {
-    var lbl = String.fromCharCode(0x05D0+i); // א,ב,ג...
-    html += '<div class="seg-dim"><span class="seg-lbl">'+lbl+':</span> '+segments[i].length_mm+'</div>';
-    if (i < segments.length-1 && segments[i].angle_deg != null) {
-      // Bend direction is encoded on a full 0-360 turn: -30 displays as 330.
-      var normAng = ((Number(segments[i].angle_deg) % 360) + 360) % 360;
-      if (Number.isFinite(normAng) && normAng !== 180 && normAng !== 0) {
-        html += '<div class="seg-ang">∠ '+normAng+'°</div>';
-      }
-    }
-  }
-  return html;
+function switchPrintLanguage(language){
+  var u = new window.URL(window.location.href);
+  u.searchParams.set('lang', language);
+  window.location.href = u.href;
 }
 
 function itemRowHtml(it, uid) {
   return '<td class="row-num">'+it.rowNum+'</td>'+
     '<td class="diam">Ø'+it.diameter+'</td>'+
     '<td class="shape-td"><div class="shape-svg" id="'+uid+'">'+(it.shape_svg||'')+'</div></td>'+
-    '<td class="dims-td">'+buildDimsHtml(it.segments)+'</td>'+
     '<td><span class="len-val">'+it.total_length_cm+'</span></td>'+
     '<td><span class="qty-val">'+it.quantity+'</span></td>'+
     '<td><span class="wt-val">'+(it.total_weight||0).toFixed(1)+'</span></td>'+
@@ -403,14 +436,14 @@ function buildFlatTable() {
     if (it.note) {
       var noteRow = document.createElement('tr');
       noteRow.className = 'note-row';
-      noteRow.innerHTML = '<td colspan="8">⚠ '+it.note+'</td>';
+      noteRow.innerHTML = '<td colspan="7">⚠ '+it.note+'</td>';
       tbody.appendChild(noteRow);
     }
   }
   var totRow = document.createElement('tr');
   totRow.className = 'totals-row';
   totRow.innerHTML =
-    '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ</td>'+
+    '<td colspan="4" style="text-align:'+totalTextAlign+';padding-right:10px!important;">'+printLabels.total+'</td>'+
     '<td>'+totalQty+'</td>'+
     '<td>'+totalWt.toFixed(1)+'</td>'+
     '<td></td>';
@@ -445,7 +478,7 @@ function buildTable() {
 
     var head = document.createElement('tr');
     head.className = 'group-head';
-    head.innerHTML = '<td colspan="8">קוטר Ø'+d+' <span class="gh-count">· '+items.length+' פריטים</span></td>';
+    head.innerHTML = '<td colspan="7">'+printLabels.diameterGroup+d+' <span class="gh-count">· '+items.length+' '+printLabels.items+'</span></td>';
     body.appendChild(head);
 
     items.forEach(function(it) {
@@ -457,7 +490,7 @@ function buildTable() {
       if (it.note) {
         var noteRow = document.createElement('tr');
         noteRow.className = 'note-row';
-        noteRow.innerHTML = '<td colspan="8">⚠ '+it.note+'</td>';
+        noteRow.innerHTML = '<td colspan="7">⚠ '+it.note+'</td>';
         body.appendChild(noteRow);
       }
     });
@@ -465,7 +498,7 @@ function buildTable() {
     var sub = document.createElement('tr');
     sub.className = 'group-sub';
     sub.innerHTML =
-      '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ Ø'+d+'</td>'+
+      '<td colspan="4" style="text-align:'+totalTextAlign+';padding-right:10px!important;">'+printLabels.total+' Ø'+d+'</td>'+
       '<td>'+gQty+'</td>'+
       '<td>'+gWt.toFixed(1)+'</td>'+
       '<td></td>';
@@ -480,7 +513,7 @@ function buildTable() {
     var totRow = document.createElement('tr');
     totRow.className = 'totals-row';
     totRow.innerHTML =
-      '<td colspan="5" style="text-align:right;padding-right:10px!important;">סה"כ כללי</td>'+
+      '<td colspan="4" style="text-align:'+totalTextAlign+';padding-right:10px!important;">'+printLabels.grandTotal+'</td>'+
       '<td>'+totalQty+'</td>'+
       '<td>'+totalWt.toFixed(1)+'</td>'+
       '<td></td>';

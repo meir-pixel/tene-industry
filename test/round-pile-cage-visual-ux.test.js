@@ -138,7 +138,7 @@ test('exact snapshot identity alone identifies a round pile cage', () => {
 test('complete cage renders a dedicated schedule-aware monochrome SVG', () => {
   const svg = productionCards.shapeSvgForProductionCard(pileItem(), [{ length_mm: 12000, angle_deg: 0 }]);
   assert.match(svg, /aria-label="PILE CAGE"/);
-  assert.match(svg, /L 12\.00m/);
+  assert.match(svg, /L 1,200 cm/);
   assert.match(svg, /10 × Ø20/);
   assert.match(svg, /Ø8/);
   assert.match(svg, /5 × Ø18/);
@@ -209,28 +209,29 @@ test('dynamic print renders exactly five QR/status cards with canonical componen
   assert.equal(cards.length, 5);
   const assembly = cards.find(card => card.includes('pile-cage-assembly-card'));
   assert.match(assembly, /aria-label="PILE CAGE"/);
+  assert.match(assembly, /L = 1200 cm/);
   assert.match(assembly, /CAGES 1/);
-  assert.match(assembly, /344\.52 kg/);
+  assert.doesNotMatch(assembly, /UNIT 1200 cm|TOTAL 1200 cm/);
   assert.match(assembly, /ASSEMBLY/);
   assert.match(assembly, /data-assembly-component-summary="4"/);
-  assert.match(assembly, /STRAIGHT 5 × Ø20 · 60,000 mm/);
-  assert.match(assembly, /L-BAR 5 × Ø20 · 61,000 mm/);
-  assert.match(assembly, /SPIRAL 1 × Ø8 · 82,177\.1 mm/);
-  assert.match(assembly, /RINGS 5 × Ø18 · 6,595 mm/);
-  assert.match(assembly, /STEEL 209,772\.1 mm/);
+  assert.match(assembly, /STRAIGHT 5 × Ø20 מ״מ · 6,000 ס״מ/);
+  assert.match(assembly, /L-BAR 5 × Ø20 מ״מ · 6,100 ס״מ/);
+  assert.match(assembly, /SPIRAL 1 × Ø8 מ״מ · 8,217\.71 ס״מ/);
+  assert.match(assembly, /RINGS 5 × Ø18 מ״מ · 659\.5 ס״מ/);
+  assert.match(assembly, /STEEL 20,977\.21 cm/);
   assert.doesNotMatch(assembly, /data-shape-kind="generic-bar"/);
 
   const straight = cards.find(card => card.includes('longitudinal_straight_bar'));
   const bent = cards.find(card => card.includes('longitudinal_l_bar'));
   const spiral = cards.find(card => card.includes('spiral_consolidated'));
   const hoop = cards.find(card => card.includes('hoop_ring'));
-  assert.match(straight, /PCS 5/); assert.match(straight, /UNIT 1200 cm/); assert.match(straight, /TOTAL 6000 cm/);
+  assert.match(straight, /PCS 5/); assert.match(straight, /L = 6000 cm/); assert.doesNotMatch(straight, /UNIT 1200 cm|TOTAL 6000 cm/);
   assert.match(straight, /data-component-type="longitudinal_straight_bar"/);
-  assert.match(bent, /PCS 5/); assert.match(bent, /UNIT 1220 cm/); assert.match(bent, /TOTAL 6100 cm/);
+  assert.match(bent, /PCS 5/); assert.match(bent, /L = 6100 cm/); assert.doesNotMatch(bent, /UNIT 1220 cm|TOTAL 6100 cm/);
   assert.match(bent, /data-component-type="longitudinal_l_bar"/); assert.match(bent, /<polyline|<path/);
-  assert.match(spiral, /data-shape-kind="pile-spiral-component"/); assert.match(spiral, /AXIS 12000 mm/); assert.match(spiral, /CUT 82,177\.1 mm/); assert.match(spiral, /C52,369\.1/); assert.match(spiral, /NO WRAP/);
-  assert.match(spiral, /UNIT 8217\.71 cm/); assert.match(spiral, /TOTAL 8217\.71 cm/);
-  assert.match(hoop, /data-shape-kind="pile-hoop-component"/); assert.match(hoop, /PCS 5/); assert.match(hoop, /UNIT 131\.9 cm/); assert.match(hoop, /TOTAL 659\.5 cm/); assert.match(hoop, /data-spiral-diameter-mm="420"/); assert.match(hoop, /Ø 420 מ"מ/);
+  assert.match(spiral, /data-shape-kind="pile-spiral-component"/); assert.match(spiral, /AXIS 1,200 cm/); assert.match(spiral, /CUT 8,217\.71 cm/); assert.match(spiral, /C5,236\.91 cm/); assert.match(spiral, /NO WRAP/);
+  assert.match(spiral, /L = 8217\.71 cm/); assert.doesNotMatch(spiral, /UNIT 8217\.71 cm|TOTAL 8217\.71 cm/);
+  assert.match(hoop, /data-shape-kind="pile-hoop-component"/); assert.match(hoop, /PCS 5/); assert.match(hoop, /L = 659\.5 cm/); assert.doesNotMatch(hoop, /UNIT 131\.9 cm|TOTAL 659\.5 cm/); assert.match(hoop, /data-spiral-diameter-mm="420"/); assert.match(hoop, /Ø 42 ס״מ/);
   for (const card of cards) {
     assert.match(card, /data-worker-card-code=/);
     assert.doesNotMatch(card, /#2563eb|#c9621a|#9a4b10/i);

@@ -86,7 +86,9 @@ const createAccessRouter   = require('./routes/access');
 const createDeviceEnrollmentRouter = require('./routes/deviceEnrollment');
 const createWorkerInvitationsRouter = require('./routes/workerInvitations');
 const createMobileAppLinksRouter = require('./services/mobileAppLinks');
+const createAttendedRemoteSupportRouter = require('./routes/attendedRemoteSupport');
 const { createAccessControl } = require('./services/accessControl');
+const { createAttendedRemoteSupportService } = require('./services/attendedRemoteSupport');
 const { MACHINE_STATES, STATE_TRANSITIONS } = constants;
 const { createOrderFactory } = ordersService;
 
@@ -321,6 +323,7 @@ const allRouteFactories = [
   createOrderPrintA4Router, createProductionMetricsRouter, createProductionShiftsRouter,
   createCatalogRouter, createPriorityRouter, createPriorityExportRouter, createBrandingRouter, createLicenseRouter,
   createAccessRouter, createDeviceEnrollmentRouter, createWorkerInvitationsRouter,
+  createAttendedRemoteSupportRouter,
 ];
 const routeManifests = allRouteFactories.map(f => f.manifest).filter(Boolean);
 const accessControl = createAccessControl({ routeManifests, settingsService });
@@ -328,6 +331,16 @@ const accessControl = createAccessControl({ routeManifests, settingsService });
 app.use('/api', createAccessRouter({ requireRole, accessControl }));
 
 seedCoreData(db);
+
+// Isolated attended-support channel. It never reuses the machine realtime
+// websocket, and it accepts screen/control traffic only through a rotating
+// per-session agent token after local consent on the factory computer.
+const attendedRemoteSupport = createAttendedRemoteSupportService({ db });
+app.use('/api', createAttendedRemoteSupportRouter({
+  support: attendedRemoteSupport,
+  requireAnyRole,
+  requireRole,
+}));
 
 const realtime = createRealtimeServer({ server, db, modbus, authService, applyAuthBypass });
 const wsBroadcast = realtime.wsBroadcast;
@@ -382,6 +395,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/search.js', factory: createSearchRouter },
     { file: 'routes/warehouse.js', factory: createWarehouseRouter },
     { file: 'routes/access.js', factory: createAccessRouter },
+    { file: 'routes/attendedRemoteSupport.js', factory: createAttendedRemoteSupportRouter },
   ],
 });
 

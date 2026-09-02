@@ -11,8 +11,12 @@ function escapeHtml(value) {
 }
 
 function printableItemNote(note) {
-  if (!note) return '';
-  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
+  const normalized = String(note || '').trim();
+  if (!normalized) return '';
+  // Editor provenance is an internal marker, not an instruction for the
+  // production card.
+  if (/^נוסף ידנית בעורך הצורות\.?$/u.test(normalized)) return '';
+  return isTechnicalRecognitionNote(normalized) ? REVIEW_NOTE_LABEL : normalized;
 }
 
 function itemStructElement(item = {}) {
@@ -74,6 +78,12 @@ function exactPileMetric(value) {
   return numeric.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
+function exactPileCentimeters(valueMm) {
+  const numeric = Number(valueMm);
+  if (!Number.isFinite(numeric) || numeric < 0) return '';
+  return exactPileMetric(numeric / 10);
+}
+
 function pileAssemblyComponentLabel(component = {}) {
   const labels = {
     longitudinal_straight_bar: 'STRAIGHT',
@@ -86,7 +96,7 @@ function pileAssemblyComponentLabel(component = {}) {
   const diameter = Number(component.diameterMm);
   const totalLengthMm = Number(component.totalLengthMm);
   if (!label || !(quantity > 0) || !(diameter > 0) || !(totalLengthMm > 0)) return '';
-  return `${label} ${exactPileMetric(quantity)} × Ø${exactPileMetric(diameter)} · ${exactPileMetric(totalLengthMm)} mm`;
+  return `${label} ${exactPileMetric(quantity)} × Ø${exactPileMetric(diameter)} מ״מ · ${exactPileCentimeters(totalLengthMm)} ס״מ`;
 }
 
 function pileCageProductionSvg(item = {}) {
@@ -133,7 +143,7 @@ function pileCageProductionSvg(item = {}) {
     return Array.from({ length: turns }, (_, index) => { const x = startX + (index + 0.5) * Math.max(1, endX - startX) / turns; return `<path d="M${(x - 4).toFixed(1)} 23L${(x + 4).toFixed(1)} 55" stroke="#102a43" stroke-width="1.3"/>`; }).join('');
   }).join('') : Array.from({ length: 12 }, (_, index) => `<path d="M${14 + index * 12} 23L${26 + index * 12} 55" stroke="#102a43" stroke-width="1.3"/>`).join('')) : '';
   const rods = bars > 0 && barDiameter > 0 ? Array.from({ length: 5 }, (_, index) => `<path d="M14 ${27 + index * 7}H160" stroke="#102a43" stroke-width="1.2"/>`).join('') : '';
-  const lengthM = pileLength ? (pileLength / 1000).toFixed(2) : '—';
+  const lengthCm = pileLength ? exactPileCentimeters(pileLength) : '—';
   const diameterCm = pileDiameter ? (pileDiameter / 10).toFixed(1).replace(/\.0$/, '') : '—';
   const barLabel = bars > 0 && barDiameter > 0 ? `${bars} × Ø${barDiameter}` : '—';
   const pitches = [...new Set(wrappedSchedule.map(zone => n(zone.pitchMm ?? zone.pitch)).filter(Boolean))];
@@ -150,10 +160,10 @@ function pileCageProductionSvg(item = {}) {
   const hasAssemblySummary = isAssemblyCard && componentLines.length === 4 && totalSteelLengthMm > 0;
   const compactFooter = `<text x="88" y="70" text-anchor="middle" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(barLabel)} · ${escapeHtml(spiralLabel)} · ${escapeHtml(hoopLabel)}</text>`;
   const assemblyRows = hasAssemblySummary
-    ? `<g data-assembly-component-summary="4">${componentLines.map((line, index) => `<text x="12" y="${82 + index * 10}" text-anchor="start" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(line)}</text>`).join('')}<text data-assembly-total-steel="${escapeHtml(exactPileMetric(totalSteelLengthMm))}" x="213" y="122" text-anchor="end" font-size="8" font-weight="900" fill="#102a43">STEEL ${escapeHtml(exactPileMetric(totalSteelLengthMm))} mm</text></g>`
+    ? `<g data-assembly-component-summary="4">${componentLines.map((line, index) => `<text x="12" y="${82 + index * 10}" text-anchor="start" font-size="7" font-weight="800" fill="#102a43">${escapeHtml(line)}</text>`).join('')}<text data-assembly-total-steel="${escapeHtml(exactPileMetric(totalSteelLengthMm))}" x="213" y="122" text-anchor="end" font-size="8" font-weight="900" fill="#102a43">STEEL ${escapeHtml(exactPileCentimeters(totalSteelLengthMm))} cm</text></g>`
     : '';
   const viewHeight = hasAssemblySummary ? 128 : 72;
-  return `<svg viewBox="0 0 225 ${viewHeight}" role="img" aria-label="PILE CAGE" data-bend-orientation-reference="radial_inward"><rect x="12" y="21" width="152" height="38" rx="7" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">PILE CAGE · L ${escapeHtml(lengthM)}m</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${escapeHtml(diameterCm)}${Number.isFinite(bendOrientationDeg) ? ` · ↻${escapeHtml(exactPileMetric(bendOrientationDeg))}°` : ''}</text>${hasAssemblySummary ? assemblyRows : compactFooter}</svg>`;
+  return `<svg viewBox="0 0 225 ${viewHeight}" role="img" aria-label="PILE CAGE" data-bend-orientation-reference="radial_inward"><rect x="12" y="21" width="152" height="38" rx="7" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${rods}${helix}<circle cx="190" cy="40" r="20" fill="#fff" stroke="#102a43" stroke-width="1.5"/>${dots}<text x="88" y="13" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">PILE CAGE · L ${escapeHtml(lengthCm)} cm</text><text x="190" y="69" text-anchor="middle" font-size="9" font-weight="900" fill="#102a43">Ø${escapeHtml(diameterCm)} cm${Number.isFinite(bendOrientationDeg) ? ` · ↻${escapeHtml(exactPileMetric(bendOrientationDeg))}°` : ''}</text>${hasAssemblySummary ? assemblyRows : compactFooter}</svg>`;
 }
 
 function itemHumanTitle(item = {}) {
@@ -237,6 +247,59 @@ function proportionalPrintSides(sides) {
     if (ratio < 6) return length;
     return Math.min(max, Math.max(length, max * 0.14));
   });
+}
+
+
+// כשצלע מאוחרת רצה בדיוק על גבי צלע קודמת (מוט מקופל אחורה על עצמו),
+// הן מצוירות קו-על-קו ואי אפשר להבחין ביניהן בשרטוט.
+function overlappingCoverIndex(points, scale) {
+  let EPS = Math.max(1e-9, scale * 0.002);
+  for (let i = 1; i < points.length - 1; i++) {
+    let a = points[i], b = points[i + 1];
+    let dx = b[0] - a[0], dy = b[1] - a[1];
+    let len = Math.sqrt(dx * dx + dy * dy);
+    if (!len) continue;
+    dx /= len; dy /= len;
+    for (let j = 0; j < i; j++) {
+      let c = points[j], d = points[j + 1];
+      let ex = d[0] - c[0], ey = d[1] - c[1];
+      let elen = Math.sqrt(ex * ex + ey * ey);
+      if (!elen) continue;
+      ex /= elen; ey /= elen;
+      if (Math.abs(dx * ey - dy * ex) > 0.02) continue;
+      if (Math.abs((c[0] - a[0]) * dy - (c[1] - a[1]) * dx) > EPS) continue;
+      let t0 = (c[0] - a[0]) * dx + (c[1] - a[1]) * dy;
+      let t1 = (d[0] - a[0]) * dx + (d[1] - a[1]) * dy;
+      if (Math.max(t0, t1) <= EPS || Math.min(t0, t1) >= len - EPS) continue;
+      return { covering: i, victim: j };
+    }
+  }
+  return null;
+}
+
+// חישוקים וכל צורה סגורה שחוזרת לנקודת ההתחלה - לא בתחום הכלל הזה.
+function isClosedHoopOutline(points, scale) {
+  if (!points || points.length < 4 || !scale) return false;
+  let first = points[0], last = points[points.length - 1];
+  return Math.sqrt(Math.pow(last[0] - first[0], 2) + Math.pow(last[1] - first[1], 2)) < scale * 0.35;
+}
+
+// קיצור ויזואלי בלבד של הצלע הצמודה לצלע הקצרה שנדרסת, כדי שהשתיים ייפרדו.
+// המידות המודפסות נשענות על sides המקורי ולא מושפעות.
+const OVERLAP_SEPARATION_RATIO = 0.10;
+function separateOverlappingSides(visualSides, angles) {
+  if (!visualSides || visualSides.length < 3) return visualSides;
+  let max = Math.max.apply(null, visualSides.concat([0]));
+  let shapePoints = calcShapePoints(visualSides, angles || []);
+  if (isClosedHoopOutline(shapePoints, max)) return visualSides;
+  let hit = overlappingCoverIndex(shapePoints, max);
+  if (!hit) return visualSides;
+  let legIndex = hit.victim > 0 ? hit.victim - 1 : hit.victim + 1;
+  if (legIndex < 0 || legIndex >= visualSides.length) return visualSides;
+  let adjusted = visualSides.slice();
+  let leg = adjusted[legIndex];
+  adjusted[legIndex] = Math.max(leg * 0.5, leg - max * OVERLAP_SEPARATION_RATIO);
+  return adjusted;
 }
 
 function calcShapePoints(sides, angles) {
@@ -408,7 +471,9 @@ function sideDimensionSvg(start, end, value, center, distance = 18) {
 
 function angleMarkerSvg(previous, corner, next, angle, center) {
   if (!isPrintableBendAngle(angle)) return '';
-  if (isRightAngle(angle)) return rightAngleMarkerSvg(previous, corner, next);
+  // 90° היא ברירת המחדל של כיפוף במוט - לא מסמנים אותה בשרטוט.
+  // בחישוקים הסימון נשמר - שם יש חוק אחר.
+  if (isRightAngle(angle)) return '';
   const a = unitVector(corner, previous);
   const b = unitVector(corner, next);
   const p1 = pointAt(corner, a, 13);
@@ -584,6 +649,7 @@ function spiralShapeSvg(item = {}) {
   const width = 240;
   const height = 118;
   const spiralDiameterLabel = Math.round(spiral.spiralDiameterMm);
+  const spiralDiameterCmLabel = displayLengthCm(spiral.spiralDiameterMm);
   const turnsLabel = Math.round(spiral.turns);
   const isRing = spiral.shapeType === 'ring' || spiral.turns <= 1.5;
 
@@ -609,11 +675,11 @@ function spiralShapeSvg(item = {}) {
     }
     // diameter dimension line
     svg += `<line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-rl)" marker-end="url(#arr-r)"/>`;
-    svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
+    svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
     // labels
     svg += `<g data-spiral-visual-labels="1" font-family="Heebo,Arial">`;
     svg += `<rect x="34" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
-    svg += `<text x="73" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
+    svg += `<text x="73" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">\u00d8 ${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
     svg += `<rect x="128" y="95" width="78" height="20" rx="4" fill="#fff7ed" stroke="#c9621a" stroke-width="1"/>`;
     svg += `<text x="167" y="109" text-anchor="middle" font-size="10" font-weight="900" fill="#1a2332">${spiral.overlapMm > 0 ? `${Math.round(spiral.overlapMm / 10)} \u05e1\u05f4\u05de \u05d7\u05e4\u05d9\u05e4\u05d4` : `1 \u05db\u05e8\u05d9\u05db\u05d4`}</text>`;
     svg += `</g>`;
@@ -623,25 +689,58 @@ function spiralShapeSvg(item = {}) {
   // \u2500\u2500 SPIRAL (>1 turn): real multi-turn plan view; count stays above the coil. \u2500\u2500
   const cx = 120, cy = 52, r = 34;
   let svg = `<defs><marker id="arr-s" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker><marker id="arr-sl" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse"><path d="M0,0 L6,3 L0,6 Z" fill="#c9621a"/></marker></defs>`;
-  svg += `<text data-spiral-turn-count="1" x="${cx}" y="13" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">${turnsLabel} \u05db\u05e8\u05d9\u05db\u05d5\u05ea</text>`;
+  svg += `<text data-spiral-turn-count="1" x="${cx}" y="13" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="900" fill="#1a2332">N=${turnsLabel}</text>`;
   const spiralPath = archimedeanSpiralPath(cx, cy, 3, r, 4.25, 170);
   svg += `<path d="${spiralPath}" fill="none" stroke="#1a2332" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
   svg += `<path d="${spiralPath}" fill="none" stroke="#3a5070" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
   // diameter dimension line inside the circle
   svg += `<line x1="${cx - r}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="#c9621a" stroke-width="1.4" marker-start="url(#arr-sl)" marker-end="url(#arr-s)"/>`;
-  svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterLabel} \u05de"\u05de</text>`;
+  svg += `<text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="9" font-family="Heebo,Arial" font-weight="900" fill="#c9621a">\u00d8 ${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
   svg += `<g data-spiral-visual-labels="1" font-family="Heebo,Arial">`;
   svg += `<rect x="34" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/>`;
   svg += `<text x="73" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4</text>`;
-  svg += `<text x="73" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${spiralDiameterLabel} \u05de"\u05de</text>`;
+  svg += `<text x="73" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${spiralDiameterCmLabel} \u05e1\u05f4\u05de</text>`;
   svg += `<rect x="128" y="88" width="78" height="26" rx="5" fill="#fff7ed" stroke="#c9621a" stroke-width="1.2"/>`;
-  svg += `<text x="167" y="98" text-anchor="middle" font-size="7.5" font-weight="900" fill="#9a4b10">\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea</text>`;
-  svg += `<text x="167" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">${turnsLabel}</text>`;
+  svg += `<text x="167" y="98" text-anchor="middle" font-size="9" font-weight="900" fill="#9a4b10">N</text>`;
+  svg += `<text x="167" y="110" text-anchor="middle" font-size="11" font-weight="900" fill="#1a2332">N=${turnsLabel}</text>`;
   svg += `</g>`;
   return `<svg data-shape-kind="spiral" data-spiral-diameter-mm="${spiralDiameterLabel}" data-spiral-turns="${turnsLabel}" data-scale-mode="container-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;overflow:visible">${svg}</svg>`;
 }
 
+function isLiftPackageItem(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item);
+  return snapshot?.family === 'lifts' && snapshot?.shapeType === 'lift_package';
+}
+
+// A lift is a purchased bundle: one diameter, one bar length, weighed per package.
+// It carries no bend geometry, so the card shows the bundle instead of a bar outline.
+function liftPackageProductionSvg(item = {}) {
+  const snapshot = shapeSnapshotFromItem(item) || {};
+  const data = snapshot.data || {};
+  const diameter = Number(data.diameter || item.diameter || 0);
+  const barLengthMm = Number(data.barLength || item.total_length_mm || 0);
+  const packages = Number(item.quantity || 0);
+  const weighed = Number(data.weighedKg || item.weight_per_unit || 0);
+  const W = 220, H = 100;
+  const x = 26, y = 26, bw = W - 52, bh = 40;
+  let svg = '';
+  svg += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + bh + '" rx="3" fill="none" stroke="#1a2332" stroke-width="2.2"/>';
+  for (let i = 1; i <= 3; i += 1) {
+    const by = y + (bh / 4) * i;
+    svg += '<line x1="' + (x + 8) + '" y1="' + by.toFixed(1) + '" x2="' + (x + bw - 8) + '" y2="' + by.toFixed(1) + '" stroke="#1a2332" stroke-width="' + Math.max(2, Math.min(5, diameter * 0.26)).toFixed(1) + '" stroke-linecap="round"/>';
+  }
+  [0.28, 0.72].forEach(t => {
+    const bx = (x + bw * t).toFixed(1);
+    svg += '<line x1="' + bx + '" y1="' + (y - 4) + '" x2="' + bx + '" y2="' + (y + bh + 4) + '" stroke="#1a2332" stroke-width="2.4"/>';
+  });
+  svg += dimensionLabelSvg(displayLengthCm(barLengthMm), W / 2, y - 12, 60);
+  const foot = 'Ø' + (diameter || '?') + '  ·  ' + packages + ' חבילות' + (weighed ? '  ·  ' + weighed.toFixed(1) + ' ק״ג' : '');
+  svg += dimensionLabelSvg(foot, W / 2, y + bh + 18, 190);
+  return '<svg data-shape-kind="lift-package" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:100px;overflow:visible">' + svg + '</svg>';
+}
+
 function itemShapeSvg(item = {}) {
+  if (isLiftPackageItem(item)) return liftPackageProductionSvg(item);
   if (isRoundPileCageItem(item)) return pileCageProductionSvg(item);
   const spiralSvg = spiralShapeSvg(item);
   const isBench = isBenchBarItem(item);
@@ -697,12 +796,8 @@ function openUShapeSvg(segments) {
   svg += sideDimensionSvg([left, bottom], [right, bottom], bridge, [midX, midY], 20);
   svg += sideDimensionSvg([right, bottom], [right, top], rightLeg, [midX, midY], 22);
 
-  [
-    [[left, top], [left, bottom], [right, bottom]],
-    [[left, bottom], [right, bottom], [right, top]],
-  ].forEach(([previous, corner, next]) => {
-    svg += rightAngleMarkerSvg(previous, corner, next);
-  });
+  // 90° היא ברירת המחדל של כיפוף במוט - לא מסמנים אותה בשרטוט.
+  // בחישוקים הסימון נשמר - שם יש חוק אחר.
 
   return `<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:100px;overflow:visible">${svg}</svg>`;
 }
@@ -841,7 +936,7 @@ function shapeSvg(segmentsRaw, opts = {}) {
 
     const sides = segments.map(segment => Number(segment.length_mm || 0));
     const angles = segments.map(segment => segment.angle_deg);
-    const visualSides = proportionalPrintSides(sides);
+    const visualSides = separateOverlappingSides(proportionalPrintSides(sides), angles);
     const points = normalizeShapePointsBaseBottom(calcShapePoints(visualSides, angles), opts);
 
     const xs = points.map(point => point[0]);
@@ -979,4 +1074,6 @@ module.exports = {
   isRoundPileCageItem,
   pileCageProductionSvg,
   shapeSvgForProductionCard,
+  isLiftPackageItem,
+  liftPackageProductionSvg,
 };

@@ -117,6 +117,7 @@ tr.clickable:hover td{background:rgba(0,0,0,0.02);}
 <link rel="stylesheet" href="/theme.css">
 <script src="/auth-client.js"></script>
 <script src="/safe-dom.js"></script>
+<script src="/display-units.js"></script>
 </head>
 <body data-page="quality">
 <nav class="topnav">
@@ -185,7 +186,7 @@ tr.clickable:hover td{background:rgba(0,0,0,0.02);}
       <table>
         <thead><tr>
           <th>הזמנה</th><th>פריט</th><th>סוג בדיקה</th><th>תוצאה</th><th>דגימה</th>
-          <th>סטייה אורך (מ"מ)</th><th>סטייה זווית (°)</th><th>פעולה</th><th>בודק</th><th>תאריך</th>
+          <th>סטייה אורך (ס"מ)</th><th>סטייה זווית (°)</th><th>פעולה</th><th>בודק</th><th>תאריך</th>
         </tr></thead>
         <tbody id="qcTable">טוען...</tbody>
       </table>
@@ -291,7 +292,7 @@ tr.clickable:hover td{background:rgba(0,0,0,0.02);}
       <div class="form-row"><label>גודל דגימה</label><input id="qSample" type="number" min="1" value="5"></div>
       <div class="form-row"><label>עברו בדיקה</label><input id="qPass" type="number" min="0" value="5"></div>
       <div class="form-row"><label>נכשלו</label><input id="qFail" type="number" min="0" value="0"></div>
-      <div class="form-row"><label>סטייה אורך (מ"מ)</label><input id="qDevMm" type="number" step="0.1" value="0"></div>
+      <div class="form-row"><label>סטייה אורך (ס"מ)</label><input id="qDevMm" type="number" step="0.01" value="0"></div>
       <div class="form-row"><label>סטייה זווית (°)</label><input id="qDevDeg" type="number" step="0.5" value="0"></div>
     </div>
     <div class="form-row"><label>תוצאה</label>
@@ -564,7 +565,7 @@ async function loadChecks() {
     <td>${TYPE_LBL[c.check_type]||c.check_type}</td>
     <td><span class="badge ${RESULT_CLS[c.result]||''}">${RESULT_LBL[c.result]||c.result}</span></td>
     <td>${c.sample_qty||0} / <span style="color:var(--success)">${c.pass_qty||0}</span> / <span style="color:var(--danger)">${c.fail_qty||0}</span></td>
-    <td>${(c.deviation_mm||0) !== 0 ? '<span style="color:var(--warning)">' + c.deviation_mm + '</span>' : '—'}</td>
+    <td>${(c.deviation_mm||0) !== 0 ? '<span style="color:var(--warning)">' + IronBendDisplayUnits.formatNumber(Number(c.deviation_mm) / 10, { maximumFractionDigits: 2 }) + '</span>' : '—'}</td>
     <td>${(c.deviation_deg||0) !== 0 ? '<span style="color:var(--warning)">' + c.deviation_deg + '</span>' : '—'}</td>
     <td style="font-size:12px">${escH(c.action_taken||'—')}</td>
     <td style="font-size:12px">${escH(c.inspector_name||'—')}</td>
@@ -594,7 +595,7 @@ async function saveQC() {
     sample_qty:   Number(document.getElementById('qSample').value),
     pass_qty:     Number(document.getElementById('qPass').value),
     fail_qty:     Number(document.getElementById('qFail').value),
-    deviation_mm: Number(document.getElementById('qDevMm').value),
+    deviation_mm: IronBendDisplayUnits.centimetersToMillimeters(document.getElementById('qDevMm').value) || 0,
     deviation_deg:Number(document.getElementById('qDevDeg').value),
     result:       document.getElementById('qResult').value,
     action_taken: document.getElementById('qAction').value,

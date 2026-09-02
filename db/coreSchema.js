@@ -565,6 +565,8 @@ function ensureCoreSchema(db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_num TEXT UNIQUE NOT NULL,
       stable_order_id TEXT,
+      quote_id INTEGER,
+      quote_num TEXT,
       customer_id INTEGER,
       channel TEXT DEFAULT 'טלפון',
       delivery_date TEXT,
@@ -575,6 +577,7 @@ function ensureCoreSchema(db) {
       total_weight REAL DEFAULT 0,
       waste_pct_charged REAL DEFAULT 3,
       billing_weight REAL DEFAULT 0,
+      sale_price REAL DEFAULT 0,
       driver_notes TEXT,
       general_notes TEXT,
       priority_order_id TEXT,
@@ -585,6 +588,32 @@ function ensureCoreSchema(db) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
+
+    CREATE TABLE IF NOT EXISTS order_quotes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quote_num TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending_approval' CHECK (status IN ('draft','pending_approval','approved','rejected','cancelled','converted')),
+      customer_id INTEGER,
+      customer_name TEXT NOT NULL,
+      customer_phone TEXT,
+      customer_email TEXT,
+      payload_json TEXT NOT NULL,
+      pricing_snapshot_json TEXT,
+      total_weight REAL NOT NULL DEFAULT 0,
+      total_price REAL NOT NULL DEFAULT 0,
+      created_by INTEGER,
+      approved_by INTEGER,
+      approved_at TEXT,
+      converted_order_id INTEGER UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (converted_order_id) REFERENCES orders(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_quotes_status_created
+      ON order_quotes(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_order_quotes_customer
+      ON order_quotes(customer_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS order_sequences (
       prefix TEXT PRIMARY KEY,
@@ -1224,6 +1253,7 @@ function ensureCoreSchema(db) {
       departure_type     TEXT CHECK (departure_type IN ('full','partial')),
       departure_reason   TEXT,
       delivery_note_id   INTEGER,
+      loading_group_uid  TEXT,
       cancelled_by       INTEGER,
       cancelled_at       DATETIME,
       cancel_reason      TEXT,
@@ -1319,6 +1349,25 @@ function ensureCoreSchema(db) {
       delivered_at  DATETIME,
       FOREIGN KEY (order_id) REFERENCES orders(id)
     );
+
+    -- A delivery note may cover several orders on the same truck.  The
+    -- legacy order_id/order_num columns remain populated for single-order
+    -- notes and backward compatibility; this junction is the authoritative
+    -- order list for consolidated notes.
+    CREATE TABLE IF NOT EXISTS delivery_note_orders (
+      delivery_note_id INTEGER NOT NULL,
+      order_id         INTEGER NOT NULL,
+      order_num        TEXT NOT NULL,
+      customer_id      INTEGER,
+      items_json       JSON,
+      total_weight     REAL NOT NULL DEFAULT 0,
+      PRIMARY KEY (delivery_note_id, order_id),
+      FOREIGN KEY (delivery_note_id) REFERENCES delivery_notes(id),
+      FOREIGN KEY (order_id) REFERENCES orders(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_delivery_note_orders_order
+      ON delivery_note_orders(order_id, delivery_note_id);
 
     CREATE TABLE IF NOT EXISTS export_log (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1485,8 +1534,15 @@ function ensureCoreSchema(db) {
   ensureColumn(db, 'order_loading_sessions', 'departure_type', "TEXT CHECK (departure_type IN ('full','partial'))");
   ensureColumn(db, 'order_loading_sessions', 'departure_reason', 'TEXT');
   ensureColumn(db, 'order_loading_sessions', 'delivery_note_id', 'INTEGER');
-  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_loading_session_delivery_note
+  ensureColumn(db, 'order_loading_sessions', 'loading_group_uid', 'TEXT');
+  // Several per-order sessions may deliberately point to one consolidated
+  // truck delivery note.  The old unique index encoded the former one-order
+  // limitation, so replace it with a normal lookup index.
+  db.exec('DROP INDEX IF EXISTS idx_loading_session_delivery_note');
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_loading_session_delivery_note
     ON order_loading_sessions(delivery_note_id) WHERE delivery_note_id IS NOT NULL`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_loading_sessions_group
+    ON order_loading_sessions(loading_group_uid, status)`);
 
   // price_category: how this item is billed in the price book
   // 'straight_standard' = bar at 6m/12m (material only)

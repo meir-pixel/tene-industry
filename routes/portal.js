@@ -1161,7 +1161,7 @@ module.exports = function createPortalRouter(deps) {
         <td>${index + 1}</td>
         <td>${orderPrintEsc(item.shape_name || 'ישר')}</td>
         <td>${orderPrintEsc(item.diameter || '')}</td>
-        <td>${orderPrintEsc(item.total_length_mm || '')}</td>
+        <td>${orderPrintEsc(item.total_length_mm == null ? '' : Number(item.total_length_mm) / 10)}</td>
         <td>${orderPrintEsc(item.quantity || '')}</td>
         <td>${orderPrintEsc(item.total_weight ? Number(item.total_weight).toFixed(1) : '')}</td>
         <td>${orderPrintEsc([item.struct_floor,item.struct_element,item.note].filter(Boolean).join(' / '))}</td>
@@ -1196,7 +1196,7 @@ module.exports = function createPortalRouter(deps) {
         <div class="box"><b>סטטוס</b><br>${orderPrintEsc(safePrintOrder.status || '')}</div>
         <div class="box"><b>משקל</b><br>${orderPrintEsc(Number(order.billing_weight || order.total_weight || 0).toFixed(1))} ק"ג</div>
       </div>
-      <table><thead><tr><th>#</th><th>צורה</th><th>קוטר</th><th>אורך מ"מ</th><th>כמות</th><th>משקל ק"ג</th><th>שייך ל / תיאור</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">אין פריטים להצגה</td></tr>'}</tbody></table>
+      <table><thead><tr><th>#</th><th>צורה</th><th>קוטר ברזל (מ"מ)</th><th>אורך (ס"מ)</th><th>כמות</th><th>משקל ק"ג</th><th>שייך ל / תיאור</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">אין פריטים להצגה</td></tr>'}</tbody></table>
       ${priceHtml}
     </div></body></html>`);
   });

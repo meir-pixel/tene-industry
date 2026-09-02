@@ -45,3 +45,11 @@ test('public QR opens customer registration while only the authenticated work sc
     { protocol: 'web+ironbend', url: '/scan.html?protocol=%s' },
   ]);
 });
+
+test('A4 order rows keep dimensions on the canonical shape drawing, without a duplicate dimensions column', () => {
+  assert.doesNotMatch(orderPrintRoute, /<th>מידות \(ס"מ\)<\/th>/);
+  assert.doesNotMatch(orderPrintRoute, /buildDimsHtml/);
+  assert.doesNotMatch(orderPrintRoute, /dims-td/);
+  assert.match(orderPrintRoute, /shape_svg:\s+productionCards\.itemShapeSvg\(it\)/);
+  assert.match(orderPrintRoute, /colspan="7"/);
+});

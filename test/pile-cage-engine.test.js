@@ -171,6 +171,58 @@ test('hoops by spacing calculate hoop count', () => {
   assert.equal(pile.hoops[0].count, 4);
 });
 
+test('round pile cage uses the authored hoop quantity for positions, steel and production', () => {
+  for (const quantity of [1, 3, 5, 8]) {
+    const input = completeRoundPileInput();
+    input.hoops = { ...input.hoops, quantity, firstHoopOffsetMm: 1000, spacingMm: 1000 };
+    const pile = calculatePileCage(input);
+    const ring = pile.manufacturingBreakdown.find(part => part.componentType === 'hoop_ring');
+    const expectedPositions = Array.from({ length: quantity }, (_, index) => 1000 + index * 1000);
+    const standalone = buildRingShapeContract({ barDiameterMm: 18, bendingDiameterMm: 420, quantity });
+
+    assert.equal(pile.validation.ok, true, `quantity ${quantity} must be a valid cage-specific value`);
+    assert.equal(pile.data.hoops.quantity, quantity);
+    assert.deepEqual(pile.data.hoops.positionsMm, expectedPositions);
+    assert.equal(ring.quantity, quantity);
+    assert.equal(ring.totalLengthMm, standalone.component.totalLengthMm);
+    assert.equal(ring.weightKg, standalone.component.weightKg);
+    assert.equal(pile.productionCards.find(card => card.componentType === 'hoop_ring').quantity, quantity);
+  }
+});
+
+test('round pile cage keeps arbitrary out-of-range hoop stations and fails closed with the exact position', () => {
+  const input = completeRoundPileInput();
+  input.hoops = { ...input.hoops, quantity: 7, firstHoopOffsetMm: 7000, spacingMm: 1000 };
+  const pile = calculatePileCage(input);
+
+  assert.equal(pile.validation.ok, false);
+  assert.ok(pile.validation.errorCodes.includes('hoop_position_out_of_range'));
+  assert.match(pile.validation.errors.find(error => error.code === 'hoop_position_out_of_range').message, /P7=13000mm/);
+  assert.deepEqual(pile.data.hoops.positionsMm, [7000, 8000, 9000, 10000, 11000, 12000, 13000]);
+  assert.deepEqual(pile.manufacturingBreakdown, []);
+  assert.deepEqual(pile.productionCards, []);
+});
+
+test('round pile cage accepts an authored zero hoop quantity without fabricating material or a card', () => {
+  const input = completeRoundPileInput();
+  input.hoops = { enabled: true, spacingMode: 'byQuantity', quantity: 0, firstHoopOffsetMm: 1500, spacingMm: 300 };
+  const pile = calculatePileCage(input);
+
+  assert.equal(pile.validation.ok, true);
+  assert.ok(!pile.validation.errorCodes.includes('missing_hoop_quantity'));
+  assert.equal(pile.data.hoops.quantity, 0);
+  assert.deepEqual(pile.data.hoops.positionsMm, []);
+  assert.equal(pile.manufacturingBreakdown.length, 3);
+  assert.ok(!pile.manufacturingBreakdown.some(part => part.componentType === 'hoop_ring'));
+  assert.equal(pile.productionCards.length, 4);
+  assert.ok(!pile.productionCards.some(card => card.componentType === 'hoop_ring'));
+  assert.equal(pile.assemblySummary.componentCount, 3);
+  assert.equal(pile.assemblySummary.productionCardCount, 4);
+  assert.equal(pile.calculated.totalHoopLengthMm, 0);
+  assert.equal(pile.calculated.totalHoopWeightKg, 0);
+  assert.equal(pile.calculated.totalWeightKg, pile.manufacturingBreakdown.reduce((sum, part) => sum + part.weightKg, 0));
+});
+
 
 test('internal hoops calculate weld spacing from internal diameter', () => {
   const pile = calculatePileCage({

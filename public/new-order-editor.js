@@ -20,9 +20,10 @@
   function shortDate(value) { const d = new Date(String(value || '') + 'T00:00:00'); return Number.isNaN(d.getTime()) ? String(value || '') : d.toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit' }); }
   function normalizePanel(type) { return ['customer','site','delivery','source'].includes(type) ? type : ''; }
   function numeric(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
-  function formatMm(value) { const n = numeric(value, 0); return n > 0 ? n.toLocaleString('he-IL', { maximumFractionDigits: 0 }) + ' \u05de\u0022\u05de' : '-'; }
-  function formatMeters(value) { const n = numeric(value, 0); return n > 0 ? (n / 1000).toLocaleString('he-IL', { maximumFractionDigits: 2 }) + ' \u05de\u05f3' : '-'; }
+  function formatCm(value) { const n = numeric(value, 0); return n > 0 ? (n / 10).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + ' \u05e1\u05f4\u05de' : '-'; }
+  function formatMeters(value) { const n = numeric(value, 0); return n > 0 ? (n / 1000).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + ' \u05de\u05f3' : '-'; }
   function jsArg(value) { const n = Number(value); return Number.isFinite(n) && String(value).trim() !== '' ? String(n) : JSON.stringify(String(value)); }
+  function orderLinesGridGuidesHtml() { return '<div class="order-lines-grid-guides" aria-hidden="true">' + '<span></span>'.repeat(9) + '</div>'; }
 
   function setupOrderLinesTable() {
     const container = document.getElementById('palletsContainer');
@@ -35,7 +36,9 @@
     head.className = 'order-lines-head';
     head.innerHTML = '<span>\u05de\u05e1\u05f3</span><span>\u05d0\u05dc\u05de\u05e0\u05d8</span><span>\u05e6\u05d5\u05e8\u05d4 \u05d5\u05de\u05d9\u05d3\u05d5\u05ea</span><span>\u05e7\u05d5\u05d8\u05e8 <small style="opacity:.7;font-weight:800">\u05de\u05f4\u05de</small></span><span>\u05db\u05de\u05d5\u05ea</span><span class="desktop-only-cell">\u05d0\u05d5\u05e8\u05da <small style="opacity:.7;font-weight:800">\u05e1\u05f4\u05de</small></span><span class="desktop-only-cell">\u05e1\u05d4\u05f4\u05db <small style="opacity:.7;font-weight:800">\u05de\u05f3</small></span><span>\u05de\u05e9\u05e7\u05dc</span><span></span>';
     container.parentNode.insertBefore(table, container);
-    table.append(head, container);
+    table.append(container);
+    container.prepend(head);
+    container.insertAdjacentHTML('beforeend', orderLinesGridGuidesHtml());
   }
   function injectKbdEntryStyles() {
     if (document.getElementById('kbd-entry-styles')) return;
@@ -190,7 +193,7 @@
     if (!pallets.length) pallets.push({ id: Date.now(), maxWeight: 500, items: [] });
     const pallet = pallets[0];
     if (pallet && !pallet.items.length) {
-      pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 12, length: 0, qty: 1, note: '', raw_material_id: 'auto' });
+      pallet.items.push({ id: Date.now(), shapeId: null, shapeEmoji: null, shapeName: '', shapeSides: [], shapeAngles: [], diameter: 0, length: 0, qty: 0, note: '', raw_material_id: 'auto' });
     }
     return pallet;
   }
@@ -988,20 +991,21 @@
 
   function lineContract(item = {}) { return typeof window.itemShapeContract === 'function' ? window.itemShapeContract(item) : null; }
   function lineData(item = {}) { const contract = lineContract(item); const snapshot = typeof item.shapeSnapshot === 'object' && item.shapeSnapshot ? item.shapeSnapshot : null; return contract?.data || snapshot?.data || snapshot || {}; }
+  function lineSteelFinish(item = {}) { const data = lineData(item); return String(item.steelFinish || item.steel_finish || data.steelFinish || data.steel_finish || '').toLowerCase() === 'smooth' ? 'smooth' : 'ribbed'; }
   function lineSides(item = {}) { if (typeof window.itemShapeSides === 'function') return window.itemShapeSides(item); const data = lineData(item); if (Array.isArray(item.shapeSides)) return item.shapeSides.map(Number).filter(v => Number.isFinite(v) && v > 0); if (Array.isArray(data.sides)) return data.sides.map(Number).filter(v => Number.isFinite(v) && v > 0); const length = numeric(item.length || item.totalLengthMm || data.lengthMm || data.totalLengthMm, 0); return length > 0 ? [length] : []; }
   function lineAngles(item = {}) { if (typeof window.itemShapeAngles === 'function') return window.itemShapeAngles(item); const data = lineData(item); return Array.isArray(data.angles) ? data.angles.map(Number).filter(Number.isFinite) : []; }
-  function lineQty(item = {}) { return Math.max(1, numeric(item.qty ?? item.quantity ?? lineData(item).quantity, 1)); }
-  function lineDiameter(item = {}) { const data = lineData(item); if (isRoundPileCageLine(item) && typeof window.roundPileCageVisualData === 'function') return numeric(window.roundPileCageVisualData(item).longitudinalDiameterMm, 20); return numeric(item.diameter ?? item.barDiameter ?? data.diameter ?? data.barDiameter ?? 12, 12); }
+  function lineQty(item = {}) { return Math.max(0, numeric(item.qty ?? item.quantity ?? lineData(item).quantity, 0)); }
+  function lineDiameter(item = {}) { const data = lineData(item); if (isRoundPileCageLine(item) && typeof window.roundPileCageVisualData === 'function') return numeric(window.roundPileCageVisualData(item).longitudinalDiameterMm, 20); return numeric(item.diameter ?? item.barDiameter ?? data.diameter ?? data.barDiameter ?? 0, 0); }
   function isLineSpiral(item = {}) { const contract = lineContract(item); return item.family === 'spirals' || contract?.family === 'spirals' || (typeof window.isSpiralOrderItem === 'function' && window.isSpiralOrderItem(item)); }
   function getSpiralFields(item = {}) { if (typeof window.spiralFieldsFromShapeData === 'function') return window.spiralFieldsFromShapeData(item); const data = lineData(item); return { spiralDiameterMm: numeric(item.spiral_diameter_mm || item.spiralDiameterMm || data.spiralDiameterMm || data.diameterMm, 0), spiralTurns: numeric(item.spiral_turns || item.spiralTurns || data.spiralTurns || data.turns, 0), spiralHeightMm: numeric(item.spiral_height_mm || item.spiralHeightMm || data.spiralHeightMm || data.heightMm, 0) }; }
   function isLineRing(item = {}) { const contract = lineContract(item); const data = lineData(item); return contract?.shapeType === 'ring' || data.shapeType === 'ring' || data.specialty === 'ring' || (typeof window.isStandaloneRingItem === 'function' && window.isStandaloneRingItem(item)); }
   function getRingFields(item = {}) { if (typeof window.ringFieldsFromShapeData === 'function') return window.ringFieldsFromShapeData(item); const data = lineData(item); const ringDiameterMm = numeric(data.ringDiameterMm || data.bendingDiameterMm || data.spiralDiameterMm || data.ringDiameter || data.spiralDiameter, 0); const overlapMm = Math.max(0, numeric(data.overlapMm ?? data.overlap, 0)); return { ringDiameterMm, overlapMm, circumferenceMm: Math.PI * ringDiameterMm, totalLengthMm: (Math.PI * ringDiameterMm) + overlapMm }; }
   function getLineUnitLengthMm(item = {}) { const data = lineData(item); const calculated = lineContract(item)?.calculated || item.shapeSnapshot?.calculated || {}; if (isRoundPileCageLine(item) && typeof window.roundPileCageVisualData === 'function') return numeric(window.roundPileCageVisualData(item).pileLengthMm, 0); if (isLineRing(item)) { const ring = getRingFields(item); return numeric(calculated.totalLengthMm ?? calculated.unitLengthMm ?? ring.totalLengthMm ?? item.length, 0); } if (isLineSpiral(item)) { const spiral = getSpiralFields(item); if (typeof window.spiralLengthMm === 'function' && spiral.spiralDiameterMm > 0 && spiral.spiralTurns > 0) return window.spiralLengthMm(spiral.spiralDiameterMm, spiral.spiralTurns); } const sides = lineSides(item); const sideTotal = sides.reduce((sum, length) => sum + numeric(length, 0), 0); if (sideTotal > 0) return sideTotal; return numeric(item.length ?? item.totalLengthMm ?? data.lengthMm ?? data.totalLengthMm ?? calculated.unitLengthMm ?? calculated.totalLengthMm, 0); }
-  function formatLineLength(item = {}) { return formatMm(getLineUnitLengthMm(item)); }
+  function formatLineLength(item = {}) { return formatCm(getLineUnitLengthMm(item)); }
   function formatLineTotalLength(item = {}) { return formatMeters(getLineUnitLengthMm(item) * lineQty(item)); }
   function formatLineWeight(item = {}) { const weight = typeof window.calcItemWeight === 'function' ? window.calcItemWeight(item) : 0; return formatKg(weight); }
   function isRoundPileCageLine(item = {}) { return typeof window.isRoundPileCageItem === 'function' && window.isRoundPileCageItem(item); }
-  function formatLineShapeDims(item = {}) { const data = lineData(item); if (isRoundPileCageLine(item)) { const pile = typeof window.roundPileCageVisualData === 'function' ? window.roundPileCageVisualData(item) : {}; const diameter = numeric(pile.pileDiameterMm, 0); const length = numeric(pile.pileLengthMm, 0); return `PILE CAGE · Ø${diameter ? (diameter / 10).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—'} · L ${length ? (length / 1000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}m`; } if (isLineRing(item)) { const ring = getRingFields(item); const diameterCm = ring.ringDiameterMm > 0 ? (ring.ringDiameterMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }) : '—'; const overlapCm = ring.overlapMm > 0 ? (ring.overlapMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }) : '0'; return `טבעת · Ø${diameterCm} ס״מ · חפיפה ${overlapCm} ס״מ`; } if (isLineSpiral(item)) { const spiral = getSpiralFields(item); const parts = []; if (spiral.spiralDiameterMm > 0) parts.push('\u00d8' + spiral.spiralDiameterMm.toLocaleString('he-IL')); if (spiral.spiralHeightMm > 0) parts.push('H=' + spiral.spiralHeightMm.toLocaleString('he-IL')); if (spiral.spiralTurns > 0) parts.push(spiral.spiralTurns.toLocaleString('he-IL') + ' \u05db\u05e8\u05d9\u05db\u05d5\u05ea'); return parts.join(' \u00b7 ') || '\u05e1\u05e4\u05d9\u05e8\u05dc\u05d4'; } const family = lineContract(item)?.family || item.family || ''; const width = numeric(data.widthMm || data.width || item.widthMm || item.width, 0); const height = numeric(data.heightMm || data.height || item.heightMm || item.height, 0); if ((family === 'mesh' || family === 'meshes') && width > 0 && height > 0) return '\u05e8\u05e9\u05ea ' + (width / 1000).toLocaleString('he-IL', { maximumFractionDigits: 2 }) + '\u00d7' + (height / 1000).toLocaleString('he-IL', { maximumFractionDigits: 2 }); const sides = lineSides(item); if (sides.length) { const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return sides.slice(0, 4).map((length, index) => labels[index] + '=' + numeric(length, 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })).join(' \u00b7 '); } return '\u05e6\u05d5\u05e8\u05d4'; }
+  function formatLineShapeDims(item = {}) { const data = lineData(item); if (isRoundPileCageLine(item)) { const pile = typeof window.roundPileCageVisualData === 'function' ? window.roundPileCageVisualData(item) : {}; const diameter = numeric(pile.pileDiameterMm, 0); const length = numeric(pile.pileLengthMm, 0); return `PILE CAGE · Ø${diameter ? (diameter / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }) : '—'} ס״מ · L ${length ? (length / 10).toLocaleString('he-IL', { maximumFractionDigits: 3 }) : '—'} ס״מ`; } if (isLineRing(item)) { const ring = getRingFields(item); const diameterCm = ring.ringDiameterMm > 0 ? (ring.ringDiameterMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }) : '—'; const overlapCm = ring.overlapMm > 0 ? (ring.overlapMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 1 }) : '0'; return `טבעת · Ø${diameterCm} ס״מ · חפיפה ${overlapCm} ס״מ`; } if (isLineSpiral(item)) { const spiral = getSpiralFields(item); const parts = []; if (spiral.spiralDiameterMm > 0) parts.push('Ø' + (spiral.spiralDiameterMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + ' ס״מ'); if (spiral.spiralHeightMm > 0) parts.push('H=' + (spiral.spiralHeightMm / 10).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + ' ס״מ'); if (spiral.spiralTurns > 0) parts.push('N=' + spiral.spiralTurns.toLocaleString('he-IL')); return parts.join(' · ') || 'ספירלה'; } const family = lineContract(item)?.family || item.family || ''; const width = numeric(data.widthMm || data.width || item.widthMm || item.width, 0); const height = numeric(data.heightMm || data.height || item.heightMm || item.height, 0); if ((family === 'mesh' || family === 'meshes') && width > 0 && height > 0) return 'רשת ' + (width / 10).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + '×' + (height / 10).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + ' ס״מ'; const sides = lineSides(item); if (sides.length) { const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return sides.slice(0, 4).map((length, index) => labels[index] + '=' + (numeric(length, 0) / 10).toLocaleString('he-IL', { maximumFractionDigits: 3 }) + ' ס״מ').join(' · '); } return 'צורה'; }
   function renderLineShapeSketch(item = {}) {
     const sides = lineSides(item);
     const angles = lineAngles(item);
@@ -1027,11 +1031,18 @@
   }
 
   function updateLineDiameter(palletId, itemId, select) {
-    const next = Number(select?.value) || 12;
+    const [rawDiameter, rawFinish] = String(select?.value ?? '').split('|');
+    const next = Number(rawDiameter) || 12;
+    const steelFinish = rawFinish === 'smooth' ? 'smooth' : 'ribbed';
     const pallet = (pallets || []).find((entry) => String(entry.id) === String(palletId));
     const item = (pallet?.items || []).find((entry) => String(entry.id) === String(itemId));
     if (!item) return;
-    if (typeof window.updateItem === 'function') window.updateItem(palletId, itemId, 'diameter', next);
+    item.steelFinish = steelFinish;
+    if (item.shapeSnapshot?.data && typeof item.shapeSnapshot.data === 'object') item.shapeSnapshot.data.steelFinish = steelFinish;
+    if (typeof window.updateItem === 'function') {
+      window.updateItem(palletId, itemId, 'diameter', next);
+      window.updateItem(palletId, itemId, 'steelFinish', steelFinish);
+    }
     scheduleDraftAutosave();
   }
 
@@ -1149,7 +1160,12 @@
 
   function renderCompactOrderLine(palletId, item, itemIndex = 0, orderTotalLines = 1) {
     const id = String(item.id); const palletArg = jsArg(palletId); const itemArg = jsArg(id); const qty = lineQty(item); const diameter = lineDiameter(item); const dims = formatLineShapeDims(item); const length = formatLineLength(item); const totalLength = formatLineTotalLength(item); const weight = formatLineWeight(item); const elementName = lineElementName(item); const openCall = 'openShapeEditor(' + palletArg + ',' + itemArg + ')'; const updateQtyCall = 'updateLineQuantity(' + palletArg + ',' + itemArg + ',this)'; const updateElementCall = 'updateLineElementName(' + palletArg + ',' + itemArg + ',this)'; const updateDiamCall = 'updateLineDiameter(' + palletArg + ',' + itemArg + ',this)'; const lineLabel = orderTotalLines > 0 ? (itemIndex + 1) + '/' + orderTotalLines : String(itemIndex + 1);
-    const diaOptions = [5.5,6,8,10,12,14,16,18,20,22,25,28,32,36,40].map(d => `<option value="${d}"${d === diameter ? ' selected' : ''}>\u00d8${d}</option>`).join('');
+    const steelFinish = lineSteelFinish(item);
+    const diaOptions = [5.5,6,8,'8|smooth',10,'10|smooth',12,14,16,18,20,22,25,28,32,36,40].map(option => {
+      const raw = String(option); const smooth = raw.endsWith('|smooth'); const d = Number(raw.replace('|smooth', ''));
+      const selected = d === diameter && (smooth ? steelFinish === 'smooth' : steelFinish !== 'smooth');
+      return `<option value="${raw}"${selected ? ' selected' : ''}>\u00d8${d}${smooth ? ' חלק' : ''}</option>`;
+    }).join('');
     const isPileCage = isRoundPileCageLine(item);
     const hasShape = !!(isPileCage || item.shapeId || (item.shapeSides && item.shapeSides.length));
     const emptyDash = '<span class="line-val-empty">\u2014</span>';
@@ -1185,7 +1201,9 @@
     minEnsureDefaultPallet();
     const rows = minGetAllVisibleOrderItems();
     const nextNum = rows.length + 1;
-    container.innerHTML = (rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState()) + minRenderAddRow(nextNum);
+    const headerHtml = container.querySelector(':scope > .order-lines-head')?.outerHTML || '';
+    const gridGuidesHtml = container.querySelector(':scope > .order-lines-grid-guides')?.outerHTML || orderLinesGridGuidesHtml();
+    container.innerHTML = headerHtml + gridGuidesHtml + (rows.length ? rows.map(({ palletId, item, orderLineNo, orderTotalLines }) => renderCompactOrderLine(palletId, item, orderLineNo - 1, orderTotalLines)).join('') : minRenderEmptyItemsState()) + minRenderAddRow(nextNum);
     setTextSafe('itemsCountPill', rows.length + ' \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd');
     setTextSafe('noItemsCount', rows.length);
     if (typeof window.updateSummary === 'function') window.updateSummary();

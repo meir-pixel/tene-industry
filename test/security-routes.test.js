@@ -17,6 +17,7 @@ const { hashPin, sha256 } = require('../auth-core');
 const statusContracts = require('../status-contracts');
 const dataContracts = require('../public/data-contracts-client.js');
 const productionCards = require('../services/productionCards');
+const productionActuals = require('../services/productionActuals');
 
 let baseUrl;
 const APPROVED_DEVICE_CREDENTIAL = 'DEV-SECURITY.test-device-secret';
@@ -1258,6 +1259,84 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal(updated.confirm_token, null);
 
     assert.ok(customerB);
+  });
+
+  await t.test('dashboard today metrics use deterministic Israel business-day boundaries', async () => {
+    const summerDay = '2026-08-19';
+    const summerRange = productionActuals.dayRange(summerDay);
+    assert.deepEqual(summerRange, {
+      start: '2026-08-18 21:00:00',
+      end: '2026-08-19 21:00:00',
+    });
+    assert.deepEqual(productionActuals.dayRange('2026-01-15'), {
+      start: '2026-01-14 22:00:00',
+      end: '2026-01-15 22:00:00',
+    });
+
+    const customerId = seedCustomer();
+    const seeded = [];
+    const seedBoundaryOrder = (suffix, createdAt, weightKg) => {
+      const orderId = seedInternalOrder(customerId, `DASH-ISRAEL-DAY-${suffix}`);
+      db.prepare('UPDATE orders SET created_at=?, status=?, total_weight=? WHERE id=?')
+        .run(createdAt, statusContracts.ORDER_STATUS.DONE_WAITING_PICKUP, weightKg, orderId);
+      const palletId = db.prepare('INSERT INTO pallets (order_id,pallet_num,total_weight) VALUES (?,?,?)')
+        .run(orderId, 1, weightKg).lastInsertRowid;
+      const shape = shapeV2Envelope();
+      shape.family = 'bars';
+      shape.calculated.totalLengthMm = 1000;
+      shape.calculated.weightKg = weightKg;
+      shape.machineOutput.generic.totalLengthMm = 1000;
+      shape.machineOutput.generic.weightKg = weightKg;
+      const itemId = db.prepare(`
+        INSERT INTO items (pallet_id,shape_id,shape_name,diameter,total_length_mm,quantity,weight_per_unit,total_weight,status,machine,shape_snapshot_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+      `).run(palletId, `boundary-${suffix}`, 'straight', 12, 1000, 1, weightKg, weightKg, statusContracts.ITEM_STATUS.WAITING, 'boundary', JSON.stringify(shape)).lastInsertRowid;
+      seeded.push({ orderId: Number(orderId), palletId: Number(palletId), itemId: Number(itemId) });
+      return Number(orderId);
+    };
+
+    const originalIsraelDay = productionActuals.israelDay;
+    productionActuals.israelDay = () => summerDay;
+    try {
+      const beforeResponse = await request('/api/dashboard', { headers: authHeaders(production) });
+      assert.equal(beforeResponse.status, 200);
+      const before = await beforeResponse.json();
+
+      seedBoundaryOrder('START', summerRange.start, 1.001);
+      const afterStartOrderId = seedBoundaryOrder('AFTER-START', '2026-08-18 21:00:01', 2.664);
+      seedBoundaryOrder('BEFORE-END', '2026-08-19 20:59:59', 3.003);
+      seedBoundaryOrder('AT-END', summerRange.end, 4.004);
+      seedBoundaryOrder('PRIOR-DAY', '2026-08-18 20:59:59', 5.005);
+
+      const oldUtcCalendarWeight = db.prepare(`
+        SELECT COALESCE(SUM(total_weight), 0) AS weight
+        FROM orders
+        WHERE id=? AND DATE(created_at)=?
+      `).get(afterStartOrderId, summerDay).weight;
+      const israelBusinessRangeWeight = db.prepare(`
+        SELECT COALESCE(SUM(total_weight), 0) AS weight
+        FROM orders
+        WHERE id=? AND datetime(created_at) >= datetime(?) AND datetime(created_at) < datetime(?)
+      `).get(afterStartOrderId, summerRange.start, summerRange.end).weight;
+      assert.equal(oldUtcCalendarWeight, 0);
+      assert.equal(israelBusinessRangeWeight, 2.664);
+
+      const afterResponse = await request('/api/dashboard', { headers: authHeaders(production) });
+      assert.equal(afterResponse.status, 200);
+      const after = await afterResponse.json();
+      assert.equal(after.productionActualDate, summerDay);
+      assert.equal(after.ordersToday - before.ordersToday, 3);
+      assert.equal(after.completedOrdersToday - before.completedOrdersToday, 3);
+      assert.equal(Number((after.totalWeightToday - before.totalWeightToday).toFixed(3)), 6.668);
+    } finally {
+      productionActuals.israelDay = originalIsraelDay;
+      db.transaction(() => {
+        for (const row of seeded) db.prepare('DELETE FROM items WHERE id=?').run(row.itemId);
+        for (const row of seeded) db.prepare('DELETE FROM pallets WHERE id=?').run(row.palletId);
+        for (const row of seeded) db.prepare('DELETE FROM orders WHERE id=?').run(row.orderId);
+        db.prepare('DELETE FROM customers WHERE id=?').run(customerId);
+      })();
+    }
   });
 
   await t.test('dashboard reports and KPI routes require internal reporting roles', async () => {

@@ -102,6 +102,10 @@ function normalizePileInput(input = {}) {
     ?? (typeof input.longitudinalBars === 'number' || typeof input.longitudinalBars === 'string' ? input.longitudinalBars : undefined);
   const incomingSpiralZones = Array.isArray(spiralInput.zones) ? spiralInput.zones : (Array.isArray(input.spiralZones) ? input.spiralZones : []);
   const explicitHoopQuantity = hoopsInput.quantity ?? input.hoopQuantity;
+  const explicitHoopQuantityAuthored = explicitHoopQuantity !== undefined
+    && explicitHoopQuantity !== null
+    && explicitHoopQuantity !== ''
+    && Number.isFinite(Number(explicitHoopQuantity));
   const inputPresence = {
     pileDiameter: hasPositiveNumber(generalInput.pileDiameterMm, input.pileDiameterMm, input.pileDiameter),
     pileLength: hasPositiveNumber(generalInput.pileLengthMm, input.pileLengthMm, input.pileLength),
@@ -119,7 +123,7 @@ function normalizePileInput(input = {}) {
       : hasPositiveNumber(spiralInput.uniformPitchMm, input.uniformPitchMm, input.pitch),
     hoopBarDiameter: hasPositiveNumber(hoopsInput.hoopBarDiameterMm, hoopsInput.barDiameterMm, input.hoopDiameterMm),
     hoopDiameter: hasPositiveNumber(hoopsInput.bendingDiameterMm, hoopsInput.hoopDiameterMm, hoopsInput.outerDiameterMm, input.hoopRingDiameterMm, input.hoopOuterDiameterMm),
-    hoopQuantity: hasPositiveNumber(explicitHoopQuantity) || explicitHoopPositionsMm.length > 0,
+    hoopQuantity: (explicitHoopQuantityAuthored && Number(explicitHoopQuantity) >= 0) || explicitHoopPositionsMm.length > 0,
   };
   const pile = {
     ...DEFAULT_PILE,
@@ -169,10 +173,14 @@ function normalizePileInput(input = {}) {
   pile.hoopSpacingMm = number(hoopsInput.spacingMm ?? input.hoopSpacingMm, DEFAULT_PILE.hoopSpacingMm, 1);
   pile.explicitHoopPositionsMm = explicitHoopPositionsMm;
   pile.hoopPositionsProvided = Array.isArray(rawHoopPositions);
-  pile.hoopQuantityProvided = hasPositiveNumber(explicitHoopQuantity);
+  pile.hoopQuantityProvided = explicitHoopQuantityAuthored;
+  pile.hoopQuantityAuthored = explicitHoopQuantityAuthored;
+  pile.hoopQuantityInvalid = explicitHoopQuantityAuthored && Number(explicitHoopQuantity) < 0;
   pile.hoopQuantity = Math.max(0, Math.round(number(explicitHoopQuantity, explicitHoopPositionsMm.length, 0)));
-  pile.hoopSpacingMode = pile.hoopQuantity > 0 || hoopsInput.spacingMode === 'byQuantity' ? 'byQuantity' : 'bySpacing';
-  pile.firstHoopOffsetMm = number(hoopsInput.firstHoopOffsetMm ?? input.firstHoopOffsetMm ?? pile.noSpiralStartMm, pile.noSpiralStartMm, 0);
+  pile.hoopSpacingMode = pile.hoopQuantityAuthored || pile.hoopQuantity > 0 || hoopsInput.spacingMode === 'byQuantity' ? 'byQuantity' : 'bySpacing';
+  // Keep the authored station unchanged. Validation below must expose an
+  // out-of-cage position instead of silently clamping it onto the cage.
+  pile.firstHoopOffsetMm = number(hoopsInput.firstHoopOffsetMm ?? input.firstHoopOffsetMm ?? pile.noSpiralStartMm, pile.noSpiralStartMm);
   pile.lastHoopOffsetMm = number(hoopsInput.lastHoopOffsetMm ?? input.lastHoopOffsetMm ?? pile.noSpiralEndMm, pile.noSpiralEndMm, 0);
   pile.hoopShape = hoopsInput.shape || input.hoopShape || 'round';
   pile.roundPileCage = Boolean(input.roundPileCage || input.shapeType === 'round_pile_cage');
@@ -293,8 +301,9 @@ function enrichSpiralZones(pile, zones) {
 function defaultHoopPositions(pile) {
   if (!pile.hoopsEnabled) return [];
   if (pile.explicitHoopPositionsMm.length) return [...pile.explicitHoopPositionsMm];
-  const startMm = Math.min(pile.pileLengthMm, pile.firstHoopOffsetMm);
-  if (pile.hoopSpacingMode === 'byQuantity' && pile.hoopQuantity > 0 && pile.hoopSpacingMm > 0) {
+  const startMm = pile.firstHoopOffsetMm;
+  if (pile.hoopSpacingMode === 'byQuantity') {
+    if (!(pile.hoopQuantity > 0) || !(pile.hoopSpacingMm > 0)) return [];
     return Array.from({ length: pile.hoopQuantity }, (_, index) => round(startMm + index * pile.hoopSpacingMm, 1));
   }
   const endMm = Math.max(startMm, pile.pileLengthMm - pile.lastHoopOffsetMm);
@@ -309,6 +318,7 @@ function buildHoops(pile) {
   const hoopDiameterMm = pile.hoopDiameterMm > 0 ? pile.hoopDiameterMm : internalHoopDiameterMm(pile);
   const positionsMm = defaultHoopPositions(pile);
   const count = positionsMm.length;
+  if (count === 0) return [];
   const ringContract = buildRingShapeContract({ barDiameterMm: pile.hoopBarDiameterMm, bendingDiameterMm: hoopDiameterMm, quantity: count || 1 });
   const lengthMm = ringContract.component.unitLengthMm;
   const spacing = longitudinalBarSpacingMm(hoopDiameterMm, pile.longitudinalBarCount, pile.longitudinalDiameterMm);
@@ -352,10 +362,19 @@ function validatePileCage(pile, spiralZones, bars = [], hoops = []) {
     if (pile.uniformPitchMm < Math.max(20, pile.spiralDiameterMm * 6)) addWarning('very_dense_spiral_pitch', 'spiral pitch is very dense');
   }
   if (pile.hoopsEnabled) {
-    if (pile.hoopBarDiameterMm <= 0) addError('invalid_hoop_bar_diameter', 'hoopBarDiameterMm must be positive');
-    if (hoops[0] && hoops[0].diameterMm <= 0) addError('invalid_hoop_diameter', 'hoopDiameterMm must be positive');
+    const hasHoopMaterial = pile.hoopQuantity > 0 || pile.explicitHoopPositionsMm.length > 0;
+    if (hasHoopMaterial && pile.hoopBarDiameterMm <= 0) addError('invalid_hoop_bar_diameter', 'hoopBarDiameterMm must be positive');
+    if (hasHoopMaterial && hoops[0] && hoops[0].diameterMm <= 0) addError('invalid_hoop_diameter', 'hoopDiameterMm must be positive');
     if (pile.hoopSpacingMode === 'bySpacing' && pile.hoopSpacingMm <= 0) addError('invalid_hoop_spacing', 'hoop spacingMm must be positive');
-    if (pile.hoopSpacingMode === 'byQuantity' && pile.hoopQuantity <= 0) addError('invalid_hoop_quantity', 'hoop quantity must be positive');
+    if (pile.hoopQuantityInvalid) addError('invalid_hoop_quantity', 'hoop quantity must be zero or positive');
+    const hoopPositions = hoops.flatMap(hoop => hoop.positionsMm || []);
+    const invalidPositions = hoopPositions
+      .map((positionMm, index) => ({ index: index + 1, positionMm }))
+      .filter(({ positionMm }) => positionMm < 0 || positionMm > pile.pileLengthMm);
+    if (invalidPositions.length) {
+      const details = invalidPositions.map(({ index, positionMm }) => `P${index}=${positionMm}mm`).join(', ');
+      addError('hoop_position_out_of_range', `reinforcing hoop position outside cage length ${pile.pileLengthMm}mm: ${details}`);
+    }
   }
   if (pile.roundPileCage) {
     const requiredInputs = [
@@ -368,19 +387,21 @@ function validatePileCage(pile, spiralZones, bars = [], hoops = []) {
       ['spiralDiameter', 'missing_spiral_diameter', 'round pile cage requires an explicit spiral diameter'],
       ['spiralSchedule', 'missing_spiral_schedule', 'round pile cage requires an explicit spiral schedule'],
       ['spiralPitch', 'missing_spiral_pitch', 'every wrapped spiral segment requires an explicit pitch'],
-      ['hoopBarDiameter', 'missing_hoop_bar_diameter', 'round pile cage requires an explicit hoop bar diameter'],
-      ['hoopDiameter', 'missing_hoop_diameter', 'round pile cage requires an explicit hoop bending diameter'],
       ['hoopQuantity', 'missing_hoop_quantity', 'round pile cage requires an explicit hoop quantity or authoritative positions'],
     ];
+    if (pile.hoopQuantity > 0 || pile.explicitHoopPositionsMm.length > 0) {
+      requiredInputs.push(
+        ['hoopBarDiameter', 'missing_hoop_bar_diameter', 'round pile cage with reinforcing hoops requires an explicit hoop bar diameter'],
+        ['hoopDiameter', 'missing_hoop_diameter', 'round pile cage with reinforcing hoops requires an explicit hoop bending diameter'],
+      );
+    }
     requiredInputs.forEach(([field, code, message]) => {
       if (!pile.inputPresence[field]) addError(code, message);
     });
     if (!bars.some(bar => bar.type === 'straight')) addError('missing_straight_bar_quantity', 'round pile cage requires straight longitudinal bars');
     if (!bars.some(bar => bar.type === 'L')) addError('missing_bent_bar_quantity', 'round pile cage requires bent longitudinal bars');
     if (!spiralZones.some(zone => !zone.noWrap && zone.totalLengthMm > 0)) addError('missing_wrapped_spiral_segment', 'round pile cage requires at least one wrapped spiral segment');
-    if (!(pile.hoopQuantity > 0)) addError('missing_hoop_quantity', 'round pile cage requires an explicit reinforcing hoop quantity');
     if (pile.hoopPositionsProvided && !pile.explicitHoopPositionsMm.length) addError('invalid_hoop_positions', 'authoritative hoop positions must be finite, unique and non-negative');
-    if (pile.explicitHoopPositionsMm.some(position => position > pile.pileLengthMm)) addError('invalid_hoop_positions', 'authoritative hoop positions must remain inside the cage length');
     if (pile.hoopQuantityProvided && pile.explicitHoopPositionsMm.length && pile.hoopQuantity !== pile.explicitHoopPositionsMm.length) addError('hoop_quantity_positions_mismatch', 'hoop quantity must match authoritative hoop positions');
   }
   if (new Set(bars.map(bar => bar.diameterMm)).size > 1) addWarning('mixed_bar_diameters', 'longitudinal bars use mixed diameters');
@@ -473,7 +494,7 @@ function buildProductionCards(pile, manufacturingBreakdown) {
     componentType: 'pile_assembly',
     title: 'PILE CAGE',
     description: 'Round pile reinforcement cage assembly',
-    componentIndex: 5,
+    componentIndex: componentCards.length + 1,
     quantity: 1,
     diameterMm: pile.pileDiameterMm,
     unitLengthMm: pile.pileLengthMm,
@@ -536,10 +557,11 @@ function calculatePileCage(input = {}) {
   const validation = validatePileCage(pile, spiralZones, longitudinalBars, hoops);
   const manufacturingBreakdown = buildManufacturingBreakdown(pile, longitudinalBars, spiralZones, hoops);
   if (pile.roundPileCage) {
-    const expected = ['longitudinal_straight_bar', 'longitudinal_l_bar', 'spiral_consolidated', 'hoop_ring'];
-    if (manufacturingBreakdown.length !== 4 || expected.some(type => manufacturingBreakdown.filter(part => part.componentType === type).length !== 1)) {
-      validation.errors.push({ code: 'invalid_four_component_contract', message: 'round pile cage must resolve to exactly four canonical production components' });
-      validation.errorCodes.push('invalid_four_component_contract');
+    const expected = ['longitudinal_straight_bar', 'longitudinal_l_bar', 'spiral_consolidated'];
+    if (pile.hoopQuantity > 0 || pile.explicitHoopPositionsMm.length > 0) expected.push('hoop_ring');
+    if (manufacturingBreakdown.length !== expected.length || expected.some(type => manufacturingBreakdown.filter(part => part.componentType === type).length !== 1)) {
+      validation.errors.push({ code: 'invalid_component_contract', message: 'round pile cage must resolve to exactly its authored canonical production components' });
+      validation.errorCodes.push('invalid_component_contract');
       validation.ok = false;
     }
   }
@@ -549,7 +571,7 @@ function calculatePileCage(input = {}) {
   const calculated = buildCalculated(pile, longitudinalBars, spiralZones, hoops, canonicalBreakdown);
   const views = buildViews(pile, longitudinalBars, spiralZones, hoops);
   const geometry = { pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, cageDiameterMm: calculated.cageDiameterMm, cageCenterlineDiameterMm: calculated.cageCenterlineDiameterMm, barCenterDiameterMm: round(barCenterDiameterMm(pile), 1), internalHoopDiameterMm: calculated.internalHoopDiameterMm, barCenterSpacingMm: calculated.barCenterSpacingMm, barClearSpacingMm: calculated.barClearSpacingMm, noSpiralStartMm: pile.noSpiralStartMm, noSpiralEndMm: pile.noSpiralEndMm };
-  const assemblySummary = { identity: 'round_pile_cage', pileLengthMm: pile.pileLengthMm, pileDiameterMm: pile.pileDiameterMm, cageQuantity: 1, componentCount: 4, productionCardCount: 5, totalSteelCutLengthMm: calculated.totalSteelLengthMm, totalWeightKg: calculated.totalWeightKg };
+  const assemblySummary = { identity: 'round_pile_cage', pileLengthMm: pile.pileLengthMm, pileDiameterMm: pile.pileDiameterMm, cageQuantity: 1, componentCount: canonicalBreakdown.length, productionCardCount: productionCards.length, totalSteelCutLengthMm: calculated.totalSteelLengthMm, totalWeightKg: calculated.totalWeightKg };
   return buildFullShapeSnapshot({ shapeVersion: pile.shapeVersion, shapeId: pile.shapeId, shapeType: 'round_pile_cage', family: 'piles', source: 'steel-rebar/PileCageEngine', data: { ...data, assemblySummary }, calculated, machineOutput: { generic: { shapeType: 'round_pile_cage', family: 'piles', pileDiameterMm: pile.pileDiameterMm, pileLengthMm: pile.pileLengthMm, manufacturingBreakdown: canonicalBreakdown, productionCards, assemblySummary }, machineProfiles: buildMachineProfilesPlaceholder() }, validation, extra: { productType: 'pile_cage', pitchMode: pile.pitchMode, manufacturingBreakdown: canonicalBreakdown, productionCards, assemblySummary, views, geometry, longitudinalBars, spiralZones, hoops } });
 }
 

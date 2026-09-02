@@ -20,6 +20,8 @@ const {
 } = require('../services/inventoryReservation');
 const { createPricer } = require('../services/pricer');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
+const { buildOrderCommercialSummary } = require('../services/orderCommercialSummary');
+const { createOrderQuoteService } = require('../services/orderQuotes');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orders missing dependency: ${name}`);
@@ -238,6 +240,7 @@ module.exports = function createOrdersRouter(deps) {
   const auditLog = required('auditLog', deps.auditLog);
   const productionCards = deps.productionCards || require('../services/productionCards');
   const pricer = deps.pricer || createPricer(db);
+  const quotes = createOrderQuoteService(db, { createOrderFromPayload });
 
   function normalizePreviewItem(item = {}, index = 0) {
     const shapeSnapshot = parseJsonObject(item.shape_snapshot_json) || parseJsonObject(item.shapeSnapshot) || null;
@@ -460,10 +463,49 @@ module.exports = function createOrdersRouter(deps) {
     }
   });
 
+  router.get('/order-quotes', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    res.json(quotes.listQuotes({ status: req.query?.status }));
+  });
+
+  router.get('/order-quotes/:id', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    const quote = quotes.getQuote(req.params.id);
+    if (!quote) return res.status(404).json({ error: 'הצעת מחיר לא נמצאה' });
+    res.json(quote);
+  });
+
+  router.post('/order-quotes', requireAnyRole(['office', 'sales', 'manager', 'admin']), (req, res) => {
+    try {
+      const quote = quotes.createQuoteTransaction({
+        payload: req.body?.payload,
+        pricingSnapshot: req.body?.pricing_snapshot ?? req.body?.pricingSnapshot ?? null,
+        createdBy: req.userId || req.auth?.sub || null,
+      });
+      auditLog('order_quote', quote.id, quote.quote_num, 'quote_create', 'status', null, quote.status, null, req.userId || req.auth?.sub || null, req.auth?.display_name || null);
+      wsBroadcast('order_quote_created', { quoteId: quote.id, quoteNum: quote.quote_num });
+      res.status(201).json({ success: true, quote });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/order-quotes/:id/approve', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    try {
+      const result = quotes.approveQuoteTransaction({ quoteId: req.params.id, approvedBy: req.userId || req.auth?.sub || null });
+      if (!result.alreadyConverted) {
+        auditLog('order_quote', result.quote.id, result.quote.quote_num, 'quote_convert_to_order', 'status', 'pending_approval', 'converted', `נוצרה הזמנה ${result.orderNum}`, req.userId || req.auth?.sub || null, req.auth?.display_name || null);
+        wsBroadcast('new_order', { orderNum: result.orderNum, orderId: result.orderId, quoteId: result.quote.id });
+        wsBroadcast('order_quote_converted', { quoteId: result.quote.id, quoteNum: result.quote.quote_num, orderId: result.orderId, orderNum: result.orderNum });
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, error: error.message });
+    }
+  });
+
   router.get('/orders', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
     const { status, date, priority } = req.query;
     const page = listPage(req.query, { limit: 100, max: 500 });
-    let sql = `SELECT o.*, c.name as customer_name, c.phone as customer_phone
+    let sql = `SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
                FROM orders o LEFT JOIN customers c ON o.customer_id = c.id`;
     const params = [];
     const where = [];
@@ -477,7 +519,7 @@ module.exports = function createOrdersRouter(deps) {
   });
 
   router.get('/orders/:id', requireAnyRole(['office', 'production', 'sales', 'manager', 'admin']), (req, res) => {
-    const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone
+    const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
       FROM orders o LEFT JOIN customers c ON o.customer_id=c.id WHERE o.id=?`).get(req.params.id);
     if (!order) return res.status(404).json({ error: 'לא נמצא' });
     const pallets = db.prepare('SELECT * FROM pallets WHERE order_id=? ORDER BY pallet_num').all(order.id);
@@ -486,6 +528,10 @@ module.exports = function createOrdersRouter(deps) {
       p.items.forEach(item => { item.shape_svg = productionCards.itemShapeSvg(item); });
     });
     order.pallets = pallets;
+    // One computed-on-read projection serves current and historical orders.
+    // It never rewrites an order and keeps overlapping kg services separate
+    // from piece-based work such as chairs and rings.
+    order.commercial_summary = buildOrderCommercialSummary(pallets.flatMap(p => p.items));
     res.json(order);
   });
 
@@ -771,7 +817,7 @@ module.exports = function createOrdersRouter(deps) {
         order.id,
       );
 
-      const updated = db.prepare(`SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+      const updated = db.prepare(`SELECT o.*, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email
         FROM orders o LEFT JOIN customers c ON c.id=o.customer_id WHERE o.id=?`).get(order.id);
       const auditReason = correctionReason(req.body?.correction_reason ?? req.body?.correctionReason);
       auditLog('order', order.id, order.order_num, 'order_update', 'order_header', JSON.stringify(before), JSON.stringify(orderHeaderSnapshot(updated)), auditReason, req.auth?.sub || req.userId || null, req.auth?.display_name || null);
@@ -1035,15 +1081,18 @@ module.exports.manifest = {
   label: 'הזמנות',
   screens: [
     { id: 'orders',    path: '/orders.html', label: 'הזמנות',     icon: '📋', group: 'ראשי' },
+    { id: 'order-quotes', path: '/orders.html?view=quotes', label: 'הצעות מחיר', icon: '💬', group: 'ראשי' },
     { id: 'new-order', path: '/index.html',  label: 'הזמנה חדשה', icon: '➕', group: 'ראשי' },
   ],
   access: {
     default: 'hidden',
     roles: { admin: 'edit', manager: 'edit', office: 'edit', finance: 'read', production: 'read', sales: 'read' },
   },
-  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'items' }],
+  consumes: [{ table: 'customers' }, { table: 'orders' }, { table: 'order_quotes' }, { table: 'items' }],
   produces: [
     { event: 'new_order' },
+    { event: 'order_quote_created' },
+    { event: 'order_quote_converted' },
     { event: 'order_status' },
     { event: 'order_updated' },
     { event: 'order_review' },

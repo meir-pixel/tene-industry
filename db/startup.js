@@ -110,6 +110,8 @@ function runCoreMigrations(db) {
   addCol('orders',     'inventory_lifecycle_version', 'INTEGER NOT NULL DEFAULT 1 CHECK (inventory_lifecycle_version IN (1, 2))');
   addCol('orders',     'created_by',         'INTEGER');
   addCol('orders',     'stable_order_id',    'TEXT');
+  addCol('orders',     'quote_id',           'INTEGER');
+  addCol('orders',     'quote_num',          'TEXT');
   addCol('orders',     'approved_by',        'INTEGER');
   addCol('orders',     'approved_at',        'TEXT');
   addCol('pallets',    'status',             "TEXT DEFAULT 'ממתין'");
@@ -367,6 +369,41 @@ function runCoreMigrations(db) {
   addCol('order_imports', 'source_system', 'TEXT');
   addCol('order_imports', 'external_id', 'TEXT');
   addCol('order_imports', 'order_ids_json', 'TEXT');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS order_quotes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quote_num TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending_approval' CHECK (status IN ('draft','pending_approval','approved','rejected','cancelled','converted')),
+      customer_id INTEGER,
+      customer_name TEXT NOT NULL,
+      customer_phone TEXT,
+      customer_email TEXT,
+      payload_json TEXT NOT NULL,
+      pricing_snapshot_json TEXT,
+      total_weight REAL NOT NULL DEFAULT 0,
+      total_price REAL NOT NULL DEFAULT 0,
+      created_by INTEGER,
+      approved_by INTEGER,
+      approved_at TEXT,
+      converted_order_id INTEGER UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (converted_order_id) REFERENCES orders(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_quotes_status_created
+      ON order_quotes(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_order_quotes_customer
+      ON order_quotes(customer_id, created_at DESC);
+  `);
+
+  try {
+    db.prepare("UPDATE pricing_price_items SET description='עיבוד טבעות', unit='unit' WHERE description='חישוקים'").run();
+    db.prepare("UPDATE pricing_price_items SET description='עיבוד ספירלות עד קוטר 12 כולל' WHERE description='עיבוד ספירלות טבעות עד קוטר 12 כולל'").run();
+  } catch (error) {
+    console.warn('[DB] Migration warning: ring price-list terminology was not updated:', error.message);
+  }
 
   try {
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_intake_log_source_identity

@@ -85,6 +85,31 @@ test('shape editor exposes a visual-only 90-degree rotation control for ambiguou
   assert.ok(Math.abs(longest.dy) > 100, 'expected rotated preview to keep the full shape geometry, not just move labels');
 });
 
+test('shape previews display one centimetre unit contract without changing millimetre geometry', () => {
+  const { ShapeEngineRouter, formatLengthCmFromMm } = loadShapeEditorGeometry().window.IronBendShapeGeometry;
+  const svg = ShapeEngineRouter.render({ family: 'bars', sides: [1010, 300], angles: [90] }, 300, 260);
+
+  assert.equal(formatLengthCmFromMm(1010), '101 ס״מ');
+  assert.equal(formatLengthCmFromMm(305), '30.5 ס״מ');
+  assert.match(svg, />101 ס״מ</);
+  assert.match(svg, />30 ס״מ</);
+  assert.doesNotMatch(svg, />1010</);
+});
+
+test('visual rotations preserve the shape coordinates and never mutate the 3D product model', () => {
+  const { rotatePointListAroundBounds, rotate3DPointsForView } = loadShapeEditorGeometry().window.IronBendShapeGeometry;
+  const twoD = [[0, 0], [1000, 0], [1000, 250]];
+  const threeD = [[0, 0, 0], [1000, 0, 0], [1000, 250, 300]];
+  const rotated2D = rotatePointListAroundBounds(twoD, 37);
+  const rotated3D = rotate3DPointsForView(threeD, 37);
+
+  assert.deepEqual(twoD, [[0, 0], [1000, 0], [1000, 250]]);
+  assert.deepEqual(threeD, [[0, 0, 0], [1000, 0, 0], [1000, 250, 300]]);
+  assert.ok(Math.abs(distance(rotated2D[0], rotated2D[1]) - 1000) < 0.000001);
+  assert.ok(Math.abs(distance(rotated3D[0], rotated3D[1]) - 1000) < 0.000001);
+  assert.equal(rotated3D[2][2], 300);
+});
+
 test('bench preset opens as real 3D and keeps the schedule elevation in every 2D view', () => {
   const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
   const { buildShapeDataContractV2, calcShapePoints3D, benchBarSVGPath } = loadShapeEditorGeometry();
@@ -117,7 +142,7 @@ test('bench preset opens as real 3D and keeps the schedule elevation in every 2D
   assert.ok(interiorDotProduct > 0, 'expected the left bench icon corner to be acute, not obtuse');
   assert.match(editor, /family === 'bench'.*SHAPE_PRESETS\.find\(isBenchBarShape\)/);
   assert.match(editor, /if \(isReal3D\) window\.seSetView\?\.\('3d'\)/);
-  assert.match(editor, /diameter:\s+Number\(preset\.diameter \?\? this\.current\?\.diameter \?\? this\._pendingDiameter/);
+  assert.match(editor, /diameter:\s+isBlankNewEntry \? 0 : \(Number\(preset\.diameter \?\? this\.current\?\.diameter \?\? this\._pendingDiameter/);
   assert.equal(contract.shapeType, 'bench_bar');
   assert.deepEqual(Array.from(contract.data.sides), [280, 170, 300, 170, 280]);
   assert.deepEqual(Array.from(contract.data.angles), [90, 90, 90, 90]);
@@ -137,7 +162,7 @@ test('bench preset opens as real 3D and keeps the schedule elevation in every 2D
   const elevationOutgoing = [elevation[2][0] - elevation[1][0], elevation[2][1] - elevation[1][1]];
   assert.ok(elevationIncoming[0] * elevationOutgoing[0] + elevationIncoming[1] * elevationOutgoing[1] > 0, 'expected the full 2D bench projection to keep the acute left corner');
   assert.ok(elevation[5][0] > elevation[4][0] && elevation[5][1] > elevation[4][1], 'expected the right 28 cm foot to angle outward');
-  assert.match(editor, /isBenchProjection\s*\?\s*benchBarSVGPath\(sides, 300, 260, 38\)/);
+  assert.match(editor, /isBenchProjection\s*\?\s*benchBarSVGPath\(sides, 300, 260, 38, \{ rotateDegrees: this\._previewRotation \|\| 0 \}\)/);
 });
 
 test('production card keeps all five bench segments and the 120 cm cut length', () => {
@@ -190,7 +215,9 @@ test('shape editor supports bend angles from -360 to 360 without quick angle but
   assert.match(editor, /data-angle="\$\{i\}"/);
   assert.match(editor, /min="-360"/);
   assert.match(editor, /max="360"/);
-  assert.match(editor, /Math\.min\(360,\s*Math\.max\(-360,\s*Number\(val\) \|\| 90\)\)/);
+  assert.match(editor, /const rawValue = String\(val \?\? ''\)\.trim\(\);/);
+  assert.match(editor, /if \(!rawValue \|\| !Number\.isFinite\(numeric\)\)/);
+  assert.match(editor, /Math\.min\(360, Math\.max\(-360, numeric\)\)/);
   assert.doesNotMatch(editor, /<div class="se-angle-btns">/);
   assert.doesNotMatch(editor, /data-angle-value/);
 });
@@ -405,22 +432,26 @@ test('round pile cage preset exposes a parametric form and engineering visualiza
   assert.match(editor, /קוטר ברזל מוטות \(מ״מ\)/);
   assert.match(editor, /מרווח טבעות \(ס״מ\)/);
   assert.match(editor, /data-pile-derived="spiralTurns"/);
-  assert.match(editor, /ליפופים מחושבים/);
+  assert.match(editor, /\$\{displaySpiralTurns\} ↻/);
+  assert.match(editor, /spiralTurnsOut\.textContent = `\$\{displayTurns\} ↻`/);
+  assert.doesNotMatch(editor, /ליפופים מחושבים/);
   assert.match(editor, /componentType === 'spiral_consolidated'/);
   assert.match(editor, /consolidatedSpiral\?\.schedule/);
   assert.match(editor, /_setSpiralZoneField\(index, key, val\)[\s\S]*?_refreshPileDerived\(\)/);
   assert.match(editor, /קוטר טבעת/);
   assert.match(editor, /מרווח נקי/);
-  assert.match(editor, /data-pile-cage-overview/);
-  assert.match(editor, /פרטי הכלוב/);
-  assert.match(editor, /data-pile-component-cards/);
-  assert.match(editor, /רכיבי הכלוב — כל פריט בנפרד/);
-  assert.match(editor, /@media\(max-width:640px\)\{#seModal \.se-pile-component-cards\{grid-template-columns:1fr;\}/);
+  assert.match(editor, /id="sePileComponentGallery"/);
+  assert.match(editor, /_pileComponentCardsHtml\(\)/);
+  assert.match(editor, /class="se-pile-group-tabs"/);
+  assert.match(editor, /data-pile-group-tab="\$\{id\}"/);
+  assert.match(editor, /data-pile-component-section="\$\{section\}"/);
+  assert.match(editor, /@media\(max-width:760px\)[\s\S]*?\.se-pile-component-gallery\{[\s\S]*?grid-auto-flow:column/);
+  assert.match(editor, /@media\(min-width:761px\) and \(max-width:1100px\)/);
   assert.doesNotMatch(editor, /�/);
   assert.match(editor, /calculateRoundPileCage/);
-  assert.match(editor, /מקטעי ספירלה/);
+  assert.match(editor, /\['spiral', 'ספירלה'/);
   assert.match(editor, /data-zone-field="noWrap"/);
-  assert.match(editor, /הוסף מקטע/);
+  assert.match(editor, />\+ מקטע<\/button>/);
   assert.doesNotMatch(editor, /הוסף פער|אזורי ספירלה ופערים/);
   assert.match(editor, /data-view="side"/);
   assert.match(editor, /data-view="top"/);
@@ -491,8 +522,8 @@ test('shape editor index loads a fresh shape editor asset version', () => {
   const index = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
   assert.match(index, /steelRebarShapes\.js\?v=1/);
-  assert.match(index, /shape-editor\.js\?v=66/);
-  assert.doesNotMatch(index, /shape-editor\.js\?v=(?:62|63|64|65)/);
+  assert.match(index, /shape-editor\.js\?v=77/);
+  assert.doesNotMatch(index, /shape-editor\.js\?v=(?:62|63|64|65|66|67)/);
 });
 
 test('standalone ring family icon reads as a closed circular ring with overlap', () => {
@@ -624,7 +655,7 @@ test('new order item rows render a visible shape preview from length fallback', 
   assert.match(index, /item\.length \?\? item\.totalLengthMm \?\? item\.total_length_mm/);
   assert.match(index, /const sides = itemShapeSides\(item\);/);
   assert.match(index, /const sides = itemShapeSides\(item \|\| \{\}\);/);
-  assert.match(index, /const W = 130, H = 42, pad = 16/);
+  assert.match(index, /const W = 180, H = 96, padX = 28, padY = 22/);
 });
 
 test('manual add item opens the shape editor before creating an empty order row', () => {
@@ -641,6 +672,93 @@ test('manual add item opens the shape editor before creating an empty order row'
   assert.doesNotMatch(addItemBlock[0], /pallet\.items\.push/);
   assert.match(shapeSelectedBlock[0], /pallet\.items\.push\(item\)/);
   assert.match(shapeSelectedBlock[0], /data\.orderItemQuantity/);
+});
+
+test('smooth Ø8 and Ø10 remain distinct saved material specifications without changing geometry', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const quickEntry = fs.readFileSync(path.join(__dirname, '..', 'public', 'new-order-editor.js'), 'utf8');
+  const { buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const smooth = buildShapeDataContractV2({ family: 'bars', sides: [1200], angles: [], diameter: 8, steelFinish: 'smooth' });
+  const ribbed = buildShapeDataContractV2({ family: 'bars', sides: [1200], angles: [], diameter: 8 });
+
+  assert.match(editor, /'8\|smooth'/);
+  assert.match(editor, /'10\|smooth'/);
+  assert.match(quickEntry, /'8\|smooth'/);
+  assert.equal(smooth.data.diameter, 8);
+  assert.equal(smooth.data.steelFinish, 'smooth');
+  assert.equal(ribbed.data.steelFinish, undefined);
+  assert.equal(smooth.calculated.totalLengthMm, ribbed.calculated.totalLengthMm);
+  assert.equal(smooth.calculated.weightKg, ribbed.calculated.weightKg);
+});
+
+test('a new shape-editor item clears the preceding geometry instead of reusing defaults', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const openStart = editor.indexOf('  open(existingData) {');
+  assert.ok(openStart >= 0, 'expected shape editor open body');
+  const openBlock = editor.slice(openStart, openStart + 5000);
+  assert.match(openBlock, /this\._blankNewEntry = !existingData\?\.presetId/);
+  assert.match(openBlock, /if \(this\._blankNewEntry\) this\.current = null/);
+  assert.match(editor, /const isBlankNewEntry = this\._blankNewEntry === true/);
+  assert.match(editor, /\.map\(value => isBlankNewEntry \? 0 : value\)/);
+  assert.match(editor, /diameter:\s+isBlankNewEntry \? 0/);
+  assert.match(editor, /quantity:\s+isBlankNewEntry \? 0/);
+  assert.match(editor, /straightLengthInput\.value = String\(value\)/);
+  assert.match(editor, /if \(!raw \|\| !Number\.isFinite\(lengthCm\) \|\| lengthCm <= 0\) \{/);
+  assert.match(editor, /this\.current\.sides\[i\] = Math\.round\(lengthCm \* 10\);/);
+  assert.match(editor, /const sidesOk = Array\.isArray\(this\.current\.sides\)/);
+});
+
+test('clearing a dimension while typing keeps the last valid side and angle until the field is committed', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  const attributes = new Map();
+  const input = {
+    setAttribute(name, value) { attributes.set(name, value); },
+    removeAttribute(name) { attributes.delete(name); },
+  };
+  context.document = {
+    querySelector() { return input; },
+    querySelectorAll() { return []; },
+  };
+  const modal = Object.create(ShapeEditorModal.prototype);
+  modal.current = { sides: [1010], angles: [90] };
+  let previewUpdates = 0;
+  modal._updatePreview = () => { previewUpdates += 1; };
+
+  modal._setSide(0, '');
+  modal._setAngle(0, '');
+  assert.deepEqual(Array.from(modal.current.sides), [1010]);
+  assert.deepEqual(Array.from(modal.current.angles), [90]);
+  assert.equal(previewUpdates, 0);
+  assert.equal(attributes.get('aria-invalid'), 'true');
+
+  modal._setSide(0, '101');
+  modal._setAngle(0, '95');
+  assert.deepEqual(Array.from(modal.current.sides), [1010]);
+  assert.deepEqual(Array.from(modal.current.angles), [95]);
+  assert.equal(previewUpdates, 2);
+  assert.equal(attributes.has('aria-invalid'), false);
+});
+
+test('preview rendering is coalesced to one animation frame during fast camera input', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  const frames = [];
+  context.window.requestAnimationFrame = callback => {
+    frames.push(callback);
+    return frames.length;
+  };
+  context.window.cancelAnimationFrame = () => {};
+  const modal = Object.create(ShapeEditorModal.prototype);
+  let renders = 0;
+  modal._renderPreviewNow = () => { renders += 1; };
+
+  modal._updatePreview();
+  modal._updatePreview();
+  modal._updatePreview();
+  assert.equal(frames.length, 1);
+  frames[0]();
+  assert.equal(renders, 1);
 });
 
 test('shape editor keeps true 3D angle fields in sync with visual bends', () => {
@@ -660,8 +778,8 @@ test('ShapeEngineRouter renders ח 35/120/35 with PolylineBarEngine', () => {
   assert.equal(ShapeEngineRouter(shape), PolylineBarEngine);
   assert.match(svg, /data-engine="PolylineBarEngine"/);
   assert.match(svg, /M /);
-  assert.match(svg, />350</);
-  assert.match(svg, />1200</);
+  assert.match(svg, />35 ס״מ</);
+  assert.match(svg, />120 ס״מ</);
   assert.match(svg, />90°</);
 });
 
@@ -683,8 +801,8 @@ test('ShapeEngineRouter renders Mesh 600x250 Ø8@20 as grid with MeshEngine', ()
   assert.match(svg, /data-family="mesh"/);
   assert.match(svg, /data-length="600"/);
   assert.match(svg, /data-width="250"/);
-  assert.match(svg, /data-longitudinal="&#216;8@20"/);
-  assert.match(svg, /data-transverse="&#216;8@20"/);
+  assert.match(svg, /data-longitudinal="Ø8@20 ס״מ"/);
+  assert.match(svg, /data-transverse="Ø8@20 ס״מ"/);
   assert.ok((svg.match(/<line /g) || []).length >= 40, 'expected mesh grid lines');
 });
 
@@ -749,7 +867,7 @@ test('pile cage editor refreshes derived hoops and gates longitudinal shape rows
   assert.ok(editor.includes('_addPileBarOverride()'));
   assert.ok(editor.includes('_deletePileBarOverride(index)'));
   assert.doesNotMatch(block, /עריכה פרטנית תוגדר בהמשך/);
-  assert.ok(editor.includes("field('lHookLength', 0) + '</div>'"));
+  assert.ok(editor.includes("field('lHookLength', 0) + field('bendAngle', 0) + '</div>'"));
   const barPatternBranch = editor.slice(editor.indexOf("key === 'barPattern'"), editor.indexOf("const parsed = key === 'longitudinalBars'"));
   assert.ok(barPatternBranch.includes('this._renderPileCageEditor()'));
 });
@@ -886,9 +1004,9 @@ test('ShapeEngineRouter renders pile cage top and side views with PileCageEngine
   assert.match(svg, /class="pile-zone-dimension/);
   assert.match(svg, /class="pile-pitch-label"/);
   assert.match(svg, /class="pile-spiral-loop"/);
-  assert.match(svg, /L 2200/);
+  assert.match(svg, /L 2200 ס״מ/);
   assert.match(svg, /D/);
-  assert.match(svg, /d' 8/);
+  assert.match(svg, /Ø8 מ״מ/);
   assert.doesNotMatch(svg, /data-view="3d"/);
 });
 
@@ -994,20 +1112,365 @@ test('round pile cage visual editor exposes one canonical template initializer a
     ],
     hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
   }, 300, 260);
+  const roundStart = editor.lastIndexOf('if (pile.roundPileCage) {', editor.indexOf('const allowedSections = new Set'));
+  const roundEnd = editor.indexOf('    const hoopRow = () =>', roundStart);
+  const roundEditorBlock = roundStart >= 0 && roundEnd > roundStart ? editor.slice(roundStart, roundEnd) : '';
 
   assert.match(editor, /data-pile-template/);
-  assert.match(editor, /סטנדרטי · 60 ללא \/ 300@10 \/ יתרה@20/);
-  assert.match(editor, /class="se-pile-quick-summary"/);
-  assert.match(editor, /data-pile-quick="\$\{sectionId\}"/);
+  assert.match(roundEditorBlock, />סטנדרטית<\/option>/);
+  assert.match(roundEditorBlock, /class="se-pile-group-tabs"/);
+  assert.match(roundEditorBlock, /data-pile-quick-entry/);
+  assert.match(roundEditorBlock, /data-pile-group-tab="\$\{id\}"/);
   assert.match(editor, /data-pile-section-summary="\$\{id\}"/);
   assert.match(editor, /_refreshRoundPileEditorProjection\(\)/);
   assert.match(editor, /_activatePileCageField\(/);
-  assert.match(editor, /\.se-family-row\.se-zone-row\{grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) 42px!important/);
+  assert.match(editor, /_syncPileActiveSection\(\)/);
+  assert.match(editor, /_bindPileKeyboardFlow\(\)/);
+  assert.match(editor, /selectField\('barSpacingDisplayMode',[\s\S]*?\['center','C\/C'\],[\s\S]*?\['clear','CLEAR'\]/);
+  assert.doesNotMatch(roundEditorBlock, /se-pile-quick-summary|se-pile-elements-row/);
+  assert.match(editor, /@media\(max-width:420px\)[\s\S]*?grid-auto-columns:148px/);
   assert.match(svg, /data-pile-edit="general\|pileLength"/);
   assert.match(svg, /data-pile-edit="spiral\|zone\|0\|noWrap"/);
   assert.match(svg, /data-pile-edit="spiral\|zone\|1\|pitch"/);
   assert.match(svg, /data-pile-edit="hoops\|hoopQuantity"/);
   assert.match(svg, /data-pile-edit="bars\|bendLength"/);
+  assert.doesNotMatch(svg, /pile-bar-index/);
+});
+
+test('quick-entry round cage editor keeps all ordinary groups visible in one predictable keyboard sequence', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const roundStart = editor.lastIndexOf('if (pile.roundPileCage) {', editor.indexOf('const allowedSections = new Set'));
+  const roundEnd = editor.indexOf('    const hoopRow = () =>', roundStart);
+  const roundEditorBlock = roundStart >= 0 && roundEnd > roundStart ? editor.slice(roundStart, roundEnd) : '';
+
+  assert.match(roundEditorBlock, /<section class="se-pile-section" data-pile-section="\$\{id\}">/);
+  assert.doesNotMatch(roundEditorBlock, /<details class="se-pile-section" data-pile-section="\$\{id\}"/);
+  assert.match(editor, /row\.hidden = false/);
+  assert.match(editor, /title\.textContent = 'הזנה מהירה'/);
+  assert.match(editor, /event\.key !== 'Enter'/);
+  assert.match(editor, /input:not\(\[disabled\]\),select:not\(\[disabled\]\)/);
+  assert.match(editor, /!control\.closest\('\.se-pile-advanced:not\(\[open\]\)'\)/);
+  assert.doesNotMatch(editor, /event\.key === 'Tab'/);
+  assert.doesNotMatch(editor, /row\.hidden = section\.dataset\.pileSection !== sectionId/);
+  assert.match(roundEditorBlock, /data-pile-element-name[\s\S]*?compactField\('pileDiameter', 1\)\}\$\{compactField\('pileLength', 1\)/);
+  assert.match(editor, /compactField\('straightBarCount', 0\)[\s\S]*?compactField\('bentBarCount', 0\)[\s\S]*?compactField\('longitudinalDiameter', 1\)/);
+  assert.match(editor, /compactField\('straightBarLength', 1\)\}\$\{compactField\('bendLength', 0\)/);
+  assert.doesNotMatch(editor, /compactField\('straightBarLength', 1\)\}\$\{compactField\('bentBarLength', 1\)/);
+  assert.match(editor, /compactField\('spiralDiameter', 1\)\}\$\{compactField\('spiralOuterDiameter', 1\)/);
+  assert.match(editor, /compactField\('hoopQuantity', 0\)\}\$\{compactField\('hoopDiameter', 1\)\}\$\{compactField\('hoopOuterDiameter', 1\)/);
+  assert.match(editor, /<details class="se-pile-advanced">/);
+  assert.match(editor, /<details class="se-pile-advanced"><summary tabindex="-1">⋯<\/summary>/);
+  assert.match(editor, /bendOrientationField\(\)[\s\S]*?barSpacingDisplayMode/);
+});
+
+test('visual-first component strip keeps only approved identity metrics', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  const modal = Object.create(ShapeEditorModal.prototype);
+  modal._activePileSection = 'spiral';
+  modal._activePileComponent = 'spiral_consolidated';
+  modal.current = {
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [{ name: 'A', length: 60, noWrap: true }, { name: 'B', length: 300, pitch: 10 }, { name: 'C', length: 840, pitch: 20 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  };
+  const html = modal._pileComponentCardsHtml();
+  const cards = Object.fromEntries([...html.matchAll(/<article[^>]*data-pile-component-card="([^"]+)"[\s\S]*?<\/article>/g)].map(match => [match[1], match[0]]));
+
+  assert.equal(Object.keys(cards).length, 4);
+  assert.equal((cards.spiral_consolidated.match(/class="se-pile-component-metric"/g) || []).length, 4);
+  assert.match(cards.spiral_consolidated, /Ø8 mm/);
+  assert.match(cards.spiral_consolidated, /D 48 cm/);
+  assert.match(cards.spiral_consolidated, /72 ↻/);
+  assert.match(cards.spiral_consolidated, /CUT [\d,.]+ cm/);
+  assert.doesNotMatch(cards.spiral_consolidated, /@|פסיעה|L1|L2|L3|NO WRAP|ללא כריכות|Σ/);
+  assert.doesNotMatch(cards.longitudinal_straight_bar, /Σ/);
+  assert.doesNotMatch(cards.longitudinal_l_bar, /Σ/);
+  assert.doesNotMatch(cards.hoop_ring, /Σ/);
+  assert.match(cards.spiral_consolidated, /data-active="true"/);
+  Object.values(cards).forEach(card => {
+    assert.match(card, /role="button"/);
+    assert.match(card, /tabindex="0"/);
+    assert.match(card, /aria-pressed="(?:true|false)"/);
+    assert.match(card, /data-pile-component-focus="pile-/);
+    assert.match(card, /onclick="window\._seEditor\?\._activatePileComponentCard\(this\)"/);
+    assert.doesNotMatch(card, /<button/);
+  });
+});
+
+test('visual-first component selection focuses only its related cage geometry', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  const modal = Object.create(ShapeEditorModal.prototype);
+  modal.current = { family: 'piles', roundPileCage: true };
+  let synced = 0;
+  let focusKey = '';
+  modal._syncPileActiveSection = () => { synced += 1; };
+  modal._focusFamilyField = key => { focusKey = key; };
+
+  modal._activatePileComponentCard({
+    dataset: {
+      pileComponentCard: 'longitudinal_l_bar',
+      pileComponentSection: 'bars',
+      pileComponentFocus: 'pile-l-bars',
+    },
+  });
+
+  assert.equal(modal._activePileComponent, 'longitudinal_l_bar');
+  assert.equal(modal._activePileSection, 'bars');
+  assert.equal(focusKey, 'pile-l-bars');
+  assert.equal(synced, 1);
+});
+
+test('visual-first responsive contract uses local component scrolling without page overflow at 390px', () => {
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const mobileStart = editor.lastIndexOf('@media(max-width:760px){');
+  const mobileEnd = editor.indexOf('@media(max-width:420px){', mobileStart);
+  const mobileBlock = mobileStart >= 0 && mobileEnd > mobileStart ? editor.slice(mobileStart, mobileEnd) : '';
+
+  assert.match(editor, /Professional Quick Entry V2: drawing \+ engineering grid/);
+  assert.match(mobileBlock, /\.se-data-panel\{flex:0 0 auto!important;min-height:max-content!important/);
+  assert.match(editor, /#seModal\.se-pile-editor #sePageEdit \.se-data-panel\{[\s\S]*height:max-content!important;[\s\S]*min-height:max-content!important/);
+  assert.match(editor, /#seModal\.se-pile-editor \.se-table-wrap\{flex:none!important;height:auto!important;overflow:visible!important/);
+  assert.match(mobileBlock, /\.se-family-editor-table tbody\{display:block!important;height:auto!important/);
+  assert.match(mobileBlock, /\.se-pile-engineering-grid\{grid-template-columns:1fr/);
+  assert.match(mobileBlock, /\.se-pile-bars-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(mobileBlock, /\.se-pile-hoops-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(mobileBlock, /grid-auto-columns:minmax\(210px,72vw\)!important/);
+  assert.match(mobileBlock, /flex:0 0 auto!important/);
+  assert.match(mobileBlock, /min-height:110px/);
+  assert.match(editor, /@media\(max-width:760px\)[\s\S]*?grid-auto-flow:column[\s\S]*?overflow-x:auto!important/);
+  assert.match(editor, /@media\(max-width:420px\)[\s\S]*?grid-template-rows:28px 236px auto!important/);
+});
+
+test('quick-entry main length and bend length project once into the unchanged canonical developed length', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  context.document = { querySelector: () => null, querySelectorAll: () => [], getElementById: () => null };
+  const modal = Object.create(ShapeEditorModal.prototype);
+  modal.current = {
+    family: 'piles', roundPileCage: true,
+    straightBarLength: 1200, bendLength: 20, bentBarLength: 1220,
+    spiralZones: [{ name: 'A', length: 1200, pitch: 15 }],
+  };
+  modal._refreshPileDerived = () => {};
+  modal._refreshPileElementsSummary = () => {};
+  modal._refreshRoundPileEditorProjection = () => {};
+  modal._updatePreview = () => {};
+  modal._showPileInputError = () => {};
+
+  modal._setPileField('straightBarLength', 1250);
+  assert.equal(modal.current.straightBarLength, 1250);
+  assert.equal(modal.current.bentBarLength, 1270);
+  modal._setPileField('bendLength', 30);
+  assert.equal(modal.current.bendLength, 30);
+  assert.equal(modal.current.bentBarLength, 1280);
+});
+
+test('round pile cage elevation is illustrative, keeps tooth spirals readable, and exposes exact cm zones', () => {
+  const { ShapeEngineRouter } = loadShapeEditorGeometry();
+  const svg = ShapeEngineRouter.render({
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    barPattern: 'alternate', bendLength: 20,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [
+      { name: 'A', length: 60, noWrap: true },
+      { name: 'B', length: 300, pitch: 10 },
+      { name: 'C', length: 840, pitch: 20 },
+    ],
+    hoopDiameter: 18, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  }, 300, 260);
+  const side = svg.match(/<g data-view="side"[\s\S]*?<\/g>/)?.[0] || svg;
+  const loopsFor = zone => (svg.match(new RegExp(`class="pile-spiral-loop" data-zone="${zone}"`, 'g')) || []).length;
+
+  assert.match(svg, /L 1200 ס״מ/);
+  assert.match(svg, /A · 60 ס״מ/);
+  assert.match(svg, /B · 300 ס״מ/);
+  assert.match(svg, /C · 840 ס״מ/);
+  assert.match(svg, /B · @10 ס״מ/);
+  assert.match(svg, /C · @20 ס״מ/);
+  assert.doesNotMatch(svg, />600<|>3000<|>8400</);
+  assert.equal(loopsFor(0), 0, 'no-wrap zone must not draw spiral steel');
+  assert.ok(loopsFor(1) > 0 && loopsFor(1) <= 24);
+  assert.ok(loopsFor(2) > 0 && loopsFor(2) <= 24);
+  assert.ok((loopsFor(1) / 300) > (loopsFor(2) / 840), '10 cm pitch must read denser than 20 cm pitch');
+  assert.match(svg, /d="M [\d.]+ [\d.]+ L [\d.]+ [\d.]+ L [\d.]+ [\d.]+"/, 'keeps the approved diagonal-plus-return engineering tooth');
+  assert.ok(svg.indexOf('class="pile-no-wrap-zone"') < svg.indexOf('class="pile-straight-bar"'), 'transparent no-wrap guide must not cover continuous bars');
+  assert.doesNotMatch(side, /L 90°/);
+  assert.match(svg, /class="pile-l-bar"[\s\S]*?stroke="#374151"/);
+  assert.equal((svg.match(/class="pile-hoop-position"/g) || []).length, 5);
+  assert.equal((svg.match(/class="pile-hoop-label"/g) || []).length, 5);
+  ['P1', 'P2', 'P3', 'P4', 'P5'].forEach(label => assert.match(svg, new RegExp(`>${label}<`)));
+  assert.doesNotMatch(svg, /class="pile-hoop-placement-summary"/, 'five individually labelled hoops need no duplicate summary');
+});
+
+test('round pile cage renders the authored hoop quantity and condenses only physical-position labels', () => {
+  const { ShapeEngineRouter } = loadShapeEditorGeometry();
+  const base = {
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    barPattern: 'alternate', bendOrientationDeg: 45,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [{ name: 'A', length: 1200, pitch: 15 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopStart: 100, hoopSpacing: 100,
+  };
+
+  for (const quantity of [1, 3, 5, 8]) {
+    const svg = ShapeEngineRouter.render({ ...base, hoopQuantity: quantity }, 300, 260);
+    assert.equal((svg.match(/class="pile-hoop-position"/g) || []).length, quantity, `quantity ${quantity}`);
+    assert.match(svg, new RegExp(`data-hoop-position-mm="${1000 + (quantity - 1) * 1000}"`));
+    if (quantity <= 6) {
+      assert.doesNotMatch(svg, /class="pile-hoop-placement-summary"/);
+      for (let index = 1; index <= quantity; index += 1) assert.match(svg, new RegExp(`>P${index}<`));
+    } else {
+      assert.equal((svg.match(/class="pile-hoop-label"/g) || []).length, 2);
+      assert.match(svg, />P1</);
+      assert.match(svg, new RegExp(`>P${quantity}<`));
+      assert.match(svg, new RegExp(`P1…P${quantity}`));
+      assert.doesNotMatch(svg, />P2</);
+    }
+  }
+});
+
+test('round pile cage editor fails closed on the exact out-of-range hoop and has no five-hoop preset fallback', () => {
+  const context = loadShapeEditorGeometry();
+  const { PileCageEngine } = context.window.IronBendShapeGeometry;
+  const editor = fs.readFileSync(path.join(__dirname, '..', 'public', 'shape-editor.js'), 'utf8');
+  const base = {
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    barPattern: 'alternate', bendOrientationDeg: 45,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [{ name: 'A', length: 1200, pitch: 15 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopStart: 700, hoopSpacing: 100,
+  };
+  const invalid = PileCageEngine.calculate({ ...base, hoopQuantity: 7 });
+  const missing = PileCageEngine.calculate({ ...base, hoopQuantity: '' });
+  const zero = PileCageEngine.calculate({ ...base, hoopQuantity: 0, hoopDiameter: '', hoopOuterDiameter: '' });
+  const zeroSvg = context.ShapeEngineRouter.render({ ...base, hoopQuantity: 0 }, 300, 260);
+
+  assert.equal(invalid.validation.valid, false);
+  assert.match(invalid.validation.errors.join('\n'), /P7 at 1300 cm is outside cage length 1200 cm/);
+  assert.deepEqual(invalid.data.hoops.positionsMm, [7000, 8000, 9000, 10000, 11000, 12000, 13000]);
+  assert.deepEqual(invalid.manufacturingBreakdown, []);
+  assert.deepEqual(invalid.productionCards, []);
+  assert.equal(missing.validation.valid, false);
+  assert.equal(missing.data.hoops.quantity, 0);
+  assert.deepEqual(missing.manufacturingBreakdown, []);
+  assert.deepEqual(missing.productionCards, []);
+  assert.equal(zero.validation.valid, true);
+  assert.equal(zero.data.hoops.quantity, 0);
+  assert.deepEqual(zero.data.hoops.positionsMm, []);
+  assert.equal(zero.manufacturingBreakdown.length, 3);
+  assert.ok(!zero.manufacturingBreakdown.some(part => part.componentType === 'hoop_ring'));
+  assert.equal(zero.productionCards.length, 4);
+  assert.ok(!zero.productionCards.some(card => card.componentType === 'hoop_ring'));
+  assert.doesNotMatch(zeroSvg, /class="pile-hoop-position"/);
+  assert.doesNotMatch(zeroSvg, /class="pile-hoop-placement-summary"/);
+  assert.doesNotMatch(editor, /id:\s*'round-pile-cage'[\s\S]{0,1200}hoopQuantity:\s*5/);
+  assert.match(editor, /compactField\('hoopQuantity', 0\)/);
+  assert.equal(context.pileFieldAllowsZero('hoopQuantity'), true, 'the live editor must accept an explicitly authored zero quantity');
+  assert.equal(context.pileFieldAllowsZero('hoopDiameter'), false, 'material dimensions remain strictly positive when hoops exist');
+  assert.equal(
+    context.localizePileValidationError('reinforcing hoop position P7 at 1300 cm is outside cage length 1200 cm'),
+    'טבעת P7 במיקום 1300 ס״מ נמצאת מחוץ לאורך הכלוב 1200 ס״מ',
+  );
+  assert.match(editor, /if \(this\.current\.roundPileCage\)[\s\S]{0,200}PileCageEngine\.calculate\(this\.current\)/);
+});
+
+test('round pile cage cross-section shows every bar and one selected spacing convention', () => {
+  const { ShapeEngineRouter, PileCageEngine, buildShapeDataContractV2 } = loadShapeEditorGeometry();
+  const base = {
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    barPattern: 'alternate', bendOrientationDeg: 45,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [{ name: 'A', length: 1200, pitch: 15 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  };
+  const centerSvg = ShapeEngineRouter.render({ ...base, barSpacingDisplayMode: 'center' }, 300, 260);
+  const clearSvg = ShapeEngineRouter.render({ ...base, barSpacingDisplayMode: 'clear' }, 300, 260);
+
+  assert.equal((centerSvg.match(/class="pile-longitudinal-bar"/g) || []).length, 10);
+  assert.equal((centerSvg.match(/class="pile-bent-head-hook"/g) || []).length, 5);
+  assert.match(centerSvg, /data-bar-spacing-mode="center"/);
+  assert.match(centerSvg, />C\/C [^<]+ ס״מ</);
+  assert.doesNotMatch(centerSvg, />CLEAR [^<]+ ס״מ</);
+  assert.match(clearSvg, /data-bar-spacing-mode="clear"/);
+  assert.match(clearSvg, />CLEAR [^<]+ ס״מ</);
+  assert.doesNotMatch(clearSvg, />C\/C [^<]+ ס״מ</);
+  assert.equal(PileCageEngine.calculate({ ...base, barSpacingDisplayMode: 'clear' }).data.barSpacingDisplayMode, 'clear');
+  assert.equal(buildShapeDataContractV2({ ...base, barSpacingDisplayMode: 'clear' }).data.barSpacingDisplayMode, 'clear');
+});
+
+test('round pile cage component gallery reuses four canonical visuals and keeps spiral card minimal', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  const modal = Object.create(ShapeEditorModal.prototype);
+  modal.current = {
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    barPattern: 'alternate', bendOrientationDeg: 0,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [{ name: 'A', length: 60, noWrap: true }, { name: 'B', length: 300, pitch: 10 }, { name: 'C', length: 840, pitch: 20 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
+  };
+  const html = modal._pileComponentCardsHtml();
+  const spiralCard = html.match(/data-pile-component-card="spiral_consolidated"[\s\S]*?<\/article>/)?.[0] || '';
+
+  assert.equal((html.match(/data-pile-component-card=/g) || []).length, 4);
+  assert.equal((html.match(/data-engine="PolylineBarEngine"/g) || []).length, 2);
+  assert.equal((html.match(/data-engine="SpiralEngine"/g) || []).length, 1);
+  assert.equal((html.match(/data-engine="RingEngine"/g) || []).length, 1);
+  assert.match(spiralCard, /Ø8 mm/);
+  assert.match(spiralCard, /D 48 cm/);
+  assert.match(spiralCard, /72 ↻/);
+  assert.match(spiralCard, /CUT [\d,.]+ cm/);
+  assert.doesNotMatch(spiralCard, /@|פסיעה|L1|L2|L3|NO WRAP|ללא כריכות/);
+  assert.match(html, /5 × Ø20 mm/);
+  assert.match(html, /1200 \+ 20 cm/);
+  assert.match(html, /5 × Ø18 mm/);
+});
+
+test('round pile cage hoop component card shows the actual authored quantity', () => {
+  const context = loadShapeEditorGeometry();
+  const { ShapeEditorModal } = context.window.IronBendShapeGeometry;
+  const modal = Object.create(ShapeEditorModal.prototype);
+  modal.current = {
+    family: 'piles', roundPileCage: true,
+    pileDiameter: 60, pileLength: 1200,
+    longitudinalBars: 10, longitudinalDiameter: 20,
+    straightBarCount: 5, bentBarCount: 5,
+    straightBarLength: 1200, bentBarLength: 1220, bendLength: 20,
+    barPattern: 'alternate', bendOrientationDeg: 0,
+    spiralDiameter: 8, spiralOuterDiameter: 48,
+    spiralZones: [{ name: 'A', length: 1200, pitch: 15 }],
+    hoopDiameter: 18, hoopOuterDiameter: 42, hoopQuantity: 3, hoopStart: 150, hoopSpacing: 300,
+  };
+  const html = modal._pileComponentCardsHtml();
+  const hoopCard = html.match(/data-pile-component-card="hoop_ring"[\s\S]*?<\/article>/)?.[0] || '';
+
+  assert.match(hoopCard, /3 × Ø18 mm/);
+  assert.doesNotMatch(hoopCard, /5 × Ø18 mm/);
 });
 
 test('round pile cage draws only alternating longitudinal bars with a head bend', () => {
@@ -1021,10 +1484,10 @@ test('round pile cage draws only alternating longitudinal bars with a head bend'
     hoopDiameter: 18, hoopQuantity: 5, hoopStart: 150, hoopSpacing: 30,
   }, 300, 260);
 
-  assert.equal((svg.match(/class="pile-l-bar"[^>]*data-pile-head-hook="1"/g) || []).length, 5, 'five and only five longitudinal bars bend at the head in elevation');
-  assert.equal((svg.match(/class="pile-bent-head-hook"[^>]*data-pile-head-hook="1"/g) || []).length, 5, 'the same five head bends are drawn as short legs in section');
-  assert.match(svg, /class="pile-l-bar"[^>]*data-pile-head-hook="1"[^>]*d="M [^"]+ H [^"]+ V [^"]+"/);
-  assert.match(svg, /ראש הכלונס — כיפופי L/);
+  assert.equal((svg.match(/class="pile-l-bar"[^>]*data-pile-head-hook="1"/g) || []).length, 0, 'bent bars run straight in elevation — the head bend clutters the side view and is shown only in section');
+  assert.equal((svg.match(/class="pile-bent-head-hook"[^>]*data-pile-head-hook="1"/g) || []).length, 5, 'the five head bends are drawn as short legs in section');
+  assert.match(svg, /class="pile-l-bar" data-pile-bar-type="bent"[^>]*x1="[^"]+" y1="[^"]+" x2="[^"]+" y2="[^"]+"/);
+  assert.match(svg, /data-pile-head="1"/);
   assert.match(svg, /data-pile-alternating-legend="1"/);
   assert.equal((svg.match(/class="pile-hoop"/g) || []).length, 6, 'five side-view rings and one circular cross-section ring remain separate from bent bars');
 });
@@ -1071,7 +1534,7 @@ test('pile bend orientation accepts arbitrary numeric degrees and persists the n
   assert.equal(context.localStorage._values.ironbend_pile_bend_orientation_deg_v1, '127.75');
   assert.match(editorSource, /data-pile-field="bendOrientationDeg"/);
   assert.match(editorSource, /type="text" inputmode="decimal"/);
-  assert.match(editorSource, /0° פנימה · 90° עם כיוון השעון/);
+  assert.match(editorSource, /bendOrientationDeg: \['∠','כיוון הכיפוף סביב הכלוב','°','0 פנימה · 90 עם כיוון השעון'\]/);
 });
 
 test('round pile cage calculates the continuous spiral from its configured spiral zone', () => {
@@ -1155,9 +1618,10 @@ test('round pile cage drawing leaves a no-wrap segment empty and stays monochrom
   }, 300, 260);
 
   assert.match(svg, /class="pile-no-wrap-zone" data-zone="1"/);
-  assert.match(svg, /ללא כריכות/);
+  assert.match(svg, /class="pile-no-wrap-label"[\s\S]*?>ללא<\/text><text[^>]*>כריכות<\/text>/);
+  assert.doesNotMatch(svg, /textLength=/, 'no-wrap wording must remain readable rather than horizontally distorted');
   assert.doesNotMatch(svg, /#16a34a|#1d4ed8/);
-  assert.match(svg, /ראש הכלונס — כיפופי L/);
+  assert.match(svg, /data-pile-head="1"/);
 });
 
 
@@ -1323,9 +1787,9 @@ test('production card renders real spiral items from item fields instead of stra
   assert.doesNotMatch(svg, /max-height:/);
   assert.match(svg, /data-spiral-visual-labels="1"/);
   assert.match(svg, /data-spiral-turn-count="1"/);
-  assert.match(svg, />30 כריכות</);
+  assert.match(svg, />N=30</);
   assert.match(svg, /\u05e7\u05d5\u05d8\u05e8 \u05e1\u05e4\u05d9\u05e8\u05d0\u05dc\u05d4/);
-  assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
+  assert.match(svg, />N</);
   assert.doesNotMatch(svg, /data-shape-kind="straight-bar"/);
   assert.doesNotMatch(svg, /30 turns/);
 });
@@ -1345,7 +1809,7 @@ test('production card renders legacy spiral snapshot retroactively', () => {
   assert.match(svg, /data-shape-kind="spiral"/);
   assert.match(svg, /data-spiral-diameter-mm="250"/);
   assert.match(svg, /data-spiral-turns="18"/);
-  assert.match(svg, /\u05de\u05e1\u05e4\u05e8 \u05db\u05e8\u05d9\u05db\u05d5\u05ea/);
+  assert.match(svg, />N=18</);
   assert.doesNotMatch(svg, /18 turns/);
 });
 
@@ -1380,7 +1844,7 @@ test('production card renders open U bars as a readable U shape, not a flattened
   assert.ok(points[1][1] > points[0][1], 'expected the long bridge to render as the bottom base');
   assert.match(svg, />190</);
   assert.match(svg, />20</);
-  assert.match(svg, /stroke="#a8b0ba"/);
+  assert.doesNotMatch(svg, /stroke="#a8b0ba"/, '90 is the default bend and is not marked on bars');
   assert.match(svg, /<line x1="42\.0" y1="51\.0" x2="20\.0" y2="51\.0"/);
   assert.match(svg, /<line x1="110\.0" y1="78\.0" x2="110\.0" y2="98\.0"/);
   assert.match(svg, /<line x1="178\.0" y1="51\.0" x2="200\.0" y2="51\.0"/);

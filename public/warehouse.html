@@ -159,6 +159,12 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 .loading-status-card.missing{background:var(--danger-dim);border-color:var(--danger);color:var(--danger);}
 .loading-status-card.active{background:var(--warning-dim);border-color:var(--warning);color:var(--warning);}
 .loading-status-card.completed{background:var(--success-dim);border-color:var(--success);color:var(--success);}
+.multi-order-launch{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.multi-order-list{display:grid;gap:7px;max-height:330px;overflow:auto;margin:10px 0;}
+.multi-order-option{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;cursor:pointer;}
+.multi-order-option:has(input:checked){border-color:var(--accent);background:var(--accent-dim);}
+.multi-order-option:has(input:disabled){opacity:.45;cursor:not-allowed;}
+.multi-order-option strong{display:block}.multi-order-option small{display:block;color:var(--text-muted);margin-top:2px}.multi-order-option .weight{font-weight:900;white-space:nowrap;}
 @media(max-width:520px){.loading-status-summary{grid-template-columns:1fr;}.loading-status-card{min-height:58px;display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;}.loading-status-card .loading-status-label{grid-column:1;grid-row:1;}.loading-status-card .loading-status-detail{grid-column:1;grid-row:2;}.loading-status-card .loading-status-value{grid-column:2;grid-row:1 / span 2;text-align:left;}}
 
 /* ALERT */
@@ -299,6 +305,15 @@ tr:hover td{background:rgba(0,0,0,0.015);}
           <input id="orderScanInput" type="text" autocomplete="off" placeholder="קוד הזמנה מטופס הייצור" onkeydown="if(event.key==='Enter')scanOrderCodeFromInput()">
           <button class="btn btn-primary" type="button" onclick="resumeCardCamera()">📷 פתח מצלמה וסרוק</button>
           <button class="btn btn-outline" type="button" onclick="scanOrderCodeFromInput()">פתח לפי קוד</button>
+        </div>
+        <div class="multi-order-launch">
+          <button class="btn btn-outline" type="button" onclick="toggleMultiOrderSelector()">בחר כמה הזמנות לאותה תעודת משלוח</button>
+          <div id="multiOrderSelector" style="display:none">
+            <div class="delivery-info" style="margin-top:10px">בחר לפחות שתי הזמנות של אותו לקוח ולאותה כתובת. לאחר מכן כל כרטיס שנסרק ישויך להזמנה הנכונה, ובסיום תופק תעודה אחת.</div>
+            <div class="alert alert-danger" id="multiOrderAlert"></div>
+            <div class="multi-order-list" id="multiOrderList"><div class="empty-inline">טוען הזמנות…</div></div>
+            <button class="btn btn-success" id="btnStartMultiOrderLoading" type="button" disabled onclick="startMultiOrderLoadingSession()">התחל העמסה משותפת</button>
+          </div>
         </div>
       </div>
     </div>
@@ -562,7 +577,7 @@ function openQR(id){
   const p=allPackages.find(x=>x.id===id);
   if(!p)return;
   document.getElementById('qrPkgInfo').innerHTML=
-    `<strong>${escH(p.package_code)}</strong><br>לקוח: ${escH(p.customer_name||'—')} · Ø${p.diameter}mm · ${fmt0(p.weight)} ק"ג`;
+    `<strong>${escH(p.package_code)}</strong><br>לקוח: ${escH(p.customer_name||'—')} · Ø${p.diameter} מ"מ · ${fmt0(p.weight)} ק"ג`;
   document.getElementById('qrCodeDisplay').textContent=p.package_code;
   showModal('modalQR');
 }
@@ -614,6 +629,7 @@ let cameraTimer=null;
 let cameraBusy=false;
 let scanningDeviceApprovedUntil=0;
 let screenWakeLock=null;
+let multiOrderCandidates=[];
 
 function currentLoadingExpected(){return currentLoadingSession?.cards||[];}
 function activeCardLoading(){return currentLoadingSession?.status==='active';}
@@ -623,6 +639,7 @@ function persistCardLoadingSession(){
   localStorage.setItem(CARD_LOADING_STORAGE_KEY,JSON.stringify({
     sessionUid:currentLoadingSession.session_uid,
     orderId:currentLoadingSession.order_id,
+    multiOrder:currentLoadingSession.multi_order===true,
     savedAt:Date.now(),
   }));
 }
@@ -638,10 +655,12 @@ function showCardLoadingIdle(message='פתח את המצלמה בתוך IronBend
 
 function useCardLoadingSession(data){
   currentLoadingSession=data;
-  qrLoadingOrderId=Number(data.order_id||qrLoadingOrderId)||null;
+  qrLoadingOrderId=data.multi_order?null:(Number(data.order_id||qrLoadingOrderId)||null);
   document.getElementById('orderLoadingStartCard').style.display='none';
   document.getElementById('scannerCard').style.display='block';
-  document.getElementById('loadingScannerTitle').textContent=`📷 העמסת הזמנה ${data.order_num||''}`;
+  document.getElementById('loadingScannerTitle').textContent=data.multi_order
+    ? `📷 העמסה משותפת · ${data.order_count||data.orders?.length||0} הזמנות`
+    : `📷 העמסת הזמנה ${data.order_num||''}`;
   document.getElementById('btnConfirmShip').textContent=data.status==='completed'?'העמסה הושלמה':'סיים העמסה והפק תעודת משלוח';
   updateLoadingUI();
   if(activeCardLoading()){
@@ -653,6 +672,61 @@ function useCardLoadingSession(data){
     stopCardCamera();
     clearPersistedCardLoadingSession();
   }
+}
+
+function multiOrderGroupKey(row){return `${row.customer_id||''}|${String(row.delivery_address||'').trim().toLowerCase()}`;}
+async function toggleMultiOrderSelector(){
+  const panel=document.getElementById('multiOrderSelector');
+  const opening=panel.style.display==='none';
+  panel.style.display=opening?'block':'none';
+  if(opening)await loadMultiOrderCandidates();
+}
+async function loadMultiOrderCandidates(){
+  const list=document.getElementById('multiOrderList');
+  list.innerHTML='<div class="empty-inline">טוען הזמנות…</div>';
+  try{
+    const response=await fetch('/api/loading/multi-order-candidates');
+    const data=await response.json().catch(()=>[]);
+    if(!response.ok)throw new Error(data.error||'candidate_load_failed');
+    multiOrderCandidates=Array.isArray(data)?data:[];
+    renderMultiOrderCandidates();
+  }catch(_){list.innerHTML='<div class="empty-inline">לא ניתן לטעון הזמנות זמינות.</div>';}
+}
+function selectedMultiOrderIds(){return Array.from(document.querySelectorAll('.multi-order-check:checked')).map(input=>Number(input.value));}
+function renderMultiOrderCandidates(){
+  const list=document.getElementById('multiOrderList');
+  if(!multiOrderCandidates.length){list.innerHTML='<div class="empty-inline">אין כרגע לפחות שתי הזמנות מוכנות להעמסה.</div>';return;}
+  list.innerHTML=multiOrderCandidates.map(row=>`<label class="multi-order-option">
+    <input class="multi-order-check" type="checkbox" value="${Number(row.id)}" data-group="${escH(multiOrderGroupKey(row))}" onchange="updateMultiOrderSelection()">
+    <span><strong>${escH(row.order_num)} · ${escH(row.customer_name)}</strong><small>${escH(row.delivery_address||'ללא כתובת')} · ${Number(row.card_count||0)} כרטיסים</small></span>
+    <span class="weight">${fmt1(row.total_weight)} ק״ג</span>
+  </label>`).join('');
+  updateMultiOrderSelection();
+}
+function updateMultiOrderSelection(){
+  const checks=Array.from(document.querySelectorAll('.multi-order-check'));
+  const selected=checks.filter(input=>input.checked);
+  const group=selected[0]?.dataset.group||null;
+  checks.forEach(input=>{input.disabled=Boolean(group&&input.dataset.group!==group&&!input.checked);});
+  const button=document.getElementById('btnStartMultiOrderLoading');
+  button.disabled=selected.length<2;
+  button.textContent=selected.length>=2?`התחל העמסה משותפת · ${selected.length} הזמנות`:'התחל העמסה משותפת';
+}
+async function startMultiOrderLoadingSession(){
+  const orderIds=selectedMultiOrderIds();
+  if(orderIds.length<2)return;
+  hideAlert('multiOrderAlert');
+  const button=document.getElementById('btnStartMultiOrderLoading');button.disabled=true;
+  try{
+    const response=await fetch('/api/loading/multi-order-card-sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_ids:orderIds})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'multi_order_loading_failed');
+    useCardLoadingSession(data);
+    await resumeCardCamera({quiet:true});
+  }catch(error){
+    const messages={multi_order_customer_mismatch:'אפשר לאחד רק הזמנות של אותו לקוח.',multi_order_destination_mismatch:'אפשר לאחד רק הזמנות לאותה כתובת מסירה.',order_already_in_loading:'אחת ההזמנות כבר נמצאת בהעמסה אחרת.',production_cards_not_completed:'באחת ההזמנות יש כרטיסי עבודה שטרם הושלמו.',order_not_ready_for_loading:'אחת ההזמנות עדיין אינה מוכנה לאיסוף.'};
+    showAlert('multiOrderAlert',messages[error.message]||'לא ניתן להתחיל את ההעמסה המשותפת.',0);
+  }finally{button.disabled=selectedMultiOrderIds().length<2;}
 }
 
 async function startCardLoadingSession(orderId){
@@ -678,10 +752,11 @@ async function startCardLoadingSession(orderId){
   }
 }
 
-async function restoreCardLoadingSession(sessionUid,{quiet=false}={}){
+async function restoreCardLoadingSession(sessionUid,{quiet=false,multiOrder=false}={}){
   if(!sessionUid)return false;
   try{
-    const response=await fetch(`/api/loading/card-sessions/${encodeURIComponent(sessionUid)}`);
+    const path=multiOrder?`/api/loading/multi-order-card-sessions/${encodeURIComponent(sessionUid)}`:`/api/loading/card-sessions/${encodeURIComponent(sessionUid)}`;
+    const response=await fetch(path);
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.error||'card_loading_session_unavailable');
     useCardLoadingSession(data);
@@ -864,7 +939,7 @@ function updateLoadingUI(){
   const phaseCard=document.getElementById('loadingPhaseCard');
   phaseCard.className=`loading-status-card ${loadingCompleted||missingCount===0?'completed':'active'}`;
   document.getElementById('loadingPhaseValue').textContent=loadingCompleted?'הושלמה':missingCount===0?'מוכנה ליציאה':'בהעמסה';
-  document.getElementById('loadingPhaseDetail').textContent=loadingCompleted?'הכרטיסים הועמסו ותועדה היציאה':missingCount===0?'אפשר להפיק תעודת משלוח':'סרוק רק כרטיסים של הזמנה זו';
+  document.getElementById('loadingPhaseDetail').textContent=loadingCompleted?'הכרטיסים הועמסו ותועדה היציאה':missingCount===0?'אפשר להפיק תעודת משלוח':currentLoadingSession.multi_order?'סרוק רק כרטיסים מההזמנות שנבחרו':'סרוק רק כרטיסים של הזמנה זו';
   document.getElementById('progressWrap').style.display=total>0?'block':'none';
   document.getElementById('progressText').textContent=`${done} / ${total}`;
   document.getElementById('progressFill').style.width=pct+'%';
@@ -872,12 +947,12 @@ function updateLoadingUI(){
   const loadedRows=expected.filter(row=>row.state==='loaded');
   const sl=document.getElementById('scannedList');
   sl.innerHTML=loadedRows.length
-    ? loadedRows.map(row=>`<div class="scanned-item"><span class="code">${escH(row.title)} · ${escH(row.worker_card_token)}</span><span>✓</span></div>`).join('')
+    ? loadedRows.map(row=>`<div class="scanned-item"><span class="code">${row.order_num?escH(row.order_num)+' · ':''}${escH(row.title)} · ${escH(row.worker_card_token)}</span><span>✓</span></div>`).join('')
     : '<div style="color:var(--text-muted);font-size:13px;padding:8px">אין כרטיסים עדיין</div>';
   const missing=expected.filter(row=>row.state!=='loaded');
   const ml=document.getElementById('missingList');
   ml.innerHTML=missing.length
-    ? missing.map(row=>`<div class="missing-item">${escH(row.title)} · ${escH(row.worker_card_token)}</div>`).join('')
+    ? missing.map(row=>`<div class="missing-item">${row.order_num?escH(row.order_num)+' · ':''}${escH(row.title)} · ${escH(row.worker_card_token)}</div>`).join('')
     : '<div style="color:var(--success);font-size:13px;padding:8px;font-weight:700">כל הכרטיסים הועמסו ✓</div>';
 
   const btn=document.getElementById('btnConfirmShip');
@@ -895,7 +970,8 @@ async function scanCardValue(code){
   hideAlert('scanAlert');hideAlert('scanSuccess');
   const input=document.getElementById('scanInput');
   try{
-    const response=await fetch(`/api/loading/card-sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/scan`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_data:value})});
+    const base=currentLoadingSession.multi_order?'/api/loading/multi-order-card-sessions':'/api/loading/card-sessions';
+    const response=await fetch(`${base}/${encodeURIComponent(currentLoadingSession.session_uid)}/scan`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_data:value})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.error||'card_loading_scan_failed');
     currentLoadingSession=data.state;
@@ -920,16 +996,18 @@ async function doScan(){
 function focusScan(){document.getElementById('scanInput').focus();}
 
 async function confirmShipment(){
-  if(!currentLoadingSession||!confirm(`לסיים העמסה להזמנה ${currentLoadingSession.order_num}?`))return;
+  const subject=currentLoadingSession?.multi_order?`${currentLoadingSession.order_count} הזמנות`:`הזמנה ${currentLoadingSession?.order_num||''}`;
+  if(!currentLoadingSession||!confirm(`לסיים העמסה עבור ${subject}?`))return;
   try{
-    const response=await fetch(`/api/loading/card-sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const base=currentLoadingSession.multi_order?'/api/loading/multi-order-card-sessions':'/api/loading/card-sessions';
+    const response=await fetch(`${base}/${encodeURIComponent(currentLoadingSession.session_uid)}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     const data=await response.json().catch(()=>({}));
     if(!response.ok){
       showAlert('scanAlert',data.error==='cards_missing'?`חסרים עדיין ${data.missing_count} כרטיסים — אי אפשר לסיים העמסה.`:'לא ניתן לסיים את ההעמסה.',0);
       return;
     }
     useCardLoadingSession(data);
-    showDeliveryNoteSuccess(`✅ ההעמסה להזמנה ${data.order_num} הושלמה.`,data.delivery_note);
+    showDeliveryNoteSuccess(data.multi_order?`✅ ההעמסה המשותפת הושלמה. הופקה תעודה אחת ל־${data.order_count} הזמנות.`:`✅ ההעמסה להזמנה ${data.order_num} הושלמה.`,data.delivery_note);
     loadKPI();
   }catch(_){showAlert('scanAlert','לא ניתן לסיים את ההעמסה.',0);}
 }
@@ -940,7 +1018,8 @@ async function confirmPartialDeparture(){
   if(!confirm(`להוציא משאית עם ${currentLoadingSession.loaded_count||0} כרטיסים בלבד? היתרה תישאר למשאית הבאה.`))return;
   const button=document.getElementById('btnPartialDeparture');button.disabled=true;
   try{
-    const response=await fetch(`/api/loading/card-sessions/${encodeURIComponent(currentLoadingSession.session_uid)}/partial-departure`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});
+    const base=currentLoadingSession.multi_order?'/api/loading/multi-order-card-sessions':'/api/loading/card-sessions';
+    const response=await fetch(`${base}/${encodeURIComponent(currentLoadingSession.session_uid)}/partial-departure`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok){
       const messages={partial_departure_reason_required:'יש לציין סיבה ליציאה החלקית.',no_loaded_cards:'לא נסרק אף כרטיס למשאית זו.',all_cards_loaded_use_complete:'כל הכרטיסים נסרקו — יש להשלים העמסה מלאה.'};
@@ -969,7 +1048,7 @@ if(loadingOrderFromQr){
   startCardLoadingSession(loadingOrderFromQr);
 }else{
   const saved=(()=>{try{return JSON.parse(localStorage.getItem(CARD_LOADING_STORAGE_KEY)||'null');}catch(_){return null;}})();
-  if(saved?.sessionUid)restoreCardLoadingSession(saved.sessionUid,{quiet:true}).then(restored=>{
+  if(saved?.sessionUid)restoreCardLoadingSession(saved.sessionUid,{quiet:true,multiOrder:saved.multiOrder===true}).then(restored=>{
     if(restored)showTab('loading');
   });
 }

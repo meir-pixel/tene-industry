@@ -8,7 +8,7 @@ function validateShapeGeometry(segments) {
       return { valid: false, error: `קטע ${i + 1}: אורך חייב להיות מספר חיובי (קיבלנו: ${seg.length_mm})` };
     }
     if (seg.length_mm > 20000) {
-      return { valid: false, error: `קטע ${i + 1}: אורך ${seg.length_mm}mm חורג מ-20,000mm` };
+      return { valid: false, error: `קטע ${i + 1}: אורך ${seg.length_mm / 10} ס״מ חורג מ-2,000 ס״מ` };
     }
     if (typeof seg.angle_deg !== 'number') {
       return { valid: false, error: `קטע ${i + 1}: זווית חייבת להיות מספר` };
@@ -136,12 +136,15 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
     const totalWeight = order.totalWeight ?? 0;
     const billingWeight = totalWeight * (1 + wastePct / 100);
 
+    const quoteId = Number(order.quoteId || order.quote_id || 0) || null;
+    const quoteNum = String(order.quoteNum || order.quote_num || '').trim() || null;
+    const salePrice = Number(order.salePrice ?? order.sale_price ?? order.quoteTotal ?? 0) || 0;
     const orderResult = db.prepare(`
-      INSERT INTO orders (order_num,stable_order_id,customer_id,site_id,channel,delivery_date,delivery_time,delivery_address,priority,driver_notes,general_notes,total_weight,waste_pct_charged,billing_weight,created_by)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(orderNum, createStableOrderId(orderNum), customerId, orderSiteId, order.channel, order.deliveryDate, order.deliveryTime,
+      INSERT INTO orders (order_num,stable_order_id,quote_id,quote_num,customer_id,site_id,channel,delivery_date,delivery_time,delivery_address,priority,driver_notes,general_notes,total_weight,waste_pct_charged,billing_weight,sale_price,created_by)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(orderNum, createStableOrderId(orderNum), quoteId, quoteNum, customerId, orderSiteId, order.channel, order.deliveryDate, order.deliveryTime,
       order.deliveryAddress, order.priority, order.driverNotes, order.generalNotes,
-      totalWeight, wastePct, billingWeight, order.createdBy || null);
+      totalWeight, wastePct, billingWeight, salePrice, order.createdBy || null);
 
     const orderId = orderResult.lastInsertRowid;
     const inventoryShortages = [];

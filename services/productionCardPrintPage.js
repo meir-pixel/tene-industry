@@ -5,8 +5,11 @@ const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine')
 const REVIEW_NOTE_LABEL = '\u05d3\u05d5\u05e8\u05e9 \u05d0\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05dc \u05de\u05e7\u05d5\u05e8 \u05d4\u05e7\u05dc\u05d9\u05d8\u05d4';
 
 function printableItemNote(note) {
-  if (!note) return '';
-  return isTechnicalRecognitionNote(note) ? REVIEW_NOTE_LABEL : note;
+  const normalized = String(note || '').trim();
+  if (!normalized) return '';
+  // Editor provenance is an internal marker, not a printable production note.
+  if (/^נוסף ידנית בעורך הצורות\.?$/u.test(normalized)) return '';
+  return isTechnicalRecognitionNote(normalized) ? REVIEW_NOTE_LABEL : normalized;
 }
 
 
@@ -79,9 +82,11 @@ function formatPileNumber(value) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
-function formatPileMm(value) {
-  const formatted = formatPileNumber(value);
-  return formatted ? formatted + ' mm' : '';
+function formatPileCm(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return '';
+  const formatted = formatPileNumber(numeric / 10);
+  return formatted ? formatted + ' cm' : '';
 }
 
 function pileComponentShapeSvg(card, fallbackLengthMm, scope = 'pile') {
@@ -114,13 +119,13 @@ function pileComponentShapeSvg(card, fallbackLengthMm, scope = 'pile') {
       const rowY = 57 + index * 12;
       if (rowY <= 93) {
         const detail = segment.noWrap
-          ? `${name} ${Math.round(start)}-${Math.round(start + axial)} NO WRAP`
-          : `${name} ${formatPileNumber(start)}-${formatPileNumber(start + axial)} P${formatPileNumber(segment.pitchMm)} T${formatPileNumber(segment.turns)} C${formatPileNumber(segment.helicalCutLengthMm ?? segment.totalLengthMm)}`;
+          ? `${name} ${formatPileCm(start)}-${formatPileCm(start + axial)} NO WRAP`
+          : `${name} ${formatPileCm(start)}-${formatPileCm(start + axial)} P${formatPileCm(segment.pitchMm)} N${formatPileNumber(segment.turns)} C${formatPileCm(segment.helicalCutLengthMm ?? segment.totalLengthMm)}`;
         svg += `<text x="18" y="${rowY}" text-anchor="start" font-size="7" font-family="Arial" font-weight="700" fill="#1a2332">${escapeSvgText(detail)}</text>`;
       }
     });
-    svg += `<text x="18" y="108" text-anchor="start" font-size="8" font-family="Arial" font-weight="900" fill="#1a2332">AXIS ${Math.round(axisLengthMm)} mm</text>`;
-    svg += `<text x="222" y="108" text-anchor="end" font-size="8" font-family="Arial" font-weight="900" fill="#1a2332">CUT ${escapeSvgText(formatPileMm(cutLengthMm))}</text>`;
+    svg += `<text x="18" y="108" text-anchor="start" font-size="8" font-family="Arial" font-weight="900" fill="#1a2332">AXIS ${escapeSvgText(formatPileCm(axisLengthMm))}</text>`;
+    svg += `<text x="222" y="108" text-anchor="end" font-size="8" font-family="Arial" font-weight="900" fill="#1a2332">CUT ${escapeSvgText(formatPileCm(cutLengthMm))}</text>`;
     return `<svg data-shape-kind="pile-spiral-component" data-component-type="spiral_consolidated" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;max-height:112px;overflow:visible">${svg}</svg>`;
   }
   if (componentType === 'hoop_ring') {
@@ -313,10 +318,10 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
 .pc-print-face{display:grid;grid-template-columns:minmax(0,1fr) 27mm;width:100%;height:100%;background:#fff;direction:ltr;}
 .pc-print-main{display:grid;grid-template-rows:11mm 7mm minmax(0,1fr) 18.25mm;width:100%;height:100%;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
 .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:12px;font-weight:900;line-height:1;background:#1a2332;color:#fff;}
-.pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:8px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
+.pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:11px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
 .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
 .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
-.pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
+.pc-print-bottom{display:grid;grid-template-columns:1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:11px;font-weight:900;text-align:center;}
 .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
 .pc-print-bottom span:first-child{border-left:0;}
 .pc-print-qr-panel{display:grid;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:transparent;}
@@ -410,10 +415,10 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   .pc-print-main{display:grid;grid-template-rows:11mm 7mm minmax(0,1fr) 18.25mm;width:100%;height:100%;border-right:0.25mm solid #1a2332;overflow:hidden;direction:ltr;}
   .pc-print-head{display:flex;align-items:center;justify-content:space-between;padding:2mm 3mm;border-bottom:0.25mm solid #1a2332;font-size:13.5px;font-weight:900;line-height:1;background:#1a2332!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .pc-print-head span span{font-size:10.5px!important;}
-  .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:9.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
+  .pc-print-ref{padding:1.5mm 3mm;border-bottom:0.25mm solid #d8dee8;font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right;}
   .pc-print-shape{display:flex;align-items:center;justify-content:center;padding:1.5mm 3mm;overflow:hidden;}
   .pc-print-shape svg{max-width:72mm!important;max-height:35mm!important;}
-  .pc-print-bottom{display:grid;grid-template-columns:1.25fr 1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:13px;font-weight:900;text-align:center;}
+  .pc-print-bottom{display:grid;grid-template-columns:1fr 1fr;align-items:center;border-top:0.25mm solid #1a2332;font-size:13px;font-weight:900;text-align:center;}
   .pc-print-bottom span{height:100%;display:flex;align-items:center;justify-content:center;border-left:0.25mm solid #1a2332;white-space:nowrap;overflow:hidden;}
   .pc-print-bottom span:first-child{border-left:0;}
   .pc-print-qr-panel{display:grid;align-items:center;justify-items:center;width:27mm;height:100%;overflow:hidden;background:transparent!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
@@ -550,8 +555,8 @@ function proportionalPrintSidesClient(sides) {
 function drawShape(svgEl, segments) {
   if (!segments || !segments.length) return;
   var sides  = segments.map(function(s){ return s.length_mm; });
-  var visualSides = proportionalPrintSidesClient(sides);
   var angles = segments.map(function(s){ return s.angle_deg; }).slice(0, -1);
+  var visualSides = separateOverlappingSidesClient(proportionalPrintSidesClient(sides), angles);
   var pts = [[0,0]];
   var dir = 0;
   for (var i = 0; i < sides.length; i++) {
@@ -767,13 +772,66 @@ function escapeHtml(value) {
 function displayLengthCm(value) {
   var cm = (Number(value) || 0) / 10;
   if (!Number.isFinite(cm)) return '';
-  return Math.abs(cm - Math.round(cm)) < 0.001 ? String(Math.round(cm)) : cm.toFixed(1).replace(/\.0$/, '');
+  return cm.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function displayPileLengthCmExact(value) {
   var cm = Number(value) / 10;
   if (!Number.isFinite(cm)) return '';
   return cm.toFixed(3).replace(/0+$/, '').replace(/\\.$/, '');
+}
+
+
+// כשצלע מאוחרת רצה בדיוק על גבי צלע קודמת (מוט מקופל אחורה על עצמו),
+// הן מצוירות קו-על-קו ואי אפשר להבחין ביניהן בשרטוט.
+function overlappingCoverIndexClient(points, scale) {
+  var EPS = Math.max(1e-9, scale * 0.002);
+  for (var i = 1; i < points.length - 1; i++) {
+    var a = points[i], b = points[i + 1];
+    var dx = b[0] - a[0], dy = b[1] - a[1];
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (!len) continue;
+    dx /= len; dy /= len;
+    for (var j = 0; j < i; j++) {
+      var c = points[j], d = points[j + 1];
+      var ex = d[0] - c[0], ey = d[1] - c[1];
+      var elen = Math.sqrt(ex * ex + ey * ey);
+      if (!elen) continue;
+      ex /= elen; ey /= elen;
+      if (Math.abs(dx * ey - dy * ex) > 0.02) continue;
+      if (Math.abs((c[0] - a[0]) * dy - (c[1] - a[1]) * dx) > EPS) continue;
+      var t0 = (c[0] - a[0]) * dx + (c[1] - a[1]) * dy;
+      var t1 = (d[0] - a[0]) * dx + (d[1] - a[1]) * dy;
+      if (Math.max(t0, t1) <= EPS || Math.min(t0, t1) >= len - EPS) continue;
+      return { covering: i, victim: j };
+    }
+  }
+  return null;
+}
+
+// חישוקים וכל צורה סגורה שחוזרת לנקודת ההתחלה - לא בתחום הכלל הזה.
+function isClosedHoopOutlineClient(points, scale) {
+  if (!points || points.length < 4 || !scale) return false;
+  var first = points[0], last = points[points.length - 1];
+  return Math.sqrt(Math.pow(last[0] - first[0], 2) + Math.pow(last[1] - first[1], 2)) < scale * 0.35;
+}
+
+// קיצור ויזואלי בלבד של הצלע הצמודה לצלע הקצרה שנדרסת, כדי שהשתיים ייפרדו.
+// המידות המודפסות נשענות על sides המקורי ולא מושפעות.
+var OVERLAP_SEPARATION_RATIO = 0.10;
+function separateOverlappingSidesClient(visualSides, angles) {
+  if (!visualSides || visualSides.length < 3) return visualSides;
+  var max = Math.max.apply(null, visualSides.concat([0]));
+  var shapePoints = calcShapePointsClient(visualSides, angles || []);
+  if (isClosedHoopOutlineClient(shapePoints, max)) return visualSides;
+  var hit = overlappingCoverIndexClient(shapePoints, max);
+  if (!hit) return visualSides;
+  var legIndex = hit.victim > 0 ? hit.victim - 1 : hit.victim + 1;
+  if (legIndex < 0 || legIndex >= visualSides.length) return visualSides;
+  var adjusted = visualSides.slice();
+  var leg = adjusted[legIndex];
+  adjusted[legIndex] = Math.max(leg * 0.5, leg - max * OVERLAP_SEPARATION_RATIO);
+  return adjusted;
 }
 
 function calcShapePointsClient(sides, angles) {
@@ -881,7 +939,9 @@ function sideDimensionSvg(start, end, value, center, distance = 18) {
 
 function angleMarkerSvg(previous, corner, next, angle, center) {
   if (!isPrintableBendAngle(angle)) return '';
-  if (isRightAngleValue(angle)) return rightAngleMarkerSvg(previous, corner, next);
+  // 90° היא ברירת המחדל של כיפוף במוט - לא מסמנים אותה בשרטוט.
+  // בחישוקים הסימון נשמר - שם יש חוק אחר.
+  if (isRightAngleValue(angle)) return '';
   var a = unitVector(corner, previous);
   var b = unitVector(corner, next);
   var p1 = pointAt(corner, a, 13);
@@ -914,12 +974,8 @@ function buildOpenUShapeSVG(segments) {
   s += sideDimensionSvg([left, top], [left, bottom], leftLeg, [midX, midY], 22);
   s += sideDimensionSvg([left, bottom], [right, bottom], bridge, [midX, midY], 20);
   s += sideDimensionSvg([right, bottom], [right, top], rightLeg, [midX, midY], 22);
-  [
-    [[left, top], [left, bottom], [right, bottom]],
-    [[left, bottom], [right, bottom], [right, top]],
-  ].forEach(function(points) {
-    s += rightAngleMarkerSvg(points[0], points[1], points[2]);
-  });
+  // 90° היא ברירת המחדל של כיפוף במוט - לא מסמנים אותה בשרטוט.
+  // בחישוקים הסימון נשמר - שם יש חוק אחר.
   return '<svg data-shape-kind="open-u" data-scale-mode="print-fit" preserveAspectRatio="xMidYMid meet" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;max-height:100px;overflow:visible">' + s + '</svg>';
 }
 
@@ -981,7 +1037,7 @@ function buildShapeSVG(segments) {
     var W=260, H=140, PAD=46;
     var sides = segments.map(function(s){ return +(s.length_mm||0); });
     var angs  = segments.map(function(s){ return s.angle_deg; });
-    var visualSides = proportionalPrintSidesClient(sides);
+    var visualSides = separateOverlappingSidesClient(proportionalPrintSidesClient(sides), angs);
     var pts = normalizeShapePointsBaseBottomClient(calcShapePointsClient(visualSides, angs));
     var xs=pts.map(function(p){return p[0];}), ys=pts.map(function(p){return p[1];});
     var mnX=Math.min.apply(null,xs), mxX=Math.max.apply(null,xs);
@@ -1058,10 +1114,10 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var useExactPileDimensions = Boolean(item.pile_component_type || item.pile_card_type === 'pile_assembly');
   var unitLengthCm = useExactPileDimensions
     ? displayPileLengthCmExact(Number(item.unit_length_mm || item.total_length_mm || 0))
-    : Math.round((Number(item.unit_length_mm || item.total_length_mm || 0)) / 10);
+    : displayLengthCm(Number(item.unit_length_mm || item.total_length_mm || 0));
   var totalLengthCm = useExactPileDimensions
     ? displayPileLengthCmExact(Number(item.total_length_mm || 0))
-    : Math.round((Number(item.total_length_mm || 0)) / 10);
+    : displayLengthCm(Number(item.total_length_mm || 0));
   var diameterLabel = isPileAssembly ? ((Number(item.diameter || 0) / 10).toFixed(1).replace(/\.0$/, '') + ' cm') : String(item.diameter);
   var allowSplit = !item.virtual_card;
   var splitTools = !allowSplit ? '<div class="pc-screen-tools"><span class="pc-split-state">'+(isPileAssembly?'הרכבת כלונס':'רכיב כלונס')+'</span></div>' : totalCards > 1
@@ -1078,8 +1134,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-print-ref">'+printRef+'</div>';
   h += '<div class="pc-print-shape">'+shapeSvg+'</div>';
   h += isPileAssembly
-    ? '<div class="pc-print-bottom"><span>L = '+unitLengthCm+' cm</span><span>CAGES '+displayQty+'</span><span>'+wProp+' kg</span></div>'
-    : '<div class="pc-print-bottom"><span>UNIT '+unitLengthCm+' cm</span><span>PCS '+displayQty+'</span><span>TOTAL '+totalLengthCm+' cm</span><span>'+wProp+' kg</span></div>';
+    ? '<div class="pc-print-bottom"><span>L = '+totalLengthCm+' cm</span><span>CAGES '+displayQty+'</span></div>'
+    : '<div class="pc-print-bottom"><span>L = '+totalLengthCm+' cm</span><span>PCS '+displayQty+'</span></div>';
   h += '</div>';
   h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-code="'+escapeHtml(workerCode)+'"></div></div>';
   h += '</div>';
