@@ -36,7 +36,7 @@ module.exports = function createAuthRouter(deps) {
       userAgent: req.headers['user-agent'],
     });
     if (!result.ok) return res.status(result.status).json({ error: result.error });
-    res.setHeader('Set-Cookie', refreshCookie(result.refreshToken));
+    res.append('Set-Cookie', refreshCookie(result.refreshToken));
     res.json({ access_token: result.accessToken, user: result.user });
   });
 
@@ -46,7 +46,7 @@ module.exports = function createAuthRouter(deps) {
       userAgent: req.headers['user-agent'],
     });
     if (!result.ok) return res.status(result.status).json({ error: result.error });
-    res.setHeader('Set-Cookie', refreshCookie(result.refreshToken));
+    res.append('Set-Cookie', refreshCookie(result.refreshToken));
     res.json({ access_token: result.accessToken, user: result.user });
   });
 

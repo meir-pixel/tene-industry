@@ -22,6 +22,7 @@ const { createBrandingService } = require('./services/branding');
 const { createDeviceEnrollmentService } = require('./services/deviceEnrollment');
 const { createWorkerCardActivityService } = require('./services/workerCardActivity');
 const { createWorkerInvitationService, ensureWorkerInvitationSchema } = require('./services/workerInvitations');
+const { configureTrustedProxy, createAuthLoginLimiters } = require('./services/authRateLimit');
 const { createModuleLoader } = require('./services/moduleLoader');
 const { createModuleMapService } = require('./services/moduleMap');
 const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
@@ -95,6 +96,7 @@ const { createOrderFactory } = ordersService;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const app    = express();
+configureTrustedProxy(app);
 const server = http.createServer(app);
 const PORT   = process.env.PORT || 3000;
 const IS_TEST = process.env.NODE_ENV === 'test';
@@ -207,12 +209,7 @@ if (!process.env.JWT_SECRET && process.env.SESSION_SECRET && STRICT_SECRET_ENVS.
 const authService = createAuthService(db, { jwtSecret: runtimeJwtSecret });
 const authMiddleware = createAuthMiddleware({ authService, getRolePermission });
 const { applyAuthBypass, optionalAuth, verifyWhatsAppSignature } = authMiddleware;
-const authLoginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: process.env.NODE_ENV === 'test' ? 100 : 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const authLoginLimiter = createAuthLoginLimiters({ isTest: IS_TEST });
 const imageAnalysisLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,

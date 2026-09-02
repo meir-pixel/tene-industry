@@ -11,6 +11,8 @@ services:
         value: "3000"
       - key: NODE_ENV
         value: "production"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
       - key: DB_PATH
         value: "/data/ironbend.db"
       - key: BACKUP_DIR
