@@ -37,6 +37,7 @@ function ensureWorkerInvitationSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_worker_invitations_claimed_user
       ON worker_invitations(claimed_user_id);
   `);
+  try { db.exec("ALTER TABLE worker_invitations ADD COLUMN permissions_json TEXT NOT NULL DEFAULT '[]'"); } catch {}
 }
 
 function createInvitationUid() {
@@ -85,25 +86,27 @@ function createWorkerInvitationService({ getDb, now = () => new Date() }) {
       invitation_uid: row.invitation_uid,
       worker_name: row.worker_name,
       role: row.role,
+      permissions: parsePermissions(row.permissions_json),
       status: effectiveStatus(row),
       expires_at: row.expires_at,
     };
   }
 
-  function create({ workerName, phone, role, createdBy, createdByName }) {
+  function create({ workerName, phone, role, permissions = [], createdBy, createdByName }) {
     const db = getDb();
     const token = createInvitationToken();
     const expiresAt = new Date(now().getTime() + INVITATION_TTL_MS).toISOString();
     const result = db.prepare(`
       INSERT INTO worker_invitations
-        (invitation_uid,token_hash,worker_name,phone,role,expires_at,created_by,created_by_name)
-      VALUES (?,?,?,?,?,?,?,?)
+        (invitation_uid,token_hash,worker_name,phone,role,permissions_json,expires_at,created_by,created_by_name)
+      VALUES (?,?,?,?,?,?,?,?,?)
     `).run(
       createInvitationUid(),
       sha256(token),
       workerName,
       phone || null,
       role,
+      JSON.stringify(permissions),
       expiresAt,
       createdBy || null,
       createdByName || null,
@@ -145,6 +148,15 @@ function createWorkerInvitationService({ getDb, now = () => new Date() }) {
     markOpened,
     publicInvite,
   };
+}
+
+function parsePermissions(value) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 module.exports = {

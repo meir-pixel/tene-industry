@@ -94,6 +94,8 @@ function appUrl(token) { return `web+ironbend://open/card/${encodeURIComponent(t
 function customerScanUrl(token) { return `https://scan.example/customer-scan.html?code=${encodeURIComponent(token)}`; }
 
 test('one printed worker-card QR supports persisted, partial, fail-closed truck loading without package-label side effects', async (t) => {
+  db.prepare(`INSERT INTO settings (key,value,updated_at) VALUES ('QR_ACCESS_MODE','secure',CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value='secure',updated_at=CURRENT_TIMESTAMP`).run();
   seedApprovedDevice();
   seedUser('card-warehouse', 'warehouse', '7011');
   seedUser('card-office', 'office', '7012');
@@ -120,7 +122,7 @@ test('one printed worker-card QR supports persisted, partial, fail-closed truck 
   const packageBefore = db.prepare('SELECT status,shipped_at FROM packages WHERE id=?').get(packageId);
   const scansBefore = db.prepare('SELECT COUNT(*) AS count FROM scan_log').get().count;
 
-  assert.equal((await request('/api/loading/card-sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order_id: orderId }) })).status, 401);
+  assert.equal((await request('/api/loading/card-sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order_id: orderId }) })).status, 403);
   for (const denied of [office, production]) {
     assert.equal((await request('/api/loading/card-sessions', { method: 'POST', headers: authHeaders(denied), body: JSON.stringify({ order_id: orderId }) })).status, 403);
   }

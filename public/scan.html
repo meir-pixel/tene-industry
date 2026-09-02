@@ -53,15 +53,14 @@
       <h1>📷 סריקה בתוך IronBend</h1>
       <p class="lead">סרוק QR מטופס ייצור או מכרטיס עבודה. המערכת תזהה לאן לפתוח אותו.</p>
       <div class="device-gate" id="deviceGate">
-        <h2>אישור המכשיר לסריקה</h2>
-        <p id="deviceExplanation">חיבור מכשיר חדש נעשה רק מתוך קישור אישי שהמנהל שלח בוואטסאפ. לאחר הרישום מנהל מאשר את העובד ואת המכשיר.</p>
+        <h2>הפעלת מכשיר במצב מאובטח</h2>
+        <p id="deviceExplanation">חיבור מכשיר נעשה פעם אחת מתוך קישור אישי שהמנהל שלח בוואטסאפ. אין צורך בסיסמה או בקוד יומי.</p>
         <div class="device-fields" id="deviceFields" hidden>
           <input id="requesterName" autocomplete="name" maxlength="80" placeholder="שם העובד / המבקש">
           <input id="deviceName" maxlength="100" placeholder="שם המכשיר, למשל: טלפון מחסן">
         </div>
         <div class="device-actions">
           <button id="requestApproval" type="button" onclick="showInvitationRequired()">נדרש קישור הזמנה אישי</button>
-          <button id="deviceLogin" class="secondary" type="button" onclick="goToLogin()" hidden>התחבר כדי לסרוק</button>
           <span class="device-state" id="deviceState">בודק את מצב המכשיר…</span>
         </div>
       </div>
@@ -80,8 +79,8 @@
           <button class="secondary" type="button" onclick="openScannedValue(document.getElementById('scanInput').value)">פתח קוד</button>
         </div>
       </div>
-      <div class="notice" id="notice" role="status" aria-live="polite">נדרש מכשיר מאושר ומשתמש מחובר לפני פתיחת המצלמה.</div>
-      <p class="privacy">אותו QR במצלמה רגילה פותח רק את פורטל הלקוחות. מסכי עבודה ונתוני ייצור נפתחים רק כאן, במכשיר מאושר ועם משתמש מחובר.</p>
+      <div class="notice" id="notice" role="status" aria-live="polite">בודק את מצב הסריקה…</div>
+      <p class="privacy">נדרשת הרשאת מצלמה בלבד. אין שימוש ב־GPS ואין בקשת הרשאת מיקום.</p>
     </section>
   </main>
   <script src="/auth-client.js"></script>
@@ -93,11 +92,19 @@
     let scanTimer=null;
     let opening=false;
     let deviceApproved=false;
+    let accessMode='open';
     let approvalTimer=null;
     const DEVICE_KEY='ironbend_device_credential_v1';
     const launchParams=new URLSearchParams(location.search);
     const protocolLaunch=launchParams.get('protocol')||'';
     const nativeScanLaunch=launchParams.get('native_scan')||'';
+    const OPEN_SCANNER_KEY='ironbend_open_scanner_id_v1';
+
+    function scannerId(){
+      let value=localStorage.getItem(OPEN_SCANNER_KEY)||'';
+      if(!value){value=(crypto.randomUUID?.()||`scan-${Date.now()}-${Math.random().toString(16).slice(2)}`);localStorage.setItem(OPEN_SCANNER_KEY,value);}
+      return value;
+    }
 
     function setNotice(message,error=false){
       const el=document.getElementById('notice');
@@ -140,18 +147,29 @@
       if(cardMatch)return {kind:'card',value};
       return null;
     }
-    function openScannedValue(raw){
+    async function openScannedValue(raw){
       if(opening)return;
-      if(!deviceApproved){setNotice('המכשיר עדיין לא אושר לסריקה.',true);return;}
-      if(!window.IronBendAuth?.accessToken?.()){goToLogin();return;}
+      if(accessMode==='secure'&&!deviceApproved){setNotice('המכשיר עדיין לא הופעל לסריקה מאובטחת.',true);return;}
       const parsed=normalizedScan(raw);
       if(!parsed){setNotice('הקוד שנסרק אינו קוד IronBend תקין.',true);return;}
       opening=true;
       stopScanner();
-      setNotice('הקוד זוהה. פותח את המסך המתאים…');
-      location.href=parsed.kind==='order'
-        ? `/warehouse.html?load_order=${encodeURIComponent(parsed.orderId)}&autostart=1&source=in_app_scan`
-        : `/worker-visual.html?scan=1&card=${encodeURIComponent(parsed.value)}&source=in_app_scan`;
+      setNotice('הקוד זוהה. בודק הרשאה בצד השרת…');
+      try{
+        const response=await fetch('/api/qr-access/scan',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({kind:parsed.kind,value:parsed.value,order_id:parsed.orderId||null,scanner_id:scannerId()}),
+        });
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok){
+          opening=false;
+          if(response.status===403){accessMode='secure';document.getElementById('deviceGate').hidden=false;renderDeviceStatus({status:result.device_status||'unregistered'});}
+          setNotice(result.error==='qr_permission_denied'?'אין לעובד הרשאה לפעולה שב־QR הזה.':'המכשיר אינו מופעל. יש לפתוח את קישור ההפעלה האישי שנשלח בוואטסאפ.',true);
+          return;
+        }
+        setNotice('ההרשאה אושרה. פותח את המסך המתאים…');
+        location.href=result.target;
+      }catch(_){opening=false;setNotice('לא ניתן לבדוק את הסריקה כרגע. נסה שוב.',true);}
     }
     function scheduleScan(){
       if(scanTimer)clearTimeout(scanTimer);
@@ -183,8 +201,7 @@
       scheduleScan();
     }
     async function startScanner(){
-      if(!deviceApproved){setNotice('יש להמתין לאישור המכשיר לפני פתיחת המצלמה.',true);return;}
-      if(!window.IronBendAuth?.accessToken?.()){goToLogin();return;}
+      if(accessMode==='secure'&&!deviceApproved){setNotice('יש להפעיל את המכשיר בקישור האישי לפני פתיחת המצלמה.',true);return;}
       if(cameraStream){scheduleScan();return;}
       if(!navigator.mediaDevices?.getUserMedia||(!('BarcodeDetector' in window)&&!window.jsQR)){
         setNotice('הדפדפן במכשיר זה אינו תומך בסריקה אוטומטית. ניתן להזין את הקוד בשדה.',true);
@@ -221,11 +238,6 @@
     });
     window.addEventListener('pagehide',stopScanner);
 
-    function goToLogin(){
-      const next=location.pathname+location.search;
-      location.href='/login.html?next='+encodeURIComponent(next);
-    }
-
     function deviceStatusLabel(status){
       return ({
         unregistered:'טרם נשלחה בקשה',
@@ -246,7 +258,6 @@
       const state=document.getElementById('deviceState');
       const fields=document.getElementById('deviceFields');
       const requestButton=document.getElementById('requestApproval');
-      const loginButton=document.getElementById('deviceLogin');
       const scannerControls=document.getElementById('scannerControls');
       state.textContent=deviceStatusLabel(status);
       state.className=`device-state ${status}`;
@@ -255,9 +266,7 @@
       requestButton.hidden=status!=='unregistered';
       requestButton.textContent='נדרש קישור הזמנה אישי';
 
-      const loggedIn=Boolean(window.IronBendAuth?.accessToken?.());
-      loginButton.hidden=!deviceApproved||loggedIn;
-      scannerControls.hidden=!deviceApproved||!loggedIn;
+      scannerControls.hidden=!deviceApproved;
       if(data?.requester_name&&!document.getElementById('requesterName').value){
         document.getElementById('requesterName').value=data.requester_name;
       }
@@ -266,12 +275,10 @@
       }
 
       if(status==='pending'){
-        setNotice('הבקשה נשלחה. המסך יתעדכן אוטומטית לאחר שהמנהל יאשר.');
+        setNotice('ההפעלה טרם הושלמה. יש לפתוח שוב את הקישור האישי.',true);
         scheduleApprovalCheck();
-      }else if(deviceApproved&&!loggedIn){
-        setNotice('המכשיר אושר. כעת יש להתחבר עם משתמש מורשה.',true);
       }else if(deviceApproved){
-        setNotice('המכשיר מאושר והמשתמש מחובר. אפשר לפתוח מצלמה ולסרוק.');
+        setNotice('המכשיר מופעל. אפשר לפתוח מצלמה ולסרוק בלי סיסמה.');
         const launchValue=nativeScanLaunch||protocolLaunch;
         if(launchValue&&!opening)setTimeout(()=>openScannedValue(launchValue),0);
       }else if(status==='rejected'||status==='revoked'){
@@ -292,13 +299,36 @@
       }
     }
 
+    async function loadAccessMode(){
+      try{
+        const response=await fetch('/api/qr-access/mode');
+        const data=await response.json();
+        accessMode=data.mode==='secure'?'secure':'open';
+        if(accessMode==='open'){
+          deviceApproved=true;
+          document.getElementById('deviceGate').hidden=true;
+          document.getElementById('scannerControls').hidden=false;
+          setNotice('מצב פתוח פעיל. אפשר לפתוח מצלמה ולסרוק.');
+          const launchValue=nativeScanLaunch||protocolLaunch;
+          if(launchValue&&!opening)setTimeout(()=>openScannedValue(launchValue),0);
+          return;
+        }
+        document.getElementById('deviceGate').hidden=false;
+        await loadDeviceStatus();
+      }catch(_){
+        accessMode='open';deviceApproved=true;
+        document.getElementById('deviceGate').hidden=true;
+        document.getElementById('scannerControls').hidden=false;
+        setNotice('אפשר לסרוק. בדיקת ההרשאה הסופית תתבצע בשרת בעת פתיחת ה־QR.');
+      }
+    }
+
     function showInvitationRequired(){
       setNotice('פתח את קישור ההזמנה האישי שקיבלת בוואטסאפ. מטעמי אבטחה אי אפשר להירשם מכאן ללא הזמנה.',true);
     }
 
     document.getElementById('deviceName').value=(navigator.userAgentData?.platform||navigator.platform||'טלפון')+' · IronBend';
-    loadDeviceStatus();
+    loadAccessMode();
   </script>
-  <script src="/nav.js"></script>
 </body>
 </html>

@@ -278,15 +278,17 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.equal(item.status, statusContracts.ITEM_STATUS.WAITING);
   });
 
-  await t.test('scanned worker card requires login and an approved device', async () => {
+  await t.test('secure-mode worker card requires an activated device', async () => {
+    db.prepare(`INSERT INTO settings (key,value,updated_at) VALUES ('QR_ACCESS_MODE','secure',CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value='secure',updated_at=CURRENT_TIMESTAMP`).run();
     const approved = seedOrderWithItem('PB-PUBLIC-WORKER-CARD', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
     const card = `${approved.orderNum}-${String(approved.itemId).padStart(6, '0')}`;
-    assert.equal((await request(`/api/worker-card?card=${encodeURIComponent(card)}`)).status, 401);
+    assert.equal((await request(`/api/worker-card?card=${encodeURIComponent(card)}`)).status, 403);
     const withoutDevice = await request(`/api/worker-card?card=${encodeURIComponent(card)}`, {
       headers: { Authorization: `Bearer ${production}` },
     });
     assert.equal(withoutDevice.status, 403);
-    assert.equal((await withoutDevice.json()).error, 'device_approval_required');
+    assert.equal((await withoutDevice.json()).error, 'device_activation_required');
 
     const view = await request(`/api/worker-card?card=${encodeURIComponent(card)}`, { headers });
     assert.equal(view.status, 200);

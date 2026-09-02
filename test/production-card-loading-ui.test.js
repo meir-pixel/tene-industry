@@ -12,7 +12,7 @@ const customerScanPage = fs.readFileSync(path.join(__dirname, '..', 'public', 'c
 const navigation = fs.readFileSync(path.join(__dirname, '..', 'public', 'nav.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'public', 'manifest.json'), 'utf8'));
 
-test('public QR opens customer registration while only the authenticated work scanner routes production codes', () => {
+test('public QR opens customer registration while the in-app scanner server-authorizes production codes', () => {
   assert.match(orderPrintRoute, /customerScanUrl\(req, `TENE-ORDER-/);
   assert.doesNotMatch(orderPrintRoute, /web\+ironbend:\/\/open\/order\//);
   assert.match(orderPrintRoute, /QRCode\.toDataURL\(orderQrToken/);
@@ -34,7 +34,8 @@ test('public QR opens customer registration while only the authenticated work sc
   assert.match(scannerPage, /customer-scan/);
   assert.match(scannerPage, /web\+ironbend/);
   assert.match(scannerPage, /BarcodeDetector/);
-  assert.match(scannerPage, /worker-visual\.html\?scan=1&card=/);
+  assert.match(scannerPage, /\/api\/qr-access\/scan/);
+  assert.match(scannerPage, /location\.href=result\.target/);
   assert.match(navigation, /href:'\/scan\.html'/);
   assert.match(navigation, /BOTTOM_IDS = \['dashboard', 'scanner'/);
   assert.match(customerScanPage, /href="\/customer\.html\?source=qr"/);

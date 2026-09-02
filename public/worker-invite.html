@@ -29,10 +29,8 @@
 
     <form id="registrationForm" hidden onsubmit="activateWorker(event)">
       <label>שם העובד<input id="workerName" readonly></label>
-      <label>שם משתמש אישי<input id="username" autocomplete="username" maxlength="80" required placeholder="למשל: david.cohen"></label>
-      <label>קוד PIN אישי (4–8 ספרות)<input id="pin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="8" pattern="[0-9]{4,8}" required></label>
       <label>שם המכשיר<input id="deviceName" maxlength="100" required placeholder="למשל: הטלפון של דוד"></label>
-      <button id="activateButton" type="submit">שלח בקשה והפעל את המכשיר</button>
+      <button id="activateButton" type="submit">הפעל את המכשיר</button>
     </form>
 
     <div class="notice" id="notice" role="status" aria-live="polite">טוען…</div>
@@ -41,7 +39,7 @@
       באנדרואיד אפשר לבחור “התקן אפליקציה” בדפדפן. באייפון בוחרים שיתוף ואז “הוסף למסך הבית”.
       <br><button id="installButton" type="button" hidden>התקן אפליקציית עובדים</button>
     </div>
-    <p class="small">שליחת הבקשה אינה נותנת גישה עדיין. מנהל המפעל צריך לאשר את העובד ואת המכשיר לפני שאפשר לסרוק או לעבוד.</p>
+    <p class="small">הקישור אישי וחד־פעמי. לאחר ההפעלה נשמר במכשיר Token מאובטח, ואין צורך בסיסמה או בקוד נוסף בכל יום.</p>
   </section></main>
   <script>
     const DEVICE_KEY = 'ironbend_device_credential_v1';
@@ -59,8 +57,7 @@
         invitation_cancelled:'ההזמנה בוטלה. יש לפנות למנהל.',
         invitation_already_used:'הקישור כבר הופעל. יש לפתוח את אפליקציית העובדים או לפנות למנהל.',
         invitation_not_found:'הקישור אינו תקין.',
-        username_already_exists:'שם המשתמש כבר קיים. יש לבחור שם אחר.',
-        worker_registration_details_required:'יש למלא שם משתמש, PIN ושם מכשיר תקינים.',
+        worker_registration_details_required:'יש להזין שם מכשיר תקין.',
       })[code] || 'לא ניתן להשלים את הבקשה. נסה שוב או פנה למנהל.';
     }
     function roleLabel(role) {
@@ -102,14 +99,12 @@
       event.preventDefault();
       const button = document.getElementById('activateButton');
       button.disabled = true;
-      setNotice('שולח בקשה לאישור…');
+      setNotice('מפעיל את המכשיר…');
       try {
         const response = await fetch('/api/worker-invitations/activation', {
           method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             token: invitationToken,
-            username: document.getElementById('username').value,
-            pin: document.getElementById('pin').value,
             device_name: document.getElementById('deviceName').value,
             platform: navigator.userAgent,
           }),
@@ -119,7 +114,7 @@
         localStorage.setItem(DEVICE_KEY, result.device_credential);
         invitationToken = '';
         document.getElementById('registrationForm').hidden = true;
-        setNotice('הבקשה נשלחה. לאחר אישור המנהל אפשר יהיה להתחבר ולסרוק. פותח את מסך הסריקה…');
+        setNotice('המכשיר הופעל בהצלחה. מעכשיו אפשר לסרוק בלי סיסמה. פותח את מסך הסריקה…');
         setTimeout(() => { location.replace('/scan.html?enrolled=1'); }, 1200);
       } catch (error) {
         setNotice(errorText(error.message), true);

@@ -40,7 +40,7 @@ async function login(username, pin) {
   return (await response.json()).access_token;
 }
 
-test('a personal worker invitation expires, creates a pending person/device pair, and approval activates it', async (t) => {
+test('a personal worker invitation activates one passwordless device with server-side QR permissions', async (t) => {
   seedUser('invite-admin', 'admin', '7701');
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -61,13 +61,14 @@ test('a personal worker invitation expires, creates a pending person/device pair
   const adminHeaders = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
   const create = await request('/api/worker-invitations', {
     method: 'POST', headers: adminHeaders,
-    body: JSON.stringify({ worker_name: 'דוד כהן', phone: '050-1234567', role: 'production' }),
+    body: JSON.stringify({ worker_name: 'דוד כהן', phone: '050-1234567', role: 'production', permissions: ['production'] }),
   });
   assert.equal(create.status, 201);
   const created = await create.json();
   const activation = new URL(created.activation_url);
   const rawToken = activation.searchParams.get('token');
   assert.match(rawToken, /^WINV-[A-F0-9]{16}\./);
+  assert.match(created.activation_qr_data_url, /^data:image\/png;base64,/);
   assert.equal(created.invitation.status, 'pending');
 
   const inspect = await request(`/api/worker-invitations/activation?token=${encodeURIComponent(rawToken)}`);
@@ -78,48 +79,74 @@ test('a personal worker invitation expires, creates a pending person/device pair
 
   const claim = await request('/api/worker-invitations/activation', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: rawToken, username: 'david.cohen', pin: '1234', device_name: 'טלפון דוד', platform: 'Android' }),
+    body: JSON.stringify({ token: rawToken, device_name: 'טלפון דוד', platform: 'Android' }),
   });
   assert.equal(claim.status, 201);
   const claimed = await claim.json();
-  assert.equal(claimed.status, 'pending_approval');
+  assert.equal(claimed.status, 'approved');
+  assert.deepEqual(claimed.permissions, ['production']);
   assert.match(claimed.device_credential, /^DEV-[A-F0-9]{16}\./);
 
-  const inactiveUser = db.prepare('SELECT id,active,role,phone FROM users WHERE username=?').get('david.cohen');
-  assert.equal(inactiveUser.active, 0);
-  assert.equal(inactiveUser.role, 'production');
-  assert.equal(inactiveUser.phone, '050-1234567');
-  const device = db.prepare('SELECT * FROM device_enrollment_requests WHERE requester_user_id=?').get(inactiveUser.id);
-  assert.equal(device.status, 'pending');
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM users WHERE username='david.cohen'").get().count, 0);
+  const device = db.prepare('SELECT * FROM device_enrollment_requests WHERE invitation_id IS NOT NULL').get();
+  assert.equal(device.status, 'approved');
+  assert.equal(device.worker_role, 'production');
+  assert.deepEqual(JSON.parse(device.permissions_json), ['production']);
   assert.ok(device.invitation_id);
-
-  const earlyLogin = await request('/api/auth/login', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'david.cohen', pin: '1234' }),
-  });
-  assert.equal(earlyLogin.status, 401);
-
-  const approval = await request(`/api/device-enrollment/requests/${device.id}`, {
-    method: 'PATCH', headers: adminHeaders, body: JSON.stringify({ status: 'approved' }),
-  });
-  assert.equal(approval.status, 200);
-  assert.equal(db.prepare('SELECT active FROM users WHERE id=?').get(inactiveUser.id).active, 1);
-
-  const workerToken = await login('david.cohen', '1234');
-  assert.ok(workerToken);
   const status = await request('/api/device-enrollment/status', { headers: { 'X-IronBend-Device': claimed.device_credential } });
   assert.equal((await status.json()).status, 'approved');
 
+  assert.equal((await request('/api/qr-access/mode')).status, 200);
+  assert.equal((await (await request('/api/qr-access/mode')).json()).mode, 'open');
+  const openScan = await request('/api/qr-access/scan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'card', value: 'ORDER-000001', scanner_id: 'open-test-scanner' }),
+  });
+  assert.equal(openScan.status, 200);
+  const secureMode = await request('/api/qr-access/mode', {
+    method: 'PATCH', headers: adminHeaders, body: JSON.stringify({ mode: 'secure' }),
+  });
+  const secureModeBody = await secureMode.json();
+  assert.equal(secureMode.status, 200, JSON.stringify(secureModeBody));
+  const productionScan = await request('/api/qr-access/scan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-IronBend-Device': claimed.device_credential },
+    body: JSON.stringify({ kind: 'card', value: 'ORDER-000001', scanner_id: 'test-scanner' }),
+  });
+  assert.equal(productionScan.status, 200);
+  const warehouseDenied = await request('/api/qr-access/scan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-IronBend-Device': claimed.device_credential },
+    body: JSON.stringify({ kind: 'order', value: 'TENE-ORDER-1', order_id: 1 }),
+  });
+  assert.equal(warehouseDenied.status, 403);
+  assert.equal((await warehouseDenied.json()).error, 'qr_permission_denied');
+  const revoke = await request(`/api/device-enrollment/requests/${device.id}`, {
+    method: 'PATCH', headers: adminHeaders, body: JSON.stringify({ status: 'revoked' }),
+  });
+  assert.equal(revoke.status, 200);
+  const revokedScan = await request('/api/qr-access/scan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-IronBend-Device': claimed.device_credential },
+    body: JSON.stringify({ kind: 'card', value: 'ORDER-000001' }),
+  });
+  assert.equal(revokedScan.status, 403);
+  assert.equal((await revokedScan.json()).error, 'device_activation_required');
+  const activity = db.prepare('SELECT access_mode,permission,outcome,actor_name FROM qr_scan_activity ORDER BY id').all();
+  assert.deepEqual(activity.map(row => [row.access_mode, row.permission, row.outcome, row.actor_name]), [
+    ['open', 'production', 'allowed', 'סריקה פתוחה'],
+    ['secure', 'production', 'allowed', 'דוד כהן'],
+    ['secure', 'warehouse', 'qr_permission_denied', 'דוד כהן'],
+    ['secure', 'production', 'device_activation_required', 'דוד כהן'],
+  ]);
+
   const reused = await request('/api/worker-invitations/activation', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: rawToken, username: 'another.worker', pin: '1234', device_name: 'טלפון אחר' }),
+    body: JSON.stringify({ token: rawToken, device_name: 'טלפון אחר' }),
   });
   assert.equal(reused.status, 409);
   assert.equal((await reused.json()).error, 'invitation_already_used');
 
   const expiring = await request('/api/worker-invitations', {
     method: 'POST', headers: adminHeaders,
-    body: JSON.stringify({ worker_name: 'נועה לוי', role: 'warehouse' }),
+    body: JSON.stringify({ worker_name: 'נועה לוי', phone: '052-1234567', role: 'warehouse' }),
   });
   const expiringBody = await expiring.json();
   const expiredToken = new URL(expiringBody.activation_url).searchParams.get('token');

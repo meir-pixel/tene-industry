@@ -136,6 +136,7 @@ function createSettingsService(db) {
     ['LICENSE_KEY',                    9, 'מפתח רישיון',               'מפתח ייחודי לקוח מ-Tene Industry',          'password', '',  null, null, null,   1, 'hidden', 3],
     ['LICENSE_SERVER',                 9, 'שרת רישיונות',              'כתובת שרת Tene Industry',                   'url',      'https://license.tene-ind.com', null, null, null, 1, 'hidden', 4],
     ['ACTIVE_INDUSTRY_MODULE',        9, 'מודול תעשייה פעיל',         'איזה מודול תעשייה המערכת מריצה',              'string',   'steel-rebar', null, null, null, 1, 'read',   5],
+    ['QR_ACCESS_MODE',                9, 'מצב סריקת QR',               'open=סריקה חופשית; secure=מכשירים אישיים מאושרים בלבד', 'string', 'open', null, null, null, 0, 'edit', 6],
   ];
 
   defs.forEach(d => defSeed.run(...d));
@@ -163,6 +164,10 @@ function createSettingsService(db) {
 
   /** שמור ערך עם audit */
   function set(key, value, { updatedBy = null } = {}) {
+    // On a brand-new database this service is constructed just before the
+    // legacy core creates `settings`, so the eager ALTER above may have had
+    // nothing to alter yet. Keep writes self-healing for that startup order.
+    try { db.exec(`ALTER TABLE settings ADD COLUMN updated_by TEXT`); } catch {}
     db.prepare(`
       INSERT INTO settings (key, value, updated_at, updated_by)
       VALUES (?, ?, CURRENT_TIMESTAMP, ?)

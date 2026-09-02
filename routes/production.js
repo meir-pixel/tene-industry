@@ -14,6 +14,7 @@ module.exports = function createProductionRouter(deps) {
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const requireRole = required('requireRole', deps.requireRole);
   const requireApprovedDevice = required('requireApprovedDevice', deps.requireApprovedDevice);
+  const requireQrPermission = required('requireQrPermission', deps.requireQrPermission);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
   const modbus = required('modbus', deps.modbus);
   const statusContracts = required('statusContracts', deps.statusContracts);
@@ -362,7 +363,7 @@ module.exports = function createProductionRouter(deps) {
     checkOrderComplete,
   }));
 
-  router.get('/worker-card', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
+  router.get('/worker-card', requireQrPermission('production'), (req, res) => {
     const parsed = parseWorkerCardToken(req.query.card);
     if (!parsed?.itemId) return res.status(400).json({ error: 'invalid_worker_card_token' });
     const item = selectWorkerCardById(parsed.itemId);
@@ -371,7 +372,7 @@ module.exports = function createProductionRouter(deps) {
     res.json({ items: [item], grouped: {} });
   });
 
-  router.patch('/worker-card/:id/status', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
+  router.patch('/worker-card/:id/status', requireQrPermission('production'), (req, res) => {
     const status = req.body?.status;
     if (!statusContracts.isValidItemStatus(status)) return res.status(400).json({ error: 'invalid status', allowed: statusContracts.VALID_ITEM_STATUSES });
     if (![ITEM_STATUS.WAITING, ITEM_STATUS.IN_PRODUCTION, ITEM_STATUS.DONE, ITEM_STATUS.DELIVERED].includes(status)) {
@@ -392,7 +393,7 @@ module.exports = function createProductionRouter(deps) {
     res.json({ ok: true, order_status: orderStatus, consumedReservations });
   });
 
-  router.patch('/worker-card/:id', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
+  router.patch('/worker-card/:id', requireQrPermission('production'), (req, res) => {
     const forbiddenFields = forbiddenProductionPatchFields(req.body);
     if (forbiddenFields.length) {
       return res.status(400).json({ error: 'non_production_fields_forbidden', fields: forbiddenFields });

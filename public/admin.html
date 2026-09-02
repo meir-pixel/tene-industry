@@ -738,18 +738,18 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <div class="tab-toolbar">
           <div>
             <div class="tab-heading">✉️ הזמנות אישיות לעובדים</div>
-            <div class="tab-subtitle">יוצרים קישור אישי לוואטסאפ. הקישור תקף ל־15 דקות, נרשם על שם עובד אחד, ולא נותן גישה לפני אישור המכשיר.</div>
+            <div class="tab-subtitle">יוצרים קישור אישי לוואטסאפ. הקישור תקף ל־15 דקות ומפעיל מכשיר אחד בלבד — בלי סיסמה ובלי WhatsApp API.</div>
           </div>
           <button class="btn btn-outline" onclick="loadWorkerInvitations()">רענן</button>
         </div>
         <div class="permission-note">
-          שולחים את הקישור רק לעובד המיועד. לאחר שהעובד ממלא פרטים, הבקשה תופיע גם ב״אישור מכשירים״. אישור המכשיר מפעיל את משתמש העובד.
+          שולחים את הקישור רק למספר שאושר. העובד פותח אותו פעם אחת במכשיר שלו, וה־Token נשמר בדפדפן. אפשר לבטל את המכשיר בכל עת.
         </div>
         <div class="user-form" style="display:block;margin-top:0">
           <div class="user-form-title">הזמנה חדשה</div>
           <div class="user-form-grid">
             <div class="inline-field"><label>שם העובד</label><input id="workerInviteName" maxlength="100" placeholder="שם מלא" autocomplete="name"></div>
-            <div class="inline-field"><label>טלפון (אופציונלי)</label><input id="workerInvitePhone" maxlength="30" placeholder="050-0000000" inputmode="tel"></div>
+            <div class="inline-field"><label>טלפון מאושר</label><input id="workerInvitePhone" maxlength="30" placeholder="050-0000000" inputmode="tel" required></div>
             <div class="inline-field"><label>תפקיד</label>
               <select id="workerInviteRole">
                 <option value="production">ייצור</option>
@@ -759,11 +759,16 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
                 <option value="maintenance">תחזוקה</option>
               </select>
             </div>
+            <div class="inline-field"><label>הרשאות QR</label>
+              <label style="display:flex;gap:7px;align-items:center;font-weight:700"><input id="workerInviteProduction" type="checkbox" checked style="width:auto"> פעולות ייצור</label>
+              <label style="display:flex;gap:7px;align-items:center;font-weight:700"><input id="workerInviteWarehouse" type="checkbox" style="width:auto"> פעולות מחסן/העמסה</label>
+            </div>
           </div>
           <div class="inline-actions"><button class="btn btn-primary" onclick="createWorkerInvitation()">צור קישור ל־15 דקות</button></div>
           <div id="workerInviteCreated" hidden style="margin-top:12px;padding:12px;border:1px solid var(--success);border-radius:10px;background:var(--success-bg)">
             <strong>הקישור נוצר. העתק ושלח אותו לעובד בוואטסאפ:</strong>
-            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input id="workerInviteLink" readonly style="flex:1;min-width:220px;padding:8px;border:1px solid var(--border);border-radius:8px;direction:ltr"><button class="btn btn-outline" onclick="copyWorkerInvitation()">העתק קישור</button></div>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input id="workerInviteLink" readonly style="flex:1;min-width:220px;padding:8px;border:1px solid var(--border);border-radius:8px;direction:ltr"><button class="btn btn-outline" onclick="copyWorkerInvitation()">העתק קישור</button><a id="workerInviteWhatsApp" class="btn btn-primary" href="#" target="_blank" rel="noopener">פתח WhatsApp</a></div>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px"><img id="workerInviteQr" hidden alt="QR אישי להפעלת העובד" width="180" height="180" style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:6px"><div><button class="btn btn-outline" onclick="downloadWorkerInvitationQr()">הורד QR כתמונה</button><button class="btn btn-primary" style="margin-top:7px" onclick="shareWorkerInvitationQr()">שתף QR מהטלפון</button></div></div>
           </div>
         </div>
         <div class="admin-table-wrap" style="margin-top:16px">
@@ -776,10 +781,19 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
 
       <!-- TAB: APPROVED SCANNING DEVICES -->
       <div id="tab-devices" class="tab-pane tab-content-pad">
+        <div class="permission-note" style="margin-bottom:14px">
+          <strong>מצב סריקה פעיל:</strong>
+          <select id="qrAccessMode" style="margin-inline:8px;padding:7px 10px;border:1px solid var(--border);border-radius:8px">
+            <option value="open">פתוח — כולם יכולים לסרוק</option>
+            <option value="secure">מאובטח — מכשירים שהופעלו בלבד</option>
+          </select>
+          <button class="btn btn-primary" onclick="saveQrAccessMode()">שמור מצב</button>
+          <div id="qrAccessModeHint" style="margin-top:8px">ברירת המחדל היא מצב פתוח כדי שהסריקות הקיימות ימשיכו לעבוד.</div>
+        </div>
         <div class="tab-toolbar">
           <div>
             <div class="tab-heading">📱 אישור מכשירי סריקה</div>
-            <div class="tab-subtitle">רק מכשיר מאושר עם משתמש מחובר יכול לפתוח QR של טופס ייצור או כרטיס עבודה.</div>
+            <div class="tab-subtitle">במצב מאובטח רק מכשיר שהופעל בקישור אישי יכול לפתוח QR, לפי הרשאות העובד.</div>
           </div>
           <div class="audit-tools">
             <select id="deviceStatusFilter" onchange="loadDeviceRequests()">
@@ -809,6 +823,8 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
             <tbody id="deviceRequestsTableBody"></tbody>
           </table>
         </div>
+        <div class="tab-toolbar" style="margin-top:20px"><div><div class="tab-heading">יומן פעילות QR</div><div class="tab-subtitle">מי סרק, איזה QR נפתח, ומה הייתה תוצאת בדיקת השרת.</div></div><button class="btn btn-outline" onclick="loadQrActivity()">רענן</button></div>
+        <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>זמן</th><th>עובד/מכשיר</th><th>QR</th><th>פעולה</th><th>תוצאה</th></tr></thead><tbody id="qrActivityTableBody"></tbody></table></div>
       </div>
 
       <!-- TAB: AUDIT LOG -->
@@ -928,7 +944,7 @@ function showTab(id, btn) {
   if (id === 'permissions') renderPermissions();
   if (id === 'users') loadUsers();
   if (id === 'worker-invites') loadWorkerInvitations();
-  if (id === 'devices') loadDeviceRequests();
+  if (id === 'devices') { loadDeviceRequests(); loadQrAccessMode(); loadQrActivity(); }
   history.replaceState(null, '', `${location.pathname}?tab=${encodeURIComponent(id)}`);
 }
 
@@ -1514,7 +1530,7 @@ function openInitialTabFromUrl() {
     showTab(id, btn);
     if (id === 'users') loadUsers();
     if (id === 'worker-invites') loadWorkerInvitations();
-    if (id === 'devices') loadDeviceRequests();
+    if (id === 'devices') { loadDeviceRequests(); loadQrAccessMode(); loadQrActivity(); }
   }
 }
 
@@ -1599,12 +1615,14 @@ async function toggleUser(id, active) {
 
 // ── PERSONAL WORKER INVITATIONS ─────────────────────────────────
 let workerInvitationsData = [];
+let workerInviteQrDataUrl = '';
+let workerInviteShareMessage = '';
 const WORKER_INVITE_STATUS_LABELS = {
-  pending:'ממתין לפתיחת קישור', opened:'הקישור נפתח', claimed:'ממתין לאישור מכשיר',
+  pending:'ממתין לפתיחת קישור', opened:'הקישור נפתח', claimed:'המכשיר הופעל',
   expired:'פג תוקף', cancelled:'בוטלה'
 };
 const WORKER_INVITE_STATUS_COLORS = {
-  pending:'#805500', opened:'#1560a8', claimed:'#805500', expired:'var(--muted)', cancelled:'var(--danger)'
+  pending:'#805500', opened:'#1560a8', claimed:'var(--success)', expired:'var(--muted)', cancelled:'var(--danger)'
 };
 
 function workerInviteDate(value) {
@@ -1612,9 +1630,9 @@ function workerInviteDate(value) {
 }
 
 function workerInviteDevice(row) {
-  if (!row.claimed_username) return 'טרם נרשם';
-  const device = row.device_name ? `${escHtml(row.device_name)} · ${DEVICE_STATUS_LABELS[row.device_status] || row.device_status || 'ממתין'}` : 'ממתין לרישום מכשיר';
-  return `<strong>${escHtml(row.claimed_user_name || row.claimed_username)}</strong><div style="font-size:11px;color:var(--muted)">${escHtml(row.claimed_username)} · ${device}</div>`;
+  if (!row.device_id) return 'טרם הופעל';
+  const device = row.device_name ? `${escHtml(row.device_name)} · ${DEVICE_STATUS_LABELS[row.device_status] || row.device_status || 'מאושר'}` : 'מכשיר מופעל';
+  return `<strong>${escHtml(row.worker_name)}</strong><div style="font-size:11px;color:var(--muted)">${device}</div>`;
 }
 
 async function loadWorkerInvitations() {
@@ -1645,18 +1663,94 @@ async function createWorkerInvitation() {
   const workerName = document.getElementById('workerInviteName').value.trim();
   const phone = document.getElementById('workerInvitePhone').value.trim();
   const role = document.getElementById('workerInviteRole').value;
+  const permissions = [];
+  if (document.getElementById('workerInviteProduction').checked) permissions.push('production');
+  if (document.getElementById('workerInviteWarehouse').checked) permissions.push('warehouse');
   if (workerName.length < 2) return toast('יש להזין שם עובד', true);
+  if (phone.replace(/\D/g,'').length < 9) return toast('יש להזין מספר טלפון מאושר', true);
+  if (!permissions.length) return toast('יש לבחור לפחות הרשאת QR אחת', true);
   const response = await fetch('/api/worker-invitations', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ worker_name:workerName, phone, role })
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ worker_name:workerName, phone, role, permissions })
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.activation_url) return toast(result.error || 'יצירת הקישור נכשלה. יש לוודא שכתובת הענן מוגדרת.', true);
   document.getElementById('workerInviteLink').value = result.activation_url;
+  workerInviteQrDataUrl = result.activation_qr_data_url || '';
+  workerInviteShareMessage = result.whatsapp_message || result.activation_url;
+  const qrImage = document.getElementById('workerInviteQr');
+  qrImage.src = workerInviteQrDataUrl; qrImage.hidden = !workerInviteQrDataUrl;
+  const waDigits = phone.replace(/\D/g,'').replace(/^0/,'972');
+  document.getElementById('workerInviteWhatsApp').href = `https://wa.me/${waDigits}?text=${encodeURIComponent(result.whatsapp_message || result.activation_url)}`;
   document.getElementById('workerInviteCreated').hidden = false;
   document.getElementById('workerInviteName').value = '';
   document.getElementById('workerInvitePhone').value = '';
   toast('✓ קישור אישי נוצר. תוקפו 15 דקות');
   loadWorkerInvitations();
+}
+
+function downloadWorkerInvitationQr() {
+  if (!workerInviteQrDataUrl) return toast('תמונת ה־QR אינה זמינה', true);
+  const link = document.createElement('a');
+  link.href = workerInviteQrDataUrl; link.download = 'ironbend-worker-activation-qr.png'; link.click();
+}
+
+async function shareWorkerInvitationQr() {
+  if (!workerInviteQrDataUrl) return toast('תמונת ה־QR אינה זמינה', true);
+  try {
+    const blob = await (await fetch(workerInviteQrDataUrl)).blob();
+    const file = new File([blob], 'ironbend-worker-activation-qr.png', { type:'image/png' });
+    if (navigator.canShare?.({ files:[file] })) {
+      await navigator.share({ files:[file], text:workerInviteShareMessage, title:'הפעלת IronBend' });
+      return;
+    }
+  } catch (_) {}
+  downloadWorkerInvitationQr();
+  toast('ה־QR הורד. אפשר לצרף אותו ידנית בוואטסאפ');
+}
+
+async function loadQrAccessMode() {
+  const response = await fetch('/api/qr-access/mode');
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) return;
+  const select = document.getElementById('qrAccessMode');
+  if (select) select.value = result.mode || 'open';
+  const hint = document.getElementById('qrAccessModeHint');
+  if (hint) hint.textContent = result.mode === 'secure'
+    ? 'מצב מאובטח פעיל: רק מכשירים אישיים שהופעלו יכולים לסרוק.'
+    : 'מצב פתוח פעיל: כולם יכולים לסרוק, ונדרשת רק הרשאת מצלמה.';
+}
+
+async function saveQrAccessMode() {
+  const mode = document.getElementById('qrAccessMode').value;
+  if (mode === 'secure' && !confirm('להפעיל מצב מאובטח? מכשיר שלא הופעל בקישור אישי ייחסם מסריקה.')) return loadQrAccessMode();
+  const response = await fetch('/api/qr-access/mode', {
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ mode })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) return toast(result.error || 'עדכון מצב הסריקה נכשל', true);
+  toast(mode === 'secure' ? '✓ מצב מאובטח הופעל' : '✓ מצב פתוח הופעל');
+  loadQrAccessMode();
+}
+
+async function loadQrActivity() {
+  const tbody = document.getElementById('qrActivityTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px">טוען…</td></tr>';
+  const response = await fetch('/api/qr-access/activity?limit=200');
+  const rows = await response.json().catch(() => []);
+  if (!response.ok) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--danger)">לא ניתן לטעון את היומן</td></tr>';
+    return;
+  }
+  const actionLabels = { open_worker_card:'פתיחת כרטיס עבודה', open_loading:'פתיחת העמסה', loading_card_scan:'סריקת כרטיס להעמסה' };
+  const outcomeLabels = { allowed:'אושר', loaded:'הועמס', duplicate:'כבר נסרק', qr_permission_denied:'אין הרשאה', device_activation_required:'מכשיר לא מופעל' };
+  tbody.innerHTML = rows.length ? rows.map(row => `<tr>
+    <td>${workerInviteDate(row.occurred_at)}</td>
+    <td><strong>${escHtml(row.actor_name || 'לא מזוהה')}</strong><div style="font-size:11px;color:var(--muted)">${escHtml(row.device_name || row.scanner_id || 'מצב פתוח')}</div></td>
+    <td><strong>${escHtml(row.qr_kind === 'order' ? 'הזמנה' : 'כרטיס')}</strong><div style="font-size:11px;direction:ltr;max-width:240px;overflow:hidden;text-overflow:ellipsis">${escHtml(row.qr_value || '—')}</div></td>
+    <td>${escHtml(actionLabels[row.action] || row.action)}</td>
+    <td>${escHtml(outcomeLabels[row.outcome] || row.outcome)}</td>
+  </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--muted)">אין סריקות מתועדות עדיין</td></tr>';
 }
 
 async function copyWorkerInvitation() {
@@ -1715,7 +1809,7 @@ async function loadDeviceRequests() {
   const badge = document.getElementById('devicePendingBadge');
   if (badge) badge.textContent = pending ? `(${pending})` : '';
   tbody.innerHTML = deviceRequestsData.length ? deviceRequestsData.map(row => `<tr>
-    <td><strong>${escHtml(row.requester_name)}</strong><div style="font-size:11px;color:var(--muted)">${escHtml(row.request_uid)}</div></td>
+    <td><strong>${escHtml(row.requester_name)}</strong><div style="font-size:11px;color:var(--muted)">${escHtml(row.request_uid)}</div><div style="font-size:11px;color:var(--muted)">${escHtml((()=>{try{return JSON.parse(row.permissions_json||'[]').map(p=>p==='production'?'ייצור':'מחסן').join(', ')}catch{return ''}})())}</div></td>
     <td>${escHtml(row.device_name)}</td>
     <td style="font-size:12px;color:var(--muted)">${escHtml(row.platform || '—')}</td>
     <td>${deviceDate(row.requested_at)}</td>

@@ -51,7 +51,7 @@ test('login stores sessions through IronBendAuth', () => {
   assert.match(login, /!requestedNext\.startsWith\('\/\/'\)/);
 });
 
-test('scanning requires an enrolled device plus an authenticated user', () => {
+test('QR scanning supports open mode and passwordless one-time device activation in secure mode', () => {
   const authClient = read('public/auth-client.js');
   const scanner = read('public/scan.html');
   const workerInvite = read('public/worker-invite.html');
@@ -62,11 +62,15 @@ test('scanning requires an enrolled device plus an authenticated user', () => {
   assert.match(authClient, /ironbend_device_credential_v1/);
   assert.match(authClient, /X-IronBend-Device/);
   assert.match(scanner, /\/api\/device-enrollment\/status/);
+  assert.match(scanner, /\/api\/qr-access\/mode/);
+  assert.match(scanner, /\/api\/qr-access\/scan/);
   assert.match(scanner, /קישור ההזמנה האישי/);
   assert.match(scanner, /deviceApproved/);
-  assert.match(scanner, /IronBendAuth\?\.accessToken/);
+  assert.doesNotMatch(scanner, /IronBendAuth\?\.accessToken/);
   assert.match(workerInvite, /\/api\/worker-invitations\/activation/);
   assert.match(workerInvite, /ironbend_device_credential_v1/);
+  assert.doesNotMatch(workerInvite, /id="username"/);
+  assert.doesNotMatch(workerInvite, /id="pin"/);
   assert.match(nativeBridge, /appUrlOpen/);
   assert.match(nativeBridge, /customer-scan\.html/);
   assert.match(warehouse, /requireApprovedScanningDevice/);
@@ -74,6 +78,7 @@ test('scanning requires an enrolled device plus an authenticated user', () => {
   assert.match(admin, /id="tab-devices"/);
   assert.match(admin, /reviewDevice/);
   assert.match(admin, /\/api\/device-enrollment\/requests/);
+  assert.match(admin, /\/api\/qr-access\/mode/);
 });
 
 test('public portal does not query internal order search', () => {

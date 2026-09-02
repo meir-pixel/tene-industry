@@ -621,6 +621,7 @@ async function markShipped(id){
 // production status; an active order-loading session treats that same signed
 // card identity as the thing put on the truck. No package label is created.
 const CARD_LOADING_STORAGE_KEY='ironbend.card-loading.resume.v1';
+const QR_SCAN_ENTRY=new URLSearchParams(location.search).get('source')==='in_app_scan';
 let currentLoadingSession=null;
 let qrLoadingOrderId=null;
 let cameraStream=null;
@@ -824,6 +825,12 @@ function showCameraResume(message){
 async function requireApprovedScanningDevice(){
   if(scanningDeviceApprovedUntil>Date.now())return true;
   try{
+    const modeResponse=await fetch('/api/qr-access/mode');
+    const modeData=await modeResponse.json();
+    if(modeData.mode!=='secure'){
+      scanningDeviceApprovedUntil=Date.now()+60000;
+      return true;
+    }
     const response=await fetch('/api/device-enrollment/status');
     const data=await response.json();
     if(data.status==='approved'){
@@ -1041,7 +1048,7 @@ document.addEventListener('visibilitychange',()=>{
 window.addEventListener('pagehide',()=>stopCardCamera());
 
 // ─── INIT ─────────────────────────────────────────────────────────────
-loadKPI();
+if(!QR_SCAN_ENTRY)loadKPI();
 const loadingOrderFromQr=new URLSearchParams(location.search).get('load_order');
 if(loadingOrderFromQr){
   showTab('loading');
@@ -1054,6 +1061,10 @@ if(loadingOrderFromQr){
 }
 </script>
 
-<script src="/nav.js"></script>
+<script>
+if(new URLSearchParams(location.search).get('source')!=='in_app_scan'){
+  const navScript=document.createElement('script');navScript.src='/nav.js';document.body.appendChild(navScript);
+}
+</script>
 </body>
 </html>

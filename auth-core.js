@@ -62,6 +62,8 @@ function ensureAuthSchema(db) {
   // and one short-lived invitation from the moment they are registered.
   addColumn(db, 'device_enrollment_requests', 'requester_user_id', 'INTEGER');
   addColumn(db, 'device_enrollment_requests', 'invitation_id', 'INTEGER');
+  addColumn(db, 'device_enrollment_requests', 'worker_role', 'TEXT');
+  addColumn(db, 'device_enrollment_requests', 'permissions_json', "TEXT NOT NULL DEFAULT '[]'");
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_device_enrollment_requester_user
       ON device_enrollment_requests(requester_user_id);

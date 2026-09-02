@@ -15,7 +15,7 @@ function createDeviceEnrollmentService({ getDb }) {
     const value = String(credential || '').trim();
     if (!value) return null;
     return getDb().prepare(`
-      SELECT id,request_uid,requester_name,device_name,platform,status,
+      SELECT id,request_uid,requester_name,device_name,platform,status,worker_role,permissions_json,
              requester_user_id,invitation_id,requested_at,reviewed_at,reviewed_by,
              reviewed_by_name,last_seen_at
       FROM device_enrollment_requests
@@ -23,7 +23,7 @@ function createDeviceEnrollmentService({ getDb }) {
     `).get(sha256(value)) || null;
   }
 
-  function createPendingEnrollment({
+  function createEnrollment({
     requesterName,
     deviceName,
     platform = null,
@@ -31,6 +31,9 @@ function createDeviceEnrollmentService({ getDb }) {
     ipAddress = null,
     requesterUserId = null,
     invitationId = null,
+    workerRole = null,
+    permissions = [],
+    status = 'pending',
   }) {
     const requestUid = `DEV-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
     const secret = crypto.randomBytes(32).toString('base64url');
@@ -39,23 +42,34 @@ function createDeviceEnrollmentService({ getDb }) {
     const result = db.prepare(`
       INSERT INTO device_enrollment_requests
         (request_uid,credential_hash,requester_name,device_name,platform,status,user_agent,ip_address,
-         requester_user_id,invitation_id)
-      VALUES (?,?,?,?,?,'pending',?,?,?,?)
+         requester_user_id,invitation_id,worker_role,permissions_json)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(
       requestUid,
       sha256(credential),
       requesterName,
       deviceName,
       platform || null,
+      status,
       userAgent || null,
       ipAddress || null,
       requesterUserId || null,
       invitationId || null,
+      workerRole || null,
+      JSON.stringify(permissions),
     );
     return {
       credential,
       row: db.prepare('SELECT * FROM device_enrollment_requests WHERE id=?').get(result.lastInsertRowid),
     };
+  }
+
+  function createPendingEnrollment(options) {
+    return createEnrollment({ ...options, status: 'pending' });
+  }
+
+  function createApprovedEnrollment(options) {
+    return createEnrollment({ ...options, status: APPROVED_STATUS });
   }
 
   function statusForRequest(req) {
@@ -83,6 +97,7 @@ function createDeviceEnrollmentService({ getDb }) {
 
   return {
     credentialFromRequest,
+    createApprovedEnrollment,
     createPendingEnrollment,
     findByCredential,
     requireApprovedDevice,

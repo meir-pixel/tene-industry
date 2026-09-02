@@ -47,7 +47,8 @@ function createWorkerCardActivityService({ db }) {
 
   function record(req, item, action, details = {}) {
     const actorUserId = positiveInteger(req?.userId || req?.auth?.sub);
-    const actorName = textOrNull(req?.auth?.display_name, 120)
+    const actorName = textOrNull(req?.qrAccess?.actor_name, 120)
+      || textOrNull(req?.auth?.display_name, 120)
       || (actorUserId ? textOrNull(db.prepare('SELECT display_name FROM users WHERE id=?').get(actorUserId)?.display_name, 120) : null);
     const device = req?.approvedDevice || {};
     const deviceEnrollmentId = positiveInteger(device.id);

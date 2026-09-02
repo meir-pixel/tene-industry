@@ -76,6 +76,7 @@ module.exports = function createDeviceEnrollmentRouter(deps) {
     let sql = `
       SELECT d.id,d.request_uid,d.requester_name,d.device_name,d.platform,d.status,d.requested_at,
              d.reviewed_at,d.reviewed_by,d.reviewed_by_name,d.last_seen_at,d.requester_user_id,d.invitation_id,
+             d.worker_role,d.permissions_json,
              u.username AS requester_username,u.active AS requester_user_active
       FROM device_enrollment_requests d
       LEFT JOIN users u ON u.id=d.requester_user_id

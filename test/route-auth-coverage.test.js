@@ -97,6 +97,8 @@ const PUBLIC_OR_SCOPED_API_ROUTES = new Set([
   'POST /api/users/login',
   'POST /api/device-enrollment/requests',
   'GET /api/device-enrollment/status',
+  'GET /api/qr-access/mode',
+  'POST /api/qr-access/scan',
   'GET /api/worker-invitations/activation',
   'POST /api/worker-invitations/activation',
   'POST /api/c/auth',
@@ -116,6 +118,7 @@ const PUBLIC_OR_SCOPED_API_ROUTES = new Set([
 const AUTH_GUARD_MARKERS = [
   'requireRole(',
   'requireAnyRole(',
+  'requireQrPermission(',
   'analyzeImageAuthorization',
   'analyzeBendingShapeAuthorization',
   'customerPortalAuthLimiter',

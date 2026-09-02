@@ -22,6 +22,7 @@ const { createBrandingService } = require('./services/branding');
 const { createDeviceEnrollmentService } = require('./services/deviceEnrollment');
 const { createWorkerCardActivityService } = require('./services/workerCardActivity');
 const { createWorkerInvitationService, ensureWorkerInvitationSchema } = require('./services/workerInvitations');
+const { createQrAccessService } = require('./services/qrAccess');
 const { configureTrustedProxy, createAuthLoginLimiters } = require('./services/authRateLimit');
 const { createModuleLoader } = require('./services/moduleLoader');
 const { createModuleMapService } = require('./services/moduleMap');
@@ -86,6 +87,7 @@ const createBrandingRouter = require('./routes/branding');
 const createAccessRouter   = require('./routes/access');
 const createDeviceEnrollmentRouter = require('./routes/deviceEnrollment');
 const createWorkerInvitationsRouter = require('./routes/workerInvitations');
+const createQrAccessRouter = require('./routes/qrAccess');
 const createMobileAppLinksRouter = require('./services/mobileAppLinks');
 const createAttendedRemoteSupportRouter = require('./routes/attendedRemoteSupport');
 const { createAccessControl } = require('./services/accessControl');
@@ -186,6 +188,7 @@ ensureAuthSchema(db);
 ensureWorkerInvitationSchema(db);
 
 const deviceEnrollmentService = createDeviceEnrollmentService({ getDb: () => db });
+const qrAccessService = createQrAccessService({ db, settingsService, deviceEnrollment: deviceEnrollmentService });
 const workerCardActivity = createWorkerCardActivityService({ db });
 const workerInvitations = createWorkerInvitationService({ getDb: () => db });
 
@@ -294,10 +297,14 @@ app.use('/api', createDeviceEnrollmentRouter({
   auditLog,
   allowUninvitedEnrollment: process.env.ALLOW_UNINVITED_DEVICE_ENROLLMENT === 'true',
 }));
+app.use('/api', createQrAccessRouter({
+  qrAccess: qrAccessService,
+  requireRole,
+  auditLog,
+}));
 app.use('/api', createWorkerInvitationsRouter({
   getDb: () => db,
   requireRole,
-  hashPin,
   deviceEnrollment: deviceEnrollmentService,
   workerInvitations,
   activationLimiter: workerInvitationActivationLimiter,
@@ -319,7 +326,7 @@ const allRouteFactories = [
   createInventoryVisionRouter, createOrderDocumentsRouter, createOrderDeliveryCertificateRouter,
   createOrderPrintA4Router, createProductionMetricsRouter, createProductionShiftsRouter,
   createCatalogRouter, createPriorityRouter, createPriorityExportRouter, createBrandingRouter, createLicenseRouter,
-  createAccessRouter, createDeviceEnrollmentRouter, createWorkerInvitationsRouter,
+  createAccessRouter, createDeviceEnrollmentRouter, createQrAccessRouter, createWorkerInvitationsRouter,
   createAttendedRemoteSupportRouter,
 ];
 const routeManifests = allRouteFactories.map(f => f.manifest).filter(Boolean);
@@ -354,6 +361,7 @@ const moduleMap = createModuleMapService({
     { file: 'routes/companies.js', factory: createCompaniesRouter },
     { file: 'routes/customers.js', factory: createCustomersRouter },
     { file: 'routes/deviceEnrollment.js', factory: createDeviceEnrollmentRouter },
+    { file: 'routes/qrAccess.js', factory: createQrAccessRouter },
     { file: 'routes/workerInvitations.js', factory: createWorkerInvitationsRouter },
     { file: 'routes/finance.js', factory: createFinanceRouter },
     { file: 'routes/financeCredit.js', factory: createFinanceCreditRouter },
@@ -609,6 +617,7 @@ app.use('/api', requireModule('production'), createProductionRouter({
   tryParseJSON,
   productionActuals,
   requireApprovedDevice: deviceEnrollmentService.requireApprovedDevice,
+  requireQrPermission: qrAccessService.requirePermission,
   workerCardActivity,
 }));
 
@@ -824,6 +833,8 @@ app.use('/api', requireModule('warehouse'), createWarehouseRouter({
   db,
   requireAnyRole,
   requireApprovedDevice: deviceEnrollmentService.requireApprovedDevice,
+  requireQrPermission: qrAccessService.requirePermission,
+  qrAccess: qrAccessService,
   wsBroadcast,
 }));
 app.use('/api', requireModule('reports'), createReportsRouter({

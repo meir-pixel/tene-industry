@@ -490,6 +490,8 @@ module.exports = function createWarehouseRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const requireApprovedDevice = required('requireApprovedDevice', deps.requireApprovedDevice);
+  const requireQrPermission = required('requireQrPermission', deps.requireQrPermission);
+  const qrAccess = required('qrAccess', deps.qrAccess);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
 
   // ── MULTI-ORDER CARD LOADING ──────────────────────────────────────
@@ -749,7 +751,7 @@ module.exports = function createWarehouseRouter(deps) {
   // The same worker-card QR has two safe contexts: production updates at the
   // workstation and loading verification here.  A session freezes its card
   // list so an order edit cannot silently change a truck already loading.
-  router.post('/loading/card-sessions', requireAnyRole(['warehouse', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
+  router.post('/loading/card-sessions', requireQrPermission('warehouse'), (req, res) => {
     const orderId = Number(req.body?.order_id);
     if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'invalid_order_id' });
     const actorId = loadingActorId(req);
@@ -825,13 +827,13 @@ module.exports = function createWarehouseRouter(deps) {
     }
   });
 
-  router.get('/loading/card-sessions/:sessionUid', requireAnyRole(['warehouse', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
+  router.get('/loading/card-sessions/:sessionUid', requireQrPermission('warehouse'), (req, res) => {
     const state = cardLoadingSessionState(db, req.params.sessionUid);
     if (!state) return res.status(404).json({ error: 'card_loading_session_not_found' });
     res.json(state);
   });
 
-  router.post('/loading/card-sessions/:sessionUid/scan', requireAnyRole(['warehouse', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
+  router.post('/loading/card-sessions/:sessionUid/scan', requireQrPermission('warehouse'), (req, res) => {
     const token = scannedWorkerCardToken(req.body?.qr_data ?? req.body?.code);
     if (!token) return res.status(400).json({ error: 'invalid_worker_card_qr' });
     const actorId = loadingActorId(req);
@@ -902,6 +904,7 @@ module.exports = function createWarehouseRouter(deps) {
 
     if (result.error) return res.status(result.status).json({ error: result.error });
     const state = cardLoadingSessionState(db, sessionUid);
+    qrAccess.record(req, { permission: 'warehouse', kind: 'card', value: token, action: 'loading_card_scan', outcome: result.outcome });
     const messages = {
       loaded: 'כרטיס העבודה הועמס',
       duplicate: 'כרטיס העבודה כבר נסרק להעמסה זו',
@@ -969,8 +972,8 @@ module.exports = function createWarehouseRouter(deps) {
     res.json({ ...cardLoadingSessionState(db, sessionUid), replay: result.replay, delivery_note: result.delivery_note || null });
   }
 
-  router.post('/loading/card-sessions/:sessionUid/complete', requireAnyRole(['warehouse', 'manager', 'admin']), requireApprovedDevice, (req, res) => finishCardLoadingSession(req, res));
-  router.post('/loading/card-sessions/:sessionUid/partial-departure', requireAnyRole(['warehouse', 'manager', 'admin']), requireApprovedDevice, (req, res) => finishCardLoadingSession(req, res, { partial: true }));
+  router.post('/loading/card-sessions/:sessionUid/complete', requireQrPermission('warehouse'), (req, res) => finishCardLoadingSession(req, res));
+  router.post('/loading/card-sessions/:sessionUid/partial-departure', requireQrPermission('warehouse'), (req, res) => finishCardLoadingSession(req, res, { partial: true }));
 
   router.get('/packages', requireAnyRole(['warehouse', 'office', 'manager', 'admin']), (req, res) => {
     const { order_id, status, zone } = req.query;

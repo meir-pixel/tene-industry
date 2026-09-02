@@ -78,6 +78,12 @@
     return url.includes('/api/auth/');
   }
 
+  function isQrWorkflowUrl(url) {
+    return url.includes('/api/qr-access/') || url.includes('/api/device-enrollment/')
+      || url.includes('/api/worker-invitations/activation') || url.includes('/api/worker-card')
+      || url.includes('/api/loading/card-sessions');
+  }
+
   function showAuthNotice(status) {
     if (document.getElementById('ib-auth-notice')) return;
     const notice = document.createElement('div');
@@ -145,7 +151,7 @@
         response = await nativeFetch(input, { ...init, headers, credentials: init.credentials || 'same-origin' });
       }
     }
-    if (isApi && !isAuth && (response.status === 401 || response.status === 403)) {
+    if (isApi && !isAuth && !isQrWorkflowUrl(url) && (response.status === 401 || response.status === 403)) {
       showAuthNotice(response.status);
       window.dispatchEvent(new CustomEvent('ironbend:auth-denied', {
         detail: { status: response.status, url },

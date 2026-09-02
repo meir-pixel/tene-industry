@@ -1,9 +1,15 @@
 'use strict';
 
 const router = require('express').Router();
+const QRCode = require('qrcode');
 const { requestPublicBaseUrl } = require('../services/publicScanLinks');
 
 const INVITABLE_ROLES = new Set(['production', 'warehouse', 'driver', 'quality', 'maintenance']);
+const INVITABLE_PERMISSIONS = new Set(['production', 'warehouse']);
+const DEFAULT_ROLE_PERMISSIONS = {
+  production: ['production'], quality: ['production'], maintenance: ['production'],
+  warehouse: ['warehouse'], driver: ['warehouse'],
+};
 
 function required(name, value) {
   if (!value) throw new Error(`routes/workerInvitations missing dependency: ${name}`);
@@ -14,12 +20,14 @@ function cleanText(value, maxLength) {
   return String(value || '').trim().replace(/\s+/g, ' ').slice(0, maxLength);
 }
 
-function cleanUsername(value) {
-  return String(value || '').trim().replace(/\s+/g, '').slice(0, 80);
-}
-
 function cleanPhone(value) {
   return String(value || '').trim().replace(/[^+\d -]/g, '').slice(0, 30);
+}
+
+function cleanPermissions(value, role) {
+  const requested = Array.isArray(value) ? value : [];
+  const permissions = [...new Set(requested.map(item => cleanText(item, 30)).filter(item => INVITABLE_PERMISSIONS.has(item)))];
+  return permissions.length ? permissions : (DEFAULT_ROLE_PERMISSIONS[role] || []);
 }
 
 function activationUrl(req, token, settingsService) {
@@ -39,18 +47,19 @@ function publicActivationError(row, workerInvitations) {
 module.exports = function createWorkerInvitationsRouter(deps) {
   const getDb = required('getDb', deps.getDb);
   const requireRole = required('requireRole', deps.requireRole);
-  const hashPin = required('hashPin', deps.hashPin);
   const deviceEnrollment = required('deviceEnrollment', deps.deviceEnrollment);
   const workerInvitations = required('workerInvitations', deps.workerInvitations);
   const activationLimiter = required('activationLimiter', deps.activationLimiter);
   const auditLog = required('auditLog', deps.auditLog);
   const settingsService = deps.settingsService || null;
 
-  router.post('/worker-invitations', requireRole('admin'), (req, res) => {
+  router.post('/worker-invitations', requireRole('admin'), async (req, res) => {
     const workerName = cleanText(req.body?.worker_name, 100);
     const phone = cleanPhone(req.body?.phone);
     const role = cleanText(req.body?.role, 40) || 'production';
-    if (workerName.length < 2 || !INVITABLE_ROLES.has(role)) {
+    const permissions = cleanPermissions(req.body?.permissions, role);
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (workerName.length < 2 || phoneDigits.length < 9 || !INVITABLE_ROLES.has(role) || !permissions.length) {
       return res.status(400).json({ error: 'invalid_worker_invitation' });
     }
 
@@ -58,10 +67,18 @@ module.exports = function createWorkerInvitationsRouter(deps) {
       workerName,
       phone,
       role,
+      permissions,
       createdBy: Number(req.auth?.sub) || null,
       createdByName: cleanText(req.auth?.display_name, 100) || null,
     });
     const url = activationUrl(req, created.token, settingsService);
+    let activationQr = '';
+    try {
+      activationQr = url ? await QRCode.toDataURL(url, { width: 360, margin: 1, errorCorrectionLevel: 'M' }) : '';
+    } catch (_) {
+      // The one-time link remains usable even if image generation is
+      // temporarily unavailable; the admin can still copy it to WhatsApp.
+    }
     auditLog(
       'worker_invitation', created.row.id, created.row.invitation_uid, 'create', 'status', null, 'pending',
       `${workerName} · ${role}`, Number(req.auth?.sub) || null, cleanText(req.auth?.display_name, 100) || null,
@@ -73,10 +90,12 @@ module.exports = function createWorkerInvitationsRouter(deps) {
         worker_name: created.row.worker_name,
         phone: created.row.phone,
         role: created.row.role,
+        permissions,
         status: created.row.status,
         expires_at: created.row.expires_at,
       },
       activation_url: url,
+      activation_qr_data_url: activationQr,
       whatsapp_message: url
         ? `שלום ${workerName}, זהו קישור אישי להפעלת אפליקציית העובדים של טנא. הקישור תקף ל־15 דקות: ${url}`
         : '',
@@ -87,7 +106,7 @@ module.exports = function createWorkerInvitationsRouter(deps) {
     workerInvitations.expireOutstanding();
     const rows = getDb().prepare(`
       SELECT wi.id,wi.invitation_uid,wi.worker_name,wi.phone,wi.role,wi.status,wi.expires_at,
-             wi.created_at,wi.opened_at,wi.claimed_at,wi.cancelled_at,wi.created_by_name,
+             wi.created_at,wi.opened_at,wi.claimed_at,wi.cancelled_at,wi.created_by_name,wi.permissions_json,
              u.username AS claimed_username,u.display_name AS claimed_user_name,u.active AS claimed_user_active,
              d.id AS device_id,d.device_name,d.platform,d.status AS device_status
       FROM worker_invitations wi
@@ -136,11 +155,9 @@ module.exports = function createWorkerInvitationsRouter(deps) {
 
   router.post('/worker-invitations/activation', activationLimiter, (req, res) => {
     const token = String(req.body?.token || '').trim();
-    const username = cleanUsername(req.body?.username);
-    const pin = String(req.body?.pin || '').trim();
     const deviceName = cleanText(req.body?.device_name, 100);
     const platform = cleanText(req.body?.platform, 160);
-    if (username.length < 3 || !/^\d{4,8}$/.test(pin) || deviceName.length < 2) {
+    if (deviceName.length < 2) {
       return res.status(400).json({ error: 'worker_registration_details_required' });
     }
 
@@ -154,40 +171,24 @@ module.exports = function createWorkerInvitationsRouter(deps) {
           error.status = failure.status;
           throw error;
         }
-        if (getDb().prepare('SELECT id FROM users WHERE username=?').get(username)) {
-          const error = new Error('username_already_exists');
-          error.status = 409;
-          throw error;
-        }
-
-        const userId = getDb().prepare(`
-          INSERT INTO users (username,display_name,role,pin,pin_hash,phone,active,password_changed_at)
-          VALUES (?,?,?,?,?,?,0,?)
-        `).run(
-          username,
-          invite.worker_name,
-          invite.role,
-          null,
-          hashPin(pin),
-          invite.phone || null,
-          new Date().toISOString(),
-        ).lastInsertRowid;
-        const enrollment = deviceEnrollment.createPendingEnrollment({
+        const permissions = cleanPermissions(JSON.parse(invite.permissions_json || '[]'), invite.role);
+        const enrollment = deviceEnrollment.createApprovedEnrollment({
           requesterName: invite.worker_name,
           deviceName,
           platform: platform || cleanText(req.get('user-agent'), 160),
           userAgent: cleanText(req.get('user-agent'), 500),
           ipAddress: cleanText(req.ip, 100),
-          requesterUserId: Number(userId),
           invitationId: invite.id,
+          workerRole: invite.role,
+          permissions,
         });
         const updated = getDb().prepare(`
           UPDATE worker_invitations
-          SET status='claimed',claimed_at=CURRENT_TIMESTAMP,claimed_user_id=?,claimed_device_id=?
+          SET status='claimed',claimed_at=CURRENT_TIMESTAMP,claimed_user_id=NULL,claimed_device_id=?
           WHERE id=? AND status IN ('pending','opened')
-        `).run(userId, enrollment.row.id, invite.id);
+        `).run(enrollment.row.id, invite.id);
         if (updated.changes !== 1) throw new Error('invitation_already_used');
-        return { invite, userId: Number(userId), enrollment };
+        return { invite, enrollment, permissions };
       })();
     } catch (error) {
       const status = Number(error.status) || (String(error.message).includes('UNIQUE') ? 409 : 400);
@@ -197,11 +198,12 @@ module.exports = function createWorkerInvitationsRouter(deps) {
     auditLog(
       'worker_invitation', claimed.invite.id, claimed.invite.invitation_uid, 'claim', 'status',
       claimed.invite.status, 'claimed', `${claimed.invite.worker_name} · ${claimed.enrollment.row.device_name}`,
-      claimed.userId, claimed.invite.worker_name,
+      null, claimed.invite.worker_name,
     );
     res.status(201).json({
-      status: 'pending_approval',
+      status: 'approved',
       worker_name: claimed.invite.worker_name,
+      permissions: claimed.permissions,
       device_name: claimed.enrollment.row.device_name,
       device_credential: claimed.enrollment.credential,
     });
