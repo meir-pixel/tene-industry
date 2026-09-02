@@ -2,7 +2,7 @@ services:
   - type: web
     name: ironbend
     runtime: docker
-    plan: free
+    plan: starter
     region: frankfurt
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
