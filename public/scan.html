@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>סריקה באפליקציה – IronBend</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#021A48">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="IronBend סריקה">
+  <link rel="stylesheet" href="/theme.css">
+  <style>
+    :root{--navy:#082f49;--teal:#0f766e;--line:#cbdde5;--soft:#eef6f8;--danger:#9f2d20}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--soft);color:#102f42;font-family:Heebo,Arial,sans-serif;direction:rtl}
+    main{width:min(760px,100%);margin:0 auto;padding:clamp(14px,3vw,28px)}
+    .scan-card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:clamp(16px,4vw,28px);box-shadow:0 18px 50px #082f4914}
+    h1{margin:0;font-size:clamp(25px,5vw,38px)}
+    .lead{margin:8px 0 20px;color:#4b6877;font-weight:700;line-height:1.55}
+    .camera-shell{display:none;position:relative;overflow:hidden;border-radius:16px;background:#07141c;aspect-ratio:3/4;max-height:65dvh}
+    .camera-shell.active{display:block}
+    video{width:100%;height:100%;display:block;object-fit:cover}
+    .target{position:absolute;inset:20%;border:3px solid #fff;border-radius:18px;box-shadow:0 0 0 999px #0007;pointer-events:none}
+    .target::before,.target::after{content:'';position:absolute;right:12%;left:12%;height:2px;background:#53f5d7;box-shadow:0 0 12px #53f5d7}
+    .target::before{top:48%}.target::after{top:52%}
+    .actions{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:16px}
+    button,input{min-height:52px;border-radius:12px;font:inherit;font-weight:900}
+    button{border:0;background:var(--teal);color:#fff;padding:12px 18px;cursor:pointer}
+    button.secondary{background:#fff;color:#315566;border:1px solid var(--line)}
+    #startCamera{font-size:18px}
+    .manual{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:14px}
+    input{width:100%;border:1px solid var(--line);padding:10px 12px;direction:ltr;color:#102f42}
+    .notice{margin-top:14px;padding:12px 14px;border-radius:12px;background:#e7f7f4;color:#0f5f56;font-weight:800;line-height:1.45}
+    .notice.error{background:#fff0ed;color:var(--danger)}
+    .privacy{margin-top:12px;color:#607b88;font-size:13px;line-height:1.5}
+    [hidden]{display:none!important}
+    .device-gate{margin:16px 0;padding:16px;border:1px solid var(--line);border-radius:16px;background:#f8fbfc}
+    .device-gate h2{margin:0 0 5px;font-size:20px}
+    .device-gate p{margin:0 0 12px;color:#52707e;font-weight:700;line-height:1.45}
+    .device-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .device-fields input{direction:rtl;background:#fff}
+    .device-actions{display:flex;gap:9px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    .device-state{padding:8px 11px;border-radius:999px;background:#fff3d7;color:#805500;font-weight:900}
+    .device-state.approved{background:#e3f8ed;color:#12613e}
+    .device-state.rejected,.device-state.revoked{background:#ffe9e5;color:var(--danger)}
+    @media(max-width:540px){.actions,.manual{grid-template-columns:1fr}.camera-shell{max-height:58dvh}}
+    @media(max-width:540px){.device-fields{grid-template-columns:1fr}}
+  </style>
+</head>
+<body data-page="scanner">
+  <main>
+    <section class="scan-card">
+      <h1>📷 סריקה בתוך IronBend</h1>
+      <p class="lead">סרוק QR מטופס ייצור או מכרטיס עבודה. המערכת תזהה לאן לפתוח אותו.</p>
+      <div class="device-gate" id="deviceGate">
+        <h2>אישור המכשיר לסריקה</h2>
+        <p id="deviceExplanation">חיבור מכשיר חדש נעשה רק מתוך קישור אישי שהמנהל שלח בוואטסאפ. לאחר הרישום מנהל מאשר את העובד ואת המכשיר.</p>
+        <div class="device-fields" id="deviceFields" hidden>
+          <input id="requesterName" autocomplete="name" maxlength="80" placeholder="שם העובד / המבקש">
+          <input id="deviceName" maxlength="100" placeholder="שם המכשיר, למשל: טלפון מחסן">
+        </div>
+        <div class="device-actions">
+          <button id="requestApproval" type="button" onclick="showInvitationRequired()">נדרש קישור הזמנה אישי</button>
+          <button id="deviceLogin" class="secondary" type="button" onclick="goToLogin()" hidden>התחבר כדי לסרוק</button>
+          <span class="device-state" id="deviceState">בודק את מצב המכשיר…</span>
+        </div>
+      </div>
+      <div id="scannerControls" hidden>
+        <div class="camera-shell" id="cameraShell">
+          <video id="camera" playsinline muted></video>
+          <canvas id="scanCanvas" hidden></canvas>
+          <div class="target" aria-hidden="true"></div>
+        </div>
+        <div class="actions">
+          <button id="startCamera" type="button" onclick="startScanner()">פתח מצלמה וסרוק</button>
+          <button class="secondary" id="stopCamera" type="button" onclick="stopScanner()" hidden>סגור מצלמה</button>
+        </div>
+        <div class="manual">
+          <input id="scanInput" autocomplete="off" placeholder="או הזן קוד" onkeydown="if(event.key==='Enter')openScannedValue(this.value)">
+          <button class="secondary" type="button" onclick="openScannedValue(document.getElementById('scanInput').value)">פתח קוד</button>
+        </div>
+      </div>
+      <div class="notice" id="notice" role="status" aria-live="polite">נדרש מכשיר מאושר ומשתמש מחובר לפני פתיחת המצלמה.</div>
+      <p class="privacy">אותו QR במצלמה רגילה פותח רק את פורטל הלקוחות. מסכי עבודה ונתוני ייצור נפתחים רק כאן, במכשיר מאושר ועם משתמש מחובר.</p>
+    </section>
+  </main>
+  <script src="/auth-client.js"></script>
+  <script src="/native-bridge.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script>
+    let cameraStream=null;
+    let detector=null;
+    let scanTimer=null;
+    let opening=false;
+    let deviceApproved=false;
+    let approvalTimer=null;
+    const DEVICE_KEY='ironbend_device_credential_v1';
+    const launchParams=new URLSearchParams(location.search);
+    const protocolLaunch=launchParams.get('protocol')||'';
+    const nativeScanLaunch=launchParams.get('native_scan')||'';
+
+    function setNotice(message,error=false){
+      const el=document.getElementById('notice');
+      el.textContent=message;
+      el.className=`notice${error?' error':''}`;
+    }
+    function normalizedScan(raw){
+      const value=String(raw||'').trim();
+      if(!value)return null;
+      try{
+        const appUrl=new URL(value);
+        if(appUrl.protocol==='web+ironbend:'&&appUrl.hostname.toLowerCase()==='open'){
+          const parts=appUrl.pathname.split('/').filter(Boolean);
+          if(parts[0]==='order'&&/^\d+$/.test(parts[1]||'')){
+            return {kind:'order',orderId:Number(parts[1]),value};
+          }
+          if(parts[0]==='card'&&parts[1]){
+            return {kind:'card',value:decodeURIComponent(parts.slice(1).join('/'))};
+          }
+          return null;
+        }
+      }catch(_){/* continue with raw and legacy formats */}
+      const orderMatch=value.match(/^TENE-ORDER-(\d+)$/i);
+      if(orderMatch)return {kind:'order',orderId:Number(orderMatch[1]),value};
+      // New forms contain a public customer-portal URL. Only this approved
+      // in-app scanner interprets its internal code; a normal camera stays public.
+      try{
+        const url=new URL(value,location.origin);
+        if(/\/customer-scan\.html$/i.test(url.pathname)){
+          const portalCode=url.searchParams.get('code');
+          return portalCode&&portalCode!==value?normalizedScan(portalCode):null;
+        }
+        // Keep forms printed before this change readable during the transition.
+        const orderId=url.searchParams.get('load_order');
+        if(orderId&&/^\d+$/.test(orderId))return {kind:'order',orderId:Number(orderId),value};
+        const legacyCard=url.searchParams.get('card')||url.searchParams.get('item');
+        if(legacyCard)return normalizedScan(legacyCard);
+      }catch(_){/* plain application codes are expected */}
+      const cardMatch=value.match(/-(\d{1,12})(?:-[A-Z]+[A-Z0-9]*)*(?:-C\d+OF\d+)?$/i);
+      if(cardMatch)return {kind:'card',value};
+      return null;
+    }
+    function openScannedValue(raw){
+      if(opening)return;
+      if(!deviceApproved){setNotice('המכשיר עדיין לא אושר לסריקה.',true);return;}
+      if(!window.IronBendAuth?.accessToken?.()){goToLogin();return;}
+      const parsed=normalizedScan(raw);
+      if(!parsed){setNotice('הקוד שנסרק אינו קוד IronBend תקין.',true);return;}
+      opening=true;
+      stopScanner();
+      setNotice('הקוד זוהה. פותח את המסך המתאים…');
+      location.href=parsed.kind==='order'
+        ? `/warehouse.html?load_order=${encodeURIComponent(parsed.orderId)}&autostart=1&source=in_app_scan`
+        : `/worker-visual.html?scan=1&card=${encodeURIComponent(parsed.value)}&source=in_app_scan`;
+    }
+    function scheduleScan(){
+      if(scanTimer)clearTimeout(scanTimer);
+      scanTimer=setTimeout(scanFrame,220);
+    }
+    async function detectQrValue(){
+      const video=document.getElementById('camera');
+      if(detector){
+        const codes=await detector.detect(video);
+        return codes?.[0]?.rawValue||'';
+      }
+      if(!window.jsQR||!video.videoWidth||!video.videoHeight)return '';
+      const canvas=document.getElementById('scanCanvas');
+      const width=Math.min(720,video.videoWidth);
+      const height=Math.max(1,Math.round(video.videoHeight*(width/video.videoWidth)));
+      canvas.width=width;canvas.height=height;
+      const context=canvas.getContext('2d',{willReadFrequently:true});
+      context.drawImage(video,0,0,width,height);
+      const image=context.getImageData(0,0,width,height);
+      return window.jsQR(image.data,width,height,{inversionAttempts:'attemptBoth'})?.data||'';
+    }
+    async function scanFrame(){
+      scanTimer=null;
+      if(!cameraStream||(!detector&&!window.jsQR)||document.hidden||opening)return;
+      try{
+        const value=await detectQrValue();
+        if(value){openScannedValue(value);return;}
+      }catch(_){/* transient camera frames recover on the next pass */}
+      scheduleScan();
+    }
+    async function startScanner(){
+      if(!deviceApproved){setNotice('יש להמתין לאישור המכשיר לפני פתיחת המצלמה.',true);return;}
+      if(!window.IronBendAuth?.accessToken?.()){goToLogin();return;}
+      if(cameraStream){scheduleScan();return;}
+      if(!navigator.mediaDevices?.getUserMedia||(!('BarcodeDetector' in window)&&!window.jsQR)){
+        setNotice('הדפדפן במכשיר זה אינו תומך בסריקה אוטומטית. ניתן להזין את הקוד בשדה.',true);
+        return;
+      }
+      try{
+        detector='BarcodeDetector' in window?new BarcodeDetector({formats:['qr_code']}):null;
+        cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'}}});
+        const video=document.getElementById('camera');
+        video.srcObject=cameraStream;
+        await video.play();
+        document.getElementById('cameraShell').classList.add('active');
+        document.getElementById('stopCamera').hidden=false;
+        document.getElementById('startCamera').textContent='המצלמה פעילה';
+        setNotice('כוון את המצלמה ל־QR שבטופס הייצור או שעל כרטיס העבודה.');
+        scheduleScan();
+      }catch(_){
+        stopScanner();
+        setNotice('לא ניתן לפתוח את המצלמה. יש לאשר הרשאת מצלמה לאפליקציה.',true);
+      }
+    }
+    function stopScanner(){
+      if(scanTimer){clearTimeout(scanTimer);scanTimer=null;}
+      if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;}
+      detector=null;
+      const video=document.getElementById('camera');
+      if(video)video.srcObject=null;
+      document.getElementById('cameraShell').classList.remove('active');
+      document.getElementById('stopCamera').hidden=true;
+      document.getElementById('startCamera').textContent='פתח מצלמה וסרוק';
+    }
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden)stopScanner();
+    });
+    window.addEventListener('pagehide',stopScanner);
+
+    function goToLogin(){
+      const next=location.pathname+location.search;
+      location.href='/login.html?next='+encodeURIComponent(next);
+    }
+
+    function deviceStatusLabel(status){
+      return ({
+        unregistered:'טרם נשלחה בקשה',
+        pending:'ממתין לאישור מנהל',
+        approved:'המכשיר מאושר',
+        rejected:'הבקשה נדחתה',
+        revoked:'אישור המכשיר בוטל',
+      })[status]||'מצב לא ידוע';
+    }
+
+    function scheduleApprovalCheck(){
+      if(approvalTimer)clearTimeout(approvalTimer);
+      approvalTimer=setTimeout(loadDeviceStatus,8000);
+    }
+
+    function renderDeviceStatus(data){
+      const status=data?.status||'unregistered';
+      const state=document.getElementById('deviceState');
+      const fields=document.getElementById('deviceFields');
+      const requestButton=document.getElementById('requestApproval');
+      const loginButton=document.getElementById('deviceLogin');
+      const scannerControls=document.getElementById('scannerControls');
+      state.textContent=deviceStatusLabel(status);
+      state.className=`device-state ${status}`;
+      deviceApproved=status==='approved';
+      fields.hidden=true;
+      requestButton.hidden=status!=='unregistered';
+      requestButton.textContent='נדרש קישור הזמנה אישי';
+
+      const loggedIn=Boolean(window.IronBendAuth?.accessToken?.());
+      loginButton.hidden=!deviceApproved||loggedIn;
+      scannerControls.hidden=!deviceApproved||!loggedIn;
+      if(data?.requester_name&&!document.getElementById('requesterName').value){
+        document.getElementById('requesterName').value=data.requester_name;
+      }
+      if(data?.device_name&&!document.getElementById('deviceName').value){
+        document.getElementById('deviceName').value=data.device_name;
+      }
+
+      if(status==='pending'){
+        setNotice('הבקשה נשלחה. המסך יתעדכן אוטומטית לאחר שהמנהל יאשר.');
+        scheduleApprovalCheck();
+      }else if(deviceApproved&&!loggedIn){
+        setNotice('המכשיר אושר. כעת יש להתחבר עם משתמש מורשה.',true);
+      }else if(deviceApproved){
+        setNotice('המכשיר מאושר והמשתמש מחובר. אפשר לפתוח מצלמה ולסרוק.');
+        const launchValue=nativeScanLaunch||protocolLaunch;
+        if(launchValue&&!opening)setTimeout(()=>openScannedValue(launchValue),0);
+      }else if(status==='rejected'||status==='revoked'){
+        setNotice('אין למכשיר הרשאת סריקה. יש לפנות למנהל המפעל.',true);
+      }else if(status==='unregistered'){
+        setNotice('כדי לחבר מכשיר חדש יש לפתוח את קישור ההזמנה האישי שנשלח בוואטסאפ.',true);
+      }
+    }
+
+    async function loadDeviceStatus(){
+      try{
+        const response=await fetch('/api/device-enrollment/status');
+        const data=await response.json();
+        renderDeviceStatus(data);
+      }catch(_){
+        setNotice('לא ניתן לבדוק כרגע את אישור המכשיר.',true);
+        scheduleApprovalCheck();
+      }
+    }
+
+    function showInvitationRequired(){
+      setNotice('פתח את קישור ההזמנה האישי שקיבלת בוואטסאפ. מטעמי אבטחה אי אפשר להירשם מכאן ללא הזמנה.',true);
+    }
+
+    document.getElementById('deviceName').value=(navigator.userAgentData?.platform||navigator.platform||'טלפון')+' · IronBend';
+    loadDeviceStatus();
+  </script>
+  <script src="/nav.js"></script>
+</body>
+</html>

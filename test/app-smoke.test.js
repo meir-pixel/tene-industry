@@ -65,6 +65,8 @@ test('core app smoke loads critical screens and authenticated APIs', async (t) =
     '/admin.html',
     '/customers.html',
     '/dashboard.html',
+    '/scan.html',
+    '/customer-scan.html',
     '/reports.html',
     '/orders.html',
     '/machine.html',

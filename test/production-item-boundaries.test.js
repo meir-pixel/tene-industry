@@ -12,10 +12,19 @@ process.env.DB_PATH = path.join(tmpDir, 'production-boundaries.db');
 process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
 
 const { closeServer, db, server } = require('../server');
-const { hashPin } = require('../auth-core');
+const { hashPin, sha256 } = require('../auth-core');
 const statusContracts = require('../status-contracts');
 
 let baseUrl;
+const APPROVED_DEVICE_CREDENTIAL = 'DEV-BOUNDARY.test-device-secret';
+
+function seedApprovedDevice() {
+  db.prepare(`
+    INSERT INTO device_enrollment_requests
+      (request_uid,credential_hash,requester_name,device_name,status,reviewed_at)
+    VALUES (?,?,?,?, 'approved',CURRENT_TIMESTAMP)
+  `).run('DEV-BOUNDARY', sha256(APPROVED_DEVICE_CREDENTIAL), 'Boundary Worker', 'Boundary Phone');
+}
 
 function seedUser(username, role, pin) {
   db.prepare(`
@@ -41,6 +50,7 @@ async function token(username, pin) {
 function authHeaders(accessToken) {
   return {
     Authorization: `Bearer ${accessToken}`,
+    'X-IronBend-Device': APPROVED_DEVICE_CREDENTIAL,
     'Content-Type': 'application/json',
   };
 }
@@ -86,6 +96,8 @@ function seedOrderWithItem(orderNum, orderStatus, itemStatus = statusContracts.I
 
 test('production enforces order item ownership boundaries', async (t) => {
   seedUser('production-boundary', 'production', '9101');
+  seedUser('production-reports', 'manager', '9102');
+  seedApprovedDevice();
   db.prepare('INSERT INTO machines (id,name,label,status,counter) VALUES (?,?,?,?,?)')
     .run(501, 'Boundary Machine', 'Boundary Machine', 'ready', 0);
 
@@ -99,6 +111,7 @@ test('production enforces order item ownership boundaries', async (t) => {
   });
 
   const production = await token('production-boundary', '9101');
+  const reportsManager = await token('production-reports', '9102');
   const headers = authHeaders(production);
 
   await t.test('scan/start rejects items whose order is not approved or planned', async () => {
@@ -265,10 +278,17 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.equal(item.status, statusContracts.ITEM_STATUS.WAITING);
   });
 
-  await t.test('public scanned worker card can load and update production-owned fields without login', async () => {
+  await t.test('scanned worker card requires login and an approved device', async () => {
     const approved = seedOrderWithItem('PB-PUBLIC-WORKER-CARD', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
     const card = `${approved.orderNum}-${String(approved.itemId).padStart(6, '0')}`;
-    const view = await request(`/api/worker-card?card=${encodeURIComponent(card)}`);
+    assert.equal((await request(`/api/worker-card?card=${encodeURIComponent(card)}`)).status, 401);
+    const withoutDevice = await request(`/api/worker-card?card=${encodeURIComponent(card)}`, {
+      headers: { Authorization: `Bearer ${production}` },
+    });
+    assert.equal(withoutDevice.status, 403);
+    assert.equal((await withoutDevice.json()).error, 'device_approval_required');
+
+    const view = await request(`/api/worker-card?card=${encodeURIComponent(card)}`, { headers });
     assert.equal(view.status, 200);
     const body = await view.json();
     assert.equal(body.items.length, 1);
@@ -277,7 +297,7 @@ test('production enforces order item ownership boundaries', async (t) => {
 
     const response = await request(`/api/worker-card/${approved.itemId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ card, produced_qty: 2, actual_weight_kg: 10, note: 'public scan update' }),
     });
     assert.equal(response.status, 200);
@@ -288,14 +308,40 @@ test('production enforces order item ownership boundaries', async (t) => {
     assert.equal(item.status, statusContracts.ITEM_STATUS.IN_PRODUCTION);
     const event = db.prepare('SELECT source,delta_weight_kg FROM production_output_events WHERE item_id=?').get(approved.itemId);
     assert.deepEqual(event, { source: 'public_worker_card', delta_weight_kg: 10 });
+    const activity = db.prepare(`
+      SELECT action,actor_name,device_name,details_json
+      FROM worker_card_activity WHERE item_id=? ORDER BY id
+    `).all(approved.itemId);
+    assert.deepEqual(activity.map(row => [row.action, row.actor_name, row.device_name]), [
+      ['opened', 'production-boundary', 'Boundary Phone'],
+      ['updated', 'production-boundary', 'Boundary Phone'],
+    ]);
+    assert.deepEqual(JSON.parse(activity[1].details_json), {
+      from_status: statusContracts.ITEM_STATUS.WAITING,
+      to_status: statusContracts.ITEM_STATUS.IN_PRODUCTION,
+      produced_qty: 2,
+      actual_weight_kg: 10,
+      note_updated: true,
+    });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const reportResponse = await request(`/api/reports/worker-card-activity?from=${today}&to=${today}`, {
+      headers: authHeaders(reportsManager),
+    });
+    assert.equal(reportResponse.status, 200);
+    const report = await reportResponse.json();
+    const reportRow = report.rows.find(row => row.item_id === approved.itemId && row.action === 'updated');
+    assert.equal(reportRow.actor_name, 'production-boundary');
+    assert.equal(reportRow.device_name, 'Boundary Phone');
+    assert.equal(reportRow.details.produced_qty, 2);
   });
 
-  await t.test('public scanned worker card rejects mismatched tokens and non-production fields', async () => {
+  await t.test('approved-device worker card rejects mismatched tokens and non-production fields', async () => {
     const approved = seedOrderWithItem('PB-PUBLIC-WORKER-FORBID', statusContracts.ORDER_STATUS.APPROVED_WAITING_PRODUCTION);
     const wrongCard = `OTHER-${String(approved.itemId + 1).padStart(6, '0')}`;
     const mismatch = await request(`/api/worker-card/${approved.itemId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ card: wrongCard, produced_qty: 1 }),
     });
     assert.equal(mismatch.status, 403);
@@ -303,7 +349,7 @@ test('production enforces order item ownership boundaries', async (t) => {
     const card = `${approved.orderNum}-${String(approved.itemId).padStart(6, '0')}`;
     const forbidden = await request(`/api/worker-card/${approved.itemId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ card, quantity: 999 }),
     });
     assert.equal(forbidden.status, 400);

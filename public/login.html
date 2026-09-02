@@ -429,7 +429,11 @@ function hideError() {
 
 function storeLogin(result, remember) {
   window.IronBendAuth.storeSession(result, remember);
-  window.location.href = 'dashboard.html?role=' + result.user.role;
+  const requestedNext = new URLSearchParams(location.search).get('next') || '';
+  const safeNext = requestedNext.startsWith('/') && !requestedNext.startsWith('//')
+    ? requestedNext
+    : '';
+  window.location.href = safeNext || ('dashboard.html?role=' + result.user.role);
 }
 
 async function doLogin() {

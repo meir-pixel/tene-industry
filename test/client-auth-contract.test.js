@@ -47,6 +47,33 @@ test('login stores sessions through IronBendAuth', () => {
   assert.doesNotMatch(login, /Demo mode/i);
   assert.doesNotMatch(login, /דמו/);
   assert.doesNotMatch(login, /PIN 1234/);
+  assert.match(login, /requestedNext\.startsWith\('\/'\)/);
+  assert.match(login, /!requestedNext\.startsWith\('\/\/'\)/);
+});
+
+test('scanning requires an enrolled device plus an authenticated user', () => {
+  const authClient = read('public/auth-client.js');
+  const scanner = read('public/scan.html');
+  const workerInvite = read('public/worker-invite.html');
+  const nativeBridge = read('public/native-bridge.js');
+  const warehouse = read('public/warehouse.html');
+  const admin = read('public/admin.html');
+
+  assert.match(authClient, /ironbend_device_credential_v1/);
+  assert.match(authClient, /X-IronBend-Device/);
+  assert.match(scanner, /\/api\/device-enrollment\/status/);
+  assert.match(scanner, /קישור ההזמנה האישי/);
+  assert.match(scanner, /deviceApproved/);
+  assert.match(scanner, /IronBendAuth\?\.accessToken/);
+  assert.match(workerInvite, /\/api\/worker-invitations\/activation/);
+  assert.match(workerInvite, /ironbend_device_credential_v1/);
+  assert.match(nativeBridge, /appUrlOpen/);
+  assert.match(nativeBridge, /customer-scan\.html/);
+  assert.match(warehouse, /requireApprovedScanningDevice/);
+  assert.match(warehouse, /\/api\/device-enrollment\/status/);
+  assert.match(admin, /id="tab-devices"/);
+  assert.match(admin, /reviewDevice/);
+  assert.match(admin, /\/api\/device-enrollment\/requests/);
 });
 
 test('public portal does not query internal order search', () => {
@@ -95,7 +122,10 @@ test('production card split does not add a generic split master card', () => {
   assert.doesNotMatch(productionCardsRoute, /order-summary-sheet/);
   assert.doesNotMatch(productionCardsRoute, /data-order-url/);
   assert.match(orderPrintA4Route, /tene-pdf-logo\.jpg/);
-  assert.match(orderPrintA4Route, /data-order-url/);
+  assert.match(orderPrintA4Route, /data-order-code/);
+  assert.match(orderPrintA4Route, /customerScanUrl\(req, `TENE-ORDER-/);
+  assert.doesNotMatch(orderPrintA4Route, /web\+ironbend:\/\/open\/order\//);
+  assert.doesNotMatch(orderPrintA4Route, /data-order-url/);
   assert.match(orderPrintA4Route, /buildA4ProductionSummary/);
   assert.match(orderPrintA4Route, /bucketRows/);
   assert.match(orderPrintA4Route, /optionalWeightRows/);
@@ -106,8 +136,10 @@ test('production card split does not add a generic split master card', () => {
   assert.doesNotMatch(orderPrintA4Route, /diameterRows/);
   assert.match(orderPrintA4Route, /משקל חיתוך/);
   assert.match(orderPrintA4Route, /משקל כיפוף/);
-  assert.match(productionCardsRoute, /data-worker-card-url/);
-  assert.match(productionCardsRoute, /worker-visual\.html\?scan=1&card=/);
+  assert.match(productionCardsRoute, /data-worker-card-code/);
+  assert.match(productionCardsRoute, /customer-scan\.html\?code=/);
+  assert.doesNotMatch(productionCardsRoute, /web\+ironbend:\/\/open\/card\//);
+  assert.doesNotMatch(productionCardsRoute, /worker-visual\.html\?scan=1&card=/);
   assert.match(productionCardsRoute, /renderWorkerCardQrCodes/);
   assert.match(productionCardsRoute, /qrFallbackUrl/);
   assert.match(productionCardsRoute, /api\.qrserver\.com\/v1\/create-qr-code/);
@@ -176,6 +208,20 @@ test('customer portal exposes quote before order submission', () => {
   assert.match(customerPage, /onclick="showQuoteScreen\(\)"/);
 });
 
+test('customer portal order rows share the factory order-item visual contract', () => {
+  const customer = read('public/customer.html');
+  const factory = read('public/index.html');
+  const sharedRowStyles = read('public/order-item-row.css');
+
+  assert.match(customer, /\/order-item-row\.css\?v=1/);
+  assert.match(factory, /\/order-item-row\.css\?v=1/);
+  assert.match(customer, /ib-order-line-card/);
+  assert.match(customer, /item-shape-preview no-item-preview shape-preview/);
+  assert.match(customer, /item-metrics no-item-metrics/);
+  assert.match(customer, /duplicatePortalItem/);
+  assert.match(sharedRowStyles, /grid-template-columns:150px minmax\(0,1fr\) auto/);
+});
+
 test('customer profile changes lock after first edit and route to internal approval', () => {
   const portalRoute = read('routes/portal.js');
   const customersRoute = read('routes/customers.js');
@@ -208,7 +254,7 @@ test('customer portal has a project-first home and editable profile', () => {
   assert.match(customerPage, /function saveCustomerProfile/);
   assert.match(customerPage, /\/api\/c\/profile/);
   assert.match(portalRoute, /router\.post\('\/c\/profile'/);
-  assert.match(portalRoute, /UPDATE customers SET name=\?,email=\?,address=\?,portal_profile_locked_at=CURRENT_TIMESTAMP WHERE id=\?/);
+  assert.match(portalRoute, /UPDATE customers SET name=\?,email=\?,address=\?,contact_name=\?,contact_phone=\?,portal_profile_locked_at=CURRENT_TIMESTAMP WHERE id=\?/);
 });
 
 test('customer portal home uses role-aware section navigation', () => {
@@ -387,7 +433,7 @@ test('existing customer portal order submission still creates customer confirmat
   assert.match(orderCreateBlock, /ממתינה לאישור לקוח/);
   assert.match(orderCreateBlock, /awaitingApproval:\s*true/);
   assert.match(orderCreateBlock, /confirmToken/);
-  assert.match(customerPage, /function submitOrder\(\)/);
+  assert.match(customerPage, /function submitOrder\(event\)/);
   assert.match(customerPage, /\/api\/c\/order/);
   assert.match(customerPage, /function approveOrder\(orderId, event\)/);
 });
@@ -630,6 +676,20 @@ test('orders screen uses shared status transition contract', () => {
   assert.match(orders, /אין למשתמש הנוכחי הרשאה לאשר הזמנה/);
   assert.doesNotMatch(orders, /ok=>\{if\(ok\)closeDetailPanel/);
   assert.doesNotMatch(orders, /const statuses = \['/);
+});
+
+test('portal orders have a dedicated customer-approval queue, separate from internal approvals', () => {
+  const orders = read('public/orders.html');
+  const dashboard = read('public/dashboard.js');
+  const reports = read('routes/reports.js');
+
+  assert.match(orders, /פורטל · לאישור לקוח/);
+  assert.match(orders, /ממתינות משרד/);
+  assert.match(orders, /PORTAL_AWAITING_CUSTOMER_APPROVAL/);
+  assert.match(orders, /channelLabel\(o\)/);
+  assert.match(dashboard, /הזמנות פורטל ממתינות לאישור לקוח/);
+  assert.match(reports, /portalAwaitingCustomerApproval/);
+  assert.match(reports, /CUSTOMER_PENDING_APPROVAL/);
 });
 
 test('orders screen escapes API-sourced detail fields before innerHTML rendering', () => {
@@ -1736,6 +1796,7 @@ test('display-only production views prefer server-rendered production shape SVG'
   assert.match(worker, /worker-canonical-missing/);
   assert.match(worker, /\/api\/worker-card\?card=/);
   assert.match(worker, /workerCardApi\(id,'\/status'\)/);
+  assert.match(read('public/reports.html'), /\/api\/reports\/worker-card-activity/);
   assert.match(worker, /if\(!SCAN_ENTRY\)ws\(\)/);
   assert.match(productionRoute, /router\.get\('\/worker-card'/);
   assert.match(productionRoute, /router\.patch\('\/worker-card\/:id'/);

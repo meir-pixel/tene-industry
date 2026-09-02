@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#021A48">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="טנא עובדים">
+  <link rel="manifest" href="/worker-manifest.json">
+  <link rel="stylesheet" href="/theme.css">
+  <title>הפעלת אפליקציית עובדים – טנא תעשיות</title>
+  <style>
+    :root{--navy:#021a48;--orange:#c9621a;--line:#cedbe6;--soft:#f1f6f9;--danger:#aa3227;--success:#14613e}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;padding:18px;background:linear-gradient(150deg,#e9f2f7,#fdf7f2);font-family:Heebo,Arial,sans-serif;color:#142b3b}
+    main{width:min(560px,100%);margin:0 auto;padding:clamp(8px,4vw,35px) 0}.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:clamp(20px,5vw,34px);box-shadow:0 20px 60px #021a4819}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:900;color:var(--navy);margin-bottom:24px}.brand b{display:grid;place-items:center;width:39px;height:39px;border-radius:12px;background:var(--navy);color:#fff;font-size:20px}
+    h1{margin:0 0 8px;font-size:clamp(25px,6vw,34px);line-height:1.2}.lead{margin:0;color:#506b7b;line-height:1.55;font-weight:700}.info{margin:20px 0;padding:13px 15px;border-radius:13px;background:#eef5fc;color:#224e70;line-height:1.5;font-weight:700}.info strong{color:var(--navy)}
+    form{display:grid;gap:14px;margin-top:22px}label{font-size:13px;color:#415c6d;font-weight:900;display:grid;gap:6px}input{width:100%;min-height:51px;border:1px solid var(--line);border-radius:11px;padding:11px 13px;font:inherit;color:#142b3b;background:#fff}input:focus{outline:3px solid #c9621a22;border-color:var(--orange)}input[readonly]{background:#f5f8fa;color:#506b7b}
+    button{min-height:53px;border:0;border-radius:12px;background:var(--orange);color:#fff;font:inherit;font-size:17px;font-weight:900;cursor:pointer;box-shadow:0 8px 20px #c9621a35}button:disabled{opacity:.6;cursor:wait}.notice{margin:16px 0 0;padding:12px 14px;border-radius:12px;background:#edf7f1;color:var(--success);font-weight:800;line-height:1.5}.notice.error{background:#fff0ee;color:var(--danger)}.install{margin-top:20px;border-top:1px solid var(--line);padding-top:18px;color:#4e6879;font-size:13px;line-height:1.55}.install button{min-height:auto;box-shadow:none;padding:8px 12px;font-size:13px;background:var(--navy);margin-top:8px}.small{font-size:12px;color:#647b8a;line-height:1.55;margin:18px 0 0}
+    [hidden]{display:none!important}
+  </style>
+</head>
+<body>
+  <main><section class="card">
+    <div class="brand"><b>ט</b><span>טנא תעשיות · אפליקציית עובדים</span></div>
+    <h1 id="title">בודקים את ההזמנה האישית…</h1>
+    <p class="lead" id="lead">הקישור הזה מיועד לעובד אחד בלבד ותקף למשך 15 דקות.</p>
+    <div class="info" id="inviteInfo" hidden></div>
+
+    <form id="registrationForm" hidden onsubmit="activateWorker(event)">
+      <label>שם העובד<input id="workerName" readonly></label>
+      <label>שם משתמש אישי<input id="username" autocomplete="username" maxlength="80" required placeholder="למשל: david.cohen"></label>
+      <label>קוד PIN אישי (4–8 ספרות)<input id="pin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="8" pattern="[0-9]{4,8}" required></label>
+      <label>שם המכשיר<input id="deviceName" maxlength="100" required placeholder="למשל: הטלפון של דוד"></label>
+      <button id="activateButton" type="submit">שלח בקשה והפעל את המכשיר</button>
+    </form>
+
+    <div class="notice" id="notice" role="status" aria-live="polite">טוען…</div>
+    <div class="install" id="installBox" hidden>
+      <strong>להתקנה נוחה במסך הבית:</strong><br>
+      באנדרואיד אפשר לבחור “התקן אפליקציה” בדפדפן. באייפון בוחרים שיתוף ואז “הוסף למסך הבית”.
+      <br><button id="installButton" type="button" hidden>התקן אפליקציית עובדים</button>
+    </div>
+    <p class="small">שליחת הבקשה אינה נותנת גישה עדיין. מנהל המפעל צריך לאשר את העובד ואת המכשיר לפני שאפשר לסרוק או לעבוד.</p>
+  </section></main>
+  <script>
+    const DEVICE_KEY = 'ironbend_device_credential_v1';
+    let invitationToken = new URLSearchParams(location.search).get('token') || '';
+    let installPrompt = null;
+
+    function setNotice(message, error=false) {
+      const el = document.getElementById('notice');
+      el.textContent = message;
+      el.className = `notice${error ? ' error' : ''}`;
+    }
+    function errorText(code) {
+      return ({
+        invitation_expired:'תוקף הקישור הסתיים. יש לבקש הזמנה חדשה מהמנהל.',
+        invitation_cancelled:'ההזמנה בוטלה. יש לפנות למנהל.',
+        invitation_already_used:'הקישור כבר הופעל. יש לפתוח את אפליקציית העובדים או לפנות למנהל.',
+        invitation_not_found:'הקישור אינו תקין.',
+        username_already_exists:'שם המשתמש כבר קיים. יש לבחור שם אחר.',
+        worker_registration_details_required:'יש למלא שם משתמש, PIN ושם מכשיר תקינים.',
+      })[code] || 'לא ניתן להשלים את הבקשה. נסה שוב או פנה למנהל.';
+    }
+    function roleLabel(role) {
+      return ({production:'ייצור',warehouse:'מחסן',driver:'נהג',quality:'איכות',maintenance:'תחזוקה'})[role] || role;
+    }
+    function localDeviceName(workerName) {
+      const isApple = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      return `${isApple ? 'אייפון' : isAndroid ? 'טלפון Android' : 'מכשיר'} של ${workerName}`;
+    }
+    async function loadInvitation() {
+      if (!invitationToken) {
+        document.getElementById('title').textContent = 'נדרש קישור אישי';
+        setNotice('יש לפתוח את קישור ההזמנה שנשלח אליך בוואטסאפ.', true);
+        return;
+      }
+      try {
+        const response = await fetch(`/api/worker-invitations/activation?token=${encodeURIComponent(invitationToken)}`, { credentials:'same-origin' });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'invitation_not_found');
+        document.getElementById('title').textContent = 'הפעלת אפליקציית עובדים';
+        document.getElementById('lead').textContent = 'מלא פרטים אישיים. הבקשה תישלח לאישור מנהל המפעל.';
+        document.getElementById('workerName').value = result.worker_name;
+        document.getElementById('deviceName').value = localDeviceName(result.worker_name);
+        document.getElementById('inviteInfo').innerHTML = `<strong>${escapeHtml(result.worker_name)}</strong> · תפקיד: ${escapeHtml(roleLabel(result.role))}`;
+        document.getElementById('inviteInfo').hidden = false;
+        document.getElementById('registrationForm').hidden = false;
+        document.getElementById('installBox').hidden = false;
+        setNotice('ההזמנה תקפה עד ' + new Date(result.expires_at).toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' }) + '.');
+        // The secret should not remain in browser history once the page has read it.
+        history.replaceState(null, '', '/worker-invite.html');
+      } catch (error) {
+        document.getElementById('title').textContent = 'לא ניתן להפעיל את ההזמנה';
+        setNotice(errorText(error.message), true);
+        invitationToken = '';
+      }
+    }
+    async function activateWorker(event) {
+      event.preventDefault();
+      const button = document.getElementById('activateButton');
+      button.disabled = true;
+      setNotice('שולח בקשה לאישור…');
+      try {
+        const response = await fetch('/api/worker-invitations/activation', {
+          method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            token: invitationToken,
+            username: document.getElementById('username').value,
+            pin: document.getElementById('pin').value,
+            device_name: document.getElementById('deviceName').value,
+            platform: navigator.userAgent,
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'worker_registration_failed');
+        localStorage.setItem(DEVICE_KEY, result.device_credential);
+        invitationToken = '';
+        document.getElementById('registrationForm').hidden = true;
+        setNotice('הבקשה נשלחה. לאחר אישור המנהל אפשר יהיה להתחבר ולסרוק. פותח את מסך הסריקה…');
+        setTimeout(() => { location.replace('/scan.html?enrolled=1'); }, 1200);
+      } catch (error) {
+        setNotice(errorText(error.message), true);
+        button.disabled = false;
+      }
+    }
+    function escapeHtml(value) { const d=document.createElement('div'); d.textContent=String(value || ''); return d.innerHTML; }
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault(); installPrompt = event;
+      document.getElementById('installButton').hidden = false;
+    });
+    document.getElementById('installButton').addEventListener('click', async () => {
+      if (!installPrompt) return;
+      installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null;
+      document.getElementById('installButton').hidden = true;
+    });
+    loadInvitation();
+  </script>
+</body>
+</html>

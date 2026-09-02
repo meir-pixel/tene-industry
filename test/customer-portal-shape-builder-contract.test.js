@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { rebarKgPerMeter } = require('../constants');
-const { isShapeDataContractV2 } = require('../services/shapeSnapshot');
+const { buildFullShapeSnapshot, isShapeDataContractV2 } = require('../services/shapeSnapshot');
 const {
   buildPortalShapeDraft,
   portalShapeDraftToOrderItem,
@@ -81,6 +81,65 @@ test('portal shape draft calculates length and weight server-side', () => {
   assert.ok(Math.abs(item.weightPerUnit - expectedUnit) < 0.000001);
   assert.ok(Math.abs(item.totalWeight - (expectedUnit * 10)) < 0.000001);
   assert.equal(item.shapeSnapshot.calculated.weightKg, item.weightPerUnit);
+});
+
+test('portal accepts the same Shape V2 3D bar contract as the factory editor', () => {
+  const editorSnapshot = buildFullShapeSnapshot({
+    shapeId: 'factory-3d-bench',
+    shapeVersion: 4,
+    shapeType: 'bench_bar',
+    family: 'bars',
+    displayName: 'ספסל',
+    data: { sides: [280, 170, 300, 170, 280], angles: [90, 90, 90, 90], diameter: 12, is3d: 1, azAngles: [0, 90, 90, 90, 90], elAngles: [90, 0, 0, 0, 90] },
+    calculated: { totalLengthMm: 1200, weightKg: 1 },
+    machineOutput: { generic: {} },
+    validation: { valid: true, errors: [] },
+  });
+  const item = portalShapeDraftToOrderItem({ shapeSnapshot: editorSnapshot, qty: 3 });
+
+  assert.equal(item.shapeSnapshot.family, 'bars');
+  assert.equal(item.shapeSnapshot.shapeType, 'bench_bar');
+  assert.equal(item.shapeSnapshot.data.is3d, 1);
+  assert.deepEqual(item.shapeSnapshot.data.azAngles, [0, 90, 90, 90, 90]);
+  assert.equal(item.quantity, 3);
+  assert.equal(item.totalLengthMm, 1200);
+});
+
+test('portal accepts a factory Shape V2 mesh and recalculates its weight server-side', () => {
+  const editorSnapshot = buildFullShapeSnapshot({
+    shapeId: 'factory-mesh',
+    shapeType: 'mesh_rectangular',
+    family: 'mesh',
+    displayName: 'רשת',
+    data: { length: 600, width: 250, longitudinalDiameter: 8, longitudinalSpacing: 20, transverseDiameter: 8, transverseSpacing: 20, edgeLeft: 0, edgeRight: 0, edgeTop: 0, edgeBottom: 0 },
+    calculated: { totalLengthMm: 1, weightKg: 1 },
+    machineOutput: { generic: {} },
+    validation: { valid: true, errors: [] },
+  });
+  const item = portalShapeDraftToOrderItem({ shapeSnapshot: editorSnapshot, qty: 4 });
+
+  assert.equal(item.shapeSnapshot.family, 'mesh');
+  assert.equal(item.shapeSnapshot.calculated.longitudinalBarCount, 14);
+  assert.equal(item.shapeSnapshot.calculated.transverseBarCount, 31);
+  assert.equal(item.totalLengthMm, 16150);
+  assert.equal(item.totalWeight, item.weightPerUnit * 4);
+  assert.equal(item.shapeSnapshot.calculated.weightKg, item.weightPerUnit);
+});
+
+test('portal rejects an invalid Shape V2 payload instead of trusting editor totals', () => {
+  const invalidSnapshot = buildFullShapeSnapshot({
+    shapeId: 'invalid-mesh',
+    shapeType: 'mesh_rectangular',
+    family: 'mesh',
+    data: {},
+    calculated: { totalLengthMm: 999999, weightKg: 999999 },
+    machineOutput: { generic: {} },
+    validation: { valid: false, errors: ['invalid dimensions'] },
+  });
+  assert.throws(
+    () => buildPortalShapeDraft({ shapeSnapshot: invalidSnapshot, qty: 1 }),
+    err => err.code === 'invalid_shape_snapshot',
+  );
 });
 
 test('portal shape builder blocks users without create-order capability', () => {

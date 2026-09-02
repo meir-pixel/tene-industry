@@ -361,9 +361,9 @@ module.exports = function createCustomersRouter(deps) {
     const requested = JSON.parse(row.requested_json || '{}');
     if (!requested.name) return res.status(400).json({ error: '׳©׳ ׳׳§׳•׳— ׳—׳¡׳¨ ׳‘׳‘׳§׳©׳”' });
     db.prepare(`
-      UPDATE customers SET name=?,email=?,address=?,portal_profile_locked_at=COALESCE(portal_profile_locked_at,CURRENT_TIMESTAMP)
+      UPDATE customers SET name=?,email=?,address=?,contact_name=?,contact_phone=?,portal_profile_locked_at=COALESCE(portal_profile_locked_at,CURRENT_TIMESTAMP)
       WHERE id=?
-    `).run(requested.name, requested.email || null, requested.address || null, req.params.id);
+    `).run(requested.name, requested.email || null, requested.address || null, requested.contactName || null, requested.contactPhone || null, req.params.id);
     db.prepare(`
       UPDATE customer_profile_change_requests
       SET status='approved',reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP

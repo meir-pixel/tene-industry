@@ -1,10 +1,14 @@
-const CACHE_VERSION = 'ironbend-v19';
+const CACHE_VERSION = 'ironbend-v22';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const API_CACHE     = `${CACHE_VERSION}-api`;
 
 const STATIC_ASSETS = [
   '/index.html',
   '/dashboard.html',
+  '/scan.html',
+  '/worker-invite.html',
+  '/worker-manifest.json',
+  '/customer-scan.html',
   '/orders.html',
   '/machine.html',
   '/offline.html',

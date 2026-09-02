@@ -996,6 +996,22 @@ body { font-family:'Heebo',sans-serif; background:#f0f4f8; color:var(--text); mi
         </div>
       </div>
 
+      <div class="form-divider">יכולות בפורטל הלקוח</div>
+      <div class="form-row full" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+        <label class="form-group" style="display:flex;align-items:center;gap:9px;border:1px solid var(--border);border-radius:10px;padding:11px 12px;cursor:pointer">
+          <input type="checkbox" id="fPortalCanCreateSites" style="width:auto"> פתיחת פרויקטים ואתרים
+        </label>
+        <label class="form-group" style="display:flex;align-items:center;gap:9px;border:1px solid var(--border);border-radius:10px;padding:11px 12px;cursor:pointer">
+          <input type="checkbox" id="fPortalCanManageUsers" style="width:auto"> ניהול משתמשים והרשאות
+        </label>
+        <label class="form-group" style="display:flex;align-items:center;gap:9px;border:1px solid var(--border);border-radius:10px;padding:11px 12px;cursor:pointer">
+          <input type="checkbox" id="fPortalCanSetBudgets" style="width:auto"> תקציבים לפי פרויקט
+        </label>
+        <label class="form-group" style="display:flex;align-items:center;gap:9px;border:1px solid var(--border);border-radius:10px;padding:11px 12px;cursor:pointer">
+          <input type="checkbox" id="fPortalCanExposePrices" style="width:auto"> הצגת מחירים ללקוח
+        </label>
+      </div>
+
       <div class="form-divider">איש קשר</div>
       <div class="form-row">
         <div class="form-group">
@@ -1337,6 +1353,7 @@ function renderDetail(c) {
       pendingProfileRequests.map(r => '<div class="order-row" style="align-items:flex-start">' +
         '<div><b>בקשה #' + esc(r.id) + '</b><div style="font-size:12px;color:var(--text-muted);margin-top:4px">' +
           'שם: ' + esc(r.requested?.name || '-') + ' · אימייל: ' + esc(r.requested?.email || '-') + ' · כתובת: ' + esc(r.requested?.address || '-') +
+          (r.requested?.contactName ? ' · איש קשר: ' + esc(r.requested.contactName) : '') +
         '</div></div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
           '<button class="btn-action primary" onclick="approveProfileChange(' + c.id + ',' + r.id + ')">אשר</button>' +
@@ -1357,6 +1374,9 @@ function renderDetail(c) {
   html += '</div>';
   html += '<div class="info-section"><h4>🖨️ שיקוף לקוח</h4>';
   html += infoRow('מה הלקוח רואה', c.portal_price_list_visibility === 'none' ? 'אין טאב מחירון בפורטל' : 'מחירון נקי להדפסה ללא שם מחירון פנימי');
+  html += infoRow('פרויקטים', Number(c.portal_can_create_sites || 0) === 1 ? 'פעיל' : 'כבוי — ניתן להפעיל בעריכת לקוח');
+  html += infoRow('ניהול משתמשים', Number(c.portal_can_manage_users || 0) === 1 ? 'פעיל' : 'כבוי');
+  html += customerPortalPreviewButton(c.id);
   html += '<button class="btn-action" onclick="getPortalLink('+c.id+')">צפה / שלח קישור פורטל</button>';
   html += '</div>';
   html += '</div>';
@@ -1659,6 +1679,16 @@ function portalTokenFromResponse(d) {
   }
 }
 
+function isSystemAdmin() {
+  const authRole = window.IronBendAuth?.currentUser?.().role;
+  return String(authRole || sessionStorage.getItem('ib_role') || localStorage.getItem('ib_role') || '').toLowerCase() === 'admin';
+}
+
+function customerPortalPreviewButton(customerId) {
+  if (!isSystemAdmin()) return '';
+  return '<button class="btn-action primary" onclick="openPortalAsCustomer(' + customerId + ')">כניסה לפורטל כלקוח</button>';
+}
+
 function formatPortalAccessCode(token) {
   const clean = String(token || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   return clean.match(/.{1,4}/g)?.join('-') || '';
@@ -1774,6 +1804,27 @@ async function getPortalLink(id) {
   }
 }
 
+async function openPortalAsCustomer(id) {
+  if (!confirm('כניסה למצב סיוע פעיל. פעולות שתבצע ישפיעו על נתוני הלקוח ויירשמו ביומן הבקרה. להמשיך?')) return;
+  const previewWindow = window.open('about:blank', '_blank');
+  if (!previewWindow) {
+    window.showToast && window.showToast('יש לאפשר חלונות קופצים כדי לפתוח את הפורטל', true);
+    return;
+  }
+  previewWindow.opener = null;
+  previewWindow.document.title = 'פותח פורטל לקוח...';
+  previewWindow.document.body.innerHTML = '<div dir="rtl" style="font-family:Heebo,Arial,sans-serif;padding:32px;text-align:center">פותח מצב סיוע מאובטח...</div>';
+  try {
+    const r = await fetch('/api/customers/' + id + '/portal-preview');
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.link) throw new Error(d.error || 'לא ניתן לפתוח את הפורטל');
+    previewWindow.location.replace(d.link);
+  } catch (error) {
+    previewWindow.close();
+    window.showToast && window.showToast(error.message || 'שגיאה בפתיחת פורטל הלקוח', true);
+  }
+}
+
 async function rotatePortalLink(id) {
   if (!confirm('להחליף את הקישור? הקישור הישן יפסיק לעבוד.')) return;
   try {
@@ -1835,6 +1886,10 @@ function openModal(id) {
       document.getElementById('fTaxId').value        = c.tax_id       || '';
       document.getElementById('fPaymentTerms').value = c.payment_terms|| '';
       document.getElementById('fPortalPriceListVisibility').value = c.portal_price_list_visibility || 'none';
+      document.getElementById('fPortalCanCreateSites').checked = Number(c.portal_can_create_sites || 0) === 1;
+      document.getElementById('fPortalCanManageUsers').checked = Number(c.portal_can_manage_users || 0) === 1;
+      document.getElementById('fPortalCanSetBudgets').checked = Number(c.portal_can_set_budgets || 0) === 1;
+      document.getElementById('fPortalCanExposePrices').checked = Number(c.portal_can_expose_prices || 0) === 1;
       document.getElementById('fPriorityId').value   = c.priority_id  || '';
       document.getElementById('fContactName').value  = c.contact_name || '';
       document.getElementById('fContactPhone').value = c.contact_phone|| '';
@@ -1849,6 +1904,10 @@ function openModal(id) {
         document.getElementById('fTaxId').value        = c.tax_id       || '';
         document.getElementById('fPaymentTerms').value = c.payment_terms|| '';
         document.getElementById('fPortalPriceListVisibility').value = c.portal_price_list_visibility || 'none';
+        document.getElementById('fPortalCanCreateSites').checked = Number(c.portal_can_create_sites || 0) === 1;
+        document.getElementById('fPortalCanManageUsers').checked = Number(c.portal_can_manage_users || 0) === 1;
+        document.getElementById('fPortalCanSetBudgets').checked = Number(c.portal_can_set_budgets || 0) === 1;
+        document.getElementById('fPortalCanExposePrices').checked = Number(c.portal_can_expose_prices || 0) === 1;
         document.getElementById('fPriorityId').value   = c.priority_id  || '';
         document.getElementById('fContactName').value  = c.contact_name || '';
         document.getElementById('fContactPhone').value = c.contact_phone|| '';
@@ -1865,6 +1924,10 @@ function openModal(id) {
     document.getElementById('fTaxId').value       = '';
     document.getElementById('fPaymentTerms').value= '';
     document.getElementById('fPortalPriceListVisibility').value = 'none';
+    document.getElementById('fPortalCanCreateSites').checked = true;
+    document.getElementById('fPortalCanManageUsers').checked = false;
+    document.getElementById('fPortalCanSetBudgets').checked = false;
+    document.getElementById('fPortalCanExposePrices').checked = false;
     document.getElementById('fPriorityId').value  = '';
     document.getElementById('fContactName').value = '';
     document.getElementById('fContactPhone').value= '';
@@ -1899,6 +1962,10 @@ async function saveCustomer() {
     taxId:        document.getElementById('fTaxId').value.trim()        || null,
     paymentTerms: document.getElementById('fPaymentTerms').value.trim() || null,
     portalPriceListVisibility: document.getElementById('fPortalPriceListVisibility').value || 'none',
+    portalCanCreateSites: document.getElementById('fPortalCanCreateSites').checked,
+    portalCanManageUsers: document.getElementById('fPortalCanManageUsers').checked,
+    portalCanSetBudgets: document.getElementById('fPortalCanSetBudgets').checked,
+    portalCanExposePrices: document.getElementById('fPortalCanExposePrices').checked,
     priorityId:   document.getElementById('fPriorityId').value.trim()   || null,
     contactName:  document.getElementById('fContactName').value.trim()  || null,
     contactPhone: document.getElementById('fContactPhone').value.trim() || null,
@@ -1911,11 +1978,13 @@ async function saveCustomer() {
     let r, d;
     if (editId) {
       r = await fetch('/api/customers/' + editId, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-      d = await r.json();
+      d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'לא ניתן לעדכן את הלקוח');
       window.showToast && window.showToast('הלקוח עודכן ✓');
     } else {
       r = await fetch('/api/customers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-      d = await r.json();
+      d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'לא ניתן ליצור את הלקוח');
       window.showToast && window.showToast('הלקוח נוצר ✓');
     }
     closeModal();
@@ -1923,7 +1992,7 @@ async function saveCustomer() {
     if (editId) selectCustomer(Number(editId));
     else if (d.id) selectCustomer(d.id);
   } catch(e) {
-    window.showToast && window.showToast('שגיאה בשמירה', true);
+    window.showToast && window.showToast(e.message || 'שגיאה בשמירה', true);
   } finally {
     btn.disabled = false;
     btn.textContent = 'שמור לקוח';

@@ -13,6 +13,7 @@ module.exports = function createOrderDocumentsRouter(deps) {
   const industry = required('industry', deps.industry);
   const tryParseJSON = required('tryParseJSON', deps.tryParseJSON);
   const productionCards = deps.productionCards || require('../services/productionCards');
+  const settingsService = deps.settingsService || null;
 
   router.use(createOrderDeliveryCertificateRouter({
     db,
@@ -25,6 +26,7 @@ module.exports = function createOrderDocumentsRouter(deps) {
     requireAnyRole,
     tryParseJSON,
     productionCards,
+    settingsService,
   }));
 
   return router;

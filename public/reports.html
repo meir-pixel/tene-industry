@@ -36,7 +36,7 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
 
 /* FILTERS */
 .filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-.filter-bar input[type=date]{padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+.filter-bar input[type=date],.filter-bar select{padding:9px 12px;border-radius:8px;border:1px solid var(--border);
   background:var(--card);color:var(--text);font-family:'Heebo',sans-serif;font-size:13px;}
 .filter-bar label{font-size:13px;color:var(--text-dim);}
 .btn-load{padding:9px 20px;border-radius:8px;background:var(--accent);color:#fff;border:none;
@@ -257,6 +257,21 @@ body{font-family:'Heebo',sans-serif;background:var(--steel);color:var(--text);mi
     </div>
   </div>
 
+  <div>
+    <div class="section-title">👷 מי עבד על כרטיסי ייצור</div>
+    <div class="timing-note">כל פתיחה או עדכון מתוך סורק העבודה מתועד עם המשתמש המחובר והמכשיר המאושר. נתונים מתחילים להיאסף מרגע הפעלת הגרסה.</div>
+    <div class="filter-bar" style="margin-bottom:10px">
+      <label for="workerActivityFilter">עובד:</label>
+      <select id="workerActivityFilter" onchange="loadWorkerCardActivity()"><option value="">כל העובדים</option></select>
+    </div>
+    <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
+      <table class="data-table">
+        <thead><tr><th>מועד</th><th>עובד</th><th>מכשיר</th><th>הזמנה</th><th>כרטיס</th><th>פעולה</th><th>פרטים</th></tr></thead>
+        <tbody id="workerActivityTable"><tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px">טוען פעילות…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Waste table -->
   <div>
     <div class="section-title">♻️ ניתוח פחת מפורט</div>
@@ -314,6 +329,7 @@ let reportData = null;
 let timingData = null;
 let timingCardFilter = null;
 let dailyDiameterRows = [];
+let workerActivityWorkersLoaded = false;
 
 function escH(value) {
   if (window.IronBendSafe?.escapeHtml) return window.IronBendSafe.escapeHtml(value);
@@ -356,6 +372,48 @@ async function loadAll() {
   renderWasteTable(summary.waste || []);
   renderCustomersTable(summary.topCustomers || []);
   loadProductionTiming(from, to);
+  loadWorkerCardActivity();
+}
+
+function workerActivityAction(action) {
+  return ({ opened:'נפתח בסריקה', status_changed:'שינוי מצב', updated:'עדכון ביצוע' })[action] || escH(action || '—');
+}
+
+function workerActivityDetails(details = {}) {
+  const parts = [];
+  if (details.from_status && details.to_status && details.from_status !== details.to_status) parts.push(`${escH(details.from_status)} ← ${escH(details.to_status)}`);
+  if (details.produced_qty != null) parts.push(`כמות שבוצעה: ${num(details.produced_qty)}`);
+  if (details.actual_weight_kg != null) parts.push(`משקל: ${num(details.actual_weight_kg)} ק״ג`);
+  if (details.note_updated) parts.push('עודכנה הערה');
+  return parts.join(' · ') || '—';
+}
+
+async function loadWorkerCardActivity() {
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+  const select = document.getElementById('workerActivityFilter');
+  const selectedWorker = select?.value || '';
+  const params = new URLSearchParams({ from, to });
+  if (selectedWorker) params.set('worker_id', selectedWorker);
+  const empty = { rows: [], workers: [] };
+  const data = await fetch(`/api/reports/worker-card-activity?${params.toString()}`)
+    .then(response => response.ok ? response.json() : empty)
+    .catch(() => empty);
+  if (select && (!workerActivityWorkersLoaded || selectedWorker)) {
+    const current = selectedWorker;
+    select.innerHTML = '<option value="">כל העובדים</option>' + (data.workers || []).map(worker =>
+      `<option value="${num(worker.id)}">${escH(worker.name)} (${num(worker.activity_count)})</option>`).join('');
+    select.value = current;
+    workerActivityWorkersLoaded = true;
+  }
+  const table = document.getElementById('workerActivityTable');
+  table.innerHTML = (data.rows || []).map(row => `
+    <tr>
+      <td>${formatTimingDate(row.occurred_at)}</td><td><strong>${escH(row.actor_name || 'לא ידוע')}</strong></td>
+      <td>${escH(row.device_name || 'מכשיר מאושר')}</td><td>${escH(row.order_num || '—')}</td>
+      <td>${escH(row.shape_name || 'כרטיס')} · #${num(row.item_id)}</td>
+      <td>${workerActivityAction(row.action)}</td><td>${workerActivityDetails(row.details)}</td>
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px">אין פעילות כרטיסים בתקופה שנבחרה.</td></tr>';
 }
 
 async function loadProductionTiming(from, to) {

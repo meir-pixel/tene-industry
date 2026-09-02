@@ -3,12 +3,18 @@
 const crypto = require('crypto');
 const { VALID_DIAMETERS, rebarKgPerMeter } = require('../constants');
 const {
+  buildBarsShapeContract,
+  buildSpiralShapeContract,
+  buildRingShapeContract,
+} = require('../modules/steel-rebar/shapes');
+const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
+const {
   buildFullShapeSnapshot,
   isShapeDataContractV2,
   parseJsonObject,
 } = require('./shapeSnapshot');
 
-const ALLOWED_FAMILIES = new Set(['bars']);
+const ALLOWED_FAMILIES = new Set(['bars', 'mesh', 'piles', 'spirals']);
 const SHAPE_TYPE_ALIASES = Object.freeze({
   straight: 'straight_bar',
   straight_bar: 'straight_bar',
@@ -176,10 +182,298 @@ function buildShapePreview(shapeType, sides, angles) {
   </svg>`;
 }
 
+function buildPortalPreview(title, dimensions) {
+  const safeTitle = cleanText(title, 'Shape');
+  const safeDimensions = cleanText(dimensions, '');
+  return `<svg viewBox="0 0 180 80" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${safeTitle} ${safeDimensions}">
+    <rect x="1" y="1" width="178" height="78" rx="8" fill="#fff" stroke="#d8e2ef"/>
+    <text x="90" y="27" text-anchor="middle" font-family="Arial" font-size="11" font-weight="700" fill="#25364d">${safeTitle}</text>
+    <text x="90" y="55" text-anchor="middle" font-family="Arial" font-size="10" fill="#526070">${safeDimensions}</text>
+  </svg>`;
+}
+
+function rounded(value, digits = 3) {
+  const factor = 10 ** digits;
+  return Math.round((Number(value) || 0) * factor) / factor;
+}
+
+function readShapeSnapshot(input = {}) {
+  const candidate = input.shapeSnapshot
+    ?? input.shape_snapshot
+    ?? input.shapeDraft?.shapeSnapshot
+    ?? input.shapeDraft?.shape_snapshot
+    ?? null;
+  const snapshot = parseJsonObject(candidate);
+  return isShapeDataContractV2(snapshot) ? snapshot : null;
+}
+
+function assertApprovedSnapshot(snapshot) {
+  if (!snapshot) return;
+  const errors = Array.isArray(snapshot.validation?.errors) ? snapshot.validation.errors : [];
+  if (snapshot.validation?.valid === false || errors.length) {
+    throw portalDraftError('shape editor data is not valid', 'invalid_shape_snapshot');
+  }
+}
+
+function requireSupportedFamily(value) {
+  const family = String(value || 'bars');
+  if (!ALLOWED_FAMILIES.has(family)) {
+    throw portalDraftError('shape family is not supported', 'unsupported_shape_family');
+  }
+  return family;
+}
+
+function canonicalShapeId(value, fallback) {
+  const cleaned = cleanText(value || fallback, '');
+  return cleaned || fallback;
+}
+
+function meshBarCount(total, spacing, edgeStart = 0, edgeEnd = 0) {
+  const length = Math.max(1, Number(total) || 1);
+  const pitch = Math.max(1, Number(spacing) || 1);
+  const start = Math.min(length, Math.max(0, Number(edgeStart) || 0));
+  const end = Math.max(start, length - Math.min(length, Math.max(0, Number(edgeEnd) || 0)));
+  const positions = [];
+  for (let mm = start; mm <= end + 0.001; mm += pitch) positions.push(Math.min(end, mm));
+  if (!positions.length || positions[positions.length - 1] !== end) positions.push(end);
+  return positions.length;
+}
+
+function normalizeMeshData(data = {}) {
+  const length = positiveNumber(data.length, 'mesh length');
+  const width = positiveNumber(data.width, 'mesh width');
+  const longitudinalDiameter = normalizeDiameter(data.longitudinalDiameter);
+  const longitudinalSpacing = positiveNumber(data.longitudinalSpacing, 'longitudinal spacing');
+  const transverseDiameter = normalizeDiameter(data.transverseDiameter);
+  const transverseSpacing = positiveNumber(data.transverseSpacing, 'transverse spacing');
+  const edge = field => {
+    const n = numberOrNull(data[field]);
+    if (n === null || n < 0) throw portalDraftError(`${field} must be zero or greater`);
+    return n;
+  };
+  const out = {
+    length,
+    width,
+    longitudinalDiameter,
+    longitudinalSpacing,
+    transverseDiameter,
+    transverseSpacing,
+    edgeLeft: edge('edgeLeft'),
+    edgeRight: edge('edgeRight'),
+    edgeTop: edge('edgeTop'),
+    edgeBottom: edge('edgeBottom'),
+  };
+  if (out.edgeLeft + out.edgeRight >= out.length || out.edgeTop + out.edgeBottom >= out.width) {
+    throw portalDraftError('mesh cover leaves no reinforcement area');
+  }
+  return out;
+}
+
+function buildMeshSnapshot(snapshot, data) {
+  const longitudinalBarCount = meshBarCount(data.width, data.longitudinalSpacing, data.edgeTop, data.edgeBottom);
+  const transverseBarCount = meshBarCount(data.length, data.transverseSpacing, data.edgeLeft, data.edgeRight);
+  const longitudinalTotalLengthMm = longitudinalBarCount * data.length;
+  const transverseTotalLengthMm = transverseBarCount * data.width;
+  const totalLengthMm = longitudinalTotalLengthMm + transverseTotalLengthMm;
+  const weightKg = rounded(
+    (longitudinalTotalLengthMm / 1000) * rebarKgPerMeter(data.longitudinalDiameter)
+      + (transverseTotalLengthMm / 1000) * rebarKgPerMeter(data.transverseDiameter),
+  );
+  const calculated = {
+    longitudinalBarCount,
+    transverseBarCount,
+    longitudinalTotalLengthMm,
+    transverseTotalLengthMm,
+    totalLengthMm,
+    weightKg,
+  };
+  const shapeType = snapshot.shapeType || 'mesh_rectangular';
+  return {
+    shapeSnapshot: buildFullShapeSnapshot({
+      shapeVersion: snapshot.shapeVersion,
+      shapeId: canonicalShapeId(snapshot.shapeId, `portal-mesh-${crypto.randomUUID()}`),
+      shapeType,
+      family: 'mesh',
+      source: 'customer-portal',
+      displayName: cleanText(snapshot.displayName, 'רשת'),
+      data,
+      calculated,
+      machineOutput: {
+        generic: { family: 'mesh', shapeType, ...data, longitudinalBarCount, transverseBarCount, totalLengthMm, weightKg },
+      },
+      validation: { valid: true, warnings: [], errors: [] },
+    }),
+    family: 'mesh',
+    shapeType,
+    shapeId: canonicalShapeId(snapshot.shapeId, 'portal-mesh'),
+    diameter: data.longitudinalDiameter,
+    sides: [],
+    angles: [],
+    segments: [],
+    totalLengthMm,
+    weightPerUnit: weightKg,
+    shapeDimsText: `L=${Math.round(data.length)} · W=${Math.round(data.width)} · Ø${data.longitudinalDiameter}@${data.longitudinalSpacing} / Ø${data.transverseDiameter}@${data.transverseSpacing}`,
+  };
+}
+
+function buildBarsSnapshot(snapshot, rawData = {}) {
+  const sides = normalizeSides(rawData.sides);
+  const angles = (Array.isArray(rawData.angles) ? rawData.angles : []).map((angle, index) => normalizeAngle(angle, index < sides.length - 1 ? 180 : null));
+  if (![sides.length - 1, sides.length].includes(angles.length)) {
+    throw portalDraftError('angles do not match sides');
+  }
+  const diameter = normalizeDiameter(rawData.diameter ?? rawData.diameterMm);
+  const is3d = rawData.is3d === 1 || rawData.is3d === true;
+  const contract = buildBarsShapeContract({
+    ...rawData,
+    sides,
+    angles,
+    diameter,
+    is3d,
+    azAngles: is3d ? rawData.azAngles : null,
+    elAngles: is3d ? rawData.elAngles : null,
+    shapeType: snapshot.shapeType,
+  });
+  const shapeType = snapshot.shapeType || (sides.length === 1 ? 'straight_bar' : 'custom_bar');
+  const shapeId = canonicalShapeId(snapshot.shapeId, `portal-${shapeType}-${crypto.randomUUID()}`);
+  const shapeSnapshot = buildFullShapeSnapshot({
+    shapeVersion: snapshot.shapeVersion,
+    shapeId,
+    shapeType,
+    family: 'bars',
+    source: 'customer-portal',
+    displayName: cleanText(snapshot.displayName, shapeTypeLabel(shapeType)),
+    data: { ...contract.data, segments: contract.generic.segments, shapeType },
+    calculated: {
+      totalLengthMm: contract.calculated.unitLengthMm,
+      weightKg: contract.calculated.unitWeightKg,
+      bendCount: contract.calculated.bendCount,
+    },
+    machineOutput: { generic: contract.generic },
+    validation: { valid: true, warnings: [], errors: [] },
+  });
+  return {
+    shapeSnapshot,
+    family: 'bars',
+    shapeType,
+    shapeId,
+    diameter,
+    sides,
+    angles,
+    segments: contract.generic.segments.map(segment => ({ length_mm: segment.lengthMm, angle_deg: segment.angle_deg })),
+    totalLengthMm: contract.calculated.unitLengthMm,
+    weightPerUnit: contract.calculated.unitWeightKg,
+    shapeDimsText: buildDimsText(sides, angles),
+  };
+}
+
+function buildSpiralSnapshot(snapshot, rawData = {}) {
+  const shapeType = String(snapshot.shapeType || rawData.shapeType || 'spiral');
+  const barDiameter = normalizeDiameter(rawData.barDiameter ?? rawData.barDiameterMm ?? rawData.diameter);
+  const isRing = shapeType === 'ring' || rawData.ringDiameterMm != null || rawData.bendingDiameterMm != null;
+  const contract = isRing
+    ? buildRingShapeContract({
+      barDiameterMm: barDiameter,
+      bendingDiameterMm: rawData.bendingDiameterMm ?? rawData.ringDiameterMm ?? rawData.spiralDiameter,
+      overlapMm: rawData.overlapMm ?? rawData.overlap ?? 0,
+      quantity: 1,
+    })
+    : buildSpiralShapeContract({
+      barDiameter,
+      spiralDiameter: rawData.spiralDiameter ?? rawData.spiralDiameterMm,
+      turns: rawData.turns,
+      shapeType,
+    });
+  const snapshotType = isRing ? 'ring' : shapeType;
+  const shapeId = canonicalShapeId(snapshot.shapeId, `portal-${snapshotType}-${crypto.randomUUID()}`);
+  const shapeSnapshot = buildFullShapeSnapshot({
+    shapeVersion: snapshot.shapeVersion,
+    shapeId,
+    shapeType: snapshotType,
+    family: 'spirals',
+    source: 'customer-portal',
+    displayName: cleanText(snapshot.displayName, isRing ? 'טבעת' : 'ספירלה'),
+    data: { ...contract.data, shapeType: snapshotType },
+    calculated: { ...contract.calculated, totalLengthMm: contract.calculated.unitLengthMm ?? contract.calculated.totalLengthMm, weightKg: contract.calculated.unitWeightKg ?? contract.calculated.weightKg },
+    machineOutput: { generic: contract.generic },
+    validation: { valid: true, warnings: [], errors: [] },
+  });
+  const unitLengthMm = Number(contract.calculated.unitLengthMm ?? contract.calculated.totalLengthMm);
+  const unitWeightKg = Number(contract.calculated.unitWeightKg ?? contract.calculated.weightKg);
+  return {
+    shapeSnapshot,
+    family: 'spirals',
+    shapeType: snapshotType,
+    shapeId,
+    diameter: barDiameter,
+    sides: [],
+    angles: [],
+    segments: [],
+    totalLengthMm: unitLengthMm,
+    weightPerUnit: unitWeightKg,
+    shapeDimsText: isRing
+      ? `Ø${barDiameter} · טבעת Ø${Math.round(contract.data.ringDiameterMm)} · חפיפה ${Math.round(contract.data.overlapMm || 0)}`
+      : `Ø${barDiameter} · ספירלה Ø${Math.round(contract.data.spiralDiameter)} · ${contract.data.turns} ליפופים`,
+  };
+}
+
+function buildPileSnapshot(snapshot, rawData = {}) {
+  const pile = calculatePileCage({
+    ...rawData,
+    shapeId: canonicalShapeId(snapshot.shapeId, `portal-pile-${crypto.randomUUID()}`),
+    shapeVersion: snapshot.shapeVersion,
+    roundPileCage: true,
+  });
+  if (!pile.validation?.valid) {
+    throw portalDraftError('pile cage data is not valid', 'invalid_shape_snapshot');
+  }
+  const snapshotType = 'round_pile_cage';
+  const shapeId = canonicalShapeId(snapshot.shapeId, `portal-pile-${crypto.randomUUID()}`);
+  const shapeSnapshot = {
+    ...pile,
+    shapeId,
+    source: 'customer-portal',
+    displayName: cleanText(snapshot.displayName, 'כלוב כלונס עגול'),
+  };
+  const primaryDiameter = Number(pile.data?.longitudinalBars?.defaultDiameterMm ?? rawData.longitudinalDiameter ?? rawData.longitudinalDiameterMm);
+  return {
+    shapeSnapshot,
+    family: 'piles',
+    shapeType: snapshotType,
+    shapeId,
+    diameter: primaryDiameter,
+    sides: [],
+    angles: [],
+    segments: [],
+    totalLengthMm: Number(pile.calculated.totalLengthMm),
+    weightPerUnit: Number(pile.calculated.weightKg),
+    shapeDimsText: `כלוב Ø${Math.round(pile.data?.general?.pileDiameterMm || rawData.pileDiameter || 0)} · L ${Math.round(pile.data?.general?.pileLengthMm || rawData.pileLength || 0)}`,
+  };
+}
+
+function normalizeShapeSnapshotDraft(input = {}) {
+  const snapshot = readShapeSnapshot(input);
+  if (!snapshot) return null;
+  assertApprovedSnapshot(snapshot);
+  const family = requireSupportedFamily(snapshot.family);
+  const rawData = snapshot.data && typeof snapshot.data === 'object' ? snapshot.data : {};
+  const quantity = normalizeQuantity(input.quantity ?? input.qty ?? input.orderItemQuantity);
+  const normalized = family === 'mesh'
+    ? buildMeshSnapshot(snapshot, normalizeMeshData(rawData))
+    : family === 'piles'
+      ? buildPileSnapshot(snapshot, rawData)
+      : family === 'spirals'
+        ? buildSpiralSnapshot(snapshot, rawData)
+        : buildBarsSnapshot(snapshot, rawData);
+  return { ...normalized, quantity, fromShapeSnapshot: true };
+}
+
 function validatePortalShapeDraft(input = {}, ctx = {}) {
   if (ctx && ctx.canCreateOrders === false) {
     throw portalDraftError('portal user cannot create orders', 'portal_order_create_forbidden', 403);
   }
+  const snapshotDraft = normalizeShapeSnapshotDraft(input);
+  if (snapshotDraft) return snapshotDraft;
   const { data } = draftInput(input);
   const geometry = normalizeDraftGeometry(input);
   const diameter = normalizeDiameter(input.diameter ?? data.diameter ?? data.diameterMm);
@@ -189,6 +483,31 @@ function validatePortalShapeDraft(input = {}, ctx = {}) {
 
 function buildPortalShapeDraft(input = {}, ctx = {}) {
   const normalized = validatePortalShapeDraft(input, ctx);
+  if (normalized.fromShapeSnapshot) {
+    const elementName = cleanText(
+      input.elementName ?? input.struct_element ?? input.shapeName ?? normalized.shapeSnapshot.displayName,
+      normalized.shapeSnapshot.displayName || 'Shape',
+    );
+    const note = cleanText(input.note ?? input.noteForCustomer, '');
+    const shapeName = cleanText(input.shapeName ?? normalized.shapeSnapshot.displayName ?? elementName, elementName);
+    const totalWeight = normalized.weightPerUnit * normalized.quantity;
+    const shapeSnapshot = {
+      ...normalized.shapeSnapshot,
+      displayName: shapeName,
+      source: 'customer-portal',
+    };
+    return {
+      ...normalized,
+      elementName,
+      note,
+      shapeName,
+      shapeSnapshot,
+      shapeSnapshotJson: JSON.stringify(shapeSnapshot),
+      segmentsJson: JSON.stringify(normalized.segments),
+      totalWeight,
+      shapePreview: buildPortalPreview(shapeName, normalized.shapeDimsText),
+    };
+  }
   const elementName = cleanText(input.elementName ?? input.struct_element ?? input.shapeName, shapeTypeLabel(normalized.shapeType));
   const note = cleanText(input.note ?? input.noteForCustomer, '');
   const totalLengthMm = normalized.sides.reduce((sum, length) => sum + length, 0);

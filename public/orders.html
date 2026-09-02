@@ -296,12 +296,12 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
       <table>
         <thead>
           <tr>
-            <th>מספר</th><th>לקוח</th><th>אספקה</th><th>עדיפות</th>
+            <th>מספר</th><th>לקוח</th><th>מקור</th><th>אספקה</th><th>עדיפות</th>
             <th>משקל</th><th>סטטוס</th><th>נוצרה</th><th></th>
           </tr>
         </thead>
         <tbody id="ordersBody">
-          <tr><td colspan="8" style="text-align:center;padding:48px;color:var(--muted)">טוען...</td></tr>
+          <tr><td colspan="9" style="text-align:center;padding:48px;color:var(--muted)">טוען...</td></tr>
         </tbody>
       </table>
     </div>
@@ -403,7 +403,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 </div>
 
 <script>
-let allOrders = [], activeStatus = '', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [];
+let allOrders = [], activeStatus = new URLSearchParams(location.search).get('status') || '', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [];
 let orderShapeEditor = null, pendingShapeEdit = null;
 const STATUS_CONTRACT = window.IronBendStatus || {};
 const ORDER_STATUS = STATUS_CONTRACT.ORDER_STATUS || {};
@@ -420,9 +420,11 @@ const ORDER_ACTION_LABELS = new Map([
   [ORDER_STATUS.DELIVERED_CONFIRMED, '✓ סופק'],
   [ORDER_STATUS.CANCELLED, 'בטל'],
 ]);
+const PORTAL_AWAITING_CUSTOMER_APPROVAL = ORDER_STATUS.CUSTOMER_PENDING_APPROVAL || 'ממתינה לאישור לקוח';
 const ORDER_STATUS_FILTERS = [
   { label: 'הכל', status: '' },
-  { label: 'ממתינות', status: ORDER_STATUS.PENDING_APPROVAL },
+  { label: 'פורטל · לאישור לקוח', status: PORTAL_AWAITING_CUSTOMER_APPROVAL },
+  { label: 'ממתינות משרד', status: ORDER_STATUS.PENDING_APPROVAL },
   { label: 'אושרו', status: ORDER_STATUS.APPROVED_WAITING_PRODUCTION },
   { label: 'בייצור', status: ORDER_STATUS.IN_PRODUCTION },
   { label: 'הושלמו', status: ORDER_STATUS.DONE_WAITING_PICKUP },
@@ -491,8 +493,9 @@ function applyFilter() {
 
 function renderStatusFilters() {
   const target = document.getElementById('statusFilterButtons');
-  target.innerHTML = ORDER_STATUS_FILTERS.map((filter, index) =>
-    `<button class="filter-btn${index === 0 ? ' active' : ''}" data-status="${filter.status}">${filter.label}</button>`
+  if (!ORDER_STATUS_FILTERS.some(filter => filter.status === activeStatus)) activeStatus = '';
+  target.innerHTML = ORDER_STATUS_FILTERS.map(filter =>
+    `<button class="filter-btn${filter.status === activeStatus ? ' active' : ''}" data-status="${filter.status}">${filter.label}</button>`
   ).join('');
 
   document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -500,6 +503,10 @@ function renderStatusFilters() {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeStatus = btn.dataset.status;
+      const url = new URL(location.href);
+      if (activeStatus) url.searchParams.set('status', activeStatus);
+      else url.searchParams.delete('status');
+      history.replaceState(null, '', url);
       fetchOrders();
     });
   });
@@ -517,6 +524,12 @@ function urgentLabel(o) {
   return o.priority === 'דחוף'
     ? '<span style="color:var(--danger);font-weight:700">⚡ דחוף</span>'
     : '<span style="color:var(--muted)">רגיל</span>';
+}
+function channelLabel(o) {
+  if (Number(o.portal_order) === 1 || o.channel === 'פורטל לקוח') {
+    return '<span class="badge s-wait">פורטל לקוח</span>';
+  }
+  return `<span style="color:var(--muted);font-size:12px">${escHtml(o.channel || 'משרד')}</span>`;
 }
 function actionBtns(o, stopProp = true, includePrints = true) {
   const sp = stopProp ? 'onclick="event.stopPropagation()"' : '';
@@ -544,13 +557,14 @@ function actionBtns(o, stopProp = true, includePrints = true) {
 function renderTable(orders) {
   const body = document.getElementById('ordersBody');
   if (!orders.length) {
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">אין הזמנות</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">אין הזמנות</td></tr>';
     return;
   }
   body.innerHTML = orders.map(o => `
     <tr onclick="openDetail(${o.id})">
       <td><span class="order-num">${escHtml(o.order_num)}</span></td>
       <td>${escHtml(o.customer_name ?? '—')}</td>
+      <td>${channelLabel(o)}</td>
       <td style="white-space:nowrap">${escHtml(o.delivery_date ?? '—')}</td>
       <td>${urgentLabel(o)}</td>
       <td class="weight-tag">${(o.total_weight||0).toFixed(0)} ק"ג</td>
@@ -577,6 +591,7 @@ function renderCards(orders) {
         <span class="badge ${sBadgeClass(o.status)}">${escHtml(o.status)}</span>
       </div>
       <div class="m-card-meta">
+        ${Number(o.portal_order) === 1 || o.channel === 'פורטל לקוח' ? '<span>🌐 פורטל לקוח</span>' : ''}
         ${o.delivery_date ? `<span>📅 ${escHtml(o.delivery_date)}</span>` : ''}
         <span>⚖️ ${(o.total_weight||0).toFixed(0)} ק"ג</span>
         ${o.priority === 'דחוף' ? '<span style="color:var(--danger);font-weight:700">⚡ דחוף</span>' : ''}

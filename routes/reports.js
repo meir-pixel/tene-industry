@@ -64,6 +64,16 @@ function reportPeriod(query = {}, defaultDays = 30) {
   return { fromDate, toDate };
 }
 
+function parseReportJson(value) {
+  if (!value || typeof value === 'object') return value && typeof value === 'object' ? value : {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
 function reportDataQuality(db, fromDate, toDate) {
   const rows = reportItemRows(db, 'DATE(o.created_at) BETWEEN ? AND ?', [fromDate, toDate]);
   const shapeV2Items = rows.filter(itemHasShapeV2).length;
@@ -591,6 +601,7 @@ module.exports = function createReportsRouter(deps) {
       completedToday:   productionToday.completedItems || 0,
       inProduction:     db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.IN_PRODUCTION).c,
       pending:          db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=?").get(statusContracts.ORDER_STATUS.PENDING_APPROVAL).c,
+      portalAwaitingCustomerApproval: db.prepare("SELECT COUNT(*) as c FROM orders WHERE status=? AND portal_order=1").get(statusContracts.ORDER_STATUS.CUSTOMER_PENDING_APPROVAL).c,
       urgentOpen:       db.prepare("SELECT COUNT(*) as c FROM orders WHERE priority='דחוף' AND status NOT IN (?,?)").get(statusContracts.ORDER_STATUS.DELIVERED_CONFIRMED, statusContracts.ORDER_STATUS.CANCELLED).c,
       totalWeightToday: shapeWeightForOrdersCreatedBetween(db, today, today),
       producedWeightToday: productionToday.producedWeightToday || 0,
@@ -642,6 +653,43 @@ module.exports = function createReportsRouter(deps) {
     } catch (error) {
       return res.status(400).json({ error: error.message === 'invalid production date range' ? 'invalid_date_range' : 'production_timing_unavailable' });
     }
+  });
+
+  router.get('/reports/worker-card-activity', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
+    const period = reportPeriod(req.query);
+    if (period.error) return res.status(400).json({ error: period.error });
+    const workerIdText = String(req.query.worker_id || '').trim();
+    const workerId = workerIdText ? Number(workerIdText) : null;
+    if (workerIdText && (!Number.isInteger(workerId) || workerId <= 0)) return res.status(400).json({ error: 'invalid_worker_id' });
+    const params = [period.fromDate, period.toDate];
+    const where = ['DATE(a.occurred_at) BETWEEN ? AND ?'];
+    if (workerId) {
+      where.push('a.actor_user_id=?');
+      params.push(workerId);
+    }
+    const whereSql = where.join(' AND ');
+    const rows = db.prepare(`
+      SELECT a.id,a.item_id,a.order_id,a.order_num,a.card_token,a.action,a.actor_user_id,
+             COALESCE(NULLIF(a.actor_name,''),u.display_name,u.username,'לא ידוע') AS actor_name,
+             a.device_enrollment_id,a.device_name,a.details_json,a.occurred_at,
+             i.shape_name,i.diameter
+      FROM worker_card_activity a
+      LEFT JOIN users u ON u.id=a.actor_user_id
+      LEFT JOIN items i ON i.id=a.item_id
+      WHERE ${whereSql}
+      ORDER BY datetime(a.occurred_at) DESC, a.id DESC
+      LIMIT 500
+    `).all(...params).map(row => ({ ...row, details: parseReportJson(row.details_json) }));
+    const workers = db.prepare(`
+      SELECT a.actor_user_id AS id,COALESCE(NULLIF(a.actor_name,''),u.display_name,u.username,'לא ידוע') AS name,
+             COUNT(*) AS activity_count
+      FROM worker_card_activity a
+      LEFT JOIN users u ON u.id=a.actor_user_id
+      WHERE DATE(a.occurred_at) BETWEEN ? AND ?
+      GROUP BY a.actor_user_id,name
+      ORDER BY name COLLATE NOCASE
+    `).all(period.fromDate, period.toDate);
+    res.json({ period: { from: period.fromDate, to: period.toDate }, rows, workers });
   });
 
 

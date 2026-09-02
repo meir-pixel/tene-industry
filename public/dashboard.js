@@ -191,11 +191,13 @@ function relevantShortages() {
 }
 function renderActionCenter() {
   const actions = [];
+  const portalAwaitingCustomerApproval = Number(dashData?.portalAwaitingCustomerApproval || 0);
   const pending = Number(dashData?.pending || 0), urgent = Number(dashData?.urgentOpen || 0);
   const todayNotReady = todayDeliveries.filter(o => !String(o.status || '').includes('סופק') && !String(o.status || '').includes('הושלם'));
   const shortages = relevantShortages();
   const notPrinted = productionQueueItems.filter(item => item.status && String(item.status).includes('ממתין')).length;
   const machineProblems = (dashData?.machines || []).filter(m => machineStateClass(m) === 'error');
+  if (portalAwaitingCustomerApproval) actions.push({ level:'warning', title:`${portalAwaitingCustomerApproval} הזמנות פורטל ממתינות לאישור לקוח`, sub:'תור נפרד — לא מאושרות ולא משוחררות לייצור', href:'/orders.html?status=' + encodeURIComponent('ממתינה לאישור לקוח') });
   if (shortages.length) actions.push({ level:'danger', title:`${shortages.length} קטרים בחוסר מלאי`, sub:shortages.map(s => `Ø${s.diameter}`).join(' · '), href:'/inventory.html' });
   if (todayNotReady.length) actions.push({ level:'warning', title:`${todayNotReady.length} אספקות היום עדיין לא מוכנות`, sub:'בדוק סטטוס ייצור/מחסן לפני יציאה', href:'/orders.html?date=' + encodeURIComponent(TODAY) });
   if (pending) actions.push({ level:'warning', title:`${pending} הזמנות ממתינות לאישור`, sub:'נדרש אישור לפני שחרור לייצור', href:'/orders.html?status=' + encodeURIComponent('ממתינה לאישור') });

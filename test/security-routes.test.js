@@ -13,12 +13,21 @@ process.env.DB_PATH = path.join(tmpDir, 'test.db');
 process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
 
 const { closeServer, db, server } = require('../server');
-const { hashPin } = require('../auth-core');
+const { hashPin, sha256 } = require('../auth-core');
 const statusContracts = require('../status-contracts');
 const dataContracts = require('../public/data-contracts-client.js');
 const productionCards = require('../services/productionCards');
 
 let baseUrl;
+const APPROVED_DEVICE_CREDENTIAL = 'DEV-SECURITY.test-device-secret';
+
+function seedApprovedDevice() {
+  db.prepare(`
+    INSERT INTO device_enrollment_requests
+      (request_uid,credential_hash,requester_name,device_name,status,reviewed_at)
+    VALUES (?,?,?,?, 'approved',CURRENT_TIMESTAMP)
+  `).run('DEV-SECURITY', sha256(APPROVED_DEVICE_CREDENTIAL), 'Security Worker', 'Security Scanner');
+}
 
 function seedUser(username, role, pin) {
   db.prepare(`
@@ -81,6 +90,7 @@ async function token(username, pin) {
 function authHeaders(accessToken) {
   return {
     Authorization: `Bearer ${accessToken}`,
+    'X-IronBend-Device': APPROVED_DEVICE_CREDENTIAL,
     'Content-Type': 'application/json',
   };
 }
@@ -160,6 +170,7 @@ function spiralShapeV2Envelope() {
 }
 
 test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
+  seedApprovedDevice();
   seedUser('admin', 'admin', '1001');
   seedUser('manager', 'manager', '1002');
   seedUser('office', 'office', '1003');
@@ -449,7 +460,10 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.match(detailItem.shape_svg, /data-shape-kind=/);
     assert.match(detailItem.shape_svg, />12</);
 
-    const scanAfterGeometryEdit = await request(`/api/worker-card?card=${encodeURIComponent(`${'ORDER-CARD-CORRECTION'}|${legacyEditId}`)}`);
+    const scanAfterGeometryEdit = await request(
+      `/api/worker-card?card=${encodeURIComponent(`${'ORDER-CARD-CORRECTION'}|${legacyEditId}`)}`,
+      { headers: authHeaders(production) },
+    );
     assert.equal(scanAfterGeometryEdit.status, 200);
     const scannedItem = (await scanAfterGeometryEdit.json()).items[0];
     assert.deepEqual(productionCards.shapeSegmentsFromItem(scannedItem), productionCards.shapeSegmentsFromItem(outOfSyncItem));
@@ -822,6 +836,57 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.equal((await request(`/api/customers/${customerId}/pricing`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body })).status, 401);
     assert.equal((await request(`/api/customers/${customerId}/pricing`, { method: 'PATCH', headers: authHeaders(production), body })).status, 403);
     assert.equal((await request(`/api/customers/${customerId}/pricing`, { method: 'PATCH', headers: authHeaders(office), body })).status, 200);
+  });
+
+  await t.test('customer portal support session is admin-only, active, audited, and does not replace the customer session', async () => {
+    const customerId = seedPortalCustomer('Portal Support Customer', '0500000199', 'legacy-support-token');
+    const customerToken = seedPortalUser(customerId, '0500000199', 'both', 'active-customer-session');
+    db.prepare('UPDATE customers SET portal_can_create_sites=1 WHERE id=?').run(customerId);
+
+    assert.equal((await request(`/api/customers/${customerId}/portal-preview`)).status, 401);
+    assert.equal((await request(`/api/customers/${customerId}/portal-preview`, { headers: authHeaders(office) })).status, 403);
+    assert.equal((await request(`/api/customers/${customerId}/portal-preview`, { headers: authHeaders(manager) })).status, 403);
+
+    const previewResponse = await request(`/api/customers/${customerId}/portal-preview`, { headers: authHeaders(admin) });
+    assert.equal(previewResponse.status, 200);
+    const preview = await previewResponse.json();
+    assert.equal(preview.readOnly, false);
+    assert.equal(preview.mode, 'assist');
+    const previewToken = new URL(preview.link).searchParams.get('token');
+    assert.match(previewToken, /^sp\./);
+
+    const meResponse = await request(`/api/c/me?token=${encodeURIComponent(previewToken)}`);
+    assert.equal(meResponse.status, 200);
+    const me = await meResponse.json();
+    assert.equal(me.supportPreview, true);
+    assert.equal(me.customer.id, customerId);
+
+    const siteResponse = await request('/api/c/sites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: previewToken, name: 'Support-created site', city: 'Haifa' }),
+    });
+    assert.equal(siteResponse.status, 200);
+    const site = await siteResponse.json();
+    assert.equal(site.success, true);
+    assert.equal(db.prepare('SELECT name FROM customer_sites WHERE id=?').get(site.id).name, 'Support-created site');
+    const supportAudit = db.prepare("SELECT * FROM audit_log WHERE action='portal_support_site_created' AND entity_id=? ORDER BY id DESC LIMIT 1").get(site.id);
+    assert.ok(supportAudit);
+
+    const orderResponse = await request('/api/c/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: previewToken, items: [] }),
+    });
+    assert.equal(orderResponse.status, 400);
+
+    const passwordResponse = await request('/api/c/password/change', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: previewToken, newPassword: '1234' }),
+    });
+    assert.equal(passwordResponse.status, 403);
+    assert.equal((await request(`/api/c/me?token=${customerToken}`)).status, 200);
   });
 
   await t.test('customer CRM base routes require internal customer roles', async () => {
@@ -1284,6 +1349,10 @@ test('protected P0 routes enforce JWT roles over HTTP', async (t) => {
     assert.ok(Array.isArray(timing.orders));
     assert.ok(Array.isArray(timing.machines));
     assert.ok(Array.isArray(timing.transitions));
+
+    assert.equal((await request('/api/reports/worker-card-activity')).status, 401);
+    assert.equal((await request('/api/reports/worker-card-activity', { headers: authHeaders(production) })).status, 403);
+    assert.equal((await request('/api/reports/worker-card-activity', { headers: authHeaders(finance) })).status, 403);
 
     assert.equal((await request('/api/waste/summary')).status, 401);
     assert.equal((await request('/api/waste/summary', { headers: authHeaders(production) })).status, 200);

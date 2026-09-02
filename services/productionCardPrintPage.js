@@ -237,6 +237,7 @@ function renderPrintCardsPage({
   industry,
   tryParseJSON,
   previewOnly = false,
+  publicBaseUrl = '',
 }) {
 const isPreviewOnly = !!previewOnly;
 const previewNoticeHtml = isPreviewOnly
@@ -495,6 +496,7 @@ var ORDER_STATUS  = ${JSON.stringify(order.status || '')};
 var TOTAL_WEIGHT  = ${(order.total_weight||0).toFixed(1)};
 var TOTAL_PALLETS = ${pallets.length};
 var PREVIEW_ONLY  = ${isPreviewOnly ? 'true' : 'false'};
+var PUBLIC_SCAN_BASE = ${JSON.stringify(String(publicBaseUrl || '').replace(/\/+$/, '')).replace(/</g, '\\u003c')};
 var allItems      = ${JSON.stringify(cardItems.map(it => ({
   id:             it.id,
   parent_item_id: it.parent_item_id || it.id,
@@ -1029,7 +1031,9 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var uid     = 'g' + cardKey + (totalCards > 1 ? 'c' + (cardIdx+1) : '');
   var extraSuffix = item.scan_suffix ? '-' + item.scan_suffix : '';
   var barData = ORDER_NUM + '-' + String(itemId).padStart(6,'0') + extraSuffix + (totalCards > 1 ? '-C' + (cardIdx+1) + 'OF' + totalCards : '');
-  var workerUrl = '/worker-visual.html?scan=1&card=' + encodeURIComponent(barData);
+  // A normal camera opens only the public customer portal. The approved scanner
+  // inside the work app extracts the code and routes to this production card.
+  var workerCode = PUBLIC_SCAN_BASE + '/customer-scan.html?code=' + encodeURIComponent(barData);
   var segs    = item.segments || [];
   var wProp   = item.quantity > 0 ? (item.total_weight * subQty / item.quantity).toFixed(2) : '0.00';
   var isPileAssembly = item.pile_card_type === 'pile_assembly';
@@ -1077,7 +1081,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
     ? '<div class="pc-print-bottom"><span>L = '+unitLengthCm+' cm</span><span>CAGES '+displayQty+'</span><span>'+wProp+' kg</span></div>'
     : '<div class="pc-print-bottom"><span>UNIT '+unitLengthCm+' cm</span><span>PCS '+displayQty+'</span><span>TOTAL '+totalLengthCm+' cm</span><span>'+wProp+' kg</span></div>';
   h += '</div>';
-  h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-url="'+workerUrl+'"></div></div>';
+  h += '<div class="pc-print-qr-panel"><div class="pc-print-qr-code" data-worker-card-code="'+escapeHtml(workerCode)+'"></div></div>';
   h += '</div>';
   h += '<div class="pc-head">';
   h += '<div><div class="pc-title">'+badge+escapeHtml(title)+'</div><div class="pc-date">'+escapeHtml(shapeSubtitle)+' · '+PRINT_DATE+'</div></div>';
@@ -1088,7 +1092,7 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   h += '<div class="pc-order-barcode"><div class="bc-font-mid">'+ORDER_NUM+'</div><div class="bc-ord-text">'+ORDER_NUM+'</div></div>';
   h += '<div class="pc-pallet">משטח: <b>'+item.pallet_num+'</b></div>';
   h += '</div>';
-  h += '<div class="pc-scan-row"><div class="pc-scan-qr" data-worker-card-url="'+workerUrl+'"></div><div><div class="pc-scan-label">סריקה לעדכון עבודה</div><div class="pc-scan-text">'+barData+'</div></div></div>';
+  h += '<div class="pc-scan-row"><div class="pc-scan-qr" data-worker-card-code="'+escapeHtml(workerCode)+'"></div><div><div class="pc-scan-label">לקוחות: פורטל · עובדים: סורק באפליקציה</div><div class="pc-scan-text">'+escapeHtml(barData)+'</div></div></div>';
   h += '<div class="pc-wq-row">';
   h += '<div class="pc-wq-cell"><span class="wq-lbl">ק"ג:</span> <span class="wq-val">'+wProp+'</span></div>';
   h += '<div class="pc-wq-sep"></div>';
@@ -1180,10 +1184,10 @@ function qrFallbackUrl(target, size) {
 }
 
 function renderWorkerCardQrCodes() {
-  var nodes = document.querySelectorAll('[data-worker-card-url]');
+  var nodes = document.querySelectorAll('[data-worker-card-code]');
   var jobs = [];
   nodes.forEach(function(node) {
-    var target = new URL(node.getAttribute('data-worker-card-url'), window.location.origin).href;
+    var target = node.getAttribute('data-worker-card-code') || '';
     var size = node.classList.contains('pc-print-qr-code') ? 128 : 56;
     node.innerHTML = '';
     node.title = target;

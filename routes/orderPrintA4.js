@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const QRCode = require('qrcode');
+const { customerScanUrl } = require('../services/publicScanLinks');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/orderPrintA4 missing dependency: ${name}`);
@@ -101,6 +102,7 @@ module.exports = function createOrderPrintA4Router(deps) {
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const tryParseJSON = required('tryParseJSON', deps.tryParseJSON);
   const productionCards = deps.productionCards || require('../services/productionCards');
+  const settingsService = deps.settingsService || null;
 
 // ── PRINT A4 ──────────────────────────────────────────────────────
 router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'manager', 'admin']), async (req, res) => {
@@ -152,17 +154,10 @@ router.get('/orders/:id/print-a4', requireAnyRole(['office', 'production', 'mana
   const safeCustomer = (order.customer_name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const totalWeight  = (order.total_weight || 0).toFixed(1);
   const productionSummary = buildA4ProductionSummary({ order, allItems, tryParseJSON });
-  // The order QR opens the live production sheet first. That sheet shows the
-  // server-derived state of every production card and hands off to the
-  // warehouse's explicit loading confirmation only when the user chooses it.
-  // Scanning the QR printed on the order sheet starts (or restores) the
-  // persisted card-loading session directly.  The worker scans the existing
-  // production-card QRs next; no second package label is created.
-  const fullOrderPath = '/warehouse.html?load_order=' + encodeURIComponent(order.id) + '&autostart=1';
-  const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
-  const protocol = forwardedProto || req.protocol || 'https';
-  const fullOrderUrl = `${protocol}://${req.get('host')}${fullOrderPath}`;
-  const orderQrDataUrl = await QRCode.toDataURL(fullOrderUrl, {
+  // A normal phone camera always opens the public customer-registration page.
+  // Only the approved scanner inside the work app interprets the embedded code.
+  const orderQrToken = customerScanUrl(req, `TENE-ORDER-${order.id}`, settingsService);
+  const orderQrDataUrl = await QRCode.toDataURL(orderQrToken, {
     errorCorrectionLevel: 'M',
     margin: 0,
     width: 224,
@@ -300,8 +295,8 @@ tbody.diam-group tr{break-inside:avoid;page-break-inside:avoid;}
         תאריך מסירה: <b>${delivDate}</b>
       </div>
     </div>
-      <div class="order-qr" data-order-url="${fullOrderPath}">
-        <img src="${orderQrDataUrl}" alt="QR – פתיחת העמסת הזמנה">
+      <div class="order-qr" data-order-code="${escapeHtml(orderQrToken)}" title="לקוחות: פורטל לקוחות · עובדים: סריקה מתוך האפליקציה">
+        <img src="${orderQrDataUrl}" alt="QR לפורטל לקוחות או לסורק העבודה המובנה">
       </div>
   </div>
 

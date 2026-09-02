@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const printPage = require('../services/productionCardPrintPage');
+const { requestPublicBaseUrl } = require('../services/publicScanLinks');
 
 function required(name, value) {
   if (!value) throw new Error(`routes/productionCards missing dependency: ${name}`);
@@ -16,6 +17,7 @@ module.exports = function createProductionCardsRouter(deps) {
   const normalizeFactoryShapeName = required('normalizeFactoryShapeName', deps.normalizeFactoryShapeName);
   const statusContracts = required('statusContracts', deps.statusContracts);
   const productionActuals = required('productionActuals', deps.productionActuals);
+  const settingsService = deps.settingsService || null;
   const { ORDER_STATUS } = statusContracts;
   const productionCardOrderGateStatuses = new Set([
     ORDER_STATUS.APPROVED_WAITING_PRODUCTION,
@@ -87,6 +89,7 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
     industry,
     tryParseJSON,
     previewOnly,
+    publicBaseUrl: requestPublicBaseUrl(req, settingsService),
   });
 
   console.log('[print-cards] order', req.params.id, '→', allItems.length, 'items server-rendered');

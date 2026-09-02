@@ -289,13 +289,26 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
   <!-- ══ TAB: LOADING ════════════════════════════════════════════════ -->
   <div id="tab-loading" class="tab-panel">
-    <!-- The QR printed on the A4 order sheet opens this persisted, card-based
-         loading session directly. There are no second package labels. -->
+    <!-- A normal camera sends this QR to the customer portal. Only the approved
+         in-app scanner interprets it and starts this card-based loading session. -->
     <div class="card" id="orderLoadingStartCard" style="display:none">
       <div class="card-header"><span class="card-title">🚛 העמסת הזמנה</span></div>
       <div class="card-body">
         <div id="orderLoadingStartInfo" class="delivery-info"></div>
+        <div class="scan-input-wrap" style="margin-top:12px;margin-bottom:0">
+          <input id="orderScanInput" type="text" autocomplete="off" placeholder="קוד הזמנה מטופס הייצור" onkeydown="if(event.key==='Enter')scanOrderCodeFromInput()">
+          <button class="btn btn-primary" type="button" onclick="resumeCardCamera()">📷 פתח מצלמה וסרוק</button>
+          <button class="btn btn-outline" type="button" onclick="scanOrderCodeFromInput()">פתח לפי קוד</button>
+        </div>
       </div>
+    </div>
+
+    <div class="camera-panel" id="cameraPanel">
+      <video id="scanCamera" playsinline muted></video>
+      <canvas id="scanCameraCanvas" hidden></canvas>
+      <div class="camera-notice" id="cameraNotice">המצלמה קוראת את ה־QR של IronBend.</div>
+      <button class="btn btn-outline" id="btnResumeCamera" type="button" onclick="resumeCardCamera()" style="display:none">המשך סריקה במצלמה</button>
+      <button class="btn btn-outline" type="button" onclick="stopCardCamera()">סגור מצלמה</button>
     </div>
 
     <!-- Scanner -->
@@ -312,11 +325,6 @@ tr:hover td{background:rgba(0,0,0,0.015);}
             <input type="text" id="scanInput" placeholder="סרוק QR של כרטיס עבודה או הקלד את הקוד..." autocomplete="off" onkeydown="if(event.key==='Enter')doScan()">
             <span class="scan-icon" title="המשך סריקה במצלמה" onclick="resumeCardCamera()">📷</span>
             <button class="btn btn-primary" onclick="doScan()">סרוק</button>
-          </div>
-          <div class="camera-panel" id="cameraPanel">
-            <video id="scanCamera" playsinline muted></video>
-            <div class="camera-notice" id="cameraNotice">המצלמה קוראת את ה־QR של כרטיס העבודה.</div>
-            <button class="btn btn-outline" id="btnResumeCamera" type="button" onclick="resumeCardCamera()" style="display:none">המשך סריקה במצלמה</button>
           </div>
           <div class="loading-status-summary" id="loadingStatusSummary" aria-live="polite" style="display:none">
             <div class="loading-status-card loaded">
@@ -426,6 +434,7 @@ tr:hover td{background:rgba(0,0,0,0.015);}
 
 <script src="/auth-client.js"></script>
 <script src="/safe-dom.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 // ─── UTILS ───────────────────────────────────────────────────────────
 function escH(s){return (window.SafeDOM?.escapeHTML || (value => String(value||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')))(s);}
@@ -603,6 +612,7 @@ let cameraStream=null;
 let cardBarcodeDetector=null;
 let cameraTimer=null;
 let cameraBusy=false;
+let scanningDeviceApprovedUntil=0;
 let screenWakeLock=null;
 
 function currentLoadingExpected(){return currentLoadingSession?.cards||[];}
@@ -618,7 +628,7 @@ function persistCardLoadingSession(){
 }
 function clearPersistedCardLoadingSession(){localStorage.removeItem(CARD_LOADING_STORAGE_KEY);}
 
-function showCardLoadingIdle(message='סרוק את ה־QR שמופיע בטופס ההזמנה כדי להתחיל העמסה.'){
+function showCardLoadingIdle(message='פתח את המצלמה בתוך IronBend וסרוק את ה־QR שבטופס הייצור.'){
   if(currentLoadingSession)return;
   const startCard=document.getElementById('orderLoadingStartCard');
   startCard.style.display='block';
@@ -638,6 +648,7 @@ function useCardLoadingSession(data){
     persistCardLoadingSession();
     requestScreenWakeLock();
     document.getElementById('scanInput').focus();
+    if(cameraStream)document.getElementById('cameraNotice').textContent='המצלמה פעילה — סרוק את ה־QR שעל כרטיס העבודה.';
   }else{
     stopCardCamera();
     clearPersistedCardLoadingSession();
@@ -653,9 +664,8 @@ async function startCardLoadingSession(orderId){
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.error||'card_loading_session_failed');
     useCardLoadingSession(data);
-    // Some browsers require a second user gesture after arriving from an OS QR
-    // scan. The session is already persisted; only then do we show one resume
-    // button instead of forcing the loader to restart the workflow.
+    // Reuse the camera that read the order token so the loader can immediately
+    // continue with the production-card codes.
     await resumeCardCamera({quiet:true});
   }catch(error){
     const messages={
@@ -692,11 +702,65 @@ function cameraElements(){
     resume:document.getElementById('btnResumeCamera'),
   };
 }
+function orderIdFromQr(rawValue){
+  const value=String(rawValue||'').trim();
+  try{
+    const appUrl=new URL(value);
+    const parts=appUrl.pathname.split('/').filter(Boolean);
+    if(appUrl.protocol==='web+ironbend:'&&appUrl.hostname.toLowerCase()==='open'&&parts[0]==='order'&&/^\d+$/.test(parts[1]||'')){
+      return Number(parts[1]);
+    }
+  }catch(_){/* continue with raw and legacy formats */}
+  const tokenMatch=value.match(/^TENE-ORDER-(\d+)$/i);
+  if(tokenMatch)return Number(tokenMatch[1]);
+  // Forms printed before this change contained an application URL. Keep them
+  // usable inside the authenticated scanner during the transition.
+  try{
+    const url=new URL(value,location.origin);
+    if(/\/customer-scan\.html$/i.test(url.pathname)){
+      const portalCode=url.searchParams.get('code');
+      return portalCode&&portalCode!==value?orderIdFromQr(portalCode):null;
+    }
+    const legacyId=url.searchParams.get('load_order');
+    if(legacyId&&/^\d+$/.test(legacyId))return Number(legacyId);
+  }catch(_){/* a plain QR token is the normal value */}
+  return null;
+}
+async function scanOrderQrValue(rawValue){
+  const orderId=orderIdFromQr(rawValue);
+  if(!Number.isInteger(orderId)||orderId<=0){
+    showCardLoadingIdle('הקוד שנסרק אינו קוד הזמנה תקין. כוון את המצלמה ל־QR שבטופס הייצור.');
+    return false;
+  }
+  const input=document.getElementById('orderScanInput');
+  if(input)input.value=`TENE-ORDER-${orderId}`;
+  await startCardLoadingSession(orderId);
+  return Boolean(currentLoadingSession);
+}
+function scanOrderCodeFromInput(){
+  scanOrderQrValue(document.getElementById('orderScanInput')?.value||'');
+}
 function showCameraResume(message){
   const {panel,notice,resume}=cameraElements();
   panel.classList.add('active');
   notice.textContent=message;
   resume.style.display='inline-flex';
+}
+async function requireApprovedScanningDevice(){
+  if(scanningDeviceApprovedUntil>Date.now())return true;
+  try{
+    const response=await fetch('/api/device-enrollment/status');
+    const data=await response.json();
+    if(data.status==='approved'){
+      scanningDeviceApprovedUntil=Date.now()+60000;
+      return true;
+    }
+    location.href='/scan.html';
+    return false;
+  }catch(_){
+    showCameraResume('לא ניתן לבדוק את אישור המכשיר. נסה שוב בעוד רגע.');
+    return false;
+  }
 }
 function stopCardCamera(){
   if(cameraTimer){clearTimeout(cameraTimer);cameraTimer=null;}
@@ -712,20 +776,30 @@ async function requestScreenWakeLock(){
   try{screenWakeLock=await navigator.wakeLock.request('screen');}catch(_){/* device policy may deny it */}
 }
 async function resumeCardCamera({quiet=false}={}){
-  if(!activeCardLoading())return;
+  if(!await requireApprovedScanningDevice())return;
   const {panel,video,notice,resume}=cameraElements();
-  if(cameraStream)return;
-  if(!navigator.mediaDevices?.getUserMedia||!('BarcodeDetector' in window)){
+  if(cameraStream){
+    panel.classList.add('active');
+    notice.textContent=activeCardLoading()
+      ? 'המצלמה פעילה — סרוק את ה־QR שעל כרטיס העבודה.'
+      : 'המצלמה פעילה — סרוק את ה־QR שבטופס הייצור.';
+    resume.style.display='none';
+    scheduleCardCameraScan();
+    return;
+  }
+  if(!navigator.mediaDevices?.getUserMedia||(!('BarcodeDetector' in window)&&!window.jsQR)){
     showCameraResume('הדפדפן לא מאפשר סריקת QR אוטומטית. אפשר לסרוק בקורא הברקוד או להקליד את קוד הכרטיס.');
     return;
   }
   try{
-    cardBarcodeDetector=new BarcodeDetector({formats:['qr_code']});
+    cardBarcodeDetector='BarcodeDetector' in window?new BarcodeDetector({formats:['qr_code']}):null;
     cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'}}});
     video.srcObject=cameraStream;
     await video.play();
     panel.classList.add('active');
-    notice.textContent='המצלמה פעילה — סרוק את ה־QR שעל כרטיס העבודה.';
+    notice.textContent=activeCardLoading()
+      ? 'המצלמה פעילה — סרוק את ה־QR שעל כרטיס העבודה.'
+      : 'המצלמה פעילה — סרוק את ה־QR שבטופס הייצור.';
     resume.style.display='none';
     requestScreenWakeLock();
     scheduleCardCameraScan();
@@ -740,17 +814,37 @@ function scheduleCardCameraScan(){
   if(cameraTimer)clearTimeout(cameraTimer);
   cameraTimer=setTimeout(scanCardCameraFrame,240);
 }
+async function detectCardQrValue(){
+  const video=document.getElementById('scanCamera');
+  if(cardBarcodeDetector){
+    const codes=await cardBarcodeDetector.detect(video);
+    return codes?.[0]?.rawValue||'';
+  }
+  if(!window.jsQR||!video.videoWidth||!video.videoHeight)return '';
+  const canvas=document.getElementById('scanCameraCanvas');
+  const width=Math.min(720,video.videoWidth);
+  const height=Math.max(1,Math.round(video.videoHeight*(width/video.videoWidth)));
+  canvas.width=width;canvas.height=height;
+  const context=canvas.getContext('2d',{willReadFrequently:true});
+  context.drawImage(video,0,0,width,height);
+  const image=context.getImageData(0,0,width,height);
+  return window.jsQR(image.data,width,height,{inversionAttempts:'attemptBoth'})?.data||'';
+}
 async function scanCardCameraFrame(){
   cameraTimer=null;
-  if(!cameraStream||!cardBarcodeDetector||!activeCardLoading()||document.hidden)return;
+  if(!cameraStream||document.hidden)return;
   try{
     if(!cameraBusy){
-      const codes=await cardBarcodeDetector.detect(document.getElementById('scanCamera'));
-      const value=codes?.[0]?.rawValue;
-      if(value){cameraBusy=true;await scanCardValue(value);cameraBusy=false;}
+      const value=await detectCardQrValue();
+      if(value){
+        cameraBusy=true;
+        if(activeCardLoading())await scanCardValue(value);
+        else await scanOrderQrValue(value);
+        cameraBusy=false;
+      }
     }
   }catch(_){/* the next frame recovers from transient camera frames */}
-  if(cameraStream&&activeCardLoading()&&!document.hidden)scheduleCardCameraScan();
+  if(cameraStream&&!document.hidden)scheduleCardCameraScan();
 }
 
 function updateLoadingUI(){
@@ -859,9 +953,10 @@ async function confirmPartialDeparture(){
 }
 
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&activeCardLoading()){
-    requestScreenWakeLock();
-    resumeCardCamera({quiet:true});
+  if(document.visibilityState==='visible'){
+    if(activeCardLoading())requestScreenWakeLock();
+    if(cameraStream)scheduleCardCameraScan();
+    else if(activeCardLoading())resumeCardCamera({quiet:true});
   }
 });
 window.addEventListener('pagehide',()=>stopCardCamera());

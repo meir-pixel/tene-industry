@@ -13,6 +13,7 @@ module.exports = function createProductionRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
   const requireRole = required('requireRole', deps.requireRole);
+  const requireApprovedDevice = required('requireApprovedDevice', deps.requireApprovedDevice);
   const wsBroadcast = required('wsBroadcast', deps.wsBroadcast);
   const modbus = required('modbus', deps.modbus);
   const statusContracts = required('statusContracts', deps.statusContracts);
@@ -21,6 +22,7 @@ module.exports = function createProductionRouter(deps) {
   const checkOrderComplete = required('checkOrderComplete', deps.checkOrderComplete);
   const tryParseJSON = required('tryParseJSON', deps.tryParseJSON);
   const productionActuals = required('productionActuals', deps.productionActuals);
+  const workerCardActivity = required('workerCardActivity', deps.workerCardActivity);
   const { ORDER_STATUS, ITEM_STATUS } = statusContracts;
 
   const productionOrderGateStatuses = new Set([
@@ -360,15 +362,16 @@ module.exports = function createProductionRouter(deps) {
     checkOrderComplete,
   }));
 
-  router.get('/worker-card', (req, res) => {
+  router.get('/worker-card', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
     const parsed = parseWorkerCardToken(req.query.card);
     if (!parsed?.itemId) return res.status(400).json({ error: 'invalid_worker_card_token' });
     const item = selectWorkerCardById(parsed.itemId);
     if (!item) return res.status(404).json({ error: 'not_found' });
+    workerCardActivity.record(req, item, 'opened', { source: 'worker_card_qr' });
     res.json({ items: [item], grouped: {} });
   });
 
-  router.patch('/worker-card/:id/status', (req, res) => {
+  router.patch('/worker-card/:id/status', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
     const status = req.body?.status;
     if (!statusContracts.isValidItemStatus(status)) return res.status(400).json({ error: 'invalid status', allowed: statusContracts.VALID_ITEM_STATUSES });
     if (![ITEM_STATUS.WAITING, ITEM_STATUS.IN_PRODUCTION, ITEM_STATUS.DONE, ITEM_STATUS.DELIVERED].includes(status)) {
@@ -382,13 +385,14 @@ module.exports = function createProductionRouter(deps) {
     if (status === ITEM_STATUS.DONE) updates.completed_at = new Date().toISOString();
     db.prepare(`UPDATE items SET status=?${status===ITEM_STATUS.IN_PRODUCTION&&!item.started_at?',started_at=?':''}${status===ITEM_STATUS.DONE?',completed_at=?':''} WHERE id=?`)
       .run(...Object.values(updates), req.params.id);
+    workerCardActivity.record(req, item, 'status_changed', { from_status: item.status, to_status: status });
     const orderStatus = syncOrderStatusAfterItemStatus(item, status);
     const consumedReservations = status === ITEM_STATUS.DONE ? consumeProductionReservations(item) : { consumed: 0 };
     wsBroadcast('item_status', { id: Number(req.params.id), status });
     res.json({ ok: true, order_status: orderStatus, consumedReservations });
   });
 
-  router.patch('/worker-card/:id', (req, res) => {
+  router.patch('/worker-card/:id', requireAnyRole(['production', 'kiosk', 'manager', 'admin']), requireApprovedDevice, (req, res) => {
     const forbiddenFields = forbiddenProductionPatchFields(req.body);
     if (forbiddenFields.length) {
       return res.status(400).json({ error: 'non_production_fields_forbidden', fields: forbiddenFields });
@@ -459,6 +463,13 @@ module.exports = function createProductionRouter(deps) {
       wsBroadcast('item_status', { id: Number(req.params.id), status: nextItemStatus });
     }
     if (produced_qty !== undefined) wsBroadcast('item_progress', { id: Number(req.params.id), produced_qty: Number(produced_qty) });
+    workerCardActivity.record(req, item, 'updated', {
+      from_status: item.status,
+      to_status: nextItemStatus || item.status,
+      produced_qty: produced_qty === undefined ? null : Number(produced_qty),
+      actual_weight_kg: actual_weight_kg === undefined ? null : Number(actual_weight_kg),
+      note_updated: note !== undefined,
+    });
     res.json({ ok: true, status: nextItemStatus });
   });
 

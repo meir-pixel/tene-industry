@@ -13,7 +13,7 @@ function createPortalAccessService(deps) {
   const PORT = required('PORT', deps.PORT);
 
   // BUG-41: limited projection - never return sensitive fields via portal resolver.
-  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_can_manage_users,portal_can_create_sites,portal_can_set_budgets,portal_can_expose_prices,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct,price_approved_at,portal_profile_locked_at';
+  const CUSTOMER_PORTAL_COLS = 'id,name,phone,email,address,tax_id,payment_terms,contact_name,contact_phone,portal_price_list_visibility,portal_can_manage_users,portal_can_create_sites,portal_can_set_budgets,portal_can_expose_prices,portal_token,portal_token_expires_at,portal_token_revoked_at,price_tier,discount_pct,price_approved_at,portal_profile_locked_at';
 
   function configuredBaseUrl(fallback = '') {
     const raw = String(process.env.BASE_URL || settingsService.get('BASE_URL', '') || fallback || '').trim();
@@ -100,7 +100,7 @@ function createPortalAccessService(deps) {
       seePrice: canViewPrices,
       canApprove: oldApprover || customerAdmin || userCan('can_approve_orders'),
       canManageUsers: customerCaps.canManageUsers && (customerAdmin || oldApprover || userCan('can_manage_users')),
-      canCreateSites: customerCaps.canCreateSites && (customerAdmin || userCan('can_create_sites')),
+      canCreateSites: customerCaps.canCreateSites && (customerAdmin || r === 'both' || userCan('can_create_sites')),
       canAssignSiteUsers: customerCaps.canManageUsers && (customerAdmin || userCan('can_assign_site_users')),
       canViewBudget: (customerAdmin || finance || userCan('can_view_budget')) && (customerCaps.canSetBudgets || userCan('can_view_budget')),
       canSetBudget: customerCaps.canSetBudgets && (customerAdmin || finance || userCan('can_set_budget')),
@@ -219,6 +219,57 @@ function createPortalAccessService(deps) {
     return { token, expiresAt };
   }
 
+  function supportPreviewSignature(payload) {
+    return crypto.createHmac('sha256', String(process.env.JWT_SECRET || 'dev-secret'))
+      .update(payload)
+      .digest('base64url');
+  }
+
+  function issueSupportPreviewToken(customerId, actorUserId, portalUserId = null) {
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const payload = Buffer.from(JSON.stringify({
+      type: 'portal-support-preview',
+      customerId: Number(customerId),
+      portalUserId: portalUserId ? Number(portalUserId) : null,
+      actorUserId: actorUserId ? Number(actorUserId) : null,
+      expiresAt: expiresAt.toISOString(),
+      nonce: crypto.randomBytes(12).toString('hex'),
+    })).toString('base64url');
+    return {
+      token: `sp.${payload}.${supportPreviewSignature(payload)}`,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  function resolveSupportPreviewToken(token) {
+    if (!String(token || '').startsWith('sp.')) return null;
+    try {
+      const [, payload, signature] = String(token).split('.');
+      if (!payload || !signature) return null;
+      const expected = supportPreviewSignature(payload);
+      const actualBuffer = Buffer.from(signature);
+      const expectedBuffer = Buffer.from(expected);
+      if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) return null;
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+      if (claims.type !== 'portal-support-preview' || new Date(claims.expiresAt).getTime() <= Date.now()) return null;
+      const customer = db.prepare(`SELECT ${CUSTOMER_PORTAL_COLS} FROM customers WHERE id=?`).get(claims.customerId);
+      if (!customer) return null;
+      const user = claims.portalUserId
+        ? db.prepare('SELECT * FROM portal_users WHERE id=? AND customer_id=? AND active=1').get(claims.portalUserId, customer.id)
+        : null;
+      return {
+        customer,
+        user: user || null,
+        role: user?.role || 'both',
+        supportPreview: true,
+        supportActorUserId: claims.actorUserId || null,
+        supportPreviewExpiresAt: claims.expiresAt,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   function normalizePortalPassword(password) {
     return String(password || '').trim();
   }
@@ -257,7 +308,7 @@ function createPortalAccessService(deps) {
       SELECT * FROM portal_users
       WHERE token=? AND active=1 AND (token_expires_at IS NULL OR token_expires_at > ?)
     `).get(token, new Date().toISOString());
-    if (!u) return null;
+    if (!u) return resolveSupportPreviewToken(token);
     const customer = db.prepare(`SELECT ${CUSTOMER_PORTAL_COLS} FROM customers WHERE id=?`).get(u.customer_id);
     if (!customer) return null;
     return { customer, user: u, role: u.role };
@@ -368,6 +419,8 @@ function createPortalAccessService(deps) {
         name: customer.name,
         phone: customer.phone,
         address: customer.address,
+        contact_name: customer.contact_name,
+        contact_phone: customer.contact_phone,
         tax_id: customer.tax_id,
         payment_terms: customer.payment_terms,
         portal_price_list_visibility: customer.portal_price_list_visibility,
@@ -382,6 +435,7 @@ function createPortalAccessService(deps) {
     resolvePortalUser,
     findOrCreatePortalUser,
     issueUserToken,
+    issueSupportPreviewToken,
     setPortalPassword,
     verifyPortalPassword,
     generatePortalPassword,

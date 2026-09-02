@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#021a48">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>פורטל הלקוחות של טנא תעשיות</title>
+  <style>
+    :root{--navy:#021a48;--navy-2:#0b3568;--orange:#df702d;--orange-dark:#bd5316;--ink:#17253d;--muted:#5d6b7d;--line:#dce3ec;--soft:#f2f5f9;--white:#fff;--green:#19714a}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:linear-gradient(155deg,#eef3f8 0%,#fff 48%,#fff4eb 100%);color:var(--ink);font-family:Heebo,"Segoe UI",Arial,sans-serif}
+    .top{height:8px;background:linear-gradient(90deg,var(--navy),var(--orange))}
+    main{width:min(920px,100%);margin:0 auto;padding:clamp(20px,5vw,52px) clamp(16px,4vw,32px) 40px}
+    .logo{width:min(270px,72vw);height:auto;display:block;margin:0 auto 26px;filter:drop-shadow(0 8px 18px #021a4814)}
+    .hero{overflow:hidden;position:relative;background:#fff;border:1px solid #dfe5ed;border-radius:28px;box-shadow:0 24px 70px #021a4817;padding:clamp(25px,6vw,54px);text-align:center}
+    .hero::before{content:"";position:absolute;inset:-130px auto auto -110px;width:270px;height:270px;border-radius:50%;background:#f9decf;opacity:.72}
+    .eyebrow{display:inline-flex;align-items:center;gap:7px;margin-bottom:14px;padding:7px 12px;border-radius:999px;background:#eaf7f1;color:var(--green);font-size:13px;font-weight:900}
+    .eyebrow::before{content:"";width:8px;height:8px;border-radius:50%;background:#27a26e}
+    h1{position:relative;margin:0;font-size:clamp(29px,6vw,50px);line-height:1.08;color:var(--navy);letter-spacing:-.02em}
+    .lead{position:relative;max-width:650px;margin:17px auto 0;color:var(--muted);font-size:clamp(16px,2.6vw,19px);line-height:1.7;font-weight:650}
+    .actions{position:relative;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:28px}
+    .cta{display:inline-flex;align-items:center;justify-content:center;min-height:56px;padding:14px 25px;border-radius:14px;background:var(--orange);color:#fff;text-decoration:none;font-size:17px;font-weight:900;box-shadow:0 12px 25px #df702d3d;transition:transform .16s,background .16s}
+    .cta:hover{background:var(--orange-dark);transform:translateY(-1px)}
+    .cta:focus-visible{outline:4px solid #f6bd99;outline-offset:3px}
+    .trust{position:relative;margin:25px auto 0;padding-top:18px;border-top:1px solid var(--line);max-width:620px;color:#526579;font-size:13px;line-height:1.6}
+    .features{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-top:18px}
+    .feature{background:#ffffffc7;border:1px solid var(--line);border-radius:17px;padding:18px;backdrop-filter:blur(8px)}
+    .feature strong{display:block;color:var(--navy);font-size:15px;margin-bottom:5px}
+    .feature span{color:var(--muted);font-size:13px;line-height:1.55}
+    footer{text-align:center;color:#7a8797;font-size:12px;margin-top:24px}
+    @media(max-width:650px){.features{grid-template-columns:1fr}.feature{padding:15px}.cta{width:100%}.hero{border-radius:22px}}
+  </style>
+</head>
+<body>
+  <div class="top" aria-hidden="true"></div>
+  <main>
+    <img class="logo" src="/brand/tene-pdf-logo.jpg" alt="טנא תעשיות ברזל">
+    <section class="hero" aria-labelledby="welcomeTitle">
+      <div class="eyebrow">הגעתם דרך טופס של טנא</div>
+      <h1 id="welcomeTitle">פורטל הלקוחות של טנא תעשיות</h1>
+      <p class="lead">לקוחות חדשים יכולים להירשם, ולקוחות קיימים יכולים להיכנס כדי לשלוח הזמנות ולעקוב אחריהן במקום אחד.</p>
+      <div class="actions">
+        <a class="cta" href="/customer.html?source=qr">הרשמה או כניסה לפורטל&nbsp; ←</a>
+      </div>
+      <p class="trust">הסריקה הציבורית אינה מציגה מספר הזמנה, כרטיס עבודה או נתוני ייצור. הכניסה לפורטל מאובטחת ומחייבת זיהוי לקוח.</p>
+    </section>
+    <section class="features" aria-label="אפשרויות בפורטל">
+      <div class="feature"><strong>הרשמה מהירה</strong><span>פתיחת חשבון לקוח באמצעות מספר טלפון ואימות.</span></div>
+      <div class="feature"><strong>שליחת הזמנות</strong><span>הזנת פריטים, כמויות ופרטי אספקה ישירות לפורטל.</span></div>
+      <div class="feature"><strong>מעקב במקום אחד</strong><span>צפייה בהזמנות ובמידע שהוגדר עבור חשבון הלקוח.</span></div>
+    </section>
+    <footer>טנא תעשיות ברזל · שירות מקצועי ללקוחות</footer>
+  </main>
+  <script>
+    // The internal code is for the approved work scanner only. Once a public
+    // camera opens this page, remove it from the visible address and history.
+    if (location.search) history.replaceState(null, '', '/customer-scan.html');
+  </script>
+</body>
+</html>

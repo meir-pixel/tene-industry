@@ -107,7 +107,14 @@
       const value=String(raw||'').trim();
       if(!value)return null;
       let token=value;
-      try{const url=new URL(value,location.origin);token=url.searchParams.get('card')||url.searchParams.get('item')||value}catch{}
+      try{
+        const url=new URL(value,location.origin);
+        const parts=url.pathname.split('/').filter(Boolean);
+        token=url.protocol==='web+ironbend:'&&url.hostname.toLowerCase()==='open'&&parts[0]==='card'&&parts[1]
+          ? decodeURIComponent(parts.slice(1).join('/'))
+          : (/\/customer-scan\.html$/i.test(url.pathname)?url.searchParams.get('code'):null)
+            ||url.searchParams.get('card')||url.searchParams.get('item')||value;
+      }catch{}
       const clean=String(token||'').trim();
       const itemParam=/^\d+$/.test(clean)?Number(clean):null;
       const match=clean.match(/-(\d{1,12})(?:-[A-Z]+[A-Z0-9]*)*(?:-C(\d+)OF(\d+))?$/i);

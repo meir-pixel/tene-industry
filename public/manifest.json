@@ -13,7 +13,14 @@
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+ironbend",
+      "url": "/scan.html?protocol=%s"
+    }
+  ],
   "shortcuts": [
+    { "name": "סריקה",       "url": "/scan.html",      "description": "פתח מצלמה וסרוק טופס ייצור" },
     { "name": "הזמנה חדשה", "url": "/index.html",     "description": "פתח טופס הזמנה חדשה" },
     { "name": "הזמנות",     "url": "/orders.html",    "description": "רשימת הזמנות" },
     { "name": "מכונה",      "url": "/machine.html",   "description": "מסך מפעיל" }

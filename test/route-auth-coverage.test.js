@@ -95,6 +95,10 @@ const PUBLIC_OR_SCOPED_API_ROUTES = new Set([
   'POST /api/auth/refresh',
   'POST /api/auth/logout',
   'POST /api/users/login',
+  'POST /api/device-enrollment/requests',
+  'GET /api/device-enrollment/status',
+  'GET /api/worker-invitations/activation',
+  'POST /api/worker-invitations/activation',
   'POST /api/c/auth',
   'POST /api/c/auth/verify',
   'GET /api/c/me',
@@ -107,9 +111,6 @@ const PUBLIC_OR_SCOPED_API_ROUTES = new Set([
   'GET /api/c/orders/:orderId',
   'GET /api/intake/whatsapp',
   'POST /api/intake/whatsapp',
-  'GET /api/worker-card',
-  'PATCH /api/worker-card/:id',
-  'PATCH /api/worker-card/:id/status',
 ]);
 
 const AUTH_GUARD_MARKERS = [

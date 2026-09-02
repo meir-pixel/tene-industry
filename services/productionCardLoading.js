@@ -37,11 +37,24 @@ function scannedWorkerCardToken(rawValue) {
     }
   }
 
-  // Printed cards encode a URL to the worker view.  Handheld scanners return
-  // either this full URL or the human-readable barcode printed beneath it.
+  try {
+    const appUrl = new URL(value);
+    const parts = appUrl.pathname.split('/').filter(Boolean);
+    if (appUrl.protocol === 'web+ironbend:' && appUrl.hostname.toLowerCase() === 'open' && parts[0] === 'card' && parts[1]) {
+      value = decodeURIComponent(parts.slice(1).join('/'));
+    }
+  } catch (_) {
+    // Continue with the raw production token and legacy worker URL.
+  }
+
+  // New printed cards use a public customer-portal URL. Only authenticated,
+  // approved work scanners call this parser and use its embedded card code.
   try {
     const parsed = new URL(value, 'https://scanner.invalid');
+    const publicCode = parsed.searchParams.get('code');
+    if (publicCode && /\/customer-scan\.html$/i.test(parsed.pathname)) value = publicCode;
     const card = parsed.searchParams.get('card');
+    // Keep the old worker-view URL so forms already in circulation remain usable.
     if (card && /worker-visual\.html$/i.test(parsed.pathname)) value = card;
   } catch (_) {
     // A raw card barcode is the normal scanner result.

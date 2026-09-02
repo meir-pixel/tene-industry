@@ -39,6 +39,34 @@ module.exports = function createPortalAdminRouter(deps) {
     res.json(portalTokenPayload(result));
   });
 
+  // Short-lived support session for a signed-in system administrator.
+  router.get('/customers/:id/portal-preview', requireAnyRole(['admin']), (req, res) => {
+    const customer = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'לא נמצא' });
+    const portalUser = db.prepare(`
+      SELECT * FROM portal_users
+      WHERE customer_id=? AND active=1
+      ORDER BY CASE role
+        WHEN 'customer_admin' THEN 0
+        WHEN 'both' THEN 1
+        WHEN 'approver' THEN 2
+        WHEN 'finance' THEN 3
+        ELSE 4
+      END, id
+      LIMIT 1
+    `).get(customer.id) || null;
+    const preview = portalAccess.issueSupportPreviewToken(customer.id, req.userId || null, portalUser?.id || null);
+    auditLog('customer', customer.id, null, 'portal_support_session_started', null, null, null, portalUser ? `כניסה בשם משתמש פורטל #${portalUser.id}` : 'כניסה ללא משתמש פורטל פעיל', req.userId || null, req.auth?.display_name || null);
+    res.json({
+      link: portalAccess.portalLink(preview.token, { baseUrl: requestPublicBaseUrl(req) }),
+      expiresAt: preview.expiresAt,
+      customer: { id: customer.id, name: customer.name },
+      portalUser: portalUser ? { id: portalUser.id, name: portalUser.name, role: portalUser.role } : null,
+      mode: 'assist',
+      readOnly: false,
+    });
+  });
+
   router.post('/customers/:id/token/rotate', requireAnyRole(['office', 'manager', 'admin']), (req, res) => {
     let c = db.prepare('SELECT * FROM customers WHERE id=?').get(req.params.id);
     if (!c) return res.status(404).json({ error: 'not found' });

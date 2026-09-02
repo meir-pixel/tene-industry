@@ -56,7 +56,7 @@ function authHeaders(accessToken) {
   return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 }
 
-test('order-sheet QR opens the live production sheet while package loading remains server-authoritative', async (t) => {
+test('order-sheet QR is public-portal-safe while package loading remains server-authoritative', async (t) => {
   seedUser('load-warehouse', 'warehouse', '3011');
   seedUser('load-office', 'office', '3012');
   seedUser('load-production', 'production', '3013');
@@ -98,7 +98,15 @@ test('order-sheet QR opens the live production sheet while package loading remai
   const printResponse = await request(`/api/orders/${orderId}/print-a4`, { headers: authHeaders(office) });
   assert.equal(printResponse.status, 200);
   const printHtml = await printResponse.text();
-  assert.match(printHtml, new RegExp(`warehouse[.]html[?]load_order=${orderId}&autostart=1`));
+  const printedQrMatch = printHtml.match(/data-order-code="([^"]+)"/);
+  assert.ok(printedQrMatch);
+  const printedQr = new URL(printedQrMatch[1].replace(/&amp;/g, '&'));
+  assert.equal(printedQr.origin, baseUrl);
+  assert.equal(printedQr.pathname, '/customer-scan.html');
+  assert.equal(printedQr.searchParams.get('code'), `TENE-ORDER-${orderId}`);
+  assert.doesNotMatch(printHtml, /web[+]ironbend:\/\/open\/order/);
+  assert.doesNotMatch(printHtml, /data-order-url=/);
+  assert.doesNotMatch(printHtml, /warehouse[.]html[?]load_order=/);
   assert.match(printHtml, /<img src="data:image\/png;base64,/);
   assert.doesNotMatch(printHtml, /cdn[.]jsdelivr[.]net\/npm\/qrcode/);
   assert.doesNotMatch(printHtml, />QR<\/div>/);

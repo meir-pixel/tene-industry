@@ -35,6 +35,38 @@ function ensureAuthSchema(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
     CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id, revoked);
+
+    CREATE TABLE IF NOT EXISTS device_enrollment_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_uid TEXT UNIQUE NOT NULL,
+      credential_hash TEXT UNIQUE NOT NULL,
+      requester_name TEXT NOT NULL,
+      device_name TEXT NOT NULL,
+      platform TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','approved','rejected','revoked')),
+      user_agent TEXT,
+      ip_address TEXT,
+      requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at DATETIME,
+      reviewed_by INTEGER,
+      reviewed_by_name TEXT,
+      last_seen_at DATETIME,
+      FOREIGN KEY (reviewed_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_device_enrollment_status
+      ON device_enrollment_requests(status, requested_at DESC);
+  `);
+  // These links are additive so devices that were approved before the
+  // invitation flow remain valid. New worker devices are tied to one person
+  // and one short-lived invitation from the moment they are registered.
+  addColumn(db, 'device_enrollment_requests', 'requester_user_id', 'INTEGER');
+  addColumn(db, 'device_enrollment_requests', 'invitation_id', 'INTEGER');
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_device_enrollment_requester_user
+      ON device_enrollment_requests(requester_user_id);
+    CREATE INDEX IF NOT EXISTS idx_device_enrollment_invitation
+      ON device_enrollment_requests(invitation_id);
   `);
 }
 

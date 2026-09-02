@@ -408,6 +408,8 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         <button class="tab-btn" onclick="showTab('vision',this)">📷 OCR</button>
         <button class="tab-btn" onclick="showTab('permissions',this)">🔐 הרשאות</button>
         <button class="tab-btn" data-tab-users onclick="showTab('users',this);loadUsers()">👥 משתמשים</button>
+        <button class="tab-btn" data-tab-worker-invites onclick="showTab('worker-invites',this);loadWorkerInvitations()">✉️ הזמנות עובדים <span id="workerInvitePendingBadge"></span></button>
+        <button class="tab-btn" data-tab-devices onclick="showTab('devices',this);loadDeviceRequests()">📱 אישור מכשירים <span id="devicePendingBadge"></span></button>
         <button class="tab-btn" onclick="showTab('auditlog',this);loadAuditLog()">📋 לוג שינויים</button>
         <button class="tab-btn" onclick="showTab('cloud',this)">☁️ ניהול ענן</button>
       </div>
@@ -731,6 +733,84 @@ html, body { background:#f0f4f8; color:#1a2533; font-family:'Heebo',sans-serif; 
         </div>
       </div>
 
+      <!-- TAB: PERSONAL WORKER INVITATIONS -->
+      <div id="tab-worker-invites" class="tab-pane tab-content-pad">
+        <div class="tab-toolbar">
+          <div>
+            <div class="tab-heading">✉️ הזמנות אישיות לעובדים</div>
+            <div class="tab-subtitle">יוצרים קישור אישי לוואטסאפ. הקישור תקף ל־15 דקות, נרשם על שם עובד אחד, ולא נותן גישה לפני אישור המכשיר.</div>
+          </div>
+          <button class="btn btn-outline" onclick="loadWorkerInvitations()">רענן</button>
+        </div>
+        <div class="permission-note">
+          שולחים את הקישור רק לעובד המיועד. לאחר שהעובד ממלא פרטים, הבקשה תופיע גם ב״אישור מכשירים״. אישור המכשיר מפעיל את משתמש העובד.
+        </div>
+        <div class="user-form" style="display:block;margin-top:0">
+          <div class="user-form-title">הזמנה חדשה</div>
+          <div class="user-form-grid">
+            <div class="inline-field"><label>שם העובד</label><input id="workerInviteName" maxlength="100" placeholder="שם מלא" autocomplete="name"></div>
+            <div class="inline-field"><label>טלפון (אופציונלי)</label><input id="workerInvitePhone" maxlength="30" placeholder="050-0000000" inputmode="tel"></div>
+            <div class="inline-field"><label>תפקיד</label>
+              <select id="workerInviteRole">
+                <option value="production">ייצור</option>
+                <option value="warehouse">מחסן</option>
+                <option value="driver">נהג</option>
+                <option value="quality">איכות</option>
+                <option value="maintenance">תחזוקה</option>
+              </select>
+            </div>
+          </div>
+          <div class="inline-actions"><button class="btn btn-primary" onclick="createWorkerInvitation()">צור קישור ל־15 דקות</button></div>
+          <div id="workerInviteCreated" hidden style="margin-top:12px;padding:12px;border:1px solid var(--success);border-radius:10px;background:var(--success-bg)">
+            <strong>הקישור נוצר. העתק ושלח אותו לעובד בוואטסאפ:</strong>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input id="workerInviteLink" readonly style="flex:1;min-width:220px;padding:8px;border:1px solid var(--border);border-radius:8px;direction:ltr"><button class="btn btn-outline" onclick="copyWorkerInvitation()">העתק קישור</button></div>
+          </div>
+        </div>
+        <div class="admin-table-wrap" style="margin-top:16px">
+          <table class="admin-table">
+            <thead><tr><th>עובד</th><th>תפקיד</th><th>נוצר</th><th>תוקף</th><th>מצב</th><th>רישום/מכשיר</th><th>פעולות</th></tr></thead>
+            <tbody id="workerInvitationsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: APPROVED SCANNING DEVICES -->
+      <div id="tab-devices" class="tab-pane tab-content-pad">
+        <div class="tab-toolbar">
+          <div>
+            <div class="tab-heading">📱 אישור מכשירי סריקה</div>
+            <div class="tab-subtitle">רק מכשיר מאושר עם משתמש מחובר יכול לפתוח QR של טופס ייצור או כרטיס עבודה.</div>
+          </div>
+          <div class="audit-tools">
+            <select id="deviceStatusFilter" onchange="loadDeviceRequests()">
+              <option value="">כל הבקשות</option>
+              <option value="pending">ממתינות</option>
+              <option value="approved">מאושרות</option>
+              <option value="rejected">נדחו</option>
+              <option value="revoked">נחסמו</option>
+            </select>
+            <button class="btn btn-outline" onclick="loadDeviceRequests()">רענן</button>
+          </div>
+        </div>
+        <div class="permission-note">
+          האישור שייך למכשיר הספציפי ונשמר בו כמפתח אקראי. אם מכשיר אבד או עבר לעובד אחר, יש לבחור “בטל אישור”.
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr>
+              <th>מבקש</th>
+              <th>מכשיר</th>
+              <th>מערכת</th>
+              <th>נשלח</th>
+              <th>מצב</th>
+              <th>נראה לאחרונה</th>
+              <th>פעולות</th>
+            </tr></thead>
+            <tbody id="deviceRequestsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- TAB: AUDIT LOG -->
       <div id="tab-auditlog" class="tab-pane tab-content-pad">
         <div class="tab-toolbar">
@@ -847,6 +927,8 @@ function showTab(id, btn) {
   if (btn) btn.classList.add('active');
   if (id === 'permissions') renderPermissions();
   if (id === 'users') loadUsers();
+  if (id === 'worker-invites') loadWorkerInvitations();
+  if (id === 'devices') loadDeviceRequests();
   history.replaceState(null, '', `${location.pathname}?tab=${encodeURIComponent(id)}`);
 }
 
@@ -1431,6 +1513,8 @@ function openInitialTabFromUrl() {
   if (btn) {
     showTab(id, btn);
     if (id === 'users') loadUsers();
+    if (id === 'worker-invites') loadWorkerInvitations();
+    if (id === 'devices') loadDeviceRequests();
   }
 }
 
@@ -1511,6 +1595,145 @@ async function saveUser() {
 async function toggleUser(id, active) {
   await fetch(`/api/users/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active }) });
   loadUsers();
+}
+
+// ── PERSONAL WORKER INVITATIONS ─────────────────────────────────
+let workerInvitationsData = [];
+const WORKER_INVITE_STATUS_LABELS = {
+  pending:'ממתין לפתיחת קישור', opened:'הקישור נפתח', claimed:'ממתין לאישור מכשיר',
+  expired:'פג תוקף', cancelled:'בוטלה'
+};
+const WORKER_INVITE_STATUS_COLORS = {
+  pending:'#805500', opened:'#1560a8', claimed:'#805500', expired:'var(--muted)', cancelled:'var(--danger)'
+};
+
+function workerInviteDate(value) {
+  return value ? new Date(value).toLocaleString('he-IL', { dateStyle:'short', timeStyle:'short' }) : '—';
+}
+
+function workerInviteDevice(row) {
+  if (!row.claimed_username) return 'טרם נרשם';
+  const device = row.device_name ? `${escHtml(row.device_name)} · ${DEVICE_STATUS_LABELS[row.device_status] || row.device_status || 'ממתין'}` : 'ממתין לרישום מכשיר';
+  return `<strong>${escHtml(row.claimed_user_name || row.claimed_username)}</strong><div style="font-size:11px;color:var(--muted)">${escHtml(row.claimed_username)} · ${device}</div>`;
+}
+
+async function loadWorkerInvitations() {
+  const tbody = document.getElementById('workerInvitationsTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:22px;color:var(--muted)">טוען הזמנות…</td></tr>';
+  const response = await fetch('/api/worker-invitations');
+  if (!response.ok) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:22px;color:var(--danger)">אין הרשאה או שלא ניתן לטעון הזמנות</td></tr>';
+    return;
+  }
+  workerInvitationsData = await response.json();
+  const pending = workerInvitationsData.filter(row => ['pending','opened','claimed'].includes(row.status)).length;
+  const badge = document.getElementById('workerInvitePendingBadge');
+  if (badge) badge.textContent = pending ? `(${pending})` : '';
+  tbody.innerHTML = workerInvitationsData.length ? workerInvitationsData.map(row => `<tr>
+    <td><strong>${escHtml(row.worker_name)}</strong>${row.phone ? `<div style="font-size:11px;color:var(--muted)">${escHtml(row.phone)}</div>` : ''}</td>
+    <td>${escHtml(ROLE_LABELS[row.role] || row.role)}</td>
+    <td>${workerInviteDate(row.created_at)}</td>
+    <td>${workerInviteDate(row.expires_at)}</td>
+    <td><strong style="color:${WORKER_INVITE_STATUS_COLORS[row.status] || 'inherit'}">${escHtml(WORKER_INVITE_STATUS_LABELS[row.status] || row.status)}</strong></td>
+    <td>${workerInviteDevice(row)}</td>
+    <td>${['pending','opened'].includes(row.status) ? `<button class="btn btn-outline" style="padding:6px 10px;color:var(--danger)" onclick="cancelWorkerInvitation(${row.id})">בטל קישור</button>` : '—'}</td>
+  </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">אין הזמנות עדיין</td></tr>';
+}
+
+async function createWorkerInvitation() {
+  const workerName = document.getElementById('workerInviteName').value.trim();
+  const phone = document.getElementById('workerInvitePhone').value.trim();
+  const role = document.getElementById('workerInviteRole').value;
+  if (workerName.length < 2) return toast('יש להזין שם עובד', true);
+  const response = await fetch('/api/worker-invitations', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ worker_name:workerName, phone, role })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.activation_url) return toast(result.error || 'יצירת הקישור נכשלה. יש לוודא שכתובת הענן מוגדרת.', true);
+  document.getElementById('workerInviteLink').value = result.activation_url;
+  document.getElementById('workerInviteCreated').hidden = false;
+  document.getElementById('workerInviteName').value = '';
+  document.getElementById('workerInvitePhone').value = '';
+  toast('✓ קישור אישי נוצר. תוקפו 15 דקות');
+  loadWorkerInvitations();
+}
+
+async function copyWorkerInvitation() {
+  const input = document.getElementById('workerInviteLink');
+  try { await navigator.clipboard.writeText(input.value); toast('הקישור הועתק'); }
+  catch (_) { input.focus(); input.select(); document.execCommand('copy'); toast('הקישור סומן להעתקה'); }
+}
+
+async function cancelWorkerInvitation(id) {
+  if (!confirm('לבטל את הקישור האישי? לא ניתן להשתמש בו לאחר הביטול.')) return;
+  const response = await fetch(`/api/worker-invitations/${id}`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'cancel' })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) return toast(result.error || 'ביטול ההזמנה נכשל', true);
+  toast('הקישור בוטל');
+  loadWorkerInvitations();
+}
+
+// ── SCANNING DEVICE APPROVALS ───────────────────────────────────
+let deviceRequestsData = [];
+const DEVICE_STATUS_LABELS = {
+  pending:'ממתין לאישור', approved:'מאושר', rejected:'נדחה', revoked:'האישור בוטל'
+};
+const DEVICE_STATUS_COLORS = {
+  pending:'#805500', approved:'var(--success)', rejected:'var(--danger)', revoked:'var(--danger)'
+};
+
+function deviceDate(value) {
+  return value ? new Date(value).toLocaleString('he-IL', { dateStyle:'short', timeStyle:'short' }) : '—';
+}
+
+function deviceActions(row) {
+  if (row.status === 'pending') return `
+    <button class="btn btn-primary" style="padding:6px 10px" onclick="reviewDevice(${row.id},'approved')">אשר</button>
+    <button class="btn btn-outline" style="padding:6px 10px" onclick="reviewDevice(${row.id},'rejected')">דחה</button>`;
+  if (row.status === 'approved') return `
+    <button class="btn btn-outline" style="padding:6px 10px;color:var(--danger)" onclick="reviewDevice(${row.id},'revoked')">בטל אישור</button>`;
+  return `<button class="btn btn-outline" style="padding:6px 10px" onclick="reviewDevice(${row.id},'approved')">אשר מחדש</button>`;
+}
+
+async function loadDeviceRequests() {
+  const tbody = document.getElementById('deviceRequestsTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:22px;color:var(--muted)">טוען בקשות…</td></tr>';
+  const filter = document.getElementById('deviceStatusFilter')?.value || '';
+  const url = '/api/device-enrollment/requests' + (filter ? `?status=${encodeURIComponent(filter)}` : '');
+  const response = await fetch(url);
+  if (!response.ok) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:22px;color:var(--danger)">אין הרשאה או שלא ניתן לטעון את הבקשות</td></tr>';
+    return;
+  }
+  deviceRequestsData = await response.json();
+  const pending = filter ? deviceRequestsData.filter(row => row.status === 'pending').length
+    : deviceRequestsData.filter(row => row.status === 'pending').length;
+  const badge = document.getElementById('devicePendingBadge');
+  if (badge) badge.textContent = pending ? `(${pending})` : '';
+  tbody.innerHTML = deviceRequestsData.length ? deviceRequestsData.map(row => `<tr>
+    <td><strong>${escHtml(row.requester_name)}</strong><div style="font-size:11px;color:var(--muted)">${escHtml(row.request_uid)}</div></td>
+    <td>${escHtml(row.device_name)}</td>
+    <td style="font-size:12px;color:var(--muted)">${escHtml(row.platform || '—')}</td>
+    <td>${deviceDate(row.requested_at)}</td>
+    <td><strong style="color:${DEVICE_STATUS_COLORS[row.status] || 'inherit'}">${escHtml(DEVICE_STATUS_LABELS[row.status] || row.status)}</strong></td>
+    <td>${deviceDate(row.last_seen_at)}</td>
+    <td style="display:flex;gap:6px;flex-wrap:wrap">${deviceActions(row)}</td>
+  </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">אין בקשות במצב זה</td></tr>';
+}
+
+async function reviewDevice(id, status) {
+  if (['rejected','revoked'].includes(status) && !confirm(status === 'revoked' ? 'לבטל את אישור המכשיר?' : 'לדחות את בקשת המכשיר?')) return;
+  const response = await fetch(`/api/device-enrollment/requests/${id}`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ status })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) return toast(result.error || 'עדכון המכשיר נכשל', true);
+  toast(status === 'approved' ? '✓ המכשיר אושר לסריקה' : 'הרשאת המכשיר עודכנה');
+  loadDeviceRequests();
 }
 
 // ── AUDIT LOG ─────────────────────────────────────────────────────

@@ -71,6 +71,7 @@ test('production print page renders fixed A4 cards without order summary and wit
     cards,
     industry,
     tryParseJSON,
+    publicBaseUrl: 'https://portal.example',
   });
 
   assert.doesNotMatch(html, /order-summary-sheet/);
@@ -107,7 +108,11 @@ test('production print page renders fixed A4 cards without order summary and wit
   assert.match(html, /grid-template-columns:minmax\(0,1fr\) 27mm/);
   assert.match(html, /pc-print-face\{[^}]*width:100%;height:100%/);
   assert.match(html, /pc-print-qr-code/);
-  assert.match(html, /worker-visual\.html\?scan=1&card=/);
+  assert.match(html, /data-worker-card-code/);
+  assert.match(html, /var PUBLIC_SCAN_BASE = "https:\/\/portal\.example"/);
+  assert.match(html, /\/customer-scan\.html\?code=/);
+  assert.doesNotMatch(html, /web\+ironbend:\/\/open\/card\//);
+  assert.doesNotMatch(html, /worker-visual\.html\?scan=1&card=/);
   assert.match(html, /"shape_svg":/);
   assert.match(html, /shapeSvgForCard\(item, segs\)/);
   assert.match(html, /qrFallbackUrl/);

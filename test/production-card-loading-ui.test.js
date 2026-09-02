@@ -7,10 +7,18 @@ const path = require('node:path');
 
 const warehousePage = fs.readFileSync(path.join(__dirname, '..', 'public', 'warehouse.html'), 'utf8');
 const orderPrintRoute = fs.readFileSync(path.join(__dirname, '..', 'routes', 'orderPrintA4.js'), 'utf8');
+const scannerPage = fs.readFileSync(path.join(__dirname, '..', 'public', 'scan.html'), 'utf8');
+const customerScanPage = fs.readFileSync(path.join(__dirname, '..', 'public', 'customer-scan.html'), 'utf8');
+const navigation = fs.readFileSync(path.join(__dirname, '..', 'public', 'nav.js'), 'utf8');
+const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'public', 'manifest.json'), 'utf8'));
 
-test('the order-sheet QR opens the persisted production-card camera flow, never the old package-loading UI', () => {
-  assert.match(orderPrintRoute, /warehouse\.html\?load_order=.*autostart=1/);
-  assert.match(warehousePage, /startCardLoadingSession\(loadingOrderFromQr\)/);
+test('public QR opens customer registration while only the authenticated work scanner routes production codes', () => {
+  assert.match(orderPrintRoute, /customerScanUrl\(req, `TENE-ORDER-/);
+  assert.doesNotMatch(orderPrintRoute, /web\+ironbend:\/\/open\/order\//);
+  assert.match(orderPrintRoute, /QRCode\.toDataURL\(orderQrToken/);
+  assert.doesNotMatch(orderPrintRoute, /QRCode\.toDataURL\(fullOrderUrl/);
+  assert.match(warehousePage, /orderIdFromQr/);
+  assert.match(warehousePage, /scanOrderQrValue/);
   assert.match(warehousePage, /\/api\/loading\/card-sessions/);
   assert.doesNotMatch(warehousePage, /\/api\/loading\/sessions/);
   assert.doesNotMatch(warehousePage, /deliverySelectorCard/);
@@ -22,4 +30,18 @@ test('the order-sheet QR opens the persisted production-card camera flow, never 
   assert.match(warehousePage, /wakeLock/);
   assert.match(warehousePage, /partial-departure/);
   assert.match(warehousePage, /כרטיסי עבודה/);
+  assert.match(scannerPage, /normalizedScan/);
+  assert.match(scannerPage, /customer-scan/);
+  assert.match(scannerPage, /web\+ironbend/);
+  assert.match(scannerPage, /BarcodeDetector/);
+  assert.match(scannerPage, /worker-visual\.html\?scan=1&card=/);
+  assert.match(navigation, /href:'\/scan\.html'/);
+  assert.match(navigation, /BOTTOM_IDS = \['dashboard', 'scanner'/);
+  assert.match(customerScanPage, /href="\/customer\.html\?source=qr"/);
+  assert.match(customerScanPage, /הרשמה או כניסה לפורטל/);
+  assert.match(customerScanPage, /אינה מציגה מספר הזמנה, כרטיס עבודה או נתוני ייצור/);
+  assert.doesNotMatch(customerScanPage, /href="[^"]*(?:scan|worker|warehouse)\.html/);
+  assert.deepEqual(manifest.protocol_handlers, [
+    { protocol: 'web+ironbend', url: '/scan.html?protocol=%s' },
+  ]);
 });

@@ -27,6 +27,8 @@ function projectPortalCustomer(customer = {}, ctx = {}) {
     phone: customer.phone,
     email: customer.email,
     address: customer.address,
+    contact_name: customer.contact_name,
+    contact_phone: customer.contact_phone,
     tax_id: customer.tax_id,
     payment_terms: customer.payment_terms,
     portal_price_list_visibility: customer.portal_price_list_visibility,

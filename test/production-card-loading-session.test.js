@@ -14,11 +14,20 @@ process.env.DB_PATH = path.join(tmpDir, 'card-loading.db');
 process.env.BACKUP_DIR = path.join(tmpDir, 'backups');
 
 const { closeServer, db, server } = require('../server');
-const { hashPin } = require('../auth-core');
+const { hashPin, sha256 } = require('../auth-core');
 const { calculatePileCage } = require('../modules/steel-rebar/pile-cage-engine');
 const { ITEM_STATUS, ORDER_STATUS } = require('../status-contracts');
 
 let baseUrl;
+const APPROVED_DEVICE_CREDENTIAL = 'DEV-CARD-LOADING.test-device-secret';
+
+function seedApprovedDevice() {
+  db.prepare(`
+    INSERT INTO device_enrollment_requests
+      (request_uid,credential_hash,requester_name,device_name,status,reviewed_at)
+    VALUES (?,?,?,?, 'approved',CURRENT_TIMESTAMP)
+  `).run('DEV-CARD-LOADING', sha256(APPROVED_DEVICE_CREDENTIAL), 'Warehouse Worker', 'Warehouse Scanner');
+}
 
 function seedUser(username, role, pin) {
   return db.prepare(`
@@ -73,10 +82,19 @@ async function token(username, pin) {
   assert.equal(response.status, 200);
   return (await response.json()).access_token;
 }
-function authHeaders(accessToken) { return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }; }
+function authHeaders(accessToken) {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    'X-IronBend-Device': APPROVED_DEVICE_CREDENTIAL,
+    'Content-Type': 'application/json',
+  };
+}
 function workerUrl(token) { return `https://scan.example/worker-visual.html?scan=1&card=${encodeURIComponent(token)}`; }
+function appUrl(token) { return `web+ironbend://open/card/${encodeURIComponent(token)}`; }
+function customerScanUrl(token) { return `https://scan.example/customer-scan.html?code=${encodeURIComponent(token)}`; }
 
 test('one printed worker-card QR supports persisted, partial, fail-closed truck loading without package-label side effects', async (t) => {
+  seedApprovedDevice();
   seedUser('card-warehouse', 'warehouse', '7011');
   seedUser('card-office', 'office', '7012');
   seedUser('card-production', 'production', '7013');
@@ -157,8 +175,9 @@ test('one printed worker-card QR supports persisted, partial, fail-closed truck 
   assert.equal((await scan(waitToken)).outcome, 'not_ready');
   db.prepare('DELETE FROM items WHERE id=?').run(notReadyItemId);
 
-  const concurrent = await Promise.all([scan(firstToken), scan(workerUrl(firstToken))]);
+  const concurrent = await Promise.all([scan(firstToken), scan(customerScanUrl(firstToken))]);
   assert.deepEqual(concurrent.map(row => row.outcome).sort(), ['duplicate', 'loaded']);
+  assert.equal((await scan(appUrl(firstToken))).outcome, 'duplicate');
   assert.equal(db.prepare(`SELECT state FROM order_loading_session_cards WHERE session_id=? AND worker_card_token=?`).get(started.id, firstToken).state, 'loaded');
   assert.equal(db.prepare('SELECT status FROM packages WHERE id=?').get(packageId).status, packageBefore.status);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM scan_log').get().count, scansBefore);

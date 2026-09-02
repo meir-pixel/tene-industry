@@ -24,6 +24,7 @@
 
   const LINKS = [
     { group:'ראשי', href:'/dashboard.html', icon:'📊', label:'דשבורד', id:'dashboard' },
+    { group:'ראשי', href:'/scan.html', icon:'📷', label:'סריקה', id:'scanner' },
     { group:'ראשי', href:'/orders.html', icon:'📋', label:'הזמנות', id:'orders' },
     { group:'ראשי', href:'/index.html', icon:'➕', label:'הזמנה חדשה', id:'new' },
     { group:'ראשי', href:'/intake.html', icon:'📬', label:'קליטת הזמנות', id:'intake' },
@@ -54,7 +55,7 @@
     { group:'ניהול', href:'/admin.html', icon:'⚙️', label:'ניהול מערכת', id:'admin' },
   ];
 
-  const BOTTOM_IDS = ['dashboard', 'orders', 'new', 'admin'];
+  const BOTTOM_IDS = ['dashboard', 'scanner', 'orders', 'new', 'admin'];
   const LINK_MODULES = {
     orders: 'orders',
     new: 'orders',
@@ -154,7 +155,7 @@
     .ib-dl-icon { width:24px; text-align:center; font-size:17px; }
     #ib-bottom {
       display:none; position:fixed; bottom:0; right:0; left:0; z-index:300;
-      height:60px; grid-template-columns:repeat(4,1fr);
+      height:60px; grid-template-columns:repeat(5,1fr);
       background:linear-gradient(180deg,#f8fafc 0%,#fff 100%);
       border-top:1px solid rgba(0,0,0,.10);
       box-shadow:0 -3px 14px rgba(0,0,0,.08);
@@ -365,8 +366,9 @@
       }
       // Map screen IDs back to nav link IDs (some overlap, some differ)
       visibleLinks = LINKS.filter(link => {
-        // Always show dashboard
-        if (link.id === 'dashboard') return true;
+        // Dashboard and the authenticated in-app scanner are universal shell
+        // actions; the destination workflow still enforces its own role.
+        if (link.id === 'dashboard' || link.id === 'scanner') return true;
         // Direct match
         if (visibleIds.has(link.id)) return true;
         // Map nav id → screen id

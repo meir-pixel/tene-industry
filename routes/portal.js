@@ -14,6 +14,7 @@ function required(name, value) {
 
 module.exports = function createPortalRouter(deps) {
   const db = required('db', deps.db);
+  const auditLog = required('auditLog', deps.auditLog);
   const customerPortalAuthLimiter = required('customerPortalAuthLimiter', deps.customerPortalAuthLimiter);
   const customerPortalActionLimiter = required('customerPortalActionLimiter', deps.customerPortalActionLimiter);
   const crypto = required('crypto', deps.crypto);
@@ -81,9 +82,39 @@ module.exports = function createPortalRouter(deps) {
     const s = resolvePortalSession(token);
     if (s) {
       const ctx = portalContext(s.customer, s.user);
-      return { customer: s.customer, user: s.user, role: ctx.role, caps: ctx.caps, portal: ctx };
+      return {
+        customer: s.customer,
+        user: s.user,
+        role: ctx.role,
+        caps: ctx.caps,
+        portal: ctx,
+        supportPreview: Boolean(s.supportPreview),
+        supportActorUserId: s.supportActorUserId || null,
+        supportPreviewExpiresAt: s.supportPreviewExpiresAt || null,
+      };
     }
     return upgradeLegacyCustomerToken(token);
+  }
+
+  function auditSupportAction(s, action, entityType = 'customer', entityId = null, details = null) {
+    if (!s?.supportPreview || !s.supportActorUserId) return;
+    let actorName = null;
+    try {
+      actorName = db.prepare('SELECT display_name FROM users WHERE id=?').get(s.supportActorUserId)?.display_name || null;
+    } catch {}
+    const portalIdentity = s.user ? `${s.user.name || s.user.phone || 'משתמש'} (#${s.user.id})` : 'ללא משתמש פורטל';
+    auditLog(
+      entityType,
+      entityId || s.customer.id,
+      null,
+      `portal_support_${action}`,
+      null,
+      null,
+      details ? JSON.stringify(details) : null,
+      `פעולה במצב סיוע עבור ${s.customer.name}; זהות פורטל: ${portalIdentity}`,
+      s.supportActorUserId,
+      actorName
+    );
   }
 
   function upgradeLegacyCustomerToken(token) {
@@ -366,6 +397,8 @@ module.exports = function createPortalRouter(deps) {
         phone: customer.phone,
         email: customer.email,
         address: customer.address,
+        contact_name: customer.contact_name,
+        contact_phone: customer.contact_phone,
         tax_id: customer.tax_id,
         payment_terms: customer.payment_terms,
         portal_price_list_visibility: customer.portal_price_list_visibility,
@@ -377,6 +410,7 @@ module.exports = function createPortalRouter(deps) {
   router.post('/c/password/change', customerPortalActionLimiter, (req, res) => {
     const s = session(req.body.token);
     if (!s) return res.status(401).json({ error: 'לא מורשה' });
+    if (s.supportPreview) return res.status(403).json({ error: 'במצב סיוע לא משנים את סיסמת הלקוח' });
     const oldPassword = String(req.body.oldPassword || '');
     const newPassword = String(req.body.newPassword || '');
     if (s.user.password_hash && !verifyPortalPassword(s.user, oldPassword)) {
@@ -483,6 +517,7 @@ module.exports = function createPortalRouter(deps) {
       INSERT INTO customer_portal_permission_audit (customer_id,actor_portal_user_id,target_portal_user_id,action,after_json)
       VALUES (?,?,?,?,?)
     `).run(s.customer.id, s.user?.id || null, userId, existing ? 'portal_user_updated_by_customer' : 'portal_user_created_by_customer', JSON.stringify({ role, defaultSiteId, siteIds, flags }));
+    auditSupportAction(s, existing ? 'portal_user_updated' : 'portal_user_created', 'customer', s.customer.id, { portalUserId: userId, role, siteIds, flags });
     res.json({ success: true, id: userId, updated: Boolean(existing) });
   });
 
@@ -494,6 +529,7 @@ module.exports = function createPortalRouter(deps) {
     if (!u) return res.status(404).json({ error: 'לא נמצא' });
     if (s.user && Number(u.id) === Number(s.user.id)) return res.status(400).json({ error: 'אי אפשר לבטל את המשתמש הנוכחי' });
     db.prepare('UPDATE portal_users SET active=0,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(u.id);
+    auditSupportAction(s, 'portal_user_deactivated', 'customer', s.customer.id, { portalUserId: u.id, phone: u.phone });
     res.json({ success: true });
   });
 
@@ -535,6 +571,9 @@ module.exports = function createPortalRouter(deps) {
       token: s.upgradedToken,
       link: s.upgradedLink,
       expiresAt: s.upgradedExpiresAt,
+      supportPreview: Boolean(s.supportPreview),
+      supportActorUserId: s.supportActorUserId || null,
+      supportPreviewExpiresAt: s.supportPreviewExpiresAt || null,
       actionRequired: projectedOrders.filter(order => order.customerStatus === 'awaiting_customer_approval' || order.customerStatus === 'needs_info'),
       activeOrdersSummary: projectedOrders.slice(0, 5),
       orders: projectedOrders
@@ -547,21 +586,28 @@ module.exports = function createPortalRouter(deps) {
     const name = String(req.body.name || '').trim();
     const email = String(req.body.email || '').trim() || null;
     const address = String(req.body.address || '').trim() || null;
+    const contactName = String(req.body.contactName || '').trim() || null;
+    const contactPhone = String(req.body.contactPhone || '').trim() || null;
     if (!name) return res.status(400).json({ error: 'Customer name required' });
     const current = db.prepare(`
-      SELECT id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_profile_locked_at
+      SELECT id,name,phone,email,address,contact_name,contact_phone,tax_id,payment_terms,portal_price_list_visibility,portal_profile_locked_at
       FROM customers WHERE id=?
     `).get(s.customer.id);
     if (!current) return res.status(404).json({ error: 'Customer not found' });
-    const requested = { name, email, address };
-    const currentPublic = { name: current.name, email: current.email, address: current.address };
-    const unchanged = requested.name === currentPublic.name && (requested.email || null) === (currentPublic.email || null) && (requested.address || null) === (currentPublic.address || null);
+    const requested = { name, email, address, contactName, contactPhone };
+    const currentPublic = { name: current.name, email: current.email, address: current.address, contactName: current.contact_name, contactPhone: current.contact_phone };
+    const unchanged = requested.name === currentPublic.name
+      && (requested.email || null) === (currentPublic.email || null)
+      && (requested.address || null) === (currentPublic.address || null)
+      && (requested.contactName || null) === (currentPublic.contactName || null)
+      && (requested.contactPhone || null) === (currentPublic.contactPhone || null);
     if (!current.portal_profile_locked_at) {
-      db.prepare('UPDATE customers SET name=?,email=?,address=?,portal_profile_locked_at=CURRENT_TIMESTAMP WHERE id=?').run(name, email, address, s.customer.id);
+      db.prepare('UPDATE customers SET name=?,email=?,address=?,contact_name=?,contact_phone=?,portal_profile_locked_at=CURRENT_TIMESTAMP WHERE id=?').run(name, email, address, contactName, contactPhone, s.customer.id);
       const customer = db.prepare(`
-        SELECT id,name,phone,email,address,tax_id,payment_terms,portal_price_list_visibility,portal_profile_locked_at
+        SELECT id,name,phone,email,address,contact_name,contact_phone,tax_id,payment_terms,portal_price_list_visibility,portal_profile_locked_at
         FROM customers WHERE id=?
       `).get(s.customer.id);
+      auditSupportAction(s, 'profile_updated', 'customer', s.customer.id, requested);
       return res.json({ success: true, firstUpdate: true, customer });
     }
     if (unchanged) return res.json({ success: true, unchanged: true, customer: current });
@@ -588,6 +634,7 @@ module.exports = function createPortalRouter(deps) {
       WHERE customer_id=? AND status='pending'
       ORDER BY updated_at DESC, created_at DESC LIMIT 1
     `).get(s.customer.id);
+    auditSupportAction(s, 'profile_change_requested', 'customer', s.customer.id, requested);
     res.json({ success: true, pendingApproval: true, customer: current, request: requestRow });
   });
 
@@ -643,6 +690,7 @@ module.exports = function createPortalRouter(deps) {
       INSERT INTO customer_portal_permission_audit (customer_id,actor_portal_user_id,action,after_json)
       VALUES (?,?,?,?)
     `).run(s.customer.id, s.user?.id || null, 'customer_created_site', JSON.stringify({ siteId, name }));
+    auditSupportAction(s, 'site_created', 'customer_site', siteId, { name, city: f.city || null, address: f.address || null });
     res.json({ success: true, id: siteId });
   });
 
@@ -889,6 +937,7 @@ module.exports = function createPortalRouter(deps) {
       fileName: req.file.originalname,
       status: 'uploaded_pending_review',
     });
+    auditSupportAction(s, 'guarantee_document_uploaded', 'customer', s.customer.id, { documentId: r.lastInsertRowid, fileName: req.file.originalname });
     res.json({ success: true, id: r.lastInsertRowid, status: 'uploaded_pending_review' });
   });
 
@@ -1009,6 +1058,8 @@ module.exports = function createPortalRouter(deps) {
 
     if (c.phone) intake.sendWhatsApp(c.phone, waMsg).catch(e => console.warn('[Order confirm WA]', e));
 
+    auditSupportAction(s, 'order_created', 'order', orderId, { orderNum, siteId: orderSite?.id || null, itemCount: portalItems.length, totalWeight, portalPrice });
+
     res.json({
       success: true, orderNum, orderId,
       summary: {
@@ -1055,6 +1106,7 @@ module.exports = function createPortalRouter(deps) {
       intake.sendWhatsApp(notifyPhone, `📋 הזמנה ${order.order_num} אושרה ע"י הלקוח – ממתינה לבדיקה ואישור פנימי.`).catch(()=>{});
     }
     const projected = projectPortalOrder({ ...order, status: ORDER_STATUS.PENDING_APPROVAL }, portalProjectionCtx(s));
+    auditSupportAction(s, 'order_approved', 'order', orderId, { orderNum: order.order_num, status: ORDER_STATUS.PENDING_APPROVAL });
     res.json({ success: true, status: projected.status, customerStatus: projected.customerStatus, customerStatusLabel: projected.customerStatusLabel, productionApproved: false });
   });
 

@@ -5,6 +5,7 @@
   const ACCESS_KEY = 'ib_access_token';
   const ROLE_KEY = 'ib_role';
   const USER_KEY = 'ib_user';
+  const DEVICE_KEY = 'ironbend_device_credential_v1';
 
   function accessToken() {
     return sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY);
@@ -15,6 +16,10 @@
       username: sessionStorage.getItem(USER_KEY) || localStorage.getItem(USER_KEY) || '',
       role: sessionStorage.getItem(ROLE_KEY) || localStorage.getItem(ROLE_KEY) || '',
     };
+  }
+
+  function deviceCredential() {
+    return localStorage.getItem(DEVICE_KEY) || '';
   }
 
   function clearSession() {
@@ -125,10 +130,12 @@
     const isAuth = isAuthUrl(url);
     const headers = new Headers(init.headers || (typeof input === 'string' ? undefined : input.headers));
     const token = accessToken();
+    const device = deviceCredential();
 
     headers.delete('x-user-role');
     headers.delete('x-user-id');
     if (isApi && !isAuth && token) headers.set('Authorization', `Bearer ${token}`);
+    if (isApi && device) headers.set('X-IronBend-Device', device);
 
     let response = await nativeFetch(input, { ...init, headers, credentials: init.credentials || 'same-origin' });
     if (response.status === 401 && isApi && !isAuth) {
@@ -156,6 +163,7 @@
     nativeFetch,
     accessToken,
     currentUser,
+    deviceCredential,
     storeSession,
     clearSession,
     refreshAccessToken,

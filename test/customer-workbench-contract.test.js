@@ -27,6 +27,37 @@ test('customer screen links order creation through order screen with customer co
   assert.match(page, /\/api\/customers\/' \+ customerId \+ '\/portal-sites/);
 });
 
+test('customer workbench exposes an admin-only active portal support session', () => {
+  const page = read('public/customers.html');
+  const adminRoute = read('routes/portalAdmin.js');
+  const portal = read('public/customer.html');
+  assert.match(page, /function isSystemAdmin\(\)/);
+  assert.match(page, /function openPortalAsCustomer\(id\)/);
+  assert.match(page, /\/portal-preview/);
+  assert.match(adminRoute, /portal-preview', requireAnyRole\(\['admin'\]\)/);
+  assert.match(portal, /מצב סיוע למנהל מערכת/);
+  assert.match(portal, /supportPreview/);
+  assert.match(page, /כניסה לפורטל כלקוח/);
+  assert.match(page, /fPortalCanCreateSites/);
+  assert.match(portal, /renderCustomerProfilePanel\(\);/);
+  assert.match(portal, /function configurePortalActions\(\)/);
+});
+
+test('customer portal action buttons are capability-gated and point to defined handlers', () => {
+  const portal = read('public/customer.html');
+  const handlerNames = [...portal.matchAll(/onclick="([A-Za-z_$][\w$]*)\s*\(/g)]
+    .map(match => match[1])
+    .filter(name => name !== 'document');
+  for (const handler of new Set(handlerNames)) {
+    assert.match(portal, new RegExp(`(?:async\\s+)?function\\s+${handler}\\s*\\(`), `missing handler for ${handler}`);
+  }
+  assert.match(portal, /newOrder\.hidden = !canOrder/);
+  assert.match(portal, /quote\.hidden = !canQuote/);
+  assert.match(portal, /project\.hidden = !canOpenProjects/);
+  assert.match(portal, /hasOwnProperty\.call\(data, 'supportPreview'\)/);
+  assert.doesNotMatch(portal, /body\.support-preview \.portal-action-grid/);
+});
+
 test('customer workbench avoids browser prompts and hands off customer and site context', () => {
   const page = read('public/customers.html');
   assert.match(page, /id="siteModalBackdrop"/);

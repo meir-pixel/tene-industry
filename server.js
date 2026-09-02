@@ -19,6 +19,9 @@ const { createLicenseService } = require('./services/license');
 const { createPricer }          = require('./services/pricer');
 const { createSettingsService } = require('./services/settings');
 const { createBrandingService } = require('./services/branding');
+const { createDeviceEnrollmentService } = require('./services/deviceEnrollment');
+const { createWorkerCardActivityService } = require('./services/workerCardActivity');
+const { createWorkerInvitationService, ensureWorkerInvitationSchema } = require('./services/workerInvitations');
 const { createModuleLoader } = require('./services/moduleLoader');
 const { createModuleMapService } = require('./services/moduleMap');
 const { ROLE_PERMISSIONS, getRolePermission, requireAnyRole, requireRole } = require('./permissions');
@@ -80,6 +83,9 @@ const createBvbsRouter = require('./routes/bvbs');
 const createLicenseRouter = require('./routes/license');
 const createBrandingRouter = require('./routes/branding');
 const createAccessRouter   = require('./routes/access');
+const createDeviceEnrollmentRouter = require('./routes/deviceEnrollment');
+const createWorkerInvitationsRouter = require('./routes/workerInvitations');
+const createMobileAppLinksRouter = require('./services/mobileAppLinks');
 const { createAccessControl } = require('./services/accessControl');
 const { MACHINE_STATES, STATE_TRANSITIONS } = constants;
 const { createOrderFactory } = ordersService;
@@ -153,6 +159,7 @@ app.get('/shapeSnapshot.js', (_req, res) => {
 app.get('/steelRebarShapes.js', (_req, res) => {
   res.type('application/javascript').sendFile(path.join(__dirname, 'modules', 'steel-rebar', 'shapes.js'));
 });
+app.use(createMobileAppLinksRouter());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const {
@@ -172,6 +179,11 @@ ensureCoreSchema(db);
 
 runCoreMigrations(db);
 ensureAuthSchema(db);
+ensureWorkerInvitationSchema(db);
+
+const deviceEnrollmentService = createDeviceEnrollmentService({ getDb: () => db });
+const workerCardActivity = createWorkerCardActivityService({ db });
+const workerInvitations = createWorkerInvitationService({ getDb: () => db });
 
 const moduleLoader = createModuleLoader(settingsService);
 const industry = moduleLoader.active();
@@ -223,6 +235,18 @@ const webhookLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+const deviceEnrollmentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: process.env.NODE_ENV === 'test' ? 100 : 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const workerInvitationActivationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: process.env.NODE_ENV === 'test' ? 100 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 
 
@@ -263,6 +287,24 @@ app.use('/api', licenseService.middleware);
 
 app.use('/api', createLicenseRouter({ readLicensedModules, moduleCatalog }));
 app.use('/api', createBrandingRouter({ branding: brandingService }));
+app.use('/api', createDeviceEnrollmentRouter({
+  getDb: () => db,
+  requireRole,
+  deviceEnrollment: deviceEnrollmentService,
+  enrollmentLimiter: deviceEnrollmentLimiter,
+  auditLog,
+  allowUninvitedEnrollment: process.env.ALLOW_UNINVITED_DEVICE_ENROLLMENT === 'true',
+}));
+app.use('/api', createWorkerInvitationsRouter({
+  getDb: () => db,
+  requireRole,
+  hashPin,
+  deviceEnrollment: deviceEnrollmentService,
+  workerInvitations,
+  activationLimiter: workerInvitationActivationLimiter,
+  auditLog,
+  settingsService,
+}));
 
 // Collect all route manifests for access control
 const allRouteFactories = [
@@ -278,7 +320,7 @@ const allRouteFactories = [
   createInventoryVisionRouter, createOrderDocumentsRouter, createOrderDeliveryCertificateRouter,
   createOrderPrintA4Router, createProductionMetricsRouter, createProductionShiftsRouter,
   createCatalogRouter, createPriorityRouter, createPriorityExportRouter, createBrandingRouter, createLicenseRouter,
-  createAccessRouter,
+  createAccessRouter, createDeviceEnrollmentRouter, createWorkerInvitationsRouter,
 ];
 const routeManifests = allRouteFactories.map(f => f.manifest).filter(Boolean);
 const accessControl = createAccessControl({ routeManifests, settingsService });
@@ -301,6 +343,8 @@ const moduleMap = createModuleMapService({
     { file: 'routes/catalog.js', factory: createCatalogRouter },
     { file: 'routes/companies.js', factory: createCompaniesRouter },
     { file: 'routes/customers.js', factory: createCustomersRouter },
+    { file: 'routes/deviceEnrollment.js', factory: createDeviceEnrollmentRouter },
+    { file: 'routes/workerInvitations.js', factory: createWorkerInvitationsRouter },
     { file: 'routes/finance.js', factory: createFinanceRouter },
     { file: 'routes/financeCredit.js', factory: createFinanceCreditRouter },
     { file: 'routes/financeInvoices.js', factory: createFinanceInvoicesRouter },
@@ -472,6 +516,7 @@ app.use('/api', requireModule('production'), createProductionCardsRouter({
   normalizeFactoryShapeName,
   statusContracts,
   productionActuals,
+  settingsService,
 }));
 
 app.use('/api', requireModule('production'), createOrderDocumentsRouter({
@@ -480,6 +525,7 @@ app.use('/api', requireModule('production'), createOrderDocumentsRouter({
   industry,
   tryParseJSON,
   productionCards,
+  settingsService,
 }));
 
 app.use('/api', requireModule('finance'), createFinanceInvoicesRouter({
@@ -551,6 +597,8 @@ app.use('/api', requireModule('production'), createProductionRouter({
   checkOrderComplete,
   tryParseJSON,
   productionActuals,
+  requireApprovedDevice: deviceEnrollmentService.requireApprovedDevice,
+  workerCardActivity,
 }));
 
 app.use('/api', requireModule('production'), createProductionMetricsRouter({
@@ -747,6 +795,7 @@ app.use('/api', requireModule('portal'), createPortalAdminRouter({
 }));
 app.use('/api', requireModule('portal'), createPortalRouter({
   db,
+  auditLog,
   customerPortalAuthLimiter,
   customerPortalActionLimiter,
   crypto,
@@ -763,6 +812,7 @@ app.use('/api', requireModule('portal'), createPortalRouter({
 app.use('/api', requireModule('warehouse'), createWarehouseRouter({
   db,
   requireAnyRole,
+  requireApprovedDevice: deviceEnrollmentService.requireApprovedDevice,
   wsBroadcast,
 }));
 app.use('/api', requireModule('reports'), createReportsRouter({

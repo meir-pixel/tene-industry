@@ -1,0 +1,19 @@
+{
+  "name": "טנא תעשיות – אפליקציית עובדים",
+  "short_name": "טנא עובדים",
+  "description": "סריקת כרטיסי עבודה והעמסה לעובדים מאושרים",
+  "start_url": "/scan.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f0f4f8",
+  "theme_color": "#021A48",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "סריקה", "url": "/scan.html", "description": "פתח מצלמה וסרוק כרטיס עבודה" }
+  ]
+}
