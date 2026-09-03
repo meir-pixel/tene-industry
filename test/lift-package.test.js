@@ -188,3 +188,68 @@ test('the delivery certificate reports the weighed weight, not a computed one', 
   const metrics = deliveryTest.deliveryItemMetrics(LIFT_ITEM, { kgPerMeter: () => 0.888 });
   assert.equal(metrics.totalWeightKg, 194);
 });
+
+// ── the scale is the weight ──────────────────────────────────────
+const Database = require('better-sqlite3');
+const { ensureCoreSchema } = require('../db/coreSchema');
+const { runCoreMigrations } = require('../db/startup');
+const industry = require('../modules/steel-rebar');
+const { createOrderFactory } = require('../services/orders');
+
+function liftSnapshot(weighedKg, packages) {
+  const { buildShapeDataContractV2 } = loadShapeEditor();
+  return buildShapeDataContractV2({
+    family: 'lifts', diameter: 12, barLength: 1200, weighedKg, quantity: packages,
+  });
+}
+
+test('a weighed lift is stored at the weight on the scale, not a weight guessed from steel', () => {
+  const db = new Database(':memory:');
+  try {
+    ensureCoreSchema(db);
+    runCoreMigrations(db);
+    const service = createOrderFactory(db, { generateOrderNum: () => 'LIFT-ORDER-1', industry });
+    service.createOrderFromPayload({
+      customer: { name: 'Lift test' },
+      order: {},
+      // four packages went on the scale together and came to 194 kg
+      pallets: [{ items: [{ shapeSnapshot: liftSnapshot(194, 4), shapeName: 'חבילת ליפטים', diameter: 12, qty: 4 }] }],
+    });
+
+    const item = db.prepare('SELECT quantity, weight_per_unit, total_weight FROM items').get();
+    assert.equal(item.quantity, 4, 'the package count is still recorded');
+    assert.equal(Math.round(item.total_weight * 100) / 100, 194, 'the line weighs what the scale said');
+    assert.equal(Math.round(item.weight_per_unit * 100) / 100, 48.5, 'per package is derived, never multiplied back up');
+
+    // a bar of this diameter and length would weigh about 4 kg — the guess must not win
+    const guess = industry.weightPerUnit({ diameter: 12, total_length_mm: 1200 }) * 4;
+    assert.ok(guess < 10, 'sanity: the geometric guess really is tiny');
+    assert.notEqual(Math.round(item.total_weight), Math.round(guess));
+
+    // The order header is refreshed from the items by recalcOrderWeights, so
+    // what matters here is that the sum it reads is the weighed one.
+    const summed = db.prepare('SELECT COALESCE(SUM(total_weight),0) AS w FROM items').get().w;
+    assert.equal(Math.round(summed * 100) / 100, 194, 'the order total follows the scale');
+    assert.equal(Math.round(summed * 1.03 * 100) / 100, 199.82, 'billing is the weighed total plus the 3% waste');
+  } finally {
+    db.close();
+  }
+});
+
+test('one package is stored at its own weighing', () => {
+  const db = new Database(':memory:');
+  try {
+    ensureCoreSchema(db);
+    runCoreMigrations(db);
+    createOrderFactory(db, { generateOrderNum: () => 'LIFT-ORDER-2', industry }).createOrderFromPayload({
+      customer: { name: 'Lift single' },
+      order: {},
+      pallets: [{ items: [{ shapeSnapshot: liftSnapshot(48.5, 1), shapeName: 'חבילת ליפטים', diameter: 12, qty: 1 }] }],
+    });
+    const item = db.prepare('SELECT quantity, total_weight FROM items').get();
+    assert.equal(item.quantity, 1);
+    assert.equal(Math.round(item.total_weight * 100) / 100, 48.5);
+  } finally {
+    db.close();
+  }
+});

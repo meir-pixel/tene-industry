@@ -1445,7 +1445,7 @@ LiftEngine.render = function(lift, w = 300, h = 260) {
   g += `<line x1="${f(x + bw * 0.72)}" y1="${f(y - 4)}" x2="${f(x + bw * 0.72)}" y2="${f(y + bh + 4)}" stroke="#1a2332" stroke-width="2.4"/>`;
   g += `<text data-se-focus="lift-bar-length" x="${f(w / 2)}" y="${f(y - 16)}" text-anchor="middle" font-size="12" font-family="Heebo,Arial" font-weight="800" fill="#1a2533">L ${barLengthMm ? Math.round(barLengthMm / 10) : "—"} ס״מ</text>`;
   g += `<text data-se-focus="lift-diameter" x="${f(w / 2)}" y="${f(y + bh + 22)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#526070">&#216;${diameter || "—"} מ״מ</text>`;
-  g += `<text data-se-focus="lift-packages lift-weighed" x="${f(w / 2)}" y="${f(y + bh + 38)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#526070">${packages || "—"} חבילות · ${weighed ? weighed.toFixed(1) + " ק״ג לחבילה" : "טרם נשקל"}</text>`;
+  g += `<text data-se-focus="lift-packages lift-weighed" x="${f(w / 2)}" y="${f(y + bh + 38)}" text-anchor="middle" font-size="11" font-family="Heebo,Arial" font-weight="800" fill="#526070">${packages || "—"} חבילות · ${weighed ? weighed.toFixed(1) + " ק״ג סה״כ" : "טרם נשקל"}</text>`;
   g += `</g>`;
   return g;
 };
@@ -1830,7 +1830,12 @@ function buildLiftShapeContract(shape) {
     barLength: Math.max(0, Number(shape?.barLength || 0)),
     weighedKg: Math.max(0, Number(shape?.weighedKg || 0)),
   };
-  // The weighed package value replaces any theoretical weight.
+  // All the packages go on the scale together, so the weighed number is the
+  // total for the whole line. The package count is there to be counted, never
+  // to multiply the weighing.
+  // The contract carries a single weight and mirrors it into totalWeightKg,
+  // because quantity belongs to the order item. That mirroring is exactly
+  // what marks this number as a whole-line total rather than a per-unit one.
   const weightKg = Number(data.weighedKg.toFixed(3));
   const calculated = { totalLengthMm: data.barLength, weightKg, weighedKg: weightKg };
   return {
@@ -4548,7 +4553,7 @@ class ShapeEditorModal {
     const meta = {
       diameter:  ['Ø','קוטר ברזל','מ״מ','לדוגמה 12'],
       barLength: ['📏','אורך מוט','ס״מ','לדוגמה 120'],
-      weighedKg: ['⚖','משקל חבילה אחרי שקילה','ק״ג','לדוגמה 48.5'],
+      weighedKg: ['⚖','משקל כולל אחרי שקילה','ק״ג','לדוגמה 194'],
     };
     const field = (key, min = 0, step = 0.1) => {
       const m = meta[key] || ['•', key, '', ''];
@@ -4557,7 +4562,7 @@ class ShapeEditorModal {
     };
     body.innerHTML = `
       <tr class="se-family-row">${field('diameter', 1)}${field('barLength', 1)}</tr>
-      <tr class="se-family-row">${field('weighedKg', 0, 0.1)}<td colspan="2"><div class="se-lift-note">הכמות נספרת בחבילות. המשקל שנשקל מחליף את המשקל המחושב.</div></td></tr>`;
+      <tr class="se-family-row">${field('weighedKg', 0, 0.1)}<td colspan="2"><div class="se-lift-note">שוקלים את כל החבילות יחד — המשקל הזה הוא הסה״כ, והכמות לא מוכפלת בו.</div></td></tr>`;
   }
 
   _setLiftField(key, val) {

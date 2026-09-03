@@ -59,6 +59,21 @@ function roundPileCageOrderMetrics(item = {}) {
   return { snapshot, weightKg, physicalLengthMm };
 }
 
+// A lift is a bought bundle: its weight comes off the scale, and the package
+// count is only a count. Anything derived from diameter and length would be a
+// guess about steel we never bent.
+function liftPackageOrderMetrics(item = {}) {
+  const snapshot = parseShapeSnapshotObject(item.shapeSnapshot ?? item.shape_snapshot ?? item.shapeData ?? item.shape_data ?? item.shapeContract ?? item.shape_contract ?? item.shape_snapshot_json);
+  if (snapshot?.family !== 'lifts' || snapshot?.shapeType !== 'lift_package') return null;
+  const weighedKg = Number(snapshot.calculated?.totalWeightKg ?? snapshot.calculated?.weighedKg ?? snapshot.data?.weighedKg);
+  if (!(weighedKg > 0)) return null;
+  const packages = Math.max(1, Number(item.qty ?? item.quantity ?? 1) || 1);
+  // orders.js multiplies weightPerUnit by the quantity, so hand it the share
+  // per package and the line lands back on the weighed total.
+  const barLengthMm = Number(snapshot.calculated?.totalLengthMm ?? snapshot.data?.barLength) || 0;
+  return { snapshot, weighedKg, barLengthMm, weightPerUnit: weighedKg / packages };
+}
+
 function createOrderFactory(db, { generateOrderNum, industry, settingsService = null }) {
   if (!db) throw new Error('services/orders missing dependency: db');
   if (!generateOrderNum) throw new Error('services/orders missing dependency: generateOrderNum');
@@ -157,6 +172,9 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
       (pallet.items || []).forEach(rawItem => {
         const item = withShapeContractLegacyFields(rawItem);
         const pileCageMetrics = roundPileCageOrderMetrics(rawItem);
+        // A lift carries no bends and no cut list - it is a bought bundle, so it
+        // skips the geometry checks the same way a cage does.
+        const liftMetrics = pileCageMetrics ? null : liftPackageOrderMetrics(rawItem);
         const spiral = normalizeSpiralParams(item);
         const sourceLengthMm = Number(item.length ?? item.total_length_mm ?? 0) || 0;
         const sourceSides = Array.isArray(item.sides) ? item.sides : [];
@@ -165,11 +183,11 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
         const sides = isSpiralLike
           ? []
           : ((item.sides && item.sides.length) ? item.sides : (item.length ? [item.length] : []));
-        const totalLengthMm = pileCageMetrics ? pileCageMetrics.physicalLengthMm : isSpiralLike
+        const totalLengthMm = pileCageMetrics ? pileCageMetrics.physicalLengthMm : liftMetrics ? liftMetrics.barLengthMm : isSpiralLike
           ? (sourceLengthMm || spiralCutLengthMm(spiral.spiralDiameterMm, spiral.turns))
           : (sides.reduce((s, v) => s + Number(v), 0) || Number(item.length) || 0);
         const angles = item.angles || [];
-        const segmentsArr = pileCageMetrics || isSpiralLike
+        const segmentsArr = pileCageMetrics || liftMetrics || isSpiralLike
           ? []
           : normalizeSegments(
               item.shapeName,
@@ -183,14 +201,16 @@ function createOrderFactory(db, { generateOrderNum, industry, settingsService = 
               spiral_turns: spiral.turns || null,
             })
           : normalizeShapeName(item.shapeName, segmentsArr);
-        if (!isSpiralLike && !pileCageMetrics) {
+        if (!isSpiralLike && !pileCageMetrics && !liftMetrics) {
           const geoCheck = validateShapeGeometry(segmentsArr);
           if (!geoCheck.valid) throw Object.assign(new Error(geoCheck.error), { statusCode: 400 });
         }
         const segments = JSON.stringify(segmentsArr);
         const hasShapeV2Envelope = isShapeDataContractV2(item.shapeSnapshot ?? item.shape_snapshot ?? item.shapeData ?? item.shape_data ?? item.shapeContract ?? item.shape_contract ?? item.shape_snapshot_json);
         const persistedShapeName = pileCageMetrics ? 'PILE CAGE' : (hasShapeV2Envelope ? item.shapeName : shapeName);
-        const weightPerUnit = pileCageMetrics ? pileCageMetrics.weightKg : calcWeightPerUnit(item.diameter, totalLengthMm);
+        const weightPerUnit = pileCageMetrics
+          ? pileCageMetrics.weightKg
+          : (liftMetrics ? liftMetrics.weightPerUnit : calcWeightPerUnit(item.diameter, totalLengthMm));
         // Waste is an order-level billing adjustment only. Production must use
         // the ordered item quantity without adding or rounding a percentage.
         const productionQty = item.qty || 1;
