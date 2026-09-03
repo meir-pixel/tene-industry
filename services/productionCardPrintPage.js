@@ -697,6 +697,7 @@ function setCardSplit(itemId, count, event) {
   if (next === 1) delete cardSplits[itemId];
   else cardSplits[itemId] = next;
   generateCards();
+  refreshPickedCards();
   renderWorkerCardQrCodes();
 }
 
@@ -1320,35 +1321,55 @@ function renderWorkerCardQrCodes() {
   return Promise.all(jobs);
 }
 
+// Which cards the operator dropped. Held here rather than on the elements,
+// because generateCards() rebuilds the grid and would wipe any DOM state —
+// that is what used to send every card to the printer regardless of picking.
+var unpickedCardKeys = {};
+
+function cardPickKey(card) {
+  return card.getAttribute('data-item-id') || card.getAttribute('data-parent-item-id') || '';
+}
+
 // A card that is not picked leaves the flow entirely, so the remaining cards
 // close ranks instead of printing a page full of holes.
 function togglePickedCard(button, event) {
   if (event) event.stopPropagation();
   var card = button.closest('.prod-card');
   if (!card) return;
-  card.setAttribute('data-picked', card.getAttribute('data-picked') === '0' ? '1' : '0');
+  var key = cardPickKey(card);
+  if (unpickedCardKeys[key]) delete unpickedCardKeys[key];
+  else unpickedCardKeys[key] = true;
   refreshPickedCards();
 }
 
 function pickAllCards(on) {
-  document.querySelectorAll('.prod-card').forEach(function (card) {
-    card.setAttribute('data-picked', on ? '1' : '0');
-  });
+  unpickedCardKeys = {};
+  if (!on) {
+    document.querySelectorAll('.prod-card').forEach(function (card) {
+      unpickedCardKeys[cardPickKey(card)] = true;
+    });
+  }
   refreshPickedCards();
 }
 
+// Applies the remembered picking to whatever is currently on the sheet.
+// Safe to call after every rebuild.
 function refreshPickedCards() {
   var cards = document.querySelectorAll('.prod-card');
   var picked = 0;
   cards.forEach(function (card) {
-    var on = card.getAttribute('data-picked') !== '0';
-    if (on) picked++;
-    // doc-export skips [data-export-hide], so the PDF matches the printout
-    if (on) card.removeAttribute('data-export-hide');
-    else card.setAttribute('data-export-hide', '1');
+    var on = !unpickedCardKeys[cardPickKey(card)];
+    card.setAttribute('data-picked', on ? '1' : '0');
+    if (on) {
+      picked++;
+      card.removeAttribute('data-export-hide');
+    } else {
+      // doc-export skips [data-export-hide], so the PDF matches the printout
+      card.setAttribute('data-export-hide', '1');
+    }
   });
   document.querySelectorAll('.cards-page').forEach(function (page) {
-    var any = page.querySelector('.prod-card:not([data-picked="0"])');
+    var any = page.querySelector('.prod-card[data-picked="1"]');
     if (any) { page.removeAttribute('data-empty-page'); page.removeAttribute('data-export-hide'); }
     else { page.setAttribute('data-empty-page', '1'); page.setAttribute('data-export-hide', '1'); }
   });
@@ -1359,7 +1380,9 @@ function refreshPickedCards() {
 function printCards() {
   if (PREVIEW_ONLY) { alert('\u05d4\u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d5\u05ea \u05d1\u05ea\u05e6\u05d5\u05d2\u05d4 \u05d1\u05dc\u05d1\u05d3. \u05d9\u05e9 \u05dc\u05d0\u05e9\u05e8/\u05dc\u05ea\u05db\u05e0\u05df \u05d0\u05ea \u05d4\u05d4\u05d6\u05de\u05e0\u05d4 \u05dc\u05e4\u05e0\u05d9 \u05d4\u05d3\u05e4\u05e1\u05d4.'); return; }
   generateCards();
+  refreshPickedCards();
   renderWorkerCardQrCodes().then(function(){
+
     setTimeout(function(){ window.print(); }, 250);
   });
 }
