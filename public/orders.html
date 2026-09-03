@@ -254,6 +254,10 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 .edit-actions{padding:14px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-start;background:#fff}
 .edit-save{background:linear-gradient(135deg,var(--accent),var(--accent-light));color:#fff;border:0;border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:900;cursor:pointer}
 .edit-cancel{background:#fff;color:var(--dim);border:1px solid var(--border);border-radius:10px;padding:10px 18px;font-family:inherit;font-weight:900;cursor:pointer}
+.cancellation-overlay{position:fixed;inset:0;background:rgba(2,26,72,.58);z-index:780;display:none;padding:18px;backdrop-filter:blur(4px)}
+.cancellation-overlay.show{display:flex}.cancellation-panel{width:min(1080px,100%);max-height:min(850px,100%);margin:auto;background:#fff;border:1px solid var(--border);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(2,26,72,.32)}
+.cancellation-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff7ed}.cancellation-body{padding:16px;overflow:auto;display:grid;gap:12px}.cancellation-note{background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.5;color:#9a3412}.cancellation-item{border:1px solid #d8e1eb;border-radius:12px;padding:12px;display:grid;gap:10px}.cancellation-item-title{font-size:14px;font-weight:900;color:var(--text)}.cancellation-metrics{display:grid;grid-template-columns:repeat(6,minmax(100px,1fr));gap:7px}.cancellation-metric{background:#f5f8fb;border-radius:9px;padding:7px 8px}.cancellation-metric span{display:block;color:var(--muted);font-size:10px;font-weight:800}.cancellation-metric b{font-size:14px;color:var(--text)}.cancellation-inputs{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:9px}.cancellation-field{display:flex;flex-direction:column;gap:4px}.cancellation-field label{font-size:11px;font-weight:900;color:var(--dim)}.cancellation-field input,.cancellation-field select,.cancellation-field textarea{font-family:inherit;border:1px solid var(--border);border-radius:8px;padding:8px;background:#fff;color:var(--text)}.cancellation-field textarea{min-height:72px;resize:vertical}.cancellation-reconcile{font-size:12px;font-weight:800;color:var(--danger)}.cancellation-reconcile.valid{color:var(--success)}.cancellation-stock-fields[hidden]{display:none}
+@media(max-width:700px){.cancellation-overlay{padding:0}.cancellation-panel{height:100%;max-height:100%;border-radius:0}.cancellation-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.cancellation-inputs{grid-template-columns:1fr 1fr}}
 @media(max-width:640px){.edit-body{grid-template-columns:1fr}.edit-overlay{padding:0}.edit-panel{height:100%;max-height:100%;border-radius:0}}
 .source-overlay{position:fixed;inset:0;background:rgba(2,26,72,.55);z-index:720;display:none;padding:18px;backdrop-filter:blur(3px)}
 .source-overlay.show{display:flex}
@@ -388,6 +392,42 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
   </div>
 </div>
 
+<!-- Cancellation is a reconciliation workflow: it never deletes production. -->
+<div class="cancellation-overlay" id="cancellationOverlay" onclick="closeCancellationReview(event)">
+  <form class="cancellation-panel" onsubmit="submitCancellation(event)">
+    <div class="cancellation-head">
+      <div><div class="edit-title">ביטול הזמנה והחלטת תוצרת</div><div class="detail-customer" id="cancellationMeta"></div></div>
+      <button type="button" class="detail-close" onclick="closeCancellationPanel()">✕</button>
+    </div>
+    <div class="cancellation-body">
+      <div class="cancellation-note">הייצור המאושר נשמר תמיד. כל כמות שיוצרה ועדיין נמצאת במפעל חייבת להיכנס למלאי מוצרים מוגמרים או להיגרע לגריטה; הכמות שלא יוצרה אינה מלאי ואינה גריטה.</div>
+      <div id="cancellationWarnings"></div>
+      <div id="cancellationItems"></div>
+      <div class="cancellation-field"><label for="cancellationReason">סיבת ביטול</label><textarea id="cancellationReason" minlength="3" maxlength="1000" required placeholder="סיבת הביטול וההחלטה"></textarea></div>
+      <div class="cancellation-reconcile" id="cancellationValidation" aria-live="polite"></div>
+    </div>
+    <div class="edit-actions"><button type="submit" class="edit-save" id="cancellationSubmit">אישור סופי: ביטול ויצירת תנועות</button><button type="button" class="edit-cancel" onclick="closeCancellationPanel()">חזרה</button></div>
+  </form>
+</div>
+
+<!-- Historical reconciliation is deliberately separate from order cancellation. -->
+<div class="cancellation-overlay" id="historicalReconciliationOverlay" onclick="closeHistoricalReconciliation(event)">
+  <form class="cancellation-panel" onsubmit="submitHistoricalReconciliation(event)">
+    <div class="cancellation-head">
+      <div><div class="edit-title">תיקון ביצוע היסטורי</div><div class="detail-customer" id="historicalReconciliationMeta"></div></div>
+      <button type="button" class="detail-close" onclick="closeHistoricalReconciliationPanel()">✕</button>
+    </div>
+    <div class="cancellation-body">
+      <div class="cancellation-note">פעולה זו אינה פותחת הזמנה ואינה מוחקת היסטוריה. היא מוסיפה תיקון מתועד ומיישבת רק את התוצרת הפיזית.</div>
+      <div id="historicalReconciliationEvidence"></div>
+      <div id="historicalReconciliationItems"></div>
+      <div class="cancellation-field"><label for="historicalReconciliationReason">סיבת תיקון היסטורי</label><textarea id="historicalReconciliationReason" minlength="3" maxlength="1000" required placeholder="חובה: מה התברר לגבי המציאות הפיזית"></textarea></div>
+      <div class="cancellation-reconcile" id="historicalReconciliationValidation" aria-live="polite"></div>
+    </div>
+    <div class="edit-actions"><button type="submit" class="edit-save" id="historicalReconciliationSubmit">אישור סופי: תיקון ויישוב היסטורי</button><button type="button" class="edit-cancel" onclick="closeHistoricalReconciliationPanel()">חזרה</button></div>
+  </form>
+</div>
+
 <div class="commercial-breakdown-overlay" id="commercialBreakdownOverlay" onclick="closeCommercialBreakdown(event)">
   <div class="commercial-breakdown-panel">
     <div class="commercial-breakdown-head">
@@ -501,7 +541,7 @@ tr:hover td{background:rgba(0,0,0,0.015);cursor:pointer;}
 </div>
 
 <script>
-let allOrders = [], allQuotes = [], activeStatus = new URLSearchParams(location.search).get('status') || '', viewMode = new URLSearchParams(location.search).get('view') === 'quotes' ? 'quotes' : 'orders', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, currentSendFile = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [];
+let allOrders = [], allQuotes = [], activeStatus = new URLSearchParams(location.search).get('status') || '', viewMode = new URLSearchParams(location.search).get('view') === 'quotes' ? 'quotes' : 'orders', ws, _wsDelay = 1000, currentDetailOrder = null, orderEditOrder = null, currentSendFile = null, correctionReasonResolve = null, addChoiceOrderId = null, ocrAddItems = [], currentCancellation = null, currentHistoricalReconciliation = null;
 let orderShapeEditor = null, pendingShapeEdit = null;
 const PRINT_DOCUMENTS = Object.freeze({
   'print-cards': { kind: 'print-cards', label: 'כרטיסיות ייצור', fileLabel: 'כרטיסיות-ייצור' },
@@ -571,7 +611,7 @@ function connectWS() {
   };
   ws.onmessage = e => {
     const { type } = JSON.parse(e.data);
-    if (['new_order','order_status','order_complete','order_updated','order_item_added','order_item_updated','order_item_deleted','order_quote_created','order_quote_converted'].includes(type)) fetchOrders();
+    if (['new_order','order_status','order_complete','order_updated','order_item_added','order_item_updated','order_item_deleted','order_cancellation_disposition','order_quote_created','order_quote_converted'].includes(type)) fetchOrders();
   };
 }
 
@@ -717,10 +757,12 @@ function actionBtns(o, stopProp = true, includePrints = true) {
   ` : '';
   const deleteBtn = `<button class="btn-sm danger" onclick="event.stopPropagation();deleteOrder(${o.id},${jsAttr(o.order_num)})" title="מחק הזמנה">🗑️</button>`;
   const editBtn = `<button class="btn-sm" onclick="event.stopPropagation();openOrderEdit(event,${o.id})" title="ערוך הזמנה">✎ ערוך</button>`;
+  const cancelBtn = o.status === ORDER_STATUS.CANCELLED ? '' : `<button class="btn-sm danger" onclick="event.stopPropagation();openCancellationReview(event,${o.id})" title="ביטול עם החלטת מלאי/גריטה">בטל</button>`;
   return `<div class="actions" ${sp}>
     ${transitionButtons}
     ${printButtons}
     ${editBtn}
+    ${cancelBtn}
     ${deleteBtn}
   </div>`;
 }
@@ -905,6 +947,428 @@ async function setStatus(id, status) {
   return true;
 }
 
+function newCancellationIdempotencyKey() {
+  return window.crypto?.randomUUID?.()
+    || `cancel-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function cancellationNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : 0;
+}
+
+function cancellationItemById(itemId) {
+  return currentCancellation?.review?.items?.find(item => Number(item.item_id) === Number(itemId)) || null;
+}
+
+function cancellationReality(itemId) {
+  return document.getElementById(`cancelReality-${itemId}`)?.value || 'PRODUCED_AS_RECORDED';
+}
+
+function cancellationOptionalNumber(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const number = Number(raw);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function cancellationActualProducedQty(itemId) {
+  const item = cancellationItemById(itemId);
+  if (!item) return 0;
+  const reality = cancellationReality(itemId);
+  if (reality === 'NOT_ACTUALLY_PRODUCED') return 0;
+  if (reality !== 'PARTIALLY_PRODUCED') return cancellationNumber(item.confirmed_produced_qty);
+  return cancellationOptionalNumber(document.getElementById(`cancelActual-${itemId}`)?.value);
+}
+
+function cancellationEligibleQty(itemId) {
+  const item = cancellationItemById(itemId);
+  const actual = cancellationActualProducedQty(itemId);
+  if (!item || actual == null) return 0;
+  return Math.max(0, actual - cancellationNumber(item.delivered_qty)
+    - cancellationNumber(item.previous_stock_qty) - cancellationNumber(item.previous_scrap_qty));
+}
+
+function cancellationCorrectionValidity(itemId) {
+  const item = cancellationItemById(itemId);
+  if (!item) return false;
+  const reality = cancellationReality(itemId);
+  if (reality === 'PRODUCED_AS_RECORDED') return { valid: true, message: '' };
+  if (!currentCancellation?.review?.can_correct_production_record) {
+    return { valid: false, message: 'תיקון רישום ייצור דורש הרשאת מנהל/ת מאשר/ת.' };
+  }
+  const actual = cancellationActualProducedQty(itemId);
+  const recordedEffective = cancellationNumber(item.confirmed_produced_qty);
+  const requiredPhysical = Math.max(
+    cancellationNumber(item.delivered_qty), cancellationNumber(item.packed_qty), cancellationNumber(item.picked_qty),
+    cancellationNumber(item.previous_stock_qty) + cancellationNumber(item.previous_scrap_qty),
+  );
+  const netMaterialConsumption = cancellationNumber(item.downstream_evidence?.net_material_consumed_kg);
+  const correctionReason = String(document.getElementById(`cancelCorrectionReason-${itemId}`)?.value || '').trim();
+  if (actual == null || actual < 0 || actual >= recordedEffective - 0.0001) {
+    return { valid: false, message: 'יש להזין כמות פיזית נמוכה מהכמות המאומתת ברישום.' };
+  }
+  if (actual + 0.0001 < requiredPhysical) {
+    return { valid: false, message: `קיימת עדות פיזית בהיקף ${requiredPhysical}; יש ליישב אותה לפני תיקון הרישום.` };
+  }
+  if (netMaterialConsumption > 0) {
+    return { valid: false, message: `קיימת צריכת חומר גלם מאושרת (${netMaterialConsumption} ק״ג); יש לבצע תנועת היפוך חומר מתועדת לפני תיקון רישום הייצור.` };
+  }
+  if (correctionReason.length < 3) return { valid: false, message: 'נדרשת סיבת תיקון לרישום הייצור.' };
+  return { valid: true, message: '' };
+}
+
+function handleCancellationRealityChange(itemId) {
+  const reality = cancellationReality(itemId);
+  const actualFields = document.getElementById(`cancelActualFields-${itemId}`);
+  const correctionReasonFields = document.getElementById(`cancelCorrectionReasonFields-${itemId}`);
+  if (actualFields) actualFields.hidden = reality !== 'PARTIALLY_PRODUCED';
+  if (correctionReasonFields) correctionReasonFields.hidden = reality === 'PRODUCED_AS_RECORDED';
+  const stock = document.getElementById(`cancelStock-${itemId}`);
+  const scrap = document.getElementById(`cancelScrap-${itemId}`);
+  if (stock) stock.value = cancellationEligibleQty(itemId);
+  if (scrap) scrap.value = 0;
+  updateCancellationReconciliation(itemId);
+}
+
+function handleCancellationActualProducedChange(itemId) {
+  const stock = document.getElementById(`cancelStock-${itemId}`);
+  const scrap = document.getElementById(`cancelScrap-${itemId}`);
+  if (stock) stock.value = cancellationEligibleQty(itemId);
+  if (scrap) scrap.value = 0;
+  updateCancellationReconciliation(itemId);
+}
+
+async function openCancellationReview(event, orderId, itemId = null) {
+  event?.stopPropagation?.();
+  const url = itemId
+    ? `/api/orders/${orderId}/items/${itemId}/cancellation-review`
+    : `/api/orders/${orderId}/cancellation-review`;
+  try {
+    const response = await fetch(url);
+    const review = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(review.error || 'לא ניתן להכין סקירת ביטול');
+    currentCancellation = {
+      orderId: Number(orderId),
+      itemId: itemId ? Number(itemId) : null,
+      review,
+      dispositionItems: (review.items || []).filter(item => !item.already_cancelled),
+      idempotencyKey: newCancellationIdempotencyKey(),
+    };
+    const warehouses = Array.isArray(review.warehouses) ? review.warehouses : [];
+    const warehouseOptions = warehouses.map(warehouse => `<option value="${Number(warehouse.id)}" data-requires-location="${warehouse.requires_location ? '1' : '0'}">${escHtml(warehouse.name)}${warehouse.requires_location ? ' · נדרשת עמדה' : ''}</option>`).join('');
+    document.getElementById('cancellationMeta').textContent = `הזמנה ${review.order_num || orderId}${itemId ? ` · פריט ${itemId}` : ''}`;
+    document.getElementById('cancellationReason').value = '';
+    document.getElementById('cancellationWarnings').innerHTML = (review.items || []).flatMap(item => (item.warnings || []).map(warning =>
+      `<div class="cancellation-note">לא ניתן להשלים את הביטול של ${escHtml(item.item_label)}: אריזה ${escHtml((warning.package_ids || []).join(', '))} כוללת יותר מפריט אחד; יש לייחס/לפרק את האריזה לפני החלטת מלאי.</div>`
+    )).join('');
+    document.getElementById('cancellationItems').innerHTML = (review.items || []).map(item => {
+      const eligible = cancellationNumber(item.eligible_produced_qty);
+      const recorded = cancellationNumber(item.recorded_produced_qty);
+      const canCorrectProduction = Boolean(review.can_correct_production_record);
+      const historicalDisposition = item.already_cancelled
+        ? '<div class="cancellation-note">כרטיסייה זו כבר בוטלה וההחלטה ההיסטורית נשמרת; היא אינה נכללת בהחלטה החדשה.</div>'
+        : '';
+      const correctionFields = item.already_cancelled || recorded <= 0 ? '' : `
+        <div class="cancellation-inputs">
+          <div class="cancellation-field"><label for="cancelReality-${item.item_id}">מה קרה בפועל?</label><select id="cancelReality-${item.item_id}" onchange="handleCancellationRealityChange(${item.item_id})">
+            <option value="PRODUCED_AS_RECORDED">יוצר כפי שנרשם</option>
+            <option value="NOT_ACTUALLY_PRODUCED" ${canCorrectProduction ? '' : 'disabled'}>לא יוצר בפועל</option>
+            <option value="PARTIALLY_PRODUCED" ${canCorrectProduction ? '' : 'disabled'}>יוצר חלקית</option>
+          </select></div>
+          <div class="cancellation-field" id="cancelActualFields-${item.item_id}" hidden><label for="cancelActual-${item.item_id}">כמות שיוצרה בפועל</label><input id="cancelActual-${item.item_id}" type="number" min="0" max="${item.confirmed_produced_qty}" step="0.001" value="${item.confirmed_produced_qty}" oninput="handleCancellationActualProducedChange(${item.item_id})"></div>
+          <div class="cancellation-field" id="cancelCorrectionReasonFields-${item.item_id}" hidden><label for="cancelCorrectionReason-${item.item_id}">סיבת תיקון רישום הייצור</label><textarea id="cancelCorrectionReason-${item.item_id}" minlength="3" maxlength="1000" placeholder="חובה: מדוע הרישום אינו תוצרת פיזית" oninput="updateCancellationReconciliation(${item.item_id})"></textarea></div>
+        </div>
+        ${canCorrectProduction ? '' : '<div class="cancellation-note">תיקון רישום ייצור דורש הרשאת מנהל/ת מאשר/ת.</div>'}`;
+      const dispositionFields = item.already_cancelled ? '' : `
+        <div class="cancellation-inputs">
+          <div class="cancellation-field"><label for="cancelStock-${item.item_id}">כמות למלאי מוגמר</label><input id="cancelStock-${item.item_id}" type="number" min="0" step="0.001" value="${eligible}" oninput="updateCancellationReconciliation(${item.item_id})"></div>
+          <div class="cancellation-field"><label for="cancelScrap-${item.item_id}">כמות לגריטה</label><input id="cancelScrap-${item.item_id}" type="number" min="0" step="0.001" value="0" oninput="updateCancellationReconciliation(${item.item_id})"></div>
+          <div class="cancellation-stock-fields" id="cancelStockFields-${item.item_id}">
+            <div class="cancellation-field"><label for="cancelWarehouse-${item.item_id}">מחסן יעד</label><select id="cancelWarehouse-${item.item_id}" onchange="updateCancellationReconciliation(${item.item_id})">${warehouseOptions || '<option value="">אין מחסן מוגדר</option>'}</select></div>
+            <div class="cancellation-field"><label for="cancelLocation-${item.item_id}">מיקום / אזור / מדף / תא</label><input id="cancelLocation-${item.item_id}" maxlength="200" placeholder="נדרש לפי הגדרת המחסן" oninput="updateCancellationReconciliation(${item.item_id})"></div>
+          </div>
+        </div>
+        <div class="cancellation-reconcile" id="cancelReconcile-${item.item_id}"></div>`;
+      return `<section class="cancellation-item" data-cancellation-item="${Number(item.item_id)}">
+        <div class="cancellation-item-title">${escHtml(item.item_label)} · ${escHtml(item.production_state)}</div>
+        <div class="cancellation-metrics">
+          <div class="cancellation-metric"><span>הוזמן</span><b>${item.ordered_qty}</b></div>
+          <div class="cancellation-metric"><span>יוצר ברישום</span><b>${recorded}</b></div>
+          <div class="cancellation-metric"><span>יוצר פיזית מאומת</span><b>${item.confirmed_produced_qty}</b></div>
+          <div class="cancellation-metric"><span>סופק</span><b>${item.delivered_qty}</b></div>
+          <div class="cancellation-metric"><span>נארז / נבחר</span><b>${item.packed_qty} / ${item.picked_qty}</b></div>
+          <div class="cancellation-metric"><span>זמין להחלטה</span><b>${eligible}</b></div>
+          <div class="cancellation-metric"><span>לא יוצר ובוטל</span><b>${item.cancelled_unproduced_qty}</b></div>
+        </div>
+        ${historicalDisposition}
+        ${correctionFields}
+        ${dispositionFields}
+      </section>`;
+    }).join('');
+    document.getElementById('cancellationOverlay').classList.add('show');
+    (currentCancellation.dispositionItems || []).forEach(item => updateCancellationReconciliation(item.item_id));
+  } catch (error) {
+    alert(error.message || 'סקירת הביטול נכשלה');
+  }
+}
+
+function updateCancellationReconciliation(itemId) {
+  const item = cancellationItemById(itemId);
+  if (!item) return false;
+  const stock = cancellationNumber(document.getElementById(`cancelStock-${itemId}`)?.value);
+  const scrap = cancellationNumber(document.getElementById(`cancelScrap-${itemId}`)?.value);
+  const expected = cancellationEligibleQty(itemId);
+  const correction = cancellationCorrectionValidity(itemId);
+  const stockFields = document.getElementById(`cancelStockFields-${itemId}`);
+  if (stockFields) stockFields.hidden = stock <= 0;
+  const warehouse = document.getElementById(`cancelWarehouse-${itemId}`);
+  const location = document.getElementById(`cancelLocation-${itemId}`);
+  const requiresLocation = warehouse?.selectedOptions?.[0]?.dataset?.requiresLocation === '1';
+  const exact = Math.abs((stock + scrap) - expected) < 0.0001;
+  const locationOk = stock <= 0 || !requiresLocation || Boolean(String(location?.value || '').trim());
+  const target = document.getElementById(`cancelReconcile-${itemId}`);
+  if (target) {
+    target.classList.toggle('valid', exact && locationOk && correction.valid);
+    target.textContent = !correction.valid ? correction.message : !exact
+      ? `מלאי + גריטה חייבים להיות בדיוק ${expected}; כעת ${Math.round((stock + scrap) * 1000) / 1000}`
+      : !locationOk ? 'יש להזין מיקום עבור המחסן הנבחר.'
+        : `תקין: ${stock} למלאי + ${scrap} לגריטה = ${expected}`;
+  }
+  validateCancellationForm();
+  return exact && locationOk && correction.valid;
+}
+
+function validateCancellationForm() {
+  if (!currentCancellation) return false;
+  const valid = (currentCancellation.dispositionItems || []).every(item => updateCancellationItemValidity(item.item_id));
+  const hasWarnings = (currentCancellation.dispositionItems || []).some(item => (item.warnings || []).length || item.reconciliation?.valid === false);
+  const submit = document.getElementById('cancellationSubmit');
+  if (submit) submit.disabled = !valid || hasWarnings;
+  document.getElementById('cancellationValidation').textContent = hasWarnings
+    ? 'נדרשת התאמת אריזה או בדיקת התאמה לפני ביטול.'
+    : valid ? 'הכמויות מאוזנות. נותרה סיבת ביטול ואישור סופי.' : 'השלם/י את התאמת הכמויות והמיקום.';
+  return valid && !hasWarnings;
+}
+
+function updateCancellationItemValidity(itemId) {
+  const item = cancellationItemById(itemId);
+  if (!item) return false;
+  const stock = cancellationNumber(document.getElementById(`cancelStock-${itemId}`)?.value);
+  const scrap = cancellationNumber(document.getElementById(`cancelScrap-${itemId}`)?.value);
+  const expected = cancellationEligibleQty(itemId);
+  const warehouse = document.getElementById(`cancelWarehouse-${itemId}`);
+  const location = document.getElementById(`cancelLocation-${itemId}`);
+  const requiresLocation = warehouse?.selectedOptions?.[0]?.dataset?.requiresLocation === '1';
+  return cancellationCorrectionValidity(itemId).valid
+    && Math.abs(stock + scrap - expected) < 0.0001
+    && (stock <= 0 || (warehouse?.value && (!requiresLocation || String(location?.value || '').trim())));
+}
+
+function closeCancellationReview(event) {
+  if (event?.target === document.getElementById('cancellationOverlay')) closeCancellationPanel();
+}
+
+function closeCancellationPanel() {
+  document.getElementById('cancellationOverlay').classList.remove('show');
+  currentCancellation = null;
+}
+
+async function submitCancellation(event) {
+  event.preventDefault();
+  if (!currentCancellation || !validateCancellationForm()) return;
+  const reason = String(document.getElementById('cancellationReason').value || '').trim();
+  if (reason.length < 3) { document.getElementById('cancellationReason').focus(); return; }
+  if (!confirm('לאשר סופית? הפעולה תעצור ייצור, תשמור היסטוריית ייצור ותיצור תנועות מלאי/גריטה.')) return;
+  const items = currentCancellation.dispositionItems.map(item => ({
+    item_id: Number(item.item_id),
+    stock_disposition_qty: cancellationNumber(document.getElementById(`cancelStock-${item.item_id}`)?.value),
+    scrap_disposition_qty: cancellationNumber(document.getElementById(`cancelScrap-${item.item_id}`)?.value),
+    destination_warehouse_id: document.getElementById(`cancelWarehouse-${item.item_id}`)?.value || null,
+    destination_location: document.getElementById(`cancelLocation-${item.item_id}`)?.value || null,
+    production_reality: cancellationReality(item.item_id),
+    actual_produced_qty: cancellationActualProducedQty(item.item_id),
+    production_correction_reason: document.getElementById(`cancelCorrectionReason-${item.item_id}`)?.value || null,
+  }));
+  const url = currentCancellation.itemId
+    ? `/api/orders/${currentCancellation.orderId}/items/${currentCancellation.itemId}/cancel`
+    : `/api/orders/${currentCancellation.orderId}/cancel`;
+  const submit = document.getElementById('cancellationSubmit');
+  submit.disabled = true;
+  try {
+    const response = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason, items, idempotency_key: currentCancellation.idempotencyKey }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success) throw new Error(result.error || 'ביטול ההזמנה נכשל');
+    const orderId = currentCancellation.orderId;
+    closeCancellationPanel();
+    await fetchOrders();
+    await openDetail(orderId);
+  } catch (error) {
+    alert(error.message || 'ביטול ההזמנה נכשל');
+    submit.disabled = false;
+  }
+}
+
+function historicalReality() {
+  return document.getElementById('historicalReality')?.value || 'PRODUCED_AS_RECORDED';
+}
+
+function historicalActualProducedQty() {
+  const review = currentHistoricalReconciliation?.review;
+  if (!review) return 0;
+  const reality = historicalReality();
+  if (reality === 'NOT_ACTUALLY_PRODUCED') return 0;
+  if (reality === 'PRODUCED_AS_RECORDED') return cancellationNumber(review.effective_physical_produced_qty);
+  return cancellationOptionalNumber(document.getElementById('historicalActualProduced')?.value);
+}
+
+function historicalEligibleQty() {
+  const review = currentHistoricalReconciliation?.review;
+  const actual = historicalActualProducedQty();
+  if (!review || actual == null) return 0;
+  return Math.max(0, actual - cancellationNumber(review.delivered_qty)
+    - cancellationNumber(review.existing_stock_disposition_qty) - cancellationNumber(review.existing_scrap_disposition_qty));
+}
+
+function historicalCorrectionValidation() {
+  const review = currentHistoricalReconciliation?.review;
+  if (!review) return { valid: false, message: 'לא נמצאו נתוני פיוס.' };
+  const actual = historicalActualProducedQty();
+  const reality = historicalReality();
+  const before = cancellationNumber(review.effective_physical_produced_qty);
+  const requiredPhysical = Math.max(cancellationNumber(review.delivered_qty), cancellationNumber(review.packed_qty), cancellationNumber(review.picked_qty),
+    cancellationNumber(review.existing_stock_disposition_qty) + cancellationNumber(review.existing_scrap_disposition_qty));
+  if (actual == null || actual < 0 || actual > before + 0.0001) return { valid: false, message: 'יש להזין כמות פיזית חוקית שאינה עולה על הביצוע הקיים.' };
+  if (reality === 'PARTIALLY_PRODUCED' && actual >= before - 0.0001) return { valid: false, message: 'בביצוע חלקי הכמות בפועל חייבת להיות נמוכה מהכמות הקיימת.' };
+  if (actual + 0.0001 < requiredPhysical) return { valid: false, message: `קיימת עדות פיזית של ${requiredPhysical}; יש ליישב אותה לפני התיקון.` };
+  if (cancellationNumber(review.downstream_evidence?.net_material_consumed_kg) > 0 && actual < before - 0.0001) {
+    return { valid: false, message: 'קיימת צריכת חומר מאושרת; יש לבצע היפוך חומר מתועד לפני תיקון היסטורי.' };
+  }
+  return { valid: true, message: '' };
+}
+
+function updateHistoricalReality() {
+  const partial = historicalReality() === 'PARTIALLY_PRODUCED';
+  const actualFields = document.getElementById('historicalActualFields');
+  if (actualFields) actualFields.hidden = !partial;
+  const stock = document.getElementById('historicalStock');
+  const scrap = document.getElementById('historicalScrap');
+  if (stock) stock.value = historicalEligibleQty();
+  if (scrap) scrap.value = 0;
+  updateHistoricalReconciliation();
+}
+
+function updateHistoricalActual() {
+  const stock = document.getElementById('historicalStock');
+  const scrap = document.getElementById('historicalScrap');
+  if (stock) stock.value = historicalEligibleQty();
+  if (scrap) scrap.value = 0;
+  updateHistoricalReconciliation();
+}
+
+function updateHistoricalReconciliation() {
+  const review = currentHistoricalReconciliation?.review;
+  if (!review) return false;
+  const stock = cancellationNumber(document.getElementById('historicalStock')?.value);
+  const scrap = cancellationNumber(document.getElementById('historicalScrap')?.value);
+  const expected = historicalEligibleQty();
+  const check = historicalCorrectionValidation();
+  const warehouse = document.getElementById('historicalWarehouse');
+  const location = document.getElementById('historicalLocation');
+  const requiresLocation = warehouse?.selectedOptions?.[0]?.dataset?.requiresLocation === '1';
+  const exact = Math.abs(stock + scrap - expected) < 0.0001;
+  const locationOk = stock <= 0 || !requiresLocation || Boolean(String(location?.value || '').trim());
+  const actual = historicalActualProducedQty();
+  const corrected = actual == null ? 0 : Math.max(0, cancellationNumber(review.effective_physical_produced_qty) - actual);
+  const target = document.getElementById('historicalReconciliationValidation');
+  if (target) {
+    target.classList.toggle('valid', check.valid && exact && locationOk);
+    target.textContent = !check.valid ? check.message : !exact
+      ? `מלאי + גריטה חייבים להיות בדיוק ${expected}.`
+      : !locationOk ? 'יש להזין מיקום במחסן שנבחר.'
+        : `לפני: רישום ${review.originally_recorded_produced_qty}, מלאי ${review.existing_stock_disposition_qty}, גריטה ${review.existing_scrap_disposition_qty}. אחרי: פיזי ${actual}, תיקון היסטורי -${corrected}, מלאי ${stock}, גריטה ${scrap}.`;
+  }
+  const stockFields = document.getElementById('historicalStockFields');
+  if (stockFields) stockFields.hidden = stock <= 0;
+  const submit = document.getElementById('historicalReconciliationSubmit');
+  if (submit) submit.disabled = !check.valid || !exact || !locationOk || review.already_reconciled;
+  return check.valid && exact && locationOk;
+}
+
+async function openHistoricalReconciliation(event, orderId, itemId) {
+  event?.stopPropagation?.();
+  try {
+    const response = await fetch(`/api/orders/${orderId}/items/${itemId}/historical-production-reconciliation-review`);
+    const review = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(review.error || 'לא ניתן לפתוח תיקון ביצוע היסטורי');
+    currentHistoricalReconciliation = { orderId: Number(orderId), itemId: Number(itemId), review, idempotencyKey: newCancellationIdempotencyKey() };
+    const options = (review.warehouses || []).map(warehouse => `<option value="${Number(warehouse.id)}" data-requires-location="${warehouse.requires_location ? '1' : '0'}">${escHtml(warehouse.name)}</option>`).join('');
+    document.getElementById('historicalReconciliationMeta').textContent = `הזמנה ${review.order_num} · ${review.item_label}`;
+    document.getElementById('historicalReconciliationReason').value = '';
+    document.getElementById('historicalReconciliationEvidence').innerHTML = `<div class="cancellation-note">${escHtml(review.legacy_evidence?.note || '')}</div>`;
+    document.getElementById('historicalReconciliationItems').innerHTML = `
+      <section class="cancellation-item">
+        <div class="cancellation-metrics">
+          <div class="cancellation-metric"><span>הוזמן במקור</span><b>${review.originally_ordered_qty}</b></div>
+          <div class="cancellation-metric"><span>יוצר ברישום</span><b>${review.originally_recorded_produced_qty}</b></div>
+          <div class="cancellation-metric"><span>פיזי אפקטיבי</span><b>${review.effective_physical_produced_qty}</b></div>
+          <div class="cancellation-metric"><span>סופק / נארז / נבחר</span><b>${review.delivered_qty} / ${review.packed_qty} / ${review.picked_qty}</b></div>
+          <div class="cancellation-metric"><span>מלאי / גריטה קיימים</span><b>${review.existing_stock_disposition_qty} / ${review.existing_scrap_disposition_qty}</b></div>
+          <div class="cancellation-metric"><span>פיזי לא מיושב</span><b>${review.unreconciled_physical_qty}</b></div>
+        </div>
+        <div class="cancellation-inputs">
+          <div class="cancellation-field"><label for="historicalReality">מה קרה בפועל?</label><select id="historicalReality" onchange="updateHistoricalReality()"><option value="PRODUCED_AS_RECORDED">יוצר כפי שנרשם</option><option value="NOT_ACTUALLY_PRODUCED">לא יוצר בפועל</option><option value="PARTIALLY_PRODUCED">יוצר חלקית</option></select></div>
+          <div class="cancellation-field" id="historicalActualFields" hidden><label for="historicalActualProduced">כמות שיוצרה בפועל</label><input id="historicalActualProduced" type="number" min="0" max="${review.effective_physical_produced_qty}" step="0.001" value="${review.effective_physical_produced_qty}" oninput="updateHistoricalActual()"></div>
+          <div class="cancellation-field"><label for="historicalStock">כמות למלאי מוגמר</label><input id="historicalStock" type="number" min="0" step="0.001" value="${review.unreconciled_physical_qty}" oninput="updateHistoricalReconciliation()"></div>
+          <div class="cancellation-field"><label for="historicalScrap">כמות לגריטה</label><input id="historicalScrap" type="number" min="0" step="0.001" value="0" oninput="updateHistoricalReconciliation()"></div>
+          <div class="cancellation-stock-fields" id="historicalStockFields"><div class="cancellation-field"><label for="historicalWarehouse">מחסן יעד</label><select id="historicalWarehouse" onchange="updateHistoricalReconciliation()">${options}</select></div><div class="cancellation-field"><label for="historicalLocation">מיקום / אזור / מדף / תא</label><input id="historicalLocation" maxlength="200" oninput="updateHistoricalReconciliation()"></div></div>
+        </div>
+      </section>`;
+    document.getElementById('historicalReconciliationOverlay').classList.add('show');
+    updateHistoricalReconciliation();
+  } catch (error) {
+    alert(error.message || 'פתיחת תיקון היסטורי נכשלה');
+  }
+}
+
+function closeHistoricalReconciliation(event) {
+  if (event?.target === document.getElementById('historicalReconciliationOverlay')) closeHistoricalReconciliationPanel();
+}
+
+function closeHistoricalReconciliationPanel() {
+  document.getElementById('historicalReconciliationOverlay').classList.remove('show');
+  currentHistoricalReconciliation = null;
+}
+
+async function submitHistoricalReconciliation(event) {
+  event.preventDefault();
+  if (!currentHistoricalReconciliation || !updateHistoricalReconciliation()) return;
+  const reason = String(document.getElementById('historicalReconciliationReason').value || '').trim();
+  if (reason.length < 3) { document.getElementById('historicalReconciliationReason').focus(); return; }
+  if (!confirm('לאשר תיקון ביצוע היסטורי? ההזמנה לא תיפתח מחדש ורשומות המקור יישמרו.')) return;
+  const review = currentHistoricalReconciliation.review;
+  const response = await fetch(`/api/orders/${currentHistoricalReconciliation.orderId}/items/${currentHistoricalReconciliation.itemId}/historical-production-reconciliation`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      production_reality: historicalReality(), actual_produced_qty: historicalActualProducedQty(),
+      stock_disposition_qty: cancellationNumber(document.getElementById('historicalStock')?.value),
+      scrap_disposition_qty: cancellationNumber(document.getElementById('historicalScrap')?.value),
+      destination_warehouse_id: document.getElementById('historicalWarehouse')?.value || null,
+      destination_location: document.getElementById('historicalLocation')?.value || null,
+      reason, idempotency_key: currentHistoricalReconciliation.idempotencyKey,
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.success) { alert(result.error || 'תיקון היסטורי נכשל'); return; }
+  const orderId = currentHistoricalReconciliation.orderId;
+  closeHistoricalReconciliationPanel();
+  await fetchOrders();
+  await openDetail(orderId);
+}
+
 // ── Detail panel ───────────────────────────────────────────────────────
 async function openDetail(id) {
   const [r, pkgR] = await Promise.all([
@@ -954,26 +1418,65 @@ function resetPrintCardSelection(orderId) {
   selectedPrintCardItemIds = new Set();
 }
 
+function closePrintDialog(dialogId) {
+  const dialog = document.getElementById(dialogId);
+  if (dialog) dialog.remove();
+}
+
+function openProductionCardPrintDialog(orderId) {
+  closePrintDialog('productionCardPrintDialog');
+  resetPrintCardSelection(orderId);
+  const cards = Array.from(document.querySelectorAll('#detailBody .item-row[data-print-card-item-id]'))
+    .map((row, index) => ({ id: Number(row.dataset.printCardItemId), index: index + 1 }))
+    .filter((card) => Number.isFinite(card.id));
+  const dialog = document.createElement('div');
+  dialog.id = 'productionCardPrintDialog';
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  dialog.style.cssText = 'position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(20,34,27,.48);';
+  dialog.innerHTML = `<div style="width:min(720px,100%);max-height:90vh;overflow:auto;box-sizing:border-box;padding:22px;border-radius:16px;background:#fff;box-shadow:0 22px 70px rgba(0,0,0,.24);direction:rtl;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:8px;">
+      <div><h2 style="margin:0;color:#183d2b;font-size:22px;">בחירת כרטיסיות להדפסה</h2><p style="margin:6px 0 0;color:#587060;font-size:13px;">סמן רק את הכרטיסיות שברצונך להדפיס מחדש.</p></div>
+      <button type="button" onclick="closePrintDialog('productionCardPrintDialog')" aria-label="סגור" style="border:0;background:transparent;color:#587060;font-size:26px;line-height:1;cursor:pointer;">&times;</button>
+    </div>
+    <div id="productionCardChoices" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;margin:20px 0;">
+      ${cards.length ? cards.map((card) => `<button type="button" class="card-select-toggle" data-print-card-item-id="${card.id}" onclick="togglePrintCardSelection(event, ${orderId}, ${card.id})" aria-pressed="false" style="min-height:88px;padding:12px;border:1px solid #c8d3cc;border-radius:10px;background:#fff;color:#183d2b;cursor:pointer;text-align:right;"><span class="card-select-mark" aria-hidden="true" style="display:block;margin-bottom:8px;font-size:20px;">&#9675;</span><strong style="display:block;font-size:14px;">כרטיסייה ${card.index}</strong><span style="display:block;margin-top:4px;font-size:12px;opacity:.74;">לחץ לבחירה</span></button>`).join('') : '<div style="grid-column:1/-1;padding:20px;border:1px dashed #c8d3cc;border-radius:10px;color:#587060;text-align:center;">אין כרטיסיות זמינות להדפסה בהזמנה זו.</div>'}
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:14px;border-top:1px solid #e4ebe6;">
+      <span id="selectedPrintCardsCount" style="font-size:13px;color:#587060;">לא נבחרו כרטיסיות</span>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="toggleAllPrintCardsBtn" onclick="toggleAllPrintCardSelection(${orderId})" style="padding:9px 12px;border:1px solid #9eb4a5;border-radius:8px;background:#fff;color:#183d2b;cursor:pointer;">בחר הכל</button>
+        <button type="button" id="printSelectedCardsBtn" onclick="printSelectedCards(${orderId})" disabled style="padding:9px 12px;border:0;border-radius:8px;background:#183d2b;color:#fff;cursor:pointer;">הדפס נבחרים</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(dialog);
+  syncPrintCardSelection();
+}
+
+function historicalItemEligibleForReconciliation(order, item) {
+  const state = `${order?.status || ''} ${item?.status || ''}`.toLowerCase();
+  return Boolean(item?.completed_at)
+    || ['הושלם', 'סופק', 'בוטל'].includes(item?.status)
+    || /completed|closed|cancelled|archiv|הושל|סגור|בוטל|סופק/.test(state);
+}
+
 function syncPrintCardSelection() {
-  const toggles = Array.from(document.querySelectorAll('#detailBody .card-select-toggle[data-print-card-item-id]'));
+  const toggles = Array.from(document.querySelectorAll('#productionCardPrintDialog .card-select-toggle[data-print-card-item-id]'));
   const selectedCount = selectedPrintCardItemIds.size;
   const allSelected = toggles.length > 0 && toggles.every((toggle) => selectedPrintCardItemIds.has(String(toggle.dataset.printCardItemId)));
 
   toggles.forEach((toggle) => {
     const itemId = String(toggle.dataset.printCardItemId);
     const isSelected = selectedPrintCardItemIds.has(itemId);
-    const row = document.getElementById(`order-item-${itemId}`);
     toggle.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
     toggle.style.background = isSelected ? '#183d2b' : '#ffffff';
     toggle.style.borderColor = isSelected ? '#183d2b' : '#c8d3cc';
     toggle.style.color = isSelected ? '#ffffff' : '#183d2b';
+    toggle.style.boxShadow = isSelected ? '0 7px 16px rgba(24,61,43,.18)' : '';
+    toggle.style.transform = isSelected ? 'translateY(-2px)' : '';
     const mark = toggle.querySelector('.card-select-mark');
     if (mark) mark.textContent = isSelected ? '✓' : '○';
-    if (row) {
-      row.style.outline = isSelected ? '2px solid #2f855a' : '';
-      row.style.outlineOffset = isSelected ? '3px' : '';
-      row.style.background = isSelected ? '#f0fff4' : '';
-    }
   });
 
   const count = document.getElementById('selectedPrintCardsCount');
@@ -998,7 +1501,7 @@ function togglePrintCardSelection(event, orderId, itemId) {
 
 function toggleAllPrintCardSelection(orderId) {
   if (selectedPrintCardsOrderId !== Number(orderId)) resetPrintCardSelection(orderId);
-  const itemIds = Array.from(document.querySelectorAll('#detailBody .card-select-toggle[data-print-card-item-id]'))
+  const itemIds = Array.from(document.querySelectorAll('#productionCardPrintDialog .card-select-toggle[data-print-card-item-id]'))
     .map((toggle) => String(toggle.dataset.printCardItemId));
   const allSelected = itemIds.length > 0 && itemIds.every((itemId) => selectedPrintCardItemIds.has(itemId));
   selectedPrintCardItemIds = allSelected ? new Set() : new Set(itemIds);
@@ -1008,6 +1511,33 @@ function toggleAllPrintCardSelection(orderId) {
 function printSelectedCards(orderId) {
   if (!selectedPrintCardItemIds.size) return;
   window.open(printDocumentUrl(orderId, 'print-cards', { itemIds: Array.from(selectedPrintCardItemIds) }), '_blank', 'noopener');
+  closePrintDialog('productionCardPrintDialog');
+}
+
+function openA4PrintDialog(orderId) {
+  closePrintDialog('a4PrintDialog');
+  const dialog = document.createElement('div');
+  dialog.id = 'a4PrintDialog';
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  dialog.style.cssText = 'position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(20,34,27,.48);';
+  dialog.innerHTML = `<div style="width:min(430px,100%);box-sizing:border-box;padding:22px;border-radius:16px;background:#fff;box-shadow:0 22px 70px rgba(0,0,0,.24);direction:rtl;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+      <div><h2 style="margin:0;color:#183d2b;font-size:22px;">הדפסת A4</h2><p style="margin:6px 0 0;color:#587060;font-size:13px;">בחר שפה לפני פתיחת ההדפסה.</p></div>
+      <button type="button" onclick="closePrintDialog('a4PrintDialog')" aria-label="סגור" style="border:0;background:transparent;color:#587060;font-size:26px;line-height:1;cursor:pointer;">&times;</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;">
+      <button type="button" onclick="printA4Document(${orderId}, 'he')" style="padding:16px 12px;border:1px solid #9eb4a5;border-radius:10px;background:#fff;color:#183d2b;cursor:pointer;font-weight:700;">עברית</button>
+      <button type="button" onclick="printA4Document(${orderId}, 'th')" style="padding:16px 12px;border:0;border-radius:10px;background:#16753e;color:#fff;cursor:pointer;font-weight:700;">ไทย</button>
+    </div>
+  </div>`;
+  document.body.appendChild(dialog);
+}
+
+function printA4Document(orderId, language) {
+  const languageParam = language === 'th' ? '&lang=th' : '';
+  window.open(`/order-print.html?id=${orderId}&kind=print-a4${languageParam}`, '_blank', 'noopener');
+  closePrintDialog('a4PrintDialog');
 }
 
 function printDocumentUrl(orderId, documentKey, options = {}) {
@@ -1758,19 +2288,8 @@ function buildDetailHTML(o, pkgs) {
 
   // ── Print buttons
   const prints = `<div class="print-btns">
-    <div class="print-selection-panel" style="width:100%;box-sizing:border-box;margin:0 0 12px;padding:12px 14px;border:1px solid #c8d3cc;border-radius:10px;background:#f7fbf8;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <div><strong>בחירת כרטיסיות להדפסה חוזרת</strong><span id="selectedPrintCardsCount" style="display:block;margin-top:3px;font-size:12px;color:#587060;">לא נבחרו כרטיסיות</span></div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button type="button" id="toggleAllPrintCardsBtn" onclick="toggleAllPrintCardSelection(${o.id})" style="padding:7px 10px;border:1px solid #9eb4a5;border-radius:7px;background:#fff;color:#183d2b;cursor:pointer;">בחר הכל</button>
-          <button type="button" id="printSelectedCardsBtn" onclick="printSelectedCards(${o.id})" disabled style="padding:7px 10px;border:0;border-radius:7px;background:#183d2b;color:#fff;cursor:pointer;">הדפס נבחרים</button>
-        </div>
-      </div>
-      <div style="margin-top:8px;font-size:12px;color:#587060;">סמן ליד כל כרטיסייה שברצונך להדפיס מחדש.</div>
-    </div>
-    <div class="print-action-pair"><a class="print-btn cards" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" rel="noopener">&#128424;&#65039; &#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1493;&#1514; &#1497;&#1497;&#1510;&#1493;&#1512;</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-cards')">📤 שלח קובץ</button></div>
-    <div class="print-action-pair"><a class="print-btn a4" href="/order-print.html?id=${o.id}&kind=print-a4" target="_blank" rel="noopener">&#128196; &#1492;&#1491;&#1508;&#1505;&#1514; A4</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-a4')">📤 שלח קובץ</button></div>
-    <div class="print-action-pair"><a class="print-btn a4" href="/order-print.html?id=${o.id}&kind=print-a4&lang=th" target="_blank" rel="noopener">&#127760; A4 ไทย</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-a4-th')">📤 שלח קובץ</button></div>
+    <div class="print-action-pair"><button type="button" class="print-btn cards" onclick="openProductionCardPrintDialog(${o.id})">&#128424;&#65039; &#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1493;&#1514; &#1497;&#1497;&#1510;&#1493;&#1512;</button><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-cards')">📤 שלח קובץ</button></div>
+    <div class="print-action-pair"><button type="button" class="print-btn a4" onclick="openA4PrintDialog(${o.id})">&#128196; &#1492;&#1491;&#1508;&#1505;&#1514; A4</button><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-a4')">📤 שלח קובץ</button></div>
     <div class="print-action-pair"><a class="print-btn delivery" href="/order-print.html?id=${o.id}&kind=delivery-certificate" target="_blank" rel="noopener">&#128203; &#1514;&#1506;&#1493;&#1491;&#1514; &#1502;&#1513;&#1500;&#1493;&#1495;</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'delivery-certificate')">📤 שלח קובץ</button></div>
   </div>`;
 
@@ -1795,6 +2314,7 @@ function buildDetailHTML(o, pkgs) {
     <div class="d-title">✎ תיקון הזמנה</div>
     <div class="review-actions">
       <button class="review-btn primary" onclick="openOrderEdit(event, ${o.id})">ערוך פרטי הזמנה</button>
+      ${o.status === ORDER_STATUS.CANCELLED ? '' : `<button class="review-btn danger" onclick="openCancellationReview(event, ${o.id})">בטל הזמנה + החלטת תוצרת</button>`}
       <button class="review-btn danger" ${hasStartedProduction ? 'disabled title="לא מוחקים הזמנה לאחר תחילת ייצור באחת הכרטיסיות"' : ''} onclick="deleteOrder(${o.id},${jsAttr(o.order_num)})">מחק הזמנה</button>
     </div>
     <div class="detail-customer" style="margin-top:8px">${hasStartedProduction ? 'החל ייצור בכרטיסייה אחת או יותר: תיקון פרטי ההזמנה דורש הרשאת ניהול וסיבת תיקון. כרטיסייה שכבר החלה ייצור אינה ניתנת למחיקה.' : 'אפשר לערוך או למחוק לפני תחילת ייצור.'}</div>
@@ -1802,7 +2322,7 @@ function buildDetailHTML(o, pkgs) {
 
   // ── Status
   const statuses = [o.status, ...allowedOrderTransitions(o.status)]
-    .filter((status, index, list) => status && list.indexOf(status) === index);
+    .filter((status, index, list) => status && status !== ORDER_STATUS.CANCELLED && list.indexOf(status) === index);
   const statusSec = `<div class="d-section">
     <div class="d-title">🔁 עדכון סטטוס</div>
     <div class="status-actions">
@@ -1849,8 +2369,7 @@ function buildDetailHTML(o, pkgs) {
           data-angles="${encodeURIComponent(JSON.stringify(angles))}"
           onclick="openItemEdit(event, ${o.id}, ${item.id})"
           title="ערוך צורה"></div>`;
-      const cardSelectionToggle = item.id ? `<button type="button" class="card-select-toggle" data-print-card-item-id="${item.id}" onclick="togglePrintCardSelection(event, ${o.id}, ${item.id})" aria-pressed="false" title="בחר כרטיסייה להדפסה" style="float:left;display:flex;align-items:center;gap:5px;margin:0 0 8px 10px;padding:5px 8px;border:1px solid #c8d3cc;border-radius:7px;background:#fff;color:#183d2b;cursor:pointer;font-size:12px;"><span class="card-select-mark" aria-hidden="true">&#9675;</span><span>בחר להדפסה</span></button>` : '';
-      return `<div class="item-row" id="order-item-${item.id}">${cardSelectionToggle}
+      return `<div class="item-row" id="order-item-${item.id}" data-print-card-item-id="${item.id}">
         ${visualHtml}
         <div class="item-main">
           <div class="item-head">
@@ -1874,6 +2393,8 @@ function buildDetailHTML(o, pkgs) {
           ${displayNote ? `<div class="note-chip">⚠ ${escHtml(displayNote)}</div>` : ''}
           <div class="review-actions">
             <button class="review-btn" onclick="openItemEdit(event, ${o.id}, ${item.id})">ערוך פריט</button>
+            ${item.status === ITEM_STATUS.CANCELLED ? '' : `<button class="review-btn danger" onclick="openCancellationReview(event, ${o.id}, ${item.id})">בטל פריט + החלטת תוצרת</button>`}
+            ${historicalItemEligibleForReconciliation(o, item) ? `<button class="review-btn primary" onclick="openHistoricalReconciliation(event, ${o.id}, ${item.id})">תיקון ביצוע היסטורי</button>` : ''}
             <button class="review-btn danger" ${itemStarted ? 'disabled title="לא מוחקים כרטיסייה שכבר התחילה ייצור"' : ''} onclick="deleteOrderItem(event, ${o.id}, ${item.id})">מחק פריט</button>
           </div>
           ${review ? `<div class="review-actions">
