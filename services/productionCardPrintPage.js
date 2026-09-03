@@ -326,7 +326,16 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   font-size:8px;box-shadow:none;position:relative;}
 .prod-card.pile-cage-master-card{border:0.6mm solid #1a2332;background:#fff;}
 .prod-card.pile-cage-component-card{border-style:dashed;}
-.prod-card>:not(.pc-print-face):not(.pc-screen-tools){display:none!important;}
+.prod-card>:not(.pc-print-face):not(.pc-screen-tools):not(.pc-pick){display:none!important;}
+/* Card picking — tap a card to include or exclude it, like picking photos. */
+.pc-pick{position:absolute;top:1.5mm;right:1.5mm;z-index:4;width:6.4mm;height:6.4mm;border-radius:50%;
+  border:0.5mm solid #1a2332;background:#fff;cursor:pointer;padding:0;line-height:1;
+  display:flex;align-items:center;justify-content:center;font-size:3.4mm;font-weight:900;color:transparent;}
+.prod-card[data-picked="1"] .pc-pick{background:#1a7a42;border-color:#1a7a42;color:#fff;}
+.prod-card[data-picked="0"]{opacity:0.34;}
+.prod-card[data-picked="0"] .pc-pick{background:#fff;}
+.pc-pick-bar{display:inline-flex;align-items:center;gap:8px;}
+.pc-pick-bar b{font-variant-numeric:tabular-nums;}
 .pc-screen-tools{position:absolute;top:1.5mm;left:1.5mm;z-index:3;display:flex;align-items:center;gap:4px;direction:rtl;font-family:'Heebo',Arial,sans-serif;}
 .prod-card:not([data-split-menu-open="1"]) .pc-split-menu{display:none!important;}
 .pc-split-hotspot{position:absolute;inset:0;z-index:2;border:0;background:transparent;color:transparent;cursor:pointer;}
@@ -428,6 +437,9 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   }
   .cards-grid{break-before:auto;page-break-before:auto;height:297mm!important;width:210mm!important;}
   .prod-card{border:0.25mm solid #1a2332!important;border-radius:0!important;overflow:hidden!important;box-sizing:border-box!important;width:105mm!important;height:74.25mm!important;}
+  .pc-pick{display:none!important;}
+  .prod-card[data-picked="0"]{display:none!important;}
+  .cards-page[data-empty-page="1"]{display:none!important;}
   .pc-screen-tools{display:none!important;}
   .prod-card>:not(.pc-print-face){display:none!important;}
   .pc-print-face{display:grid!important;grid-template-columns:minmax(0,1fr) 27mm;width:100%;height:100%;background:#fff;direction:ltr;}
@@ -500,6 +512,11 @@ body{font-family:'Heebo',Arial,sans-serif;background:#e8e8e8;padding:16px;direct
   ${previewNoticeHtml}
   <div class="toolbar">
     ${printButtonHtml}
+    <span class="pc-pick-bar">
+      <button type="button" class="btn-print" onclick="pickAllCards(true)">✓ בחר הכל</button>
+      <button type="button" class="btn-print" onclick="pickAllCards(false)">נקה</button>
+      <span style="font-size:13px;color:#555;">נבחרו <b id="pcPickCount">0</b></span>
+    </span>
   <button class="btn-print" onclick="IronBendDocExport.download({ button: this, filename: 'כרטיסיות ייצור ${order.order_num}', pageSelector: '.cards-page', scale: 3 })">⬇️ הורד PDF</button>
   <button class="btn-print" onclick="IronBendDocExport.send({ button: this, filename: 'כרטיסיות ייצור ${order.order_num}', pageSelector: '.cards-page', scale: 3 })">📤 שלח</button>
     <span style="font-size:13px;color:#555;">הזמנה ${order.order_num} · ${order.customer_name || ''} · ${cardItems.length} כרטיסיות</span>
@@ -1144,7 +1161,8 @@ function buildCard(item, subQty, totalCards, cardIdx) {
   var splitTools = !allowSplit ? '<div class="pc-screen-tools"><span class="pc-split-state">'+(isPileAssembly?'הרכבת כלונס':'רכיב כלונס')+'</span></div>' : totalCards > 1
     ? '<div class="pc-screen-tools"><div class="pc-split-menu"><span class="pc-split-state">\u05db\u05e8\u05d8\u05d9\u05e1 '+(cardIdx+1)+'/'+totalCards+'</span><button type="button" onclick="setCardSplit('+item.id+',1,event)">\u05d1\u05d8\u05dc \u05e4\u05d9\u05e6\u05d5\u05dc</button></div></div>'
     : '<button class="pc-split-hotspot" type="button" aria-label="\u05d0\u05e4\u05e9\u05e8\u05d5\u05d9\u05d5\u05ea \u05e4\u05d9\u05e6\u05d5\u05dc \u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d9\u05d4" onclick="openCardSplitMenu('+item.id+',event)"></button><div class="pc-screen-tools"><div class="pc-split-menu"><button type="button" onclick="setCardSplit('+item.id+',2,event)">\u05e4\u05e6\u05dc \u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d9\u05d4</button></div></div>';
-  var h = '<div class="prod-card'+(isPileAssembly ? ' pile-cage-master-card pile-cage-assembly-card' : (item.pile_component_type ? ' pile-cage-component-card' : ''))+'" data-item-id="'+cardKey+'" data-parent-item-id="'+itemId+'" data-virtual-card="'+(item.virtual_card?1:0)+'">';
+  var h = '<div class="prod-card'+(isPileAssembly ? ' pile-cage-master-card pile-cage-assembly-card' : (item.pile_component_type ? ' pile-cage-component-card' : ''))+'" data-item-id="'+cardKey+'" data-parent-item-id="'+itemId+'" data-virtual-card="'+(item.virtual_card?1:0)+'" data-picked="1">';
+  h += '<button type="button" class="pc-pick" title="\u05e1\u05de\u05df / \u05d1\u05d8\u05dc \u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d9\u05d4 \u05d6\u05d5" onclick="togglePickedCard(this,event)">\u2713</button>';
   h += splitTools;
   h += '<div class="pc-print-face">';
   h += '<div class="pc-print-main">';
@@ -1302,6 +1320,42 @@ function renderWorkerCardQrCodes() {
   return Promise.all(jobs);
 }
 
+// A card that is not picked leaves the flow entirely, so the remaining cards
+// close ranks instead of printing a page full of holes.
+function togglePickedCard(button, event) {
+  if (event) event.stopPropagation();
+  var card = button.closest('.prod-card');
+  if (!card) return;
+  card.setAttribute('data-picked', card.getAttribute('data-picked') === '0' ? '1' : '0');
+  refreshPickedCards();
+}
+
+function pickAllCards(on) {
+  document.querySelectorAll('.prod-card').forEach(function (card) {
+    card.setAttribute('data-picked', on ? '1' : '0');
+  });
+  refreshPickedCards();
+}
+
+function refreshPickedCards() {
+  var cards = document.querySelectorAll('.prod-card');
+  var picked = 0;
+  cards.forEach(function (card) {
+    var on = card.getAttribute('data-picked') !== '0';
+    if (on) picked++;
+    // doc-export skips [data-export-hide], so the PDF matches the printout
+    if (on) card.removeAttribute('data-export-hide');
+    else card.setAttribute('data-export-hide', '1');
+  });
+  document.querySelectorAll('.cards-page').forEach(function (page) {
+    var any = page.querySelector('.prod-card:not([data-picked="0"])');
+    if (any) { page.removeAttribute('data-empty-page'); page.removeAttribute('data-export-hide'); }
+    else { page.setAttribute('data-empty-page', '1'); page.setAttribute('data-export-hide', '1'); }
+  });
+  var counter = document.getElementById('pcPickCount');
+  if (counter) counter.textContent = picked + ' / ' + cards.length;
+}
+
 function printCards() {
   if (PREVIEW_ONLY) { alert('\u05d4\u05db\u05e8\u05d8\u05d9\u05e1\u05d9\u05d5\u05ea \u05d1\u05ea\u05e6\u05d5\u05d2\u05d4 \u05d1\u05dc\u05d1\u05d3. \u05d9\u05e9 \u05dc\u05d0\u05e9\u05e8/\u05dc\u05ea\u05db\u05e0\u05df \u05d0\u05ea \u05d4\u05d4\u05d6\u05de\u05e0\u05d4 \u05dc\u05e4\u05e0\u05d9 \u05d4\u05d3\u05e4\u05e1\u05d4.'); return; }
   generateCards();
@@ -1313,6 +1367,7 @@ function printCards() {
 (function() {
   generateCards();
   renderWorkerCardQrCodes();
+  refreshPickedCards();
 })();
 </script>
 <script src="/vendor/html2canvas.min.js"></script>

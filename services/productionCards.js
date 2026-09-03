@@ -1022,7 +1022,10 @@ function itemCard(item, order, printDate, rebarWeights) {
     : (kgPerMeter ? (Math.round((totalLengthMm || 0) / 1000 * kgPerMeter * (item.quantity || 1) * 10) / 10).toFixed(2) : '0.00');
 
 
-  return '<div class="prod-card">' +
+  // Every card can be picked or dropped on the sheet itself, the way photos are
+  // picked, so the operator sees exactly what they are choosing.
+  return '<div class="prod-card" data-picked="1">' +
+    '<button type="button" class="pc-pick" title="סמן / בטל כרטיסייה זו" onclick="togglePickedCard(this,event)">✓</button>' +
     '<div class="pc-head">' +
       `<div><div class="pc-title">${escapeHtml(title)}</div><div class="pc-date">${escapeHtml(shapeSubtitle)} · ${escapeHtml(printDate)}</div></div>` +
       `<div class="pc-top-barcode"><div class="bc-font-top">${escapeHtml(barcode)}</div><div class="bc-label">${escapeHtml(barcode)}</div></div>` +
