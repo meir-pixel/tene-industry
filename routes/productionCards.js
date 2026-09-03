@@ -7,6 +7,51 @@ function required(name, value) {
   return value;
 }
 
+function parsePositiveIdList(value) {
+  if (value === undefined) return null;
+  const rawValues = Array.isArray(value) ? value : String(value).split(',');
+  const normalized = [];
+
+  for (const raw of rawValues) {
+    const parts = String(raw).split(',');
+    for (const part of parts) {
+      const normalizedValue = String(part || '').trim();
+      if (!normalizedValue) continue;
+      const parsed = Number(normalizedValue);
+      if (!Number.isInteger(parsed) || parsed <= 0) return { error: `invalid item id: ${normalizedValue}` };
+      normalized.push(parsed);
+    }
+  }
+
+  if (!normalized.length) return { error: 'itemIds cannot be empty' };
+  return { ids: [...new Set(normalized)] };
+}
+
+function parseCardKeyList(value) {
+  if (value === undefined) return null;
+  const rawValues = Array.isArray(value) ? value : String(value).split(',');
+  const normalized = [];
+
+  for (const raw of rawValues) {
+    const parts = String(raw).split(',');
+    for (const part of parts) {
+      const normalizedValue = String(part || '').trim();
+      if (!normalizedValue) continue;
+      if (!/^[a-zA-Z0-9_-]+$/.test(normalizedValue)) {
+        return { error: 'cardKeys must contain only letters, numbers, underscores and hyphens' };
+      }
+      normalized.push(normalizedValue);
+    }
+  }
+
+  if (!normalized.length) return { error: 'cardKeys cannot be empty' };
+  return { values: [...new Set(normalized)] };
+}
+
+function normalizeCardKey(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
 module.exports = function createProductionCardsRouter(deps) {
   const db = required('db', deps.db);
   const requireAnyRole = required('requireAnyRole', deps.requireAnyRole);
@@ -31,6 +76,18 @@ module.exports = function createProductionCardsRouter(deps) {
 
 // ── PRINT CARDS ───────────────────────────────────────────────────
 router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'manager', 'admin']), (req, res) => {
+  const itemIdsFromQuery = req.query.itemIds ?? req.query.item_ids;
+  const parsedItemIds = parsePositiveIdList(itemIdsFromQuery);
+  if (parsedItemIds && parsedItemIds.error) return res.status(400).send('Invalid itemIds. Use comma-separated positive integers.');
+  const selectedItemIds = parsedItemIds && parsedItemIds.ids ? new Set(parsedItemIds.ids) : null;
+
+  const cardKeysFromQuery = req.query.cardKeys ?? req.query.card_keys;
+  const parsedCardKeys = parseCardKeyList(cardKeysFromQuery);
+  if (parsedCardKeys && parsedCardKeys.error) return res.status(400).send('Invalid cardKeys. Use comma-separated values.');
+  const selectedCardKeys = parsedCardKeys && parsedCardKeys.values
+    ? new Set(parsedCardKeys.values.map(cardKey => normalizeCardKey(cardKey)).filter(Boolean))
+    : null;
+
   const order = db.prepare(`SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address,
       p.name as project_name, COALESCE(cs.name, legacy_site.name) as site_name
     FROM orders o
@@ -58,6 +115,41 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
   order.pallets = pallets;
 
   const allItems = pallets.flatMap(p => p.items);
+  const filteredItems = selectedItemIds
+    ? allItems.filter(item => selectedItemIds.has(Number(item.id)))
+    : allItems;
+  if (selectedItemIds && filteredItems.length !== selectedItemIds.size) {
+    const missing = [...selectedItemIds].filter(itemId => !allItems.some(item => Number(item.id) === itemId));
+    if (missing.length) {
+      return res.status(404).json({
+        error: 'One or more requested itemIds were not found in this order',
+        missing_item_ids: missing,
+      });
+    }
+  }
+
+  if (selectedItemIds && !filteredItems.length) {
+    return res.status(404).json({ error: 'No matching items for requested itemIds' });
+  }
+
+  const cardFilterSourceItems = selectedItemIds ? filteredItems : allItems;
+  const selectedCardKeysSet = selectedCardKeys && selectedCardKeys.size ? selectedCardKeys : null;
+  let validatedCardKeys = null;
+  if (selectedCardKeysSet) {
+    const expandedCards = printPage.expandProductionCardsForOrder(cardFilterSourceItems, tryParseJSON);
+    const availableCardKeys = new Set(
+      expandedCards.map(item => normalizeCardKey(item.card_key || item.id)).filter(Boolean)
+    );
+    const missingCardKeys = [...selectedCardKeysSet].filter(cardKey => !availableCardKeys.has(cardKey));
+    if (missingCardKeys.length) {
+      return res.status(404).json({
+        error: 'One or more requested cardKeys were not found in this order',
+        missing_card_keys: missingCardKeys,
+      });
+    }
+    validatedCardKeys = selectedCardKeysSet;
+  }
+
   const previewOnly = allItems.length && !canCreateProductionCards(order);
   const cardWeights = db.prepare('SELECT * FROM production_card_weights WHERE order_id=? ORDER BY item_id, card_total, card_index').all(order.id);
   const weightsByItem = new Map();
@@ -66,7 +158,7 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
     if (!weightsByItem.has(key)) weightsByItem.set(key, []);
     weightsByItem.get(key).push(row);
   }
-  allItems.forEach(item => {
+  filteredItems.forEach(item => {
     item.card_weights = weightsByItem.get(Number(item.id)) || [];
   });
 
@@ -82,7 +174,8 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
   const html = printPage.renderPrintCardsPage({
     order,
     pallets,
-    allItems,
+    allItems: filteredItems,
+    selectedCardKeys: validatedCardKeys,
     printDate,
     delivDate,
     cards,
@@ -92,7 +185,7 @@ router.get('/orders/:id/print-cards', requireAnyRole(['office', 'production', 'm
     publicBaseUrl: requestPublicBaseUrl(req, settingsService),
   });
 
-  console.log('[print-cards] order', req.params.id, '→', allItems.length, 'items server-rendered');
+  console.log('[print-cards] order', req.params.id, '→', filteredItems.length, 'items server-rendered');
 
   if (previewOnly) res.setHeader('X-Production-Cards-Preview-Only', '1');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');

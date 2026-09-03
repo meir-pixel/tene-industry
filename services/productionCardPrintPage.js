@@ -145,6 +145,20 @@ function pileComponentShapeSvg(card, fallbackLengthMm, scope = 'pile') {
   return '';
 }
 
+function normalizeCardPrintKey(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+function normalizeCardKeySet(cardKeys) {
+  if (!cardKeys || !cardKeys.size) return null;
+  const normalized = new Set();
+  for (const cardKey of cardKeys) {
+    const cleaned = normalizeCardPrintKey(cardKey);
+    if (cleaned) normalized.add(cleaned);
+  }
+  return normalized.size ? normalized : null;
+}
+
 function fallbackPileProductionCards(item, snapshot) {
   if (snapshot?.validation && (snapshot.validation.ok === false || snapshot.validation.valid === false)) return [];
   const calculated = calculatePileCage(snapshot);
@@ -236,6 +250,7 @@ function renderPrintCardsPage({
   order,
   pallets,
   allItems,
+  selectedCardKeys,
   printDate,
   delivDate,
   cards,
@@ -263,9 +278,13 @@ function renderA4CardPages(cardHtmlList) {
   return pages.join('');
 }
 
-const numberedItems = cards.attachOrderLineNumbers ? cards.attachOrderLineNumbers(allItems) : allItems;
-const cardItems = expandPileCageProductionItems(numberedItems, tryParseJSON);
-const serverCardsHtml = renderA4CardPages(cardItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))));
+ const numberedItems = cards.attachOrderLineNumbers ? cards.attachOrderLineNumbers(allItems) : allItems;
+ const requestedCardKeys = normalizeCardKeySet(selectedCardKeys);
+ const expandedCardItems = expandPileCageProductionItems(numberedItems, tryParseJSON);
+ const cardItems = requestedCardKeys && requestedCardKeys.size
+   ? expandedCardItems.filter(item => requestedCardKeys.has(normalizeCardPrintKey(item.card_key || item.id)))
+   : expandedCardItems;
+ const serverCardsHtml = renderA4CardPages(cardItems.map(it => cards.itemCard(it, order, printDate, (industry.REBAR_WEIGHTS || {}))));
 
 
 

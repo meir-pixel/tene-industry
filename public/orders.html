@@ -916,9 +916,13 @@ async function openDetail(id) {
   currentDetailOrder = o;
   document.getElementById('detailOrderNum').textContent = o.order_num;
   document.getElementById('detailCustomer').textContent = [`הזמנה ${o.order_num}`, o.customer_name].filter(Boolean).join(' · ');
+  resetPrintCardSelection(o.id);
   document.getElementById('detailBody').innerHTML = buildDetailHTML(o, pkgs);
   document.getElementById('detailOverlay').classList.add('show');
-  requestAnimationFrame(renderDetailShapes);
+  requestAnimationFrame(() => {
+    renderDetailShapes();
+    syncPrintCardSelection();
+  });
   history.replaceState(null, '', `?id=${id}`);
 }
 
@@ -942,11 +946,95 @@ function closeOrderEditPanel() {
   orderEditOrder = null;
 }
 
+let selectedPrintCardItemIds = new Set();
+let selectedPrintCardsOrderId = null;
+
+function resetPrintCardSelection(orderId) {
+  selectedPrintCardsOrderId = Number(orderId);
+  selectedPrintCardItemIds = new Set();
+}
+
+function syncPrintCardSelection() {
+  const toggles = Array.from(document.querySelectorAll('#detailBody .card-select-toggle[data-print-card-item-id]'));
+  const selectedCount = selectedPrintCardItemIds.size;
+  const allSelected = toggles.length > 0 && toggles.every((toggle) => selectedPrintCardItemIds.has(String(toggle.dataset.printCardItemId)));
+
+  toggles.forEach((toggle) => {
+    const itemId = String(toggle.dataset.printCardItemId);
+    const isSelected = selectedPrintCardItemIds.has(itemId);
+    const row = document.getElementById(`order-item-${itemId}`);
+    toggle.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+    toggle.style.background = isSelected ? '#183d2b' : '#ffffff';
+    toggle.style.borderColor = isSelected ? '#183d2b' : '#c8d3cc';
+    toggle.style.color = isSelected ? '#ffffff' : '#183d2b';
+    const mark = toggle.querySelector('.card-select-mark');
+    if (mark) mark.textContent = isSelected ? '✓' : '○';
+    if (row) {
+      row.style.outline = isSelected ? '2px solid #2f855a' : '';
+      row.style.outlineOffset = isSelected ? '3px' : '';
+      row.style.background = isSelected ? '#f0fff4' : '';
+    }
+  });
+
+  const count = document.getElementById('selectedPrintCardsCount');
+  if (count) count.textContent = selectedCount ? `${selectedCount} כרטיסיות נבחרו` : 'לא נבחרו כרטיסיות';
+
+  const printButton = document.getElementById('printSelectedCardsBtn');
+  if (printButton) printButton.disabled = selectedCount === 0;
+
+  const selectAllButton = document.getElementById('toggleAllPrintCardsBtn');
+  if (selectAllButton) selectAllButton.textContent = allSelected ? 'בטל הכל' : 'בחר הכל';
+}
+
+function togglePrintCardSelection(event, orderId, itemId) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (selectedPrintCardsOrderId !== Number(orderId)) resetPrintCardSelection(orderId);
+  const key = String(itemId);
+  if (selectedPrintCardItemIds.has(key)) selectedPrintCardItemIds.delete(key);
+  else selectedPrintCardItemIds.add(key);
+  syncPrintCardSelection();
+}
+
+function toggleAllPrintCardSelection(orderId) {
+  if (selectedPrintCardsOrderId !== Number(orderId)) resetPrintCardSelection(orderId);
+  const itemIds = Array.from(document.querySelectorAll('#detailBody .card-select-toggle[data-print-card-item-id]'))
+    .map((toggle) => String(toggle.dataset.printCardItemId));
+  const allSelected = itemIds.length > 0 && itemIds.every((itemId) => selectedPrintCardItemIds.has(itemId));
+  selectedPrintCardItemIds = allSelected ? new Set() : new Set(itemIds);
+  syncPrintCardSelection();
+}
+
+function printSelectedCards(orderId) {
+  if (!selectedPrintCardItemIds.size) return;
+  window.open(printDocumentUrl(orderId, 'print-cards', { itemIds: Array.from(selectedPrintCardItemIds) }), '_blank', 'noopener');
+}
+
 function printDocumentUrl(orderId, documentKey, options = {}) {
   const documentInfo = PRINT_DOCUMENTS[documentKey];
   if (!documentInfo) return '';
   const params = new URLSearchParams({ id: String(orderId), kind: documentInfo.kind });
   if (documentInfo.lang) params.set('lang', documentInfo.lang);
+  if (options.cardKeys) {
+    const cardKeys = Array.isArray(options.cardKeys)
+      ? options.cardKeys
+      : String(options.cardKeys).split(',');
+    const normalized = cardKeys
+      .map(key => String(key || '').trim().replace(/[^a-zA-Z0-9_-]/g, ''))
+      .filter(Boolean)
+      .filter((value, index, list) => list.indexOf(value) === index);
+    if (normalized.length) params.set('cardKeys', normalized.join(','));
+  }
+  if (options.itemIds) {
+    const itemIds = Array.isArray(options.itemIds)
+      ? options.itemIds
+      : String(options.itemIds).split(',');
+    const normalized = itemIds
+      .map(id => String(id || '').trim())
+      .filter(Boolean)
+      .filter((value, index, list) => list.indexOf(value) === index);
+    if (normalized.length) params.set('itemIds', normalized.join(','));
+  }
   if (options.autoPrint) params.set('auto_print', '1');
   return '/order-print.html?' + params.toString();
 }
@@ -1670,6 +1758,16 @@ function buildDetailHTML(o, pkgs) {
 
   // ── Print buttons
   const prints = `<div class="print-btns">
+    <div class="print-selection-panel" style="width:100%;box-sizing:border-box;margin:0 0 12px;padding:12px 14px;border:1px solid #c8d3cc;border-radius:10px;background:#f7fbf8;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div><strong>בחירת כרטיסיות להדפסה חוזרת</strong><span id="selectedPrintCardsCount" style="display:block;margin-top:3px;font-size:12px;color:#587060;">לא נבחרו כרטיסיות</span></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button type="button" id="toggleAllPrintCardsBtn" onclick="toggleAllPrintCardSelection(${o.id})" style="padding:7px 10px;border:1px solid #9eb4a5;border-radius:7px;background:#fff;color:#183d2b;cursor:pointer;">בחר הכל</button>
+          <button type="button" id="printSelectedCardsBtn" onclick="printSelectedCards(${o.id})" disabled style="padding:7px 10px;border:0;border-radius:7px;background:#183d2b;color:#fff;cursor:pointer;">הדפס נבחרים</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#587060;">סמן ליד כל כרטיסייה שברצונך להדפיס מחדש.</div>
+    </div>
     <div class="print-action-pair"><a class="print-btn cards" href="/order-print.html?id=${o.id}&kind=print-cards" target="_blank" rel="noopener">&#128424;&#65039; &#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1493;&#1514; &#1497;&#1497;&#1510;&#1493;&#1512;</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-cards')">📤 שלח קובץ</button></div>
     <div class="print-action-pair"><a class="print-btn a4" href="/order-print.html?id=${o.id}&kind=print-a4" target="_blank" rel="noopener">&#128196; &#1492;&#1491;&#1508;&#1505;&#1514; A4</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-a4')">📤 שלח קובץ</button></div>
     <div class="print-action-pair"><a class="print-btn a4" href="/order-print.html?id=${o.id}&kind=print-a4&lang=th" target="_blank" rel="noopener">&#127760; A4 ไทย</a><button type="button" class="send-file-btn" onclick="openSendFile(event,${o.id},'print-a4-th')">📤 שלח קובץ</button></div>
@@ -1751,7 +1849,8 @@ function buildDetailHTML(o, pkgs) {
           data-angles="${encodeURIComponent(JSON.stringify(angles))}"
           onclick="openItemEdit(event, ${o.id}, ${item.id})"
           title="ערוך צורה"></div>`;
-      return `<div class="item-row" id="order-item-${item.id}">
+      const cardSelectionToggle = item.id ? `<button type="button" class="card-select-toggle" data-print-card-item-id="${item.id}" onclick="togglePrintCardSelection(event, ${o.id}, ${item.id})" aria-pressed="false" title="בחר כרטיסייה להדפסה" style="float:left;display:flex;align-items:center;gap:5px;margin:0 0 8px 10px;padding:5px 8px;border:1px solid #c8d3cc;border-radius:7px;background:#fff;color:#183d2b;cursor:pointer;font-size:12px;"><span class="card-select-mark" aria-hidden="true">&#9675;</span><span>בחר להדפסה</span></button>` : '';
+      return `<div class="item-row" id="order-item-${item.id}">${cardSelectionToggle}
         ${visualHtml}
         <div class="item-main">
           <div class="item-head">
